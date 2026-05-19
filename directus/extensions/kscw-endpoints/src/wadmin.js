@@ -104,13 +104,7 @@ export function parseQuery(q) {
 }
 
 export async function isManagerUser(database, userId) {
-  if (!userId) return false
-  const row = await database('directus_users')
-    .join('directus_roles', 'directus_users.role', 'directus_roles.id')
-    .where('directus_users.id', userId)
-    .select('directus_roles.name as role_name')
-    .first()
-  return isManager(row ? row.role_name : null)
+  return isManager(await resolveRoleName(database, userId))
 }
 
 export function buildUpsert(userId, sections) {
@@ -252,7 +246,7 @@ export function registerWadmin(router, ctx) {
       const rows = await database('directus_users')
         .join('directus_roles', 'directus_users.role', 'directus_roles.id')
         .leftJoin('website_admin_access', 'website_admin_access.user', 'directus_users.id')
-        .whereRaw('LOWER(directus_roles.name) = ?', ['website admin'])
+        .whereRaw('LOWER(directus_roles.name) = ?', [GATED_ROLE])
         .select(
           'directus_users.id as id',
           'directus_users.first_name as first_name',

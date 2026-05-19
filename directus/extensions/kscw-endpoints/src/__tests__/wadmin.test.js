@@ -149,4 +149,24 @@ describe('wadmin management', () => {
     expect(JSON.parse(u.row.sections)).toEqual(['news','sponsors'])
     expect(u.conflict).toBe('user')
   })
+
+  it('buildUpsert yields valid pg ON CONFLICT SQL (quoted "user", no double-encode)', async () => {
+    const { default: knexFactory } = await import('knex')
+    const knex = knexFactory({ client: 'pg' })
+    const { row, conflict } = buildUpsert('u-1', ['news', 'bogus', 'sponsors'])
+    const q = knex('website_admin_access')
+      .insert(row)
+      .onConflict(conflict)
+      .merge({ sections: row.sections, date_updated: knex.fn.now() })
+      .toSQL()
+    expect(q.sql).toContain('on conflict ("user")')   // reserved word correctly quoted
+    expect(q.sql).toContain('do update set')
+    expect(q.bindings).toContain('u-1')
+    // sections binding is the JSON string ["news","sponsors"] — parsed once, NOT double-encoded
+    const sectionsBinding = q.bindings.find(
+      (b) => typeof b === 'string' && b.startsWith('[')
+    )
+    expect(JSON.parse(sectionsBinding)).toEqual(['news', 'sponsors'])
+    await knex.destroy()
+  })
 })
