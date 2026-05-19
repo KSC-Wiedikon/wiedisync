@@ -664,6 +664,24 @@ async function main() {
   // this safe — a coach can only flip the flag for their own team's members.
   await setPerm(LEADER_POLICY, 'members', 'update', COACH_TEAM_MEMBERS, ['position', 'number', 'coach_approved_team'])
 
+  // Reject a pending signup (TeamDetail.handleReject) writes
+  // { kscw_membership_active:false, wiedisync_active:false, requested_team:null }
+  // on a member who has NOT been approved yet — so they have no member_teams
+  // row and COACH_TEAM_MEMBERS above can't match. Scope this second update row
+  // by the signup's `requested_team` instead: a coach/TR may reject only
+  // members who requested a team they lead. Directus unions update rows, so a
+  // pending signup matches THIS row's fields while real roster members match
+  // the COACH_TEAM_MEMBERS row's fields. (requested_team is M2O members→teams.)
+  const COACH_REQUESTED_TEAM = {
+    requested_team: {
+      _or: [
+        { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+      ],
+    },
+  }
+  await setPerm(LEADER_POLICY, 'members', 'update', COACH_REQUESTED_TEAM, ['kscw_membership_active', 'wiedisync_active', 'requested_team'])
+
   // Coach Dashboard prefs — explicit read for Leader (Coach/TR).
   // PUBLIC_TEAM_FIELDS doesn't include these, so KSCW Member never sees them.
   await setPermRead(LEADER_POLICY, 'teams', null, LEADER_TEAM_DASHBOARD_FIELDS)
