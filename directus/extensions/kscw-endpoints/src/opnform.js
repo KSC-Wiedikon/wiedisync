@@ -7,7 +7,6 @@
  */
 
 const OPNFORM_BASE = (process.env.OPNFORM_BASE_URL || 'https://forms.kscw.ch').replace(/\/$/, '')
-const TOKEN = process.env.OPNFORM_PAT || ''
 const COUNT_CACHE_TTL_MS = 60_000
 const FORM_META_CACHE_TTL_MS = 5 * 60_000
 
@@ -16,19 +15,20 @@ const formMetaCache = new Map() // slug → { properties, title, expiresAt }
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,80}$/i
 
-function badSlug(slug) {
+export function badSlug(slug) {
   return !slug || !SLUG_RE.test(slug)
 }
 
 async function opnformFetch(path, { method = 'GET' } = {}) {
-  if (!TOKEN) {
+  const token = process.env.OPNFORM_PAT || ''
+  if (!token) {
     const err = new Error('OPNFORM_PAT not configured')
     err.status = 503
     throw err
   }
   const res = await fetch(`${OPNFORM_BASE}/api/open${path}`, {
     method,
-    headers: { Authorization: `Bearer ${TOKEN}`, Accept: 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   })
   if (!res.ok) {
     const err = new Error(`OpnForm ${res.status} on ${path}`)
@@ -58,6 +58,37 @@ async function getFormMeta(slug) {
   return meta
 }
 
+export async function getCount(slug) {
+  const cached = countCache.get(slug)
+  if (cached && cached.expiresAt > Date.now()) return { count: cached.value, cached: true }
+  const json = await opnformFetch(`/forms/${encodeURIComponent(slug)}/submissions?per_page=1`)
+  const total = Number(json?.meta?.total ?? 0) || 0
+  countCache.set(slug, { value: total, expiresAt: Date.now() + COUNT_CACHE_TTL_MS })
+  return { count: total, cached: false }
+}
+
+export async function listSubmissions(slug, { page = 1, perPage = 100 } = {}) {
+  const pp = Math.min(100, Math.max(1, Number(perPage) || 100))
+  const pg = Math.max(1, Number(page) || 1)
+  const [submissionsJson, meta] = await Promise.all([
+    opnformFetch(`/forms/${encodeURIComponent(slug)}/submissions?per_page=${pp}&page=${pg}`),
+    getFormMeta(slug),
+  ])
+  const data = Array.isArray(submissionsJson?.data) ? submissionsJson.data : []
+  const total = Number(submissionsJson?.meta?.total ?? data.length)
+  const lastPage = Number(submissionsJson?.meta?.last_page ?? 1)
+  return { title: meta.title, fields: meta.properties, data, total, page: pg, per_page: pp, last_page: lastPage }
+}
+
+export async function deleteSubmission(slug, id) {
+  await opnformFetch(
+    `/forms/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  )
+  countCache.delete(slug)
+  return { ok: true }
+}
+
 export function registerOpnform(router, { logger }) {
   const log = logger.child({ endpoint: 'opnform' })
 
@@ -66,15 +97,9 @@ export function registerOpnform(router, { logger }) {
     const { slug } = req.params
     if (badSlug(slug)) return res.status(400).json({ error: 'Invalid slug' })
 
-    const cached = countCache.get(slug)
-    if (cached && cached.expiresAt > Date.now()) {
-      return res.json({ count: cached.value, cached: true })
-    }
     try {
-      const json = await opnformFetch(`/forms/${encodeURIComponent(slug)}/submissions?per_page=1`)
-      const total = Number(json?.meta?.total ?? 0) || 0
-      countCache.set(slug, { value: total, expiresAt: Date.now() + COUNT_CACHE_TTL_MS })
-      res.json({ count: total, cached: false })
+      const r = await getCount(slug)
+      res.json(r)
     } catch (err) {
       if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
       log.warn({ msg: 'OpnForm count failed', slug, status: err.status, error: err.message })
@@ -92,24 +117,9 @@ export function registerOpnform(router, { logger }) {
 
     const perPage = Math.min(100, Math.max(1, Number(req.query.per_page) || 100))
     const page = Math.max(1, Number(req.query.page) || 1)
-
     try {
-      const [submissionsJson, meta] = await Promise.all([
-        opnformFetch(`/forms/${encodeURIComponent(slug)}/submissions?per_page=${perPage}&page=${page}`),
-        getFormMeta(slug),
-      ])
-      const data = Array.isArray(submissionsJson?.data) ? submissionsJson.data : []
-      const total = Number(submissionsJson?.meta?.total ?? data.length)
-      const lastPage = Number(submissionsJson?.meta?.last_page ?? 1)
-      res.json({
-        title: meta.title,
-        fields: meta.properties,
-        data,
-        total,
-        page,
-        per_page: perPage,
-        last_page: lastPage,
-      })
+      const payload = await listSubmissions(slug, { page, perPage })
+      res.json(payload)
     } catch (err) {
       if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
       log.warn({ msg: 'OpnForm submissions failed', slug, status: err.status, error: err.message })
@@ -129,11 +139,7 @@ export function registerOpnform(router, { logger }) {
     }
 
     try {
-      await opnformFetch(
-        `/forms/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(id)}`,
-        { method: 'DELETE' },
-      )
-      countCache.delete(slug) // count is now stale
+      await deleteSubmission(slug, id)
       res.json({ ok: true })
     } catch (err) {
       if (err.status === 404) return res.status(404).json({ error: 'Submission not found' })
