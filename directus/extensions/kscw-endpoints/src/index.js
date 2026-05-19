@@ -34,7 +34,7 @@ import { registerMigrationsStatus } from './migrations-status.js'
 import { registerSyncStatus } from './sync-status.js'
 import { registerAudit } from './audit.js'
 import { registerOpnform } from './opnform.js'
-import { registerWadmin } from "./wadmin.js"
+import { registerWadmin } from './wadmin.js'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
