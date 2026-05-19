@@ -32,7 +32,9 @@ async function opnformFetch(path, { method = 'GET' } = {}) {
   })
   if (!res.ok) {
     const err = new Error(`OpnForm ${res.status} on ${path}`)
-    err.status = res.status === 404 ? 404 : 502
+    // Pass through auth/not-found so callers can report something useful
+    // instead of a misleading 502.
+    err.status = [401, 403, 404].includes(res.status) ? res.status : 502
     throw err
   }
   const text = await res.text()
@@ -135,6 +137,10 @@ export function registerOpnform(router, { logger }) {
       res.json({ ok: true })
     } catch (err) {
       if (err.status === 404) return res.status(404).json({ error: 'Submission not found' })
+      if (err.status === 401 || err.status === 403) {
+        log.warn({ msg: 'OpnForm delete unauthorized', slug, id, status: err.status })
+        return res.status(403).json({ error: 'OpnForm rejected the delete — the OPNFORM_PAT likely lacks the forms-write ability' })
+      }
       log.warn({ msg: 'OpnForm delete failed', slug, id, status: err.status, error: err.message })
       res.status(err.status || 502).json({ error: 'Upstream error' })
     }
