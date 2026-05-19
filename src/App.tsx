@@ -62,13 +62,18 @@ const ConversationPage = lazy(() => import('./modules/messaging/pages/Conversati
 const MessagingSettingsPage = lazy(() => import('./modules/messaging/pages/MessagingSettingsPage'))
 const AdminReportsPage = lazy(() => import('./modules/admin/AdminReportsPage'))
 
-// Stale lazy-import chunks (after a deploy) throw
-// `TypeError: Failed to fetch dynamically imported module: …` in Chromium and
-// `Importing a module script failed.` in Safari. Detected here so we can hot-
-// reload once instead of stranding the user on a blank /guide-style page.
+// Stale lazy-import chunks (after a deploy) throw a different message per
+// engine — Chromium: `Failed to fetch dynamically imported module`,
+// Firefox desktop: `error loading dynamically imported module`, older
+// Safari: `Importing a module script failed`, and crucially WebKit/iOS
+// (Safari + Firefox iOS + Chrome iOS, where the SPA fallback serves
+// index.html for a missing chunk): `'text/html' is not a valid JavaScript
+// MIME type` / Chrome's strict-MIME `expected a JavaScript … module script
+// but the server responded with a MIME type`. Detected here so we hot-reload
+// once instead of stranding the user on a blank screen + Sentry noise.
 function isChunkLoadError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error ?? '')
-  return /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk \d+ failed|ChunkLoadError/i.test(msg)
+  return /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Loading chunk \d+ failed|ChunkLoadError|is not a valid JavaScript MIME type|expected a JavaScript(?:-or-Wasm)? module script but the server responded with a MIME type/i.test(msg)
 }
 
 const RELOAD_COOLDOWN_KEY = 'wiedisync-chunk-reload-ts'
