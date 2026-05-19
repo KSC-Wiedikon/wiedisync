@@ -116,5 +116,8 @@ describe('wadmin gate + scope', () => {
       fields: ['id','title'], sort: ['-date','name'], limit: -1,
     })
     expect(parseQuery({})).toEqual({})
+    expect(parseQuery({ fields: ['id','title'], sort: ['-date'] })).toEqual({
+      fields: ['id','title'], sort: ['-date'],
+    })
   })
 })

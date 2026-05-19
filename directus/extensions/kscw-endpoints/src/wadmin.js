@@ -86,8 +86,16 @@ export function assertCollection(section, collection) {
 export function parseQuery(q) {
   const out = {}
   if (q && typeof q.filter === 'object' && q.filter !== null) out.filter = q.filter
-  if (typeof q?.fields === 'string') out.fields = q.fields.split(',').map(s => s.trim()).filter(Boolean)
-  if (typeof q?.sort === 'string') out.sort = q.sort.split(',').map(s => s.trim()).filter(Boolean)
+  if (q?.fields !== undefined) {
+    out.fields = Array.isArray(q.fields)
+      ? q.fields
+      : String(q.fields).split(',').map(s => s.trim()).filter(Boolean)
+  }
+  if (q?.sort !== undefined) {
+    out.sort = Array.isArray(q.sort)
+      ? q.sort
+      : String(q.sort).split(',').map(s => s.trim()).filter(Boolean)
+  }
   if (q?.limit !== undefined) out.limit = Number(q.limit)
   if (q?.offset !== undefined) out.offset = Number(q.offset)
   if (q?.page !== undefined) out.page = Number(q.page)
@@ -109,12 +117,10 @@ export function registerWadmin(router, ctx) {
   }
 
   function sendErr(res, e) {
-    const name = e && e.constructor && e.constructor.name
-    if (name === 'ForbiddenError') return res.status(403).json({ error: 'forbidden' })
-    if (name === 'InvalidPayloadError' || name === 'FailedValidationError') {
-      return res.status(400).json({ error: 'invalid_payload' })
-    }
-    log.warn({ msg: 'wadmin items error', error: e && e.message })
+    const status = typeof e?.status === 'number' ? e.status : 500
+    if (status === 403) return res.status(403).json({ error: 'forbidden' })
+    if (status === 400) return res.status(400).json({ error: 'invalid_payload' })
+    log.warn({ msg: 'wadmin items error', error: e?.message })
     return res.status(500).json({ error: 'internal' })
   }
 
