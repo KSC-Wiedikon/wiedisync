@@ -657,7 +657,12 @@ async function main() {
   ].filter(f => f !== 'ahv_nummer')
   await setPermRead(LEADER_POLICY, 'members', COACH_TEAM_MEMBERS, LEADER_TEAM_MEMBER_FIELDS)
   // Members — update position + number (migration 036 scoped to my-team members).
-  await setPerm(LEADER_POLICY, 'members', 'update', COACH_TEAM_MEMBERS, ['position', 'number'])
+  // `coach_approved_team` added 2026-05-19: migration 036 narrowed this list to
+  // ['position','number'] and silently broke coach/TR join-request approval
+  // (TeamDetail.handleApprove writes { coach_approved_team: true }). Row scope
+  // (COACH_TEAM_MEMBERS) + the member_teams-must-exist-first PG trigger keep
+  // this safe — a coach can only flip the flag for their own team's members.
+  await setPerm(LEADER_POLICY, 'members', 'update', COACH_TEAM_MEMBERS, ['position', 'number', 'coach_approved_team'])
 
   // Coach Dashboard prefs — explicit read for Leader (Coach/TR).
   // PUBLIC_TEAM_FIELDS doesn't include these, so KSCW Member never sees them.
