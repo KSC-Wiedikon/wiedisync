@@ -171,6 +171,14 @@ export class ApiError extends Error {
   }
 }
 
+/** True if a Directus auth token is present (mirrors sendToErrorLog's read). */
+function hasAuthToken(): boolean {
+  try {
+    const raw = localStorage.getItem('directus_auth') || sessionStorage.getItem('directus_auth')
+    return !!(raw && JSON.parse(raw)?.access_token)
+  } catch { return false }
+}
+
 /**
  * Capture an API error with full operation context to Sentry + console.
  * Called automatically from api.ts data helpers — no manual wiring needed.
@@ -219,6 +227,41 @@ export function captureApiError(
       collection: context.collection,
       endpoint: context.endpoint,
       method: context.method,
+      page: window.location.pathname,
+      userAgent: navigator.userAgent,
+      error: err.message,
+    })
+    return
+  }
+
+  // Permission/auth denials while there is NO auth token are not bugs — the
+  // user is logged out, or the session expired mid-use and in-flight
+  // refetches (realtime, react-query) fired before AuthRoute could redirect.
+  // Real permission gaps happen WITH a valid session (the userId resolves
+  // server-side — that's exactly how the coach_approved_team and
+  // message_requests gaps were caught), so gating on an absent token keeps
+  // those fully visible while killing the anon/expired churn (logged-out
+  // hits to gated pages spamming "no permission to access collection X").
+  // Same downgrade contract as the network + token-expired carve-outs.
+  const isPermissionDenial =
+    context.status === 401 ||
+    context.status === 403 ||
+    /don't have permission to access|no permission to access|FORBIDDEN|: 40[13]\b/i.test(err.message)
+  if (isPermissionDenial && !hasAuthToken()) {
+    console.warn(
+      `[Unauthenticated] ${context.operation}${context.collection ? ` on ${context.collection}` : ''} while logged out — expected, skipping Sentry`,
+    )
+    sendToErrorLog({
+      source: 'frontend',
+      project: 'wiedisync',
+      event: 'auth_error',
+      level: 'warn',
+      action: 'unauthenticated_request',
+      operation: context.operation,
+      collection: context.collection,
+      endpoint: context.endpoint,
+      method: context.method,
+      status: context.status,
       page: window.location.pathname,
       userAgent: navigator.userAgent,
       error: err.message,
