@@ -129,3 +129,24 @@ describe('wadmin scorer delegation guards', () => {
     expect(wadminBadSlug('bad slug')).toBe(true)
   })
 })
+
+import { isManagerUser, buildUpsert } from '../wadmin.js'
+
+describe('wadmin management', () => {
+  const db = (role) => () => ({ join(){return this}, leftJoin(){return this},
+    where(){return this}, whereRaw(){return this}, orderBy(){return this},
+    select(){return this}, first: async()=>({ role_name: role }) })
+
+  it('isManagerUser true for Superuser, false for Website Admin', async () => {
+    expect(await isManagerUser(db('Superuser'), 'u')).toBe(true)
+    expect(await isManagerUser(db('Website Admin'), 'u')).toBe(false)
+    expect(await isManagerUser(db(null), 'u')).toBe(false)
+  })
+
+  it('buildUpsert filters sections and sets the conflict target', () => {
+    const u = buildUpsert('user-1', ['news','x','sponsors'])
+    expect(u.row.user).toBe('user-1')
+    expect(JSON.parse(u.row.sections)).toEqual(['news','sponsors'])
+    expect(u.conflict).toBe('user')
+  })
+})

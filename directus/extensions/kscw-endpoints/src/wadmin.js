@@ -103,6 +103,23 @@ export function parseQuery(q) {
   return out
 }
 
+export async function isManagerUser(database, userId) {
+  if (!userId) return false
+  const row = await database('directus_users')
+    .join('directus_roles', 'directus_users.role', 'directus_roles.id')
+    .where('directus_users.id', userId)
+    .select('directus_roles.name as role_name')
+    .first()
+  return isManager(row ? row.role_name : null)
+}
+
+export function buildUpsert(userId, sections) {
+  return {
+    row: { user: userId, sections: JSON.stringify(normalizeSections(sections)) },
+    conflict: 'user',
+  }
+}
+
 export function registerWadmin(router, ctx) {
   const { logger } = ctx
   const database = ctx.database
@@ -226,5 +243,55 @@ export function registerWadmin(router, ctx) {
     }
   })
 
-  // Management routes — Task A6.
+  router.get('/wadmin/admins', async (req, res) => {
+    const userId = req.accountability?.user
+    if (!(await isManagerUser(database, userId))) {
+      return res.status(403).json({ error: 'manager_required' })
+    }
+    try {
+      const rows = await database('directus_users')
+        .join('directus_roles', 'directus_users.role', 'directus_roles.id')
+        .leftJoin('website_admin_access', 'website_admin_access.user', 'directus_users.id')
+        .whereRaw('LOWER(directus_roles.name) = ?', ['website admin'])
+        .select(
+          'directus_users.id as id',
+          'directus_users.first_name as first_name',
+          'directus_users.last_name as last_name',
+          'directus_users.email as email',
+          'website_admin_access.sections as sections',
+        )
+        .orderBy(['directus_users.first_name', 'directus_users.last_name'])
+      res.json({
+        data: rows.map((r) => ({
+          id: r.id,
+          name: [r.first_name, r.last_name].filter(Boolean).join(' ') || r.email,
+          email: r.email,
+          sections: normalizeSections(r.sections),
+        })),
+      })
+    } catch (e) {
+      log.warn({ msg: 'wadmin/admins list failed', error: e.message })
+      res.status(500).json({ error: 'internal' })
+    }
+  })
+
+  router.put('/wadmin/admins/:id', async (req, res) => {
+    const userId = req.accountability?.user
+    if (!(await isManagerUser(database, userId))) {
+      return res.status(403).json({ error: 'manager_required' })
+    }
+    const target = req.params.id
+    const sections = Array.isArray(req.body?.sections) ? req.body.sections : []
+    try {
+      const { row, conflict } = buildUpsert(target, sections)
+      await database('website_admin_access')
+        .insert(row)
+        .onConflict(conflict)
+        .merge({ sections: row.sections, date_updated: database.fn.now() })
+      res.json({ data: { id: target, sections: normalizeSections(sections) } })
+    } catch (e) {
+      log.warn({ msg: 'wadmin/admins upsert failed', error: e.message })
+      res.status(500).json({ error: 'internal' })
+    }
+  })
 }
