@@ -68,10 +68,69 @@ export async function computeAccess(database, userId) {
   return { isSuperuser: false, sections: normalizeSections(row ? row.sections : null) }
 }
 
+// → { ok:true, isSuperuser } | { ok:false, status, error }
+export async function authorize(database, userId, section) {
+  if (!ALL_SECTIONS.includes(section)) {
+    return { ok: false, status: 404, error: 'unknown_section' }
+  }
+  const { isSuperuser, sections } = await computeAccess(database, userId)
+  if (isSuperuser) return { ok: true, isSuperuser: true }
+  if (sections.includes(section)) return { ok: true, isSuperuser: false }
+  return { ok: false, status: 403, error: 'section_not_granted' }
+}
+
+export function assertCollection(section, collection) {
+  return (SECTION_COLLECTIONS[section] || []).includes(collection)
+}
+
+export function parseQuery(q) {
+  const out = {}
+  if (q && typeof q.filter === 'object' && q.filter !== null) out.filter = q.filter
+  if (typeof q?.fields === 'string') out.fields = q.fields.split(',').map(s => s.trim()).filter(Boolean)
+  if (typeof q?.sort === 'string') out.sort = q.sort.split(',').map(s => s.trim()).filter(Boolean)
+  if (q?.limit !== undefined) out.limit = Number(q.limit)
+  if (q?.offset !== undefined) out.offset = Number(q.offset)
+  if (q?.page !== undefined) out.page = Number(q.page)
+  if (typeof q?.search === 'string') out.search = q.search
+  return out
+}
+
 export function registerWadmin(router, ctx) {
   const { logger } = ctx
   const database = ctx.database
   const log = logger.child({ endpoint: 'wadmin' })
+
+  const { services, getSchema } = ctx
+  const { ItemsService } = services
+
+  async function svc(collection) {
+    const schema = await getSchema()
+    return new ItemsService(collection, { schema, knex: database, accountability: { admin: true } })
+  }
+
+  function sendErr(res, e) {
+    const name = e && e.constructor && e.constructor.name
+    if (name === 'ForbiddenError') return res.status(403).json({ error: 'forbidden' })
+    if (name === 'InvalidPayloadError' || name === 'FailedValidationError') {
+      return res.status(400).json({ error: 'invalid_payload' })
+    }
+    log.warn({ msg: 'wadmin items error', error: e && e.message })
+    return res.status(500).json({ error: 'internal' })
+  }
+
+  // Resolve+authorize+scope once; returns the collection or null
+  // (response already sent on failure).
+  async function guard(req, res) {
+    const userId = req.accountability?.user
+    if (!userId) { res.status(401).json({ error: 'unauthenticated' }); return null }
+    const { section, collection } = req.params
+    const a = await authorize(database, userId, section)
+    if (!a.ok) { res.status(a.status).json({ error: a.error, section }); return null }
+    if (!assertCollection(section, collection)) {
+      res.status(403).json({ error: 'resource_out_of_scope', collection }); return null
+    }
+    return collection
+  }
 
   router.get('/wadmin/me', async (req, res) => {
     const userId = req.accountability?.user
@@ -84,7 +143,42 @@ export function registerWadmin(router, ctx) {
     }
   })
 
-  // Per-section item routes — Task A4.
+  router.get('/wadmin/:section/items/:collection', async (req, res) => {
+    const c = await guard(req, res); if (!c) return
+    try { res.json({ data: await (await svc(c)).readByQuery(parseQuery(req.query)) }) }
+    catch (e) { sendErr(res, e) }
+  })
+
+  router.get('/wadmin/:section/items/:collection/:id', async (req, res) => {
+    const c = await guard(req, res); if (!c) return
+    try { res.json({ data: await (await svc(c)).readOne(req.params.id, parseQuery(req.query)) }) }
+    catch (e) { sendErr(res, e) }
+  })
+
+  router.post('/wadmin/:section/items/:collection', async (req, res) => {
+    const c = await guard(req, res); if (!c) return
+    try {
+      const id = await (await svc(c)).createOne(req.body)
+      res.json({ data: { id } })
+    } catch (e) { sendErr(res, e) }
+  })
+
+  router.patch('/wadmin/:section/items/:collection/:id', async (req, res) => {
+    const c = await guard(req, res); if (!c) return
+    try {
+      await (await svc(c)).updateOne(req.params.id, req.body)
+      res.json({ data: { id: req.params.id } })
+    } catch (e) { sendErr(res, e) }
+  })
+
+  router.delete('/wadmin/:section/items/:collection/:id', async (req, res) => {
+    const c = await guard(req, res); if (!c) return
+    try {
+      await (await svc(c)).deleteOne(req.params.id)
+      res.json({ ok: true })
+    } catch (e) { sendErr(res, e) }
+  })
+
   // Scorer-course OpnForm delegation — Task A5.
   // Management routes — Task A6.
 }

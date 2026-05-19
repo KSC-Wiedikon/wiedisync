@@ -71,3 +71,50 @@ describe('wadmin core', () => {
     expect(await computeAccess(db, 'u5')).toEqual({ isSuperuser: false, sections: [] })
   })
 })
+
+import { authorize, assertCollection, parseQuery } from '../wadmin.js'
+
+describe('wadmin gate + scope', () => {
+  const dbManager = (t) => ({ join(){return this}, leftJoin(){return this},
+    where(){return this}, whereRaw(){return this}, orderBy(){return this},
+    select(){return this}, first: async()=> t==='directus_users'
+      ? { role_name:'Superuser' } : null })
+  const dbGated = (sections) => (t) => ({ join(){return this}, leftJoin(){return this},
+    where(){return this}, whereRaw(){return this}, orderBy(){return this},
+    select(){return this}, first: async()=> t==='directus_users'
+      ? { role_name:'Website Admin' } : { sections } })
+
+  it('authorize: manager passes any section', async () => {
+    expect(await authorize(dbManager, 'u', 'sponsors'))
+      .toEqual({ ok: true, isSuperuser: true })
+  })
+  it('authorize: gated with grant passes that section', async () => {
+    expect(await authorize(dbGated(['news']), 'u', 'news'))
+      .toEqual({ ok: true, isSuperuser: false })
+  })
+  it('authorize: gated without grant → section_not_granted', async () => {
+    expect(await authorize(dbGated(['news']), 'u', 'sponsors'))
+      .toEqual({ ok: false, status: 403, error: 'section_not_granted' })
+  })
+  it('authorize: unknown section → unknown_section', async () => {
+    expect(await authorize(dbManager, 'u', 'bogus'))
+      .toEqual({ ok: false, status: 404, error: 'unknown_section' })
+  })
+
+  it('assertCollection: in-contract ok, out-of-contract rejected', () => {
+    expect(assertCollection('news', 'news')).toBe(true)
+    expect(assertCollection('news', 'sponsors')).toBe(false)
+    expect(assertCollection('mixed_turnier', 'members')).toBe(true)
+  })
+
+  it('parseQuery maps Directus REST query to ItemsService query', () => {
+    expect(parseQuery({
+      filter: { active: { _eq: 'true' } },
+      fields: 'id,title', sort: '-date,name', limit: '-1',
+    })).toEqual({
+      filter: { active: { _eq: 'true' } },
+      fields: ['id','title'], sort: ['-date','name'], limit: -1,
+    })
+    expect(parseQuery({})).toEqual({})
+  })
+})
