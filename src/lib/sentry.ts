@@ -190,6 +190,42 @@ export function captureApiError(
 ) {
   const err = toError(error)
 
+  // Transient client-side network failures (signal drop, offline, fetch
+  // aborted by navigation) reject with a generic message and NO HTTP status —
+  // the request never reached the server, so there's nothing actionable.
+  // One flaky mobile connection emits a burst (e.g. the home page's parallel
+  // loadTeamContext fetches all failing at once → WIEDISYNC-30/34/43
+  // "Load failed" / "Failed to fetch", auto-flagged regressions). Mirror the
+  // token-expired carve-out below: console + a downgraded `network_error`
+  // (warn — kept for debugging, hidden from the default error view), and
+  // skip Sentry so a dropped signal doesn't page anyone. Anchored ^…$ so a
+  // real error whose message merely *contains* these words is NOT swallowed,
+  // and gated on absent status so every 4xx/5xx (incl. 403 perms) still flows.
+  const isTransientNetworkFailure =
+    context.status == null &&
+    /^(Load failed|Failed to fetch|NetworkError when attempting to fetch resource|The Internet connection appears to be offline|The network connection was lost)\.?$/i.test(
+      err.message.trim(),
+    )
+  if (isTransientNetworkFailure) {
+    console.warn(
+      `[Network] ${context.operation}${context.collection ? ` on ${context.collection}` : ''} — request did not reach the server (${err.message})`,
+    )
+    sendToErrorLog({
+      source: 'frontend',
+      project: 'wiedisync',
+      event: 'network_error',
+      level: 'warn',
+      operation: context.operation,
+      collection: context.collection,
+      endpoint: context.endpoint,
+      method: context.method,
+      page: window.location.pathname,
+      userAgent: navigator.userAgent,
+      error: err.message,
+    })
+    return
+  }
+
   // Scrub PII from payload before sending
   const safePayload = context.payload ? scrubPii(context.payload) : undefined
 
