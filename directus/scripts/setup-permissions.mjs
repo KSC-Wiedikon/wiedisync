@@ -578,6 +578,21 @@ async function main() {
   // (migration 042).
   await setPermRead(MEMBER_POLICY, 'blocks', { blocker: { user: { _eq: '$CURRENT_USER' } } })
 
+  // Message requests — read own (recipient or sender). Added 2026-05-19:
+  // never granted when messaging went GA (v4.0.0), so every member's inbox
+  // useMessageRequests() fetchAllItems + realtime sub 403'd silently
+  // ("no permission to access collection message_requests"). Like `blocks`
+  // this is the rare messaging collection read DIRECTLY by the FE (the rest
+  // route through server-side /messaging/* endpoints). sender/recipient are
+  // members FKs → walk `.user` to $CURRENT_USER, same shape as blocks.
+  // accept/decline go via kscw endpoints, so read-only is sufficient.
+  await setPermRead(MEMBER_POLICY, 'message_requests', {
+    _or: [
+      { recipient: { user: { _eq: '$CURRENT_USER' } } },
+      { sender: { user: { _eq: '$CURRENT_USER' } } },
+    ],
+  }, ['id', 'conversation', 'sender', 'recipient', 'status', 'created_at', 'resolved_at'])
+
   // Spielplaner assignments — self-scoped (migrations 034, 042).
   await setPermRead(MEMBER_POLICY, 'spielplaner_assignments', OWN_MEMBER)
 
