@@ -185,6 +185,45 @@ export function registerWadmin(router, ctx) {
     } catch (e) { sendErr(res, e) }
   })
 
-  // Scorer-course OpnForm delegation — Task A5.
+  async function guardScorer(req, res) {
+    const userId = req.accountability?.user
+    if (!userId) { res.status(401).json({ error: 'unauthenticated' }); return false }
+    const a = await authorize(database, userId, 'scorer_courses')
+    if (!a.ok) { res.status(a.status).json({ error: a.error, section: 'scorer_courses' }); return false }
+    if (badSlug(req.params.slug)) { res.status(400).json({ error: 'Invalid slug' }); return false }
+    return true
+  }
+
+  router.get('/wadmin/scorer_courses/opnform/forms/:slug/submissions', async (req, res) => {
+    if (!(await guardScorer(req, res))) return
+    const perPage = Math.min(100, Math.max(1, Number(req.query.per_page) || 100))
+    const page = Math.max(1, Number(req.query.page) || 1)
+    try {
+      res.json(await listSubmissions(req.params.slug, { page, perPage }))
+    } catch (err) {
+      if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
+      log.warn({ msg: 'wadmin opnform list failed', slug: req.params.slug, status: err.status })
+      res.status(err.status || 502).json({ error: 'Upstream error' })
+    }
+  })
+
+  router.delete('/wadmin/scorer_courses/opnform/forms/:slug/submissions/:id', async (req, res) => {
+    if (!(await guardScorer(req, res))) return
+    if (!/^[0-9]+$/.test(String(req.params.id))) {
+      return res.status(400).json({ error: 'Invalid submission id' })
+    }
+    try {
+      await deleteSubmission(req.params.slug, req.params.id)
+      res.json({ ok: true })
+    } catch (err) {
+      if (err.status === 404) return res.status(404).json({ error: 'Submission not found' })
+      if (err.status === 401 || err.status === 403) {
+        return res.status(403).json({ error: 'OpnForm rejected the delete — the OPNFORM_PAT likely lacks the forms-write ability' })
+      }
+      log.warn({ msg: 'wadmin opnform delete failed', slug: req.params.slug, status: err.status })
+      res.status(err.status || 502).json({ error: 'Upstream error' })
+    }
+  })
+
   // Management routes — Task A6.
 }

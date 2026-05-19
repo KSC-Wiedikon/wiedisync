@@ -121,3 +121,11 @@ describe('wadmin gate + scope', () => {
     })
   })
 })
+
+import { badSlug as wadminBadSlug } from '../opnform.js'
+describe('wadmin scorer delegation guards', () => {
+  it('reuses opnform badSlug for slug validation', () => {
+    expect(wadminBadSlug('ok-slug')).toBe(false)
+    expect(wadminBadSlug('bad slug')).toBe(true)
+  })
+})
