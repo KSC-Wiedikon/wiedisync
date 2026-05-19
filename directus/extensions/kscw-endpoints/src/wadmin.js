@@ -218,6 +218,7 @@ export function registerWadmin(router, ctx) {
     } catch (err) {
       if (err.status === 404) return res.status(404).json({ error: 'Submission not found' })
       if (err.status === 401 || err.status === 403) {
+        log.warn({ msg: 'wadmin opnform delete unauthorized', slug: req.params.slug, id: req.params.id, status: err.status })
         return res.status(403).json({ error: 'OpnForm rejected the delete — the OPNFORM_PAT likely lacks the forms-write ability' })
       }
       log.warn({ msg: 'wadmin opnform delete failed', slug: req.params.slug, status: err.status })
