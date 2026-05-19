@@ -12,6 +12,7 @@
  * non-admin role → only granted sections. Any other role → nothing.
  */
 
+// Wired into the scorer_courses OpnForm routes in Task A5 — imported here to co-locate the dependency.
 import { badSlug, listSubmissions, deleteSubmission } from './opnform.js'
 
 export const ALL_SECTIONS = [
