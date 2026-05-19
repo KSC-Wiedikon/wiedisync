@@ -20,13 +20,14 @@ function badSlug(slug) {
   return !slug || !SLUG_RE.test(slug)
 }
 
-async function opnformFetch(path) {
+async function opnformFetch(path, { method = 'GET' } = {}) {
   if (!TOKEN) {
     const err = new Error('OPNFORM_PAT not configured')
     err.status = 503
     throw err
   }
   const res = await fetch(`${OPNFORM_BASE}/api/open${path}`, {
+    method,
     headers: { Authorization: `Bearer ${TOKEN}`, Accept: 'application/json' },
   })
   if (!res.ok) {
@@ -34,7 +35,8 @@ async function opnformFetch(path) {
     err.status = res.status === 404 ? 404 : 502
     throw err
   }
-  return res.json()
+  const text = await res.text()
+  return text ? JSON.parse(text) : {}
 }
 
 async function getFormMeta(slug) {
@@ -109,6 +111,31 @@ export function registerOpnform(router, { logger }) {
     } catch (err) {
       if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
       log.warn({ msg: 'OpnForm submissions failed', slug, status: err.status, error: err.message })
+      res.status(err.status || 502).json({ error: 'Upstream error' })
+    }
+  })
+
+  // ── Admin: delete a single submission ───────────────────────────
+  router.delete('/opnform/forms/:slug/submissions/:id', async (req, res) => {
+    if (!req.accountability?.admin) {
+      return res.status(403).json({ error: 'Admin access required' })
+    }
+    const { slug, id } = req.params
+    if (badSlug(slug)) return res.status(400).json({ error: 'Invalid slug' })
+    if (!/^[0-9]+$/.test(String(id))) {
+      return res.status(400).json({ error: 'Invalid submission id' })
+    }
+
+    try {
+      await opnformFetch(
+        `/forms/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(id)}`,
+        { method: 'DELETE' },
+      )
+      countCache.delete(slug) // count is now stale
+      res.json({ ok: true })
+    } catch (err) {
+      if (err.status === 404) return res.status(404).json({ error: 'Submission not found' })
+      log.warn({ msg: 'OpnForm delete failed', slug, id, status: err.status, error: err.message })
       res.status(err.status || 502).json({ error: 'Upstream error' })
     }
   })
