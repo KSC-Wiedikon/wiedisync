@@ -143,7 +143,7 @@ export default function App() {
 
           <Route element={<Layout />}>
             <Route index element={<AuthRoute><HomePage /></AuthRoute>} />
-            <Route path="calendar" element={<CalendarPage />} />
+            <Route path="calendar" element={<AuthRoute><CalendarPage /></AuthRoute>} />
             <Route path="games" element={<GamesPage />} />
             <Route path="trainings" element={<AuthRoute><TrainingsPage /></AuthRoute>} />
             <Route path="absences" element={<AuthRoute><AbsencesPage /></AuthRoute>} />
@@ -152,7 +152,7 @@ export default function App() {
             <Route path="teams/:teamSlug" element={<AuthRoute><TeamDetail /></AuthRoute>} />
             <Route path="teams/:teamSlug/roster/edit" element={<AuthRoute><RosterEditor /></AuthRoute>} />
             <Route path="teams/player/:memberId" element={<AuthRoute><PlayerProfile /></AuthRoute>} />
-            <Route path="events" element={<EventsPage />} />
+            <Route path="events" element={<AuthRoute><EventsPage /></AuthRoute>} />
             <Route path="datenschutz" element={<DatenschutzPage />} />
             <Route path="impressum" element={<ImpressumPage />} />
             <Route path="feedback" element={<FeedbackPage />} />
