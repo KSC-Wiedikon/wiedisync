@@ -82,6 +82,10 @@ export function initSentry() {
       // (e.g. /calendar fires 4-6 parallel useCollection calls → 4-6 Sentry events per expiry).
       // The SDK auto-refreshes or kicks the user to /login; nothing actionable here.
       if (/token expired/i.test(errMsg) || /token has expired/i.test(errMsg)) return null
+      // Stale lazy-import chunks after a deploy — App.tsx catches these and hot-reloads
+      // the SPA. Mirror the same regex here so the brief race before reload doesn't
+      // surface as Sentry noise / false-positive regressions on old guide/route PRs.
+      if (/Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Loading chunk \d+ failed|ChunkLoadError|is not a valid JavaScript MIME type|expected a JavaScript(?:-or-Wasm)? module script but the server responded with a MIME type/i.test(errMsg)) return null
       // Strip email-like strings from breadcrumb messages
       if (event.breadcrumbs) {
         for (const bc of event.breadcrumbs) {
