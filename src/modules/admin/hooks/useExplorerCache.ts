@@ -73,14 +73,17 @@ export function useExplorerCache(scope: ExplorerScope) {
           filter: f.members,
           fields: [
             'id', 'first_name', 'last_name', 'email', 'sex', 'kscw_membership_active', 'role', 'user',
-            // Fields used by ExplorerMemberFilters (tri-state + presence + licence/role multiselect)
-            'phone', 'license_nr', 'licences', 'birthdate', 'photo',
-            'coach_approved_team', 'is_spielplaner', 'wiedisync_active',
-            'shell', 'shell_reminder_sent',
+            // Fields used by ExplorerMemberFilters (multiselect/multiselect-chip/tri-state/presence)
+            'phone', 'license_nr', 'licences', 'birthdate', 'photo', 'number', 'position', 'language',
+            'birthdate_visibility', 'consent_decision', 'consent_prompted_at',
+            'requested_team', 'coach_approved_team', 'is_spielplaner', 'wiedisync_active',
+            'shell', 'shell_expires', 'shell_reminder_sent',
             'licence_activated', 'licence_validated',
+            'licence_activation_date', 'licence_validation_date', 'licence_category',
             'hide_phone', 'hide_email', 'website_visible',
             'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
-            'push_preview_content',
+            'push_preview_content', 'last_online_at',
+            'adresse', 'plz', 'ort', 'nationalitaet', 'vm_email', 'ahv_nummer', 'beitragskategorie',
           ],
           sort: ['last_name', 'first_name'],
         }),

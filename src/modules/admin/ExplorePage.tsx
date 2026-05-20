@@ -10,6 +10,11 @@ import { getExplorerScope, type BucketKey } from './components/explorerHelpers'
 import ExplorerSearch from './components/ExplorerSearch'
 import ExplorerTree from './components/ExplorerTree'
 import ExplorerDetail from './components/ExplorerDetail'
+import ExplorerMemberFilters, {
+  EMPTY_FILTERS,
+  applyMemberFilters,
+  type MemberFilterState,
+} from './components/ExplorerMemberFilters'
 
 const VALID_TYPES: readonly BucketKey[] = ['members', 'teams', 'events', 'trainings', 'games']
 
@@ -36,6 +41,16 @@ export default function ExplorePage() {
   const selectedId = rawId && /^[\w-]+$/.test(rawId) ? rawId : null
 
   const [query, setQuery] = useState('')
+  const [memberFilters, setMemberFilters] = useState<MemberFilterState>(EMPTY_FILTERS)
+
+  // Apply member filters client-side to the cached members list. Tree receives
+  // filtered cache (so member counts/listing narrow); detail view keeps the
+  // unfiltered cache so navigations from teams/games to filtered-out members
+  // still resolve. memberTeams/coach/tr Maps are unchanged.
+  const treeData = useMemo(
+    () => ({ ...data, members: applyMemberFilters(data.members, memberFilters, data) }),
+    [data, memberFilters],
+  )
 
   const handleSelect = useCallback(
     (type: BucketKey, id: string) => {
@@ -63,6 +78,7 @@ export default function ExplorePage() {
         <div className="max-w-md flex-1">
           <ExplorerSearch value={query} onChange={setQuery} />
         </div>
+        <ExplorerMemberFilters value={memberFilters} onChange={setMemberFilters} />
         <button
           type="button"
           onClick={handleRefresh}
@@ -90,7 +106,7 @@ export default function ExplorePage() {
             <div className="p-4 text-sm text-destructive">{t('explorerError')}</div>
           ) : (
             <ExplorerTree
-              cache={data}
+              cache={treeData}
               selectedType={selectedType}
               selectedId={selectedId}
               query={query}
