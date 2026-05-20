@@ -2,8 +2,8 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-05-18T15:31:07.829Z
--- Source:      prod (db=postgres)
+-- Generated:   2026-05-20T15:10:12.478Z
+-- Source:      dev (db=directus_kscw_dev)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
 -- This is the consolidated DDL/triggers/FKs/grants snapshot for a FRESH
@@ -42,20 +42,6 @@ SET row_security = off;
 --
 
 CREATE SCHEMA _realtime;
-
-
---
--- Name: pg_cron; Type: EXTENSION; Schema: -; Owner: -
---
-
-CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
-
-
---
--- Name: EXTENSION pg_cron; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON EXTENSION pg_cron IS 'Job scheduler for PostgreSQL';
 
 
 --
@@ -532,6 +518,23 @@ BEGIN
     SELECT usename::TEXT, passwd::TEXT FROM pg_catalog.pg_shadow
     WHERE usename = p_usename;
 END;
+$$;
+
+
+--
+-- Name: clubdesk_offliz_to_dx(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.clubdesk_offliz_to_dx(offliz text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  SELECT CASE
+    WHEN offliz LIKE '%Volleyball Lizenz%' THEN 'scorer_vb'
+    WHEN offliz = 'OTR1' THEN 'otr1_bb'
+    WHEN offliz = 'OTR2' THEN 'otr2_bb'
+    WHEN offliz = 'OTN'  THEN 'otn_bb'
+    ELSE NULL
+  END;
 $$;
 
 
@@ -1362,25 +1365,25 @@ CREATE FUNCTION public.trg_trainings_trial_transform() RETURNS trigger
 DECLARE
   v_existing_id integer;
 BEGIN
-  -- Skip cancelled inserts and inserts missing the join keys.
   IF NEW.cancelled = true OR NEW.team IS NULL OR NEW.date IS NULL THEN
     RETURN NULL;
   END IF;
 
   IF NEW.is_trial = true THEN
-    -- New is a trial. Look for an existing non-cancelled regular sibling.
+    -- Look for ANY existing active same-date sibling (regular OR trial).
+    -- Migration 056 restricted this with `AND is_trial = false`; that
+    -- restriction is removed here so trial-onto-trial also collapses.
+    -- ORDER BY id makes the target deterministic if >1 exists pre-backfill.
     SELECT id INTO v_existing_id
     FROM trainings
     WHERE team = NEW.team
       AND date = NEW.date
       AND id <> NEW.id
-      AND is_trial = false
       AND cancelled = false
+    ORDER BY id
     LIMIT 1;
 
     IF v_existing_id IS NOT NULL THEN
-      -- Merge participations of the just-inserted trial onto the regular,
-      -- then transform the regular and delete the trial.
       INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by)
       SELECT src.member, 'training', v_existing_id::text, src.status, src.note, src.guest_count, src.is_staff, src.auto_declined_by
       FROM participations src
@@ -1407,12 +1410,10 @@ BEGIN
 
       DELETE FROM trainings WHERE id = NEW.id;
     END IF;
-    -- else: trial standalone, no existing regular — leave it alone.
 
   ELSE
-    -- New is a regular. If a trial already covers this date (e.g.
-    -- slot-cascade rolling top-up landing post-trial-booking),
-    -- discard the duplicate so the trial stays the only row.
+    -- New is a regular. If a trial already covers this date, discard the
+    -- new regular so the trial stays the only row. (Unchanged from 056.)
     IF EXISTS (
       SELECT 1 FROM trainings
       WHERE team = NEW.team
@@ -1841,6 +1842,195 @@ ALTER SEQUENCE public.carpools_id_seq OWNED BY public.carpools.id;
 
 
 --
+-- Name: clubdesk_export; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.clubdesk_export (
+    row_id bigint NOT NULL,
+    imported_at timestamp with time zone DEFAULT now() NOT NULL,
+    source_file text,
+    gruppe text,
+    funktion text,
+    nachname text,
+    vorname text,
+    firma text,
+    rolle text,
+    rolle_2 text,
+    anrede text,
+    titel text,
+    briefanrede text,
+    benutzer_id text,
+    adresse text,
+    adress_zusatz text,
+    plz text,
+    ort text,
+    land text,
+    nationalitaet text,
+    telefon_privat text,
+    telefon_geschaeft text,
+    telefon_mobil text,
+    fax text,
+    email text,
+    email_alternativ text,
+    gruppen text,
+    status text,
+    eintritt text,
+    mitgliedsjahre text,
+    austritt text,
+    zivilstand text,
+    geschlecht text,
+    geburtsdatum text,
+    alter_ text,
+    jahrgang text,
+    bemerkungen text,
+    firmen_webseite text,
+    rechnungsversand text,
+    nie_mahnen text,
+    iban text,
+    bic text,
+    kontoinhaber text,
+    lizenznummer text,
+    lizenzart text,
+    lizenz_bestellt text,
+    sektion text,
+    beitragskategorie text,
+    betrag_bezahlt text,
+    clubnummer text,
+    mittelschule_zh text,
+    offiziellen_lizenz text,
+    mitgliederbeitrag text,
+    ahv_nummer text,
+    passivmitglied text,
+    offiziellen_100er text,
+    gruppe_2 text,
+    funktion_2 text,
+    gruppen_2 text,
+    jg text,
+    clubdesk_id text,
+    zuletzt_geaendert_am text,
+    zuletzt_geaendert_von text,
+    gruppen_bracketed text,
+    rolle_bracketed text
+);
+
+
+--
+-- Name: clubdesk_people; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.clubdesk_people AS
+ SELECT DISTINCT ON (COALESCE(NULLIF(clubdesk_export.clubdesk_id, ''::text), lower(NULLIF(clubdesk_export.email, ''::text)))) clubdesk_export.clubdesk_id,
+    clubdesk_export.nachname,
+    clubdesk_export.vorname,
+    clubdesk_export.email,
+    clubdesk_export.email_alternativ,
+    clubdesk_export.status,
+    clubdesk_export.geschlecht,
+    clubdesk_export.geburtsdatum,
+    clubdesk_export.jahrgang,
+    clubdesk_export.alter_,
+    clubdesk_export.lizenznummer,
+    clubdesk_export.lizenzart,
+    clubdesk_export.sektion,
+    clubdesk_export.beitragskategorie,
+    clubdesk_export.offiziellen_lizenz,
+    clubdesk_export.passivmitglied,
+    clubdesk_export.telefon_mobil,
+    clubdesk_export.gruppen,
+    clubdesk_export.imported_at
+   FROM public.clubdesk_export
+  ORDER BY COALESCE(NULLIF(clubdesk_export.clubdesk_id, ''::text), lower(NULLIF(clubdesk_export.email, ''::text))), clubdesk_export.row_id;
+
+
+--
+-- Name: clubdesk_basketball; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.clubdesk_basketball AS
+ SELECT clubdesk_people.clubdesk_id,
+    clubdesk_people.nachname,
+    clubdesk_people.vorname,
+    clubdesk_people.email,
+    clubdesk_people.email_alternativ,
+    clubdesk_people.status,
+    clubdesk_people.geschlecht,
+    clubdesk_people.geburtsdatum,
+    clubdesk_people.jahrgang,
+    clubdesk_people.alter_,
+    clubdesk_people.lizenznummer,
+    clubdesk_people.lizenzart,
+    clubdesk_people.sektion,
+    clubdesk_people.beitragskategorie,
+    clubdesk_people.offiziellen_lizenz,
+    clubdesk_people.passivmitglied,
+    clubdesk_people.telefon_mobil,
+    clubdesk_people.gruppen,
+    clubdesk_people.imported_at
+   FROM public.clubdesk_people
+  WHERE (clubdesk_people.sektion = 'Basketball'::text);
+
+
+--
+-- Name: clubdesk_export_meta; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.clubdesk_export_meta (
+    id integer DEFAULT 1 NOT NULL,
+    last_import_at timestamp with time zone,
+    source_file text,
+    row_count integer,
+    CONSTRAINT clubdesk_export_meta_id_check CHECK ((id = 1))
+);
+
+
+--
+-- Name: clubdesk_export_row_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.clubdesk_export_row_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: clubdesk_export_row_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.clubdesk_export_row_id_seq OWNED BY public.clubdesk_export.row_id;
+
+
+--
+-- Name: clubdesk_volleyball; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.clubdesk_volleyball AS
+ SELECT clubdesk_people.clubdesk_id,
+    clubdesk_people.nachname,
+    clubdesk_people.vorname,
+    clubdesk_people.email,
+    clubdesk_people.email_alternativ,
+    clubdesk_people.status,
+    clubdesk_people.geschlecht,
+    clubdesk_people.geburtsdatum,
+    clubdesk_people.jahrgang,
+    clubdesk_people.alter_,
+    clubdesk_people.lizenznummer,
+    clubdesk_people.lizenzart,
+    clubdesk_people.sektion,
+    clubdesk_people.beitragskategorie,
+    clubdesk_people.offiziellen_lizenz,
+    clubdesk_people.passivmitglied,
+    clubdesk_people.telefon_mobil,
+    clubdesk_people.gruppen,
+    clubdesk_people.imported_at
+   FROM public.clubdesk_people
+  WHERE (clubdesk_people.sektion = 'Volleyball'::text);
+
+
+--
 -- Name: conversation_members; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1862,11 +2052,11 @@ CREATE TABLE public.conversation_members (
 
 CREATE TABLE public.conversations (
     id uuid NOT NULL,
-    type character varying(255) DEFAULT NULL::character varying NOT NULL,
-    title character varying(120) DEFAULT NULL::character varying,
+    type character varying(255) NOT NULL,
+    title character varying(120),
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     last_message_at timestamp with time zone,
-    last_message_preview character varying(120) DEFAULT NULL::character varying,
+    last_message_preview character varying(120),
     team integer,
     created_by integer,
     activity_type character varying(16),
@@ -2236,7 +2426,6 @@ ALTER SEQUENCE public.game_scheduling_bookings_id_seq OWNED BY public.game_sched
 
 CREATE TABLE public.game_scheduling_opponents (
     id integer NOT NULL,
-    season integer,
     club_name character varying(255) DEFAULT NULL::character varying,
     contact_name character varying(255) DEFAULT NULL::character varying,
     contact_email character varying(255) DEFAULT NULL::character varying,
@@ -2251,7 +2440,8 @@ CREATE TABLE public.game_scheduling_opponents (
     source character varying(32) DEFAULT 'self_registration'::character varying NOT NULL,
     first_viewed_at timestamp with time zone,
     expires_at timestamp with time zone,
-    team_name character varying(255) DEFAULT NULL::character varying
+    team_name character varying(255),
+    season integer
 );
 
 
@@ -2288,7 +2478,7 @@ CREATE TABLE public.game_scheduling_seasons (
     notes text,
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
-    svrz_season_uuid character varying(64) DEFAULT NULL::character varying
+    svrz_season_uuid character varying(64)
 );
 
 
@@ -2748,6 +2938,12 @@ CREATE TABLE public.members (
     consent_decision character varying(255) DEFAULT 'pending'::character varying NOT NULL,
     last_export_at timestamp with time zone,
     hide_email boolean DEFAULT false NOT NULL,
+    scorer_vb boolean DEFAULT false NOT NULL,
+    referee_vb boolean DEFAULT false NOT NULL,
+    otr1_bb boolean DEFAULT false NOT NULL,
+    otr2_bb boolean DEFAULT false NOT NULL,
+    otn_bb boolean DEFAULT false NOT NULL,
+    referee_bb boolean DEFAULT false NOT NULL,
     CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin"]'::jsonb))
 );
 
@@ -2757,6 +2953,48 @@ CREATE TABLE public.members (
 --
 
 COMMENT ON COLUMN public.members.hide_email IS 'When true, the member''s email is nulled in members.items.read for everyone except admins and the member themselves (mirrors hide_phone). Enforced by the kscw-hooks Member Privacy filter.';
+
+
+--
+-- Name: COLUMN members.scorer_vb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.scorer_vb IS 'Has the volleyball scorer (Schreiber) licence. Sourced from sv_vm_check + ClubDesk Volleyball Lizenz.';
+
+
+--
+-- Name: COLUMN members.referee_vb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.referee_vb IS 'Has the volleyball referee licence.';
+
+
+--
+-- Name: COLUMN members.otr1_bb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.otr1_bb IS 'Basketball OTR1 (table official tier 1). Sourced from ClubDesk Offizielle Lizenz.';
+
+
+--
+-- Name: COLUMN members.otr2_bb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.otr2_bb IS 'Basketball OTR2 (table official tier 2). Sourced from ClubDesk Offizielle Lizenz.';
+
+
+--
+-- Name: COLUMN members.otn_bb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.otn_bb IS 'Basketball OTN (table official, national). Sourced from ClubDesk Offizielle Lizenz.';
+
+
+--
+-- Name: COLUMN members.referee_bb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.referee_bb IS 'Basketball referee licence.';
 
 
 --
@@ -2835,7 +3073,7 @@ CREATE TABLE public.message_reactions (
     id uuid NOT NULL,
     message uuid NOT NULL,
     member integer NOT NULL,
-    emoji character varying(8) DEFAULT NULL::character varying NOT NULL,
+    emoji character varying(8) NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
@@ -3362,7 +3600,7 @@ CREATE TABLE public.reports (
     reported_member integer,
     message uuid,
     conversation uuid,
-    reason character varying(255) DEFAULT NULL::character varying NOT NULL,
+    reason character varying(255) NOT NULL,
     note text,
     message_snapshot text,
     status character varying(255) DEFAULT 'open'::character varying NOT NULL,
@@ -3499,8 +3737,8 @@ ALTER SEQUENCE public.slot_claims_id_seq OWNED BY public.slot_claims.id;
 --
 
 CREATE TABLE public.spielplaner_assignments (
-    date_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
     user_created uuid,
     member integer NOT NULL,
     kscw_team integer NOT NULL
@@ -3768,22 +4006,22 @@ CREATE VIEW public.stats_club_overview AS
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'volleyball'::text))))
              JOIN public.members m ON ((m.id = mt.member)))
-          WHERE ((mt.guest_level = 0) AND ((m.licences)::jsonb @> '"scorer_vb"'::jsonb))) AS vb_lic_scorer,
+          WHERE ((mt.guest_level = 0) AND m.scorer_vb)) AS vb_lic_scorer,
     ( SELECT count(DISTINCT m.id) AS count
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'volleyball'::text))))
              JOIN public.members m ON ((m.id = mt.member)))
-          WHERE ((mt.guest_level = 0) AND ((m.licences)::jsonb @> '"referee_vb"'::jsonb))) AS vb_lic_referee,
+          WHERE ((mt.guest_level = 0) AND m.referee_vb)) AS vb_lic_referee,
     ( SELECT count(DISTINCT m.id) AS count
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'basketball'::text))))
              JOIN public.members m ON ((m.id = mt.member)))
-          WHERE ((mt.guest_level = 0) AND ((m.licences)::jsonb @> '"otr1_bb"'::jsonb))) AS bb_lic_otr1,
+          WHERE ((mt.guest_level = 0) AND m.otr1_bb)) AS bb_lic_otr1,
     ( SELECT count(DISTINCT m.id) AS count
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'basketball'::text))))
              JOIN public.members m ON ((m.id = mt.member)))
-          WHERE ((mt.guest_level = 0) AND ((m.licences)::jsonb @> '"otr2_bb"'::jsonb))) AS bb_lic_otr2,
+          WHERE ((mt.guest_level = 0) AND m.otr2_bb)) AS bb_lic_otr2,
     ( SELECT count(DISTINCT m.id) AS count
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'volleyball'::text))))
@@ -3910,10 +4148,10 @@ CREATE VIEW public.stats_members AS
     count(*) FILTER (WHERE (members.wiedisync_active = true)) AS active_wiedisync,
     count(*) FILTER (WHERE (members.shell = true)) AS shell_accounts,
     count(*) FILTER (WHERE ((members.shell = false) AND (members.wiedisync_active = true))) AS registered_users,
-    count(*) FILTER (WHERE ((members.licences)::jsonb @> '"scorer_vb"'::jsonb)) AS licence_scorer_vb,
-    count(*) FILTER (WHERE ((members.licences)::jsonb @> '"referee_vb"'::jsonb)) AS licence_referee_vb,
-    count(*) FILTER (WHERE ((members.licences)::jsonb @> '"otr1_bb"'::jsonb)) AS licence_otr1_bb,
-    count(*) FILTER (WHERE ((members.licences)::jsonb @> '"otr2_bb"'::jsonb)) AS licence_otr2_bb,
+    count(*) FILTER (WHERE members.scorer_vb) AS licence_scorer_vb,
+    count(*) FILTER (WHERE members.referee_vb) AS licence_referee_vb,
+    count(*) FILTER (WHERE members.otr1_bb) AS licence_otr1_bb,
+    count(*) FILTER (WHERE members.otr2_bb) AS licence_otr2_bb,
     count(*) FILTER (WHERE ((members.role)::jsonb @> '"superuser"'::jsonb)) AS role_superuser,
     count(*) FILTER (WHERE ((members.role)::jsonb @> '"admin"'::jsonb)) AS role_admin,
     count(*) FILTER (WHERE ((members.role)::jsonb @> '"vb_admin"'::jsonb)) AS role_vb_admin,
@@ -4085,21 +4323,21 @@ CREATE TABLE public.svrz_games (
     id uuid NOT NULL,
     svrz_persistence_id character varying(255) DEFAULT NULL::character varying NOT NULL,
     svrz_number integer NOT NULL,
-    status character varying(255) DEFAULT NULL::character varying NOT NULL,
+    status character varying(255) NOT NULL,
     display_name text,
     short_display_name text,
     starting_date_time timestamp with time zone,
-    playing_weekday character varying(255) DEFAULT NULL::character varying,
-    home_club_id character varying(255) DEFAULT NULL::character varying,
-    home_club_name character varying(255) DEFAULT NULL::character varying,
-    home_team_name character varying(255) DEFAULT NULL::character varying,
-    away_club_id character varying(255) DEFAULT NULL::character varying,
-    away_club_name character varying(255) DEFAULT NULL::character varying,
-    away_team_name character varying(255) DEFAULT NULL::character varying,
-    league_name character varying(255) DEFAULT NULL::character varying,
-    league_short character varying(255) DEFAULT NULL::character varying,
-    gender character varying(255) DEFAULT NULL::character varying,
-    season_name character varying(255) DEFAULT NULL::character varying,
+    playing_weekday character varying(255),
+    home_club_id character varying(255),
+    home_club_name character varying(255),
+    home_team_name character varying(255),
+    away_club_id character varying(255),
+    away_club_name character varying(255),
+    away_team_name character varying(255),
+    league_name character varying(255),
+    league_short character varying(255),
+    gender character varying(255),
+    season_name character varying(255),
     raw json,
     last_synced_at timestamp with time zone
 );
@@ -4112,15 +4350,15 @@ CREATE TABLE public.svrz_games (
 CREATE TABLE public.svrz_spielplaner_contacts (
     id uuid NOT NULL,
     svrz_persistence_id character varying(255) DEFAULT NULL::character varying NOT NULL,
-    season_uuid character varying(255) DEFAULT NULL::character varying NOT NULL,
-    season_name character varying(255) DEFAULT NULL::character varying,
-    club_id character varying(255) DEFAULT NULL::character varying,
-    club_name character varying(255) DEFAULT NULL::character varying,
-    person_first_name character varying(255) DEFAULT NULL::character varying,
-    person_last_name character varying(255) DEFAULT NULL::character varying,
-    contact_name character varying(255) DEFAULT NULL::character varying,
-    contact_email character varying(255) DEFAULT NULL::character varying,
-    contact_phone character varying(255) DEFAULT NULL::character varying,
+    season_uuid character varying(255) NOT NULL,
+    season_name character varying(255),
+    club_id character varying(255),
+    club_name character varying(255),
+    person_first_name character varying(255),
+    person_last_name character varying(255),
+    contact_name character varying(255),
+    contact_email character varying(255),
+    contact_phone character varying(255),
     club_league_categories json,
     club_team_genders json,
     raw json,
@@ -4529,6 +4767,53 @@ CREATE TABLE public.volley_feedback (
 
 
 --
+-- Name: website_admin_access; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.website_admin_access (
+    id integer NOT NULL,
+    "user" uuid NOT NULL,
+    sections jsonb DEFAULT '[]'::jsonb NOT NULL,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE website_admin_access; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.website_admin_access IS 'kscw-website /admin per-user section grants. Internal — not a Directus collection; only reachable via /kscw/wadmin.';
+
+
+--
+-- Name: COLUMN website_admin_access.sections; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.website_admin_access.sections IS 'JSON array of section keys: news, events, registrations, sponsors, scorer_courses, mixed_turnier';
+
+
+--
+-- Name: website_admin_access_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.website_admin_access_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: website_admin_access_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.website_admin_access_id_seq OWNED BY public.website_admin_access.id;
+
+
+--
 -- Name: Features id; Type: DEFAULT; Schema: p6pi0hr30o0mop9; Owner: -
 --
 
@@ -4582,6 +4867,13 @@ ALTER TABLE ONLY public.carpool_passengers ALTER COLUMN id SET DEFAULT nextval('
 --
 
 ALTER TABLE ONLY public.carpools ALTER COLUMN id SET DEFAULT nextval('public.carpools_id_seq'::regclass);
+
+
+--
+-- Name: clubdesk_export row_id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_export ALTER COLUMN row_id SET DEFAULT nextval('public.clubdesk_export_row_id_seq'::regclass);
 
 
 --
@@ -4921,6 +5213,13 @@ ALTER TABLE ONLY public.vm_vb_spielplan_contact ALTER COLUMN id SET DEFAULT next
 
 
 --
+-- Name: website_admin_access id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_admin_access ALTER COLUMN id SET DEFAULT nextval('public.website_admin_access_id_seq'::regclass);
+
+
+--
 -- Name: extensions extensions_pkey; Type: CONSTRAINT; Schema: _realtime; Owner: -
 --
 
@@ -5014,6 +5313,22 @@ ALTER TABLE ONLY public.carpool_passengers
 
 ALTER TABLE ONLY public.carpools
     ADD CONSTRAINT carpools_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: clubdesk_export_meta clubdesk_export_meta_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_export_meta
+    ADD CONSTRAINT clubdesk_export_meta_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: clubdesk_export clubdesk_export_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_export
+    ADD CONSTRAINT clubdesk_export_pkey PRIMARY KEY (row_id);
 
 
 --
@@ -5553,6 +5868,22 @@ ALTER TABLE ONLY public.volley_feedback
 
 
 --
+-- Name: website_admin_access website_admin_access_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_admin_access
+    ADD CONSTRAINT website_admin_access_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: website_admin_access website_admin_access_user_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_admin_access
+    ADD CONSTRAINT website_admin_access_user_key UNIQUE ("user");
+
+
+--
 -- Name: extensions_tenant_external_id_index; Type: INDEX; Schema: _realtime; Owner: -
 --
 
@@ -5879,6 +6210,41 @@ CREATE UNIQUE INDEX idx_bugfix_jobs_hash ON public.bugfix_jobs USING btree (erro
 --
 
 CREATE INDEX idx_bugfix_jobs_status ON public.bugfix_jobs USING btree (status);
+
+
+--
+-- Name: idx_clubdesk_export_clubdesk_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_clubdesk_export_clubdesk_id ON public.clubdesk_export USING btree (clubdesk_id);
+
+
+--
+-- Name: idx_clubdesk_export_email; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_clubdesk_export_email ON public.clubdesk_export USING btree (lower(email));
+
+
+--
+-- Name: idx_clubdesk_export_email_alt; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_clubdesk_export_email_alt ON public.clubdesk_export USING btree (lower(email_alternativ));
+
+
+--
+-- Name: idx_clubdesk_export_lic; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_clubdesk_export_lic ON public.clubdesk_export USING btree (lizenznummer);
+
+
+--
+-- Name: idx_clubdesk_export_sektion; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_clubdesk_export_sektion ON public.clubdesk_export USING btree (sektion);
 
 
 --
@@ -6316,20 +6682,6 @@ CREATE INDEX slot_claims_hall_slot_index ON public.slot_claims USING btree (hall
 
 
 --
--- Name: spielplaner_assignments_kscw_team_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX spielplaner_assignments_kscw_team_index ON public.spielplaner_assignments USING btree (kscw_team);
-
-
---
--- Name: spielplaner_assignments_member_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX spielplaner_assignments_member_index ON public.spielplaner_assignments USING btree (member);
-
-
---
 -- Name: task_templates_created_by_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6475,11 +6827,11 @@ CREATE OR REPLACE VIEW public.stats_team_roster AS
     count(DISTINCT mt.member) FILTER (WHERE (mt.guest_level = 0)) AS roster_size,
     count(DISTINCT mt.member) FILTER (WHERE ((mt.guest_level = 0) AND (m.wiedisync_active = true))) AS active_roster_size,
     count(DISTINCT mt.member) FILTER (WHERE (mt.guest_level > 0)) AS guest_count,
-    count(DISTINCT mt.member) FILTER (WHERE ((mt.guest_level = 0) AND ((m.licences)::jsonb @> '"scorer_vb"'::jsonb))) AS lic_scorer_vb,
-    count(DISTINCT mt.member) FILTER (WHERE ((mt.guest_level = 0) AND ((m.licences)::jsonb @> '"referee_vb"'::jsonb))) AS lic_referee_vb,
-    count(DISTINCT mt.member) FILTER (WHERE ((mt.guest_level = 0) AND ((m.licences)::jsonb @> '"otr1_bb"'::jsonb))) AS lic_otr1_bb,
-    count(DISTINCT mt.member) FILTER (WHERE ((mt.guest_level = 0) AND ((m.licences)::jsonb @> '"otr2_bb"'::jsonb))) AS lic_otr2_bb,
-    count(DISTINCT mt.member) FILTER (WHERE ((mt.guest_level = 0) AND ((m.licences)::jsonb @> '"referee_bb"'::jsonb))) AS lic_referee_bb,
+    count(DISTINCT mt.member) FILTER (WHERE ((mt.guest_level = 0) AND m.scorer_vb)) AS lic_scorer_vb,
+    count(DISTINCT mt.member) FILTER (WHERE ((mt.guest_level = 0) AND m.referee_vb)) AS lic_referee_vb,
+    count(DISTINCT mt.member) FILTER (WHERE ((mt.guest_level = 0) AND m.otr1_bb)) AS lic_otr1_bb,
+    count(DISTINCT mt.member) FILTER (WHERE ((mt.guest_level = 0) AND m.otr2_bb)) AS lic_otr2_bb,
+    count(DISTINCT mt.member) FILTER (WHERE ((mt.guest_level = 0) AND m.referee_bb)) AS lic_referee_bb,
     ( SELECT count(*) AS count
            FROM public.teams_coaches tc
           WHERE (tc.teams_id = t.id)) AS coach_count,
@@ -7091,14 +7443,6 @@ ALTER TABLE ONLY public.spielplaner_assignments
 
 
 --
--- Name: spielplaner_assignments spielplaner_assignments_kscw_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.spielplaner_assignments
-    ADD CONSTRAINT spielplaner_assignments_kscw_team_foreign FOREIGN KEY (kscw_team) REFERENCES public.teams(id) ON DELETE CASCADE;
-
-
---
 -- Name: spielplaner_assignments spielplaner_assignments_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7107,11 +7451,11 @@ ALTER TABLE ONLY public.spielplaner_assignments
 
 
 --
--- Name: spielplaner_assignments spielplaner_assignments_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: spielplaner_assignments spielplaner_assignments_user_created_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.spielplaner_assignments
-    ADD CONSTRAINT spielplaner_assignments_member_foreign FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+    ADD CONSTRAINT spielplaner_assignments_user_created_fkey FOREIGN KEY (user_created) REFERENCES public.directus_users(id) ON DELETE SET NULL;
 
 
 --
@@ -7192,6 +7536,14 @@ ALTER TABLE ONLY public.teams_sponsors
 
 ALTER TABLE ONLY public.user_logs
     ADD CONSTRAINT user_logs_user_foreign FOREIGN KEY ("user") REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: website_admin_access website_admin_access_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_admin_access
+    ADD CONSTRAINT website_admin_access_user_fkey FOREIGN KEY ("user") REFERENCES public.directus_users(id) ON DELETE CASCADE;
 
 
 --

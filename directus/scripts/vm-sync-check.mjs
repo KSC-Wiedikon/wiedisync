@@ -435,7 +435,7 @@ async function syncToMembers(rows) {
   const members = [];
   let page = 1;
   while (true) {
-    const url = `${DIRECTUS_URL}/items/members?fields=id,license_nr,sex,licences,vm_email,email,first_name,last_name,birthdate,birthdate_visibility,licence_category,licence_activated,licence_validated&limit=250&page=${page}`;
+    const url = `${DIRECTUS_URL}/items/members?fields=id,license_nr,sex,licences,scorer_vb,vm_email,email,first_name,last_name,birthdate,birthdate_visibility,licence_category,licence_activated,licence_validated&limit=250&page=${page}`;
     const res = await fetch(url, { headers });
     if (!res.ok) throw new Error(`Directus members list failed: ${res.status}`);
     const { data } = await res.json();
@@ -525,14 +525,21 @@ async function syncToMembers(rows) {
       changed = true;
     }
 
-    // Licences array — ensure scorer_vb presence matches is_writer
-    const currentLicences = Array.isArray(member.licences) ? [...member.licences] : [];
-    const hasScorer = currentLicences.includes('scorer_vb');
+    // Migration 067: licences is split into per-flag booleans. Dual-write
+    // (boolean + legacy JSON) through the cutover window — migration 069
+    // drops the JSON column and the `payload.licences = …` branches.
+    const hasScorer = member.scorer_vb === true;
     if (row.is_writer && !hasScorer) {
-      currentLicences.push('scorer_vb');
-      payload.licences = currentLicences;
+      payload.scorer_vb = true;
+      const currentLicences = Array.isArray(member.licences) ? [...member.licences] : [];
+      if (!currentLicences.includes('scorer_vb')) {
+        currentLicences.push('scorer_vb');
+        payload.licences = currentLicences;
+      }
       changed = true;
     } else if (!row.is_writer && hasScorer) {
+      payload.scorer_vb = false;
+      const currentLicences = Array.isArray(member.licences) ? [...member.licences] : [];
       payload.licences = currentLicences.filter(l => l !== 'scorer_vb');
       changed = true;
     }

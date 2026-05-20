@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import DOMPurify from 'dompurify'
 import { useTranslation } from 'react-i18next'
 import type { Game, Member, Team, MemberTeam, ScorerDelegation } from '../../types'
+import { licencesOf } from '../../types'
 import { useCollection } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useAuth } from '../../hooks/useAuth'
@@ -389,7 +390,7 @@ export default function ScorerPage() {
       showContact={showContact}
       userId={user?.id}
       userTeamIds={userTeamIds}
-      userLicences={user?.licences ?? []}
+      userLicences={user ? licencesOf(user) : []}
       sport={sportTab}
       onDelegate={isPast ? undefined : handleDelegate}
       getPendingForRole={getPendingForRole}

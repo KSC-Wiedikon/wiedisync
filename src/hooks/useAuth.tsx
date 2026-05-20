@@ -329,7 +329,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (role === 'team_responsible') return teamResponsibleIds.length > 0
     if (role === 'captain') return captainTeamIds.length > 0
     if (['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb'].includes(role)) {
-      return (user.licences ?? []).includes(role as any)
+      // Migration 067: licences are now per-flag booleans on the user record.
+      return (user as any)[role] === true
     }
     if (role === 'is_spielplaner') return isSpielplaner
     return false

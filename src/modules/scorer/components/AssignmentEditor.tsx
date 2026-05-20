@@ -63,7 +63,7 @@ export default function AssignmentEditor({
     let list = members.filter((m) => m.kscw_membership_active && !guestMemberIds?.has(m.id))
     if (requiredLicence) {
       const licences = Array.isArray(requiredLicence) ? requiredLicence : [requiredLicence]
-      list = list.filter((m) => licences.some((l) => m.licences?.includes(l)))
+      list = list.filter((m) => licences.some((l) => m[l]))
     }
     if (teamValue) {
       const teamMembers = teamMemberIds.get(teamValue)

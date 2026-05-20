@@ -17,6 +17,7 @@ import DeleteAccountModal from './DeleteAccountModal'
 import TeamRequestModal from './TeamRequestModal'
 import MessagingSettingsCard from '../messaging/pages/MessagingSettingsCard'
 import type { MemberTeam, Team, Absence, LicenceType } from '../../types'
+import { licencesOf } from '../../types'
 import { updateRecord } from '../../lib/api'
 import { asObj } from '../../utils/relations'
 
@@ -268,17 +269,20 @@ export default function ProfilePage() {
           </div>
           <div className="rounded-lg border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('licences')}</p>
-            {user.licences?.length > 0 ? (
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {user.licences.map((l) => (
-                  <span key={l} className="inline-flex rounded-full bg-gold-100 px-2.5 py-0.5 text-xs font-medium text-gold-900 dark:bg-gold-400/20 dark:text-gold-300">
-                    {tt(LICENCE_LABELS[l])}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">—</p>
-            )}
+            {(() => {
+              const lics = licencesOf(user)
+              return lics.length > 0 ? (
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {lics.map((l) => (
+                    <span key={l} className="inline-flex rounded-full bg-gold-100 px-2.5 py-0.5 text-xs font-medium text-gold-900 dark:bg-gold-400/20 dark:text-gold-300">
+                      {tt(LICENCE_LABELS[l])}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">—</p>
+              )
+            })()}
           </div>
         </div>
       </div>

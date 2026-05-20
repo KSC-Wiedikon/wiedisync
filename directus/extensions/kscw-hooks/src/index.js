@@ -2581,12 +2581,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!existingMember.sex && reg.geschlecht) updates.sex = normalizeSex(reg.geschlecht)
       if (!existingMember.ahv_nummer && reg.ahv_nummer) updates.ahv_nummer = reg.ahv_nummer
       if (!existingMember.beitragskategorie && reg.beitragskategorie) updates.beitragskategorie = reg.beitragskategorie
-      // Merge licences
+      // Merge licences. Migration 067 split licences into per-flag booleans;
+      // we dual-write (booleans + legacy JSON) through the migration window
+      // so reconciliation scripts still see consistent state. Migration 069
+      // drops the JSON column and this `updates.licences = …` line with it.
       const existingLicences = existingMember.licences || []
       const newLicences = mapLicences(reg.lizenz, reg.membership_type)
       const mergedLicences = [...new Set([...existingLicences, ...newLicences])]
       if (mergedLicences.length > existingLicences.length) {
         updates.licences = JSON.stringify(mergedLicences)
+        for (const lic of newLicences) {
+          if (!existingMember[lic]) updates[lic] = true
+        }
       }
       if (Object.keys(updates).length) {
         await db('members').where('id', memberId).update(updates)
@@ -2610,7 +2616,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         sex: normalizeSex(reg.geschlecht),
         ahv_nummer: reg.ahv_nummer || null,
         beitragskategorie: reg.beitragskategorie || null,
+        // Dual-write through migration 067/069 cutover (see merge block above).
         licences: JSON.stringify(licences),
+        scorer_vb: licences.includes('scorer_vb'),
+        referee_vb: licences.includes('referee_vb'),
+        otr1_bb: licences.includes('otr1_bb'),
+        otr2_bb: licences.includes('otr2_bb'),
+        otn_bb: licences.includes('otn_bb'),
+        referee_bb: licences.includes('referee_bb'),
         shell: true,
         shell_expires: shellExpires,
         shell_reminder_sent: false,

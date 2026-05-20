@@ -119,10 +119,12 @@ export function registerEventNotify(router, { services, database, getSchema, log
           const caps = await db('teams').whereNotNull('captain').select('captain')
           for (const c of caps) memberIds.add(String(c.captain))
         }
-        // Licences (use JSONB containment)
+        // Licences — migration 067 split licences (json) into per-flag booleans.
+        // role is whitelisted by the .includes() check above before reaching .where(),
+        // which is the only safe way to pass a dynamic column name to Knex.
         if (['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb'].includes(role)) {
           const members = await db('members')
-            .whereRaw(`licences::jsonb @> ?`, [JSON.stringify([role])])
+            .where(role, true)
             .select('id')
           for (const m of members) memberIds.add(String(m.id))
         }

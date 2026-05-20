@@ -8,6 +8,18 @@ export interface BaseRecord {
 }
 
 export type LicenceType = 'scorer_vb' | 'referee_vb' | 'otr1_bb' | 'otr2_bb' | 'otn_bb' | 'referee_bb'
+
+/** All licence keys in canonical order — single source of truth for UI iteration. */
+export const LICENCE_TYPES: readonly LicenceType[] = [
+  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
+] as const
+
+/** Derive the legacy LicenceType[] view from the six per-flag booleans. */
+export function licencesOf(m: Partial<Record<LicenceType, boolean | undefined>>): LicenceType[] {
+  const out: LicenceType[] = []
+  for (const k of LICENCE_TYPES) if (m[k]) out.push(k)
+  return out
+}
 export type MemberPosition =
   | 'setter'
   | 'outside'
@@ -104,7 +116,20 @@ export interface Member extends BaseRecord {
   kscw_membership_active: boolean
   birthdate: string
 
+  /**
+   * Legacy JSON licence array. Kept for one release as a dual-read fallback
+   * while consumers migrate to the per-licence boolean columns below. Will be
+   * dropped by migration 069. New code should read the boolean columns
+   * directly or call `licencesOf(member)`.
+   */
   licences: LicenceType[]
+  // 2026-05-20 migration 067: licences split into per-flag booleans.
+  scorer_vb: boolean
+  referee_vb: boolean
+  otr1_bb: boolean
+  otr2_bb: boolean
+  otn_bb: boolean
+  referee_bb: boolean
   coach_approved_team: boolean
   requested_team: string
   language: 'english' | 'german' | 'french' | 'italian' | 'swiss_german' | ''

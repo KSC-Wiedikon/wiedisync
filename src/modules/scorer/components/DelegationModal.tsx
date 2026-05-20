@@ -72,7 +72,7 @@ export default function DelegationModal({
       if (!m.kscw_membership_active || guestsOnDutyTeam.has(m.id)) return false
       if (requiredLicence) {
         const licences = Array.isArray(requiredLicence) ? requiredLicence : [requiredLicence]
-        if (!licences.some((l) => m.licences?.includes(l))) return false
+        if (!licences.some((l) => m[l])) return false
       }
       return true
     })

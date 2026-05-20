@@ -25,13 +25,13 @@ Rules:
 - Target PostgreSQL 15.8 specifically. Use PG-native syntax (ILIKE, ::cast, JSONB operators ->/->>/@>, COALESCE, FILTER, etc.).
 - Default to read-only SELECT/CTE queries. Do not write INSERT/UPDATE/DELETE/DDL unless the user explicitly asks for a write and clearly understands they need to flip "Write mode" in the UI.
 - Always include a sensible LIMIT (default 100) unless the user explicitly asks for all rows or an aggregate.
-- IMPORTANT: members.role, members.licences, and members.position are stored as PostgreSQL \`json\` (not \`jsonb\`). The \`@>\` containment operator and most JSONB functions are only defined on \`jsonb\` — you MUST cast first. Patterns that work:
+- IMPORTANT: members.role and members.position are stored as PostgreSQL \`json\` (not \`jsonb\`). The \`@>\` containment operator and most JSONB functions are only defined on \`jsonb\` — you MUST cast first. Patterns that work:
   - \`role::jsonb @> '["admin"]'::jsonb\`
   - \`'admin' IN (SELECT json_array_elements_text(role))\`
-  - \`EXISTS (SELECT 1 FROM json_array_elements_text(licences) lic WHERE lic = 'scorer_vb')\`
   Never write \`role @> '["admin"]'\` without the \`::jsonb\` cast — it fails with "operator does not exist: json @> unknown".
 - Always inspect the schema's printed data_type before assuming json vs jsonb; cast accordingly.
 - members.kscw_membership_active is the canonical "is this person an active club member" flag; filter on it for most member queries.
+- Licence flags are six BOOLEAN columns on members: \`scorer_vb\`, \`referee_vb\`, \`otr1_bb\`, \`otr2_bb\`, \`otn_bb\`, \`referee_bb\`. Query them directly (\`WHERE scorer_vb\`), not the legacy \`licences\` JSON column (which is being dropped). Count holders with \`COUNT(*) FILTER (WHERE scorer_vb)\`.
 - "Schreiber" = scorer_vb licence. "TR" = team-responsible.
 - Use \`members\`, \`teams\`, \`member_teams\`, \`teams_coaches\`, \`teams_responsibles\`, \`games\`, \`trainings\`, \`events\`, \`participations\`, \`absences\` for the obvious entities.
 - Dates: \`date\` columns are bare YYYY-MM-DD; \`*_at\` / \`date_created\` / \`date_updated\` are timestamptz. Format display dates with \`to_char(d, 'DD.MM.YYYY')\` for Swiss output.

@@ -75,6 +75,9 @@ export function useExplorerCache(scope: ExplorerScope) {
             'id', 'first_name', 'last_name', 'email', 'sex', 'kscw_membership_active', 'role', 'user',
             // Fields used by ExplorerMemberFilters (multiselect/multiselect-chip/tri-state/presence)
             'phone', 'license_nr', 'licences', 'birthdate', 'photo', 'number', 'position', 'language',
+            // 2026-05-20 migration 067: dual-read window — 'licences' (json) stays
+            // until migration 069 drops it; the booleans are what the filter reads.
+            'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
             'birthdate_visibility', 'consent_decision', 'consent_prompted_at',
             'requested_team', 'coach_approved_team', 'is_spielplaner', 'wiedisync_active',
             'shell', 'shell_expires', 'shell_reminder_sent',

@@ -157,8 +157,8 @@ export function applyMemberFilters(
     }
 
     if (filters.licences.length > 0) {
-      const memLics = Array.isArray(mr.licences) ? (mr.licences as string[]) : []
-      if (!filters.licences.some((l) => memLics.includes(l))) return false
+      // Migration 067: licences are now per-flag booleans on the member row.
+      if (!filters.licences.some((l) => mr[l] === true)) return false
     }
 
     if (filters.roles.length > 0) {
