@@ -72,6 +72,12 @@ export function initSentry() {
       // care (e.g. useBlocks) already catch and treat as empty; a real permission
       // misconfig would surface via the admin UI, not here.
       if (/permission to access collection .* or it does not exist/i.test(errMsg)) return null
+      // WIEDISYNC-36: Promise.reject(undefined) / reject() with no value. Sentry
+      // synthesizes the "Non-Error promise rejection captured with value: undefined"
+      // string for display, but there's no stacktrace and the raw value is empty —
+      // not actionable. Typical sources: fetch aborted on route change, SDK race.
+      const exType = event.exception?.values?.[0]?.type
+      if (exType === 'UnhandledRejection' && /value: undefined$/.test(errMsg)) return null
       // Expired access tokens surface on every in-flight request when a session ages out
       // (e.g. /calendar fires 4-6 parallel useCollection calls → 4-6 Sentry events per expiry).
       // The SDK auto-refreshes or kicks the user to /login; nothing actionable here.
