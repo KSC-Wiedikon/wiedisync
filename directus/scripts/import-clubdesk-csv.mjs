@@ -1,0 +1,187 @@
+#!/usr/bin/env node
+/**
+ * import-clubdesk-csv.mjs — Load a ClubDesk member export into the
+ * `clubdesk_export` staging table (migrations 064 + 065).
+ *
+ * Usage:
+ *   node directus/scripts/import-clubdesk-csv.mjs <env> <csv-path>
+ *
+ *   <env>      ∈ { dev, prod }
+ *   <csv-path> — path on local machine. CP1252-encoded, semicolon-delimited.
+ *
+ * Handles both ClubDesk export shapes:
+ *   1. Section-filtered (Sektion=Volleyball etc.) — 60 cols, Gruppe + Funktion
+ *      duplicated as leading iterator keys AND trailing detail columns.
+ *   2. Full-club export — 58 cols, no duplicates, includes [Gruppen] and
+ *      [Rolle] bracketed system columns.
+ *
+ * The script is HEADER-NAME-aware:
+ *   - Reads the first row, maps each source column name to a known target
+ *     column (with `_2` suffix for repeated names).
+ *   - Reorders each data row to match the target table's column order.
+ *   - Unmapped headers are dropped with a warning; missing target columns
+ *     are filled with NULL.
+ *
+ * No npm deps — only node:child_process / node:fs / built-in TextDecoder.
+ */
+
+import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { basename } from 'node:path'
+
+const ENVS = {
+  dev:  { container: 'supabase-db-vek42jyj0owoutoouq29aisq', database: 'directus_kscw_dev', user: 'supabase_admin' },
+  prod: { container: 'supabase-db-vek42jyj0owoutoouq29aisq', database: 'postgres',          user: 'supabase_admin' },
+}
+
+const [envName, csvPath] = process.argv.slice(2)
+if (!envName || !ENVS[envName] || !csvPath) {
+  console.error('Usage: import-clubdesk-csv.mjs <dev|prod> <csv-path>')
+  process.exit(1)
+}
+const env = ENVS[envName]
+
+// ── Header-name → table-column map ─────────────────────────────────
+// Keys are CSV header strings (with `_2` suffix appended by the
+// dedup step for repeated headers). Values are clubdesk_export column
+// names from migration 064 + 065.
+const HEADER_TO_COL = {
+  // Standard columns
+  'Gruppe': 'gruppe',                                   'Funktion': 'funktion',
+  'Nachname': 'nachname',                               'Vorname': 'vorname',
+  'Firma': 'firma',                                     'Rolle': 'rolle',
+  'Anrede': 'anrede',                                   'Titel': 'titel',
+  'Briefanrede': 'briefanrede',                         'Benutzer-Id': 'benutzer_id',
+  'Adresse': 'adresse',                                 'Adress-Zusatz': 'adress_zusatz',
+  'PLZ': 'plz',                                         'Ort': 'ort',
+  'Land': 'land',                                       'Nationalität': 'nationalitaet',
+  'Telefon Privat': 'telefon_privat',                   'Telefon Geschäft': 'telefon_geschaeft',
+  'Telefon Mobil': 'telefon_mobil',                     'Fax': 'fax',
+  'E-Mail': 'email',                                    'E-Mail Alternativ': 'email_alternativ',
+  'Gruppen': 'gruppen',                                 'Status': 'status',
+  'Eintritt': 'eintritt',                               'Mitgliedsjahre': 'mitgliedsjahre',
+  'Austritt': 'austritt',                               'Zivilstand': 'zivilstand',
+  'Geschlecht': 'geschlecht',                           'Geburtsdatum': 'geburtsdatum',
+  'Alter': 'alter_',                                    'Jahrgang': 'jahrgang',
+  'Bemerkungen': 'bemerkungen',                         'Firmen-Webseite': 'firmen_webseite',
+  'Rechnungsversand': 'rechnungsversand',               'Nie mahnen': 'nie_mahnen',
+  'IBAN': 'iban',                                       'BIC': 'bic',
+  'Kontoinhaber': 'kontoinhaber',                       'Lizenznummer': 'lizenznummer',
+  'Lizenzart': 'lizenzart',                             'Lizenz bestellt': 'lizenz_bestellt',
+  'Sektion': 'sektion',                                 'Beitragskategorie': 'beitragskategorie',
+  'Betrag Bezahlt': 'betrag_bezahlt',                   'Clubnummer': 'clubnummer',
+  'Mittelschule ZH': 'mittelschule_zh',                 'Offiziellen Lizenz': 'offiziellen_lizenz',
+  'Mitgliederbeitrag': 'mitgliederbeitrag',             'AHV Nummer': 'ahv_nummer',
+  'Passivmitglied': 'passivmitglied',                   'Offiziellen 100er': 'offiziellen_100er',
+  'Jg.': 'jg',                                          '[Id]': 'clubdesk_id',
+  '[Zuletzt geändert am]': 'zuletzt_geaendert_am',      '[Zuletzt geändert von]': 'zuletzt_geaendert_von',
+  // Bracketed system variants (full-club export only — migration 065)
+  '[Gruppen]': 'gruppen_bracketed',                     '[Rolle]': 'rolle_bracketed',
+  // Duplicate headers (section-filtered export adds trailing detail cols)
+  'Gruppe_2': 'gruppe_2',                               'Funktion_2': 'funktion_2',
+  'Gruppen_2': 'gruppen_2',                             'Rolle_2': 'rolle_2',
+}
+
+// Target column order (must match \copy column list below)
+const TARGET_COLS = [
+  'gruppe','funktion','nachname','vorname','firma',
+  'rolle','rolle_2','anrede','titel','briefanrede',
+  'benutzer_id','adresse','adress_zusatz','plz','ort',
+  'land','nationalitaet','telefon_privat','telefon_geschaeft','telefon_mobil',
+  'fax','email','email_alternativ','gruppen','status',
+  'eintritt','mitgliedsjahre','austritt','zivilstand','geschlecht',
+  'geburtsdatum','alter_','jahrgang','bemerkungen','firmen_webseite',
+  'rechnungsversand','nie_mahnen','iban','bic','kontoinhaber',
+  'lizenznummer','lizenzart','lizenz_bestellt','sektion','beitragskategorie',
+  'betrag_bezahlt','clubnummer','mittelschule_zh','offiziellen_lizenz','mitgliederbeitrag',
+  'ahv_nummer','passivmitglied','offiziellen_100er','gruppe_2','funktion_2',
+  'gruppen_2','jg','clubdesk_id','zuletzt_geaendert_am','zuletzt_geaendert_von',
+  'gruppen_bracketed','rolle_bracketed',
+]
+
+// ── 1. Decode CSV (CP1252 → UTF-8) ──────────────────────────────────
+const text = new TextDecoder('windows-1252').decode(readFileSync(csvPath))
+
+// ── 2. Parse CSV (state machine; handles quoted fields w/ embedded newlines) ─
+function parseCsv(s, delim = ';') {
+  const rows = []
+  let row = [], field = '', inQ = false, i = 0
+  while (i < s.length) {
+    const c = s[i]
+    if (inQ) {
+      if (c === '"' && s[i + 1] === '"') { field += '"'; i += 2 }
+      else if (c === '"') { inQ = false; i++ }
+      else { field += c; i++ }
+    } else {
+      if (c === '"' && field === '') { inQ = true; i++ }
+      else if (c === delim) { row.push(field); field = ''; i++ }
+      else if (c === '\r') { i++ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++ }
+      else { field += c; i++ }
+    }
+  }
+  if (field || row.length) { row.push(field); rows.push(row) }
+  return rows
+}
+
+const allRows = parseCsv(text)
+if (allRows.length < 2) {
+  console.error('CSV has fewer than 2 rows — empty or unreadable.')
+  process.exit(1)
+}
+const headerRaw = allRows[0]
+const dataRows = allRows.slice(1).filter(r => r.some(c => c && c.length))
+
+// ── 3. Build header → target-column index map (dedup repeated names) ─
+const seen = new Map()
+const sourceColNames = headerRaw.map(h => {
+  const n = (seen.get(h) || 0) + 1
+  seen.set(h, n)
+  return n === 1 ? h : `${h}_${n}`
+})
+const sourceIxToTarget = sourceColNames.map(name => HEADER_TO_COL[name] || null)
+const unmapped = sourceColNames.filter(n => !HEADER_TO_COL[n])
+if (unmapped.length) {
+  console.warn(`⚠ Unmapped CSV headers (dropped): ${unmapped.join(', ')}`)
+}
+
+// targetCol -> source index (for fast row reorder)
+const targetToSourceIx = {}
+sourceIxToTarget.forEach((tc, srcIx) => { if (tc) targetToSourceIx[tc] = srcIx })
+
+// ── 4. Emit CSV in target column order ──────────────────────────────
+const csvEscape = (s) => {
+  if (s == null || s === '') return ''
+  return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+const outLines = dataRows.map(row =>
+  TARGET_COLS.map(tc => {
+    const srcIx = targetToSourceIx[tc]
+    return srcIx == null ? '' : csvEscape(row[srcIx] || '')
+  }).join(';')
+)
+
+// ── 5. Send to psql via SSH ─────────────────────────────────────────
+const fileTag = basename(csvPath).replace(/'/g, "''")
+const psqlInput =
+  'BEGIN;\n' +
+  'TRUNCATE clubdesk_export RESTART IDENTITY;\n' +
+  `\\copy clubdesk_export(${TARGET_COLS.join(', ')}) FROM STDIN WITH (FORMAT csv, DELIMITER ';', QUOTE '"', NULL '');\n` +
+  outLines.join('\n') + '\n' +
+  '\\.\n' +
+  `UPDATE clubdesk_export_meta SET last_import_at = NOW(), source_file = '${fileTag}', row_count = (SELECT COUNT(*) FROM clubdesk_export) WHERE id = 1;\n` +
+  'COMMIT;\n' +
+  "SELECT 'rows', (SELECT COUNT(*) FROM clubdesk_export), 'volleyball', (SELECT COUNT(*) FROM clubdesk_volleyball), 'last_import', (SELECT last_import_at FROM clubdesk_export_meta WHERE id=1);\n"
+
+console.log(`→ ${envName}/${env.database}: importing ${csvPath} (${dataRows.length} data rows, ${TARGET_COLS.length} target cols)...`)
+const cmd = ['ssh', 'hetzner', 'sudo', 'docker', 'exec', '-i', env.container,
+  'psql', '-U', env.user, '-d', env.database,
+  '-X', '-v', 'ON_ERROR_STOP=1']
+const r = spawnSync(cmd[0], cmd.slice(1), { input: psqlInput, encoding: 'utf-8' })
+if (r.status !== 0) {
+  console.error('psql failed:')
+  console.error(r.stderr || r.stdout)
+  process.exit(1)
+}
+process.stdout.write(r.stdout)
+console.log('✓ import complete')
