@@ -324,17 +324,29 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
                 (wide ? ' sm:col-span-2 lg:col-span-2' : '')
               }
             >
-              {/* Card header — label + type badge */}
+              {/* Card header — label + type / state badges */}
               <header className="flex items-start justify-between gap-2">
-                <h3 className="text-sm font-medium text-foreground">
+                <h3 className="text-sm font-medium text-foreground" title={key}>
                   {labelFor(key)}
                 </h3>
-                <span
-                  className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
-                  title={KIND_BADGE[kind]}
-                >
-                  {KIND_BADGE[kind]}
-                </span>
+                <div className="flex shrink-0 items-center gap-1">
+                  {isReadOnly && (
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+                      {t('explorerMemberFieldsReadonly')}
+                    </span>
+                  )}
+                  {isDirty && (
+                    <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-primary">
+                      {t('explorerMemberFieldsDirty')}
+                    </span>
+                  )}
+                  <span
+                    className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
+                    title={KIND_BADGE[kind]}
+                  >
+                    {KIND_BADGE[kind]}
+                  </span>
+                </div>
               </header>
 
               {/* Card body — value or input */}
@@ -350,21 +362,6 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
                   />
                 )}
               </div>
-
-              {/* Card footer — raw column name + flags */}
-              <footer className="mt-auto flex items-center gap-1.5 pt-1 text-[10px] text-muted-foreground/80">
-                <code className="break-all">{key}</code>
-                {isReadOnly && (
-                  <span className="rounded bg-muted px-1 py-0.5 uppercase tracking-wider">
-                    {t('explorerMemberFieldsReadonly')}
-                  </span>
-                )}
-                {isDirty && (
-                  <span className="rounded bg-primary/15 px-1 py-0.5 uppercase tracking-wider text-primary">
-                    {t('explorerMemberFieldsDirty')}
-                  </span>
-                )}
-              </footer>
             </article>
           )
         })}
