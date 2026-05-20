@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync are documented in this file. Recent releases carry more detail; older entries are one-liners — see `git log` for the full text.
 
+## v4.13.0 — 2026-05-20
+
+Two new admin tools: a member-filter popover in the Data Explorer, and a Postgres SQL workspace for superusers.
+
+- **Data Explorer — member filters.** The `/admin/explore` Members bucket gets a Filters popover with multi-select chips (sport / gender / positions / licences / roles / language / birthdate visibility / consent), tri-state (Any/Yes/No) toggles for every member boolean (`wiedisync_active`, `shell`, `coach_approved_team`, `is_spielplaner`, `licence_activated/validated`, `hide_phone/email`, the communications flags, `push_preview_content`), and 21 "has value" presence checks (email, phone, licence number, jersey number, photo, birthdate, address/plz/city/nationality, AHV, VM email, etc.). Filters apply client-side against the already-loaded cache. Detail navigations still resolve from the unfiltered cache, so a team page can still link to a filtered-out member.
+- **SQL Workspace** (`/admin/sql`, superuser-only). Postgres console wired via a new Directus extension endpoint (`POST /kscw/admin/sql`, `GET /kscw/admin/sql/schema`). Read-only by default — DDL/DML keywords are rejected at the statement-keyword level AND the transaction is opened with `TRANSACTION READ ONLY`; flip "Write mode" in the header to allow writes (still wrapped in a transaction, still timed out). `statement_timeout = 15s`, unbounded `SELECT` auto-caps at 1000 rows with a `truncated` flag. Every call is audited to the JSONL error log as `event: sql_workspace` (user, mode, duration ms, row count, SQL preview ≤1.5KB).
+- **SQL editor.** CodeMirror with PostgreSQL syntax, autocomplete keyed off the live schema (`information_schema`) — table names complete anywhere, column completions surface after `<table>.` and show the Postgres type (`text`, `uuid`, `bool`…). Sidebar lists every public table with column types; click `SELECT` to insert a starter query. `Ctrl/Cmd-Enter` runs.
+- **Result export.** CSV download, Excel (`.xlsx`, dynamic-imported exceljs), and "Copy table" → clipboard write of both an HTML `<table>` and plain TSV via `ClipboardItem`. Paste into Gmail / Google Docs / Slack / Notion → renders as a table; paste into a terminal / editor / spreadsheet → TSV. Recent queries persist in `localStorage` (last 20) as a chip strip; in-progress draft auto-saves.
+
 ## v4.12.1 — 2026-05-18
 
 Two bug fixes: a misleading "Coach present" badge and English-locale date formatting.

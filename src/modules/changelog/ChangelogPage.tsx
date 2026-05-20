@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.12.1'
+const APP_VERSION = '4.13.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,26 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.13.0',
+    date: '2026-05-20',
+    sections: [
+      {
+        title: 'Data Explorer — member filters',
+        items: [
+          'The /admin/explore page has a new "Filters" popover that narrows the Members list against the loaded cache. Multi-select chips for Sport, Gender, Positions, Licences, Roles, Language, Birthdate visibility and Consent decision. Tri-state (Any / Yes / No) toggles for every member boolean — wiedisync_active, shell, coach_approved_team, is_spielplaner, licence_activated/validated, hide_phone/email, communications flags, push preview — and for 21 "has value" presence checks (email, phone, licence number, jersey, photo, birthdate, address, AHV, VM email, etc.). An active filter count appears on the button and the list updates live.',
+        ],
+      },
+      {
+        title: 'SQL Workspace (superuser-only)',
+        items: [
+          'New /admin/sql page for superusers — a Postgres SQL console wired to the production database via a Directus extension endpoint. Read-only by default (DDL/DML keywords are rejected, transaction is opened with TRANSACTION READ ONLY); flip the "Write mode" switch in the header to allow writes. Every statement runs inside a 15s-timeout transaction; unbounded SELECTs auto-cap at 1000 rows. Every call is audited to the JSONL error log as event "sql_workspace" with user, mode, duration and SQL preview.',
+          'The editor is CodeMirror with PostgreSQL syntax + autocomplete that knows your live schema — table names suggest anywhere, columns suggest after `<table>.`, each suggestion shows its Postgres type. Sidebar lists every public table with column types; click "SELECT" to drop a starter query. Ctrl/Cmd-Enter runs.',
+          'Result exports: CSV download, Excel (.xlsx) download, and "Copy table" which writes both an HTML table and TSV to your clipboard — paste into Gmail / Docs / Slack to get a rendered table, or into a terminal / editor / spreadsheet to get TSV. Recent queries persist locally (last 20) as a chip strip; draft auto-saves so a refresh does not lose your in-progress query.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.12.1',
     date: '2026-05-18',
