@@ -36,7 +36,8 @@ const PRESENCE_FIELDS = [
   'vm_email', 'ahv_nummer',
   'licence_category', 'beitragskategorie',
   'shell_expires',
-  'licence_activation_date', 'licence_validation_date',
+  // licence_activation_date / licence_validation_date intentionally omitted —
+  // restricted field perms 403 the explorer cache fetch (see useExplorerCache).
   'last_online_at', 'consent_prompted_at',
 ] as const
 type PresenceField = (typeof PRESENCE_FIELDS)[number]
@@ -267,8 +268,6 @@ export default function ExplorerMemberFilters({ value, onChange }: Props) {
       licence_category: t('memberFilterHasLicenceCategory'),
       beitragskategorie: t('memberFilterHasFeeCategory'),
       shell_expires: t('memberFilterHasShellExpiry'),
-      licence_activation_date: t('memberFilterHasLicenceActivationDate'),
-      licence_validation_date: t('memberFilterHasLicenceValidationDate'),
       last_online_at: t('memberFilterHasLastOnline'),
       consent_prompted_at: t('memberFilterHasConsentPromptedAt'),
     }),

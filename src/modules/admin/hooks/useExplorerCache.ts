@@ -78,8 +78,10 @@ export function useExplorerCache(scope: ExplorerScope) {
             'birthdate_visibility', 'consent_decision', 'consent_prompted_at',
             'requested_team', 'coach_approved_team', 'is_spielplaner', 'wiedisync_active',
             'shell', 'shell_expires', 'shell_reminder_sent',
-            'licence_activated', 'licence_validated',
-            'licence_activation_date', 'licence_validation_date', 'licence_category',
+            'licence_activated', 'licence_validated', 'licence_category',
+            // licence_activation_date / licence_validation_date intentionally
+            // omitted — admin-only field perms; including them 403s the whole
+            // Promise.all batch for Vorstand/Coach/etc. on /admin/explore.
             'hide_phone', 'hide_email', 'website_visible',
             'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
             'push_preview_content', 'last_online_at',

@@ -27,7 +27,7 @@ import { asObj } from '../utils/relations'
 import {
   Home, Calendar, Trophy, UserX, PenSquare, PartyPopper, Users,
   ClipboardList, Building2, CalendarClock, Activity,
-  HeartPulse, Settings, ChevronDown, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, GraduationCap, Database, Megaphone, Newspaper, Flag, ScrollText,
+  HeartPulse, Settings, ChevronDown, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, GraduationCap, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal,
 } from 'lucide-react'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 
@@ -85,6 +85,7 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
       { to: '/admin/data-health', label: t('dataHealth'), icon: <HeartPulse className={iconClass} /> },
       { to: '/bugfixes', label: t('bugfixes'), icon: <Bug className={iconClass} /> },
       { to: '/admin/audit-log', label: t('auditLog'), icon: <ScrollText className={iconClass} /> },
+      { to: '/admin/sql', label: t('sqlWorkspace'), icon: <Terminal className={iconClass} /> },
     ],
   }
 }
