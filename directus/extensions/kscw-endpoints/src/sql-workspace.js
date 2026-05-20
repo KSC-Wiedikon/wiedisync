@@ -261,7 +261,23 @@ export function registerSqlWorkspace(router, ctx) {
           if (i === lastIdx && shouldAutoLimit(stmt)) {
             stmt = `${stmt}\nLIMIT ${DEFAULT_ROW_CAP + 1}`
           }
-          const result = await trx.raw(stmt)
+          let result
+          try {
+            result = await trx.raw(stmt)
+          } catch (pgErr) {
+            // Re-throw with Postgres metadata stripped of the echoed query
+            // (knex prefixes the raw SQL onto the error message). Surface
+            // the PG error code so the client can show a useful 400.
+            const pgMessage = pgErr?.message?.split(' - ').pop() ?? pgErr?.message ?? 'query failed'
+            const wrapped = new Error(pgMessage)
+            wrapped.status = 400
+            wrapped.code = pgErr?.code ?? 'pg_error'
+            wrapped.detail = pgErr?.detail ?? null
+            wrapped.hint = pgErr?.hint ?? null
+            wrapped.position = pgErr?.position ?? null
+            wrapped.statementIndex = i
+            throw wrapped
+          }
           // For non-SELECT statements, pg returns rowCount/command without
           // .fields. Surface them as a single-row diagnostic on the final
           // statement.
@@ -331,6 +347,10 @@ export function registerSqlWorkspace(router, ctx) {
       res.status(err.status || 500).json({
         error: err.status ? err.message : 'Internal error',
         code: err.code ?? null,
+        detail: err.detail ?? null,
+        hint: err.hint ?? null,
+        position: err.position ?? null,
+        statement_index: err.statementIndex ?? null,
         duration_ms: durationMs,
       })
     }

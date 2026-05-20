@@ -32,6 +32,10 @@ interface ApiQueryResponse {
 interface ApiErrorResponse {
   error: string
   code?: string | null
+  detail?: string | null
+  hint?: string | null
+  position?: string | null
+  statement_index?: number | null
   duration_ms?: number
 }
 
@@ -84,8 +88,16 @@ async function runQuery(sql: string, writeMode: boolean): Promise<ApiQueryRespon
   const body = await resp.json().catch(() => ({}))
   if (!resp.ok) {
     const errBody = body as ApiErrorResponse
-    const err = new Error(errBody?.error ?? `query failed: ${resp.status}`)
-    ;(err as Error & { code?: string | null }).code = errBody?.code ?? null
+    const err = new Error(errBody?.error ?? `query failed: ${resp.status}`) as Error & {
+      code?: string | null
+      detail?: string | null
+      hint?: string | null
+      position?: string | null
+    }
+    err.code = errBody?.code ?? null
+    err.detail = errBody?.detail ?? null
+    err.hint = errBody?.hint ?? null
+    err.position = errBody?.position ?? null
     throw err
   }
   return body as ApiQueryResponse
@@ -135,6 +147,8 @@ export default function SqlWorkspacePage() {
   const [result, setResult] = useState<ApiQueryResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [errorCode, setErrorCode] = useState<string | null>(null)
+  const [errorHint, setErrorHint] = useState<string | null>(null)
+  const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [recent, setRecent] = useState<RecentQuery[]>(() => loadRecent())
   const [copied, setCopied] = useState(false)
@@ -191,6 +205,8 @@ export default function SqlWorkspacePage() {
     setLoading(true)
     setError(null)
     setErrorCode(null)
+    setErrorHint(null)
+    setErrorDetail(null)
     try {
       const r = await runQuery(text, writeMode)
       setResult(r)
@@ -198,8 +214,11 @@ export default function SqlWorkspacePage() {
       setRecent(next)
       saveRecent(next)
     } catch (e) {
-      setError((e as Error).message)
-      setErrorCode((e as Error & { code?: string | null }).code ?? null)
+      const ex = e as Error & { code?: string | null; hint?: string | null; detail?: string | null }
+      setError(ex.message)
+      setErrorCode(ex.code ?? null)
+      setErrorHint(ex.hint ?? null)
+      setErrorDetail(ex.detail ?? null)
       setResult(null)
     } finally {
       setLoading(false)
@@ -508,8 +527,21 @@ export default function SqlWorkspacePage() {
             <div className="flex items-start gap-2 rounded-md border border-destructive bg-destructive/10 p-2 text-xs text-destructive">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="min-w-0 flex-1 break-words">
-                <div className="font-semibold">{t('sqlWorkspaceError')}</div>
+                <div className="font-semibold">
+                  {t('sqlWorkspaceError')}
+                  {errorCode && <span className="ml-1.5 font-mono text-[10px] opacity-75">[{errorCode}]</span>}
+                </div>
                 <div className="font-mono">{error}</div>
+                {errorHint && (
+                  <div className="mt-1 font-mono text-foreground/80">
+                    <span className="font-sans font-semibold">hint:</span> {errorHint}
+                  </div>
+                )}
+                {errorDetail && (
+                  <div className="mt-1 font-mono text-foreground/80">
+                    <span className="font-sans font-semibold">detail:</span> {errorDetail}
+                  </div>
+                )}
                 {errorCode === 'write_required' && (
                   <div className="mt-1 text-foreground/80">{t('sqlWorkspaceWriteRequiredHint')}</div>
                 )}

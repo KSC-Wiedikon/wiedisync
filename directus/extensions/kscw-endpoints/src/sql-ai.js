@@ -25,8 +25,12 @@ Rules:
 - Target PostgreSQL 15.8 specifically. Use PG-native syntax (ILIKE, ::cast, JSONB operators ->/->>/@>, COALESCE, FILTER, etc.).
 - Default to read-only SELECT/CTE queries. Do not write INSERT/UPDATE/DELETE/DDL unless the user explicitly asks for a write and clearly understands they need to flip "Write mode" in the UI.
 - Always include a sensible LIMIT (default 100) unless the user explicitly asks for all rows or an aggregate.
-- members.role is a JSONB array of strings — use \`'admin' = ANY(SELECT jsonb_array_elements_text(role))\` or \`role @> '["admin"]'\` to filter.
-- members.licences and members.position are also JSONB arrays of strings — same pattern.
+- IMPORTANT: members.role, members.licences, and members.position are stored as PostgreSQL \`json\` (not \`jsonb\`). The \`@>\` containment operator and most JSONB functions are only defined on \`jsonb\` — you MUST cast first. Patterns that work:
+  - \`role::jsonb @> '["admin"]'::jsonb\`
+  - \`'admin' IN (SELECT json_array_elements_text(role))\`
+  - \`EXISTS (SELECT 1 FROM json_array_elements_text(licences) lic WHERE lic = 'scorer_vb')\`
+  Never write \`role @> '["admin"]'\` without the \`::jsonb\` cast — it fails with "operator does not exist: json @> unknown".
+- Always inspect the schema's printed data_type before assuming json vs jsonb; cast accordingly.
 - members.kscw_membership_active is the canonical "is this person an active club member" flag; filter on it for most member queries.
 - "Schreiber" = scorer_vb licence. "TR" = team-responsible.
 - Use \`members\`, \`teams\`, \`member_teams\`, \`teams_coaches\`, \`teams_responsibles\`, \`games\`, \`trainings\`, \`events\`, \`participations\`, \`absences\` for the obvious entities.
