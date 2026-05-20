@@ -28,6 +28,7 @@ export default {
   infraHealth: 'Infrastructure',
   dataHealth: 'Qualite des donnees',
   auditLog: 'Audit Log',
+  sqlWorkspace: 'Atelier SQL',
   bugfixes: 'Bugfixes',
   status: 'Statut',
   adminMode: 'Mode admin',

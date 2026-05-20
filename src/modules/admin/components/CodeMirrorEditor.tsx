@@ -2,31 +2,30 @@ import { useRef, useEffect, useMemo } from 'react'
 import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
 import { basicSetup } from 'codemirror'
-import { sql, SQLite } from '@codemirror/lang-sql'
+import { sql, PostgreSQL } from '@codemirror/lang-sql'
 import { autocompletion, startCompletion } from '@codemirror/autocomplete'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { useTheme } from '@/hooks/useTheme'
-import type { CollectionInfo } from './TableBrowser'
+
+export interface SqlSchemaTable {
+  name: string
+  columns: readonly { name: string }[]
+}
 
 interface CodeMirrorEditorProps {
   value: string
   onChange: (value: string) => void
   onExecute: () => void
-  collections: CollectionInfo[]
+  tables: readonly SqlSchemaTable[]
   placeholder?: string
 }
 
 function buildSchema(
-  collections: CollectionInfo[],
+  tables: readonly SqlSchemaTable[],
 ): Record<string, readonly string[]> {
   const schema: Record<string, string[]> = {}
-  for (const col of collections) {
-    schema[col.name] = [
-      'id',
-      'created',
-      'updated',
-      ...col.schema.map((f) => f.name),
-    ]
+  for (const t of tables) {
+    schema[t.name] = t.columns.map((c) => c.name)
   }
   return schema
 }
@@ -35,7 +34,7 @@ export default function CodeMirrorEditor({
   value,
   onChange,
   onExecute,
-  collections,
+  tables,
   placeholder,
 }: CodeMirrorEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -47,13 +46,11 @@ export default function CodeMirrorEditor({
   const sqlCompartment = useRef(new Compartment())
   const { theme } = useTheme()
 
-  // Keep callback refs fresh
   onExecuteRef.current = onExecute
   onChangeRef.current = onChange
 
-  const schema = useMemo(() => buildSchema(collections), [collections])
+  const schema = useMemo(() => buildSchema(tables), [tables])
 
-  // Create editor on mount
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -81,7 +78,7 @@ export default function CodeMirrorEditor({
         executeKeymap,
         basicSetup,
         sqlCompartment.current.of(
-          sql({ dialect: SQLite, schema, upperCaseKeywords: true }),
+          sql({ dialect: PostgreSQL, schema, upperCaseKeywords: true }),
         ),
         autocompletion(),
         themeCompartment.current.of(theme === 'dark' ? oneDark : []),
@@ -97,7 +94,7 @@ export default function CodeMirrorEditor({
           '&': { fontSize: '13px' },
           '.cm-content': { fontFamily: 'ui-monospace, "JetBrains Mono", monospace' },
           '.cm-gutters': { borderRight: 'none' },
-          '.cm-scroller': { minHeight: '120px' },
+          '.cm-scroller': { minHeight: '160px' },
         }),
       ],
     })
@@ -112,11 +109,9 @@ export default function CodeMirrorEditor({
       view.destroy()
       viewRef.current = null
     }
-    // Only run on mount — onExecute/onChange captured via refs below
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Sync theme changes
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
@@ -127,18 +122,16 @@ export default function CodeMirrorEditor({
     })
   }, [theme])
 
-  // Sync schema changes
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
     view.dispatch({
       effects: sqlCompartment.current.reconfigure(
-        sql({ dialect: SQLite, schema, upperCaseKeywords: true }),
+        sql({ dialect: PostgreSQL, schema, upperCaseKeywords: true }),
       ),
     })
   }, [schema])
 
-  // Sync external value changes (e.g., history selection, clear)
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
@@ -157,7 +150,7 @@ export default function CodeMirrorEditor({
   return (
     <div
       ref={containerRef}
-      className="overflow-hidden rounded-lg border border-gray-300 [&_.cm-editor]:min-h-[120px] [&_.cm-editor]:resize-y [&_.cm-editor]:overflow-auto dark:border-gray-600"
+      className="overflow-hidden rounded-lg border border-border bg-card [&_.cm-editor]:min-h-[160px] [&_.cm-editor]:resize-y [&_.cm-editor]:overflow-auto"
     />
   )
 }

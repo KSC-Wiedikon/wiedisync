@@ -35,6 +35,7 @@ import { registerSyncStatus } from './sync-status.js'
 import { registerAudit } from './audit.js'
 import { registerOpnform } from './opnform.js'
 import { registerWadmin } from './wadmin.js'
+import { registerSqlWorkspace } from './sql-workspace.js'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -1865,7 +1866,8 @@ export default {
     registerAudit(router, ctx)
     registerOpnform(router, ctx)
     registerWadmin(router, ctx)
+    registerSqlWorkspace(router, ctx)
 
-    log.info('KSCW endpoints loaded: ~58 routes')
+    log.info('KSCW endpoints loaded: ~60 routes')
   },
 }
