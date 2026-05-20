@@ -495,6 +495,11 @@ export default {
   sqlWorkspaceStatements_other: '{{count}} statements',
   sqlWorkspaceTruncated: 'truncated to 1000 rows',
   sqlWorkspaceError: 'Query failed',
+  sqlWorkspaceExportCsv: 'CSV',
+  sqlWorkspaceExportXlsx: 'Excel',
+  sqlWorkspaceCopyTable: 'Copy table',
+  sqlWorkspaceCopyTableHint: 'Copy as HTML table + TSV (paste into docs, sheets, chat)',
+  sqlWorkspaceCopied: 'Copied',
 
   // Volley Feedback dashboard
   vfOverview: 'Overview',

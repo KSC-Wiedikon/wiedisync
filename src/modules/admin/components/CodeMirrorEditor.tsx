@@ -7,9 +7,14 @@ import { autocompletion, startCompletion } from '@codemirror/autocomplete'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { useTheme } from '@/hooks/useTheme'
 
+export interface SqlSchemaColumn {
+  name: string
+  /** Column type — shown in autocomplete popup as the suggestion's detail. */
+  dataType?: string
+}
 export interface SqlSchemaTable {
   name: string
-  columns: readonly { name: string }[]
+  columns: readonly SqlSchemaColumn[]
 }
 
 interface CodeMirrorEditorProps {
@@ -20,14 +25,33 @@ interface CodeMirrorEditorProps {
   placeholder?: string
 }
 
+interface RichCompletion {
+  label: string
+  type?: string
+  detail?: string
+}
+
+/** Build the lang-sql `schema` map. Each table maps to its columns as rich
+ *  completion entries (label + type marker + dataType detail), giving us a
+ *  proper autocomplete popup with column types when the user types `tbl.`. */
 function buildSchema(
   tables: readonly SqlSchemaTable[],
-): Record<string, readonly string[]> {
-  const schema: Record<string, string[]> = {}
+): Record<string, readonly RichCompletion[]> {
+  const schema: Record<string, RichCompletion[]> = {}
   for (const t of tables) {
-    schema[t.name] = t.columns.map((c) => c.name)
+    schema[t.name] = t.columns.map((c) => ({
+      label: c.name,
+      type: 'property',
+      detail: c.dataType,
+    }))
   }
   return schema
+}
+
+function buildTablesList(
+  tables: readonly SqlSchemaTable[],
+): RichCompletion[] {
+  return tables.map((t) => ({ label: t.name, type: 'type' }))
 }
 
 export default function CodeMirrorEditor({
@@ -50,6 +74,7 @@ export default function CodeMirrorEditor({
   onChangeRef.current = onChange
 
   const schema = useMemo(() => buildSchema(tables), [tables])
+  const tableList = useMemo(() => buildTablesList(tables), [tables])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -78,9 +103,9 @@ export default function CodeMirrorEditor({
         executeKeymap,
         basicSetup,
         sqlCompartment.current.of(
-          sql({ dialect: PostgreSQL, schema, upperCaseKeywords: true }),
+          sql({ dialect: PostgreSQL, schema, tables: tableList, upperCaseKeywords: true }),
         ),
-        autocompletion(),
+        autocompletion({ activateOnTyping: true, defaultKeymap: true }),
         themeCompartment.current.of(theme === 'dark' ? oneDark : []),
         cmPlaceholder(placeholder || ''),
         EditorView.updateListener.of((update) => {
@@ -127,10 +152,10 @@ export default function CodeMirrorEditor({
     if (!view) return
     view.dispatch({
       effects: sqlCompartment.current.reconfigure(
-        sql({ dialect: PostgreSQL, schema, upperCaseKeywords: true }),
+        sql({ dialect: PostgreSQL, schema, tables: tableList, upperCaseKeywords: true }),
       ),
     })
-  }, [schema])
+  }, [schema, tableList])
 
   useEffect(() => {
     const view = viewRef.current

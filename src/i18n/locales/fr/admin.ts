@@ -278,6 +278,11 @@ export default {
   sqlWorkspaceStatements_other: '{{count}} instructions',
   sqlWorkspaceTruncated: 'tronqué à 1000 lignes',
   sqlWorkspaceError: 'Requête échouée',
+  sqlWorkspaceExportCsv: 'CSV',
+  sqlWorkspaceExportXlsx: 'Excel',
+  sqlWorkspaceCopyTable: 'Copier le tableau',
+  sqlWorkspaceCopyTableHint: 'Copier en tableau HTML + TSV (pour docs, tableurs, chat)',
+  sqlWorkspaceCopied: 'Copié',
 
   // Volley Feedback dashboard
   vfOverview: 'Aperçu',

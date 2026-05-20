@@ -433,6 +433,11 @@ export default {
   sqlWorkspaceStatements_other: '{{count}} Awisige',
   sqlWorkspaceTruncated: 'uf 1000 Zile kürzt',
   sqlWorkspaceError: 'Query gscheiteret',
+  sqlWorkspaceExportCsv: 'CSV',
+  sqlWorkspaceExportXlsx: 'Excel',
+  sqlWorkspaceCopyTable: 'Tabelle kopiere',
+  sqlWorkspaceCopyTableHint: 'Als HTML-Tabelle + TSV kopiere (für Docs, Sheets, Chat)',
+  sqlWorkspaceCopied: 'Kopiert',
 
   // Volley Feedback dashboard
   vfOverview: 'Übersicht',

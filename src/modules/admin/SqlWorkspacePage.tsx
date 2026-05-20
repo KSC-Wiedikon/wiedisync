@@ -1,10 +1,11 @@
 // src/modules/admin/SqlWorkspacePage.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Play, Loader2, AlertTriangle, History, Database, RefreshCw, X } from 'lucide-react'
+import { Play, Loader2, AlertTriangle, History, Database, RefreshCw, X, FileDown, FileSpreadsheet, ClipboardCopy, Check } from 'lucide-react'
 import { API_URL, getAccessToken } from '../../lib/api'
 import CodeMirrorEditor, { type SqlSchemaTable } from './components/CodeMirrorEditor'
 import ResultsTable from './components/ResultsTable'
+import { toCSV, toXlsx, copyAsTable, downloadBlob, downloadText } from './utils/exportResults'
 
 interface SchemaColumn {
   name: string
@@ -106,6 +107,8 @@ export default function SqlWorkspacePage() {
   const [errorCode, setErrorCode] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [recent, setRecent] = useState<RecentQuery[]>(() => loadRecent())
+  const [copied, setCopied] = useState(false)
+  const [exporting, setExporting] = useState<'csv' | 'xlsx' | 'table' | null>(null)
 
   // Persist draft to localStorage (debounced)
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -125,9 +128,13 @@ export default function SqlWorkspacePage() {
 
   useEffect(() => { void loadSchema() }, [loadSchema])
 
-  // Map → SqlSchemaTable for autocomplete
+  // Map → SqlSchemaTable for autocomplete (column names + types)
   const editorTables = useMemo<SqlSchemaTable[]>(
-    () => tables.map((tb) => ({ name: tb.name, columns: tb.columns })),
+    () =>
+      tables.map((tb) => ({
+        name: tb.name,
+        columns: tb.columns.map((c) => ({ name: c.name, dataType: c.data_type })),
+      })),
     [tables],
   )
 
@@ -167,6 +174,50 @@ export default function SqlWorkspacePage() {
   )
 
   const clearRecent = useCallback(() => { setRecent([]); saveRecent([]) }, [])
+
+  const exportFilename = useCallback((ext: string) => {
+    const ts = new Date()
+      .toISOString()
+      .replace(/[:T]/g, '-')
+      .replace(/\..+$/, '')
+    return `kscw-sql-${ts}.${ext}`
+  }, [])
+
+  const handleExportCsv = useCallback(() => {
+    if (!result) return
+    setExporting('csv')
+    try {
+      const text = toCSV(result.columns, result.rows)
+      downloadText(text, exportFilename('csv'), 'text/csv;charset=utf-8')
+    } finally {
+      setExporting(null)
+    }
+  }, [result, exportFilename])
+
+  const handleExportXlsx = useCallback(async () => {
+    if (!result) return
+    setExporting('xlsx')
+    try {
+      const blob = await toXlsx(result.columns, result.rows)
+      downloadBlob(blob, exportFilename('xlsx'))
+    } finally {
+      setExporting(null)
+    }
+  }, [result, exportFilename])
+
+  const handleCopyTable = useCallback(async () => {
+    if (!result) return
+    setExporting('table')
+    try {
+      await copyAsTable(result.columns, result.rows)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch (e) {
+      console.warn('[sql-workspace] copy failed:', e)
+    } finally {
+      setExporting(null)
+    }
+  }, [result])
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col bg-background text-foreground">
@@ -297,8 +348,8 @@ export default function SqlWorkspacePage() {
             </div>
           )}
 
-          {/* Status bar */}
-          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+          {/* Status bar + export toolbar */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
             {result && (
               <>
                 <span>{t('sqlWorkspaceRows', { count: result.row_count })}</span>
@@ -306,6 +357,40 @@ export default function SqlWorkspacePage() {
                 {result.statements > 1 && <span>· {t('sqlWorkspaceStatements', { count: result.statements })}</span>}
                 {result.truncated && <span className="font-semibold text-amber-600">· {t('sqlWorkspaceTruncated')}</span>}
                 {result.write_mode && <span className="font-semibold text-destructive">· WRITE</span>}
+                {result.rows.length > 0 && (
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleExportCsv}
+                      disabled={exporting !== null}
+                      className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                      title={t('sqlWorkspaceExportCsv')}
+                    >
+                      <FileDown className="h-3 w-3" />
+                      {t('sqlWorkspaceExportCsv')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportXlsx}
+                      disabled={exporting !== null}
+                      className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                      title={t('sqlWorkspaceExportXlsx')}
+                    >
+                      {exporting === 'xlsx' ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileSpreadsheet className="h-3 w-3" />}
+                      {t('sqlWorkspaceExportXlsx')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyTable}
+                      disabled={exporting !== null}
+                      className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                      title={t('sqlWorkspaceCopyTableHint')}
+                    >
+                      {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <ClipboardCopy className="h-3 w-3" />}
+                      {copied ? t('sqlWorkspaceCopied') : t('sqlWorkspaceCopyTable')}
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

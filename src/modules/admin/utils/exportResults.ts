@@ -95,3 +95,43 @@ export function downloadText(
 ): void {
   downloadBlob(new Blob([content], { type: mime }), filename)
 }
+
+/** HTML <table> escaped for clipboard write. */
+export function toHtmlTable(columns: string[], rows: unknown[][]): string {
+  const esc = (s: string) =>
+    s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+  const thead = `<thead><tr>${columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>`
+  const tbody = `<tbody>${rows
+    .map(
+      (row) =>
+        `<tr>${row.map((cell) => `<td>${esc(serializeCell(cell))}</td>`).join('')}</tr>`,
+    )
+    .join('')}</tbody>`
+  return `<table border="1" cellspacing="0" cellpadding="4">${thead}${tbody}</table>`
+}
+
+/** Write both HTML <table> and plain TSV to the clipboard. Lets the target
+ *  app pick the richer representation it supports — Gmail/Slack/Docs render
+ *  the HTML table; terminal/editor falls back to TSV; Excel/Sheets use TSV
+ *  cell-paste. Falls back to a plain TSV writeText when ClipboardItem isn't
+ *  available (older browsers, insecure contexts). */
+export async function copyAsTable(
+  columns: string[],
+  rows: unknown[][],
+): Promise<void> {
+  const html = toHtmlTable(columns, rows)
+  const tsv = toTSV(columns, rows)
+  if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+    const item = new ClipboardItem({
+      'text/html': new Blob([html], { type: 'text/html' }),
+      'text/plain': new Blob([tsv], { type: 'text/plain' }),
+    })
+    await navigator.clipboard.write([item])
+    return
+  }
+  await navigator.clipboard.writeText(tsv)
+}
