@@ -1,7 +1,8 @@
 // src/modules/admin/SqlWorkspacePage.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Play, Loader2, AlertTriangle, History, Database, RefreshCw, X, FileDown, FileSpreadsheet, ClipboardCopy, Check } from 'lucide-react'
+import { Play, Loader2, AlertTriangle, History, Database, RefreshCw, X, FileDown, FileSpreadsheet, ClipboardCopy, Check, Sparkles } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover'
 import { API_URL, getAccessToken } from '../../lib/api'
 import CodeMirrorEditor, { type SqlSchemaTable } from './components/CodeMirrorEditor'
 import ResultsTable from './components/ResultsTable'
@@ -90,6 +91,35 @@ async function runQuery(sql: string, writeMode: boolean): Promise<ApiQueryRespon
   return body as ApiQueryResponse
 }
 
+interface AskAiResponse {
+  sql: string
+  model: string
+  duration_ms: number
+  tokens_in: number | null
+  tokens_cached: number | null
+  tokens_out: number | null
+}
+
+async function askAi(prompt: string): Promise<AskAiResponse> {
+  const token = getAccessToken()
+  const resp = await fetch(`${API_URL}/kscw/admin/sql/ask`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify({ prompt }),
+  })
+  const body = await resp.json().catch(() => ({}))
+  if (!resp.ok) {
+    const err = new Error((body as ApiErrorResponse)?.error ?? `AI request failed: ${resp.status}`)
+    ;(err as Error & { code?: string | null }).code = (body as ApiErrorResponse)?.code ?? null
+    throw err
+  }
+  return body as AskAiResponse
+}
+
 export default function SqlWorkspacePage() {
   const { t } = useTranslation('admin')
 
@@ -109,6 +139,14 @@ export default function SqlWorkspacePage() {
   const [recent, setRecent] = useState<RecentQuery[]>(() => loadRecent())
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState<'csv' | 'xlsx' | 'table' | null>(null)
+
+  // ── AI assistant ──
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  // aiMeta tracked for potential future inline-badge UI; null until first ask
+  const [, setAiMeta] = useState<AskAiResponse | null>(null)
 
   // Persist draft to localStorage (debounced)
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -205,6 +243,23 @@ export default function SqlWorkspacePage() {
     }
   }, [result, exportFilename])
 
+  const handleAskAi = useCallback(async () => {
+    const text = aiPrompt.trim()
+    if (!text || aiLoading) return
+    setAiLoading(true)
+    setAiError(null)
+    try {
+      const r = await askAi(text)
+      setSql(r.sql)
+      setAiMeta(r)
+      setAiOpen(false)
+    } catch (e) {
+      setAiError((e as Error).message)
+    } finally {
+      setAiLoading(false)
+    }
+  }, [aiPrompt, aiLoading])
+
   const handleCopyTable = useCallback(async () => {
     if (!result) return
     setExporting('table')
@@ -223,8 +278,62 @@ export default function SqlWorkspacePage() {
     <div className="flex h-[calc(100vh-4rem)] flex-col bg-background text-foreground">
       <header className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 md:px-4">
         <h1 className="hidden text-sm font-bold text-primary md:block">{t('sqlWorkspaceTitle')}</h1>
-        <span className="hidden text-[10px] uppercase tracking-wide text-muted-foreground md:inline">{t('sqlWorkspaceBetaTag')}</span>
+        <span className="hidden rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground md:inline" title={t('sqlWorkspaceDialectHint')}>
+          PostgreSQL 15.8
+        </span>
         <div className="flex-1" />
+
+        <Popover open={aiOpen} onOpenChange={setAiOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+              title={t('sqlWorkspaceAskAiHint')}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t('sqlWorkspaceAskAi')}</span>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" sideOffset={6} className="w-[380px] p-3 sm:w-[440px]">
+            <div className="mb-2 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <h2 className="text-sm font-semibold">{t('sqlWorkspaceAskAi')}</h2>
+              <span className="ml-auto text-[10px] text-muted-foreground">{t('sqlWorkspaceAskAiTagline')}</span>
+            </div>
+            <textarea
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault()
+                  void handleAskAi()
+                }
+              }}
+              placeholder={t('sqlWorkspaceAskAiPlaceholder')}
+              rows={4}
+              className="w-full resize-y rounded-md border border-border bg-background p-2 text-xs"
+              autoFocus
+            />
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground">{t('sqlWorkspaceAskAiSubmitHint')}</span>
+              <button
+                type="button"
+                onClick={() => void handleAskAi()}
+                disabled={aiLoading || !aiPrompt.trim()}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {aiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {t('sqlWorkspaceAskAiGenerate')}
+              </button>
+            </div>
+            {aiError && (
+              <div className="mt-2 rounded-md border border-destructive bg-destructive/10 p-2 text-[11px] text-destructive">
+                {aiError}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+
         <label className="flex items-center gap-1.5 text-xs text-foreground">
           <input
             type="checkbox"

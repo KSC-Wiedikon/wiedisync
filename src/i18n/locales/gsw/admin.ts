@@ -438,6 +438,13 @@ export default {
   sqlWorkspaceCopyTable: 'Tabelle kopiere',
   sqlWorkspaceCopyTableHint: 'Als HTML-Tabelle + TSV kopiere (für Docs, Sheets, Chat)',
   sqlWorkspaceCopied: 'Kopiert',
+  sqlWorkspaceDialectHint: 'PostgreSQL-15.8-Dialäkt (CTEs, JSONB-Operatore, ILIKE, ::casts)',
+  sqlWorkspaceAskAi: 'KI frooge',
+  sqlWorkspaceAskAiHint: 'Beschriib uf natürliche Sprooch, was d wotsch — d KI schribt s SQL',
+  sqlWorkspaceAskAiTagline: 'Claude · Sonnet 4.6',
+  sqlWorkspaceAskAiPlaceholder: 'z. B. "Aktivi Mitglieder mit Schriiberlizänz im H1 oder H2, sortiert nach Nachname"',
+  sqlWorkspaceAskAiSubmitHint: 'Cmd/Ctrl-Enter zum Generiere',
+  sqlWorkspaceAskAiGenerate: 'SQL generiere',
 
   // Volley Feedback dashboard
   vfOverview: 'Übersicht',

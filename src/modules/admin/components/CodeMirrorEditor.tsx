@@ -3,13 +3,20 @@ import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/vi
 import { EditorState, Compartment } from '@codemirror/state'
 import { basicSetup } from 'codemirror'
 import { sql, PostgreSQL } from '@codemirror/lang-sql'
-import { autocompletion, startCompletion } from '@codemirror/autocomplete'
+import {
+  autocompletion,
+  startCompletion,
+  type Completion,
+  type CompletionContext,
+  type CompletionResult,
+  type CompletionSource,
+} from '@codemirror/autocomplete'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { useTheme } from '@/hooks/useTheme'
 
 export interface SqlSchemaColumn {
   name: string
-  /** Column type — shown in autocomplete popup as the suggestion's detail. */
+  /** Postgres type, surfaced in the completion popup's detail line. */
   dataType?: string
 }
 export interface SqlSchemaTable {
@@ -25,33 +32,108 @@ interface CodeMirrorEditorProps {
   placeholder?: string
 }
 
-interface RichCompletion {
-  label: string
-  type?: string
-  detail?: string
-}
+const SQL_KEYWORDS = [
+  'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IN', 'LIKE', 'ILIKE', 'IS', 'NULL',
+  'JOIN', 'INNER', 'LEFT', 'RIGHT', 'FULL', 'OUTER', 'CROSS', 'ON', 'USING',
+  'GROUP', 'BY', 'HAVING', 'ORDER', 'ASC', 'DESC', 'LIMIT', 'OFFSET', 'DISTINCT',
+  'AS', 'WITH', 'RECURSIVE',
+  'CASE', 'WHEN', 'THEN', 'ELSE', 'END',
+  'UNION', 'INTERSECT', 'EXCEPT', 'ALL', 'EXISTS', 'ANY', 'BETWEEN', 'COALESCE', 'CAST',
+  'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'ARRAY_AGG', 'JSONB_AGG', 'JSON_AGG', 'STRING_AGG',
+  'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 'RETURNING',
+  'TRUE', 'FALSE',
+]
 
-/** Build the lang-sql `schema` map. Each table maps to its columns as rich
- *  completion entries (label + type marker + dataType detail), giving us a
- *  proper autocomplete popup with column types when the user types `tbl.`. */
-function buildSchema(
-  tables: readonly SqlSchemaTable[],
-): Record<string, readonly RichCompletion[]> {
-  const schema: Record<string, RichCompletion[]> = {}
+/** Build a schema-aware autocomplete source.
+ *  - `<table>.<partial>` → only that table's columns (with type)
+ *  - bare word in any other position → table names, deduped column names
+ *    (with `from <table>` hint), and SQL keywords */
+function makeCompletionSource(tables: readonly SqlSchemaTable[]): CompletionSource {
+  // Pre-compute completion arrays for performance
+  const tableCompletions: Completion[] = tables.map((t) => ({
+    label: t.name,
+    type: 'type',
+    detail: 'table',
+    boost: 5,
+  }))
+
+  // Columns keyed by name. If a name is in multiple tables, surface them all
+  // as separate entries so users see e.g. "id (members)" + "id (teams)".
+  const columnCompletions: Completion[] = []
   for (const t of tables) {
-    schema[t.name] = t.columns.map((c) => ({
-      label: c.name,
-      type: 'property',
-      detail: c.dataType,
-    }))
+    for (const c of t.columns) {
+      columnCompletions.push({
+        label: c.name,
+        apply: c.name,
+        type: 'property',
+        detail: c.dataType ? `${c.dataType} · ${t.name}` : t.name,
+        info: c.dataType ? `${t.name}.${c.name} :: ${c.dataType}` : `${t.name}.${c.name}`,
+        boost: 2,
+      })
+    }
   }
-  return schema
-}
 
-function buildTablesList(
-  tables: readonly SqlSchemaTable[],
-): RichCompletion[] {
-  return tables.map((t) => ({ label: t.name, type: 'type' }))
+  // Per-table column lookup (for `tableName.` completion)
+  const columnsByTable = new Map<string, Completion[]>()
+  for (const t of tables) {
+    columnsByTable.set(
+      t.name.toLowerCase(),
+      t.columns.map((c) => ({
+        label: c.name,
+        type: 'property',
+        detail: c.dataType,
+        info: c.dataType ? `${t.name}.${c.name} :: ${c.dataType}` : undefined,
+        boost: 10,
+      })),
+    )
+  }
+
+  const keywordCompletions: Completion[] = SQL_KEYWORDS.map((k) => ({
+    label: k,
+    type: 'keyword',
+    boost: -1,
+  }))
+
+  return (context: CompletionContext): CompletionResult | null => {
+    // Case 1: `tableName.<cursor>` or `tableName.partial`
+    // Look BEFORE the dot — find a `<word>.` sequence.
+    const dotMatch = context.matchBefore(/\b([A-Za-z_][\w]*)\.([\w]*)$/)
+    if (dotMatch) {
+      const m = dotMatch.text.match(/^([A-Za-z_][\w]*)\.([\w]*)$/)
+      if (m) {
+        const [, tableName, partial] = m
+        const cols = columnsByTable.get(tableName.toLowerCase())
+        if (cols) {
+          return {
+            // Replace only the part AFTER the dot
+            from: dotMatch.from + tableName.length + 1,
+            to: dotMatch.from + tableName.length + 1 + partial.length,
+            options: cols,
+            validFor: /^\w*$/,
+          }
+        }
+      }
+    }
+
+    // Case 2: bare word — suggest tables + columns + keywords
+    const word = context.matchBefore(/[A-Za-z_]\w*/)
+    if (!word) {
+      if (!context.explicit) return null
+      // Empty position, explicit (Ctrl-Space): still offer suggestions
+      return {
+        from: context.pos,
+        options: [...tableCompletions, ...columnCompletions, ...keywordCompletions],
+        validFor: /^\w*$/,
+      }
+    }
+    if (word.from === word.to && !context.explicit) return null
+
+    return {
+      from: word.from,
+      options: [...tableCompletions, ...columnCompletions, ...keywordCompletions],
+      validFor: /^\w*$/,
+    }
+  }
 }
 
 export default function CodeMirrorEditor({
@@ -67,14 +149,13 @@ export default function CodeMirrorEditor({
   const onExecuteRef = useRef(onExecute)
   const onChangeRef = useRef(onChange)
   const themeCompartment = useRef(new Compartment())
-  const sqlCompartment = useRef(new Compartment())
+  const completionCompartment = useRef(new Compartment())
   const { theme } = useTheme()
 
   onExecuteRef.current = onExecute
   onChangeRef.current = onChange
 
-  const schema = useMemo(() => buildSchema(tables), [tables])
-  const tableList = useMemo(() => buildTablesList(tables), [tables])
+  const completionSource = useMemo(() => makeCompletionSource(tables), [tables])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -102,10 +183,17 @@ export default function CodeMirrorEditor({
       extensions: [
         executeKeymap,
         basicSetup,
-        sqlCompartment.current.of(
-          sql({ dialect: PostgreSQL, schema, tables: tableList, upperCaseKeywords: true }),
+        // lang-sql for syntax highlighting only — we override completion
+        // entirely below so column suggestions work at every position.
+        sql({ dialect: PostgreSQL, upperCaseKeywords: true }),
+        completionCompartment.current.of(
+          autocompletion({
+            activateOnTyping: true,
+            defaultKeymap: true,
+            maxRenderedOptions: 50,
+            override: [completionSource],
+          }),
         ),
-        autocompletion({ activateOnTyping: true, defaultKeymap: true }),
         themeCompartment.current.of(theme === 'dark' ? oneDark : []),
         cmPlaceholder(placeholder || ''),
         EditorView.updateListener.of((update) => {
@@ -120,6 +208,8 @@ export default function CodeMirrorEditor({
           '.cm-content': { fontFamily: 'ui-monospace, "JetBrains Mono", monospace' },
           '.cm-gutters': { borderRight: 'none' },
           '.cm-scroller': { minHeight: '160px' },
+          '.cm-tooltip-autocomplete': { fontFamily: 'ui-monospace, "JetBrains Mono", monospace' },
+          '.cm-completionDetail': { color: '#94a3b8', fontStyle: 'normal', marginLeft: '0.75rem' },
         }),
       ],
     })
@@ -147,15 +237,22 @@ export default function CodeMirrorEditor({
     })
   }, [theme])
 
+  // Reconfigure the autocomplete source when the schema (re)loads so
+  // column suggestions appear as soon as the schema fetch resolves.
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
     view.dispatch({
-      effects: sqlCompartment.current.reconfigure(
-        sql({ dialect: PostgreSQL, schema, tables: tableList, upperCaseKeywords: true }),
+      effects: completionCompartment.current.reconfigure(
+        autocompletion({
+          activateOnTyping: true,
+          defaultKeymap: true,
+          maxRenderedOptions: 50,
+          override: [completionSource],
+        }),
       ),
     })
-  }, [schema, tableList])
+  }, [completionSource])
 
   useEffect(() => {
     const view = viewRef.current

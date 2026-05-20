@@ -36,6 +36,7 @@ import { registerAudit } from './audit.js'
 import { registerOpnform } from './opnform.js'
 import { registerWadmin } from './wadmin.js'
 import { registerSqlWorkspace } from './sql-workspace.js'
+import { registerSqlAi } from './sql-ai.js'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -1867,7 +1868,8 @@ export default {
     registerOpnform(router, ctx)
     registerWadmin(router, ctx)
     registerSqlWorkspace(router, ctx)
+    registerSqlAi(router, ctx)
 
-    log.info('KSCW endpoints loaded: ~60 routes')
+    log.info('KSCW endpoints loaded: ~61 routes')
   },
 }
