@@ -126,6 +126,59 @@ function labelFor(key: string): string {
   return MEMBER_FIELD_LABELS[key] ?? humanize(key)
 }
 
+// Semantic field groups — ordered for display. Keys not listed here land in
+// "Other" automatically.
+interface FieldGroup {
+  id: string
+  label: string
+  keys: string[]
+}
+const FIELD_GROUPS: FieldGroup[] = [
+  {
+    id: 'identity',
+    label: 'Identity',
+    keys: ['id', 'first_name', 'last_name', 'email', 'phone', 'sex', 'birthdate', 'birthdate_visibility', 'language', 'photo', 'number', 'position', 'role', 'user'],
+  },
+  {
+    id: 'membership',
+    label: 'Membership',
+    keys: ['kscw_membership_active', 'wiedisync_active', 'shell', 'shell_expires', 'shell_reminder_sent', 'requested_team', 'coach_approved_team', 'is_spielplaner'],
+  },
+  {
+    id: 'licences',
+    label: 'Licences',
+    keys: ['license_nr', 'licences', 'licence_activated', 'licence_validated', 'licence_category', 'licence_activation_date', 'licence_validation_date', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb'],
+  },
+  {
+    id: 'privacy',
+    label: 'Consent & privacy',
+    keys: ['consent_decision', 'consent_prompted_at', 'hide_phone', 'hide_email', 'website_visible', 'push_preview_content'],
+  },
+  {
+    id: 'communications',
+    label: 'Communications',
+    keys: ['communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned', 'last_online_at'],
+  },
+  {
+    id: 'address',
+    label: 'Address & Swiss Volley admin',
+    keys: ['adresse', 'plz', 'ort', 'nationalitaet', 'vm_email', 'ahv_nummer', 'beitragskategorie'],
+  },
+  {
+    id: 'system',
+    label: 'System',
+    keys: ['status', 'date_created', 'date_updated', 'user_created', 'user_updated', 'sort'],
+  },
+]
+
+const KEY_TO_GROUP: Record<string, string> = (() => {
+  const m: Record<string, string> = {}
+  for (const g of FIELD_GROUPS) {
+    for (const k of g.keys) m[k] = g.id
+  }
+  return m
+})()
+
 type FieldKind = 'bool' | 'number' | 'json' | 'date' | 'datetime' | 'longtext' | 'text'
 
 const KIND_BADGE: Record<FieldKind, string> = {
@@ -203,18 +256,32 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
     setEditMode(false)
   }, [load, reloadKey])
 
-  // Sort: pinned identity fields first, then alphabetical by human label.
-  const keys = useMemo(() => {
-    if (!record) return [] as string[]
-    const pinned = ['id', 'first_name', 'last_name', 'email', 'phone', 'sex', 'birthdate', 'role']
-    return Object.keys(record).sort((a, b) => {
-      const ai = pinned.indexOf(a)
-      const bi = pinned.indexOf(b)
-      if (ai !== -1 && bi !== -1) return ai - bi
-      if (ai !== -1) return -1
-      if (bi !== -1) return 1
-      return labelFor(a).localeCompare(labelFor(b))
-    })
+  // All keys (flat) — for change counters
+  const keys = useMemo(() => (record ? Object.keys(record) : []), [record])
+
+  // Group keys by FIELD_GROUPS; unknown keys land in "Other" (rendered last).
+  // Within each group, preserve the order declared in FIELD_GROUPS.keys; any
+  // keys present on the record but not in the group's declared order fall to
+  // the end of that group, sorted by human label.
+  const groupedKeys = useMemo(() => {
+    if (!record) return [] as Array<{ id: string; label: string; keys: string[] }>
+    const present = new Set(Object.keys(record))
+    const sections: Array<{ id: string; label: string; keys: string[] }> = []
+
+    for (const g of FIELD_GROUPS) {
+      const ordered = g.keys.filter((k) => present.has(k))
+      if (ordered.length > 0) sections.push({ id: g.id, label: g.label, keys: ordered })
+    }
+
+    // Anything not mapped → "Other"
+    const otherKeys = Object.keys(record)
+      .filter((k) => !KEY_TO_GROUP[k])
+      .sort((a, b) => labelFor(a).localeCompare(labelFor(b)))
+    if (otherKeys.length > 0) {
+      sections.push({ id: 'other', label: 'Other', keys: otherKeys })
+    }
+
+    return sections
   }, [record])
 
   const dirtyKeys = useMemo(() => {
@@ -303,68 +370,80 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
         )}
       </header>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {keys.map((key) => {
-          const original = record[key]
-          const current = draft[key]
-          const kind = detectKind(key, original)
-          const isReadOnly = READ_ONLY_FIELDS.has(key)
-          const isDirty = !isReadOnly && !valueEquals(original, current)
-          // Wide cards for json/longtext so their content has room
-          const wide = kind === 'json' || kind === 'longtext'
+      <div className="space-y-5">
+        {groupedKeys.map((group) => (
+          <section key={group.id}>
+            <h3 className="mb-2 border-b border-border pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {group.label}
+              <span className="ml-2 font-normal normal-case text-muted-foreground/60">
+                {group.keys.length}
+              </span>
+            </h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {group.keys.map((key) => {
+                const original = record[key]
+                const current = draft[key]
+                const kind = detectKind(key, original)
+                const isReadOnly = READ_ONLY_FIELDS.has(key)
+                const isDirty = !isReadOnly && !valueEquals(original, current)
+                // Wide cards for json/longtext so their content has room
+                const wide = kind === 'json' || kind === 'longtext'
 
-          return (
-            <article
-              key={key}
-              className={
-                'flex flex-col gap-1.5 rounded-lg border p-3 transition-colors ' +
-                (isDirty
-                  ? 'border-primary/60 bg-primary/5'
-                  : 'border-border bg-card hover:border-border/80') +
-                (wide ? ' sm:col-span-2 lg:col-span-2' : '')
-              }
-            >
-              {/* Card header — label + type / state badges */}
-              <header className="flex items-start justify-between gap-2">
-                <h3 className="text-sm font-medium text-foreground" title={key}>
-                  {labelFor(key)}
-                </h3>
-                <div className="flex shrink-0 items-center gap-1">
-                  {isReadOnly && (
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
-                      {t('explorerMemberFieldsReadonly')}
-                    </span>
-                  )}
-                  {isDirty && (
-                    <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-primary">
-                      {t('explorerMemberFieldsDirty')}
-                    </span>
-                  )}
-                  <span
-                    className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
-                    title={KIND_BADGE[kind]}
+                return (
+                    <article
+                    key={key}
+                    className={
+                      'flex flex-col gap-1.5 rounded-lg border p-3 transition-colors ' +
+                      (isDirty
+                        ? 'border-primary/60 bg-primary/5'
+                        : 'border-border bg-card hover:border-border/80') +
+                      (wide ? ' sm:col-span-2 lg:col-span-2' : '')
+                    }
                   >
-                    {KIND_BADGE[kind]}
-                  </span>
-                </div>
-              </header>
+                    {/* Card header — label + type / state badges */}
+                    <header className="flex items-start justify-between gap-2">
+                      <h4 className="text-sm font-medium text-foreground" title={key}>
+                        {labelFor(key)}
+                      </h4>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {isReadOnly && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+                            {t('explorerMemberFieldsReadonly')}
+                          </span>
+                        )}
+                        {isDirty && (
+                          <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-primary">
+                            {t('explorerMemberFieldsDirty')}
+                          </span>
+                        )}
+                        <span
+                          className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
+                          title={KIND_BADGE[kind]}
+                        >
+                          {KIND_BADGE[kind]}
+                        </span>
+                      </div>
+                    </header>
 
-              {/* Card body — value or input */}
-              <div className="text-sm">
-                {!editMode || isReadOnly ? (
-                  <DisplayValue value={original} kind={kind} />
-                ) : (
-                  <FieldEditor
-                    fieldKey={key}
-                    kind={kind}
-                    value={current}
-                    onChange={(v) => setField(key, v)}
-                  />
-                )}
-              </div>
-            </article>
-          )
-        })}
+                    {/* Card body — value or input */}
+                    <div className="text-sm">
+                      {!editMode || isReadOnly ? (
+                        <DisplayValue value={original} kind={kind} />
+                      ) : (
+                        <FieldEditor
+                          fieldKey={key}
+                          kind={kind}
+                          value={current}
+                          onChange={(v) => setField(key, v)}
+                        />
+                      )}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </section>
+        ))}
       </div>
     </section>
   )
@@ -376,7 +455,13 @@ function DisplayValue({ value, kind }: { value: unknown; kind: FieldKind }) {
   }
   if (kind === 'bool') {
     return (
-      <span className={value ? 'font-medium text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}>
+      <span
+        className={
+          value
+            ? 'font-medium text-emerald-600 dark:text-emerald-400'
+            : 'font-medium text-red-600 dark:text-red-400'
+        }
+      >
         {value ? 'Yes' : 'No'}
       </span>
     )
@@ -412,13 +497,19 @@ function FieldEditor({
     'w-full rounded border border-border bg-background px-2 py-1 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none'
 
   if (kind === 'bool') {
+    const on = Boolean(value)
     return (
       <div className="flex items-center gap-2">
-        <Switch
-          checked={Boolean(value)}
-          onCheckedChange={(checked) => onChange(checked)}
-        />
-        <span className="text-muted-foreground">{Boolean(value) ? 'Yes' : 'No'}</span>
+        <Switch checked={on} onCheckedChange={(checked) => onChange(checked)} />
+        <span
+          className={
+            on
+              ? 'font-medium text-emerald-600 dark:text-emerald-400'
+              : 'font-medium text-red-600 dark:text-red-400'
+          }
+        >
+          {on ? 'Yes' : 'No'}
+        </span>
       </div>
     )
   }
