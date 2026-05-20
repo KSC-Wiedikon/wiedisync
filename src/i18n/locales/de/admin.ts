@@ -412,6 +412,21 @@ export default {
   explorerActivityTraining: 'Training',
   explorerActivityGame: 'Spiel',
   explorerActivityRemoved: '(entfernt)',
+  // Explorer — Alle Felder
+  explorerMemberFieldsTitle: 'Alle Felder',
+  explorerMemberFieldsCount: 'Spalten',
+  explorerMemberFieldsLoading: 'Datensatz wird geladen…',
+  explorerMemberFieldsError: 'Datensatz konnte nicht geladen werden.',
+  explorerMemberFieldsEdit: 'Bearbeiten',
+  explorerMemberFieldsReadonly: 'Schreibgeschützt',
+  explorerMemberFieldsDirty: 'Geändert',
+  explorerMemberFieldsNoChanges: 'Keine Änderungen',
+  explorerMemberFieldsChanges_one: '{{count}} Änderung',
+  explorerMemberFieldsChanges_other: '{{count}} Änderungen',
+  explorerMemberFieldsChanges: '{{count}} Änderungen',
+  explorerMemberFieldsSaved_one: '{{count}} Feld gespeichert',
+  explorerMemberFieldsSaved_other: '{{count}} Felder gespeichert',
+  explorerMemberFieldsSaved: '{{count}} Felder gespeichert',
 
   // Mitglieder-Filter (Explorer)
   memberFilterTitle: 'Mitglieder-Filter',

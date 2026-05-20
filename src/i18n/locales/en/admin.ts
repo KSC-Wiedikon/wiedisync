@@ -406,6 +406,21 @@ export default {
   explorerActivityTraining: 'Training',
   explorerActivityGame: 'Game',
   explorerActivityRemoved: '(removed)',
+  // Explorer — full-fields member view
+  explorerMemberFieldsTitle: 'All fields',
+  explorerMemberFieldsCount: 'columns',
+  explorerMemberFieldsLoading: 'Loading record…',
+  explorerMemberFieldsError: 'Failed to load the record.',
+  explorerMemberFieldsEdit: 'Edit',
+  explorerMemberFieldsReadonly: 'Read-only',
+  explorerMemberFieldsDirty: 'Changed',
+  explorerMemberFieldsNoChanges: 'No changes',
+  explorerMemberFieldsChanges_one: '{{count}} change',
+  explorerMemberFieldsChanges_other: '{{count}} changes',
+  explorerMemberFieldsChanges: '{{count}} changes',
+  explorerMemberFieldsSaved_one: 'Saved {{count}} field',
+  explorerMemberFieldsSaved_other: 'Saved {{count}} fields',
+  explorerMemberFieldsSaved: 'Saved {{count}} fields',
 
   // Member filters (Explorer)
   memberFilterTitle: 'Member filters',

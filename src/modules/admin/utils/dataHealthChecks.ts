@@ -122,17 +122,30 @@ async function checkMembers(): Promise<CollectionHealth> {
     sort: ['last_name', 'first_name'],
   })
 
-  // Get all current season member_teams
+  // Pass members who have ANY team responsibility: player (current season),
+  // coach (teams_coaches), or team-responsible (teams_responsibles). The
+  // junctions have no season column — current-state is the truth.
   const now = new Date()
   const seasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
   const season = `${seasonYear}/${(seasonYear + 1).toString().slice(2)}`
 
-  const memberTeams = await fetchAllItems<Record<string, unknown>>('member_teams', {
-    fields: ['member'],
-    filter: { season: { _eq: season } },
-  })
+  const [memberTeams, teamCoaches, teamResponsibles] = await Promise.all([
+    fetchAllItems<{ member: string | number }>('member_teams', {
+      fields: ['member'],
+      filter: { season: { _eq: season } },
+    }),
+    fetchAllItems<{ members_id: string | number }>('teams_coaches', {
+      fields: ['members_id'],
+    }).catch(() => [] as { members_id: string | number }[]),
+    fetchAllItems<{ members_id: string | number }>('teams_responsibles', {
+      fields: ['members_id'],
+    }).catch(() => [] as { members_id: string | number }[]),
+  ])
 
-  const assignedMemberIds = new Set(memberTeams.map((mt) => mt['member'] as string))
+  const assignedMemberIds = new Set<string>()
+  for (const mt of memberTeams) assignedMemberIds.add(String(mt.member))
+  for (const tc of teamCoaches) assignedMemberIds.add(String(tc.members_id))
+  for (const tr of teamResponsibles) assignedMemberIds.add(String(tr.members_id))
 
   const issues: DataIssue[] = []
 

@@ -189,6 +189,21 @@ export default {
   explorerActivityTraining: 'Entraînement',
   explorerActivityGame: 'Match',
   explorerActivityRemoved: '(supprimé)',
+  // Explorateur — Tous les champs
+  explorerMemberFieldsTitle: 'Tous les champs',
+  explorerMemberFieldsCount: 'colonnes',
+  explorerMemberFieldsLoading: 'Chargement de l’enregistrement…',
+  explorerMemberFieldsError: 'Impossible de charger l’enregistrement.',
+  explorerMemberFieldsEdit: 'Modifier',
+  explorerMemberFieldsReadonly: 'Lecture seule',
+  explorerMemberFieldsDirty: 'Modifié',
+  explorerMemberFieldsNoChanges: 'Aucune modification',
+  explorerMemberFieldsChanges_one: '{{count}} modification',
+  explorerMemberFieldsChanges_other: '{{count}} modifications',
+  explorerMemberFieldsChanges: '{{count}} modifications',
+  explorerMemberFieldsSaved_one: '{{count}} champ enregistré',
+  explorerMemberFieldsSaved_other: '{{count}} champs enregistrés',
+  explorerMemberFieldsSaved: '{{count}} champs enregistrés',
 
   // Filtres membres (Explorateur)
   memberFilterTitle: 'Filtres membres',

@@ -189,6 +189,21 @@ export default {
   explorerActivityTraining: 'Allenamento',
   explorerActivityGame: 'Partita',
   explorerActivityRemoved: '(rimosso)',
+  // Explorer — Tutti i campi
+  explorerMemberFieldsTitle: 'Tutti i campi',
+  explorerMemberFieldsCount: 'colonne',
+  explorerMemberFieldsLoading: 'Caricamento del record…',
+  explorerMemberFieldsError: 'Impossibile caricare il record.',
+  explorerMemberFieldsEdit: 'Modifica',
+  explorerMemberFieldsReadonly: 'Sola lettura',
+  explorerMemberFieldsDirty: 'Modificato',
+  explorerMemberFieldsNoChanges: 'Nessuna modifica',
+  explorerMemberFieldsChanges_one: '{{count}} modifica',
+  explorerMemberFieldsChanges_other: '{{count}} modifiche',
+  explorerMemberFieldsChanges: '{{count}} modifiche',
+  explorerMemberFieldsSaved_one: '{{count}} campo salvato',
+  explorerMemberFieldsSaved_other: '{{count}} campi salvati',
+  explorerMemberFieldsSaved: '{{count}} campi salvati',
 
   // Filtri membri (Explorer)
   memberFilterTitle: 'Filtri membri',

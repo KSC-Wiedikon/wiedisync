@@ -344,6 +344,21 @@ export default {
   explorerActivityTraining: 'Training',
   explorerActivityGame: 'Spiel',
   explorerActivityRemoved: '(ewägg)',
+  // Explorer — Alli Fälder
+  explorerMemberFieldsTitle: 'Alli Fälder',
+  explorerMemberFieldsCount: 'Spalte',
+  explorerMemberFieldsLoading: 'Datesatz wird glade…',
+  explorerMemberFieldsError: 'Datesatz hät nöd chönne glade wärde.',
+  explorerMemberFieldsEdit: 'Bearbeite',
+  explorerMemberFieldsReadonly: 'Nur läse',
+  explorerMemberFieldsDirty: 'Gänderet',
+  explorerMemberFieldsNoChanges: 'Kei Änderige',
+  explorerMemberFieldsChanges_one: '{{count}} Änderig',
+  explorerMemberFieldsChanges_other: '{{count}} Änderige',
+  explorerMemberFieldsChanges: '{{count}} Änderige',
+  explorerMemberFieldsSaved_one: '{{count}} Fäld gspycheret',
+  explorerMemberFieldsSaved_other: '{{count}} Fälder gspycheret',
+  explorerMemberFieldsSaved: '{{count}} Fälder gspycheret',
 
   // Mitglieder-Filter (Explorer)
   memberFilterTitle: 'Mitglieder-Filter',

@@ -9,6 +9,7 @@ import {
   formatShortDate, formatShortDateTime,
 } from './explorerHelpers'
 import ExplorerSectionCard from './ExplorerSectionCard'
+import ExplorerMemberFields from './ExplorerMemberFields'
 import { useRelatedEntities, type SectionKey } from '../hooks/useRelatedEntities'
 import { useAuth } from '../../../hooks/useAuth'
 
@@ -31,6 +32,10 @@ export default function ExplorerDetail({ cache, type, id, onSelect, onBack }: Pr
   const related = useRelatedEntities()
   const { isGlobalAdmin, isVorstand } = useAuth()
   const showRestrictedSections = isGlobalAdmin || isVorstand
+  // Only Admin + Vorstand get the inline edit affordance; Directus policy
+  // makes the final call (PATCH 403s for everyone else even if the button
+  // were shown).
+  const canEditMember = isGlobalAdmin || isVorstand
 
   const entity = useMemo(() => {
     if (!type || !id) return null
@@ -90,7 +95,7 @@ export default function ExplorerDetail({ cache, type, id, onSelect, onBack }: Pr
       </div>
 
       {/* Fields + sections per type */}
-      {type === 'members' && renderMember(entity as never, cache, onNavigate, related, t, showRestrictedSections)}
+      {type === 'members' && renderMember(entity as never, cache, onNavigate, related, t, showRestrictedSections, canEditMember)}
       {type === 'teams' && renderTeam(entity as never, cache, onNavigate, t)}
       {type === 'events' && renderEvent(entity as never, cache, onNavigate, related, t)}
       {type === 'trainings' && renderTraining(entity as never, cache, onNavigate, related, t)}
@@ -191,6 +196,7 @@ function renderMember(
   related: ReturnType<typeof useRelatedEntities>,
   t: TFn,
   showRestrictedSections: boolean,
+  canEditMember: boolean,
 ) {
   const memberIdStr = String(m.id)
   // Union of all team associations: player + coach + team-responsible + captain
@@ -225,25 +231,14 @@ function renderMember(
 
   const teamName = (tid: string) => cache.teams.find((x) => String(x.id) === tid)?.name ?? tid
 
-  const rawRoles = Array.isArray(m.role) ? (m.role as string[]) : []
-  const roleLabel = rawRoles.length
-    ? rawRoles.map((r) => capitalize(r)).join(', ')
-    : '—'
-  const sexValue = String(m.sex ?? '').toLowerCase()
-  const sexLabel = sexValue === 'm'
-    ? t('explorerSexMale')
-    : sexValue === 'f'
-      ? t('explorerSexFemale')
-      : sexValue ? capitalize(sexValue) : '—'
-
   return (
     <>
-      <div className="mb-4">
-        <Field label={t('explorerFieldEmail')}>{String(m.email ?? '—')}</Field>
-        <Field label={t('explorerFieldSex')}>{sexLabel}</Field>
-        <Field label={t('explorerFieldRole')}>{roleLabel}</Field>
-        <Field label={t('explorerFieldActive')}>{m.kscw_membership_active ? '✓' : '—'}</Field>
-      </div>
+      {/* Full-fields view: every readable column, admin-editable inline */}
+      <ExplorerMemberFields
+        memberId={memberIdStr}
+        canEdit={canEditMember}
+        reloadKey={cache.loadedAt ?? undefined}
+      />
 
       {/* Teams table */}
       <ExplorerSectionCard title={t('explorerSectionTeams')} count={memberTeams.length} lazy={false}>
