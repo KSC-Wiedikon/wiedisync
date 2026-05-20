@@ -166,15 +166,14 @@ export function registerSqlWorkspace(router, ctx) {
     }
   }
 
-  async function requireSuperuser(req) {
+  /** Gate on the resolved `admin_access` policy flag, not on the mutable
+   *  `directus_roles.name` string. Same rationale as audit.js — a renamed
+   *  role would otherwise slip through, and the role-name check 403s
+   *  legitimate superusers whose Directus role isn't literally "Superuser". */
+  function requireSuperuser(req) {
     requireAuth(req)
-    const row = await database('directus_users')
-      .join('directus_roles', 'directus_users.role', 'directus_roles.id')
-      .where('directus_users.id', req.accountability.user)
-      .select('directus_roles.name as role_name')
-      .first()
-    if (!row || row.role_name !== 'Superuser') {
-      log.warn({ msg: 'Superuser access denied (sql-workspace)', userId: req.accountability.user, role: row?.role_name })
+    if (req.accountability.admin !== true) {
+      log.warn({ msg: 'Superuser access denied (sql-workspace)', userId: req.accountability.user })
       const err = new Error('Superuser access required')
       err.status = 403
       throw err
