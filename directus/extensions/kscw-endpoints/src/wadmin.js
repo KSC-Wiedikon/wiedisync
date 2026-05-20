@@ -269,7 +269,9 @@ export function registerWadmin(router, ctx) {
     }
   })
 
-  router.put('/wadmin/admins/:id', async (req, res) => {
+  // PATCH (not PUT) — Directus's default CORS_METHODS is GET,POST,PATCH,DELETE;
+  // PUT preflight is rejected cross-origin. Semantically equivalent for our upsert.
+  router.patch('/wadmin/admins/:id', async (req, res) => {
     const userId = req.accountability?.user
     if (!(await isManagerUser(database, userId))) {
       return res.status(403).json({ error: 'manager_required' })
