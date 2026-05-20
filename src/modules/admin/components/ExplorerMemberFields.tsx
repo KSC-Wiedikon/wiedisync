@@ -45,7 +45,98 @@ const READ_ONLY_FIELDS = new Set([
   'shell_reminder_sent',
 ])
 
+// Human-readable labels for the `members` collection. Anything not in this
+// map falls back to humanize(key) (snake_case → "Sentence case").
+// Sentence case only (per CLAUDE.md capitalisation rule).
+const MEMBER_FIELD_LABELS: Record<string, string> = {
+  // Identity
+  id: 'ID',
+  first_name: 'First name',
+  last_name: 'Last name',
+  email: 'Email address',
+  phone: 'Phone number',
+  sex: 'Sex',
+  birthdate: 'Birthdate',
+  birthdate_visibility: 'Birthdate visibility',
+  language: 'Preferred language',
+  photo: 'Profile photo',
+  number: 'Jersey number',
+  position: 'Position',
+  role: 'Roles',
+  user: 'Directus user (UUID)',
+  // Membership / activity
+  kscw_membership_active: 'KSCW membership active',
+  wiedisync_active: 'Wiedisync active',
+  shell: 'Shell account',
+  shell_expires: 'Shell expires',
+  shell_reminder_sent: 'Shell reminder sent',
+  requested_team: 'Requested team',
+  coach_approved_team: 'Coach-approved team',
+  is_spielplaner: 'Is Spielplaner',
+  // Licence (Swiss Volley / sport governing body)
+  license_nr: 'Licence number',
+  licences: 'Licences (legacy JSON)',
+  licence_activated: 'Licence activated',
+  licence_validated: 'Licence validated',
+  licence_category: 'Licence category',
+  licence_activation_date: 'Licence activation date',
+  licence_validation_date: 'Licence validation date',
+  scorer_vb: 'Scorer (volleyball)',
+  referee_vb: 'Referee (volleyball)',
+  otr1_bb: 'OTR1 (basketball)',
+  otr2_bb: 'OTR2 (basketball)',
+  otn_bb: 'OTN (basketball)',
+  referee_bb: 'Referee (basketball)',
+  // Consent / privacy
+  consent_decision: 'Consent decision',
+  consent_prompted_at: 'Consent prompted at',
+  hide_phone: 'Hide phone number',
+  hide_email: 'Hide email address',
+  website_visible: 'Visible on public website',
+  push_preview_content: 'Allow push notification previews',
+  // Communications
+  communications_team_chat_enabled: 'Team chat enabled',
+  communications_dm_enabled: 'Direct messages enabled',
+  communications_banned: 'Banned from communications',
+  last_online_at: 'Last online at',
+  // Address / Swiss Volley admin
+  adresse: 'Street address',
+  plz: 'Postal code',
+  ort: 'City',
+  nationalitaet: 'Nationality',
+  vm_email: 'Swiss Volley VM email',
+  ahv_nummer: 'AHV number',
+  beitragskategorie: 'Membership fee category',
+  // System
+  status: 'Record status',
+  date_created: 'Created at',
+  date_updated: 'Updated at',
+  user_created: 'Created by',
+  user_updated: 'Updated by',
+  sort: 'Sort order',
+}
+
+function humanize(key: string): string {
+  const spaced = key.replace(/_/g, ' ').trim()
+  if (!spaced) return key
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+function labelFor(key: string): string {
+  return MEMBER_FIELD_LABELS[key] ?? humanize(key)
+}
+
 type FieldKind = 'bool' | 'number' | 'json' | 'date' | 'datetime' | 'longtext' | 'text'
+
+const KIND_BADGE: Record<FieldKind, string> = {
+  bool: 'boolean',
+  number: 'number',
+  json: 'json',
+  date: 'date',
+  datetime: 'datetime',
+  longtext: 'text',
+  text: 'text',
+}
 
 function detectKind(key: string, value: unknown): FieldKind {
   if (typeof value === 'boolean') return 'bool'
@@ -60,14 +151,16 @@ function detectKind(key: string, value: unknown): FieldKind {
   }
   if (key === 'birthdate' || key.endsWith('_date')) return 'date'
   if (key.endsWith('_at')) return 'datetime'
+  // Heuristic: known long-text columns
+  if (['adresse', 'licences'].includes(key)) return 'longtext'
   return 'text'
 }
 
 function formatDisplay(value: unknown, kind: FieldKind): string {
   if (value == null || value === '') return '—'
-  if (kind === 'bool') return value ? '✓' : '—'
+  if (kind === 'bool') return value ? 'Yes' : 'No'
   if (kind === 'json') {
-    try { return JSON.stringify(value) } catch { return String(value) }
+    try { return JSON.stringify(value, null, 2) } catch { return String(value) }
   }
   return String(value)
 }
@@ -110,17 +203,17 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
     setEditMode(false)
   }, [load, reloadKey])
 
+  // Sort: pinned identity fields first, then alphabetical by human label.
   const keys = useMemo(() => {
     if (!record) return [] as string[]
+    const pinned = ['id', 'first_name', 'last_name', 'email', 'phone', 'sex', 'birthdate', 'role']
     return Object.keys(record).sort((a, b) => {
-      // Pin id / names first, then alphabetical
-      const pinned = ['id', 'first_name', 'last_name', 'email', 'phone', 'sex', 'role']
       const ai = pinned.indexOf(a)
       const bi = pinned.indexOf(b)
       if (ai !== -1 && bi !== -1) return ai - bi
       if (ai !== -1) return -1
       if (bi !== -1) return 1
-      return a.localeCompare(b)
+      return labelFor(a).localeCompare(labelFor(b))
     })
   }, [record])
 
@@ -177,8 +270,8 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
   }
 
   return (
-    <section className="mb-4 rounded-lg border border-border bg-card">
-      <header className="flex items-center justify-between border-b border-border px-3 py-2">
+    <section className="mb-4">
+      <header className="mb-3 flex items-center justify-between">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t('explorerMemberFieldsTitle')}
           <span className="ml-2 font-normal normal-case text-muted-foreground/70">
@@ -186,7 +279,7 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
           </span>
         </h2>
         {canEdit && !editMode && (
-          <Button size="sm" variant="ghost" onClick={() => setEditMode(true)}>
+          <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
             <Pencil className="mr-1 h-3.5 w-3.5" />
             {t('explorerMemberFieldsEdit')}
           </Button>
@@ -210,54 +303,101 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
         )}
       </header>
 
-      <div className="divide-y divide-border">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {keys.map((key) => {
           const original = record[key]
           const current = draft[key]
           const kind = detectKind(key, original)
           const isReadOnly = READ_ONLY_FIELDS.has(key)
           const isDirty = !isReadOnly && !valueEquals(original, current)
+          // Wide cards for json/longtext so their content has room
+          const wide = kind === 'json' || kind === 'longtext'
 
           return (
-            <div
+            <article
               key={key}
               className={
-                'grid grid-cols-[180px_1fr] gap-3 px-3 py-1.5 text-xs ' +
-                (isDirty ? 'bg-primary/5' : '')
+                'flex flex-col gap-1.5 rounded-lg border p-3 transition-colors ' +
+                (isDirty
+                  ? 'border-primary/60 bg-primary/5'
+                  : 'border-border bg-card hover:border-border/80') +
+                (wide ? ' sm:col-span-2 lg:col-span-2' : '')
               }
             >
-              <span className="flex items-center gap-1 text-muted-foreground">
+              {/* Card header — label + type badge */}
+              <header className="flex items-start justify-between gap-2">
+                <h3 className="text-sm font-medium text-foreground">
+                  {labelFor(key)}
+                </h3>
+                <span
+                  className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
+                  title={KIND_BADGE[kind]}
+                >
+                  {KIND_BADGE[kind]}
+                </span>
+              </header>
+
+              {/* Card body — value or input */}
+              <div className="text-sm">
+                {!editMode || isReadOnly ? (
+                  <DisplayValue value={original} kind={kind} />
+                ) : (
+                  <FieldEditor
+                    fieldKey={key}
+                    kind={kind}
+                    value={current}
+                    onChange={(v) => setField(key, v)}
+                  />
+                )}
+              </div>
+
+              {/* Card footer — raw column name + flags */}
+              <footer className="mt-auto flex items-center gap-1.5 pt-1 text-[10px] text-muted-foreground/80">
                 <code className="break-all">{key}</code>
                 {isReadOnly && (
-                  <span className="rounded bg-muted px-1 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+                  <span className="rounded bg-muted px-1 py-0.5 uppercase tracking-wider">
                     {t('explorerMemberFieldsReadonly')}
                   </span>
                 )}
                 {isDirty && (
-                  <span className="rounded bg-primary/15 px-1 py-0.5 text-[9px] uppercase tracking-wider text-primary">
+                  <span className="rounded bg-primary/15 px-1 py-0.5 uppercase tracking-wider text-primary">
                     {t('explorerMemberFieldsDirty')}
                   </span>
                 )}
-              </span>
-
-              {!editMode || isReadOnly ? (
-                <span className="break-words text-foreground">
-                  {formatDisplay(original, kind)}
-                </span>
-              ) : (
-                <FieldEditor
-                  fieldKey={key}
-                  kind={kind}
-                  value={current}
-                  onChange={(v) => setField(key, v)}
-                />
-              )}
-            </div>
+              </footer>
+            </article>
           )
         })}
       </div>
     </section>
   )
+}
+
+function DisplayValue({ value, kind }: { value: unknown; kind: FieldKind }) {
+  if (value == null || value === '') {
+    return <span className="text-muted-foreground">—</span>
+  }
+  if (kind === 'bool') {
+    return (
+      <span className={value ? 'font-medium text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}>
+        {value ? 'Yes' : 'No'}
+      </span>
+    )
+  }
+  if (kind === 'json') {
+    const text = (() => {
+      try { return JSON.stringify(value, null, 2) } catch { return String(value) }
+    })()
+    return (
+      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 text-[11px] font-mono text-foreground">
+        {text}
+      </pre>
+    )
+  }
+  if (kind === 'longtext') {
+    return <p className="whitespace-pre-wrap break-words text-foreground">{String(value)}</p>
+  }
+  return <span className="break-words text-foreground">{formatDisplay(value, kind)}</span>
 }
 
 function FieldEditor({
@@ -272,7 +412,7 @@ function FieldEditor({
   onChange: (v: unknown) => void
 }) {
   const inputCls =
-    'w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none'
+    'w-full rounded border border-border bg-background px-2 py-1 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none'
 
   if (kind === 'bool') {
     return (
@@ -281,7 +421,7 @@ function FieldEditor({
           checked={Boolean(value)}
           onCheckedChange={(checked) => onChange(checked)}
         />
-        <span className="text-muted-foreground">{Boolean(value) ? 'true' : 'false'}</span>
+        <span className="text-muted-foreground">{Boolean(value) ? 'Yes' : 'No'}</span>
       </div>
     )
   }
@@ -328,14 +468,14 @@ function FieldEditor({
     return (
       <textarea
         value={text}
-        rows={Math.min(8, Math.max(2, text.split('\n').length))}
+        rows={Math.min(10, Math.max(3, text.split('\n').length))}
         onChange={(e) => {
           const raw = e.target.value
           if (raw.trim() === '') { onChange(null); return }
           try { onChange(JSON.parse(raw)) }
           catch { onChange(raw) }
         }}
-        className={`${inputCls} font-mono`}
+        className={`${inputCls} font-mono text-xs`}
       />
     )
   }
