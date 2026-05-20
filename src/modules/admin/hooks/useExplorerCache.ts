@@ -71,7 +71,17 @@ export function useExplorerCache(scope: ExplorerScope) {
       const [members, teams, events, trainings, games, junctions, coachJunctions, trJunctions] = await Promise.all([
         fetchAllItems<Member>('members', {
           filter: f.members,
-          fields: ['id', 'first_name', 'last_name', 'email', 'sex', 'kscw_membership_active', 'role', 'user'],
+          fields: [
+            'id', 'first_name', 'last_name', 'email', 'sex', 'kscw_membership_active', 'role', 'user',
+            // Fields used by ExplorerMemberFilters (tri-state + presence + licence/role multiselect)
+            'phone', 'license_nr', 'licences', 'birthdate', 'photo',
+            'coach_approved_team', 'is_spielplaner', 'wiedisync_active',
+            'shell', 'shell_reminder_sent',
+            'licence_activated', 'licence_validated',
+            'hide_phone', 'hide_email', 'website_visible',
+            'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
+            'push_preview_content',
+          ],
           sort: ['last_name', 'first_name'],
         }),
         fetchAllItems<Team>('teams', {
