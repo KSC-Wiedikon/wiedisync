@@ -51,7 +51,7 @@ export default function HallenplanPage() {
   const [prefill, setPrefill] = useState<{ day: number; time: string; hall: string } | null>(null)
   const [closureManagerOpen, setClosureManagerOpen] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
-  const [sportFilter, setSportFilter] = useState<SportFilter>('vb')
+  const [sportFilter, setSportFilter] = useState<SportFilter>('all')
 
   // Claim modals
   const [claimSlot, setClaimSlot] = useState<HallSlot | null>(null)
