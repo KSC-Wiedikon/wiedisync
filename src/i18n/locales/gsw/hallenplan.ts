@@ -6,6 +6,10 @@ export default {
   // Slot form
   hall: 'Halle',
   team: 'Team',
+  searchTeam: 'Team sueche…',
+  noTeamFound: 'Käis Team gfunde.',
+  freeSlot: 'Freie Trainingsslot',
+  freeSlotHint: 'Käis Team zuegwise — für jedes Team zum Beaaspruche freigeh',
   dayOfWeek: 'Wuchetag',
   slotType: 'Typ',
   startTime: 'Startzit',

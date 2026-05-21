@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.13.0'
+const APP_VERSION = '4.13.1'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.13.1',
+    date: '2026-05-21',
+    sections: [
+      {
+        title: 'Hall plan — Free training slot',
+        items: [
+          'Slot editor gets a "Free training slot" toggle above the team picker. When enabled the slot is saved without a team assigned and any team can claim it from the available-slots strip — the same behaviour the system already used for cancelled trainings or away-game freed slots, now available for proactive admin creation.',
+          'Team dropdown bugfixes: list now scrolls properly inside the modal (was capped at a fixed height and clipped by the dialog), and the "Search team…" placeholder is translated in all 5 locales (was showing the raw i18n key for non-German users).',
+          'Editing a slot no longer warns about overlapping itself. Conflict detection was comparing against virtual training/game children rendered on top of the slot — those share the slot\'s hall + day + time and so always flagged as overlaps. Now it only compares against real persisted slots.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.13.0',
     date: '2026-05-20',

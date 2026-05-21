@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync are documented in this file. Recent releases carry more detail; older entries are one-liners — see `git log` for the full text.
 
+## v4.13.1 — 2026-05-21
+
+Hall plan slot editor polish — new "Free training slot" toggle plus three dropdown / conflict-detection bug fixes.
+
+- **Free training slot toggle.** New Switch above the team picker in the slot editor. When enabled the slot saves with no team, and any team can grab it from the available-slots strip. Mirrors the existing "freed slot" path used for cancelled trainings and away games, just usable proactively.
+- **Team dropdown scroll.** `CommandList` max-height was a fixed `300px` which Radix then clipped further when the popover was rendered inside the dialog viewport. Now `max-h-[min(60vh,var(--radix-popover-content-available-height,400px))]` so the list grows to fit and stays scrollable.
+- **Missing i18n key.** `searchTeam` only existed in DE — non-German users saw the raw key as the search placeholder. Added `searchTeam` / `noTeamFound` / `freeSlot` / `freeSlotHint` to en/gsw/fr/it. Also dropped the hardcoded `'No team found.'` fallback in the editor.
+- **Self-overlap warning.** Editing a slot showed "Overlap detected" against itself because the editor was given the merged slots list (real `hall_slots` + virtual training/game/event children). Virtual children have synthetic IDs (`training-${id}`, etc.) so `excludeId = slot.id` never matched and the slot's own auto-rendered training tripped the conflict check. `HallenplanPage` now passes `rawSlots` (real `hall_slots` rows only) to `SlotEditor`.
+
 ## v4.13.0 — 2026-05-20
 
 Two new admin tools: a member-filter popover in the Data Explorer, and a Postgres SQL workspace for superusers.

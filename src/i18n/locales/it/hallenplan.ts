@@ -6,6 +6,10 @@ export default {
   // Slot form
   hall: 'Palestra',
   team: 'Squadra',
+  searchTeam: 'Cerca squadra…',
+  noTeamFound: 'Nessuna squadra trovata.',
+  freeSlot: 'Slot di allenamento libero',
+  freeSlotHint: 'Nessuna squadra assegnata — disponibile per qualsiasi squadra',
   dayOfWeek: 'Giorno della settimana',
   slotType: 'Tipo',
   startTime: 'Ora di inizio',

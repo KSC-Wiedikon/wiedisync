@@ -6,6 +6,10 @@ export default {
   // Slot form
   hall: 'Hall',
   team: 'Team',
+  searchTeam: 'Search team…',
+  noTeamFound: 'No team found.',
+  freeSlot: 'Free training slot',
+  freeSlotHint: 'No team assigned — released for any team to claim',
   dayOfWeek: 'Day of week',
   slotType: 'Type',
   startTime: 'Start time',

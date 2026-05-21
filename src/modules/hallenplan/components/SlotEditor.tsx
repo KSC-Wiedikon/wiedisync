@@ -209,48 +209,66 @@ export default function SlotEditor({
             </Select>
           </FormField>
           <FormField label={t('team')}>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" className="min-h-[44px] w-full justify-between font-normal">
-                  <span className="truncate">
-                    {form.team.length === 0
-                      ? t('selectPlaceholder')
-                      : form.team.map(id => visibleTeams.find(tm => tm.id === id)?.name).filter(Boolean).join(', ')}
-                  </span>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder={t('searchTeam') ?? 'Search...'} />
-                  <CommandList>
-                    <CommandEmpty>No team found.</CommandEmpty>
-                    {(['volleyball', 'basketball'] as const).map(sport => {
-                      const sportTeams = visibleTeams.filter(tm => tm.sport === sport)
-                      if (sportTeams.length === 0) return null
-                      return (
-                        <CommandGroup key={sport} heading={sport === 'volleyball' ? 'Volleyball' : 'Basketball'}>
-                          {sportTeams.map(tm => (
-                            <CommandItem
-                              key={tm.id}
-                              value={tm.name}
-                              onSelect={() => {
-                                update('team', form.team.includes(tm.id)
-                                  ? form.team.filter((id: string) => id !== tm.id)
-                                  : [...form.team, tm.id])
-                              }}
-                            >
-                              <Check className={`mr-2 h-4 w-4 ${form.team.includes(tm.id) ? 'opacity-100' : 'opacity-0'}`} />
-                              {tm.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      )
-                    })}
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            <div className="space-y-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <Switch
+                  checked={form.team.length === 0}
+                  onCheckedChange={(checked) => {
+                    if (checked) update('team', [])
+                  }}
+                />
+                <span>
+                  {t('freeSlot')}
+                  <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">({t('freeSlotHint')})</span>
+                </span>
+              </label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="min-h-[44px] w-full justify-between font-normal"
+                  >
+                    <span className={`truncate ${form.team.length === 0 ? 'text-muted-foreground' : ''}`}>
+                      {form.team.length === 0
+                        ? t('selectPlaceholder')
+                        : form.team.map(id => visibleTeams.find(tm => tm.id === id)?.name).filter(Boolean).join(', ')}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder={t('searchTeam')} />
+                    <CommandList className="max-h-[min(60vh,var(--radix-popover-content-available-height,400px))]">
+                      <CommandEmpty>{t('noTeamFound')}</CommandEmpty>
+                      {(['volleyball', 'basketball'] as const).map(sport => {
+                        const sportTeams = visibleTeams.filter(tm => tm.sport === sport)
+                        if (sportTeams.length === 0) return null
+                        return (
+                          <CommandGroup key={sport} heading={sport === 'volleyball' ? 'Volleyball' : 'Basketball'}>
+                            {sportTeams.map(tm => (
+                              <CommandItem
+                                key={tm.id}
+                                value={tm.name}
+                                onSelect={() => {
+                                  update('team', form.team.includes(tm.id)
+                                    ? form.team.filter((id: string) => id !== tm.id)
+                                    : [...form.team, tm.id])
+                                }}
+                              >
+                                <Check className={`mr-2 h-4 w-4 ${form.team.includes(tm.id) ? 'opacity-100' : 'opacity-0'}`} />
+                                {tm.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )
+                      })}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
           </FormField>
         </div>
 

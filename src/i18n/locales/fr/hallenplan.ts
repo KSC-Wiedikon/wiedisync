@@ -6,6 +6,10 @@ export default {
   // Slot form
   hall: 'Salle',
   team: 'Equipe',
+  searchTeam: 'Chercher une equipe…',
+  noTeamFound: 'Aucune equipe trouvee.',
+  freeSlot: 'Creneau d\'entrainement libre',
+  freeSlotHint: 'Aucune equipe assignee — disponible pour toute equipe',
   dayOfWeek: 'Jour de la semaine',
   slotType: 'Type',
   startTime: 'Heure de debut',

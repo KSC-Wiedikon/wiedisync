@@ -324,7 +324,7 @@ export default function HallenplanPage() {
           prefill={prefill}
           halls={halls}
           teams={teams}
-          allSlots={slots}
+          allSlots={rawSlots}
           isAdmin={effectiveIsAdmin}
           coachTeamIds={coachTeamIds}
           adminTeamIds={adminTeamIds}
