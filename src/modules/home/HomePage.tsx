@@ -23,7 +23,7 @@ import { useUserVisibleEventIds } from '../../hooks/useUserVisibleEventIds'
 import ParticipationSummary from '../../components/ParticipationSummary'
 import { useBulkParticipationStatuses } from '../../hooks/useBulkParticipationStatuses'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Ranking, BaseRecord } from '../../types'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, Calendar, LayoutGrid, List } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, CalendarDays, LayoutGrid, List } from 'lucide-react'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import RankingsTable from '../games/components/RankingsTable'
 
@@ -836,6 +836,20 @@ function TrainingConeIcon({ className = '' }: { className?: string }) {
   )
 }
 
+/** Inline whistle SVG for game icon */
+function WhistleIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      {/* Lanyard hole */}
+      <circle cx="9.5" cy="11" r="1.2" fill="currentColor" stroke="none" />
+      {/* Whistle body — rounded rectangle */}
+      <path d="M3 9.5h12a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H10.5l-3 4-1-4H3a1 1 0 0 1-1-1V10.5a1 1 0 0 1 1-1z" />
+      {/* Mouthpiece + spout */}
+      <path d="M17 10.2l3-1.2v5l-3-1.2" />
+    </svg>
+  )
+}
+
 /** Single appointment row with participation banner */
 function AppointmentRow({ appointment, onClick, participationStatus }: {
   appointment: { type: 'game' | 'training' | 'event'; date: string; data: ExpandedGame | TrainingExpanded | EventExpanded }
@@ -854,10 +868,10 @@ function AppointmentRow({ appointment, onClick, participationStatus }: {
     absent: 'bg-gray-400 dark:bg-gray-500',
   }
 
-  const typeIcon = {
-    game: <VolleyballIcon className="h-4 w-4 shrink-0" filled />,
-    training: <TrainingConeIcon className="h-4 w-4 shrink-0" />,
-    event: <Calendar className="h-4 w-4 shrink-0" />,
+  const bigTypeIcon = {
+    game: <WhistleIcon className="h-6 w-6 shrink-0" />,
+    training: <TrainingConeIcon className="h-6 w-6 shrink-0" />,
+    event: <CalendarDays className="h-6 w-6 shrink-0" />,
   }
 
   const dateStr = formatDateCompact(appointment.date)
@@ -900,17 +914,18 @@ function AppointmentRow({ appointment, onClick, participationStatus }: {
         <div className="min-w-0 flex-1">
           <div
             className="grid items-center"
-            style={{ gridTemplateColumns: '4.5rem 1.25rem 1fr', columnGap: '5px' }}
+            style={{ gridTemplateColumns: '4.5rem 1fr', columnGap: '5px' }}
           >
             <div className="py-2.5 pl-3 text-xs text-gray-500 dark:text-gray-400">
               <div>{weekday}</div>
               <div>{dateStr}</div>
               {timeStr && <div>{timeStr}</div>}
             </div>
-            <span className="text-gray-500 dark:text-gray-400">{typeIcon[appointment.type]}</span>
             <p className="min-w-0 truncate px-2 text-sm text-gray-900 dark:text-gray-100">{label}</p>
           </div>
-          <div className="pb-2 pl-[calc(5.75rem+10px)]">
+          {/* Bottom row: large activity-type icon (bottom-left) + participation summary */}
+          <div className="flex items-center gap-2 pb-2 pl-3">
+            <span className="text-gray-500 dark:text-gray-400">{bigTypeIcon[appointment.type]}</span>
             <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} />
           </div>
         </div>
@@ -937,9 +952,9 @@ function AppointmentTableRow({ appointment, onClick, participationStatus }: {
   }
 
   const typeIcon = {
-    game: <VolleyballIcon className="h-4 w-4" filled />,
+    game: <WhistleIcon className="h-4 w-4" />,
     training: <TrainingConeIcon className="h-4 w-4" />,
-    event: <Calendar className="h-4 w-4" />,
+    event: <CalendarDays className="h-4 w-4" />,
   }
 
   const dateStr = formatDateCompact(appointment.date)
