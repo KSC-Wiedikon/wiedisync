@@ -103,6 +103,26 @@ export default function SlotEditor({
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  /** Auto-derive "VB - <team>" / "BB - <team>" label from selected teams. */
+  function autoLabel(teamIds: string[]): string {
+    if (teamIds.length === 0) return ''
+    const selected = teamIds.map(id => visibleTeams.find(tm => tm.id === id)).filter(Boolean) as Team[]
+    if (selected.length === 0) return ''
+    const sport = selected[0].sport === 'basketball' ? 'BB' : 'VB'
+    return `${sport} - ${selected.map(tm => tm.name).join(' / ')}`
+  }
+
+  /** Update team selection; if the current label was auto-derived for the
+   *  previous team (or empty), re-derive it for the new team. Custom labels
+   *  the user typed by hand are preserved. */
+  function updateTeam(newTeam: string[]) {
+    const prevAuto = autoLabel(form.team)
+    setForm((prev) => {
+      const newLabel = prev.label === prevAuto || prev.label === '' ? autoLabel(newTeam) : prev.label
+      return { ...prev, team: newTeam, label: newLabel }
+    })
+  }
+
   const isCombo = COMBO_VALUE && form.hall === COMBO_VALUE
 
   // Cascade + initial generation moved to the backend (`kscw-hooks`
@@ -214,7 +234,7 @@ export default function SlotEditor({
                 <Switch
                   checked={form.team.length === 0}
                   onCheckedChange={(checked) => {
-                    if (checked) update('team', [])
+                    if (checked) updateTeam([])
                   }}
                 />
                 <span>{t('freeSlot')}</span>
@@ -251,7 +271,7 @@ export default function SlotEditor({
                                 key={tm.id}
                                 value={tm.name}
                                 onSelect={() => {
-                                  update('team', form.team.includes(tm.id)
+                                  updateTeam(form.team.includes(tm.id)
                                     ? form.team.filter((id: string) => id !== tm.id)
                                     : [...form.team, tm.id])
                                 }}
