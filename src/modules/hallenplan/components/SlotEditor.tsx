@@ -15,6 +15,17 @@ import { minutesToTime, timeToMinutes } from '../../../utils/dateHelpers'
 import type { Hall, HallSlot, Team } from '../../../types'
 import { createRecord, deleteRecord, updateRecord, teamToM2M } from '../../../lib/api'
 
+/** Auto-derive "VB - <team>" / "BB - <team>" label from selected team ids.
+ *  Pure helper so useState initializers can call it before the component
+ *  body fully runs. */
+function computeAutoLabel(teamIds: string[], teams: Team[]): string {
+  if (teamIds.length === 0) return ''
+  const selected = teamIds.map(id => teams.find(tm => tm.id === id)).filter(Boolean) as Team[]
+  if (selected.length === 0) return ''
+  const sport = selected[0].sport === 'basketball' ? 'BB' : 'VB'
+  return `${sport} - ${selected.map(tm => tm.name).join(' / ')}`
+}
+
 interface SlotEditorProps {
   slot: HallSlot | null
   prefill: { day: number; time: string; hall: string } | null
@@ -95,6 +106,17 @@ export default function SlotEditor({
 
   const [indefinitely, setIndefinitely] = useState(slot ? !!slot.indefinite : true)
 
+  // Auto-label mode: ON means label is derived from selected teams, free-text
+  // input is hidden. OFF means user has typed a custom label and we preserve
+  // it. Initial state: ON unless an existing slot has a label that does NOT
+  // match what the auto-derivation would have produced.
+  const [autoLabelMode, setAutoLabelMode] = useState<boolean>(() => {
+    if (!slot) return true
+    const stored = slot.label ?? ''
+    if (!stored) return true
+    return stored === computeAutoLabel(defaultTeam, visibleTeams)
+  })
+
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const conflicts = useConflictChecker(form, allSlots, slot?.id)
@@ -103,24 +125,14 @@ export default function SlotEditor({
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  /** Auto-derive "VB - <team>" / "BB - <team>" label from selected teams. */
-  function autoLabel(teamIds: string[]): string {
-    if (teamIds.length === 0) return ''
-    const selected = teamIds.map(id => visibleTeams.find(tm => tm.id === id)).filter(Boolean) as Team[]
-    if (selected.length === 0) return ''
-    const sport = selected[0].sport === 'basketball' ? 'BB' : 'VB'
-    return `${sport} - ${selected.map(tm => tm.name).join(' / ')}`
-  }
-
-  /** Update team selection; if the current label was auto-derived for the
-   *  previous team (or empty), re-derive it for the new team. Custom labels
-   *  the user typed by hand are preserved. */
+  /** Update team selection; when auto-label mode is on, re-derive the label
+   *  from the new team. Custom labels (autoLabelMode off) are left alone. */
   function updateTeam(newTeam: string[]) {
-    const prevAuto = autoLabel(form.team)
-    setForm((prev) => {
-      const newLabel = prev.label === prevAuto || prev.label === '' ? autoLabel(newTeam) : prev.label
-      return { ...prev, team: newTeam, label: newLabel }
-    })
+    setForm((prev) => ({
+      ...prev,
+      team: newTeam,
+      label: autoLabelMode ? computeAutoLabel(newTeam, visibleTeams) : prev.label,
+    }))
   }
 
   const isCombo = COMBO_VALUE && form.hall === COMBO_VALUE
@@ -377,14 +389,33 @@ export default function SlotEditor({
           </div>
         )}
 
-        {/* Row 6: Label */}
-        <FormInput
-          type="text"
-          label={t('label')}
-          value={form.label}
-          onChange={(e) => update('label', e.target.value)}
-          placeholder="e.g. Training H3, Home game vs. TVA"
-        />
+        {/* Row 6: Label — auto-derived by default, custom free-text on demand */}
+        <div className="space-y-2">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <Switch
+              checked={autoLabelMode}
+              onCheckedChange={(checked) => {
+                setAutoLabelMode(checked)
+                if (checked) update('label', computeAutoLabel(form.team, visibleTeams))
+              }}
+            />
+            <span>{t('autoLabel')}</span>
+            {autoLabelMode && (
+              <span className="ml-2 truncate text-xs italic text-gray-500 dark:text-gray-400">
+                {form.label || '—'}
+              </span>
+            )}
+          </label>
+          {!autoLabelMode && (
+            <FormInput
+              type="text"
+              label={t('label')}
+              value={form.label}
+              onChange={(e) => update('label', e.target.value)}
+              placeholder="e.g. Trial training, Home game vs. TVA"
+            />
+          )}
+        </div>
 
         {/* Row 7: Notes */}
         <FormTextarea

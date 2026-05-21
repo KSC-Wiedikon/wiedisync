@@ -19,6 +19,7 @@ export default {
   validTo: 'Valable au',
   indefinitely: 'Indefiniment',
   label: 'Libelle',
+  autoLabel: 'Libelle automatique',
   notes: 'Notes',
 
   // Slot types

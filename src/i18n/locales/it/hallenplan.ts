@@ -19,6 +19,7 @@ export default {
   validTo: 'Valido fino a',
   indefinitely: 'A tempo indeterminato',
   label: 'Etichetta',
+  autoLabel: 'Etichetta automatica',
   notes: 'Note',
 
   // Slot types

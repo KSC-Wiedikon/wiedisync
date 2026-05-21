@@ -19,6 +19,7 @@ export default {
   validTo: 'Valid to',
   indefinitely: 'Indefinitely',
   label: 'Label',
+  autoLabel: 'Auto label',
   notes: 'Notes',
 
   // Slot types

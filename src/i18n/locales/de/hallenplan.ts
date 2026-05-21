@@ -19,6 +19,7 @@ export default {
   validTo: 'Gültig bis',
   indefinitely: 'Unbefristet',
   label: 'Bezeichnung',
+  autoLabel: 'Automatische Bezeichnung',
   notes: 'Notizen',
 
   // Slot types
