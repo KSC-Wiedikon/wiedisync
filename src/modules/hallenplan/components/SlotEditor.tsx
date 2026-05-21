@@ -344,23 +344,18 @@ export default function SlotEditor({
         {/* Row 5: Validity dates (only if recurring) */}
         {form.recurring && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <DatePicker
-              label={t('validFrom')}
-              value={form.valid_from}
-              onChange={(v) => update('valid_from', v)}
-            />
             <div>
-              <div className="flex gap-2 items-end">
-                {!indefinitely && (
-                  <div className="min-w-0 flex-1">
-                    <DatePicker
-                      label={t('validTo')}
-                      value={form.valid_until}
-                      onChange={(v) => update('valid_until', v)}
-                    />
-                  </div>
-                )}
-                <div className={`flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-2 text-xs font-medium ${indefinitely ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 dark:border-brand-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('validFrom')}
+              </label>
+              <div className="flex items-stretch gap-2">
+                <div className="min-w-0 flex-1">
+                  <DatePicker
+                    value={form.valid_from}
+                    onChange={(v) => update('valid_from', v)}
+                  />
+                </div>
+                <div className={`flex shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs font-medium ${indefinitely ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 dark:border-brand-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
                   <Switch
                     checked={indefinitely}
                     onCheckedChange={(checked) => {
@@ -372,6 +367,13 @@ export default function SlotEditor({
                 </div>
               </div>
             </div>
+            {!indefinitely && (
+              <DatePicker
+                label={t('validTo')}
+                value={form.valid_until}
+                onChange={(v) => update('valid_until', v)}
+              />
+            )}
           </div>
         )}
 
