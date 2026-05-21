@@ -78,7 +78,11 @@ export function useHallenplanData(
   const games = gamesRaw ?? []
 
   // Trainings for this week
-  const { data: trainingsRaw, isLoading: trainingsLoading } = useCollection<Training>('trainings', {
+  const {
+    data: trainingsRaw,
+    isLoading: trainingsLoading,
+    refetch: refetchTrainings,
+  } = useCollection<Training>('trainings', {
     filter: { _and: [{ date: { _gte: mondayStr } }, { date: { _lte: sundayStr } }] },
     all: true,
     sort: ['date', 'start_time'],
@@ -185,6 +189,7 @@ export function useHallenplanData(
     refetchSlots()
     refetchClosures()
     refetchClaims()
+    refetchTrainings()
   }
 
   const isLoading =

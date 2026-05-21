@@ -141,6 +141,7 @@ export default function HallenplanPage() {
   useRealtime<HallSlot>('hall_slots', debouncedRefetch)
   useRealtime<HallClosure>('hall_closures', debouncedRefetch)
   useRealtime<SlotClaim>('slot_claims', debouncedRefetch)
+  useRealtime<Training>('trainings', debouncedRefetch)
 
   function handleSlotClick(slot: HallSlot) {
     const meta = slot._virtual
