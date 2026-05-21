@@ -11,7 +11,7 @@ export default function ClosureOverlay({ reason, hallName }: ClosureOverlayProps
 
   return (
     <div
-      className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center pt-2"
+      className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-1"
       style={{
         backgroundColor: 'rgba(31, 41, 55, 0.25)',
         backgroundImage:
@@ -21,7 +21,7 @@ export default function ClosureOverlay({ reason, hallName }: ClosureOverlayProps
       }}
     >
       <span
-        className="rounded px-2 py-0.5 text-xs font-medium italic"
+        className="max-h-full max-w-full overflow-hidden rounded px-2 py-1 text-center text-xs font-medium italic leading-tight"
         style={{ backgroundColor: '#1f2937', color: '#f87171' }}
       >
         {t('closed')}: {label}
