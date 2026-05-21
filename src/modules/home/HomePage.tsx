@@ -912,21 +912,26 @@ function AppointmentRow({ appointment, onClick, participationStatus }: {
         )}
 
         <div className="min-w-0 flex-1">
+          {/* Two-row grid: [Date | Label] over [Icon | ParticipationSummary],
+              aligned so the right-hand content has a clear gap from the date
+              column and icon. */}
           <div
             className="grid items-center"
-            style={{ gridTemplateColumns: '4.5rem 1fr', columnGap: '5px' }}
+            style={{ gridTemplateColumns: '4.5rem 1fr', columnGap: '1rem' }}
           >
             <div className="py-2.5 pl-3 text-xs text-gray-500 dark:text-gray-400">
               <div>{weekday}</div>
               <div>{dateStr}</div>
               {timeStr && <div>{timeStr}</div>}
             </div>
-            <p className="min-w-0 truncate px-2 text-sm text-gray-900 dark:text-gray-100">{label}</p>
-          </div>
-          {/* Bottom row: large activity-type icon (bottom-left) + participation summary */}
-          <div className="flex items-center gap-2 pb-2 pl-3">
-            <span className="text-gray-500 dark:text-gray-400">{bigTypeIcon[appointment.type]}</span>
-            <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} />
+            <p className="min-w-0 truncate pr-3 text-sm text-gray-900 dark:text-gray-100">{label}</p>
+
+            <div className="pb-2 pl-3">
+              <span className="text-gray-500 dark:text-gray-400">{bigTypeIcon[appointment.type]}</span>
+            </div>
+            <div className="pb-2 pr-3">
+              <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} />
+            </div>
           </div>
         </div>
       </div>
