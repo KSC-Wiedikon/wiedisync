@@ -217,10 +217,7 @@ export default function SlotEditor({
                     if (checked) update('team', [])
                   }}
                 />
-                <span>
-                  {t('freeSlot')}
-                  <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">({t('freeSlotHint')})</span>
-                </span>
+                <span>{t('freeSlot')}</span>
               </label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -240,7 +237,10 @@ export default function SlotEditor({
                 <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                   <Command>
                     <CommandInput placeholder={t('searchTeam')} />
-                    <CommandList className="max-h-[min(60vh,var(--radix-popover-content-available-height,400px))]">
+                    <CommandList
+                      className="!max-h-none"
+                      style={{ maxHeight: 'min(60vh, var(--radix-popover-content-available-height, 400px))' }}
+                    >
                       <CommandEmpty>{t('noTeamFound')}</CommandEmpty>
                       {(['volleyball', 'basketball'] as const).map(sport => {
                         const sportTeams = visibleTeams.filter(tm => tm.sport === sport)
