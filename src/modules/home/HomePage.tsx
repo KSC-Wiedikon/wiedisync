@@ -1193,19 +1193,16 @@ function EventRow({ event, onClick, participationStatus }: { event: EventExpande
             }
             const endDay = dayFmt.format(new Date(event.end_date))
             const endMonth = monthFmt.format(new Date(event.end_date))
-            const sameMonth = startMonth === endMonth
             return (
-              <div className="flex h-9 shrink-0 items-center gap-0.5 rounded-lg bg-brand-50 px-1.5 dark:bg-brand-900/40">
+              <div className="flex h-9 shrink-0 items-center gap-1 rounded-lg bg-brand-50 px-1.5 dark:bg-brand-900/40">
                 <div className="flex flex-col items-center justify-center leading-none">
                   <span className="text-sm font-bold text-brand-600 dark:text-brand-400">{startDay}</span>
-                  {!sameMonth && (
-                    <span className="text-[9px] font-medium uppercase text-brand-500 dark:text-brand-400">{startMonth}</span>
-                  )}
+                  <span className="text-[9px] font-medium uppercase text-brand-500 dark:text-brand-400">{startMonth}</span>
                 </div>
                 <span className="text-xs font-medium text-brand-500 dark:text-brand-400">–</span>
                 <div className="flex flex-col items-center justify-center leading-none">
                   <span className="text-sm font-bold text-brand-600 dark:text-brand-400">{endDay}</span>
-                  <span className="text-[9px] font-medium uppercase text-brand-500 dark:text-brand-400">{sameMonth ? startMonth : endMonth}</span>
+                  <span className="text-[9px] font-medium uppercase text-brand-500 dark:text-brand-400">{endMonth}</span>
                 </div>
               </div>
             )
