@@ -206,6 +206,7 @@ export default function HallenplanPage() {
     setEditorOpen(false)
     setEditingSlot(null)
     setPrefill(null)
+    refetch()
   }
 
   function handleToday() {
@@ -338,7 +339,7 @@ export default function HallenplanPage() {
         <ClosureManager
           halls={halls}
           closures={closures}
-          onClose={() => setClosureManagerOpen(false)}
+          onClose={() => { setClosureManagerOpen(false); refetch() }}
           onChanged={refetch}
         />
       )}
@@ -349,7 +350,7 @@ export default function HallenplanPage() {
           halls={halls}
           teams={teams}
           isAdmin={effectiveIsAdmin}
-          onClose={() => setVirtualDetailSlot(null)}
+          onClose={() => { setVirtualDetailSlot(null); refetch() }}
           onEditSlot={async (training: Training) => {
             setVirtualDetailSlot(null)
             try {
@@ -396,7 +397,7 @@ export default function HallenplanPage() {
           teams={teams}
           rawSlots={rawSlots}
           weekDays={weekDays}
-          onClose={() => setClaimSlot(null)}
+          onClose={() => { setClaimSlot(null); refetch() }}
           onClaimed={handleClaimed}
           onEditSlot={(s) => {
             setClaimSlot(null)
@@ -413,7 +414,7 @@ export default function HallenplanPage() {
           claim={claimDetailRecord}
           halls={halls}
           teams={teams}
-          onClose={() => { setClaimDetailSlot(null); setClaimDetailRecord(null) }}
+          onClose={() => { setClaimDetailSlot(null); setClaimDetailRecord(null); refetch() }}
           onReleased={handleClaimReleased}
         />
       )}
