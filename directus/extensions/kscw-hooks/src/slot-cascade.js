@@ -261,14 +261,23 @@ export async function cascadeSlotUpdate(database, slotId, pre, log) {
       dateShiftApplied = true
     }
 
-    // 2. Patch time / hall / team on remaining future trainings.
+    // 2. Patch time / hall / team on remaining future trainings, OR
+    //    delete them outright if the slot became teamless. Teamless slot
+    //    means the slot is released for any team to claim — the existing
+    //    committed sessions for the previous team no longer apply.
     const timeChanged = pre.start_time !== post.start_time || pre.end_time !== post.end_time
     const hallChanged = pre.hall !== post.hall
     const preTeam = pre.teams[0] ?? null
     const postTeam = post.teams[0] ?? null
     const teamChanged = preTeam !== postTeam
 
-    if (timeChanged || hallChanged || teamChanged || dateShiftApplied) {
+    if (teamChanged && postTeam == null) {
+      const deleted = await trx('trainings')
+        .where('hall_slot', slotId)
+        .andWhere('date', '>=', today)
+        .del()
+      log?.info?.({ msg: '[slot-cascade] cleared future trainings for now-teamless slot', slot: slotId, count: deleted, event: 'slot_free' })
+    } else if (timeChanged || hallChanged || teamChanged || dateShiftApplied) {
       const patch = {}
       if (timeChanged) { patch.start_time = post.start_time; patch.end_time = post.end_time }
       if (hallChanged) patch.hall = post.hall
