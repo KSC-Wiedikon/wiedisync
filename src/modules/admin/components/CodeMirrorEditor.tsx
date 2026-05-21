@@ -272,7 +272,7 @@ export default function CodeMirrorEditor({
   return (
     <div
       ref={containerRef}
-      className="overflow-hidden rounded-lg border border-border bg-card [&_.cm-editor]:min-h-[160px] [&_.cm-editor]:resize-y [&_.cm-editor]:overflow-auto"
+      className="overflow-hidden rounded-lg border border-border bg-card [&_.cm-editor]:min-h-[160px] [&_.cm-editor]:max-h-[55vh] [&_.cm-editor]:resize-y [&_.cm-editor]:overflow-auto [&_.cm-scroller]:overflow-auto"
     />
   )
 }

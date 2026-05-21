@@ -451,24 +451,26 @@ export default function SqlWorkspacePage() {
 
           {/* Recent strip */}
           {recent.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto">
+            <div className="flex items-center gap-2">
               <History className="h-3 w-3 shrink-0 text-muted-foreground" />
               <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">{t('sqlWorkspaceRecent')}</span>
-              {recent.slice(0, 10).map((r) => (
-                <button
-                  key={r.ts}
-                  type="button"
-                  onClick={() => setSql(r.sql)}
-                  title={r.sql}
-                  className="max-w-[200px] truncate rounded-md border border-border bg-card px-2 py-0.5 font-mono text-[11px] text-muted-foreground hover:bg-muted"
-                >
-                  {r.sql.replace(/\s+/g, ' ').slice(0, 60)}
-                </button>
-              ))}
+              <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden">
+                {recent.slice(0, 10).map((r) => (
+                  <button
+                    key={r.ts}
+                    type="button"
+                    onClick={() => setSql(r.sql)}
+                    title={r.sql}
+                    className="max-w-[200px] shrink-0 truncate rounded-md border border-border bg-card px-2 py-0.5 font-mono text-[11px] text-muted-foreground hover:bg-muted"
+                  >
+                    {r.sql.replace(/\s+/g, ' ').slice(0, 60)}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={clearRecent}
-                className="ml-auto shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
+                className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
                 title={t('sqlWorkspaceClearRecent')}
               >
                 <X className="h-3 w-3" />
