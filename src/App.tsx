@@ -45,6 +45,7 @@ import BugfixDashboardPage from './modules/admin/BugfixDashboardPage'
 import StatusPage from './modules/admin/StatusPage'
 import ExplorePage from './modules/admin/ExplorePage'
 import SqlWorkspacePage from './modules/admin/SqlWorkspacePage'
+const AnimatedUIPage = lazy(() => import('./modules/admin/AnimatedUIPage'))
 import AnnouncementsPage from './modules/admin/AnnouncementsPage'
 import NewsArchivePage from './modules/news/NewsArchivePage'
 
@@ -180,6 +181,7 @@ export default function App() {
             <Route path="admin/data-health" element={<SuperAdminRoute><DataHealthPage /></SuperAdminRoute>} />
             <Route path="admin/audit-log" element={<SuperAdminRoute><AuditLogPage /></SuperAdminRoute>} />
             <Route path="admin/sql" element={<SuperAdminRoute><SqlWorkspacePage /></SuperAdminRoute>} />
+            <Route path="admin/animated-ui" element={<AdminRoute><Suspense fallback={null}><AnimatedUIPage /></Suspense></AdminRoute>} />
             <Route path="bugfixes" element={<SuperAdminRoute><BugfixDashboardPage /></SuperAdminRoute>} />
             <Route path="status" element={<AuthRoute><StatusPage /></AuthRoute>} />
           </Route>
