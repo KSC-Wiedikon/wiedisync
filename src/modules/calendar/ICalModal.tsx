@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
+import TeamMultiSelect from '../../components/TeamMultiSelect'
+import { teamNameToColorKey } from '../../utils/teamColors'
 import { useTeams } from '../../hooks/useTeams'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
@@ -41,6 +43,7 @@ function categoryMatchesEntry(categories: SourceCategory[], entry: CalendarEntry
 
 export default function ICalModal({ open, mode, onClose, entries }: ICalModalProps) {
   const { t } = useTranslation('calendar')
+  const { t: tCommon } = useTranslation('common')
   const { data: teams } = useTeams()
   const { memberTeamIds, coachTeamIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
@@ -111,12 +114,6 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
     onClose()
   }
 
-  function toggleTeam(id: string) {
-    setSelectedTeamIds((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
-    )
-  }
-
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
       <div className="space-y-5">
@@ -150,48 +147,28 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
               {t('icalTeamFilter')}
             </p>
             {(() => {
-              const vbTeams = visibleTeams.filter((t) => t.sport === 'volleyball')
-              const bbTeams = visibleTeams.filter((t) => t.sport === 'basketball')
-              const hasBoth = vbTeams.length > 0 && bbTeams.length > 0
-
-              const renderChips = (list: typeof visibleTeams) =>
-                list.map((team) => {
-                  const isSelected = selectedTeamIds.includes(team.id)
-                  return (
-                    <button
-                      key={team.id}
-                      type="button"
-                      onClick={() => toggleTeam(team.id)}
-                      className={`min-h-[44px] rounded-full border px-3 py-2 text-sm font-medium transition-colors sm:min-h-0 sm:py-1 sm:text-xs ${
-                        isSelected
-                          ? 'border-brand-200 bg-brand-100 text-brand-800 dark:border-brand-700 dark:bg-brand-900/40 dark:text-brand-300'
-                          : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {team.name}
-                    </button>
-                  )
-                })
-
-              if (!hasBoth) {
-                return <div className="flex flex-wrap gap-2">{renderChips(visibleTeams)}</div>
-              }
-
+              const hasVB = visibleTeams.some((tm) => tm.sport === 'volleyball')
+              const hasBB = visibleTeams.some((tm) => tm.sport === 'basketball')
+              const showGroups = hasVB && hasBB
+              const teamOptions = visibleTeams
+                .filter((tm) => tm.sport === 'volleyball' || tm.sport === 'basketball')
+                .map((tm) => ({
+                  value: tm.id,
+                  label: showGroups
+                    ? (tm.sport === 'volleyball' ? `VB-${tm.name}` : `BB-${tm.name}`)
+                    : tm.name,
+                  colorKey: teamNameToColorKey(tm.name, tm.sport),
+                  group: showGroups
+                    ? (tm.sport === 'volleyball' ? 'Volleyball' : 'Basketball')
+                    : undefined,
+                }))
               return (
-                <div className="space-y-3">
-                  <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                      🏐 Volleyball
-                    </p>
-                    <div className="flex flex-wrap gap-2">{renderChips(vbTeams)}</div>
-                  </div>
-                  <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                      🏀 Basketball
-                    </p>
-                    <div className="flex flex-wrap gap-2">{renderChips(bbTeams)}</div>
-                  </div>
-                </div>
+                <TeamMultiSelect
+                  options={teamOptions}
+                  selected={selectedTeamIds}
+                  onChange={setSelectedTeamIds}
+                  placeholder={tCommon('allTeams')}
+                />
               )
             })()}
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('icalTeamHint')}</p>
