@@ -226,9 +226,9 @@ export default function SlotEditor({
                     role="combobox"
                     className="min-h-[44px] w-full justify-between font-normal"
                   >
-                    <span className={`truncate ${form.team.length === 0 ? 'text-muted-foreground' : ''}`}>
+                    <span className={`truncate ${form.team.length === 0 ? 'italic text-muted-foreground' : ''}`}>
                       {form.team.length === 0
-                        ? t('selectPlaceholder')
+                        ? t('freeSlot')
                         : form.team.map(id => visibleTeams.find(tm => tm.id === id)?.name).filter(Boolean).join(', ')}
                     </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -238,7 +238,6 @@ export default function SlotEditor({
                   <Command>
                     <CommandInput placeholder={t('searchTeam')} />
                     <CommandList
-                      className="!max-h-none"
                       style={{ maxHeight: 'min(60vh, var(--radix-popover-content-available-height, 400px))' }}
                     >
                       <CommandEmpty>{t('noTeamFound')}</CommandEmpty>
