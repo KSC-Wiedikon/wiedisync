@@ -68,8 +68,9 @@ export async function fetchAllPaged(jar, ctx, resourcePath, { properties = [], p
 }
 
 /**
- * Curated property paths for the SVRZ games entity (api\gamewithresult).
- * Verified against live dry-run on 2026-04-22.
+ * Curated property paths for the SVRZ games entity (api\game).
+ * Verified against live dry-run on 2026-04-22; updated 2026-05-23 after SVRZ
+ * renamed the resource api\gamewithresult → api\game and dropped isForfeitGame.
  */
 export const GAME_PROPERTIES = [
   'number',
@@ -78,7 +79,6 @@ export const GAME_PROPERTIES = [
   'shortDisplayName',
   'startingDateTime',
   'playingWeekday',
-  'isForfeitGame',
   'encounter.teamHome.club.identifier',
   'encounter.teamHome.club.name',
   'encounter.teamHome.name',
@@ -96,12 +96,31 @@ export const GAME_PROPERTIES = [
   'group.name',
 ];
 
+// KSC Wiedikon's SVRZ club UUID (Persistence_Object_Identifier; numeric
+// identifier 912530). Env-overridable for other deployments.
+export const VM_CLUB_UUID = process.env.VM_CLUB_UUID || '956158d5-806f-4af9-8378-e7a9e19adeff';
+
+const GAME_RESOURCE = '/api/sportmanager.indoorvolleyball/api%5cgame';
+
 export async function fetchAllGames(jar, ctx) {
-  return fetchAllPaged(jar, ctx, '/api/sportmanager.indoorvolleyball/api%5cgamewithresult', {
-    properties: GAME_PROPERTIES,
-    referer: '/sportmanager.indoorvolleyball/game/index',
-    batchSize: 200,
+  // SVRZ renamed api\gamewithresult → api\game around 2026-05-20 (old path now
+  // 403s) AND the new resource is the GLOBAL game list (~212k), whereas
+  // gamewithresult was intrinsically scoped to our club. Replicate that scope
+  // by filtering both sides of the encounter on KSCW's club UUID and merging
+  // (a game counts if KSCW is home OR away — the search ANDs filters, so one
+  // query per side). Verified live 2026-05-23: home=1492, union≈2970 = the
+  // pre-break stored set. Confirmed via capture of the live UI request.
+  const opts = { properties: GAME_PROPERTIES, referer: '/sportmanager.indoorvolleyball/game/index', batchSize: 200 };
+  const home = await fetchAllPaged(jar, ctx, GAME_RESOURCE, {
+    ...opts, propertyFilters: [{ propertyName: 'encounter.teamHome.club.Persistence_Object_Identifier', values: [VM_CLUB_UUID] }],
   });
+  const away = await fetchAllPaged(jar, ctx, GAME_RESOURCE, {
+    ...opts, propertyFilters: [{ propertyName: 'encounter.teamAway.club.Persistence_Object_Identifier', values: [VM_CLUB_UUID] }],
+  });
+  const byId = new Map();
+  for (const g of [...home.items, ...away.items]) byId.set(g.__identity ?? g.persistenceObjectIdentifier, g);
+  const items = [...byId.values()];
+  return { total: items.length, items };
 }
 
 /**
@@ -328,7 +347,10 @@ export function gameToSvrzRow(g) {
   const awayClub = away.club || {};
   const league = g.group?.phase?.league || {};
   return {
-    svrz_persistence_id: g.persistenceObjectIdentifier,
+    // api\game returns identity as __identity (same UUID the old
+    // api\gamewithresult exposed as persistenceObjectIdentifier), so the
+    // fallback keeps existing rows deduping correctly across the rename.
+    svrz_persistence_id: g.persistenceObjectIdentifier ?? g.__identity,
     svrz_number: g.number,
     status: g.status,
     display_name: g.displayName,

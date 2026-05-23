@@ -59,6 +59,19 @@ test('gameToSvrzRow extracts all fields, club identifier as string', () => {
   assert.deepEqual(Object.keys(row).sort(), [...EXPECTED_KEYS].sort(), 'row must have exactly the 18 expected keys');
 });
 
+test('gameToSvrzRow falls back to __identity when persistenceObjectIdentifier absent (new api\\game shape)', () => {
+  // The renamed api\game model exposes identity as __identity (no
+  // persistenceObjectIdentifier). Same UUID — must still key the upsert.
+  const g = { __identity: 'uuid-from-new-endpoint', number: 5, status: 'open' };
+  const row = gameToSvrzRow(g);
+  assert.equal(row.svrz_persistence_id, 'uuid-from-new-endpoint');
+});
+
+test('GAME_PROPERTIES excludes isForfeitGame (removed from the renamed api\\game model)', () => {
+  assert.ok(!GAME_PROPERTIES.includes('isForfeitGame'),
+    'isForfeitGame no longer exists on the new Game model and 500s the search');
+});
+
 test('gameToSvrzRow tolerates missing encounter/club fields gracefully', () => {
   const empty = { persistenceObjectIdentifier: 'x', number: 0, status: 'open' };
   const row = gameToSvrzRow(empty);
