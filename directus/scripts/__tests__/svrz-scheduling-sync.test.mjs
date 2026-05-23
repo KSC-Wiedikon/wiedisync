@@ -148,6 +148,46 @@ test('contactToSvrzRow handles missing person.primaryPhoneNumber / primaryEmailA
   assert.equal(row.contact_phone, '');
 });
 
+import { runSync } from '../svrz-scheduling-sync.mjs';
+
+test('runSync still syncs games when the contacts page is forbidden (decoupled)', async () => {
+  process.env.VM_USERNAME = 'u'; process.env.VM_PASSWORD = 'p';
+  const upserted = [];
+  const io = {
+    login: async () => ({}),
+    csrf: async (_jar, path) => {
+      if (path.includes('playingscheduleresponsibleaddressviewer')) {
+        throw new Error(`csrfFromPage ${path} → HTTP 403`);
+      }
+      return { csrf: 'c', wuid: 'w' };
+    },
+    getGames: async () => ({ items: [{ persistenceObjectIdentifier: 'g1', number: 1, status: 'open' }], total: 1 }),
+    getContacts: async () => { throw new Error('contacts fetch must not run when its CSRF failed'); },
+    upsert: async (collection, rows) => { upserted.push(collection); return { created: rows.length, updated: 0, seen_count: rows.length }; },
+  };
+  const result = await runSync({ seasonUuid: 'uuid', seasonName: '2025/2026' }, io);
+  assert.equal(result.games.created, 1, 'games must still upsert despite contacts 403');
+  assert.ok(upserted.includes('svrz_games'));
+  assert.ok(!upserted.includes('svrz_spielplaner_contacts'), 'contacts must not upsert on CSRF failure');
+  assert.equal(result.contacts.skipped, true);
+  assert.match(result.contacts.error, /403/);
+});
+
+test('runSync syncs both games and contacts when both pages are reachable', async () => {
+  process.env.VM_USERNAME = 'u'; process.env.VM_PASSWORD = 'p';
+  const io = {
+    login: async () => ({}),
+    csrf: async () => ({ csrf: 'c', wuid: 'w' }),
+    getGames: async () => ({ items: [{ persistenceObjectIdentifier: 'g1' }], total: 1 }),
+    getContacts: async () => ({ items: [{ __identity: 'c1', club: { identifier: '1', name: 'X', teams: [] }, person: { firstName: 'A', lastName: 'B' } }], total: 1 }),
+    upsert: async (_c, rows) => ({ created: rows.length, updated: 0, seen_count: rows.length }),
+  };
+  const result = await runSync({ seasonUuid: 'uuid', seasonName: '2025/2026' }, io);
+  assert.equal(result.games.created, 1);
+  assert.equal(result.contacts.created, 1);
+  assert.ok(!result.contacts.skipped);
+});
+
 import { planUpsert } from '../svrz-scheduling-sync.mjs';
 
 test('planUpsert splits rows into toCreate + toUpdate based on known persistence ids', () => {

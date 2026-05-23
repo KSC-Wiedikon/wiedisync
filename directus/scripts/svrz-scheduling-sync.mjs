@@ -251,33 +251,57 @@ export async function upsertByPersistenceId(collection, rows) {
  * that calls this — we store everything so admins can debug "why didn't X show up").
  * Fetches Spielplaner contacts filtered to the season.
  */
-export async function runSync({ seasonUuid, seasonName = '' }) {
+export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
+  // IO seam — defaults to the real network/DB functions; tests inject fakes.
+  const {
+    login = vmLogin,
+    csrf = csrfFromPage,
+    getGames = fetchAllGames,
+    getContacts = fetchAllContacts,
+    upsert = upsertByPersistenceId,
+  } = io;
+
   const username = process.env.VM_USERNAME;
   const password = process.env.VM_PASSWORD;
   if (!username || !password) throw new Error('VM_USERNAME/VM_PASSWORD env vars required');
 
   console.log('[svrz-sync] Logging into volleymanager...');
-  const jar = await vmLogin({ username, password });
-  const gamesCtx = await csrfFromPage(jar, '/sportmanager.indoorvolleyball/game/index');
-  const contactsCtx = await csrfFromPage(jar, '/sportmanager.indoorvolleyball/playingscheduleresponsibleaddressviewer/index');
+  const jar = await login({ username, password });
 
+  // Games first — the primary dataset (schedules + results powering the
+  // website + app). If games fail the run legitimately failed, so let it throw.
   console.log('[svrz-sync] Fetching games...');
-  const games = await fetchAllGames(jar, gamesCtx);
+  const gamesCtx = await csrf(jar, '/sportmanager.indoorvolleyball/game/index');
+  const games = await getGames(jar, gamesCtx);
   const gameRows = games.items.map(gameToSvrzRow);
   console.log(`[svrz-sync]   → ${gameRows.length}/${games.total} games`);
-  const gamesResult = await upsertByPersistenceId('svrz_games', gameRows);
+  const gamesResult = await upsert('svrz_games', gameRows);
   console.log(`[svrz-sync]   games upsert: created=${gamesResult.created} updated=${gamesResult.updated}`);
 
-  console.log('[svrz-sync] Fetching contacts...');
-  const contacts = await fetchAllContacts(jar, contactsCtx, seasonUuid);
-  const contactRows = contacts.items.map(c => contactToSvrzRow(c, seasonUuid, seasonName));
-  console.log(`[svrz-sync]   → ${contactRows.length}/${contacts.total} contacts`);
-  const contactsResult = await upsertByPersistenceId('svrz_spielplaner_contacts', contactRows);
-  console.log(`[svrz-sync]   contacts upsert: created=${contactsResult.created} updated=${contactsResult.updated}`);
+  // Contacts second — an independent dataset (Spielplaner responsible
+  // addresses). Decoupled from games on 2026-05-23: SVRZ revoked our account's
+  // access to the playingscheduleresponsibleaddressviewer page (HTTP 403),
+  // and because its CSRF was fetched up-front it aborted the whole run and
+  // froze games too. A forbidden/broken contacts page must not stop games
+  // syncing, so its failure is isolated here and reported as skipped.
+  let contactsResult;
+  try {
+    console.log('[svrz-sync] Fetching contacts...');
+    const contactsCtx = await csrf(jar, '/sportmanager.indoorvolleyball/playingscheduleresponsibleaddressviewer/index');
+    const contacts = await getContacts(jar, contactsCtx, seasonUuid);
+    const contactRows = contacts.items.map(c => contactToSvrzRow(c, seasonUuid, seasonName));
+    console.log(`[svrz-sync]   → ${contactRows.length}/${contacts.total} contacts`);
+    const upserted = await upsert('svrz_spielplaner_contacts', contactRows);
+    console.log(`[svrz-sync]   contacts upsert: created=${upserted.created} updated=${upserted.updated}`);
+    contactsResult = { ...upserted, total_fetched: contacts.items.length };
+  } catch (err) {
+    console.warn(`[svrz-sync] ⚠ contacts sync skipped (games sync unaffected): ${err.message}`);
+    contactsResult = { skipped: true, error: err.message, created: 0, updated: 0, total_fetched: 0 };
+  }
 
   return {
     games: { ...gamesResult, total_fetched: games.items.length },
-    contacts: { ...contactsResult, total_fetched: contacts.items.length },
+    contacts: contactsResult,
   };
 }
 
