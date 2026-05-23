@@ -2,6 +2,8 @@
 
 Canonical role × collection × action map. Reflects the live state through migration 052 (2026-05-12). Updated by reviewers as part of every permission change.
 
+> **2026-05-23 — Restored public `events` + `news` for kscw-website.** Migration 035 dropped Public read on `events` on the mistaken assumption the website didn't consume it, silently emptying the homepage events + `/weiteres/kalender`; `news` had never been granted (homepage News showed "no news"). Re-added both to Public as field-scoped reads (`PUBLIC_EVENT_FIELDS` / `PUBLIC_NEWS_FIELDS`, non-PII); `news` limited to published, non-future posts. RSVP junctions (`events_teams` / `participations`) stay private — 035's privacy fix is intact. Applied dev→prod via `db:setup-perms`; smoke green.
+
 > **2026-05-12 — Deep-audit LEADER tightening.** Removed unfiltered LEADER reads on `members`, `participations`, `absences`, `user_logs`, and unfiltered LEADER updates on `games`, `trainings`, `events`. All now use the coach/TR-of-the-target-team filter pattern; `members.read` adds a `LEADER_TEAM_MEMBER_FIELDS` whitelist that excludes `ahv_nummer`. LEADER lost `user_logs.read` entirely — audit access goes through `/kscw/admin/audit` (admin-only). See SECURITY.md "2026-05-12" block for the full per-finding ledger.
 
 > **Source of truth (post-2026-05-06):** `directus/scripts/setup-permissions.mjs` is the SINGLE source for Directus permissions. It is declarative, idempotent (clears + recreates on every run), and applied via `npm run db:setup-perms:<env>` on every deploy. Numbered SQL migrations are SCHEMA-ONLY going forward — they no longer carry permission rows. This doc is the human-readable index of the script — keep both in sync.
@@ -51,6 +53,8 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | rankings | read | none | |
 | sponsors | read | `active = true` | |
 | scorer_courses | read | `active = true` | Scorer-course sign-up sessions (kscw-website) |
+| events | read | none | Limited fields (`PUBLIC_EVENT_FIELDS`) — kscw-website homepage + calendar. Event record only; RSVP junctions stay private |
+| news | read | `published_at` set & `≤ $NOW` | Limited fields (`PUBLIC_NEWS_FIELDS`) — published posts only; kscw-website homepage + /news |
 | teams_sponsors | read | none | Junction for kscw-website |
 | teams_coaches | read | none | Junction for kscw-website |
 | members | read | none | Fields: `id, first_name, last_name, photo` only |
@@ -62,7 +66,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | mixed_tournament_signups | create | none | Same |
 | directus_files | read + create | none | Public file uploads (feedback screenshots etc.) |
 
-**Explicit non-public (don't re-grant!):** `trainings` (032), `slot_claims` / `events` / `events_teams` / `participations` (035), `event_signups` (anon/authenticated revoked at PG level — 035).
+**Explicit non-public (don't re-grant!):** `trainings` (032), `slot_claims` / `events_teams` / `participations` (035), `event_signups` (anon/authenticated revoked at PG level — 035). Note: the `events` *record* is public (field-scoped, granted above for the kscw-website calendar) — only its RSVP junctions (`events_teams` / `participations`) stay private.
 
 ---
 

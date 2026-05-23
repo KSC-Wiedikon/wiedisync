@@ -316,6 +316,23 @@ const PUBLIC_GAME_FIELDS = [
   'game_id', 'hall', 'type',
 ]
 
+/**
+ * Public fields for events — the kscw-website homepage + /weiteres/kalender
+ * read these unauthenticated. Only the event record itself (non-PII).
+ * The RSVP data (participations / events_teams) stays NON-public — migration
+ * 035 locked those down for privacy and they remain removed below.
+ */
+const PUBLIC_EVENT_FIELDS = [
+  'id', 'title', 'event_type', 'start_date', 'end_date', 'all_day',
+  'location', 'description', 'signup_url', 'cancelled',
+]
+
+/** Public fields for news — kscw-website homepage + /news read these. */
+const PUBLIC_NEWS_FIELDS = [
+  'id', 'title', 'title_en', 'slug', 'excerpt', 'body', 'category',
+  'author', 'published_at', 'image', 'date_created',
+]
+
 // ── Main ──────────────────────────────────��──────────────────────
 
 async function main() {
@@ -397,6 +414,20 @@ async function main() {
     await setPermRead(PUBLIC_POLICY, 'sponsors', { active: { _eq: true } })
     await setPermRead(PUBLIC_POLICY, 'scorer_courses', { active: { _eq: true } })
 
+    // Events + news — kscw-website homepage and /weiteres/kalender read these.
+    // Migration 035 wrongly assumed the website didn't consume `events` and
+    // dropped the public read, which silently emptied the homepage events and
+    // calendar; `news` was never granted at all (homepage News showed
+    // "no news"). Re-added field-scoped, non-PII only. RSVP junctions
+    // (participations / events_teams) stay NON-public — see calendar note below.
+    // News is limited to published posts (published_at set, not future-dated).
+    await setPermRead(PUBLIC_POLICY, 'events', null, PUBLIC_EVENT_FIELDS)
+    await setPermRead(
+      PUBLIC_POLICY, 'news',
+      { _and: [{ published_at: { _nnull: true } }, { published_at: { _lte: '$NOW' } }] },
+      PUBLIC_NEWS_FIELDS,
+    )
+
     // Junction tables for deep queries (website needs coach names, sponsor logos)
     await setPermRead(PUBLIC_POLICY, 'teams_sponsors')
     await setPermRead(PUBLIC_POLICY, 'teams_coaches')  // coach junction
@@ -404,8 +435,9 @@ async function main() {
 
     // Calendar: hall slots, closures, hall events, halls.
     // Migration 035 removed `slot_claims` from Public — internal hall booking
-    // strategy isn't public. Same migration also removed events/events_teams/
-    // participations (every RSVP across the club was anonymously readable).
+    // strategy isn't public. It also removed `events_teams` / `participations`
+    // (every RSVP across the club was anonymously readable) — those stay
+    // removed; only the event record itself is public (granted above).
     // Migration 032 removed `trainings` (per-team schedule, members-only).
     await setPermRead(PUBLIC_POLICY, 'hall_slots')
     await setPermRead(PUBLIC_POLICY, 'hall_slots_teams')  // M2M junction
