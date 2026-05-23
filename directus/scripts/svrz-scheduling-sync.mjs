@@ -298,16 +298,17 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
   console.log(`[svrz-sync]   games upsert: created=${gamesResult.created} updated=${gamesResult.updated}`);
 
   // Contacts second — an independent dataset (Spielplaner responsible
-  // addresses). Decoupled from games on 2026-05-23: SVRZ revoked our account's
-  // access to the playingscheduleresponsibleaddressviewer page (HTTP 403),
-  // and because its CSRF was fetched up-front it aborted the whole run and
-  // froze games too. A forbidden/broken contacts page must not stop games
-  // syncing, so its failure is isolated here and reported as skipped.
+  // addresses). Two fixes here, both 2026-05-23:
+  //   1. Reuse the game/index session CSRF (gamesCtx). The contacts page now
+  //      cold-GET 403s, which is why csrfFromPage on it failed and froze the
+  //      sync; but the contacts /search API accepts the session-wide CSRF, so
+  //      we never need to GET that page.
+  //   2. Still wrapped in try/catch so any future contacts breakage stays
+  //      isolated and never blocks the games sync.
   let contactsResult;
   try {
     console.log('[svrz-sync] Fetching contacts...');
-    const contactsCtx = await csrf(jar, '/sportmanager.indoorvolleyball/playingscheduleresponsibleaddressviewer/index');
-    const contacts = await getContacts(jar, contactsCtx, seasonUuid);
+    const contacts = await getContacts(jar, gamesCtx, seasonUuid);
     const contactRows = contacts.items.map(c => contactToSvrzRow(c, seasonUuid, seasonName));
     console.log(`[svrz-sync]   → ${contactRows.length}/${contacts.total} contacts`);
     const upserted = await upsert('svrz_spielplaner_contacts', contactRows);
