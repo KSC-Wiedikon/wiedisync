@@ -163,7 +163,7 @@ test('contactToSvrzRow handles missing person.primaryPhoneNumber / primaryEmailA
 
 import { runSync } from '../svrz-scheduling-sync.mjs';
 
-test('runSync reuses one session CSRF for both games and contacts (no contacts-page GET)', async () => {
+test('runSync GETs the contacts viewer index (module scope) before the contacts /search', async () => {
   process.env.VM_USERNAME = 'u'; process.env.VM_PASSWORD = 'p';
   const csrfPaths = [];
   const io = {
@@ -174,10 +174,38 @@ test('runSync reuses one session CSRF for both games and contacts (no contacts-p
     upsert: async (_c, rows) => ({ created: rows.length, updated: 0, seen_count: rows.length }),
   };
   const result = await runSync({ seasonUuid: 'uuid', seasonName: '2025/2026' }, io);
-  // CSRF must be fetched only from game/index — never from the contacts page (which cold-GET 403s).
-  assert.deepEqual(csrfPaths, ['/sportmanager.indoorvolleyball/game/index']);
+  // Must GET game/index (games scope + session CSRF) AND the contacts viewer
+  // index. The latter establishes the contacts-module scope server-side; the
+  // 2026-05-23 build dropped it, which made /search 403 (session CSRF is valid
+  // but the module was never entered). Order: games first, contacts second.
+  assert.deepEqual(csrfPaths, [
+    '/sportmanager.indoorvolleyball/game/index',
+    '/sportmanager.indoorvolleyball/playingscheduleresponsibleaddressviewer/index',
+  ]);
   assert.equal(result.games.created, 1);
   assert.equal(result.contacts.created, 1);
+});
+
+test('runSync still syncs games when the contacts-page GET itself 403s (decoupled)', async () => {
+  process.env.VM_USERNAME = 'u'; process.env.VM_PASSWORD = 'p';
+  const upserted = [];
+  const io = {
+    login: async () => ({}),
+    // game/index CSRF succeeds; the contacts index GET throws (e.g. 403).
+    csrf: async (_jar, path) => {
+      if (path.includes('playingscheduleresponsibleaddressviewer')) throw new Error('csrfFromPage contacts → HTTP 403');
+      return { csrf: 'c', wuid: 'w' };
+    },
+    getGames: async () => ({ items: [{ __identity: 'g1', number: 1, status: 'open' }], total: 1 }),
+    getContacts: async () => { throw new Error('should not reach getContacts when the page GET fails'); },
+    upsert: async (collection, rows) => { upserted.push(collection); return { created: rows.length, updated: 0, seen_count: rows.length }; },
+  };
+  const result = await runSync({ seasonUuid: 'uuid', seasonName: '2025/2026' }, io);
+  assert.equal(result.games.created, 1, 'games must still upsert despite a contacts-page GET failure');
+  assert.ok(upserted.includes('svrz_games'));
+  assert.ok(!upserted.includes('svrz_spielplaner_contacts'));
+  assert.equal(result.contacts.skipped, true);
+  assert.match(result.contacts.error, /403/);
 });
 
 test('runSync still syncs games when the contacts fetch fails (decoupled)', async () => {

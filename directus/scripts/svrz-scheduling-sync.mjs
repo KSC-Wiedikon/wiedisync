@@ -298,17 +298,23 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
   console.log(`[svrz-sync]   games upsert: created=${gamesResult.created} updated=${gamesResult.updated}`);
 
   // Contacts second — an independent dataset (Spielplaner responsible
-  // addresses). Two fixes here, both 2026-05-23:
-  //   1. Reuse the game/index session CSRF (gamesCtx). The contacts page now
-  //      cold-GET 403s, which is why csrfFromPage on it failed and froze the
-  //      sync; but the contacts /search API accepts the session-wide CSRF, so
-  //      we never need to GET that page.
-  //   2. Still wrapped in try/catch so any future contacts breakage stays
-  //      isolated and never blocks the games sync.
+  // addresses). The /search endpoint requires the session to have *entered*
+  // the contacts module: Neos Flow sets the current package/controller scope
+  // server-side when its index page is GETed. The session-wide CSRF (same
+  // token across the whole session, incl. gamesCtx) is necessary but NOT
+  // sufficient — without this page GET, /search 403s. So fetch the contacts
+  // index page here, exactly like the games path does for game/index.
+  // Verified 2026-05-24 via live browser capture: the game/index CSRF works
+  // on contacts /search ONLY once the contacts index page has been loaded.
+  // (Reverts the 2026-05-23 shortcut that reused gamesCtx and skipped the GET,
+  // which left /search unscoped → 403.)
+  // Still wrapped in try/catch so any future contacts breakage stays isolated
+  // and never blocks the games sync.
   let contactsResult;
   try {
     console.log('[svrz-sync] Fetching contacts...');
-    const contacts = await getContacts(jar, gamesCtx, seasonUuid);
+    const contactsCtx = await csrf(jar, '/sportmanager.indoorvolleyball/playingscheduleresponsibleaddressviewer/index');
+    const contacts = await getContacts(jar, contactsCtx, seasonUuid);
     const contactRows = contacts.items.map(c => contactToSvrzRow(c, seasonUuid, seasonName));
     console.log(`[svrz-sync]   → ${contactRows.length}/${contacts.total} contacts`);
     const upserted = await upsert('svrz_spielplaner_contacts', contactRows);
