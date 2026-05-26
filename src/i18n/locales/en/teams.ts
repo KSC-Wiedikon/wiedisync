@@ -1,6 +1,11 @@
 export default {
   title: 'Teams & Members',
   subtitleSeason: 'Season {{season}}',
+  joinAnotherTeam: 'Join another team',
+  players_one: '{{count}} player',
+  players_other: '{{count}} players',
+  guests_one: '{{count}} guest',
+  guests_other: '{{count}} guests',
 
   // Positions
   positionSetter: 'Setter',

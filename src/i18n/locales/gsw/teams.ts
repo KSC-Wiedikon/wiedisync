@@ -1,6 +1,11 @@
 export default {
   title: 'Teams & Mitglieder',
   subtitleSeason: 'Saison {{season}}',
+  joinAnotherTeam: 'Eme wytere Team biträte',
+  players_one: '{{count}} Spiler',
+  players_other: '{{count}} Spiler',
+  guests_one: '{{count}} Gascht',
+  guests_other: '{{count}} Gäscht',
 
   // Positions
   positionSetter: 'Passeuse/Passeur',

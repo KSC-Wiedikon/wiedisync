@@ -1,6 +1,11 @@
 export default {
   title: 'Squadre e membri',
   subtitleSeason: 'Stagione {{season}}',
+  joinAnotherTeam: 'Unisciti a un\'altra squadra',
+  players_one: '{{count}} giocatore',
+  players_other: '{{count}} giocatori',
+  guests_one: '{{count}} ospite',
+  guests_other: '{{count}} ospiti',
 
   // Positions
   positionSetter: 'Palleggiatore',

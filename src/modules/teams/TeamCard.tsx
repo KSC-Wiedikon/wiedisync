@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import TeamChip from '../../components/TeamChip'
 import { getTeamColor, trimBBTeamName } from '../../utils/teamColors'
 import { getFileUrl } from '../../utils/fileUrl'
@@ -6,10 +7,12 @@ import type { Team } from '../../types'
 
 interface TeamCardProps {
   team: Team
-  memberCount: number
+  playerCount: number
+  guestCount: number
 }
 
-export default function TeamCard({ team, memberCount }: TeamCardProps) {
+export default function TeamCard({ team, playerCount, guestCount }: TeamCardProps) {
+  const { t } = useTranslation('teams')
   return (
     <Link
       to={`/teams/${team.name}`}
@@ -44,7 +47,8 @@ export default function TeamCard({ team, memberCount }: TeamCardProps) {
         <div className="mt-4 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
           <span>{team.league}</span>
           <span>{team.season}</span>
-          <span>{memberCount} players</span>
+          <span>{t('players', { count: playerCount })}</span>
+          {guestCount > 0 && <span>{t('guests', { count: guestCount })}</span>}
         </div>
       </div>
     </Link>
