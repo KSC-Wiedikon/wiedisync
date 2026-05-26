@@ -87,7 +87,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | sv_vm_check | `OWN_MEMBER` | `VM_CHECK_FIELDS` (11 fields, no PII) | **043** |
 | tasks | own `assigned_to` / `claimed_by` | `*` | **043** |
 | feedback | `email = $CURRENT_USER.email` | `*` | **043** |
-| member_teams | none | `id, member, team, season` (no `guest_level`) | **043** |
+| member_teams | none (read); `OWN_MEMBER` (delete) | `id, member, team, season` (no `guest_level`) | **043**; delete added 2026-05-26 (self-service leave-team) |
 | blocks | `blocker.user = $CURRENT_USER` | `*` | 042 |
 | spielplaner_assignments | `OWN_MEMBER` | `*` | 034, 042 |
 | user_logs | `OWN_DU` (note traversal!) | `*` | 4.4.8 fix |
