@@ -99,6 +99,13 @@ async function sendPushToMembers(db, memberIds, title, body, url, tag, log) {
   }
 }
 
+// Junction create payloads deliver the related field as a bare id OR a
+// junction-object (`{ id: 108 }`, the M2M write format the app uses) — unwrap
+// to a scalar so it can be used directly in `.where('id', …)`.
+function toIdValue(v) {
+  return v && typeof v === 'object' ? (v.id ?? v) : v
+}
+
 // ── Role Sync ────────────────────────────────────────────────────
 // Keeps each member's Directus user role in sync with their app role
 // (members.role array) and coach/TR junction membership.
@@ -446,15 +453,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   // Sync when coach/TR junctions change (create)
   action('teams_coaches.items.create', async ({ payload }) => {
-    if (payload?.members_id) {
-      await syncMemberRole(payload.members_id)
-      await ensureLeaderAccess(payload.members_id)
+    const memberId = toIdValue(payload?.members_id)
+    if (memberId) {
+      await syncMemberRole(memberId)
+      await ensureLeaderAccess(memberId)
     }
   })
   action('teams_responsibles.items.create', async ({ payload }) => {
-    if (payload?.members_id) {
-      await syncMemberRole(payload.members_id)
-      await ensureLeaderAccess(payload.members_id)
+    const memberId = toIdValue(payload?.members_id)
+    if (memberId) {
+      await syncMemberRole(memberId)
+      await ensureLeaderAccess(memberId)
     }
   })
 
