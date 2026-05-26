@@ -15,10 +15,11 @@ import { formatDate, toISODate } from '../../utils/dateHelpers'
 import ProfileEditModal from './ProfileEditModal'
 import DeleteAccountModal from './DeleteAccountModal'
 import TeamRequestModal from './TeamRequestModal'
+import Modal from '@/components/Modal'
 import MessagingSettingsCard from '../messaging/pages/MessagingSettingsCard'
 import type { MemberTeam, Team, Absence, LicenceType } from '../../types'
 import { licencesOf } from '../../types'
-import { updateRecord } from '../../lib/api'
+import { updateRecord, deleteRecord } from '../../lib/api'
 import { asObj } from '../../utils/relations'
 
 const LICENCE_LABELS: Record<LicenceType, string> = {
@@ -39,8 +40,10 @@ export default function ProfilePage() {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [teamRequestOpen, setTeamRequestOpen] = useState(false)
+  const [leavingTeam, setLeavingTeam] = useState<{ id: string; name: string } | null>(null)
+  const [leaving, setLeaving] = useState(false)
 
-  const { data: memberTeamsRaw } = useCollection<ExpandedMemberTeam>('member_teams', {
+  const { data: memberTeamsRaw, refetch: refetchMemberTeams } = useCollection<ExpandedMemberTeam>('member_teams', {
     filter: user ? { member: { _eq: user.id } } : undefined,
     fields: ['*', 'team.*'],
     limit: 20,
@@ -69,6 +72,20 @@ export default function ProfilePage() {
       refetchRequests()
     } catch {
       // ignore
+    }
+  }
+
+  async function handleLeaveTeam() {
+    if (!leavingTeam) return
+    setLeaving(true)
+    try {
+      await deleteRecord('member_teams', leavingTeam.id)
+      setLeavingTeam(null)
+      refetchMemberTeams()
+    } catch {
+      // ignore — error already captured by deleteRecord
+    } finally {
+      setLeaving(false)
     }
   }
 
@@ -166,7 +183,7 @@ export default function ProfilePage() {
                         <div className={`w-px flex-1 ${isLast ? 'bg-transparent' : 'bg-gray-300 dark:bg-gray-600'}`} />
                       </div>
                       {/* Horizontal connector + content */}
-                      <div className="flex items-center gap-2.5 py-1.5">
+                      <div className="flex flex-1 items-center gap-2.5 py-1.5">
                         <div className="w-4 border-t border-gray-300 dark:border-gray-600" />
                         <Link to={`/teams/${team?.name ?? mt.team}`} className="flex shrink-0">
                           <TeamChip team={team?.name ?? '?'} size="sm" />
@@ -174,6 +191,14 @@ export default function ProfilePage() {
                         <span className="text-xs text-gray-600 dark:text-gray-400">
                           {teamRoles.join(' · ')}
                         </span>
+                        <button
+                          onClick={() => setLeavingTeam({ id: mt.id, name: team?.name ?? String(mt.team) })}
+                          className="ml-auto rounded-full p-0.5 text-gray-400 hover:bg-gray-100 hover:text-red-500 dark:hover:bg-gray-700 dark:hover:text-red-400"
+                          title={t('leaveTeam')}
+                          aria-label={t('leaveTeam')}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
                   )
@@ -417,6 +442,21 @@ export default function ProfilePage() {
         onClose={() => setDeleteOpen(false)}
         userEmail={user.email}
       />
+      <Modal open={!!leavingTeam} onClose={() => setLeavingTeam(null)} title={t('leaveTeamTitle')}>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {t('leaveTeamConfirm', { team: leavingTeam?.name ?? '' })}
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => setLeavingTeam(null)}>
+              {t('common:cancel')}
+            </Button>
+            <Button variant="destructive" onClick={handleLeaveTeam} loading={leaving} disabled={leaving}>
+              {t('leaveTeam')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -182,6 +182,9 @@ export default {
   noTeamsAvailable: 'Kei wiiteri Teams verfüägbar.',
   sendRequest: 'Aafrag schicke',
   teamRequestError: 'Bim Schicke vo de Aafrag isch öppis schief gange',
+  leaveTeam: 'Team verla',
+  leaveTeamTitle: 'Team verla',
+  leaveTeamConfirm: 'Wotsch {{team}} würkli verla? Du wirsch usem Kader gnoh und bruuchsch e Bestätigung zum wieder biträte.',
   teamRequestSent: 'Aafrag gschickt',
 
   // Danger Zone

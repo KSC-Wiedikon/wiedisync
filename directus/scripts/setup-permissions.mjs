@@ -611,6 +611,10 @@ async function main() {
   // (it's already implicit in roster cards). The 2026-05-06 audit raised it
   // as Low; we explicitly accept that read scope and document in SECURITY.md.
   await setPermRead(MEMBER_POLICY, 'member_teams')
+  // Members may leave a team they're on (self-scoped delete of own row).
+  // Joining still requires coach approval via team_requests; leaving is
+  // self-service. Same op coaches already perform via RosterEditor.
+  await setPerm(MEMBER_POLICY, 'member_teams', 'delete', OWN_MEMBER)
 
   // Blocks — see only my own outgoing blocks (incoming blocks stay opaque)
   // (migration 042).

@@ -182,6 +182,9 @@ export default {
   noTeamsAvailable: 'No more teams available.',
   sendRequest: 'Send Request',
   teamRequestError: 'Error sending request',
+  leaveTeam: 'Leave team',
+  leaveTeamTitle: 'Leave team',
+  leaveTeamConfirm: 'Are you sure you want to leave {{team}}? You\'ll be removed from the roster and will need approval to rejoin.',
   teamRequestSent: 'Request sent',
 
   // Danger Zone

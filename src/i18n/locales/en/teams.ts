@@ -1,7 +1,7 @@
 export default {
   title: 'Teams & Members',
   subtitleSeason: 'Season {{season}}',
-  joinAnotherTeam: 'Join another team',
+  joinAnotherTeam: 'Join new team',
   players_one: '{{count}} player',
   players_other: '{{count}} players',
   guests_one: '{{count}} guest',

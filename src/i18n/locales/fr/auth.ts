@@ -180,6 +180,9 @@ export default {
   noTeamsAvailable: 'Aucune equipe supplementaire disponible.',
   sendRequest: 'Envoyer la demande',
   teamRequestError: 'Erreur lors de l\'envoi de la demande',
+  leaveTeam: 'Quitter l\'équipe',
+  leaveTeamTitle: 'Quitter l\'équipe',
+  leaveTeamConfirm: 'Voulez-vous vraiment quitter {{team}} ? Vous serez retiré de l\'effectif et devrez obtenir une approbation pour revenir.',
   teamRequestSent: 'Demande envoyee',
 
   // Danger Zone

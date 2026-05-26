@@ -182,6 +182,9 @@ export default {
   noTeamsAvailable: 'Keine weiteren Teams verfügbar.',
   sendRequest: 'Anfrage senden',
   teamRequestError: 'Fehler beim Senden der Anfrage',
+  leaveTeam: 'Team verlassen',
+  leaveTeamTitle: 'Team verlassen',
+  leaveTeamConfirm: 'Möchtest du {{team}} wirklich verlassen? Du wirst vom Kader entfernt und brauchst eine Bestätigung, um wieder beizutreten.',
   teamRequestSent: 'Anfrage gesendet',
 
   // Danger Zone
