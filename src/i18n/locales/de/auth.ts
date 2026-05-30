@@ -187,6 +187,11 @@ export default {
   leaveTeamConfirm: 'Möchtest du {{team}} wirklich verlassen? Du wirst vom Kader entfernt und brauchst eine Bestätigung, um wieder beizutreten.',
   teamRequestSent: 'Anfrage gesendet',
 
+  // Bussen
+  outstandingFines: 'Offene Bussen: {{amount}}',
+  outstandingFinesCount_one: '{{count}} offene Busse',
+  outstandingFinesCount_other: '{{count}} offene Bussen',
+
   // Danger Zone
   dangerZone: 'Gefahrenbereich',
   deleteAccount: 'Konto löschen',

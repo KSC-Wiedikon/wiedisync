@@ -187,6 +187,11 @@ export default {
   leaveTeamConfirm: 'Are you sure you want to leave {{team}}? You\'ll be removed from the roster and will need approval to rejoin.',
   teamRequestSent: 'Request sent',
 
+  // Fines
+  outstandingFines: 'Outstanding fines: {{amount}}',
+  outstandingFinesCount_one: '{{count}} open fine',
+  outstandingFinesCount_other: '{{count}} open fines',
+
   // Danger Zone
   dangerZone: 'Danger Zone',
   deleteAccount: 'Delete Account',

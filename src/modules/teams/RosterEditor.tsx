@@ -14,6 +14,7 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import InviteExternalUserModal from './InviteExternalUserModal'
 import TeamSponsorsEditor from './TeamSponsorsEditor'
 import TrainingForm from '../trainings/TrainingForm'
+import FinesSettings from '../fines/FinesSettings'
 import EmptyState from '../../components/EmptyState'
 import { getFileUrl } from '../../utils/fileUrl'
 import { getCurrentSeason } from '../../utils/dateHelpers'
@@ -803,6 +804,9 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
             <DebouncedNumberInput value={settings.training_respond_by_days} onChange={(v) => setNumber('training_respond_by_days', v)} suffix={t('settingsRespondByDaysSuffix')} />
           </SettingRow>
         </SettingsGroup>
+
+        {/* Fines */}
+        <FinesSettings teamId={team.id} />
       </div>
 
       <TrainingForm

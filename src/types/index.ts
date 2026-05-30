@@ -840,3 +840,59 @@ export interface Report extends BaseRecord {
 }
 
 export type ConsentDecision = 'pending' | 'declined' | 'accepted'
+
+// ── Fines (migration 069) ───────────────────────────────────────────────
+
+export type FineCategory = 'late_signin' | 'no_show' | 'late_payment' | 'custom'
+export type FineStatus = 'open' | 'paid' | 'waived'
+export type FineActivityType = 'training' | 'game' | 'event'
+export type FinePayMethod = 'cash' | 'twint' | 'transfer' | 'other'
+export type FinePayTo = 'team_kasse' | 'club_kasse'
+export type FineResetWindow = 'calendar_month' | 'rolling_30d' | 'rolling_90d' | 'season' | 'never'
+
+export interface FineRuleTier {
+  /** Exact-match offense number. Use this OR offense_min (not both). */
+  offense?: number
+  /** Catch-all for "Nth offense and beyond". Use on the last tier. */
+  offense_min?: number
+  amount: number
+}
+
+export interface FineRule extends BaseRecord {
+  team: string
+  category: FineCategory
+  enabled: boolean
+  reset_window: FineResetWindow
+  tiers: FineRuleTier[]
+  currency: string
+  notes?: string | null
+  updated_by?: string | null
+}
+
+export interface Fine extends BaseRecord {
+  member: string
+  team: string
+  category: FineCategory
+  amount: number
+  currency: string
+  status: FineStatus
+  activity_type: FineActivityType | null
+  activity_id: string | null
+  activity_date: string | null
+  /** Snapshot: which Nth offense this was within the window at issue time. */
+  tier_offense: number | null
+  /** Snapshot: which reset_window the engine used. */
+  reset_window_at_issue: FineResetWindow | null
+  reason: string | null
+  issued_by: string | null
+  issued_at: string
+  paid_at: string | null
+  paid_method: FinePayMethod | null
+  paid_to: FinePayTo | null
+  paid_received_by: string | null
+  waived_at: string | null
+  waived_by: string | null
+  waived_reason: string | null
+  auto_issued: boolean
+  notes: string | null
+}

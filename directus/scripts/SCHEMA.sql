@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-05-20T15:10:12.478Z
+-- Generated:   2026-05-30T08:52:41.357Z
 -- Source:      dev (db=directus_kscw_dev)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -856,6 +856,174 @@ BEGIN
   RETURN v_row;
 END;
 $$;
+
+
+--
+-- Name: kscw_compute_fine_amount(integer, integer, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_compute_fine_amount(p_member integer, p_team integer, p_category text) RETURNS TABLE(amount numeric, tier_offense integer, reset_window_at_issue text)
+    LANGUAGE plpgsql STABLE
+    AS $$
+DECLARE
+  v_rule          record;
+  v_window_start  timestamptz;
+  v_prior_count   integer;
+  v_offense_no    integer;
+  v_tier          jsonb;
+  v_amount        numeric;
+BEGIN
+  -- 1. Load the rule. No enabled rule → no rows returned.
+  SELECT * INTO v_rule
+  FROM fine_rules
+  WHERE team = p_team
+    AND category = p_category
+    AND enabled = true
+  LIMIT 1;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  -- 2. Window start.
+  v_window_start := kscw_fine_window_start(v_rule.reset_window, now());
+
+  -- 3. Count prior non-waived fines in window.
+  SELECT COUNT(*)::int INTO v_prior_count
+  FROM fines
+  WHERE member = p_member
+    AND team = p_team
+    AND category = p_category
+    AND status <> 'waived'
+    AND issued_at >= v_window_start;
+  v_offense_no := v_prior_count + 1;
+
+  -- 4. Tier lookup.
+  --    a. exact match on `offense`
+  --    b. fall through to highest `offense_min` ≤ offense_no
+  --    c. fall through to last tier (any shape)
+  v_amount := NULL;
+
+  -- Exact match
+  SELECT t INTO v_tier
+  FROM jsonb_array_elements(v_rule.tiers) AS t
+  WHERE (t->>'offense')::int = v_offense_no
+  LIMIT 1;
+  IF v_tier IS NOT NULL THEN
+    v_amount := (v_tier->>'amount')::numeric;
+  END IF;
+
+  -- Highest offense_min ≤ offense_no
+  IF v_amount IS NULL THEN
+    SELECT t INTO v_tier
+    FROM jsonb_array_elements(v_rule.tiers) AS t
+    WHERE (t ? 'offense_min') AND (t->>'offense_min')::int <= v_offense_no
+    ORDER BY (t->>'offense_min')::int DESC
+    LIMIT 1;
+    IF v_tier IS NOT NULL THEN
+      v_amount := (v_tier->>'amount')::numeric;
+    END IF;
+  END IF;
+
+  -- Last tier as fallback (covers misconfigured rules with only exact tiers and
+  -- a higher offense than any covered — leader still gets a hint).
+  -- WITH ORDINALITY exposes the array index so we can pick the *last* element.
+  IF v_amount IS NULL THEN
+    SELECT elem INTO v_tier
+    FROM jsonb_array_elements(v_rule.tiers) WITH ORDINALITY AS arr(elem, ord)
+    ORDER BY arr.ord DESC
+    LIMIT 1;
+    IF v_tier IS NOT NULL THEN
+      v_amount := (v_tier->>'amount')::numeric;
+    END IF;
+  END IF;
+
+  IF v_amount IS NULL THEN
+    -- Rule exists but tiers is empty / malformed. Refuse to guess.
+    RETURN;
+  END IF;
+
+  amount := v_amount;
+  tier_offense := v_offense_no;
+  reset_window_at_issue := v_rule.reset_window;
+  RETURN NEXT;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION kscw_compute_fine_amount(p_member integer, p_team integer, p_category text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.kscw_compute_fine_amount(p_member integer, p_team integer, p_category text) IS 'Escalation engine. Counts prior non-waived fines in the rule''s reset window, then picks the matching tier: exact offense first, then highest offense_min ≤ N, then last tier as fallback. Returns no rows if no enabled rule or empty tiers — caller must handle.';
+
+
+--
+-- Name: kscw_current_season_start(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_current_season_start() RETURNS date
+    LANGUAGE plpgsql STABLE
+    AS $$
+DECLARE
+  v_now date := (now() AT TIME ZONE 'Europe/Zurich')::date;
+  v_year int := EXTRACT(YEAR FROM v_now)::int;
+  v_month int := EXTRACT(MONTH FROM v_now)::int;
+BEGIN
+  -- JS getMonth() is 0-indexed (Aug=7, Sep=8). PG EXTRACT MONTH is 1-indexed.
+  -- JS check: month < 8 (Jan–Aug) → previous Sep.
+  -- PG equivalent: month <= 8 (Jan–Aug) → previous Sep. Note Aug is included
+  -- in "previous season" both ways: JS month 7 (Aug) < 8 = true; PG month 8
+  -- (Aug) <= 8 = true. Sep flips: JS month 8 (Sep) < 8 = false; PG month 9
+  -- (Sep) <= 8 = false. Aligned.
+  IF v_month <= 8 THEN
+    RETURN make_date(v_year - 1, 9, 1);
+  ELSE
+    RETURN make_date(v_year, 9, 1);
+  END IF;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION kscw_current_season_start(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.kscw_current_season_start() IS 'Sep 1 of the current season (Sep–Aug). Mirrors getCurrentSeason() in src/utils/dateHelpers.ts. STABLE (not IMMUTABLE — depends on now()); do not use in indexes or generated columns.';
+
+
+--
+-- Name: kscw_fine_window_start(text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_fine_window_start(p_window text, p_ts timestamp with time zone) RETURNS timestamp with time zone
+    LANGUAGE plpgsql STABLE
+    AS $$
+BEGIN
+  CASE p_window
+    WHEN 'calendar_month' THEN
+      RETURN date_trunc('month', p_ts AT TIME ZONE 'Europe/Zurich')
+             AT TIME ZONE 'Europe/Zurich';
+    WHEN 'rolling_30d' THEN
+      RETURN p_ts - interval '30 days';
+    WHEN 'rolling_90d' THEN
+      RETURN p_ts - interval '90 days';
+    WHEN 'season' THEN
+      RETURN (kscw_current_season_start()::timestamp AT TIME ZONE 'Europe/Zurich');
+    WHEN 'never' THEN
+      RETURN 'epoch'::timestamptz;
+    ELSE
+      -- Unknown window — be conservative and count everything.
+      RETURN 'epoch'::timestamptz;
+  END CASE;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION kscw_fine_window_start(p_window text, p_ts timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.kscw_fine_window_start(p_window text, p_ts timestamp with time zone) IS 'Start timestamp of the offense-counter window for a fine_rules.reset_window value. calendar_month/season anchor to Europe/Zurich wall-clock (1st of month / Sep 1); rolling windows subtract N days from now.';
 
 
 --
@@ -2373,6 +2541,139 @@ CREATE SEQUENCE public.feedback_id_seq
 --
 
 ALTER SEQUENCE public.feedback_id_seq OWNED BY public.feedback.id;
+
+
+--
+-- Name: fine_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fine_rules (
+    id integer NOT NULL,
+    team integer NOT NULL,
+    category character varying(32) NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    reset_window character varying(32) DEFAULT 'calendar_month'::character varying NOT NULL,
+    tiers jsonb DEFAULT '[]'::jsonb NOT NULL,
+    currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL,
+    notes text,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    user_updated uuid,
+    updated_by integer,
+    CONSTRAINT fine_rules_category_check CHECK (((category)::text = ANY ((ARRAY['late_signin'::character varying, 'no_show'::character varying, 'late_payment'::character varying, 'custom'::character varying])::text[]))),
+    CONSTRAINT fine_rules_reset_window_check CHECK (((reset_window)::text = ANY ((ARRAY['calendar_month'::character varying, 'rolling_30d'::character varying, 'rolling_90d'::character varying, 'season'::character varying, 'never'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE fine_rules; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.fine_rules IS 'Per-team×category fine config: escalation tiers + reset window. Read by useFineQuote on the frontend and by kscw_compute_fine_amount() in the backend hook. One row per (team,category) — UNIQUE enforced.';
+
+
+--
+-- Name: COLUMN fine_rules.reset_window; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fine_rules.reset_window IS 'When the offense counter resets. calendar_month=first of current month; rolling_30d/90d=relative; season=Sep 1 of current season (matches getCurrentSeason in dateHelpers.ts); never=lifetime.';
+
+
+--
+-- Name: COLUMN fine_rules.tiers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fine_rules.tiers IS 'jsonb array of escalation tiers. Each entry: {offense:N, amount:X} for an exact match, or {offense_min:N, amount:X} for the last "Nth and beyond" entry. Lookup order in kscw_compute_fine_amount: exact offense match, then highest offense_min ≤ current offense, then last tier as fallback.';
+
+
+--
+-- Name: fine_rules_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.fine_rules_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: fine_rules_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.fine_rules_id_seq OWNED BY public.fine_rules.id;
+
+
+--
+-- Name: fines; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fines (
+    id integer NOT NULL,
+    member integer NOT NULL,
+    team integer NOT NULL,
+    category character varying(32) NOT NULL,
+    amount numeric(8,2) NOT NULL,
+    currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL,
+    status character varying(16) DEFAULT 'open'::character varying NOT NULL,
+    activity_type character varying(16),
+    activity_id integer,
+    activity_date date,
+    tier_offense integer,
+    reset_window_at_issue character varying(32),
+    reason text,
+    issued_by integer,
+    issued_at timestamp with time zone DEFAULT now() NOT NULL,
+    paid_at timestamp with time zone,
+    paid_method character varying(16),
+    paid_to character varying(16),
+    paid_received_by integer,
+    waived_at timestamp with time zone,
+    waived_by integer,
+    waived_reason text,
+    auto_issued boolean DEFAULT false NOT NULL,
+    notes text,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    user_updated uuid,
+    CONSTRAINT fines_activity_type_check CHECK (((activity_type IS NULL) OR ((activity_type)::text = ANY ((ARRAY['training'::character varying, 'game'::character varying, 'event'::character varying])::text[])))),
+    CONSTRAINT fines_amount_nonneg CHECK ((amount >= (0)::numeric)),
+    CONSTRAINT fines_category_check CHECK (((category)::text = ANY ((ARRAY['late_signin'::character varying, 'no_show'::character varying, 'late_payment'::character varying, 'custom'::character varying])::text[]))),
+    CONSTRAINT fines_paid_method_check CHECK (((paid_method IS NULL) OR ((paid_method)::text = ANY ((ARRAY['cash'::character varying, 'twint'::character varying, 'transfer'::character varying, 'other'::character varying])::text[])))),
+    CONSTRAINT fines_paid_to_check CHECK (((paid_to IS NULL) OR ((paid_to)::text = ANY ((ARRAY['team_kasse'::character varying, 'club_kasse'::character varying])::text[])))),
+    CONSTRAINT fines_status_check CHECK (((status)::text = ANY ((ARRAY['open'::character varying, 'paid'::character varying, 'waived'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE fines; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.fines IS 'Per-member fine ledger. amount + tier_offense + reset_window_at_issue are snapshotted at issue time and never re-derived. Edits to amount/category/reason are blocked by the kscw-hooks filter — leaders must waive + reissue to change a wrong fine, preserving audit trail.';
+
+
+--
+-- Name: fines_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.fines_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: fines_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.fines_id_seq OWNED BY public.fines.id;
 
 
 --
@@ -4933,6 +5234,20 @@ ALTER TABLE ONLY public.feedback ALTER COLUMN id SET DEFAULT nextval('public.fee
 
 
 --
+-- Name: fine_rules id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fine_rules ALTER COLUMN id SET DEFAULT nextval('public.fine_rules_id_seq'::regclass);
+
+
+--
+-- Name: fines id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fines ALTER COLUMN id SET DEFAULT nextval('public.fines_id_seq'::regclass);
+
+
+--
 -- Name: game_scheduling_bookings id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -5409,6 +5724,30 @@ ALTER TABLE ONLY public.events_teams
 
 ALTER TABLE ONLY public.feedback
     ADD CONSTRAINT feedback_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: fine_rules fine_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fine_rules
+    ADD CONSTRAINT fine_rules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: fine_rules fine_rules_team_category_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fine_rules
+    ADD CONSTRAINT fine_rules_team_category_unique UNIQUE (team, category);
+
+
+--
+-- Name: fines fines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fines
+    ADD CONSTRAINT fines_pkey PRIMARY KEY (id);
 
 
 --
@@ -5979,6 +6318,34 @@ CREATE INDEX events_created_by_index ON public.events USING btree (created_by);
 --
 
 CREATE INDEX events_hall_index ON public.events USING btree (hall);
+
+
+--
+-- Name: fine_rules_team_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fine_rules_team_idx ON public.fine_rules USING btree (team);
+
+
+--
+-- Name: fines_engine_count_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fines_engine_count_idx ON public.fines USING btree (team, member, category, status, issued_at);
+
+
+--
+-- Name: fines_member_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fines_member_status_idx ON public.fines USING btree (member, status);
+
+
+--
+-- Name: fines_team_status_issued_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fines_team_status_issued_idx ON public.fines USING btree (team, status, issued_at DESC);
 
 
 --
@@ -7184,6 +7551,62 @@ ALTER TABLE ONLY public.events_teams
 
 ALTER TABLE ONLY public.events_teams
     ADD CONSTRAINT events_teams_teams_id_foreign FOREIGN KEY (teams_id) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fine_rules fine_rules_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fine_rules
+    ADD CONSTRAINT fine_rules_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fine_rules fine_rules_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fine_rules
+    ADD CONSTRAINT fine_rules_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fines fines_issued_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fines
+    ADD CONSTRAINT fines_issued_by_fkey FOREIGN KEY (issued_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fines fines_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fines
+    ADD CONSTRAINT fines_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fines fines_paid_received_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fines
+    ADD CONSTRAINT fines_paid_received_by_fkey FOREIGN KEY (paid_received_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fines fines_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fines
+    ADD CONSTRAINT fines_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fines fines_waived_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fines
+    ADD CONSTRAINT fines_waived_by_fkey FOREIGN KEY (waived_by) REFERENCES public.members(id) ON DELETE SET NULL;
 
 
 --

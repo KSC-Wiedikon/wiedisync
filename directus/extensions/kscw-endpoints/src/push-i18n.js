@@ -211,6 +211,65 @@ const T = {
     fr: 'L’entraînement {team} du {date} a été annulé',
     it: 'L’allenamento {team} del {date} è stato annullato',
   },
+  // Fines (migration 069) — leader-issued by coach/TR, member is the recipient.
+  // {team} = team name, {amount} = "CHF 5.00" (preformatted by caller),
+  // {reason} = short freeform from the leader (already trimmed/escaped).
+  'fineIssued.title': {
+    de: 'Neue Busse',
+    gsw: 'Neui Bueß',
+    en: 'New fine',
+    fr: 'Nouvelle amende',
+    it: 'Nuova multa',
+  },
+  'fineIssued.body': {
+    de: '{team} • {amount}: {reason}',
+    gsw: '{team} • {amount}: {reason}',
+    en: '{team} • {amount}: {reason}',
+    fr: '{team} • {amount} : {reason}',
+    it: '{team} • {amount}: {reason}',
+  },
+  'finePaid.title': {
+    de: 'Busse bezahlt',
+    gsw: 'Bueß zahlt',
+    en: 'Fine paid',
+    fr: 'Amende payée',
+    it: 'Multa pagata',
+  },
+  'finePaid.body': {
+    de: '{team}: {amount} als bezahlt markiert',
+    gsw: '{team}: {amount} als zahlt markiert',
+    en: '{team}: {amount} marked as paid',
+    fr: '{team} : {amount} marqué comme payé',
+    it: '{team}: {amount} segnato come pagato',
+  },
+  'fineWaived.title': {
+    de: 'Busse erlassen',
+    gsw: 'Bueß erlah',
+    en: 'Fine waived',
+    fr: 'Amende annulée',
+    it: 'Multa annullata',
+  },
+  'fineWaived.body': {
+    de: '{team}: {amount} wurde erlassen',
+    gsw: '{team}: {amount} isch erlah worde',
+    en: '{team}: {amount} was waived',
+    fr: '{team} : {amount} a été annulée',
+    it: '{team}: {amount} è stata annullata',
+  },
+  'fineReminder.title': {
+    de: 'Offene Busse(n)',
+    gsw: 'Offeni Bueße',
+    en: 'Open fine(s)',
+    fr: 'Amende(s) ouverte(s)',
+    it: 'Multa(e) aperta(e)',
+  },
+  'fineReminder.body': {
+    de: 'Du hast {count} offene Busse(n) — total {amount}',
+    gsw: 'Du häsch {count} offeni Bueße — total {amount}',
+    en: 'You have {count} open fine(s) — total {amount}',
+    fr: 'Tu as {count} amende(s) ouverte(s) — total {amount}',
+    it: 'Hai {count} multa(e) aperta(e) — totale {amount}',
+  },
 }
 
 /**

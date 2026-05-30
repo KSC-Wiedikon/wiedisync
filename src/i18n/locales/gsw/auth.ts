@@ -187,6 +187,11 @@ export default {
   leaveTeamConfirm: 'Wotsch {{team}} würkli verla? Du wirsch usem Kader gnoh und bruuchsch e Bestätigung zum wieder biträte.',
   teamRequestSent: 'Aafrag gschickt',
 
+  // Bueße
+  outstandingFines: 'Offeni Bueße: {{amount}}',
+  outstandingFinesCount_one: '{{count}} offeni Bueß',
+  outstandingFinesCount_other: '{{count}} offeni Bueße',
+
   // Danger Zone
   dangerZone: 'Gfahrezone',
   deleteAccount: 'Konto lösche',

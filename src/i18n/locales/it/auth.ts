@@ -185,6 +185,11 @@ export default {
   leaveTeamConfirm: 'Vuoi davvero lasciare {{team}}? Verrai rimosso dalla rosa e dovrai ottenere un\'approvazione per rientrare.',
   teamRequestSent: 'Richiesta inviata',
 
+  // Multe
+  outstandingFines: 'Multe aperte: {{amount}}',
+  outstandingFinesCount_one: '{{count}} multa aperta',
+  outstandingFinesCount_other: '{{count}} multe aperte',
+
   // Danger Zone
   dangerZone: 'Zona pericolosa',
   deleteAccount: 'Elimina account',

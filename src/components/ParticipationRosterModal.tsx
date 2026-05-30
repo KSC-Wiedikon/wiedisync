@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useMultiTeamMembers } from '../hooks/useTeamMembers'
 import { useTeamParticipations, useAllEventParticipations } from '../hooks/useParticipation'
+import { useFineRules } from '../hooks/useFines'
+import IssueFineModal from '../modules/fines/IssueFineModal'
 import { useAuth } from '../hooks/useAuth'
 import { useAdminMode } from '../hooks/useAdminMode'
 import { useMutation } from '../hooks/useMutation'
@@ -168,6 +170,19 @@ export default function ParticipationRosterModal({
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [savingMemberIds, setSavingMemberIds] = useState<Set<string>>(new Set())
   const { create, update, remove } = useMutation<Participation>('participations')
+
+  // Late-signin fine prompt — when a leader confirms a member past respondBy
+  // for a single-team activity with a configured late_signin rule, pop
+  // IssueFineModal pre-filled. Multi-team activities (events) skip the prompt
+  // (ambiguous which team's rule applies).
+  const [lateConfirmFor, setLateConfirmFor] = useState<{ memberId: string; memberName: string; teamId: string } | null>(null)
+  const singleTeamId = teamIds.length === 1 ? String(teamIds[0]) : null
+  const { data: lateSigninRules } = useFineRules(singleTeamId ?? undefined, {
+    enabled: open && canEditRoster && singleTeamId != null,
+  })
+  const lateSigninRuleEnabled = (lateSigninRules ?? []).some(
+    (r) => r.category === 'late_signin' && r.enabled,
+  )
 
   // For club-wide events (no team), fetch all participations and resolve members from them
   const [clubWideMembers, setClubWideMembers] = useState<Member[]>([])
@@ -350,6 +365,29 @@ export default function ParticipationRosterModal({
           is_staff: false,
         })
       }
+
+      // Late-signin fine prompt — pop AFTER the participation update has
+      // succeeded so the leader's RSVP edit is already saved if they skip the
+      // fine prompt. Conditions: leader-driven confirm (not self), single-team
+      // activity with a late_signin rule, and we're past respondBy.
+      if (
+        newStatus === 'confirmed'
+        && currentStatus !== 'confirmed'
+        && canEditRoster
+        && singleTeamId
+        && lateSigninRuleEnabled
+        && respondBy
+        && new Date() > new Date(respondBy)
+        && String(memberId) !== String(user?.id ?? '')
+      ) {
+        const member = members.find((mm) => mm.id === memberId)
+          ?? clubWideMembers.find((mm) => mm.id === memberId)
+          ?? staffMembers.find((mm) => mm.id === memberId)
+        const memberName = member
+          ? `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() || `#${memberId}`
+          : `#${memberId}`
+        setLateConfirmFor({ memberId, memberName, teamId: singleTeamId })
+      }
     } catch {
       // useMutation logs the error; UI reverts via refetch
     } finally {
@@ -359,7 +397,7 @@ export default function ParticipationRosterModal({
         return next
       })
     }
-  }, [activityId, activityType, participations, create, update, remove])
+  }, [activityId, activityType, participations, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, user?.id, members, clubWideMembers, staffMembers])
 
   // Staff participations (coaches/team_responsible who aren't in member_teams).
   // Use `useCollection` so the modal auto-refreshes when any staff member
@@ -1593,6 +1631,20 @@ export default function ParticipationRosterModal({
         </div>
       )}
       </>)}
+      {lateConfirmFor && singleTeamId && (
+        <IssueFineModal
+          open={!!lateConfirmFor}
+          onClose={() => setLateConfirmFor(null)}
+          memberId={lateConfirmFor.memberId}
+          memberName={lateConfirmFor.memberName}
+          teamId={lateConfirmFor.teamId}
+          category="late_signin"
+          activityType={activityType as 'training' | 'game' | 'event'}
+          activityId={activityId ?? undefined}
+          activityDate={activityDate}
+          onSuccess={() => setLateConfirmFor(null)}
+        />
+      )}
     </Modal>
   )
 }

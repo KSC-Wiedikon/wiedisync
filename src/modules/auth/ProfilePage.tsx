@@ -17,7 +17,8 @@ import DeleteAccountModal from './DeleteAccountModal'
 import TeamRequestModal from './TeamRequestModal'
 import Modal from '@/components/Modal'
 import MessagingSettingsCard from '../messaging/pages/MessagingSettingsCard'
-import type { MemberTeam, Team, Absence, LicenceType } from '../../types'
+import type { MemberTeam, Team, Absence, LicenceType, Fine } from '../../types'
+import { formatFineAmount } from '../../hooks/useFines'
 import { licencesOf } from '../../types'
 import { updateRecord, deleteRecord } from '../../lib/api'
 import { asObj } from '../../utils/relations'
@@ -113,6 +114,16 @@ export default function ProfilePage() {
     enabled: !!user,
   })
   const activeAbsences = activeAbsencesRaw ?? []
+
+  // Open fines summary (visible to the member themselves).
+  const { data: openFinesRaw } = useCollection<Fine>('fines', {
+    filter: user ? { _and: [{ member: { _eq: user.id } }, { status: { _eq: 'open' } }] } : undefined,
+    fields: ['id', 'amount', 'currency'],
+    enabled: !!user,
+    all: true,
+  })
+  const openFines = openFinesRaw ?? []
+  const openFineTotal = openFines.reduce((acc, f) => acc + (Number(f.amount) || 0), 0)
 
   if (!user) return <Navigate to="/login" replace />
 
@@ -377,6 +388,26 @@ export default function ProfilePage() {
       )}
 
       <MessagingSettingsCard />
+
+      {/* Open fines strip */}
+      {openFines.length > 0 && (
+        <div className="mt-6">
+          <Link
+            to="/fines"
+            className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/20 dark:hover:bg-amber-900/30"
+          >
+            <div>
+              <div className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                {t('outstandingFines', { amount: formatFineAmount(openFineTotal) })}
+              </div>
+              <div className="text-xs text-amber-700 dark:text-amber-300">
+                {t('outstandingFinesCount', { count: openFines.length })}
+              </div>
+            </div>
+            <span className="text-sm text-amber-700 dark:text-amber-300">→</span>
+          </Link>
+        </div>
+      )}
 
       {/* Active Absences */}
       <div className="mt-8">

@@ -96,6 +96,8 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | announcements | published + non-expired only | excludes `audience_teams` / `audience_roles` | 3.11 |
 | polls | `MY_TEAMS` (via team)| `*` | 035 |
 | referee_expenses | `MY_TEAMS` (via team) | `*` | 035 |
+| fines | `member.user = $CURRENT_USER` | `*` | **069** |
+| fine_rules | `team.member_teams.member.user = $CURRENT_USER` | `*` | **069** |
 
 ### Reads (intentionally cross-club)
 
@@ -157,6 +159,8 @@ Inherits everything from Member. Adds:
 | announcements | read | published + non-expired only (no draft access) | F6 audit |
 | user_logs | read | none | |
 | game_scheduling_* | read | none | |
+| fines | CRUD | scoped via teams.coach / team_responsible | **069** |
+| fine_rules | CRUD | scoped via teams.coach / team_responsible | **069** |
 | directus_files | create | none | |
 
 ---
@@ -165,7 +169,7 @@ Inherits everything from Member. Adds:
 
 Inherits Member. Adds read-all on operational collections — board oversight role:
 
-`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, tasks, task_templates, poll_votes, team_requests, push_subscriptions, game_scheduling_*, announcements`.
+`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, tasks, task_templates, poll_votes, team_requests, push_subscriptions, game_scheduling_*, announcements, fines, fine_rules`.
 
 No CRU writes — Vorstand is read-only by design.
 

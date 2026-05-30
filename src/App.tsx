@@ -35,6 +35,7 @@ import SignUpPage from './modules/auth/SignUpPage'
 import PendingPage from './modules/auth/PendingPage'
 import ProfilePage from './modules/auth/ProfilePage'
 import EventsPage from './modules/events/EventsPage'
+import FinesPage from './modules/fines/FinesPage'
 import DatenschutzPage from './modules/legal/DatenschutzPage'
 import ImpressumPage from './modules/legal/ImpressumPage'
 import AuthRoute from './components/AuthRoute'
@@ -155,6 +156,7 @@ export default function App() {
             <Route path="teams/:teamSlug/roster/edit" element={<AuthRoute><RosterEditor /></AuthRoute>} />
             <Route path="teams/player/:memberId" element={<AuthRoute><PlayerProfile /></AuthRoute>} />
             <Route path="events" element={<AuthRoute><EventsPage /></AuthRoute>} />
+            <Route path="fines" element={<AuthRoute><FinesPage /></AuthRoute>} />
             <Route path="datenschutz" element={<DatenschutzPage />} />
             <Route path="impressum" element={<ImpressumPage />} />
             <Route path="feedback" element={<FeedbackPage />} />

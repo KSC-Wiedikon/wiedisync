@@ -679,6 +679,17 @@ async function main() {
   await setPerm(MEMBER_POLICY, 'team_requests', 'create')
   await setPermRead(MEMBER_POLICY, 'team_requests', { member: { user: { _eq: '$CURRENT_USER' } } })
 
+  // Fines (migration 069) — members see their own fines (across all teams) and
+  // the fine rules of teams they're on (so they can see the upcoming amount
+  // before getting fined). Read-only — only leaders may create/waive/mark-paid.
+  // Filter walks: fines.member.user (own fines) — different alias from any
+  // frontend filter (FE uses `{ member: { _eq: myId } }`) so the M2M
+  // double-walk trap doesn't apply.
+  await setPermRead(MEMBER_POLICY, 'fines', { member: { user: { _eq: '$CURRENT_USER' } } })
+  await setPermRead(MEMBER_POLICY, 'fine_rules', {
+    team: { member_teams: { member: { user: { _eq: '$CURRENT_USER' } } } },
+  })
+
   // Files — create (upload profile pics)
   await setPerm(MEMBER_POLICY, 'directus_files', 'create')
 
@@ -929,6 +940,30 @@ async function main() {
   await setPermRead(LEADER_POLICY, 'game_scheduling_opponents')
   await setPermRead(LEADER_POLICY, 'game_scheduling_bookings')
 
+  // Fines + fine_rules (migration 069) — full CRUD scoped to teams the user
+  // coaches or is TR for. Row filter walks `team.coach.members_id.user` etc;
+  // the frontend must filter by `{ team: { _eq: id } }` only, never by
+  // `{ team: { coach: ... } }` (M2M double-walk trap — see CLAUDE.md).
+  // Waive happens via UPDATE (status=waived, waived_by/_at/_reason filled);
+  // the kscw-hooks `fines.items.update` filter blocks edits to
+  // amount/category/reason so the "waive + reissue" audit model is enforced.
+  const COACH_OR_TR_OF_FINE = {
+    team: {
+      _or: [
+        { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+      ],
+    },
+  }
+  await setPermRead(LEADER_POLICY, 'fines', COACH_OR_TR_OF_FINE)
+  await setPerm(LEADER_POLICY, 'fines', 'create')
+  await setPerm(LEADER_POLICY, 'fines', 'update', COACH_OR_TR_OF_FINE)
+  await setPerm(LEADER_POLICY, 'fines', 'delete', COACH_OR_TR_OF_FINE)
+  await setPermRead(LEADER_POLICY, 'fine_rules', COACH_OR_TR_OF_FINE)
+  await setPerm(LEADER_POLICY, 'fine_rules', 'create')
+  await setPerm(LEADER_POLICY, 'fine_rules', 'update', COACH_OR_TR_OF_FINE)
+  await setPerm(LEADER_POLICY, 'fine_rules', 'delete', COACH_OR_TR_OF_FINE)
+
   // Files — create (upload team photos)
   await setPerm(LEADER_POLICY, 'directus_files', 'create')
 
@@ -947,6 +982,8 @@ async function main() {
     'game_scheduling_seasons', 'game_scheduling_slots',
     'game_scheduling_opponents', 'game_scheduling_bookings',
     'announcements',
+    // Fines (migration 069) — Vorstand sees club-wide for oversight.
+    'fines', 'fine_rules',
   ]
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)
@@ -977,6 +1014,9 @@ async function main() {
     'game_scheduling_opponents', 'game_scheduling_bookings',
     'query_templates', 'sv_vm_check',
     'announcements',
+    // Fines (migration 069) — Sport Admin full CRUD (override coach-only scope
+    // for cross-team rule edits + correction of bad fines).
+    'fines', 'fine_rules',
     'directus_files',
   ]
   for (const col of SPORT_ADMIN_FULL_CRUD) {

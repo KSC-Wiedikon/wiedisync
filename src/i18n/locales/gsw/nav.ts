@@ -6,6 +6,7 @@ export default {
   trainings: 'Trainig',
   absences: 'Absänze',
   scorer: 'Schriiberdienst',
+  fines: 'Bueße',
   team: 'Team',
   teams: 'Mannschafte',
   events: 'Aaläss',

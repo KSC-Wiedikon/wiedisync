@@ -185,6 +185,11 @@ export default {
   leaveTeamConfirm: 'Voulez-vous vraiment quitter {{team}} ? Vous serez retiré de l\'effectif et devrez obtenir une approbation pour revenir.',
   teamRequestSent: 'Demande envoyee',
 
+  // Amendes
+  outstandingFines: 'Amendes dues : {{amount}}',
+  outstandingFinesCount_one: '{{count}} amende ouverte',
+  outstandingFinesCount_other: '{{count}} amendes ouvertes',
+
   // Danger Zone
   dangerZone: 'Zone dangereuse',
   deleteAccount: 'Supprimer le compte',

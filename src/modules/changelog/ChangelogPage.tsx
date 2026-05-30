@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.13.1'
+const APP_VERSION = '4.14.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.14.0',
+    date: '2026-05-30',
+    sections: [
+      {
+        title: 'Fines (new)',
+        items: [
+          'Coaches and team responsibles can now issue fines to members from /fines. Each fine has a category (late sign-in, no-show, late payment, custom), an amount and a reason. Members see their own fines + total outstanding on /fines and as a strip on their profile.',
+          'Per-team escalation rules with configurable tiers. Example for H3: 1 CHF first late sign-in, 2 CHF second, 3 CHF third, 5 CHF for the fourth and any further offence in the same calendar month. Reset window is configurable per category (calendar month, rolling 30 / 90 days, season Sep–Aug, or lifetime). Configure under Team settings → Fines.',
+          'Late-confirmation prompt: when a coach/TR sets a member to "confirmed" past the activity\'s sign-up deadline and the team has a late-sign-in rule enabled, the issue-fine modal pops up pre-filled with the right amount from the escalation engine. Always leader-confirmed — there is no silent auto-issue.',
+          'Waiving: leaders can waive any fine with a required reason. Amount, reason and category are immutable after issue — to correct a mistake, waive and reissue (so the audit trail stays clean).',
+          'Notifications: push + in-app on issue, on mark-as-paid and on waive. Daily 09:00 UTC reminder cron pings members with fines that have been open for more than 14 days. All notifications localized in 5 languages (DE / GSW / EN / FR / IT).',
+          'Coach dashboard gets a "Fines this month" card with the team total, count and delta vs. last month.',
+          'Permissions are scoped per team — coaches only see fines for the teams they coach or are responsible for. Vorstand gets read-only club-wide for oversight. Sport Admin and Administrator have full access. Members can only read their own fines and the rules of the teams they\'re on.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.13.1',
     date: '2026-05-21',

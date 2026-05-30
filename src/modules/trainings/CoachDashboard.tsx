@@ -4,6 +4,7 @@ import { BarChart3 } from 'lucide-react'
 import { useAttendanceStats } from './useAttendanceStats'
 import EmptyState from '../../components/EmptyState'
 import AttendanceTable from '../../components/AttendanceTable'
+import FinesDashboardCard from '../fines/FinesDashboardCard'
 import { todayLocal, mostRecent01June } from '../../utils/dateHelpers'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
@@ -125,6 +126,10 @@ export default function CoachDashboard({ teamId }: CoachDashboardProps) {
       ) : (
         <AttendanceTable stats={stats} />
       )}
+
+      <div className="mt-6">
+        <FinesDashboardCard teamId={teamId} />
+      </div>
     </div>
   )
 }

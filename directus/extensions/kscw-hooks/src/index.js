@@ -3167,8 +3167,232 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // ── Fines (migration 069) — escalation engine + notifications ──
+  //
+  // filter('fines.items.create'):
+  //   If the leader leaves `amount` null, compute it via the SQL helper
+  //   kscw_compute_fine_amount(member,team,category) and snapshot
+  //   tier_offense + reset_window_at_issue onto the row. If amount is
+  //   non-null (leader override), still snapshot the tier metadata for
+  //   audit but DON'T overwrite their amount. Auto-fill `issued_by` from
+  //   accountability.user → members.id and force `auto_issued = false`
+  //   (no silent server-issued path exists yet — defense-in-depth).
+  //
+  // filter('fines.items.update'):
+  //   Block edits to amount / category / reason / member / team to enforce
+  //   the "waive + reissue" audit model. Status flips + payment fields +
+  //   waive metadata remain editable. Admins (accountability.admin) bypass.
+  //
+  // action('fines.items.create'):
+  //   Push + email the member: "{team} • CHF X: {reason}".
+  // action('fines.items.update'):
+  //   Push the member on status → paid or waived.
+  //
+  // cron 'fines_reminder' (daily 09:00 UTC):
+  //   For each member with ≥1 'open' fine, send a single rolled-up push
+  //   ("You have N open fines — total CHF X"). Throttled by `notes`
+  //   marker on the fine to avoid repeat-spam.
+  const FINE_BLOCKED_UPDATE_FIELDS = ['amount', 'category', 'reason', 'member', 'team', 'tier_offense', 'reset_window_at_issue', 'auto_issued']
+
+  function formatChf(amount, currency = 'CHF') {
+    const n = Number(amount)
+    if (!Number.isFinite(n)) return `${currency} ?`
+    return `${currency} ${n.toFixed(2)}`
+  }
+
+  filter('fines.items.create', async (payload, _meta, { accountability, database: db }) => {
+    try {
+      if (!payload) return payload
+      if (!payload.member || !payload.team || !payload.category) {
+        throw kscwScopeError('fines.create requires member, team, category', 400, 'INVALID_PAYLOAD')
+      }
+
+      // 1. Resolve leader's member id from accountability (skip for system/admin).
+      let issuerId = payload.issued_by ?? null
+      if (!issuerId && accountability?.user) {
+        const issuer = await db('members').where('user', accountability.user).first('id')
+        if (issuer?.id) issuerId = issuer.id
+      }
+
+      // 2. Engine snapshot — runs whether or not amount was provided. Caller's
+      //    amount wins (leader override), but tier_offense + reset_window_at_issue
+      //    always reflect the engine's view for audit.
+      let computed = null
+      try {
+        const res = await db.raw(
+          'SELECT amount, tier_offense, reset_window_at_issue FROM kscw_compute_fine_amount(?::int, ?::int, ?::text)',
+          [Number(payload.member), Number(payload.team), String(payload.category)],
+        )
+        computed = res?.rows?.[0] || null
+      } catch (err) {
+        // Engine errors shouldn't block the insert — leaders can still issue
+        // ad-hoc fines without a rule. Just log + skip snapshot.
+        log.warn({ msg: `[fines] engine query failed: ${err.message}`, event: 'fines_engine_query_failed', payload: { member: payload.member, team: payload.team, category: payload.category } })
+      }
+
+      const filled = { ...payload }
+      if (filled.amount == null) {
+        if (!computed) {
+          throw kscwScopeError(
+            'No fine_rule for this team/category and no amount supplied — set an explicit amount or configure a rule first.',
+            400, 'FINE_NO_RULE',
+          )
+        }
+        filled.amount = computed.amount
+      }
+      if (computed) {
+        filled.tier_offense = filled.tier_offense ?? computed.tier_offense
+        filled.reset_window_at_issue = filled.reset_window_at_issue ?? computed.reset_window_at_issue
+      }
+      if (issuerId) filled.issued_by = issuerId
+      filled.auto_issued = false // hard rule: no silent server-issued path exists yet
+      return filled
+    } catch (err) {
+      if (err?.code === 'INVALID_PAYLOAD' || err?.code === 'FINE_NO_RULE') throw err
+      log.error({ msg: `[fines] create filter: ${err.message}`, event: 'fines_create_filter_failed', stack: err.stack })
+      return payload
+    }
+  })
+
+  filter('fines.items.update', async (payload, _meta, { accountability }) => {
+    if (!payload) return payload
+    if (accountability?.admin) return payload // admin bypass — manual fixups
+    for (const f of FINE_BLOCKED_UPDATE_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(payload, f)) {
+        throw kscwScopeError(
+          `Cannot edit ${f} on a fine — waive and reissue instead.`,
+          403, 'FINE_IMMUTABLE_FIELD',
+        )
+      }
+    }
+    return payload
+  })
+
+  action('fines.items.create', async ({ key }) => {
+    try {
+      if (!key) return
+      const fine = await database('fines').where('id', key).first(
+        'id', 'member', 'team', 'category', 'amount', 'currency', 'reason',
+      )
+      if (!fine?.member) return
+      const team = await database('teams').where('id', fine.team).first('name')
+      const teamName = team?.name || `Team ${fine.team}`
+      const amountStr = formatChf(fine.amount, fine.currency)
+      const reasonStr = (fine.reason || '').trim().slice(0, 80) || ''
+
+      // In-app notification (always)
+      await database('notifications').insert({
+        member: fine.member,
+        type: 'fine_issued',
+        title: 'fine_issued',
+        body: JSON.stringify({ team: teamName, amount: amountStr, reason: reasonStr, fineId: fine.id, category: fine.category }),
+        activity_type: 'fine',
+        activity_id: String(fine.id),
+        team: fine.team,
+        read: false,
+      })
+
+      // Push to the recipient
+      await sendLocalizedPush(
+        database, [fine.member],
+        (ids, title, body) => sendPushToMembers(database, ids, title, body, `${FRONTEND_URL}/fines`, `fine-${fine.id}`, log),
+        'fineIssued.title', 'fineIssued.body',
+        { team: teamName, amount: amountStr, reason: reasonStr },
+      )
+    } catch (err) {
+      log.error({ msg: `[fines] create action: ${err.message}`, event: 'fines_create_action_failed', stack: err.stack })
+    }
+  })
+
+  action('fines.items.update', async ({ keys, payload }) => {
+    try {
+      if (!Array.isArray(keys) || keys.length === 0) return
+      const statusChanged = payload && Object.prototype.hasOwnProperty.call(payload, 'status')
+      if (!statusChanged) return
+      const newStatus = payload.status
+      if (newStatus !== 'paid' && newStatus !== 'waived') return
+
+      const rows = await database('fines').whereIn('id', keys).select(
+        'id', 'member', 'team', 'amount', 'currency',
+      )
+      for (const fine of rows) {
+        if (!fine?.member) continue
+        const team = await database('teams').where('id', fine.team).first('name')
+        const teamName = team?.name || `Team ${fine.team}`
+        const amountStr = formatChf(fine.amount, fine.currency)
+        const titleKey = newStatus === 'paid' ? 'finePaid.title' : 'fineWaived.title'
+        const bodyKey  = newStatus === 'paid' ? 'finePaid.body'  : 'fineWaived.body'
+
+        await database('notifications').insert({
+          member: fine.member,
+          type: newStatus === 'paid' ? 'fine_paid' : 'fine_waived',
+          title: newStatus === 'paid' ? 'fine_paid' : 'fine_waived',
+          body: JSON.stringify({ team: teamName, amount: amountStr, fineId: fine.id }),
+          activity_type: 'fine',
+          activity_id: String(fine.id),
+          team: fine.team,
+          read: false,
+        })
+        await sendLocalizedPush(
+          database, [fine.member],
+          (ids, title, body) => sendPushToMembers(database, ids, title, body, `${FRONTEND_URL}/fines`, `fine-${fine.id}-${newStatus}`, log),
+          titleKey, bodyKey,
+          { team: teamName, amount: amountStr },
+        )
+      }
+    } catch (err) {
+      log.error({ msg: `[fines] update action: ${err.message}`, event: 'fines_update_action_failed', stack: err.stack })
+    }
+  })
+
+  // Daily reminder for open fines older than 14 days. Single rolled-up push
+  // per member per day (kscw_fines_reminder_sent_at column is too heavy — use
+  // notification dedupe via tag `fines-reminder-YYYY-MM-DD`).
+  schedule('0 9 * * *', async () => {
+    const startedAt = Date.now()
+    let sent = 0
+    try {
+      const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+      const rows = await database('fines')
+        .where('status', 'open')
+        .where('issued_at', '<=', cutoff)
+        .select('member', 'amount', 'currency')
+      if (rows.length === 0) {
+        log.info({ msg: '[fines] reminder cron: no overdue fines', event: 'fines_reminder_cron_noop', duration_ms: Date.now() - startedAt })
+        await logCronRun(database, 'fines_reminder', { status: 'ok', durationMs: Date.now() - startedAt })
+        return
+      }
+      // Aggregate per member: count + total amount (assume CHF — multi-currency
+      // out of scope for v1).
+      const agg = new Map()
+      for (const r of rows) {
+        const m = agg.get(r.member) || { count: 0, total: 0 }
+        m.count += 1
+        m.total += Number(r.amount) || 0
+        agg.set(r.member, m)
+      }
+      const today = new Date().toISOString().slice(0, 10)
+      for (const [memberId, info] of agg) {
+        const amountStr = formatChf(info.total)
+        await sendLocalizedPush(
+          database, [memberId],
+          (ids, title, body) => sendPushToMembers(database, ids, title, body, `${FRONTEND_URL}/fines`, `fines-reminder-${today}`, log),
+          'fineReminder.title', 'fineReminder.body',
+          { count: info.count, amount: amountStr },
+        )
+        sent += 1
+      }
+      log.info({ msg: `[fines] reminder cron: ${sent} member(s) reminded`, event: 'fines_reminder_cron_done', sent, duration_ms: Date.now() - startedAt })
+      await logCronRun(database, 'fines_reminder', { status: 'ok', durationMs: Date.now() - startedAt })
+    } catch (err) {
+      log.error({ msg: `[fines] reminder cron failed: ${err.message}`, event: 'fines_reminder_cron_failed', stack: err.stack })
+      logCronError('fines_reminder', err)
+      await logCronRun(database, 'fines_reminder', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: err.message })
+    }
+  })
+
   // ── Audit hook — server-authoritative user_logs writes ─────────
   registerAuditHook({ action, schedule }, { database, logger })
 
-  log.info('KSCW hooks loaded: role-sync (5 actions, 2 filters), Turnstile, member privacy, registration approval, Spielplaner scope guard, participation absence-aware decline, guest-level RSVP gate, edit-attribution (migration 046), audit log, 11 crons (validations+notifications in Postgres)')
+  log.info('KSCW hooks loaded: role-sync (5 actions, 2 filters), Turnstile, member privacy, registration approval, Spielplaner scope guard, participation absence-aware decline, guest-level RSVP gate, edit-attribution (migration 046), audit log, fines engine (migration 069), 12 crons (validations+notifications in Postgres)')
 }
