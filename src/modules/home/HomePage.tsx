@@ -26,6 +26,7 @@ import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notificatio
 import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, CalendarDays, LayoutGrid, List } from 'lucide-react'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import RankingsTable from '../games/components/RankingsTable'
+import InstallBanner from '../guide/install/InstallBanner'
 
 type ExpandedGame = Game & {
   kscw_team?: Team & BaseRecord | string
@@ -319,6 +320,7 @@ export default function HomePage() {
 
   return (
     <div className="min-w-0">
+      <InstallBanner />
       {isInitialLoading ? (
         <LoadingSpinner label={t('loading')} />
       ) : (<>
