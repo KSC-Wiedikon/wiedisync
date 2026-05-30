@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.15.0'
+const APP_VERSION = '4.16.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.16.0',
+    date: '2026-05-30',
+    sections: [
+      {
+        title: 'Install the app on your phone',
+        items: [
+          'You can now add Wiedisync to your phone home screen for faster, full-screen access. A reminder banner appears on mobile after login, and there\'s a new "Install the app" entry in the Guide section.',
+          'On Android/Chrome it\'s a one-tap install. On iPhone (Safari) you get a step-by-step Share → Add to Home Screen guide. Dismiss the banner with "Remind me later" (this session) or "I understood" (remembered on that device).',
+        ],
+      },
+    ],
+  },
   {
     version: '4.15.0',
     date: '2026-05-30',

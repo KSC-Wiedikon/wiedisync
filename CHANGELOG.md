@@ -2,6 +2,10 @@
 
 All notable changes to Wiedisync are documented in this file. Recent releases carry more detail; older entries are one-liners — see `git log` for the full text.
 
+## v4.16.0 — 2026-05-30
+
+- **PWA install guide.** Members can add Wiedisync to their phone home screen. A mobile login banner ("Remind me later" / "I understood", remembered per device) and an "Install the app" entry in the Guide section. One-tap native install on Android/Chrome; illustrated Share → Add to Home Screen steps on iOS Safari. No backend change.
+
 ## v4.15.0 — 2026-05-30
 
 - **Scorer duty — "All" / "Selected" toggle.** The Games view now has a toggle: **All** shows every duty you can see (your team's duties + your personal assignments), **Selected** narrows to the games you've personally signed up for. Mirrors the fines page's scope toggle.
