@@ -32,6 +32,7 @@ import announcements from './locales/en/announcements'
 import messaging from './locales/en/messaging'
 import broadcast from './locales/en/broadcast'
 import fines from './locales/en/fines'
+import pwa from './locales/en/pwa'
 
 import deCommon from './locales/de/common'
 import deNav from './locales/de/nav'
@@ -64,6 +65,7 @@ import deAnnouncements from './locales/de/announcements'
 import deMessaging from './locales/de/messaging'
 import deBroadcast from './locales/de/broadcast'
 import deFines from './locales/de/fines'
+import dePwa from './locales/de/pwa'
 
 import frCommon from './locales/fr/common'
 import frNav from './locales/fr/nav'
@@ -95,6 +97,7 @@ import frAnnouncements from './locales/fr/announcements'
 import frMessaging from './locales/fr/messaging'
 import frBroadcast from './locales/fr/broadcast'
 import frFines from './locales/fr/fines'
+import frPwa from './locales/fr/pwa'
 
 import itCommon from './locales/it/common'
 import itNav from './locales/it/nav'
@@ -126,6 +129,7 @@ import itAnnouncements from './locales/it/announcements'
 import itMessaging from './locales/it/messaging'
 import itBroadcast from './locales/it/broadcast'
 import itFines from './locales/it/fines'
+import itPwa from './locales/it/pwa'
 
 import gswCommon from './locales/gsw/common'
 import gswNav from './locales/gsw/nav'
@@ -158,6 +162,7 @@ import gswAnnouncements from './locales/gsw/announcements'
 import gswMessaging from './locales/gsw/messaging'
 import gswBroadcast from './locales/gsw/broadcast'
 import gswFines from './locales/gsw/fines'
+import gswPwa from './locales/gsw/pwa'
 
 function getInitialLanguage(): string {
   if (typeof window === 'undefined') return 'de'
@@ -211,6 +216,7 @@ i18n.use(initReactI18next).init({
     'messaging',
     'broadcast',
     'fines',
+    'pwa',
   ],
   defaultNS: 'common',
   resources: {
@@ -246,6 +252,7 @@ i18n.use(initReactI18next).init({
       messaging,
       broadcast,
       fines,
+      pwa,
     },
     de: {
       common: deCommon,
@@ -279,6 +286,7 @@ i18n.use(initReactI18next).init({
       messaging: deMessaging,
       broadcast: deBroadcast,
       fines: deFines,
+      pwa: dePwa,
     },
     fr: {
       common: frCommon,
@@ -311,6 +319,7 @@ i18n.use(initReactI18next).init({
       messaging: frMessaging,
       broadcast: frBroadcast,
       fines: frFines,
+      pwa: frPwa,
     },
     it: {
       common: itCommon,
@@ -343,6 +352,7 @@ i18n.use(initReactI18next).init({
       messaging: itMessaging,
       broadcast: itBroadcast,
       fines: itFines,
+      pwa: itPwa,
     },
     gsw: {
       common: gswCommon,
@@ -376,6 +386,7 @@ i18n.use(initReactI18next).init({
       messaging: gswMessaging,
       broadcast: gswBroadcast,
       fines: gswFines,
+      pwa: gswPwa,
     },
   },
   interpolation: {
