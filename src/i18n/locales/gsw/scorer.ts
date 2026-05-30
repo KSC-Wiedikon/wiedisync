@@ -5,6 +5,8 @@ export default {
   // Tabs
   tabGames: 'Spiel',
   tabOverview: 'Übersicht',
+  dutyScopeAll: 'Alli',
+  dutyScopeMine: 'Usgwählt',
 
   // Labels — Volleyball
   scorer: 'Schriiber',

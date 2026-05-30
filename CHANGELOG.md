@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync are documented in this file. Recent releases carry more detail; older entries are one-liners — see `git log` for the full text.
 
+## v4.15.0 — 2026-05-30
+
+- **Scorer duty — "All" / "Selected" toggle.** The Games view now has a toggle: **All** shows every duty you can see (your team's duties + your personal assignments), **Selected** narrows to the games you've personally signed up for. Mirrors the fines page's scope toggle.
+- **Fines — spinner while loading.** The fines page no longer flashes an empty table before resolving. It now shows the Wiedisync spinner while loading, then either the table or the "No fines" empty state.
+
 ## v4.14.0 — 2026-05-30
 
 New **Fines** service for tracking coach/TR-issued fines with per-team escalation rules.

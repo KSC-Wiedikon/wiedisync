@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.14.0'
+const APP_VERSION = '4.15.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.15.0',
+    date: '2026-05-30',
+    sections: [
+      {
+        title: 'Scorer duty + fines polish',
+        items: [
+          'Scorer duty Games view now has an "All" / "Selected" toggle. "All" shows every duty you can see (your team\'s duties plus your personal assignments); "Selected" narrows to the games you\'ve personally signed up for.',
+          'Fines page no longer flashes an empty table while loading — it shows the spinner first, then either your fines or the empty state.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.14.0',
     date: '2026-05-30',

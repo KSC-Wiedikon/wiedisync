@@ -11,6 +11,7 @@ import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import EmptyState from '../../components/EmptyState'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import TabBar from '../../components/TabBar'
 import WaiveFineModal from './WaiveFineModal'
 import type { Fine, FineStatus, Member, Team } from '../../types'
@@ -179,8 +180,10 @@ export default function FinesPage() {
         </div>
       </div>
 
-      {/* Table or empty state */}
-      {fines.length === 0 && !isLoading ? (
+      {/* Loading spinner, then table or empty state */}
+      {isLoading ? (
+        <LoadingSpinner />
+      ) : fines.length === 0 ? (
         <EmptyState
           icon={<Gavel className="h-10 w-10" />}
           title={scope === 'mine' ? t('fines:emptyMember') : t('fines:empty')}

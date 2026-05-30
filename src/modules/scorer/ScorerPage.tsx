@@ -14,6 +14,7 @@ import { FormInput } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import DatePicker from '@/components/ui/DatePicker'
 import TeamSelect from '../../components/TeamSelect'
+import TabBar from '../../components/TabBar'
 import SportToggle from '../../components/SportToggle'
 import type { SportView } from '../../hooks/useSportPreference'
 import ScorerRow, { hasAnyVbAssignment, hasAnyBbAssignment } from './components/ScorerRow'
@@ -40,6 +41,7 @@ export default function ScorerPage() {
 
   const [tab, setTab] = useState<Tab>('games')
   const [sportTab, setSportTab] = useState<SportTab>('volleyball')
+  const [dutyScope, setDutyScope] = useState<'all' | 'mine'>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Filters
@@ -177,6 +179,14 @@ export default function ScorerPage() {
     return upcomingGames.filter((g) => {
       if (getGameSport(g) !== sportTab) return false
 
+      // "Selected" scope: only games I'm personally assigned to (signed up for)
+      if (dutyScope === 'mine' && user) {
+        const isPersonallyAssigned = sportTab === 'volleyball'
+          ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member].includes(String(user.id))
+          : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
+        if (!isPersonallyAssigned) return false
+      }
+
       // Non-admins: only show games where their team has duty or they are personally assigned
       if (!effectiveIsAdmin && !effectiveIsVorstand && user) {
         const isPersonallyAssigned = sportTab === 'volleyball'
@@ -286,7 +296,7 @@ export default function ScorerPage() {
       if (a.time !== b.time) return (a.time || '') < (b.time || '') ? -1 : 1
       return 0
     })
-  }, [upcomingGames, sportTab, effectiveIsAdmin, effectiveIsVorstand, user, userTeamIds, dateFilter, dutyTeamFilter, dutyTypeFilter, unassignedFilter, searchAssignee, memberMap])
+  }, [upcomingGames, sportTab, dutyScope, effectiveIsAdmin, effectiveIsVorstand, user, userTeamIds, dateFilter, dutyTeamFilter, dutyTypeFilter, unassignedFilter, searchAssignee, memberMap])
 
   const filteredPastGames = useMemo(() => allPastGames.filter((g) => {
     if (getGameSport(g) !== sportTab) return false
@@ -503,6 +513,15 @@ export default function ScorerPage() {
 
       {tab === 'games' && (
         <>
+          {/* All vs Selected (games I'm personally assigned to) */}
+          <div className="mt-4">
+            <TabBar<'all' | 'mine'>
+              tabs={[{ key: 'all', label: t('dutyScopeAll') }, { key: 'mine', label: t('dutyScopeMine') }]}
+              active={dutyScope}
+              onChange={setDutyScope}
+            />
+          </div>
+
           {/* Pending incoming delegation requests */}
           {pendingIncoming.length > 0 && (
             <div className="mt-4">
