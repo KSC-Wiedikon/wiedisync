@@ -550,22 +550,27 @@ async function syncToMembers(rows) {
   console.log(`  Matched: ${matched} (license=${matchedByLicense}, email=${matchedByEmail}, name+dob=${matchedByNameDob}, name=${matchedByName}), To update: ${updates.length}`);
   console.log(`  Backfill: license_nr=${backfilledLicense}, birthdate=${backfilledBirthdate}`);
 
-  // Batch PATCH in groups of 50
+  // Per-item PATCH (NOT the batch-array form). The batch-array PATCH
+  // (PATCH /items/members with an array body) silently drops the scorer_vb /
+  // referee_vb boolean flags on PROD — licences and other fields apply but the
+  // booleans don't, leaving scorer_vb stale (confirmed 2026-05-30: batch works
+  // on dev, fails on prod, a Directus batch-upsert interaction with the
+  // multi-policy cron-service admin). Single-item PATCH applies every field
+  // reliably on both envs. ~218 serial PATCHes/run — well within budget.
   let updated = 0, errors = 0;
-  const BATCH = 50;
-  for (let i = 0; i < updates.length; i += BATCH) {
-    const batch = updates.slice(i, i + BATCH);
-    const res = await fetch(`${DIRECTUS_URL}/items/members`, {
+  for (const payload of updates) {
+    const { id, ...fields } = payload;
+    const res = await fetch(`${DIRECTUS_URL}/items/members/${id}`, {
       method: 'PATCH',
       headers,
-      body: JSON.stringify(batch),
+      body: JSON.stringify(fields),
     });
     if (res.ok) {
-      updated += batch.length;
+      updated++;
     } else {
       const text = await res.text();
-      console.error(`  Members update batch error: ${res.status} ${text.slice(0, 200)}`);
-      errors += batch.length;
+      console.error(`  Member ${id} update error: ${res.status} ${text.slice(0, 200)}`);
+      errors++;
     }
   }
 
