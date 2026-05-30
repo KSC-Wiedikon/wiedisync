@@ -1,7 +1,15 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle, CircleHelp } from 'lucide-react'
+import { CheckCircle, CircleHelp, Smartphone, ChevronRight } from 'lucide-react'
 import { useTour } from './useTour'
 import type { TourDefinition } from './types'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../../components/ui/dialog'
+import InstallInstructions from './install/InstallInstructions'
 
 const SECTION_ORDER: TourDefinition['section'][] = ['basics', 'member', 'coach', 'admin']
 
@@ -10,7 +18,9 @@ export default function GuidePage() {
   const { t } = useTranslation('guide')
   // No-namespace t for fully-qualified keys (e.g. "guide:tours.gettingStarted.title")
   const { t: tRaw } = useTranslation()
+  const { t: tPwa } = useTranslation('pwa')
   const { availableTours, isTourCompleted, startTour, resetAllTours } = useTour()
+  const [installOpen, setInstallOpen] = useState(false)
 
   const groupedTours = SECTION_ORDER.reduce<Record<TourDefinition['section'], TourDefinition[]>>(
     (acc, section) => {
@@ -30,6 +40,28 @@ export default function GuidePage() {
           <p className="text-sm text-muted-foreground">{t('menu.subtitle')}</p>
         </div>
       </div>
+
+      {/* Install the app */}
+      <button
+        onClick={() => setInstallOpen(true)}
+        className="w-full flex items-center gap-3 rounded-xl border border-border px-4 py-3.5 text-left hover:bg-muted/50 transition-colors min-h-[56px]"
+      >
+        <Smartphone className="h-5 w-5 text-primary shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">{tPwa('guide.cardTitle')}</p>
+          <p className="text-xs text-muted-foreground truncate">{tPwa('guide.cardSubtitle')}</p>
+        </div>
+        <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+      </button>
+
+      <Dialog open={installOpen} onOpenChange={setInstallOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tPwa('install.title')}</DialogTitle>
+          </DialogHeader>
+          <InstallInstructions onInstalled={() => setInstallOpen(false)} />
+        </DialogContent>
+      </Dialog>
 
       {/* Tour sections */}
       {SECTION_ORDER.map((section) => {
