@@ -120,9 +120,13 @@ export function registerICalFeed(router, { database, logger }) {
         }
       }
 
-      // Events
+      // Events — club-wide only. Team-/member-scoped events (e.g. a tournament
+      // limited to H3) stay internal to the member app and never reach the feed.
       if (sources['events']) {
-        const events = await database('events').orderBy('start_date')
+        const events = await database('events')
+          .whereNotIn('id', database('events_teams').select('events_id'))
+          .whereNotIn('id', database('events_members').select('events_id'))
+          .orderBy('start_date')
         for (const ev of events) {
           if (!ev.start_date) continue
           const d = toISO(ev.start_date)

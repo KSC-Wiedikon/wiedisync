@@ -11,6 +11,7 @@ import { syncSvGames, syncSvRankings } from './sv-sync.js'
 import { syncBpGames, syncBpRankings } from './bp-sync.js'
 import { registerPasswordReset } from './password-reset.js'
 import { registerICalFeed } from './ical-feed.js'
+import { registerPublicEvents } from './public-events.js'
 import { registerGCalSync } from './gcal-sync.js'
 import { registerScorerReminders } from './scorer-reminders.js'
 import { registerGameScheduling } from './game-scheduling.js'
@@ -1846,6 +1847,7 @@ export default {
     // ── Register sub-modules ────────────────────────────────────
     registerPasswordReset(router, ctx)
     registerICalFeed(router, ctx)
+    registerPublicEvents(router, ctx)
     registerGCalSync(router, ctx)
     registerScorerReminders(router, ctx)
     registerGameScheduling(router, ctx)
