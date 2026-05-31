@@ -60,15 +60,6 @@ try {
 } catch { /* file missing — fine */ }
 
 const DIRECTUS_URL = process.env.DIRECTUS_URL || 'http://localhost:8055'
-// 2026-05-31 security audit: public `directus_files` read was unscoped, so
-// every uploaded asset (including feedback screenshots, which can contain a
-// member's authenticated screen / PII) was world-readable. Scope the public
-// read to the folder holding genuinely-public website assets (team photos,
-// sponsor logos). Set PUBLIC_FILES_FOLDER to that folder's UUID on dev + prod
-// so the filter applies; if unset the script falls back to the legacy blanket
-// read and prints a loud warning (the residual is documented in PERMISSIONS.md
-// and SECURITY.md). Feedback/profile uploads MUST live OUTSIDE this folder.
-const PUBLIC_FILES_FOLDER = process.env.PUBLIC_FILES_FOLDER || ''
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@kscw.ch'
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
 const ADMIN_PASSWORD_CLEAN = ADMIN_PASSWORD.replace(/\\!/g, '!')
@@ -482,19 +473,18 @@ async function main() {
     await setPerm(PUBLIC_POLICY, 'mixed_tournament_signups', 'create', null,
       ['name', 'email', 'sex', 'position_1', 'position_2', 'position_3', 'teams', 'notes', 'is_member', 'member_id'])
 
-    // Files (team photos, logos). 2026-05-31 security audit: scope the public
-    // read to the public-assets folder so feedback screenshots / profile photos
-    // (which can contain PII) are not anonymously enumerable via
-    // GET /items/directus_files. Create stays open (public feedback/website
-    // uploads) but those land in a NON-public folder, so they're write-only to
-    // anon. If PUBLIC_FILES_FOLDER is unset, fall back to the legacy blanket
-    // read and warn — see the residual note in PERMISSIONS.md / SECURITY.md.
-    if (PUBLIC_FILES_FOLDER) {
-      await setPermRead(PUBLIC_POLICY, 'directus_files', { folder: { _eq: PUBLIC_FILES_FOLDER } })
-    } else {
-      console.warn('  ⚠ PUBLIC_FILES_FOLDER unset — public directus_files read stays UNSCOPED (all assets world-readable). Set it to the public-assets folder UUID to close the hole.')
-      await setPermRead(PUBLIC_POLICY, 'directus_files')
-    }
+    // Files. 2026-05-31 security audit: anon could fetch ANY uploaded asset via
+    // GET /assets/:id (e.g. feedback screenshots, which can contain a member's
+    // authenticated screen / PII). /assets applies the file's row-level read
+    // filter, so scope the public read to FOLDER-LESS files only: the public
+    // site's team/member/sponsor/news images live at the root (no folder), while
+    // sensitive uploads (feedback screenshots) are relocated into a private
+    // folder by migration 074 + the kscw-hooks feedback hook. A folder
+    // assignment therefore === private, and new private folders are excluded by
+    // default (fail-safe). NB: anon /items/directus_files LISTING is denied
+    // regardless (system-collection listing isn't granted to Public) — this
+    // scopes the /assets read path, which is what actually leaked.
+    await setPermRead(PUBLIC_POLICY, 'directus_files', { folder: { _null: true } })
     await setPerm(PUBLIC_POLICY, 'directus_files', 'create')
 
     console.log(`  ✓ Public permissions set`)

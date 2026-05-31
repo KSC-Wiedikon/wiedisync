@@ -237,6 +237,30 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return payload
   })
 
+  // ── Feedback screenshots → private folder (security audit 2026-05-31) ──────
+  // Anon can fetch any uploaded file via GET /assets/:id; the public
+  // directus_files read is scoped to FOLDER-LESS files (setup-permissions.mjs),
+  // so move feedback screenshots — which can contain a member's authenticated
+  // screen / PII — into a private folder on create/update. /assets then 403s
+  // them for anon while the folder-less public photos keep serving. The folder
+  // is created by migration 074 with this fixed UUID on every environment.
+  const FEEDBACK_FILES_FOLDER = 'feedbac0-0000-4000-8000-000000000001'
+  async function quarantineFeedbackScreenshot(feedbackId) {
+    try {
+      if (!feedbackId) return
+      const row = await database('feedback').where('id', feedbackId).select('screenshot').first()
+      if (row?.screenshot) {
+        await database('directus_files').where('id', row.screenshot).update({ folder: FEEDBACK_FILES_FOLDER })
+      }
+    } catch (err) {
+      log.error({ msg: `[feedback-quarantine] ${err.message}`, event: 'feedback_quarantine', stack: err.stack })
+    }
+  }
+  action('feedback.items.create', async ({ key }) => { await quarantineFeedbackScreenshot(key) })
+  action('feedback.items.update', async ({ keys }) => {
+    for (const k of (Array.isArray(keys) ? keys : [])) await quarantineFeedbackScreenshot(k)
+  })
+
   // ── 0b. Cascade: Directus user deletion → delete linked member ──
   // When a user is deleted from Directus admin UI, also delete the linked member.
   // The Postgres CASCADE constraints then clean up all member-owned data.
