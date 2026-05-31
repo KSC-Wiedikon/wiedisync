@@ -2,8 +2,8 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-05-30T08:52:41.357Z
--- Source:      dev (db=directus_kscw_dev)
+-- Generated:   2026-05-31T11:06:49.209Z
+-- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
 -- This is the consolidated DDL/triggers/FKs/grants snapshot for a FRESH
@@ -42,6 +42,20 @@ SET row_security = off;
 --
 
 CREATE SCHEMA _realtime;
+
+
+--
+-- Name: pg_cron; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+
+
+--
+-- Name: EXTENSION pg_cron; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION pg_cron IS 'Job scheduler for PostgreSQL';
 
 
 --
@@ -182,6 +196,20 @@ CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
 --
 
 COMMENT ON EXTENSION supabase_vault IS 'Supabase Vault Extension';
+
+
+--
+-- Name: unaccent; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION unaccent; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION unaccent IS 'text search dictionary that removes accents';
 
 
 --
@@ -562,6 +590,7 @@ $$;
 
 CREATE FUNCTION public.fn_messaging_dm_autoaccept() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public'
     AS $$
 DECLARE
   r record;
@@ -864,6 +893,7 @@ $$;
 
 CREATE FUNCTION public.kscw_compute_fine_amount(p_member integer, p_team integer, p_category text) RETURNS TABLE(amount numeric, tier_offense integer, reset_window_at_issue text)
     LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
     AS $$
 DECLARE
   v_rule          record;
@@ -963,6 +993,7 @@ COMMENT ON FUNCTION public.kscw_compute_fine_amount(p_member integer, p_team int
 
 CREATE FUNCTION public.kscw_current_season_start() RETURNS date
     LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
     AS $$
 DECLARE
   v_now date := (now() AT TIME ZONE 'Europe/Zurich')::date;
@@ -997,6 +1028,7 @@ COMMENT ON FUNCTION public.kscw_current_season_start() IS 'Sep 1 of the current 
 
 CREATE FUNCTION public.kscw_fine_window_start(p_window text, p_ts timestamp with time zone) RETURNS timestamp with time zone
     LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
     AS $$
 BEGIN
   CASE p_window
@@ -1441,6 +1473,7 @@ $$;
 
 CREATE FUNCTION public.trg_trainings_notify() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public'
     AS $$
 DECLARE
   v_type text; v_title text; v_body text; v_team_id int; v_id int;
@@ -2220,11 +2253,11 @@ CREATE TABLE public.conversation_members (
 
 CREATE TABLE public.conversations (
     id uuid NOT NULL,
-    type character varying(255) NOT NULL,
-    title character varying(120),
+    type character varying(255) DEFAULT NULL::character varying NOT NULL,
+    title character varying(120) DEFAULT NULL::character varying,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     last_message_at timestamp with time zone,
-    last_message_preview character varying(120),
+    last_message_preview character varying(120) DEFAULT NULL::character varying,
     team integer,
     created_by integer,
     activity_type character varying(16),
@@ -2727,6 +2760,7 @@ ALTER SEQUENCE public.game_scheduling_bookings_id_seq OWNED BY public.game_sched
 
 CREATE TABLE public.game_scheduling_opponents (
     id integer NOT NULL,
+    season integer,
     club_name character varying(255) DEFAULT NULL::character varying,
     contact_name character varying(255) DEFAULT NULL::character varying,
     contact_email character varying(255) DEFAULT NULL::character varying,
@@ -2741,8 +2775,7 @@ CREATE TABLE public.game_scheduling_opponents (
     source character varying(32) DEFAULT 'self_registration'::character varying NOT NULL,
     first_viewed_at timestamp with time zone,
     expires_at timestamp with time zone,
-    team_name character varying(255),
-    season integer
+    team_name character varying(255) DEFAULT NULL::character varying
 );
 
 
@@ -2779,7 +2812,7 @@ CREATE TABLE public.game_scheduling_seasons (
     notes text,
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
-    svrz_season_uuid character varying(64)
+    svrz_season_uuid character varying(64) DEFAULT NULL::character varying
 );
 
 
@@ -3322,7 +3355,7 @@ ALTER SEQUENCE public.members_id_seq OWNED BY public.members.id;
 -- Name: members_with_photo; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.members_with_photo AS
+CREATE VIEW public.members_with_photo WITH (security_invoker='true') AS
  SELECT m.id,
     m.email,
     m.first_name,
@@ -3374,7 +3407,7 @@ CREATE TABLE public.message_reactions (
     id uuid NOT NULL,
     message uuid NOT NULL,
     member integer NOT NULL,
-    emoji character varying(8) NOT NULL,
+    emoji character varying(8) DEFAULT NULL::character varying NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
@@ -3601,6 +3634,39 @@ CREATE SEQUENCE public.participations_id_seq
 --
 
 ALTER SEQUENCE public.participations_id_seq OWNED BY public.participations.id;
+
+
+--
+-- Name: password_reset_tokens; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.password_reset_tokens (
+    id integer NOT NULL,
+    "user" uuid NOT NULL,
+    token_hash text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: password_reset_tokens_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.password_reset_tokens_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: password_reset_tokens_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.password_reset_tokens_id_seq OWNED BY public.password_reset_tokens.id;
 
 
 --
@@ -3901,7 +3967,7 @@ CREATE TABLE public.reports (
     reported_member integer,
     message uuid,
     conversation uuid,
-    reason character varying(255) NOT NULL,
+    reason character varying(255) DEFAULT NULL::character varying NOT NULL,
     note text,
     message_snapshot text,
     status character varying(255) DEFAULT 'open'::character varying NOT NULL,
@@ -4038,8 +4104,8 @@ ALTER SEQUENCE public.slot_claims_id_seq OWNED BY public.slot_claims.id;
 --
 
 CREATE TABLE public.spielplaner_assignments (
+    date_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    date_created timestamp with time zone DEFAULT now() NOT NULL,
     user_created uuid,
     member integer NOT NULL,
     kscw_team integer NOT NULL
@@ -4224,7 +4290,7 @@ COMMENT ON COLUMN public.trainings.recruiting_positions IS 'Trial trainings only
 -- Name: stats_club_overview; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.stats_club_overview AS
+CREATE VIEW public.stats_club_overview WITH (security_invoker='true') AS
  SELECT ( SELECT count(*) AS count
            FROM public.members
           WHERE (members.wiedisync_active = true)) AS active_members,
@@ -4356,7 +4422,7 @@ CREATE VIEW public.stats_club_overview AS
 -- Name: stats_delegations; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.stats_delegations AS
+CREATE VIEW public.stats_delegations WITH (security_invoker='true') AS
  SELECT t.id AS team_id,
     t.name AS team_name,
     t.sport,
@@ -4376,7 +4442,7 @@ CREATE VIEW public.stats_delegations AS
 -- Name: stats_game_results; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.stats_game_results AS
+CREATE VIEW public.stats_game_results WITH (security_invoker='true') AS
  SELECT t.id AS team_id,
     t.name AS team_name,
     t.sport,
@@ -4398,7 +4464,7 @@ CREATE VIEW public.stats_game_results AS
 -- Name: stats_games_missing_schreiber; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.stats_games_missing_schreiber AS
+CREATE VIEW public.stats_games_missing_schreiber WITH (security_invoker='true') AS
  SELECT g.id AS game_id,
     g.date AS game_date,
     g."time" AS game_time,
@@ -4444,7 +4510,7 @@ CREATE VIEW public.stats_games_missing_schreiber AS
 -- Name: stats_members; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.stats_members AS
+CREATE VIEW public.stats_members WITH (security_invoker='true') AS
  SELECT count(*) AS total_members,
     count(*) FILTER (WHERE (members.wiedisync_active = true)) AS active_wiedisync,
     count(*) FILTER (WHERE (members.shell = true)) AS shell_accounts,
@@ -4465,7 +4531,7 @@ CREATE VIEW public.stats_members AS
 -- Name: stats_participation; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.stats_participation AS
+CREATE VIEW public.stats_participation WITH (security_invoker='true') AS
  WITH game_rsvp AS (
          SELECT g.kscw_team AS team_id,
             count(DISTINCT g.id) AS total_games,
@@ -4512,7 +4578,7 @@ CREATE VIEW public.stats_participation AS
 -- Name: stats_schreiber_coverage; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.stats_schreiber_coverage AS
+CREATE VIEW public.stats_schreiber_coverage WITH (security_invoker='true') AS
  SELECT t.id AS team_id,
     t.name AS team_name,
     t.sport,
@@ -4624,21 +4690,21 @@ CREATE TABLE public.svrz_games (
     id uuid NOT NULL,
     svrz_persistence_id character varying(255) DEFAULT NULL::character varying NOT NULL,
     svrz_number integer NOT NULL,
-    status character varying(255) NOT NULL,
+    status character varying(255) DEFAULT NULL::character varying NOT NULL,
     display_name text,
     short_display_name text,
     starting_date_time timestamp with time zone,
-    playing_weekday character varying(255),
-    home_club_id character varying(255),
-    home_club_name character varying(255),
-    home_team_name character varying(255),
-    away_club_id character varying(255),
-    away_club_name character varying(255),
-    away_team_name character varying(255),
-    league_name character varying(255),
-    league_short character varying(255),
-    gender character varying(255),
-    season_name character varying(255),
+    playing_weekday character varying(255) DEFAULT NULL::character varying,
+    home_club_id character varying(255) DEFAULT NULL::character varying,
+    home_club_name character varying(255) DEFAULT NULL::character varying,
+    home_team_name character varying(255) DEFAULT NULL::character varying,
+    away_club_id character varying(255) DEFAULT NULL::character varying,
+    away_club_name character varying(255) DEFAULT NULL::character varying,
+    away_team_name character varying(255) DEFAULT NULL::character varying,
+    league_name character varying(255) DEFAULT NULL::character varying,
+    league_short character varying(255) DEFAULT NULL::character varying,
+    gender character varying(255) DEFAULT NULL::character varying,
+    season_name character varying(255) DEFAULT NULL::character varying,
     raw json,
     last_synced_at timestamp with time zone
 );
@@ -4651,15 +4717,15 @@ CREATE TABLE public.svrz_games (
 CREATE TABLE public.svrz_spielplaner_contacts (
     id uuid NOT NULL,
     svrz_persistence_id character varying(255) DEFAULT NULL::character varying NOT NULL,
-    season_uuid character varying(255) NOT NULL,
-    season_name character varying(255),
-    club_id character varying(255),
-    club_name character varying(255),
-    person_first_name character varying(255),
-    person_last_name character varying(255),
-    contact_name character varying(255),
-    contact_email character varying(255),
-    contact_phone character varying(255),
+    season_uuid character varying(255) DEFAULT NULL::character varying NOT NULL,
+    season_name character varying(255) DEFAULT NULL::character varying,
+    club_id character varying(255) DEFAULT NULL::character varying,
+    club_name character varying(255) DEFAULT NULL::character varying,
+    person_first_name character varying(255) DEFAULT NULL::character varying,
+    person_last_name character varying(255) DEFAULT NULL::character varying,
+    contact_name character varying(255) DEFAULT NULL::character varying,
+    contact_email character varying(255) DEFAULT NULL::character varying,
+    contact_phone character varying(255) DEFAULT NULL::character varying,
     club_league_categories json,
     club_team_genders json,
     raw json,
@@ -5367,6 +5433,13 @@ ALTER TABLE ONLY public.participations ALTER COLUMN id SET DEFAULT nextval('publ
 
 
 --
+-- Name: password_reset_tokens id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.password_reset_tokens ALTER COLUMN id SET DEFAULT nextval('public.password_reset_tokens_id_seq'::regclass);
+
+
+--
 -- Name: poll_votes id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -5940,6 +6013,22 @@ ALTER TABLE ONLY public.notifications
 
 ALTER TABLE ONLY public.participations
     ADD CONSTRAINT participations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: password_reset_tokens password_reset_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.password_reset_tokens
+    ADD CONSTRAINT password_reset_tokens_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: password_reset_tokens password_reset_tokens_user_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.password_reset_tokens
+    ADD CONSTRAINT password_reset_tokens_user_unique UNIQUE ("user");
 
 
 --
@@ -6734,6 +6823,20 @@ CREATE INDEX idx_participations_last_status_edited_by ON public.participations U
 
 
 --
+-- Name: idx_password_reset_tokens_expires; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_password_reset_tokens_expires ON public.password_reset_tokens USING btree (expires_at);
+
+
+--
+-- Name: idx_password_reset_tokens_hash; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_password_reset_tokens_hash ON public.password_reset_tokens USING btree (token_hash);
+
+
+--
 -- Name: idx_reports_reported_member; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7049,6 +7152,20 @@ CREATE INDEX slot_claims_hall_slot_index ON public.slot_claims USING btree (hall
 
 
 --
+-- Name: spielplaner_assignments_kscw_team_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX spielplaner_assignments_kscw_team_index ON public.spielplaner_assignments USING btree (kscw_team);
+
+
+--
+-- Name: spielplaner_assignments_member_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX spielplaner_assignments_member_index ON public.spielplaner_assignments USING btree (member);
+
+
+--
 -- Name: task_templates_created_by_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7185,7 +7302,7 @@ CREATE INDEX user_logs_user_index ON public.user_logs USING btree ("user");
 -- Name: stats_team_roster _RETURN; Type: RULE; Schema: public; Owner: -
 --
 
-CREATE OR REPLACE VIEW public.stats_team_roster AS
+CREATE OR REPLACE VIEW public.stats_team_roster WITH (security_invoker='true') AS
  SELECT t.id AS team_id,
     t.name AS team_name,
     t.sport,
@@ -7762,6 +7879,14 @@ ALTER TABLE ONLY public.participations
 
 
 --
+-- Name: password_reset_tokens password_reset_tokens_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.password_reset_tokens
+    ADD CONSTRAINT password_reset_tokens_user_fkey FOREIGN KEY ("user") REFERENCES public.directus_users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: poll_votes poll_votes_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7866,6 +7991,14 @@ ALTER TABLE ONLY public.spielplaner_assignments
 
 
 --
+-- Name: spielplaner_assignments spielplaner_assignments_kscw_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.spielplaner_assignments
+    ADD CONSTRAINT spielplaner_assignments_kscw_team_foreign FOREIGN KEY (kscw_team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
 -- Name: spielplaner_assignments spielplaner_assignments_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7874,11 +8007,11 @@ ALTER TABLE ONLY public.spielplaner_assignments
 
 
 --
--- Name: spielplaner_assignments spielplaner_assignments_user_created_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: spielplaner_assignments spielplaner_assignments_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.spielplaner_assignments
-    ADD CONSTRAINT spielplaner_assignments_user_created_fkey FOREIGN KEY (user_created) REFERENCES public.directus_users(id) ON DELETE SET NULL;
+    ADD CONSTRAINT spielplaner_assignments_member_foreign FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
 
 
 --
@@ -7976,584 +8109,10 @@ ALTER TABLE ONLY public.website_admin_access
 ALTER TABLE public.absences ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: absences anon_read_absences; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_absences ON public.absences FOR SELECT TO anon USING (true);
-
-
---
--- Name: app_settings anon_read_app_settings; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_app_settings ON public.app_settings FOR SELECT TO anon USING (true);
-
-
---
--- Name: carpool_passengers anon_read_carpool_passengers; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_carpool_passengers ON public.carpool_passengers FOR SELECT TO anon USING (true);
-
-
---
--- Name: carpools anon_read_carpools; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_carpools ON public.carpools FOR SELECT TO anon USING (true);
-
-
---
--- Name: event_sessions anon_read_event_sessions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_event_sessions ON public.event_sessions FOR SELECT TO anon USING (true);
-
-
---
--- Name: events anon_read_events; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_events ON public.events FOR SELECT TO anon USING (true);
-
-
---
--- Name: feedback anon_read_feedback; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_feedback ON public.feedback FOR SELECT TO anon USING (true);
-
-
---
--- Name: game_scheduling_bookings anon_read_game_scheduling_bookings; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_game_scheduling_bookings ON public.game_scheduling_bookings FOR SELECT TO anon USING (true);
-
-
---
--- Name: game_scheduling_opponents anon_read_game_scheduling_opponents; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_game_scheduling_opponents ON public.game_scheduling_opponents FOR SELECT TO anon USING (true);
-
-
---
--- Name: game_scheduling_seasons anon_read_game_scheduling_seasons; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_game_scheduling_seasons ON public.game_scheduling_seasons FOR SELECT TO anon USING (true);
-
-
---
--- Name: game_scheduling_slots anon_read_game_scheduling_slots; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_game_scheduling_slots ON public.game_scheduling_slots FOR SELECT TO anon USING (true);
-
-
---
--- Name: games anon_read_games; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_games ON public.games FOR SELECT TO anon USING (true);
-
-
---
--- Name: hall_closures anon_read_hall_closures; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_hall_closures ON public.hall_closures FOR SELECT TO anon USING (true);
-
-
---
--- Name: hall_events anon_read_hall_events; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_hall_events ON public.hall_events FOR SELECT TO anon USING (true);
-
-
---
--- Name: hall_slots anon_read_hall_slots; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_hall_slots ON public.hall_slots FOR SELECT TO anon USING (true);
-
-
---
--- Name: hall_slots_teams anon_read_hall_slots_teams; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_hall_slots_teams ON public.hall_slots_teams FOR SELECT TO anon USING (true);
-
-
---
--- Name: halls anon_read_halls; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_halls ON public.halls FOR SELECT TO anon USING (true);
-
-
---
--- Name: member_teams anon_read_member_teams; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_member_teams ON public.member_teams FOR SELECT TO anon USING (true);
-
-
---
--- Name: members anon_read_members; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_members ON public.members FOR SELECT TO anon USING (true);
-
-
---
--- Name: news anon_read_news; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_news ON public.news FOR SELECT TO anon USING (true);
-
-
---
--- Name: newsletter_subscribers anon_read_newsletter_subscribers; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_newsletter_subscribers ON public.newsletter_subscribers FOR SELECT TO anon USING (true);
-
-
---
--- Name: participations anon_read_participations; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_participations ON public.participations FOR SELECT TO anon USING (true);
-
-
---
--- Name: poll_votes anon_read_poll_votes; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_poll_votes ON public.poll_votes FOR SELECT TO anon USING (true);
-
-
---
--- Name: polls anon_read_polls; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_polls ON public.polls FOR SELECT TO anon USING (true);
-
-
---
--- Name: query_templates anon_read_query_templates; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_query_templates ON public.query_templates FOR SELECT TO anon USING (true);
-
-
---
--- Name: rankings anon_read_rankings; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_rankings ON public.rankings FOR SELECT TO anon USING (true);
-
-
---
--- Name: referee_expenses anon_read_referee_expenses; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_referee_expenses ON public.referee_expenses FOR SELECT TO anon USING (true);
-
-
---
--- Name: scorer_delegations anon_read_scorer_delegations; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_scorer_delegations ON public.scorer_delegations FOR SELECT TO anon USING (true);
-
-
---
--- Name: slot_claims anon_read_slot_claims; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_slot_claims ON public.slot_claims FOR SELECT TO anon USING (true);
-
-
---
--- Name: sponsors anon_read_sponsors; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_sponsors ON public.sponsors FOR SELECT TO anon USING (true);
-
-
---
--- Name: sv_vm_check anon_read_sv_vm_check; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_sv_vm_check ON public.sv_vm_check FOR SELECT TO anon USING (true);
-
-
---
--- Name: task_templates anon_read_task_templates; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_task_templates ON public.task_templates FOR SELECT TO anon USING (true);
-
-
---
--- Name: tasks anon_read_tasks; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_tasks ON public.tasks FOR SELECT TO anon USING (true);
-
-
---
--- Name: team_invites anon_read_team_invites; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_team_invites ON public.team_invites FOR SELECT TO anon USING (true);
-
-
---
--- Name: team_requests anon_read_team_requests; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_team_requests ON public.team_requests FOR SELECT TO anon USING (true);
-
-
---
--- Name: teams anon_read_teams; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_teams ON public.teams FOR SELECT TO anon USING (true);
-
-
---
--- Name: trainings anon_read_trainings; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_trainings ON public.trainings FOR SELECT TO anon USING (true);
-
-
---
--- Name: vm_vb_spielplan_contact anon_read_vm_vb_spielplan_contact; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY anon_read_vm_vb_spielplan_contact ON public.vm_vb_spielplan_contact FOR SELECT TO anon USING (true);
-
-
---
 -- Name: app_settings; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
-
---
--- Name: absences auth_read_absences; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_absences ON public.absences FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: app_settings auth_read_app_settings; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_app_settings ON public.app_settings FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: carpool_passengers auth_read_carpool_passengers; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_carpool_passengers ON public.carpool_passengers FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: carpools auth_read_carpools; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_carpools ON public.carpools FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: email_verifications auth_read_email_verifications; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_email_verifications ON public.email_verifications FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: error_annotations auth_read_error_annotations; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_error_annotations ON public.error_annotations FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: event_sessions auth_read_event_sessions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_event_sessions ON public.event_sessions FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: events auth_read_events; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_events ON public.events FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: feedback auth_read_feedback; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_feedback ON public.feedback FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: game_scheduling_bookings auth_read_game_scheduling_bookings; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_game_scheduling_bookings ON public.game_scheduling_bookings FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: game_scheduling_opponents auth_read_game_scheduling_opponents; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_game_scheduling_opponents ON public.game_scheduling_opponents FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: game_scheduling_seasons auth_read_game_scheduling_seasons; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_game_scheduling_seasons ON public.game_scheduling_seasons FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: game_scheduling_slots auth_read_game_scheduling_slots; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_game_scheduling_slots ON public.game_scheduling_slots FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: games auth_read_games; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_games ON public.games FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: hall_closures auth_read_hall_closures; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_hall_closures ON public.hall_closures FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: hall_events auth_read_hall_events; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_hall_events ON public.hall_events FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: hall_slots auth_read_hall_slots; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_hall_slots ON public.hall_slots FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: hall_slots_teams auth_read_hall_slots_teams; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_hall_slots_teams ON public.hall_slots_teams FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: halls auth_read_halls; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_halls ON public.halls FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: member_teams auth_read_member_teams; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_member_teams ON public.member_teams FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: members auth_read_members; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_members ON public.members FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: news auth_read_news; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_news ON public.news FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: newsletter_subscribers auth_read_newsletter_subscribers; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_newsletter_subscribers ON public.newsletter_subscribers FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: notifications auth_read_notifications; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_notifications ON public.notifications FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: participations auth_read_participations; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_participations ON public.participations FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: poll_votes auth_read_poll_votes; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_poll_votes ON public.poll_votes FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: polls auth_read_polls; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_polls ON public.polls FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: push_subscriptions auth_read_push_subscriptions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_push_subscriptions ON public.push_subscriptions FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: query_templates auth_read_query_templates; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_query_templates ON public.query_templates FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: rankings auth_read_rankings; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_rankings ON public.rankings FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: referee_expenses auth_read_referee_expenses; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_referee_expenses ON public.referee_expenses FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: registrations auth_read_registrations; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_registrations ON public.registrations FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: scorer_delegations auth_read_scorer_delegations; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_scorer_delegations ON public.scorer_delegations FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: slot_claims auth_read_slot_claims; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_slot_claims ON public.slot_claims FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: sponsors auth_read_sponsors; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_sponsors ON public.sponsors FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: sv_vm_check auth_read_sv_vm_check; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_sv_vm_check ON public.sv_vm_check FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: task_templates auth_read_task_templates; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_task_templates ON public.task_templates FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: tasks auth_read_tasks; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_tasks ON public.tasks FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: team_invites auth_read_team_invites; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_team_invites ON public.team_invites FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: team_requests auth_read_team_requests; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_team_requests ON public.team_requests FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: teams auth_read_teams; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_teams ON public.teams FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: trainings auth_read_trainings; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_trainings ON public.trainings FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: user_logs auth_read_user_logs; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_user_logs ON public.user_logs FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: vm_vb_spielplan_contact auth_read_vm_vb_spielplan_contact; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY auth_read_vm_vb_spielplan_contact ON public.vm_vb_spielplan_contact FOR SELECT TO authenticated USING (true);
-
 
 --
 -- Name: bugfix_jobs; Type: ROW SECURITY; Schema: public; Owner: -
