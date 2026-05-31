@@ -38,41 +38,42 @@ export default {
 
     // Each failure path returns a distinct `Bad envelope: <reason>` so
     // `wrangler tail` shows exactly which branch killed a request.
-    let bodyText = ''
+    //
+    // CRITICAL: forward the envelope as RAW BYTES, never a re-encoded string.
+    // Session-replay envelopes embed a gzip-compressed binary recording item;
+    // decoding that to a JS string (request.text() / TextDecoder) replaces
+    // invalid UTF-8 byte sequences with U+FFFD and corrupts the payload, so
+    // Sentry rejects the envelope with 400 and we relay that 400 to the browser.
+    // Only the first line (the envelope header) is ASCII JSON and safe to decode.
+    let headerSnippet = ''
     try {
       const contentEncoding = request.headers.get('Content-Encoding') || ''
-      let rawBody: ArrayBuffer | string
+      let bytes = new Uint8Array(await request.arrayBuffer())
 
+      // If the whole request was gzipped by the client, decompress to raw bytes.
+      // (The browser SDK does NOT do this — per-item replay compression lives
+      // inside the envelope — but keep the branch for completeness.)
       if (contentEncoding.includes('gzip')) {
         try {
-          const decompressed = new DecompressionStream('gzip')
-          const reader = request.body!.pipeThrough(decompressed).getReader()
-          const chunks: Uint8Array[] = []
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            chunks.push(value)
-          }
-          const merged = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0))
-          let offset = 0
-          for (const c of chunks) { merged.set(c, offset); offset += c.length }
-          bodyText = new TextDecoder().decode(merged)
-          rawBody = bodyText
+          const decompressed = await new Response(
+            new Response(bytes).body!.pipeThrough(new DecompressionStream('gzip')),
+          ).arrayBuffer()
+          bytes = new Uint8Array(decompressed)
         } catch (e) {
           console.error('[sentry-tunnel] gzip-decode-failed:', e instanceof Error ? e.message : String(e))
           return new Response('Bad envelope: gzip-decode-failed', { status: 400 })
         }
-      } else {
-        bodyText = await request.text()
-        rawBody = bodyText
       }
 
-      if (!bodyText) {
+      if (bytes.length === 0) {
         return new Response('Bad envelope: empty-body', { status: 400 })
       }
 
-      // Sentry envelope: first line is JSON header with dsn
-      const header = bodyText.split('\n')[0] ?? ''
+      // Sentry envelope: first line is a JSON header with the dsn. Decode ONLY
+      // that line (ASCII) — never the binary body below it.
+      const nl = bytes.indexOf(0x0a) // '\n'
+      const header = new TextDecoder().decode(nl === -1 ? bytes : bytes.subarray(0, nl))
+      headerSnippet = header.slice(0, 200)
       let parsed: { dsn?: unknown }
       try {
         parsed = JSON.parse(header)
@@ -104,7 +105,7 @@ export default {
       const resp = await fetch(sentryUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-sentry-envelope' },
-        body: rawBody,
+        body: bytes,
       })
 
       return new Response(resp.body, {
@@ -116,7 +117,7 @@ export default {
       })
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
-      console.error('[sentry-tunnel] unexpected:', reason, '| body snippet:', bodyText.slice(0, 200))
+      console.error('[sentry-tunnel] unexpected:', reason, '| header snippet:', headerSnippet)
       return new Response(`Bad envelope: unexpected (${reason})`, { status: 400 })
     }
   },
