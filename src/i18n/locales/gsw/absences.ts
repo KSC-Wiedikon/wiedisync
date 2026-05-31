@@ -110,4 +110,11 @@ export default {
   dayFri: 'Fr',
   daySat: 'Sa',
   daySun: 'Su',
+  // Member filter
+  filterByMember: 'Nach Mitglied filtere',
+  allMembers: 'Alli Mitglieder',
+  membersSelected: '{{count}} vo {{total}} Mitglieder',
+  selectAllMembers: 'Alli uswähle',
+  deselectAllMembers: 'Alli abwähle',
+  noMembersMatchFilter: 'Kei Mitglieder entspräched em aktuelle Filter.',
 } as const

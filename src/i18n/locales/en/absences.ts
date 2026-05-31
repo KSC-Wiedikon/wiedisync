@@ -123,4 +123,11 @@ export default {
   scopeTeam: 'Team',
   noTeamWeeklies: 'No team weekly unavailabilities',
   noTeamWeekliesDescription: 'Nobody on this team has set up a recurring weekly unavailability yet.',
+  // Member filter
+  filterByMember: 'Filter by member',
+  allMembers: 'All members',
+  membersSelected: '{{count}} of {{total}} members',
+  selectAllMembers: 'Select all',
+  deselectAllMembers: 'Deselect all',
+  noMembersMatchFilter: 'No members match the current filter.',
 } as const

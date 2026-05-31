@@ -11,6 +11,8 @@ import { toISODate, getDayOfWeek } from '../../utils/dateHelpers'
 import { parseDate, isSameDay, startOfMonth, eachDayOfInterval, toDateKey } from '../../utils/dateUtils'
 import { max as maxDate, min as minDate, isAfter } from 'date-fns'
 import DatePicker from '@/components/ui/DatePicker'
+import AbsenceMemberFilter from './AbsenceMemberFilter'
+import { buildMemberOptions } from './absenceMemberOptions'
 import type { CalendarEntry } from '../../types/calendar'
 import type { Absence, Member } from '../../types'
 import { relId, asObj } from '../../utils/relations'
@@ -99,16 +101,31 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
   const [endDate, setEndDate] = useState(oneYearLater)
   const [month, setMonth] = useState<Date>(() => startOfMonth(new Date()))
   const [selectedEntry, setSelectedEntry] = useState<CalendarEntry | null>(null)
+  const [excludedMembers, setExcludedMembers] = useState<Set<string>>(new Set())
 
   const { absences, memberMap, isLoading } = useTeamAbsences(teamIds, startDate, endDate)
+
+  // Distinct members who have at least one absence in range — drives the filter
+  // dropdown. Built from the full fetched set so it's stable across list/calendar.
+  const memberOptions = useMemo(
+    () => buildMemberOptions(absences, memberMap, t('common:unknown')),
+    [absences, memberMap, t],
+  )
+
+  // Apply the member filter before deriving either view. Tracked as excluded IDs
+  // so everyone is shown by default and newly-loaded members stay visible.
+  const visibleAbsences = useMemo(
+    () => absences.filter((a) => !excludedMembers.has(relId(a.member))),
+    [absences, excludedMembers],
+  )
 
   // Standard (date-range) absences only — weeklies live in the Unavailabilities tab.
   // Sorted ascending so the next upcoming absence appears first.
   const sortedAbsences = useMemo(() =>
-    [...absences]
+    [...visibleAbsences]
       .filter((a) => a.type !== 'weekly')
       .sort((a, b) => a.start_date.localeCompare(b.start_date)),
-  [absences])
+  [visibleAbsences])
 
   // Calendar entries — both standard blocks and per-weekday weekly occurrences,
   // clipped to the currently displayed month so we don't pre-expand a year of dots.
@@ -120,8 +137,8 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
     return d
   }, [month])
   const calendarEntries = useMemo(
-    () => absencesToEntries(absences, memberMap, calendarRangeStart, calendarRangeEnd),
-    [absences, memberMap, calendarRangeStart, calendarRangeEnd],
+    () => absencesToEntries(visibleAbsences, memberMap, calendarRangeStart, calendarRangeEnd),
+    [visibleAbsences, memberMap, calendarRangeStart, calendarRangeEnd],
   )
 
   if (isLoading) {
@@ -135,6 +152,11 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
         <div className="flex flex-wrap items-end gap-4">
           <DatePicker label={t('fromTo')} value={startDate} onChange={setStartDate} />
           <DatePicker label={t('until')} value={endDate} onChange={setEndDate} />
+          <AbsenceMemberFilter
+            options={memberOptions}
+            excluded={excludedMembers}
+            onChange={setExcludedMembers}
+          />
         </div>
         {/* View toggle */}
         <div className="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-700">

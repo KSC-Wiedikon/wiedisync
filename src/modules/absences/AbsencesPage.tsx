@@ -15,6 +15,8 @@ import AbsenceCard from './AbsenceCard'
 import AbsenceForm from './AbsenceForm'
 import AbsenceImportModal from './AbsenceImportModal'
 import TeamAbsenceView from './TeamAbsenceView'
+import AbsenceMemberFilter from './AbsenceMemberFilter'
+import { buildMemberOptions } from './absenceMemberOptions'
 import WeeklyUnavailabilityCard from './WeeklyUnavailabilityCard'
 import WeeklyUnavailabilityForm from './WeeklyUnavailabilityForm'
 import { Button } from '@/components/ui/button'
@@ -369,16 +371,25 @@ function TeamWeeklySection({
     return d.toISOString().slice(0, 10)
   })()
   const { absences, memberMap, isLoading } = useTeamAbsences(teamIds, today, farFuture)
+  const [excludedMembers, setExcludedMembers] = useState<Set<string>>(new Set())
 
-  const weeklies = useMemo(
+  const allWeeklies = useMemo(
     () => absences.filter((a) => a.type === 'weekly'),
     [absences],
+  )
+  const memberOptions = useMemo(
+    () => buildMemberOptions(allWeeklies, memberMap, t('common:unknown')),
+    [allWeeklies, memberMap, t],
+  )
+  const weeklies = useMemo(
+    () => allWeeklies.filter((a) => !excludedMembers.has(relId(a.member))),
+    [allWeeklies, excludedMembers],
   )
 
   if (isLoading) {
     return <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">{t('common:loading')}</div>
   }
-  if (weeklies.length === 0) {
+  if (allWeeklies.length === 0) {
     return (
       <EmptyState
         icon={<CalendarClock className="h-10 w-10" />}
@@ -389,6 +400,15 @@ function TeamWeeklySection({
   }
 
   return (
+    <div className="space-y-4">
+      <AbsenceMemberFilter
+        options={memberOptions}
+        excluded={excludedMembers}
+        onChange={setExcludedMembers}
+      />
+      {weeklies.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('noMembersMatchFilter')}</p>
+      ) : (
     <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
       <Table>
         <TableHeader>
@@ -418,6 +438,8 @@ function TeamWeeklySection({
           })}
         </TableBody>
       </Table>
+    </div>
+      )}
     </div>
   )
 }

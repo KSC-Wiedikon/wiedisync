@@ -123,4 +123,11 @@ export default {
   scopeTeam: 'Team',
   noTeamWeeklies: 'Keine wöchentlichen Abwesenheiten im Team',
   noTeamWeekliesDescription: 'Niemand in diesem Team hat eine wöchentliche Abwesenheit hinterlegt.',
+  // Member filter
+  filterByMember: 'Nach Mitglied filtern',
+  allMembers: 'Alle Mitglieder',
+  membersSelected: '{{count}} von {{total}} Mitgliedern',
+  selectAllMembers: 'Alle auswählen',
+  deselectAllMembers: 'Alle abwählen',
+  noMembersMatchFilter: 'Keine Mitglieder entsprechen dem aktuellen Filter.',
 } as const

@@ -110,4 +110,11 @@ export default {
   dayFri: 'Ven',
   daySat: 'Sam',
   daySun: 'Dim',
+  // Member filter
+  filterByMember: 'Filtrer par membre',
+  allMembers: 'Tous les membres',
+  membersSelected: '{{count}} sur {{total}} membres',
+  selectAllMembers: 'Tout sélectionner',
+  deselectAllMembers: 'Tout désélectionner',
+  noMembersMatchFilter: 'Aucun membre ne correspond au filtre actuel.',
 } as const
