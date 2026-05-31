@@ -3101,6 +3101,53 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return out
   })
 
+  // ── Self-scoped CREATE ownership guard (security audit 2026-05-31) ────────
+  // Directus enforces neither the `permissions` row-filter nor a relational
+  // `validation` on CREATE (no existing row to match; a `member.user`
+  // validation can't be resolved against the payload and rejects ALL creates),
+  // so the self-scope filters in setup-permissions.mjs do NOT block a Member
+  // from POSTing a participation/absence/vote/request/etc. with someone else's
+  // owner id. Verified on dev: such a create returned 200. These filters enforce
+  // ownership server-side. Pass-through: system writes (null accountability —
+  // crons, auto-confirm/auto-decline, triggers) and admins. For participations/
+  // absences a team coach/TR may also write for their own team members (roster
+  // editing); the strictly-personal collections are self-only.
+  async function assertCreateOwnership(accountability, db, affectedMemberId, { allowLeader }) {
+    if (!accountability?.user) return          // system context
+    if (accountability.admin) return           // admins bypass
+    if (affectedMemberId == null) return        // owner omitted — NOT NULL / other filters handle it
+    const editor = await db('members').where('user', accountability.user).select('id').first()
+    if (editor && Number(editor.id) === Number(affectedMemberId)) return  // self
+    if (allowLeader && editor) {
+      const teamIds = (await db('member_teams').where('member', affectedMemberId).select('team'))
+        .map((r) => r.team).filter(Boolean)
+      if (teamIds.length) {
+        const isCoach = await db('teams_coaches').whereIn('teams_id', teamIds).andWhere('members_id', editor.id).first()
+        const isTR = isCoach || await db('teams_responsibles').whereIn('teams_id', teamIds).andWhere('members_id', editor.id).first()
+        if (isCoach || isTR) return            // coach/TR of the member's team
+      }
+    }
+    throw kscwScopeError('You can only create this for yourself', 403, 'NOT_OWNER')
+  }
+
+  // member-owned, coach/TR of the member's team may also create (roster editing)
+  for (const coll of ['participations', 'absences']) {
+    filter(`${coll}.items.create`, async (payload, _meta, { database: db, accountability }) => {
+      await assertCreateOwnership(accountability, db, payload?.member, { allowLeader: true })
+      return payload
+    })
+  }
+  // strictly personal — self (or admin/system) only
+  for (const [coll, field] of [
+    ['poll_votes', 'member'], ['push_subscriptions', 'member'], ['team_requests', 'member'],
+    ['scorer_delegations', 'from_member'], ['carpools', 'driver'], ['carpool_passengers', 'passenger'],
+  ]) {
+    filter(`${coll}.items.create`, async (payload, _meta, { database: db, accountability }) => {
+      await assertCreateOwnership(accountability, db, payload?.[field], { allowLeader: false })
+      return payload
+    })
+  }
+
   // ── Hall-slot → trainings cascade ──────────────────────────────
   // Snapshot pre-state in a filter hook (Directus has already merged the
   // payload into `payload` here, but we need the BEFORE values to detect

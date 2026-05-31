@@ -199,6 +199,13 @@ async function setPerm(policyId, collection, action, filter = null, fields = nul
     fields: fields || ['*'],
   }
   if (filter) body.permissions = filter
+  // NOTE: Directus enforces neither `permissions` nor a relational `validation`
+  // filter usefully on CREATE — `permissions` has no existing row to match, and
+  // a relational `validation` (e.g. member.user == $CURRENT_USER) can't be
+  // resolved against the payload, so it rejects ALL creates (verified on dev
+  // 2026-05-31). Self-scoped CREATE ownership is therefore enforced in the
+  // kscw-hooks `*.items.create` filter guard, not here. The `permissions`
+  // filter above still scopes READ/UPDATE/DELETE for these collections.
 
   try {
     await api('POST', '/permissions', body)
