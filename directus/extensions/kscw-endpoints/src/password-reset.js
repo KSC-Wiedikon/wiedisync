@@ -4,12 +4,26 @@
  * POST /kscw/password-request
  * Body: { email: string }
  *
- * Looks up the member's language, generates a reset token,
- * and sends a branded email in the user's language.
+ * Looks up the member's language, generates a single-use, 1-hour reset token
+ * (stored only as a SHA-256 hash in the `password_reset_tokens` table — never
+ * in `directus_users.token`), and sends a branded email in the user's language.
+ * The token is consumed (and its row deleted) by POST /kscw/set-password.
  */
 
 import crypto from 'crypto'
 import { FRONTEND_URL } from './email-template.js'
+
+// Reset tokens live for 1 hour, are single-use, and are stored only as a
+// SHA-256 hash in the dedicated `password_reset_tokens` table. The plaintext
+// value exists solely inside the emailed link — it is NEVER written to
+// `directus_users.token` (that column is Directus's static API access token,
+// i.e. a full-privilege bearer credential), so a leaked link can only reset a
+// password, never act as an API credential.
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hour
+
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex')
+}
 
 const TEMPLATES = {
   german: {
@@ -17,7 +31,7 @@ const TEMPLATES = {
     heading: 'Passwort festlegen',
     body: 'Klicke auf den Button unten, um dein Passwort festzulegen und dein WiediSync-Konto zu aktivieren.',
     button: 'Passwort festlegen',
-    expiry: 'Dieser Link ist 24 Stunden gültig.',
+    expiry: 'Dieser Link ist 1 Stunde gültig und kann nur einmal verwendet werden.',
     ignore: 'Falls du diese Anfrage nicht gestellt hast, kannst du diese E-Mail ignorieren.',
     footer: 'KSC Wiedikon — Volleyball & Basketball seit 1972',
   },
@@ -26,7 +40,7 @@ const TEMPLATES = {
     heading: 'Passwort festlege',
     body: 'Klick uf de Button unde, zum dis Passwort festzlege und dis WiediSync-Konto z aktiviere.',
     button: 'Passwort festlege',
-    expiry: 'De Link isch 24 Stund gültig.',
+    expiry: 'De Link isch 1 Stund gültig und cha nur einisch bruucht werde.',
     ignore: 'Falls du die Afrag nöd gmacht hesch, chasch die E-Mail ignoriere.',
     footer: 'KSC Wiedikon — Volleyball & Basketball sit 1972',
   },
@@ -34,8 +48,8 @@ const TEMPLATES = {
     subject: 'WiediSync – Set your password',
     heading: 'Set your password',
     body: 'Click the button below to set your password and activate your WiediSync account.',
-    button: 'Set Password',
-    expiry: 'This link expires in 24 hours.',
+    button: 'Set password',
+    expiry: 'This link expires in 1 hour and can only be used once.',
     ignore: 'If you did not request this, you can safely ignore this email.',
     footer: 'KSC Wiedikon — Volleyball & Basketball since 1972',
   },
@@ -44,7 +58,7 @@ const TEMPLATES = {
     heading: 'Définir votre mot de passe',
     body: 'Cliquez sur le bouton ci-dessous pour définir votre mot de passe et activer votre compte WiediSync.',
     button: 'Définir le mot de passe',
-    expiry: 'Ce lien expire dans 24 heures.',
+    expiry: 'Ce lien expire dans 1 heure et ne peut être utilisé qu\'une seule fois.',
     ignore: 'Si vous n\'avez pas fait cette demande, vous pouvez ignorer cet e-mail.',
     footer: 'KSC Wiedikon — Volleyball & Basketball depuis 1972',
   },
@@ -53,7 +67,7 @@ const TEMPLATES = {
     heading: 'Imposta la tua password',
     body: 'Clicca sul pulsante qui sotto per impostare la tua password e attivare il tuo account WiediSync.',
     button: 'Imposta password',
-    expiry: 'Questo link scade tra 24 ore.',
+    expiry: 'Questo link scade tra 1 ora e può essere utilizzato una sola volta.',
     ignore: 'Se non hai effettuato questa richiesta, puoi ignorare questa e-mail.',
     footer: 'KSC Wiedikon — Pallavolo & Basket dal 1972',
   },
@@ -137,19 +151,27 @@ export function registerPasswordReset(router, { database, logger, services, getS
       const lang = member?.language || 'german'
       const t = TEMPLATES[lang] || TEMPLATES.german
 
-      // Generate a JWT reset token via Directus UsersService
       const schema = await getSchema()
-      const { UsersService, MailService } = services
-      const usersService = new UsersService({ schema, knex: database })
+      const { MailService } = services
 
-      // requestPasswordReset generates and stores the token internally
-      // but sends the default email. We skip that and send our own.
-      // Instead, generate token manually:
-      const token = crypto.randomBytes(20).toString('hex')
-      const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24h
-      await database('directus_users')
-        .where('id', user.id)
-        .update({ token, token_expires_at: tokenExpiresAt })
+      // Generate a high-entropy single-use reset secret. It is NOT a Directus
+      // API token: we store only its SHA-256 hash in `password_reset_tokens`
+      // and never touch `directus_users.token`. The plaintext goes only into
+      // the emailed link and is consumed (and the row deleted) by
+      // POST /kscw/set-password.
+      const token = crypto.randomBytes(32).toString('hex')
+      const tokenHash = hashResetToken(token)
+      const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString()
+
+      // Invalidate any previous outstanding tokens for this user, then store
+      // the new hash. Single active token per user keeps the flow single-use.
+      await database('password_reset_tokens').where('user', user.id).delete()
+      await database('password_reset_tokens').insert({
+        user: user.id,
+        token_hash: tokenHash,
+        expires_at: expiresAt,
+        created_at: new Date().toISOString(),
+      })
 
       // Build reset URL pointing to frontend
       const resetUrl = `${FRONTEND_URL}/set-password?token=${token}`

@@ -1,6 +1,8 @@
 # Permissions reference — KSCW Directus
 
-Canonical role × collection × action map. Reflects the live state through migration 052 (2026-05-12). Updated by reviewers as part of every permission change.
+Canonical role × collection × action map. Reflects the live state through migration 069 (2026-05-31). Updated by reviewers as part of every permission change.
+
+> **2026-05-31 — Security audit hardening (self-scoped Member creates + public read scoping).** Member `create` on `participations`, `absences`, `poll_votes`, `scorer_delegations`, `push_subscriptions`, `team_requests`, `carpools`, `carpool_passengers` was unfiltered — any member could write a row attributed to another member (mark a teammate absent, vote/RSVP as them, file a join request for them; an absence write even cascaded all the victim's confirmed RSVPs to declined via migration 038). All now carry the same self-scope filter their `update` already used (`OWN_MEMBER` / `OWN_DRIVER` / `OWN_PASSENGER` / `from_member = $CURRENT_USER` for delegations). Public `members` read scoped to `website_visible = true` (was ignoring the privacy opt-out and exposing the whole roster). Public `directus_files` read scoped to the public-assets folder via `PUBLIC_FILES_FOLDER` env (feedback screenshots / profile photos no longer anonymously enumerable); falls back to the legacy blanket read with a warning if the env is unset. See SECURITY.md "2026-05-31" block. **Untested in this branch — `npm run db:setup-perms:dev` + `db:smoke:dev` MUST pass before prod, and `PUBLIC_FILES_FOLDER` MUST be set on dev + prod for the files fix to take effect.**
 
 > **2026-05-23 — Restored public `events` + `news` for kscw-website.** Migration 035 dropped Public read on `events` on the mistaken assumption the website didn't consume it, silently emptying the homepage events + `/weiteres/kalender`; `news` had never been granted (homepage News showed "no news"). Re-added both to Public as field-scoped reads (`PUBLIC_EVENT_FIELDS` / `PUBLIC_NEWS_FIELDS`, non-PII); `news` limited to published, non-future posts. RSVP junctions (`events_teams` / `participations`) stay private — 035's privacy fix is intact. Applied dev→prod via `db:setup-perms`; smoke green.
 
@@ -57,14 +59,15 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | news | read | `published_at` set & `≤ $NOW` | Limited fields (`PUBLIC_NEWS_FIELDS`) — published posts only; kscw-website homepage + /news |
 | teams_sponsors | read | none | Junction for kscw-website |
 | teams_coaches | read | none | Junction for kscw-website |
-| members | read | none | Fields: `id, first_name, last_name, photo` only |
+| members | read | `website_visible = true` | Fields: `id, first_name, last_name, photo` only — opt-in only (2026-05-31 audit) |
 | hall_slots / hall_slots_teams | read | none | Calendar embed |
 | hall_closures | read | none | |
 | hall_events / hall_events_halls | read | none | |
 | halls | read | none | |
 | feedback | create | none | Fields whitelisted; Turnstile + filter hook gate |
 | mixed_tournament_signups | create | none | Same |
-| directus_files | read + create | none | Public file uploads (feedback screenshots etc.) |
+| directus_files | read | `folder = PUBLIC_FILES_FOLDER` (env) | Public-assets folder only; feedback screenshots / profile photos excluded (2026-05-31 audit). Falls back to unscoped read + warning if env unset |
+| directus_files | create | none | Public uploads (feedback screenshots, website) — land in a NON-public folder |
 
 **Explicit non-public (don't re-grant!):** `trainings` (032), `slot_claims` / `events_teams` / `participations` (035), `event_signups` (anon/authenticated revoked at PG level — 035). Note: the `events` *record* is public (field-scoped, granted above for the kscw-website calendar) — only its RSVP junctions (`events_teams` / `participations`) stay private.
 
@@ -108,18 +111,18 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | Collection | Action | Filter |
 |---|---|---|
 | members | update | `OWN_USER`, fields = `MEMBER_EDITABLE_FIELDS` (excludes `role`, role stripped by hook filter) |
-| participations | create / update | own |
-| absences | create / update / delete | own |
+| participations | create / update | `OWN_MEMBER` (create self-scoped 2026-05-31 audit) |
+| absences | create / update / delete | `OWN_MEMBER` (create self-scoped 2026-05-31 audit) |
 | notifications | update / delete | own |
-| push_subscriptions | create / update / delete | own |
-| scorer_delegations | create / update | own (from/to) |
+| push_subscriptions | create / update / delete | `OWN_MEMBER` (create self-scoped 2026-05-31 audit) |
+| scorer_delegations | create / update | create = `from_member = $CURRENT_USER`; update = own (from/to) (create self-scoped 2026-05-31 audit) |
 | user_logs | create | none |
 | feedback | create | none |
 | tasks | update | own (assigned/claimed) |
-| carpools | create / update | own driver |
-| carpool_passengers | create / update | own |
-| poll_votes | create / update | `OWN_MEMBER` |
-| team_requests | create | none |
+| carpools | create / update | own driver (`OWN_DRIVER`; create self-scoped 2026-05-31 audit) |
+| carpool_passengers | create / update | own (`OWN_PASSENGER`; create self-scoped 2026-05-31 audit) |
+| poll_votes | create / update | `OWN_MEMBER` (create self-scoped 2026-05-31 audit) |
+| team_requests | create | `member.user = $CURRENT_USER` (self-scoped 2026-05-31 audit) |
 | directus_files | create | none |
 
 **Explicit non-write for Member:** `members.role` field — stripped by `filter('members.items.update')` in `kscw-hooks` for non-admin callers (defense-in-depth on top of field-level perm).
@@ -132,8 +135,9 @@ Inherits everything from Member. Adds:
 
 | Collection | Action | Filter | Source migration |
 |---|---|---|---|
-| members | read | none (full fields) | |
-| members | update | scoped to my-team members, fields = `position, number` | 036 |
+| members | read | scoped to my-team members (`COACH_TEAM_MEMBERS` — coach/TR of the member's team), fields = `LEADER_TEAM_MEMBER_FIELDS` (all visible+editable fields **except** `ahv_nummer`) | 036, scoped 2026-05-12 |
+| members | update | scoped to my-team members (`COACH_TEAM_MEMBERS`), fields = `position, number, coach_approved_team` | 036, `coach_approved_team` 2026-05-19 |
+| members | update | scoped to my-team signups (`COACH_REQUESTED_TEAM` — coach/TR of the requested team), fields = `kscw_membership_active, wiedisync_active, requested_team` | reject-signup path (`TeamDetail.handleReject`) |
 | teams | read | none | |
 | teams | read | none | also `LEADER_TEAM_DASHBOARD_FIELDS` |
 | teams | update | scoped: `coach.members_id.user = $CURRENT_USER` OR `team_responsible.members_id.user = $CURRENT_USER` | **043** |

@@ -2360,32 +2360,57 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const currentUser = context.accountability?.user || null
 
     const items = Array.isArray(payload) ? payload : [payload]
+
+    // Re-fetch the gating flags (user, hide_phone, hide_email, birthdate_visibility)
+    // directly from the DB keyed by member id. The redaction MUST NOT depend on the
+    // caller's `?fields=` projection — if the gating flags are omitted from the
+    // requested fields, the in-payload values are undefined and a JS `=== true`
+    // scrub silently leaks the hidden phone/email/birthdate. By reading the
+    // authoritative flags from the DB we enforce privacy regardless of projection,
+    // and fail closed (redact) when an item's gating flag can't be resolved.
+    const ids = []
+    for (const item of items) {
+      if (item && item.id != null) ids.push(item.id)
+    }
+    const gateById = new Map()
+    if (ids.length > 0) {
+      const rows = await database('members')
+        .whereIn('id', ids)
+        .select('id', 'user', 'hide_phone', 'hide_email', 'birthdate_visibility')
+      for (const row of rows) gateById.set(row.id, row)
+    }
+
     for (const item of items) {
       if (!item) continue
 
-      // Skip filtering for the member's own record
-      if (currentUser && item.user === currentUser) continue
+      // Authoritative gating flags from the DB (never the requested projection).
+      const gate = item.id != null ? gateById.get(item.id) : undefined
 
-      // Birthdate visibility
-      if (item.birthdate_visibility === 'hidden') {
-        item.birthdate = null
-      } else if (item.birthdate_visibility === 'year_only' && item.birthdate) {
+      // Skip filtering for the member's own record (resolved from the DB so the
+      // self-check is correct even when `user` isn't in the projection).
+      if (currentUser && gate && gate.user === currentUser) continue
+
+      // Birthdate visibility — fail closed (hide) when the flag can't be resolved.
+      const birthdateVisibility = gate ? gate.birthdate_visibility : 'hidden'
+      if (birthdateVisibility === 'hidden') {
+        if ('birthdate' in item) item.birthdate = null
+      } else if (birthdateVisibility === 'year_only' && item.birthdate) {
         // Extract just the year (handles both '1990-01-01' and ISO datetime strings)
         item.birthdate = String(item.birthdate).substring(0, 4)
       }
 
-      // Phone visibility
-      if (item.hide_phone === true) {
-        item.phone = null
+      // Phone visibility — fail closed (hide) when the flag can't be resolved.
+      if (!gate || gate.hide_phone === true) {
+        if ('phone' in item) item.phone = null
       }
 
-      // Email visibility
-      if (item.hide_email === true) {
-        item.email = null
+      // Email visibility — fail closed (hide) when the flag can't be resolved.
+      if (!gate || gate.hide_email === true) {
+        if ('email' in item) item.email = null
       }
 
       // AHV number — only visible to self and admins
-      item.ahv_nummer = null
+      if ('ahv_nummer' in item) item.ahv_nummer = null
     }
 
     return Array.isArray(payload) ? items : items[0]

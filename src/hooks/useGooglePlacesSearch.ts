@@ -1,6 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
 import type { LocationResult } from '../types'
 
+// SECURITY: This Google Places API key is inherently client-side — Places
+// Autocomplete runs in the browser, so the key is inlined into the static bundle
+// and CANNOT be hidden here. It MUST be locked down in the Google Cloud Console:
+//   1. Application restriction: HTTP referrers, limited to the app's domains only
+//      (wiedisync.kscw.ch, *.wiedisync.pages.dev) — no wildcard "*".
+//   2. API restriction: Places API only — the key must NOT carry scope for any
+//      other Google API.
+//   3. Billing: set a daily quota cap so a leaked key cannot rack up unbounded
+//      cost; the key must NOT grant access to other billable services.
+// Without these restrictions the bundled key is an open billing/financial-DoS hole.
+// (Referrer restrictions are bypassable; the proper long-term fix is to proxy
+//  Places lookups through an authenticated server-side endpoint that holds the key.)
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
 
 export function useGooglePlacesSearch(query: string, options?: { enabled?: boolean }) {

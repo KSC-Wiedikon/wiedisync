@@ -46,6 +46,36 @@ Tracked (must stay clean of secrets):
 
 Treat this as a deduplication shield: if a future audit finds something on this list, it's either a regression or a misunderstanding — verify before re-flagging.
 
+### 2026-05-31 — Multi-agent security audit + remediation (branch `security-fixes`)
+
+Full-repo automated audit (security + permissions + code-quality) across `wiedisync` and `kscw-website`, with adversarial verification of every critical/high finding. Reports: `SECURITY_AUDIT.md` (both repos). 0 critical confirmed; 3 high, 11 medium, 11 low (wiedisync) + 2 high, 2 medium, 1 low (kscw-website). All code-fixable items below remediated on branch `security-fixes`. **Not yet deployed/verified against live** — requires `npm run db:deploy:dev` + smoke, `ext:deploy:dev`, CF Pages build, and the operational steps in "Open / accepted" before prod.
+
+**High**
+- **Website-Admin IDOR over members + participations** (`wadmin.js`): `mixed_turnier` section listed `members`/`participations`, which the generic `/wadmin/:section/items/:collection` routes serve with `accountability:{admin:true}` (RLS-bypass). Removed both — section now scoped to `mixed_tournament_signups` only. Test updated (`__tests__/wadmin.test.js`) to lock in the secure contract.
+- **Password-reset minted a static API token** (`password-reset.js`, `index.js` `/set-password`, migration **073**): the flow wrote a value into `directus_users.token` (Directus's full-privilege static API credential) and mailed it. Replaced with a dedicated **backend-only** `password_reset_tokens` table storing only a SHA-256 hash of a 256-bit secret, 1-hour TTL, single-use. The `/set-password` Mode-2 consumer now validates against it (hash lookup → expiry → delete-before-use). The emailed link is no longer an API credential.
+- **Unfiltered Member create permissions** (`setup-permissions.mjs`): `participations`/`absences`/`poll_votes`/`push_subscriptions`/`scorer_delegations`/`carpools`/`carpool_passengers`/`team_requests` `create` were unfiltered → impersonation (fake absences triggered migration-038's RSVP-decline cascade for the victim). Each `create` now carries the same self-scope filter (`OWN_MEMBER` / `OWN_DRIVER` / `OWN_PASSENGER` / `OWN_DELEGATION_FROM` / `$CURRENT_USER`) as its sibling `update`.
+
+**Medium**
+- **Mass-notify abuse** (`event-notify.js`): added per-(user,event) rate limit (1/10min); leader-only coach/TR callers are now scoped to the team(s) they actually lead (no club-wide `invited_roles`/`invited_members` expansion); `send_email:true` gated to admin/sport-admin/creator. **Behaviour change** — coaches/TRs can no longer send the event email blast or fan out beyond their own teams.
+- **Privacy projection bypass** (`kscw-hooks/index.js`): the `members.items.read` redaction now sources `hide_email`/`hide_phone`/`birthdate_visibility`/`user` from the DB per row and redacts unconditionally on the caller's field projection (was bypassable by requesting a narrow `fields=`). Fails closed.
+- **Public members read ignored `website_visible`** (`setup-permissions.mjs`): public read scoped to `{ website_visible: { _eq: true } }`.
+- **Wide-open `USING(true)` RLS** (migration **070**): dropped all `anon_read_*`/`auth_read_*` PostgREST-era SELECT policies (Directus connects as `supabase_admin`, so no live caller affected; defense-in-depth on top of the migration-011 GRANT revoke).
+- **`/set-password` OTP accepted any verified row** (`index.js`): Mode-3 now requires the verification to be fresh (`expires_at > now()`, the original 10-min OTP window) in addition to `verified=true`; single-use delete retained.
+- **Event-invite email unescaped** (`event-notify.js`): `event.description` now `escHtml()`-escaped before HTML interpolation.
+- **OAuth tokens in URL** (`OAuthCallbackPage.tsx`): tokens scrubbed from the address bar via `history.replaceState` immediately after read; `state` nonce check tightened to strict equality (absent/mismatched rejected).
+- **Google Maps key client-exposure** (`useGooglePlacesSearch.ts`): documented as inherently client-side; operational lockdown required (see below).
+- **Push worker fail-open** (`workers/push/src/index.ts`): explicit fail-closed guard if `AUTH_SECRET` is unset/short; subscription-list cap + shape/host allowlist validation; per-IP rate limit.
+
+**Low / Info**
+- Public `directus_files` read scoped to `PUBLIC_FILES_FOLDER` (env; warns + falls back if unset) — `setup-permissions.mjs`.
+- `GET /public/team/:id` no longer leaks `features_enabled`/`dashboard_*`/`bb_source_id`/`captain` — `index.js`.
+- Function `search_path` re-pinned via `ALTER FUNCTION` on `trg_trainings_notify`, `fn_messaging_dm_autoaccept`, and the migration-069 fines helpers (migration **071**, body-preserving).
+- `security_invoker=true` restored on `members_with_photo` + `stats_*` views (migration **072**).
+- CSP hardened (`public/_headers`): `object-src 'none'`, `base-uri 'self'`, report-uri added (`style-src 'unsafe-inline'` retained — Tailwind).
+- `exceljs` transitive vulns (`tmp`, `uuid`) pinned via `package.json` `overrides` (needs `npm install`).
+- TweetCard `dangerouslySetInnerHTML` wrapped in `DOMPurify.sanitize` (`tweet-card.tsx`).
+- **kscw-website**: homepage event description rendered as plain text (`de|en/index.astro`); calendar JSON island `<`/`>`/`&` escaped against `</script>` breakout (`de|en/weiteres/kalender.astro`); client-side regex sanitiser replaced with `textContent` (`calendar-grid.ts`); RSS slug `encodeURIComponent` + XML-escaped (`feed.xml.ts`); CSP tightened (`public/_headers`).
+
 ### 2026-05-12 — Deep audit Low-tier + hygiene (v4.8.8)
 
 Closes the remaining open items from the 2026-05-12 audit beyond what v4.8.3 and v4.8.5 already shipped.
@@ -176,6 +206,15 @@ Deep audit run post-v4.8.1 (LEADER-per-user backfill) and v4.8.2 (LEADER read sc
 | Notification triggers fan out without re-checking caller identity | Accepted | Triggers run after Directus RBAC has already gated the parent INSERT/UPDATE. If we ever grant `games`/`trainings`/`events` direct DML to a non-admin role at the PG level, this assumption breaks. |
 | `tasks` schema lacks `team` FK | Accepted (43 fixed read-side) | Migration 035 noted the design gap. Read scope now uses assignee FKs which is the right substitute; create a migration that adds `team` if cross-team queries are ever needed. |
 | `pgbouncer.get_auth()` lacks `SET search_path = ''` on live prod | Accepted (Supabase-managed) | Audit 2026-05-12 finding #23. Verified `proconfig IS NULL` on live. Patching it from our side risks rollback the next time Supabase bumps the database image, and the function is only callable by the local `pgbouncer` user — not reachable from external traffic. Re-audit if Supabase ever moves the function to a user-modifiable schema. |
+| `PUBLIC_FILES_FOLDER` env not yet set (2026-05-31) | **Operational — required** | The public `directus_files` read fix only applies when `PUBLIC_FILES_FOLDER` is set to the public-assets folder UUID on dev + prod; until then `setup-permissions.mjs` falls back to the legacy unscoped read and prints a warning. Also route feedback-screenshot / profile-photo uploads into a NON-public folder. |
+| Google Places key referrer lockdown (2026-05-31) | **Operational — required** | `VITE_GOOGLE_MAPS_API_KEY` ships in the client bundle (unavoidable for Places Autocomplete). Lock it down in Google Cloud Console: HTTP-referrer restriction to the app domains, restricted to the Places API only, daily quota cap, no billing/other-API scope. Stronger fix (deferred): proxy Places through an authenticated Directus endpoint. |
+| Push-worker `AUTH_SECRET` (2026-05-31) | **Operational — required** | `workers/push` now fails closed if `AUTH_SECRET` is unset/short. Ensure a ≥32-char secret is set via `wrangler secret put AUTH_SECRET` on every worker/env, or `/push` returns 500 by design. |
+| `package.json` overrides + SCHEMA.sql baseline (2026-05-31) | **Operational — required** | Run `npm install` to apply the `tmp`/`uuid` overrides into the lockfile, then `npm audit --omit=dev`. After migrations 070–073, run `npm run db:baseline:dev`/`:prod` to regenerate `SCHEMA.sql` (else fresh installs re-introduce the regressions and miss `password_reset_tokens`). |
+| PocketBase JWT in git history (2026-05-31, Low) | **Operational — rotate** | A `.claude/settings.json` (now gitignored, untracked) previously committed a PocketBase auth JWT. Rotate/invalidate that credential. History rewrite (e.g. `git filter-repo`) is optional and out of scope for the fix branch. |
+| Member-create self-scope negative smoke test (2026-05-31) | **Recommended** | `db:smoke` currently exercises only legitimate (own-member) creates. Add a NEGATIVE assertion — Member attempts `participations`/`absences` create with `member` = another member → expect 403 — so the self-scope `permissions` filter is confirmed to actually block impersonation, not just pass legit creates. |
+| Access/refresh tokens in localStorage (2026-05-31, Medium) | Accepted (mitigated) | Deliberate for standalone-PWA persistence (iOS clears sessionStorage). Compensating control: strict CSP (no `script-src 'unsafe-inline'`) + DOMPurify on all HTML sinks; tokens are never logged. Deferred follow-up documented in `api.ts`: migrate to Directus cookie session mode (httpOnly) — needs backend CORS-credentials + CSRF work. |
+| `style-src 'unsafe-inline'` (both repos) + `script-src 'unsafe-inline'` (kscw-website) | Accepted | wiedisync: Tailwind/React emit runtime inline `style=`; no nonce pipeline. kscw-website: 83 `is:inline` script blocks on a static CF Pages site with no per-build nonce. The two stored-XSS sinks that would have exploited this are closed at source. Removing `unsafe-inline` needs a nonce/hash build step (deferred). |
+| Backend CORS / Directus session mode (not in repo) | Verify | Confirm on the VPS that Directus `CORS_ORIGIN` is an exact allowlist (no `*`) and session/auth mode matches the token-in-header model. Document the values in `INFRA.md`. |
 
 ---
 

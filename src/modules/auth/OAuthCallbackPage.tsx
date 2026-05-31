@@ -13,10 +13,20 @@ import { useNavigate } from 'react-router-dom'
  *   1. `oauth_pending` sentinel must exist (proves a recent click).
  *   2. Sentinel TTL ≤ 2 min (was 5 min — the 2026-05-12 audit shrank this
  *      to halve the session-fixation window on shared/kiosk devices).
- *   3. If a `state` param round-tripped through Directus, it must match the
- *      stored nonce. Directus may strip our query string when appending
- *      `?access_token=…` — when state is absent we fall back to the sentinel
- *      check alone (documented residual gap in SECURITY.md).
+ *   3. A `state` nonce must round-trip and match the stored sentinel nonce.
+ *      loginWithOAuth() always appends `?state=<crypto-random nonce>` to the
+ *      callback URL, so a missing/mismatched state is rejected — this is the
+ *      anti-login-CSRF / session-fixation binding. The sentinel-only fallback
+ *      (accepting an absent state) was removed in the 2026-05-31 audit; we
+ *      control the redirect contract, so an absent state means the callback
+ *      did not originate from our own flow.
+ *
+ * Token hygiene: the access_token + refresh_token arrive in the URL query
+ * string. We strip them from the address bar with history.replaceState the
+ * instant they are read — before any branch, storage write or navigation —
+ * so they don't linger in browser history, bookmarks, or a Referer header on
+ * a later navigation. (The page renders only a same-origin SVG, so no
+ * subresource Referer leaks before this runs.)
  */
 const OAUTH_TTL_MS = 2 * 60 * 1000 // 2 minutes
 
@@ -30,6 +40,10 @@ export default function OAuthCallbackPage() {
     const expires = params.get('expires')
     const stateParam = params.get('state')
 
+    // Strip tokens from the address bar immediately — before any branch,
+    // storage write or navigation — so they never linger in history/referrer.
+    window.history.replaceState({}, '', '/auth/callback')
+
     let consumed = false
     let pending: { nonce?: string; ts?: number; provider?: string } | null = null
     try {
@@ -41,9 +55,10 @@ export default function OAuthCallbackPage() {
 
     // Reject token params that didn't come from a recent loginWithOAuth click.
     const fresh = !!pending?.ts && (Date.now() - pending.ts) < OAUTH_TTL_MS
-    // If state arrived back, it must match. (Absent state → fall through to
-    // sentinel-only check; presence + mismatch is always rejected.)
-    const stateOk = !stateParam || (!!pending?.nonce && stateParam === pending.nonce)
+    // Strict state binding: the `state` nonce must be present AND match the
+    // stored sentinel nonce. loginWithOAuth() always sends one, so an absent
+    // or mismatched state is rejected (anti-login-CSRF / session-fixation).
+    const stateOk = !!stateParam && !!pending?.nonce && stateParam === pending.nonce
     if (accessToken && refreshToken && fresh && stateOk) {
       const authData = {
         access_token: accessToken,
@@ -55,9 +70,6 @@ export default function OAuthCallbackPage() {
       storage.setItem('directus_auth', JSON.stringify(authData))
       consumed = true
     }
-
-    // Always strip tokens from URL before any subsequent navigation/render
-    window.history.replaceState({}, '', '/auth/callback')
 
     if (consumed) {
       navigate('/', { replace: true })

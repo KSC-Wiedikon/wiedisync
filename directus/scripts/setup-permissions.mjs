@@ -60,6 +60,15 @@ try {
 } catch { /* file missing — fine */ }
 
 const DIRECTUS_URL = process.env.DIRECTUS_URL || 'http://localhost:8055'
+// 2026-05-31 security audit: public `directus_files` read was unscoped, so
+// every uploaded asset (including feedback screenshots, which can contain a
+// member's authenticated screen / PII) was world-readable. Scope the public
+// read to the folder holding genuinely-public website assets (team photos,
+// sponsor logos). Set PUBLIC_FILES_FOLDER to that folder's UUID on dev + prod
+// so the filter applies; if unset the script falls back to the legacy blanket
+// read and prints a loud warning (the residual is documented in PERMISSIONS.md
+// and SECURITY.md). Feedback/profile uploads MUST live OUTSIDE this folder.
+const PUBLIC_FILES_FOLDER = process.env.PUBLIC_FILES_FOLDER || ''
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@kscw.ch'
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
 const ADMIN_PASSWORD_CLEAN = ADMIN_PASSWORD.replace(/\\!/g, '!')
@@ -252,6 +261,13 @@ const OWN_DELEGATION = {
   ],
 }
 
+/**
+ * from_member is current user — used to scope scorer_delegations CREATE so a
+ * member can only delegate their own duty (not fabricate a delegation FROM a
+ * teammate). 2026-05-31 security audit.
+ */
+const OWN_DELEGATION_FROM = { from_member: { user: { _eq: '$CURRENT_USER' } } }
+
 /** driver = current user */
 const OWN_DRIVER = { driver: { user: { _eq: '$CURRENT_USER' } } }
 
@@ -431,7 +447,12 @@ async function main() {
     // Junction tables for deep queries (website needs coach names, sponsor logos)
     await setPermRead(PUBLIC_POLICY, 'teams_sponsors')
     await setPermRead(PUBLIC_POLICY, 'teams_coaches')  // coach junction
-    await setPermRead(PUBLIC_POLICY, 'members', null, ['id', 'first_name', 'last_name', 'photo'])
+    // 2026-05-31 security audit: public members read was unfiltered, exposing
+    // every member's name + photo regardless of their `website_visible` opt-out
+    // (the privacy flag was only honoured by the kscw-website frontend, not at
+    // the permission layer — the whole roster was anonymously enumerable). Scope
+    // the public read to opt-in members only and keep the minimal field set.
+    await setPermRead(PUBLIC_POLICY, 'members', { website_visible: { _eq: true } }, ['id', 'first_name', 'last_name', 'photo'])
 
     // Calendar: hall slots, closures, hall events, halls.
     // Migration 035 removed `slot_claims` from Public — internal hall booking
@@ -454,8 +475,19 @@ async function main() {
     await setPerm(PUBLIC_POLICY, 'mixed_tournament_signups', 'create', null,
       ['name', 'email', 'sex', 'position_1', 'position_2', 'position_3', 'teams', 'notes', 'is_member', 'member_id'])
 
-    // Files (team photos, logos, feedback screenshots)
-    await setPermRead(PUBLIC_POLICY, 'directus_files')
+    // Files (team photos, logos). 2026-05-31 security audit: scope the public
+    // read to the public-assets folder so feedback screenshots / profile photos
+    // (which can contain PII) are not anonymously enumerable via
+    // GET /items/directus_files. Create stays open (public feedback/website
+    // uploads) but those land in a NON-public folder, so they're write-only to
+    // anon. If PUBLIC_FILES_FOLDER is unset, fall back to the legacy blanket
+    // read and warn — see the residual note in PERMISSIONS.md / SECURITY.md.
+    if (PUBLIC_FILES_FOLDER) {
+      await setPermRead(PUBLIC_POLICY, 'directus_files', { folder: { _eq: PUBLIC_FILES_FOLDER } })
+    } else {
+      console.warn('  ⚠ PUBLIC_FILES_FOLDER unset — public directus_files read stays UNSCOPED (all assets world-readable). Set it to the public-assets folder UUID to close the hole.')
+      await setPermRead(PUBLIC_POLICY, 'directus_files')
+    }
     await setPerm(PUBLIC_POLICY, 'directus_files', 'create')
 
     console.log(`  ✓ Public permissions set`)
@@ -561,11 +593,19 @@ async function main() {
   await setPerm(MEMBER_POLICY, 'members', 'update', OWN_USER, MEMBER_EDITABLE_FIELDS)
 
   // Participations: read scope set above (SAME_TEAM_AS_ME); CRU below.
-  await setPerm(MEMBER_POLICY, 'participations', 'create')
+  // 2026-05-31 security audit: create was unfiltered, so any member could
+  // POST a participation with `member` set to another member's id (mark a
+  // teammate absent, vote/confirm as them, etc.). Self-scope create with
+  // OWN_MEMBER so Directus validates `member` resolves to the caller.
+  await setPerm(MEMBER_POLICY, 'participations', 'create', OWN_MEMBER)
   await setPerm(MEMBER_POLICY, 'participations', 'update', OWN_MEMBER)
 
   // Absences: read scope set above (SAME_TEAM_AS_ME); CUD below.
-  await setPerm(MEMBER_POLICY, 'absences', 'create')
+  // 2026-05-31 security audit: create was unfiltered — an unfiltered create
+  // let any member POST a weekly/indefinite absence for a teammate, which
+  // (via migration 038's auto-decline cascade) silently flipped all the
+  // victim's confirmed RSVPs to declined. Self-scope create with OWN_MEMBER.
+  await setPerm(MEMBER_POLICY, 'absences', 'create', OWN_MEMBER)
   await setPerm(MEMBER_POLICY, 'absences', 'update', OWN_MEMBER)
   await setPerm(MEMBER_POLICY, 'absences', 'delete', OWN_MEMBER)
 
@@ -599,9 +639,11 @@ async function main() {
     'date_created', 'date_updated',
   ])
 
-  // Push subscriptions — CRUD own
+  // Push subscriptions — CRUD own. 2026-05-31 security audit: self-scope
+  // create with OWN_MEMBER so a member can't register a push subscription
+  // attributed to another member.
   await setPermRead(MEMBER_POLICY, 'push_subscriptions', OWN_MEMBER)
-  await setPerm(MEMBER_POLICY, 'push_subscriptions', 'create')
+  await setPerm(MEMBER_POLICY, 'push_subscriptions', 'create', OWN_MEMBER)
   await setPerm(MEMBER_POLICY, 'push_subscriptions', 'update', OWN_MEMBER)
   await setPerm(MEMBER_POLICY, 'push_subscriptions', 'delete', OWN_MEMBER)
 
@@ -638,9 +680,11 @@ async function main() {
   // Spielplaner assignments — self-scoped (migrations 034, 042).
   await setPermRead(MEMBER_POLICY, 'spielplaner_assignments', OWN_MEMBER)
 
-  // Scorer delegations — read/create/update own
+  // Scorer delegations — read/create/update own. 2026-05-31 security audit:
+  // create was unfiltered, letting a member fabricate a delegation FROM a
+  // teammate. Self-scope create on `from_member` (the delegating side).
   await setPermRead(MEMBER_POLICY, 'scorer_delegations', OWN_DELEGATION)
-  await setPerm(MEMBER_POLICY, 'scorer_delegations', 'create')
+  await setPerm(MEMBER_POLICY, 'scorer_delegations', 'create', OWN_DELEGATION_FROM)
   await setPerm(MEMBER_POLICY, 'scorer_delegations', 'update', OWN_DELEGATION)
 
   // Team invites — read own
@@ -664,19 +708,24 @@ async function main() {
   await setPermRead(MEMBER_POLICY, 'tasks', OWN_TASK_FILTER)
   await setPerm(MEMBER_POLICY, 'tasks', 'update', OWN_TASK_FILTER)
 
-  // Carpools — create, update own
-  await setPerm(MEMBER_POLICY, 'carpools', 'create')
+  // Carpools — create, update own. 2026-05-31 security audit: self-scope
+  // create so a member can only offer a carpool as themselves (`driver`) and
+  // only add themselves as a passenger (`passenger`), not impersonate others.
+  await setPerm(MEMBER_POLICY, 'carpools', 'create', OWN_DRIVER)
   await setPerm(MEMBER_POLICY, 'carpools', 'update', OWN_DRIVER)
-  await setPerm(MEMBER_POLICY, 'carpool_passengers', 'create')
+  await setPerm(MEMBER_POLICY, 'carpool_passengers', 'create', OWN_PASSENGER)
   await setPerm(MEMBER_POLICY, 'carpool_passengers', 'update', OWN_PASSENGER)
 
-  // Polls — vote
+  // Polls — vote. 2026-05-31 security audit: create was unfiltered, letting a
+  // member cast a vote attributed to another member. Self-scope with OWN_MEMBER.
   await setPermRead(MEMBER_POLICY, 'poll_votes', OWN_MEMBER)
-  await setPerm(MEMBER_POLICY, 'poll_votes', 'create')
+  await setPerm(MEMBER_POLICY, 'poll_votes', 'create', OWN_MEMBER)
   await setPerm(MEMBER_POLICY, 'poll_votes', 'update', OWN_MEMBER)
 
-  // Team requests — create, read own
-  await setPerm(MEMBER_POLICY, 'team_requests', 'create')
+  // Team requests — create, read own. 2026-05-31 security audit: create was
+  // unfiltered, letting a member file a join request on behalf of another
+  // member. Self-scope create on `member` so only own requests can be created.
+  await setPerm(MEMBER_POLICY, 'team_requests', 'create', { member: { user: { _eq: '$CURRENT_USER' } } })
   await setPermRead(MEMBER_POLICY, 'team_requests', { member: { user: { _eq: '$CURRENT_USER' } } })
 
   // Fines (migration 069) — members see their own fines (across all teams) and

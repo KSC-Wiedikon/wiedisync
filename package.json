@@ -127,6 +127,10 @@
     "three-globe": "^2.45.2",
     "vaul": "^1.1.2"
   },
+  "overrides": {
+    "tmp": "^0.2.6",
+    "uuid": "^11.1.1"
+  },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
     "@eslint/js": "^10.0.1",

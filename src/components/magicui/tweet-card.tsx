@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { Suspense } from "react"
+import DOMPurify from "dompurify"
 import { enrichTweet, type EnrichedTweet, type TweetProps } from "react-tweet"
 import { getTweet, type Tweet } from "react-tweet/api"
 
@@ -169,7 +170,9 @@ export const TweetBody = ({ tweet }: { tweet: EnrichedTweet }) => (
             <span
               key={idx}
               className="text-foreground text-[15px] font-normal"
-              dangerouslySetInnerHTML={{ __html: entity.text }}
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(entity.text),
+              }}
             />
           )
         default:

@@ -41,11 +41,12 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
-    // Health endpoint — restricted CORS
+    // Health endpoint — restricted CORS. Exact-origin allowlist (no suffix
+    // matching): `endsWith('.kscw.ch')` would reflect arbitrary subdomains
+    // like `https://evil.kscw.ch`, so we test exact membership instead.
     if (url.pathname === '/health') {
       const origin = request.headers.get('Origin') || ''
-      const allowedOrigin = origin && (origin === env.ALLOWED_ORIGIN || origin.endsWith('.kscw.ch'))
-        ? origin : env.ALLOWED_ORIGIN
+      const allowedOrigin = isAllowedOrigin(origin, env) ? origin : env.ALLOWED_ORIGIN
       if (request.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders(allowedOrigin) })
       }
@@ -59,6 +60,14 @@ export default {
       })
     }
 
+    // Fail-closed guard — never collapse to comparing against the literal
+    // `Bearer undefined`. If `AUTH_SECRET` is unset/empty/too short (forgotten
+    // on a redeploy or a fresh env), reject every request rather than letting
+    // an attacker pass with `Authorization: Bearer undefined`.
+    if (!env.AUTH_SECRET || env.AUTH_SECRET.length < 32) {
+      return json({ error: 'misconfigured' }, 500, env.ALLOWED_ORIGIN)
+    }
+
     // Auth check — shared secret from Directus hooks. Constant-time compare
     // closes the timing-oracle on `AUTH_SECRET`: JS `!==` short-circuits on
     // the first differing byte, leaking the secret one char at a time over
@@ -69,6 +78,15 @@ export default {
     }
 
     if (request.method === 'POST' && url.pathname === '/push') {
+      // Basic per-caller rate limit (defence-in-depth on top of the auth gate).
+      // Keyed on the client IP from CF's trusted header. This is an in-isolate
+      // token bucket — best-effort, not durable across isolates; for a hard
+      // global cap add a Cloudflare Rate Limiting rule or a KV/Durable-Object
+      // backstop in wrangler.toml (no binding available in this file).
+      const callerIp = request.headers.get('CF-Connecting-IP') || 'unknown'
+      if (!rateLimitOk(callerIp)) {
+        return json({ error: 'rate limited' }, 429, env.ALLOWED_ORIGIN)
+      }
       return handlePush(request, env)
     }
 
@@ -76,11 +94,84 @@ export default {
   },
 }
 
-async function handlePush(request: Request, env: Env): Promise<Response> {
-  const body: PushRequest = await request.json()
+// Hard cap on subscriptions per request — the caller hands us the list and
+// we fan out one outbound fetch per entry, so an unbounded array is a spam /
+// egress-amplification primitive. Real fan-outs are well under this.
+const MAX_SUBSCRIPTIONS = 500
 
-  if (!body.subscriptions || body.subscriptions.length === 0) {
+// In-isolate per-IP rate limit: sliding window of timestamps. Best-effort only
+// (state is per-isolate, reset on cold start) — a durable cap belongs in a
+// Cloudflare Rate Limiting rule or KV/Durable-Object binding, but this still
+// blunts a single hot caller hammering one isolate.
+const RATE_LIMIT_MAX = 30 // requests
+const RATE_LIMIT_WINDOW_MS = 60_000 // per 60s
+const rateLimitHits = new Map<string, number[]>()
+
+function rateLimitOk(key: string): boolean {
+  const now = Date.now()
+  const cutoff = now - RATE_LIMIT_WINDOW_MS
+  const recent = (rateLimitHits.get(key) || []).filter((t) => t > cutoff)
+  if (recent.length >= RATE_LIMIT_MAX) {
+    rateLimitHits.set(key, recent)
+    return false
+  }
+  recent.push(now)
+  rateLimitHits.set(key, recent)
+  // Opportunistic cleanup to bound memory across many distinct IPs.
+  if (rateLimitHits.size > 10_000) {
+    for (const [k, ts] of rateLimitHits) {
+      if (ts.every((t) => t <= cutoff)) rateLimitHits.delete(k)
+    }
+  }
+  return true
+}
+
+// Only deliver to known push-service hosts. Each `fetch(sub.endpoint)` targets
+// a caller-supplied URL; without this allowlist the worker is an arbitrary-host
+// fetch (SSRF-ish) relay. Matched against the endpoint URL host (exact or
+// dot-suffixed subdomain — anchored, not a substring match).
+const ALLOWED_PUSH_HOSTS = [
+  'googleapis.com',
+  'push.services.mozilla.com',
+  'push.apple.com',
+  'notify.windows.com',
+]
+
+function isAllowedPushEndpoint(endpoint: string): boolean {
+  let host: string
+  try {
+    const u = new URL(endpoint)
+    if (u.protocol !== 'https:') return false
+    host = u.host.toLowerCase()
+  } catch {
+    return false
+  }
+  return ALLOWED_PUSH_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))
+}
+
+function isValidSubscription(sub: unknown): sub is PushSubscription {
+  if (!sub || typeof sub !== 'object') return false
+  const s = sub as Record<string, unknown>
+  if (typeof s.endpoint !== 'string' || !s.endpoint) return false
+  const keys = s.keys as Record<string, unknown> | undefined
+  if (!keys || typeof keys !== 'object') return false
+  return typeof keys.p256dh === 'string' && typeof keys.auth === 'string'
+}
+
+async function handlePush(request: Request, env: Env): Promise<Response> {
+  let body: PushRequest
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'invalid payload' }, 400, env.ALLOWED_ORIGIN)
+  }
+
+  if (!body || !Array.isArray(body.subscriptions) || body.subscriptions.length === 0) {
     return json({ error: 'no subscriptions' }, 400, env.ALLOWED_ORIGIN)
+  }
+
+  if (body.subscriptions.length > MAX_SUBSCRIPTIONS) {
+    return json({ error: 'too many subscriptions' }, 413, env.ALLOWED_ORIGIN)
   }
 
   const payload = JSON.stringify({
@@ -93,6 +184,13 @@ async function handlePush(request: Request, env: Env): Promise<Response> {
   const result: PushResult = { sent: 0, failed: 0, errors: [], expired: [] }
 
   const promises = body.subscriptions.map(async (sub) => {
+    // Drop malformed entries and any endpoint not on a known push service —
+    // closes the arbitrary-host fetch primitive without failing the batch.
+    if (!isValidSubscription(sub) || !isAllowedPushEndpoint(sub.endpoint)) {
+      result.errors.push('Rejected invalid or untrusted subscription')
+      result.failed++
+      return
+    }
     try {
       const response = await sendWebPush(sub, payload, env)
 
@@ -418,6 +516,24 @@ function timingSafeEqualStr(a: string, b: string): boolean {
     diff |= (aBytes[i] ?? 0) ^ (bBytes[i] ?? 0)
   }
   return diff === 0
+}
+
+// Exact-origin allowlist for CORS. No suffix matching — a bare
+// `endsWith('.kscw.ch')` accepts attacker-controlled subdomains
+// (`https://evil.kscw.ch`). We test exact known origins plus the
+// `<hash>.wiedisync.pages.dev` CF Pages preview pattern (anchored).
+function isAllowedOrigin(origin: string, env: Env): boolean {
+  if (!origin) return false
+  const exact = new Set([
+    env.ALLOWED_ORIGIN,
+    'https://wiedisync.kscw.ch',
+    'https://wiedisync.pages.dev',
+    'http://localhost:5173',
+    'http://localhost:4173',
+  ])
+  if (exact.has(origin)) return true
+  // CF Pages branch/preview deploys: https://<hash>.wiedisync.pages.dev
+  return /^https:\/\/[a-z0-9-]+\.wiedisync\.pages\.dev$/.test(origin)
 }
 
 function corsHeaders(origin: string): Record<string, string> {

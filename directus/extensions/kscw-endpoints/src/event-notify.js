@@ -1,4 +1,4 @@
-import { buildEmailLayout, buildInfoCard, formatDateCH, weekday, FRONTEND_URL } from './email-template.js'
+import { buildEmailLayout, buildInfoCard, formatDateCH, weekday, FRONTEND_URL, escHtml } from './email-template.js'
 
 /** Get current season in Wiedisync short form, e.g. '2025/26' (matches teams.season, member_teams.season) */
 function getCurrentSeason() {
@@ -7,6 +7,28 @@ function getCurrentSeason() {
   const m = now.getMonth() // 0-based; Aug+ counts as new season
   const startYear = m >= 7 ? y : y - 1
   return `${startYear}/${(startYear + 1).toString().slice(-2)}`
+}
+
+/**
+ * Per-(user, event) rate limit for the notify fan-out. Mirrors the in-memory
+ * ipRateLimit pattern in index.js but keys on the authenticated user + event so
+ * one caller cannot re-blast the same audience. Module-scoped so it survives
+ * across requests within the process. Self-cleans when it grows past 1k entries.
+ */
+const notifyRateLimit = new Map() // `${user}:${eventId}` → { count, resetAt }
+function userEventRateLimit(map, key, maxAttempts, windowMs) {
+  const now = Date.now()
+  const entry = map.get(key)
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= maxAttempts) return false
+    entry.count++
+  } else {
+    map.set(key, { count: 1, resetAt: now + windowMs })
+  }
+  if (map.size > 1000) {
+    for (const [k, v] of map) { if (now > v.resetAt) map.delete(k) }
+  }
+  return true
 }
 
 export function registerEventNotify(router, { services, database, getSchema, logger }) {
@@ -37,10 +59,18 @@ export function registerEventNotify(router, { services, database, getSchema, log
 
       // Authorise: admin, sport-admin role, event creator, or coach/TR of
       // any of the event's teams. Compute against the same user once.
+      //
+      // `elevated` (admin / sport-admin / event creator) may notify the event's
+      // full resolved audience. A leader-only caller (coach/TR) is allowed but
+      // their fan-out is scoped to the team(s) they actually lead — they must
+      // NOT be able to expand the event's club-wide invited_roles, and they may
+      // NOT trigger a club-wide email blast.
       const isAdmin = req.accountability.admin === true
+      let elevated = isAdmin
       let allowed = isAdmin
       let caller = null
-      if (!allowed) {
+      const ledTeamIds = new Set() // event-team ids the caller leads as coach/TR
+      if (!elevated) {
         caller = await db('members')
           .where('user', req.accountability.user)
           .select('id', 'role')
@@ -49,24 +79,25 @@ export function registerEventNotify(router, { services, database, getSchema, log
           ? caller.role
           : (caller?.role ? (() => { try { return JSON.parse(caller.role) } catch { return [] } })() : [])
         if (roles.includes('admin') || roles.includes('superuser') || roles.includes('vb_admin') || roles.includes('bb_admin')) {
+          elevated = true
           allowed = true
         } else if (caller && event.created_by && String(event.created_by) === String(caller.id)) {
+          elevated = true
           allowed = true
         } else if (caller) {
           const evTeamIds = (event.teams ?? []).map(t => t.teams_id ?? t).filter(Boolean)
           if (evTeamIds.length > 0) {
-            const hit = await db('teams_coaches')
+            const coachRows = await db('teams_coaches')
               .whereIn('teams_id', evTeamIds)
               .where('members_id', caller.id)
-              .first()
-            if (hit) allowed = true
-            if (!allowed) {
-              const hit2 = await db('teams_responsibles')
-                .whereIn('teams_id', evTeamIds)
-                .where('members_id', caller.id)
-                .first()
-              if (hit2) allowed = true
-            }
+              .select('teams_id')
+            for (const r of coachRows) ledTeamIds.add(Number(r.teams_id))
+            const trRows = await db('teams_responsibles')
+              .whereIn('teams_id', evTeamIds)
+              .where('members_id', caller.id)
+              .select('teams_id')
+            for (const r of trRows) ledTeamIds.add(Number(r.teams_id))
+            if (ledTeamIds.size > 0) allowed = true
           }
         }
       }
@@ -74,11 +105,28 @@ export function registerEventNotify(router, { services, database, getSchema, log
         return res.status(403).json({ error: 'Not authorised to notify for this event' })
       }
 
-      // Resolve audience: team members + role members + directly invited
+      // A leader-only caller cannot trigger a club-wide email blast — only
+      // admins, sport-admins, and the event creator may send_email:true.
+      if (sendEmail && !elevated) {
+        return res.status(403).json({ error: 'Only an admin or the event creator can send the email notification' })
+      }
+
+      // Per-(user, event) rate limit: max 1 fan-out per event per 10 min per
+      // caller, so the same user cannot repeatedly blast the audience.
+      const rateKey = `${req.accountability.user}:${eventId}`
+      if (!userEventRateLimit(notifyRateLimit, rateKey, 1, 10 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Already notified recently — please wait before notifying again' })
+      }
+
+      // Resolve audience: team members + role members + directly invited.
+      // For a leader-only caller (coach/TR), the audience is restricted to the
+      // team(s) they actually lead — the event's club-wide invited_roles and
+      // invited_members are NOT expanded for them.
       const memberIds = new Set()
 
       // 1. Team members (current season only)
-      const teamIds = (event.teams ?? []).map(t => t.teams_id ?? t)
+      const allTeamIds = (event.teams ?? []).map(t => t.teams_id ?? t)
+      const teamIds = elevated ? allTeamIds : allTeamIds.filter(t => ledTeamIds.has(Number(t)))
       if (teamIds.length > 0) {
         const currentSeason = getCurrentSeason()
         const memberTeams = await db('member_teams')
@@ -94,8 +142,9 @@ export function registerEventNotify(router, { services, database, getSchema, log
         for (const c of coaches) memberIds.add(String(c.members_id))
       }
 
-      // 2. Role-based members
-      const roles = event.invited_roles ?? []
+      // 2. Role-based members (elevated callers only — never expand club-wide
+      //    invited_roles for a leader-only coach/TR).
+      const roles = elevated ? (event.invited_roles ?? []) : []
       for (const role of roles) {
         // Global roles (use JSONB containment to avoid substring matches)
         if (['vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser'].includes(role)) {
@@ -137,9 +186,12 @@ export function registerEventNotify(router, { services, database, getSchema, log
         }
       }
 
-      // 3. Directly invited members
-      const directInvites = (event.invited_members ?? []).map(m => String(m.members_id ?? m))
-      for (const id of directInvites) memberIds.add(id)
+      // 3. Directly invited members (elevated callers only — a leader-only
+      //    coach/TR is limited to members of the team(s) they lead, above).
+      if (elevated) {
+        const directInvites = (event.invited_members ?? []).map(m => String(m.members_id ?? m))
+        for (const id of directInvites) memberIds.add(id)
+      }
 
       // Remove event creator from notifications
       if (event.created_by) memberIds.delete(String(event.created_by))
@@ -215,7 +267,9 @@ export function registerEventNotify(router, { services, database, getSchema, log
                 ...(dateStr ? [{ label: l.date, value: dateStr, halfWidth: true }] : []),
                 ...(event.location ? [{ label: l.place, value: event.location, halfWidth: true }] : []),
               ])
-              + (event.description ? `<div style="font-size:14px;color:#cbd5e1;margin-top:12px">${event.description}</div>` : '')
+              // event.description is free text — escape before interpolating so
+              // a creator cannot inject HTML/phishing markup into the email.
+              + (event.description ? `<div style="font-size:14px;color:#cbd5e1;margin-top:12px">${escHtml(event.description)}</div>` : '')
 
               const html = buildEmailLayout(body, {
                 title: l.title,

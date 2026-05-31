@@ -67,6 +67,24 @@ if (useProdProxy && typeof window !== 'undefined') {
 
 // ── Client ──────────────────────────────────────────────────────────
 
+// ACCEPTED RISK (2026-05-31 security audit — [Medium] "Access + refresh tokens
+// stored in localStorage/sessionStorage as plaintext"):
+// We use Directus `json` auth mode with a custom storage adapter that persists
+// the access_token + refresh_token to localStorage (or sessionStorage) under
+// `directus_auth`. This is XSS-exfiltratable in principle — a successful XSS or
+// a compromised dependency could read both tokens from web storage.
+// We keep this DELIBERATELY: standalone-PWA persistence requires localStorage
+// (iOS clears sessionStorage when a backgrounded standalone app is killed), and
+// switching to httpOnly-cookie session mode is an architectural change that
+// would break that persistence. The compensating control is the strict CSP
+// shipped in `public/_headers` — `script-src 'self' …` with no 'unsafe-inline'/
+// 'unsafe-eval', plus a tight `connect-src` allowlist that blocks exfiltration
+// to an arbitrary endpoint — together with DOMPurify on every HTML sink,
+// X-Frame-Options: DENY, nosniff and HSTS.
+// Never log the token payload (no console.* / Sentry of `data` below).
+// TODO: migrate to Directus cookie session mode (`authentication('session')`)
+//   so the refresh token lives in an httpOnly Secure SameSite cookie unreadable
+//   from JS, keeping only the short-lived access token in memory.
 export const client = createDirectus(API_URL)
   .with(authentication('json', {
     storage: {

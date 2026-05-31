@@ -25,7 +25,11 @@ export const SECTION_COLLECTIONS = {
   registrations: ['registrations'],
   sponsors: ['sponsors'],
   scorer_courses: ['scorer_courses'],
-  mixed_turnier: ['mixed_tournament_signups', 'participations', 'members'],
+  // Only the signups collection itself. members/participations were removed:
+  // the generic admin-accountability CRUD routes bypass RLS, so exposing them
+  // here let a mixed_turnier-only Website Admin read/modify/delete any member
+  // (full PII) or any participation club-wide (IDOR / privilege escalation).
+  mixed_turnier: ['mixed_tournament_signups'],
 }
 
 const MANAGER_ROLES = new Set(['superuser', 'administrator'])

@@ -616,9 +616,23 @@ export default {
         const trainingsPublic = trainings.map(enrichTraining)
         const trialTrainingsPublic = trialTrainings.map(enrichTraining)
 
+        // Strip internal/config columns before spreading the raw teams row into
+        // the public payload. These are coach-dashboard prefs, feature toggles,
+        // internal source IDs and member FKs that the public website never needs
+        // (mirrors the PUBLIC_TEAM_FIELDS allowlist used by /public/teams).
+        const {
+          features_enabled,
+          dashboard_range_from,
+          dashboard_range_to,
+          dashboard_league_only,
+          bb_source_id,
+          captain,
+          ...publicTeam
+        } = team
+
         res.json({
           data: {
-            ...team,
+            ...publicTeam,
             roster: rosterPublic,
             coaches: coachesPublic,
             upcoming_games: upcomingPublic,
@@ -1057,31 +1071,39 @@ export default {
           const member = await database('members').where('user', userId).select('id').first()
           memberId = member?.id
         } else if (token) {
-          // Mode 2: Password-reset token from email link
-          const user = await database('directus_users')
-            .where('token', token)
-            .select('id', 'token_expires_at')
+          // Mode 2: Password-reset token from email link.
+          // Validated against the dedicated `password_reset_tokens` table
+          // (SHA-256 hash, 1h TTL, single-use) — NEVER against
+          // directus_users.token, which is a full-privilege static API
+          // credential (security audit 2026-05-31, migration 073).
+          const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+          const row = await database('password_reset_tokens')
+            .where('token_hash', tokenHash)
+            .select('id', 'user', 'expires_at')
             .first()
-          if (!user) {
+          if (!row) {
             return res.status(400).json({ error: 'Invalid or expired token' })
           }
-          // Server-side expiry check (24h tokens)
-          if (user.token_expires_at && new Date() > new Date(user.token_expires_at)) {
-            await database('directus_users').where('id', user.id).update({ token: null, token_expires_at: null })
+          // Single-use: delete up-front so the link can't be replayed even if a
+          // later step fails. (Expired rows are deleted here too.)
+          await database('password_reset_tokens').where('id', row.id).delete()
+          if (row.expires_at && new Date() > new Date(row.expires_at)) {
             return res.status(400).json({ error: 'Invalid or expired token' })
           }
-          userId = user.id
-          // Clear the token so it can't be reused
-          await database('directus_users').where('id', userId).update({ token: null, token_expires_at: null })
+          userId = row.user
           const member = await database('members').where('user', userId).select('id').first()
           memberId = member?.id
         } else if (rawEmail) {
-          // Mode 2: OTP-verified user setting initial password
+          // Mode 3: OTP-verified user setting initial password
           const email = rawEmail.toLowerCase().trim()
 
-          // Verify email was OTP-confirmed
+          // Verify email was OTP-confirmed AND that the verification is still
+          // fresh (within the original 10-min OTP window). Without the expiry
+          // bound, an abandoned `verified` row stayed usable forever
+          // (security audit 2026-05-31, "accepts any verified row").
           const verification = await database('email_verifications')
             .where('email', email).where('verified', true)
+            .where('expires_at', '>', new Date().toISOString())
             .orderBy('id', 'desc').first()
           if (!verification) {
             return res.status(400).json({ error: 'Invalid or expired request' })

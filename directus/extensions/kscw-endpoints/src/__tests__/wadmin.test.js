@@ -24,8 +24,13 @@ describe('wadmin core', () => {
     expect(ALL_SECTIONS).toEqual(
       ['news','events','registrations','sponsors','scorer_courses','mixed_turnier'])
     expect(Object.keys(SECTION_COLLECTIONS).sort()).toEqual([...ALL_SECTIONS].sort())
+    // Security audit 2026-05-31: 'participations' and 'members' were removed
+    // from this section — the generic admin-accountability /wadmin CRUD routes
+    // bypass RLS, so exposing those full collections to a Website Admin section
+    // was an IDOR / PII-disclosure hole. The mixed-tournament UI works through
+    // the signups collection itself.
     expect(SECTION_COLLECTIONS.mixed_turnier).toEqual(
-      ['mixed_tournament_signups','participations','members'])
+      ['mixed_tournament_signups'])
   })
 
   it('isManager is case-insensitive for Superuser/Administrator only', () => {
@@ -104,7 +109,11 @@ describe('wadmin gate + scope', () => {
   it('assertCollection: in-contract ok, out-of-contract rejected', () => {
     expect(assertCollection('news', 'news')).toBe(true)
     expect(assertCollection('news', 'sponsors')).toBe(false)
-    expect(assertCollection('mixed_turnier', 'members')).toBe(true)
+    // Security audit 2026-05-31: members/participations no longer in scope for
+    // the mixed_turnier section (RLS-bypassing IDOR fix); only signups remain.
+    expect(assertCollection('mixed_turnier', 'members')).toBe(false)
+    expect(assertCollection('mixed_turnier', 'participations')).toBe(false)
+    expect(assertCollection('mixed_turnier', 'mixed_tournament_signups')).toBe(true)
   })
 
   it('parseQuery maps Directus REST query to ItemsService query', () => {
