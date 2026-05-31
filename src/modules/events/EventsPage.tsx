@@ -129,13 +129,16 @@ export default function EventsPage() {
 
   // Batch-fetch ALL participations for visible events in ONE request
   const eventIds = useMemo(() => visibleEvents.map((e) => e.id), [visibleEvents])
-  const participationFilter = useMemo((): Record<string, unknown> | string => {
-    if (eventIds.length === 0) return ''
+  const participationFilter = useMemo((): Record<string, unknown> => {
+    // Use an impossible-match sentinel (not '') when there are no events: a realtime
+    // refetch bypasses `enabled`, and fetchItems drops a falsy filter — without the
+    // sentinel an empty list would fetch ALL participations unfiltered (limit:-1).
+    if (eventIds.length === 0) return { _and: [{ activity_type: { _eq: 'event' } }, { activity_id: { _in: [-1] } }] }
     return { _and: [{ activity_type: { _eq: 'event' } }, { activity_id: { _in: eventIds } }] }
   }, [eventIds])
 
   const { data: allParticipationsRaw, refetch: refetchParticipations } = useCollection<Participation>('participations', {
-    filter: participationFilter as Record<string, unknown> | undefined,
+    filter: participationFilter,
     fields: ['id', 'activity_id', 'activity_type', 'member', 'status', 'note', 'session_id', 'guest_count', 'is_staff', 'waitlisted_at', 'date_created', 'date_updated'],
     all: true,
     enabled: eventIds.length > 0,
