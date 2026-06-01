@@ -745,6 +745,21 @@ export function registerGameScheduling(router, { database, logger, services, get
             .where('active', true)
             .update({ active: false })
 
+          // Carry UPCOMING events onto the new-season teams: re-point future
+          // events_teams links from each cloned old team to its new id, so
+          // event-day blocking (the Terminplanung slot picker) follows the
+          // active team. Past events stay on the archived team as history.
+          // Skip events already linked to the new team (avoids a dup junction).
+          let eventsRelinked = 0
+          for (const [oldId, newId] of Object.entries(map)) {
+            const updated = await trx('events_teams')
+              .where('teams_id', oldId)
+              .whereIn('events_id', trx('events').select('id').where('start_date', '>=', now))
+              .whereNotIn('events_id', trx('events_teams').select('events_id').where('teams_id', newId))
+              .update({ teams_id: newId })
+            eventsRelinked += updated
+          }
+
           counts = {
             from_season: fromSeason,
             to_season: toSeason,
@@ -756,6 +771,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             hall_slots: hallSlots,
             member_teams: memberTeams,
             teams_archived: teamsArchived,
+            events_relinked: eventsRelinked,
           }
 
           if (dryRun) {
