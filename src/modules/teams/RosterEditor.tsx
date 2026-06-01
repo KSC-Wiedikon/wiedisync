@@ -69,7 +69,10 @@ export default function RosterEditor() {
   useEffect(() => {
     if (!teamSlug) return
     fetchItems<Team>('teams', {
-      filter: { name: { _eq: teamSlug } },
+      // Scope to the active (current-season) team — post-rollover there are two
+      // same-name rows; without active=true we'd edit last season's archived
+      // roster. See INFRA.md → Season rollover.
+      filter: { _and: [{ name: { _eq: teamSlug } }, { active: { _eq: true } }] },
       limit: 1,
       // Expand M2M aliases — bare `coach`/`team_responsible` come back as
       // junction row IDs that flattenMemberIds would mis-interpret as

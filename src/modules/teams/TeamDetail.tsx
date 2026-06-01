@@ -301,7 +301,11 @@ export default function TeamDetail() {
   useEffect(() => {
     if (!teamSlug) return
     setLoading(true)
-    fetchItems<Team>('teams', { filter: { name: { _eq: teamSlug } }, limit: 1, fields: ['*', 'coach.members_id', 'team_responsible.members_id'] })
+    // Scope to the active (current-season) team — after the June-1 season rollover
+    // there are two same-name rows (e.g. H3 2025/26 archived + 2026/27 active);
+    // without active=true Directus returns the oldest (inactive) row, surfacing
+    // last season's roster + guest levels. See INFRA.md → Season rollover.
+    fetchItems<Team>('teams', { filter: { _and: [{ name: { _eq: teamSlug } }, { active: { _eq: true } }] }, limit: 1, fields: ['*', 'coach.members_id', 'team_responsible.members_id'] })
       .then((items) => setTeam(items[0] ?? null))
       .catch(() => setTeam(null))
       .finally(() => setLoading(false))
