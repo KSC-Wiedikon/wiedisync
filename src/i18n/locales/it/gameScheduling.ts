@@ -40,7 +40,7 @@ export default {
   sourceSpielHalle: 'Palestra di gioco',
   sourceManual: 'Manuale',
   teamSlotConfig: 'Configurazione squadra',
-  latestSlot: 'Slot standard',
+  latestSlot: 'Slot',
   spielsamstagMode: 'Sabato',
   latestSlotHint: "L'ultimo slot settimanale della squadra (fine 21:30) nella palestra Doltschi o KWI, ogni settimana da set. a mar.",
   spielsamstagModeHint: 'Il pool centrale dei sabati di gioco (KWI A/B/C · 11:00 / 13:30 / 16:00).',

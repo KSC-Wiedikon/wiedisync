@@ -40,7 +40,7 @@ export default {
   sourceSpielHalle: 'Spielhalle',
   sourceManual: 'Manuell',
   teamSlotConfig: 'Team-Konfiguration',
-  latestSlot: 'Standard-Slot',
+  latestSlot: 'Slot',
   spielsamstagMode: 'Samschtig',
   latestSlotHint: 'De spötischt wüchentlich Slot vom Team (Ändi 21:30) i de Doltschi- oder KWI-Halle, jedi Wuche Sep–Mär.',
   spielsamstagModeHint: 'De zentral Spielsamschtig-Pool (KWI A/B/C · 11:00 / 13:30 / 16:00).',

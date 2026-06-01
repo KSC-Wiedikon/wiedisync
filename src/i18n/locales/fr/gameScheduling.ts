@@ -40,7 +40,7 @@ export default {
   sourceSpielHalle: 'Salle de match',
   sourceManual: 'Manuel',
   teamSlotConfig: 'Configuration par equipe',
-  latestSlot: 'Créneau standard',
+  latestSlot: 'Créneau',
   spielsamstagMode: 'Samedi',
   latestSlotHint: "Le dernier créneau hebdomadaire de l'équipe (fin 21:30) dans la salle Doltschi ou KWI, chaque semaine de sep. à mars.",
   spielsamstagModeHint: 'Le pool central des samedis de match (KWI A/B/C · 11:00 / 13:30 / 16:00).',

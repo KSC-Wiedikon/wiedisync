@@ -37,7 +37,7 @@ export default {
   sourceSpielHalle: 'Game Hall',
   sourceManual: 'Manual',
   teamSlotConfig: 'Team Configuration',
-  latestSlot: 'Standard slot',
+  latestSlot: 'Slot',
   spielsamstagMode: 'Saturday',
   latestSlotHint: "The team's latest weekly slot (ending 21:30) in the Doltschi or KWI hall, every week Sep–Mar.",
   spielsamstagModeHint: 'The central Game-Saturday pool (KWI A/B/C · 11:00 / 13:30 / 16:00).',
