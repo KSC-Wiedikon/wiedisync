@@ -27,6 +27,12 @@ export default defineConfig({
   },
   server: {
     port: 1234,
+    // Bind all interfaces so the dev server is reachable over Tailscale/LAN
+    // (e.g. http://100.76.39.66:1234) without an SSH tunnel — the repo + Vite
+    // run on lenovoserver but get accessed from another machine. dev Directus
+    // is CORS_ORIGIN=*, so a non-localhost origin is still accepted; via a
+    // non-localhost host the app uses VITE_DIRECTUS_URL (dev) from `.env`.
+    host: true,
     // `npm run dev:prod` sets VITE_PROD_DATA=1 → all `/directus/*` requests
     // (REST + WS) get reverse-proxied to prod Directus. The browser only
     // ever talks to localhost:1234, so CORS never engages. Writes hit
