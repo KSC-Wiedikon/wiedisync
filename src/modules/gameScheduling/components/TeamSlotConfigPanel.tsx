@@ -61,17 +61,16 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
     const pool = usesDoltschi
       ? hallSlots.filter((s) => s.sport === 'volleyball' && isDoltschi(s.hall?.name || ''))
       : []
+    const fmt = (s: HallSlotLite) => `${DAY[s.day_of_week]} ${hm(s.start_time)}–${hm(s.end_time)} · ${s.hall?.name}`
     const parts = [...kwiOwn, ...pool]
     if (parts.length) {
-      const labels = [...new Set(parts.map((s) => `${DAY[s.day_of_week]} ${hm(s.start_time)}–${hm(s.end_time)} · ${s.hall?.name}`))]
-      return { label: labels.join(', '), fallback: false }
+      return { labels: [...new Set(parts.map(fmt))], fallback: false }
     }
     const sh = hallSlots.filter((s) => (s.label || '').toLowerCase() === 'spielhalle')
     if (sh.length) {
-      const halls = [...new Set(sh.map((s) => s.hall?.name).filter(Boolean))].join(', ')
-      return { label: `Spielhalle · ${DAY[sh[0].day_of_week]} ${hm(sh[0].start_time)} · ${halls}`, fallback: true }
+      return { labels: [...new Set(sh.map((s) => `Spielhalle · ${fmt(s)}`))], fallback: true }
     }
-    return { label: '—', fallback: true }
+    return { labels: ['—'], fallback: true }
   }
 
   // Sources are additive: a team can have the Standard slot AND the Saturday
@@ -117,9 +116,13 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
               </div>
 
               {/* Resolved Standard slot — struck through when the Standard toggle is off */}
-              <div className={`mt-1.5 text-xs ${standardOn ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 line-through dark:text-gray-500'}`}>
-                <span className="font-medium">{t('latestSlot')}:</span>{' '}
-                <span className={std.fallback ? 'italic text-amber-600 dark:text-amber-400' : ''}>{std.label}</span>
+              <div className={`mt-1.5 text-xs ${standardOn ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
+                <span className="font-medium">{t('latestSlot')}:</span>
+                <ul className={`mt-0.5 space-y-0.5 ${standardOn ? '' : 'line-through'}`}>
+                  {std.labels.map((l, i) => (
+                    <li key={i} className={std.fallback ? 'italic text-amber-600 dark:text-amber-400' : ''}>{l}</li>
+                  ))}
+                </ul>
               </div>
 
               <div className="mt-2.5 flex items-center gap-1">
