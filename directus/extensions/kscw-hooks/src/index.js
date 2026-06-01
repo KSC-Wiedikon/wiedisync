@@ -1353,7 +1353,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         WHERE mt.team = ?::integer
           AND a.start_date::date <= ?::date AND a.end_date::date >= ?::date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"trainings"')
-          AND (a.type != 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
+          AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'training' AND p.activity_id = ?::text AND p.member = mt.member
@@ -1388,7 +1388,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         WHERE mt.team = ?::integer
           AND a.start_date::date <= ?::date AND a.end_date::date >= ?::date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"games"')
-          AND (a.type != 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
+          AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'game' AND p.activity_id = ?::text AND p.member = mt.member
@@ -1422,7 +1422,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         WHERE et.events_id = ?::integer
           AND a.start_date::date <= ?::date AND a.end_date::date >= ?::date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
-          AND (a.type != 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
+          AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'event' AND p.activity_id = ?::text AND p.member = mt.member
@@ -1467,7 +1467,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       WHERE ${teamFilterSql}
         AND a.start_date::date <= ?::date AND a.end_date::date >= ?::date
         AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> ?)
-        AND (a.type != 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
+        AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
         AND NOT EXISTS (
           SELECT 1 FROM participations p
           WHERE p.activity_type = ? AND p.activity_id = ?::text AND p.member = mt.member
@@ -1755,7 +1755,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         WHERE t.date >= CURRENT_DATE AND t.cancelled = false
           AND a.start_date::date <= t.date AND a.end_date::date >= t.date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"trainings"')
-          AND (a.type != 'weekly' OR (a.days_of_week::jsonb @> to_jsonb(((EXTRACT(DOW FROM t.date)::int + 6) % 7))))
+          AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb(((EXTRACT(DOW FROM t.date)::int + 6) % 7))))
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = mt.member
@@ -1774,7 +1774,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           AND COALESCE(g.status, '') NOT IN ('completed', 'postponed', 'cancelled')
           AND a.start_date::date <= g.date AND a.end_date::date >= g.date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"games"')
-          AND (a.type != 'weekly' OR (a.days_of_week::jsonb @> to_jsonb(((EXTRACT(DOW FROM g.date)::int + 6) % 7))))
+          AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb(((EXTRACT(DOW FROM g.date)::int + 6) % 7))))
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = mt.member
@@ -1793,7 +1793,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         WHERE e.start_date::date >= CURRENT_DATE
           AND a.start_date::date <= e.start_date::date AND a.end_date::date >= e.start_date::date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
-          AND (a.type != 'weekly' OR (a.days_of_week::jsonb @> to_jsonb(((EXTRACT(DOW FROM e.start_date::date)::int + 6) % 7))))
+          AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb(((EXTRACT(DOW FROM e.start_date::date)::int + 6) % 7))))
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = mt.member
@@ -3034,7 +3034,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         WHERE a.member = ?::integer
           AND a.start_date::date <= ?::date AND a.end_date::date >= ?::date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> ?::jsonb)
-          AND (a.type != 'weekly' OR a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7))
+          AND (a.type IS DISTINCT FROM 'weekly' OR a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7))
         ORDER BY a.id ASC
         LIMIT 1
       `, [payload.member, dateStr, dateStr, JSON.stringify(affectsKey), dateStr])

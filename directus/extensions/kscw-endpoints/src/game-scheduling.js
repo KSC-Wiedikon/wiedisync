@@ -141,6 +141,22 @@ export function registerGameScheduling(router, { database, logger, services, get
               "AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date"
             )
         })
+        // Exclude home slots within ±1 day of an existing game.
+        .whereNotExists(function () {
+          this.select(database.raw('1')).from('games as g')
+            .whereRaw('g.kscw_team = ?', [opponent.kscw_team])
+            .whereRaw('game_scheduling_slots.date BETWEEN g.date::date - 1 AND g.date::date + 1')
+        })
+        // Exclude home slots where 3+ players are absent (proposal-3 threshold).
+        .whereRaw(
+          '(SELECT count(DISTINCT a.member) FROM absences a ' +
+          'JOIN member_teams mt ON mt.member = a.member ' +
+          'WHERE mt.team = ? AND (mt.guest_level = 0 OR mt.guest_level IS NULL) ' +
+          "AND a.type IS DISTINCT FROM 'weekly' " +
+          'AND a.start_date::date <= game_scheduling_slots.date AND a.end_date::date >= game_scheduling_slots.date ' +
+          "AND (a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')) < 3",
+          [opponent.kscw_team],
+        )
         .orderBy('date')
 
       const bookings = await database('game_scheduling_bookings')
@@ -153,12 +169,16 @@ export function registerGameScheduling(router, { database, logger, services, get
       // and one-off PLAYER absences (guests + weekly unavailabilities don't
       // count). The opponent's calendar greys these out (mirrors the
       // propose-away rejection below).
-      const blockedSet = new Set()
+      // Conflict dates for away proposals. Events + games(±1) are HARD blocks on
+      // every proposal. Absences are graded: proposals 1 & 2 reject ANY player
+      // absence; proposal 3 rejects only 3+ absent. So expose two sets — strict
+      // (hard ∪ any-absence) and loose (hard ∪ 3+-absence).
+      const hardSet = new Set()
       const addRange = (s, e) => {
         if (!s) return
         const d = new Date(`${s}T00:00:00Z`)
         const end = new Date(`${e || s}T00:00:00Z`)
-        for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) blockedSet.add(d.toISOString().slice(0, 10))
+        for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) hardSet.add(d.toISOString().slice(0, 10))
       }
       const evRows = await database('events as e')
         .join('events_teams as et', 'et.events_id', 'e.id')
@@ -175,7 +195,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         const base = new Date(`${r.d}T00:00:00Z`)
         for (let off = -1; off <= 1; off++) {
           const x = new Date(base); x.setUTCDate(x.getUTCDate() + off)
-          blockedSet.add(x.toISOString().slice(0, 10))
+          hardSet.add(x.toISOString().slice(0, 10))
         }
       })
       const absRows = await database('absences as a')
@@ -185,8 +205,6 @@ export function registerGameScheduling(router, { database, logger, services, get
         .whereRaw("a.type IS DISTINCT FROM 'weekly'")
         .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
         .select(database.raw('a.member as member'), database.raw('a.start_date::text as s'), database.raw('a.end_date::text as e'))
-      // A date is blocked by absences only when 3+ distinct PLAYERS are absent
-      // (a single player out doesn't stop a game).
       const absByDate = {}
       for (const r of absRows) {
         const d = new Date(`${r.s}T00:00:00Z`)
@@ -196,10 +214,14 @@ export function registerGameScheduling(router, { database, logger, services, get
           ;(absByDate[k] || (absByDate[k] = new Set())).add(r.member)
         }
       }
+      const strictSet = new Set(hardSet)
+      const looseSet = new Set(hardSet)
       for (const [k, members] of Object.entries(absByDate)) {
-        if (members.size >= 3) blockedSet.add(k)
+        strictSet.add(k)                        // proposals 1 & 2: any absence
+        if (members.size >= 3) looseSet.add(k)  // proposal 3: only 3+ absent
       }
-      const blocked_away_dates = [...blockedSet].sort()
+      const blocked_away_strict = [...strictSet].sort()
+      const blocked_away_loose = [...looseSet].sort()
 
       // SVRZ fixtures between this KSCW team and this opponent
       // Matched by opponent.team_name on home_team_name or away_team_name, filtered to games involving KSCW.
@@ -244,7 +266,8 @@ export function registerGameScheduling(router, { database, logger, services, get
         games: svrzGames,
         slots,
         bookings,
-        blocked_away_dates,
+        blocked_away_strict,
+        blocked_away_loose,
       })
     } catch (err) {
       log.error({ msg: `terminplanung/slots: ${err.message}`, endpoint: 'terminplanung/slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
@@ -409,9 +432,15 @@ export function registerGameScheduling(router, { database, logger, services, get
           .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
           .countDistinct('a.member as c')
           .first()
-        // Block only when 3+ distinct players are absent that day.
-        if (Number(absRow?.c || 0) >= 3) {
-          return res.status(400).json({ error: `${p.date} has 3 or more players absent — please pick another date.` })
+        // Proposals 1 & 2 (i < 2) must be absence-free; proposal 3 (i === 2)
+        // tolerates 1-2 absences and only blocks at 3+.
+        const absThreshold = i < 2 ? 1 : 3
+        if (Number(absRow?.c || 0) >= absThreshold) {
+          return res.status(400).json({
+            error: i < 2
+              ? `${p.date}: proposals 1 and 2 must have no player absences.`
+              : `${p.date} has 3 or more players absent — please pick another date.`,
+          })
         }
         const rawPlace = String(p.location || p.place || '').slice(0, 200)
         const dt = p.start_time ? `${p.date}T${p.start_time}` : p.date
