@@ -1,8 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
-import { createRecord } from '../../../lib/api'
+import { createRecord, fetchAllItems } from '../../../lib/api'
 import { toXlsx, downloadBlob } from '../../admin/utils/exportResults'
+import type { Team } from '../../../types'
+
+const normalizeTeam = (s: string) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
 
 interface ImportRow {
   Datum: string
@@ -18,6 +21,37 @@ export default function ExcelImportPanel() {
   const [preview, setPreview] = useState<ImportRow[]>([])
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  const [teams, setTeams] = useState<Team[]>([])
+
+  useEffect(() => {
+    fetchAllItems<Team>('teams', {
+      filter: { sport: { _eq: 'volleyball' }, active: { _eq: true } },
+      fields: ['id', 'name', 'full_name'],
+    })
+      .then(setTeams)
+      .catch(() => {})
+  }, [])
+
+  // Match an Excel team cell ("KSCW H2", "KSC Wiedikon H2", "H2", …) to a KSCW team.
+  const resolveKscw = (side: string): Team | null => {
+    const n = normalizeTeam(side)
+    if (!n) return null
+    for (const tm of teams) {
+      const cands = [
+        normalizeTeam(`KSCW ${tm.name}`),
+        normalizeTeam(`KSC Wiedikon ${tm.name}`),
+        normalizeTeam(tm.full_name || ''),
+        normalizeTeam(tm.name),
+      ]
+      if (cands.includes(n)) return tm
+    }
+    // Looser fallback: a "KSCW…"/"KSC Wiedikon…" cell ending in the short name.
+    for (const tm of teams) {
+      const tn = normalizeTeam(tm.name)
+      if (tn && (n.startsWith('kscw') || n.startsWith('kscwiedikon')) && n.endsWith(tn)) return tm
+    }
+    return null
+  }
 
   async function handleDownloadTemplate() {
     const columns = ['Datum', 'Heimteam', 'Gastteam', 'Liga', 'Runde']
@@ -52,12 +86,19 @@ export default function ExcelImportPanel() {
     setResult(null)
 
     let created = 0
+    let unmatched = 0
     for (const row of preview) {
+      const homeT = resolveKscw(row.Heimteam)
+      const awayT = resolveKscw(row.Gastteam)
+      const kscw = homeT || awayT
+      if (!kscw) unmatched++
       try {
         await createRecord('games', {
           date: row.Datum,
           home_team: row.Heimteam,
           away_team: row.Gastteam,
+          kscw_team: kscw ? kscw.id : null,
+          type: homeT ? 'home' : awayT ? 'away' : null,
           league: row.Liga || '',
           round: row.Runde || '',
           status: 'scheduled',
@@ -70,7 +111,10 @@ export default function ExcelImportPanel() {
       }
     }
 
-    setResult(t('importSuccess', { count: created }))
+    setResult(
+      t('importSuccess', { count: created }) +
+        (unmatched ? ` · ${unmatched} ${t('importUnlinked', { defaultValue: 'without a KSCW team match' })}` : ''),
+    )
     setPreview([])
     setImporting(false)
     if (fileRef.current) fileRef.current.value = ''

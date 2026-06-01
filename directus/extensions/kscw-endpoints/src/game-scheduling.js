@@ -147,14 +147,15 @@ export function registerGameScheduling(router, { database, logger, services, get
             .whereRaw('g.kscw_team = ?', [opponent.kscw_team])
             .whereRaw('game_scheduling_slots.date BETWEEN g.date::date - 1 AND g.date::date + 1')
         })
-        // Exclude home slots where 3+ players are absent (proposal-3 threshold).
+        // Exclude home slots where ANY player is absent — slots we OFFER are
+        // strict (full squad), unlike the opponent's away proposals.
         .whereRaw(
           '(SELECT count(DISTINCT a.member) FROM absences a ' +
           'JOIN member_teams mt ON mt.member = a.member ' +
           'WHERE mt.team = ? AND (mt.guest_level = 0 OR mt.guest_level IS NULL) ' +
           "AND a.type IS DISTINCT FROM 'weekly' " +
           'AND a.start_date::date <= game_scheduling_slots.date AND a.end_date::date >= game_scheduling_slots.date ' +
-          "AND (a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')) < 3",
+          "AND (a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')) < 1",
           [opponent.kscw_team],
         )
         .orderBy('date')
