@@ -5,6 +5,8 @@
  * and upserts into Directus via knex.
  */
 
+import { sweepGameAutoConfirm } from './game-auto-confirm-sweep.js'
+
 const SV_API_BASE = 'https://api.volleyball.ch'
 const SV_API_KEY = process.env.SV_API_KEY
 if (!SV_API_KEY) throw new Error('SV_API_KEY environment variable is required')
@@ -188,6 +190,7 @@ export async function syncSvGames(db, log) {
   }
 
   log.info(`[SV Sync] Games: ${created} created, ${updated} updated, ${skipped} unchanged, ${errors} errors`)
+  if (created > 0) await sweepGameAutoConfirm(db, log)
   return { created, updated, skipped, errors }
 }
 

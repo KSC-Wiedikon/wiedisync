@@ -54,8 +54,10 @@ const _here = _dirname(_fileURLToPath(import.meta.url))
 try {
   const envText = _readFileSync(_join(_here, '../../.env.local'), 'utf-8')
   for (const line of envText.split('\n')) {
-    const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/)
-    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^['"]|['"]$/g, '')
+    // Accept optional `export ` prefix + whitespace around `=` so shell-style
+    // .env files (`export DIRECTUS_DEV_TOKEN=…`) load correctly, not just bare KEY=value.
+    const m = line.match(/^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/)
+    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].trim().replace(/^['"]|['"]$/g, '')
   }
 } catch { /* file missing — fine */ }
 
@@ -304,6 +306,8 @@ const MEMBER_EDITABLE_FIELDS = [
   'requested_team',
   // ClubDesk personal data fields
   'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'ahv_nummer',
+  // 2026-06-01 migration 077: per-member auto-confirm RSVP opt-in (profile toggles)
+  'auto_confirm_trainings', 'auto_confirm_games', 'auto_confirm_events',
 ]
 
 /** Public fields for teams */
@@ -555,7 +559,7 @@ async function main() {
     'date_created', 'date_updated',
   ]
   const MEMBER_ABSENCE_FIELDS = [
-    'id', 'member', 'type', 'start_date', 'end_date', 'indefinite',
+    'id', 'member', 'type', 'start_date', 'end_date', 'indefinite', 'blocking',
     'reason', 'reason_detail', 'affects', 'days_of_week',
     'last_edited_at', 'date_created', 'date_updated',
   ]

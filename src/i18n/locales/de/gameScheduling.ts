@@ -80,6 +80,13 @@ export default {
 
   // Public opponent flow
   publicTitle: 'Spieltermine KSCW',
+  calendarView: 'Kalender',
+  listView: 'Liste',
+  nTimeOptions: '{{count}} Zeiten',
+  pickTimeHint: 'Wähle eine Zeit, um das Heimspiel zu bestätigen.',
+  legOpen: 'Offen',
+  legProposed: 'Vorgeschlagen',
+  legConfirmed: 'Bestätigt',
   publicSubtitle: 'Vereinbare die Spieltermine mit dem KSCW',
   selectGender: 'Geschlecht',
   genderMen: 'Herren',

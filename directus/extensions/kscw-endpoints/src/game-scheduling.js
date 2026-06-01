@@ -9,6 +9,13 @@ import { FRONTEND_URL } from './email-template.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
+// Spielplanung mail identity. spielplanung.kscw.ch is SES-verified (Easy DKIM),
+// so SES can send From it with DKIM-aligned DMARC. From + replies both land on
+// the dedicated Migadu mailbox volleyball@spielplanung.kscw.ch. (The kscw.ch
+// apex stays ClubDesk's — we never send from it.)
+const SCHEDULING_FROM = 'KSC Wiedikon Spielplanung <volleyball@spielplanung.kscw.ch>'
+const SCHEDULING_REPLY_TO = 'volleyball@spielplanung.kscw.ch'
+
 async function verifyTurnstile(token) {
   if (!TURNSTILE_SECRET) {
     console.error('[game-scheduling] TURNSTILE_SECRET not configured — rejecting request')
@@ -51,6 +58,8 @@ export function registerGameScheduling(router, { database, logger, services, get
         const mail = new MailService({ schema, knex: database })
         await mail.send({
           to: contact_email,
+          from: SCHEDULING_FROM,
+          replyTo: SCHEDULING_REPLY_TO,
           subject: `KSC Wiedikon – Spielplanung`,
           text: `Hallo ${contact_name},\n\nDein Zugangslink zur Spielplanung:\n${FRONTEND_URL}/terminplanung/${token}\n\nDieser Link ist 30 Tage gültig.\n\nKSC Wiedikon`,
         })
@@ -155,6 +164,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           'JOIN member_teams mt ON mt.member = a.member ' +
           'WHERE mt.team = ? AND (mt.guest_level = 0 OR mt.guest_level IS NULL) ' +
           "AND a.type IS DISTINCT FROM 'weekly' " +
+          'AND a.blocking IS NOT FALSE ' + // non-blocking absences (injury, maternity) don't block scheduling
           'AND a.start_date::date <= game_scheduling_slots.date AND a.end_date::date >= game_scheduling_slots.date ' +
           "AND (a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')) < 1",
           [opponent.kscw_team],
@@ -239,6 +249,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where('mt.team', opponent.kscw_team)
         .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
         .whereRaw("a.type IS DISTINCT FROM 'weekly'")
+        .whereRaw('a.blocking IS NOT FALSE') // non-blocking absences (injury, maternity) don't block scheduling
         .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
         .select(database.raw('a.member as member'), database.raw('a.start_date::text as s'), database.raw('a.end_date::text as e'))
       const absByDate = {}
@@ -704,6 +715,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           const mail = new MailService({ schema, knex: database })
           await mail.send({
             to: opponent.contact_email,
+            from: SCHEDULING_FROM,
+            replyTo: SCHEDULING_REPLY_TO,
             subject: 'KSC Wiedikon – Auswärtsspiel bestätigt',
             text: `Hallo ${opponent.contact_name || ''},\n\nDas Auswärtsspiel vom ${chosenDateTime}${chosenPlace ? ` (${chosenPlace})` : ''} wurde bestätigt.\n\nKSC Wiedikon`,
           })

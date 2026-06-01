@@ -35,6 +35,64 @@ const LICENCE_LABELS: Record<LicenceType, string> = {
 
 type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 
+/**
+ * Per-member auto sign-in (auto-confirm RSVP) toggles — migration 077.
+ * When a toggle is on, the member is auto-confirmed on every new activity of
+ * that type, and flipping it on backfills existing upcoming ones (server-side
+ * via the members.items.update hook). Already-answered / absence-declined
+ * activities are never changed. Independent of (OR-ed with) the team setting.
+ */
+function AutoSignInCard() {
+  const { user } = useAuth()
+  const { t } = useTranslation('participation')
+  const [state, setState] = useState({
+    trainings: !!user?.auto_confirm_trainings,
+    games: !!user?.auto_confirm_games,
+    events: !!user?.auto_confirm_events,
+  })
+  const [saving, setSaving] = useState<string | null>(null)
+
+  if (!user) return null
+
+  const rows: { key: 'trainings' | 'games' | 'events'; field: string; label: string }[] = [
+    { key: 'trainings', field: 'auto_confirm_trainings', label: t('autoSignInTrainings') },
+    { key: 'games', field: 'auto_confirm_games', label: t('autoSignInGames') },
+    { key: 'events', field: 'auto_confirm_events', label: t('autoSignInEvents') },
+  ]
+
+  async function toggle(key: 'trainings' | 'games' | 'events', field: string, val: boolean) {
+    setState((s) => ({ ...s, [key]: val }))
+    setSaving(key)
+    try {
+      await updateRecord('members', user!.id, { [field]: val })
+    } catch {
+      setState((s) => ({ ...s, [key]: !val })) // revert on failure
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  return (
+    <div className="mt-8">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('autoSignInTitle')}</h2>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('autoSignInHint')}</p>
+      <div className="mt-3 divide-y divide-gray-100 rounded-lg border bg-white dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800">
+        {rows.map((r) => (
+          <div key={r.key} className="flex items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{r.label}</span>
+            <Switch
+              checked={state[r.key]}
+              disabled={saving === r.key}
+              onCheckedChange={(v) => toggle(r.key, r.field, v)}
+              aria-label={r.label}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function ProfilePage() {
   const { user, coachTeamIds, primarySport } = useAuth()
   const { t } = useTranslation('auth')
@@ -268,6 +326,9 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {/* Auto sign-in preferences */}
+      <AutoSignInCard />
 
       {/* Contact Info */}
       <div className="mt-8">

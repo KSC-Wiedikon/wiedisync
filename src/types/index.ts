@@ -135,6 +135,11 @@ export interface Member extends BaseRecord {
   language: 'english' | 'german' | 'french' | 'italian' | 'swiss_german' | ''
   hide_phone: boolean
   hide_email: boolean
+  // Per-member auto-confirm RSVP opt-in (migration 077). When on, the member is
+  // auto-confirmed on new activities of that type (OR-ed with the team setting).
+  auto_confirm_trainings: boolean
+  auto_confirm_games: boolean
+  auto_confirm_events: boolean
   birthdate_visibility: 'full' | 'year_only' | 'hidden'
   website_visible: boolean
   is_spielplaner: boolean
@@ -431,6 +436,13 @@ export interface Absence extends BaseRecord {
   type: 'standard' | 'weekly'
   days_of_week: number[] // 0=Mon..6=Sun (only for type='weekly')
   indefinite: boolean
+  /**
+   * Migration 076: when true (default), this absence blocks game-scheduling
+   * availability on its dates. Set false for absences where the player won't
+   * play anyway (long-term injury, maternity leave) so the rest of the squad
+   * can still be scheduled. Only standard absences affecting games/all count.
+   */
+  blocking: boolean
   /** Migration 051: directus_users.id of the most recent authenticated writer. */
   last_edited_by?: string | null
   /** Migration 051: timestamp of the most recent authenticated write. */

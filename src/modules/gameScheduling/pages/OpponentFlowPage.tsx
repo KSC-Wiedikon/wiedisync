@@ -6,8 +6,9 @@ import HomeSlotPicker from '../components/HomeSlotPicker'
 import AwayProposalForm from '../components/AwayProposalForm'
 import LoadingSpinner from '../../../components/LoadingSpinner'
 import { Badge } from '../../../components/ui/badge'
+import LanguageDropdown from '../../../components/LanguageDropdown'
 
-const SUPPORT_EMAIL = 'volleyball@kscw.ch'
+const SUPPORT_EMAIL = 'volleyball@spielplanung.kscw.ch'
 
 // Always Swiss formatting regardless of UI language (CLAUDE.md → date format).
 function fmtDateTime(iso: string | null | undefined): string {
@@ -37,7 +38,10 @@ export default function OpponentFlowPage() {
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
 
-  if (isLoading) {
+  // Only blank to a spinner on the very first load. Booking / proposing refetch
+  // the slots (isLoading flips back to true) — without the `!opponent` guard the
+  // whole page flashed to a spinner on every submit, reading as a page reload.
+  if (isLoading && !opponent) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
         <LoadingSpinner />
@@ -119,6 +123,9 @@ export default function OpponentFlowPage() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-900">
       <div className="mx-auto max-w-4xl">
+        <div className="mb-2 flex justify-end">
+          <LanguageDropdown size="sm" />
+        </div>
         {/* Header */}
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('publicTitle')}</h1>

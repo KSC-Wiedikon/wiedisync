@@ -32,9 +32,11 @@ function loadDotEnv(path) {
   try {
     const text = readFileSync(path, 'utf-8')
     for (const line of text.split('\n')) {
-      const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/)
+      // Accept optional `export ` prefix + whitespace around `=` so shell-style
+      // .env files (`export DIRECTUS_DEV_TOKEN=…`) load correctly, not just bare KEY=value.
+      const m = line.match(/^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/)
       if (m && !(m[1] in process.env)) {
-        process.env[m[1]] = m[2].replace(/^['"]|['"]$/g, '')
+        process.env[m[1]] = m[2].trim().replace(/^['"]|['"]$/g, '')
       }
     }
   } catch { /* missing file is fine */ }

@@ -421,6 +421,22 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         }
       }
     }
+    // Auto-confirm opt-in flipped on (migration 077) → backfill existing
+    // upcoming activities of that type. Idempotent (NOT EXISTS), so a no-op
+    // when the flag was already on or nothing is outstanding.
+    if (payload && (payload.auto_confirm_trainings === true || payload.auto_confirm_games === true || payload.auto_confirm_events === true)) {
+      for (const id of keys) {
+        try {
+          let n = 0
+          if (payload.auto_confirm_trainings === true) n += await backfillMemberAutoConfirm(id, 'training')
+          if (payload.auto_confirm_games === true) n += await backfillMemberAutoConfirm(id, 'game')
+          if (payload.auto_confirm_events === true) n += await backfillMemberAutoConfirm(id, 'event')
+          if (n > 0) log.info(`[auto-confirm-backfill] member ${id}: ${n} participations confirmed`)
+        } catch (err) {
+          log.error({ msg: `[auto-confirm-backfill] member ${id}: ${err.message}`, event: 'auto_confirm_backfill_failed', memberId: id, stack: err.stack })
+        }
+      }
+    }
   })
 
   // ── Direct LEADER policy attachment ─────────────────────────────
@@ -1286,7 +1302,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (dateStr < today) return 0
     }
     const team = await database('teams').where('id', training.team).first('features_enabled')
-    if (!(await effectiveTrainingAutoConfirm(training, team))) return 0
+    // Team setting on → confirm every team member (legacy behavior). Off → only
+    // members who personally opted in via members.auto_confirm_trainings (OR
+    // semantics — migration 077). We no longer early-return on team-off, since
+    // individual opt-ins must still be honoured.
+    const teamOn = await effectiveTrainingAutoConfirm(training, team)
+    const eligibleClause = teamOn ? 'TRUE' : 'm.auto_confirm_trainings = true'
 
     let excluded = training.excluded_guest_levels
     if (typeof excluded === 'string') { try { excluded = JSON.parse(excluded) } catch { excluded = [] } }
@@ -1298,7 +1319,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
       SELECT mt.member, 'training', ?::text, 'confirmed', '', 0, false
       FROM member_teams mt
+      JOIN members m ON m.id = mt.member
       WHERE mt.team = ?::integer
+        AND (${eligibleClause})
         ${excludedClause}
         AND NOT EXISTS (
           SELECT 1 FROM participations p
@@ -1318,20 +1341,135 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (dateStr < today) return 0
     }
     const team = await database('teams').where('id', game.kscw_team).first('features_enabled')
-    if (!(await effectiveGameAutoConfirm(game, team))) return 0
+    // Team setting on → everyone (legacy). Off → only members who opted in via
+    // members.auto_confirm_games (migration 077). Guests (guest_level > 0) are
+    // always excluded — trg_participations_guest_block enforces it too.
+    const teamOn = await effectiveGameAutoConfirm(game, team)
+    const eligibleClause = teamOn ? 'TRUE' : 'm.auto_confirm_games = true'
 
     const ins = await database.raw(`
       INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
       SELECT mt.member, 'game', ?::text, 'confirmed', '', 0, false
       FROM member_teams mt
+      JOIN members m ON m.id = mt.member
       WHERE mt.team = ?::integer
         AND mt.guest_level = 0
+        AND (${eligibleClause})
         AND NOT EXISTS (
           SELECT 1 FROM participations p
           WHERE p.activity_type = 'game' AND p.activity_id = ?::text AND p.member = mt.member
         )
     `, [String(gameId), game.kscw_team, String(gameId)])
     return ins?.rowCount || 0
+  }
+
+  // Auto-confirm opted-in members on an event (member opt-in only — there is no
+  // team-level event auto-confirm). Eligibility mirrors useUserVisibleEventIds:
+  // members of an invited team (events_teams) ∪ individually invited
+  // (events_members) ∪ everyone when the event is club-wide (no team and no
+  // member junction). Whole-event mode only — per-session events need per-row
+  // RSVPs. NOT EXISTS skips manual answers and absence-declines. Returns count.
+  async function autoConfirmEvent(eventId, { onlyIfFuture = false } = {}) {
+    const event = await database('events').where('id', eventId).first()
+    if (!event || event.cancelled || !event.start_date) return 0
+    if (event.participation_mode && event.participation_mode !== 'whole') return 0
+    if (onlyIfFuture) {
+      const today = new Date().toISOString().split('T')[0]
+      const dateStr = safeDateStr(event.start_date)
+      if (dateStr && dateStr < today) return 0
+    }
+    const [teamCount, memberCount] = await Promise.all([
+      database('events_teams').where('events_id', eventId).count('* as c').first(),
+      database('events_members').where('events_id', eventId).count('* as c').first(),
+    ])
+    const isClubWide = Number(teamCount?.c || 0) === 0 && Number(memberCount?.c || 0) === 0
+    const eligibleSql = isClubWide
+      ? `SELECT m.id AS member FROM members m WHERE m.wiedisync_active = true`
+      : `SELECT mt.member FROM events_teams et
+           JOIN member_teams mt ON mt.team = et.teams_id
+           WHERE et.events_id = ?::integer
+         UNION
+         SELECT em.members_id AS member FROM events_members em
+           WHERE em.events_id = ?::integer`
+    const eligibleParams = isClubWide ? [] : [eventId, eventId]
+    const ins = await database.raw(`
+      INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
+      SELECT DISTINCT e.member, 'event', ?::text, 'confirmed', '', 0, false
+      FROM (${eligibleSql}) e
+      JOIN members m ON m.id = e.member
+      WHERE m.auto_confirm_events = true
+        AND NOT EXISTS (
+          SELECT 1 FROM participations p
+          WHERE p.activity_type = 'event' AND p.activity_id = ?::text AND p.member = e.member
+        )
+    `, [String(eventId), ...eligibleParams, String(eventId)])
+    return ins?.rowCount || 0
+  }
+
+  // Backfill: confirm a single member on all their existing upcoming activities
+  // of one type. Run when a member flips an auto_confirm_* flag on. NOT EXISTS
+  // skips anything already answered or absence-declined (those are rows too),
+  // so it never overwrites a prior choice. Idempotent.
+  async function backfillMemberAutoConfirm(memberId, type) {
+    const today = new Date().toISOString().split('T')[0]
+    if (type === 'training') {
+      const res = await database.raw(`
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
+        SELECT ?::integer, 'training', t.id::text, 'confirmed', '', 0, false
+        FROM trainings t
+        JOIN member_teams mt ON mt.team = t.team AND mt.member = ?::integer
+        WHERE t.cancelled = false
+          AND t.date::date >= ?::date
+          AND (t.excluded_guest_levels IS NULL
+               OR NOT (t.excluded_guest_levels::jsonb @> to_jsonb(mt.guest_level)))
+          AND NOT EXISTS (
+            SELECT 1 FROM participations p
+            WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = ?::integer
+          )
+      `, [memberId, memberId, today, memberId])
+      return res?.rowCount || 0
+    }
+    if (type === 'game') {
+      const res = await database.raw(`
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
+        SELECT ?::integer, 'game', g.id::text, 'confirmed', '', 0, false
+        FROM games g
+        JOIN member_teams mt ON mt.team = g.kscw_team AND mt.member = ?::integer
+        WHERE g.status NOT IN ('completed', 'postponed', 'cancelled')
+          AND g.date::date >= ?::date
+          AND mt.guest_level = 0
+          AND NOT EXISTS (
+            SELECT 1 FROM participations p
+            WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = ?::integer
+          )
+      `, [memberId, memberId, today, memberId])
+      return res?.rowCount || 0
+    }
+    if (type === 'event') {
+      const res = await database.raw(`
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
+        SELECT DISTINCT ?::integer, 'event', e.id::text, 'confirmed', '', 0, false
+        FROM events e
+        WHERE e.cancelled = false
+          AND (e.participation_mode IS NULL OR e.participation_mode = 'whole')
+          AND e.start_date::date >= ?::date
+          AND (
+            EXISTS (SELECT 1 FROM events_teams et JOIN member_teams mt
+                      ON mt.team = et.teams_id
+                    WHERE et.events_id = e.id AND mt.member = ?::integer)
+            OR EXISTS (SELECT 1 FROM events_members em
+                       WHERE em.events_id = e.id AND em.members_id = ?::integer)
+            OR (NOT EXISTS (SELECT 1 FROM events_teams et2 WHERE et2.events_id = e.id)
+                AND NOT EXISTS (SELECT 1 FROM events_members em2 WHERE em2.events_id = e.id))
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM participations p
+            WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = ?::integer
+          )
+      `, [memberId, today, memberId, memberId, memberId])
+      return res?.rowCount || 0
+    }
+    return 0
   }
 
   // Shared per-training pass: absence-decline then auto-confirm. Used by
@@ -1429,6 +1567,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           )
       `, [String(key), key, dateStr, dateStr, dateStr, String(key)])
       if (res?.rowCount > 0) log.info(`[absence-auto-decline] Event ${key}: ${res.rowCount} members auto-declined`)
+
+      // Auto-confirm pass — opted-in members only (no team-level event setting).
+      // NOT EXISTS protects the absence-declines just inserted above.
+      const confirmed = await autoConfirmEvent(key)
+      if (confirmed > 0) log.info(`[auto-confirm] Event ${key}: ${confirmed} members auto-confirmed`)
     } catch (err) {
       log.error({ msg: `[absence-auto-decline] Event create: ${err.message}`, event: 'absence_auto_decline_event', key, stack: err.stack })
     }
