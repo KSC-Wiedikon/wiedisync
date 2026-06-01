@@ -342,6 +342,22 @@ export function registerGameScheduling(router, { database, logger, services, get
         if (gameClash) {
           return res.status(400).json({ error: `${p.date} is within a day of an existing game (${String(gameClash.date).slice(0, 10)}) — please leave at least a day's gap.` })
         }
+        // Reject if any rostered member has a one-off absence (NOT a weekly
+        // unavailability) affecting games on that date. "No game if absence."
+        const absence = await database('absences as a')
+          .join('member_teams as mt', 'mt.member', 'a.member')
+          .where('mt.team', opponent.kscw_team)
+          // Players only — guests (guest_level > 0) don't block.
+          .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
+          // One-off absences only, not weekly unavailabilities. IS DISTINCT FROM
+          // so a NULL type (legacy one-off) still counts (`!= 'weekly'` is NULL).
+          .whereRaw("a.type IS DISTINCT FROM 'weekly'")
+          .whereRaw("a.start_date::date <= ?::date AND a.end_date::date >= ?::date", [String(p.date), String(p.date)])
+          .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
+          .first('a.id')
+        if (absence) {
+          return res.status(400).json({ error: `${p.date} clashes with a player absence — please pick another date.` })
+        }
         const rawPlace = String(p.location || p.place || '').slice(0, 200)
         const dt = p.start_time ? `${p.date}T${p.start_time}` : p.date
         row[`proposed_datetime_${i + 1}`] = dt
