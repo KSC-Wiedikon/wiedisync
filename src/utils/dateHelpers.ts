@@ -196,8 +196,11 @@ export function getCurrentSeason(): string {
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth()
-  // Season runs Sep–May. If we're in Jan–Aug, current season started last year.
-  if (month < 8) {
+  // Jun 1 cutover — the club rolls over to the next season on June 1 (Swiss Volley
+  // publishes new-season fixtures in June), matching currentSeasonLong() in
+  // gameScheduling/utils/formatSeason.ts. Jan–May (month < 5) still belongs to the
+  // season that started last year.
+  if (month < 5) {
     return `${year - 1}/${String(year).slice(2)}`
   }
   return `${year}/${String(year + 1).slice(2)}`
