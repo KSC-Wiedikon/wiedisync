@@ -6,6 +6,7 @@ import HomeSlotPicker from '../components/HomeSlotPicker'
 import AwayProposalForm from '../components/AwayProposalForm'
 import LoadingSpinner from '../../../components/LoadingSpinner'
 import { Badge } from '../../../components/ui/badge'
+import LanguageDropdown from '../../../components/LanguageDropdown'
 
 const SUPPORT_EMAIL = 'volleyball@spielplanung.kscw.ch'
 
@@ -122,6 +123,9 @@ export default function OpponentFlowPage() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-900">
       <div className="mx-auto max-w-4xl">
+        <div className="mb-2 flex justify-end">
+          <LanguageDropdown size="sm" />
+        </div>
         {/* Header */}
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('publicTitle')}</h1>
