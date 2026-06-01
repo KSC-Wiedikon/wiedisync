@@ -54,8 +54,10 @@ const _here = _dirname(_fileURLToPath(import.meta.url))
 try {
   const envText = _readFileSync(_join(_here, '../../.env.local'), 'utf-8')
   for (const line of envText.split('\n')) {
-    const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/)
-    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^['"]|['"]$/g, '')
+    // Accept optional `export ` prefix + whitespace around `=` so shell-style
+    // .env files (`export DIRECTUS_DEV_TOKEN=…`) load correctly, not just bare KEY=value.
+    const m = line.match(/^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/)
+    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].trim().replace(/^['"]|['"]$/g, '')
   }
 } catch { /* file missing — fine */ }
 
