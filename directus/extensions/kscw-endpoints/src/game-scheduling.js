@@ -394,6 +394,14 @@ export function registerGameScheduling(router, { database, logger, services, get
         .whereRaw("LOWER(label) = 'spielhalle'")
         .select('day_of_week', 'start_time', 'end_time', 'hall')
 
+      // Shared VOLLEYBALL Döltschi pool: the Under teams take each other's
+      // Tuesday Döltschi slots. Volleyball only — the BB Döltschi slots stay out.
+      const doltschiVbPool = await database('hall_slots')
+        .join('halls', 'hall_slots.hall', 'halls.id')
+        .where('hall_slots.sport', 'volleyball')
+        .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%')")
+        .select('hall_slots.day_of_week', 'hall_slots.start_time', 'hall_slots.end_time', 'hall_slots.hall')
+
       const teams = await database('teams')
         .where('sport', 'volleyball').where('active', true).select('id')
 
@@ -424,20 +432,31 @@ export function registerGameScheduling(router, { database, logger, services, get
           }
         }
 
-        // Standard slot: the team's OWN latest (end 21:30) slot in a Döltschi/
-        // KWI hall, repeated weekly. If it has none, fall back to the club-wide
-        // Spielhalle pool (KWI A/B Friday). day_of_week is 0=Mon in the DB, so
-        // convert to JS getUTCDay (0=Sun) via (dow + 1) % 7.
+        // Standard slot (volleyball-only generator):
+        //  - KWI teams: their own latest KWI block (ends 21:30).
+        //  - Döltschi (Under) teams: the SHARED volleyball Döltschi pool — any
+        //    team that uses Döltschi can take any VB Döltschi slot.
+        //  - Neither: fall back to the club Spielhalle pool (KWI A/B Friday).
+        // day_of_week is 0=Mon in the DB -> JS getUTCDay (0=Sun) via (dow + 1) % 7.
         if (sources.includes('hall_slot') && eveningWindow) {
-          const ownStandard = await database('hall_slots')
+          const ownKwi = await database('hall_slots')
             .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
             .join('halls', 'hall_slots.hall', 'halls.id')
             .where('hall_slots_teams.teams_id', team.id)
             .whereRaw("hall_slots.end_time::text LIKE '21:30%'")
-            .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%' OR LOWER(halls.name) LIKE '%kwi%')")
+            .whereRaw("LOWER(halls.name) LIKE '%kwi%'")
             .select('hall_slots.day_of_week', 'hall_slots.start_time', 'hall_slots.end_time', 'hall_slots.hall')
-          const stdSlots = ownStandard.length > 0 ? ownStandard : spielhalleSlots
-          const stdTag = ownStandard.length > 0 ? 'hall_slot' : 'spielhalle'
+          const usesDoltschi = await database('hall_slots')
+            .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
+            .join('halls', 'hall_slots.hall', 'halls.id')
+            .where('hall_slots_teams.teams_id', team.id)
+            .where('hall_slots.sport', 'volleyball')
+            .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%')")
+            .first()
+          let stdSlots = ownKwi.slice()
+          if (usesDoltschi) stdSlots = stdSlots.concat(doltschiVbPool)
+          let stdTag = 'hall_slot'
+          if (stdSlots.length === 0) { stdSlots = spielhalleSlots; stdTag = 'spielhalle' }
           for (const hs of stdSlots) {
             const targetJsDay = (hs.day_of_week + 1) % 7
             const d = new Date(eveningWindow.start)
