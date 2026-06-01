@@ -264,7 +264,7 @@ export default function HallenplanPage() {
           {isLoading ? (
             <LoadingSpinner />
           ) : showSummary ? (
-            <SummaryView slots={filteredSlots} closures={closures} weekDays={weekDays} halls={halls} />
+            <SummaryView slots={filteredSlots} closures={closures} weekDays={weekDays} halls={halls} teams={teams} />
           ) : (
             <DaySlotView
               slots={filteredSlots}
