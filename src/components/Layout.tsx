@@ -8,6 +8,7 @@ import { useNotifications } from '../hooks/useNotifications'
 import { useUnreadTotal } from '../modules/messaging/hooks/useUnreadTotal'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { getFileUrl } from '../utils/fileUrl'
+import { getCurrentSeason } from '../utils/dateHelpers'
 import { isAuthenticated } from '../lib/api'
 import AdminToggle from './AdminToggle'
 import { useAdminMode } from '../hooks/useAdminMode'
@@ -223,7 +224,9 @@ export default function Layout() {
     }
   }, [location.pathname, isAdmin, isAdminMode, setAdminMode])
   const { data: memberTeamsRaw } = useCollection<ExpandedMemberTeam>('member_teams', {
-    filter: user ? { member: { _eq: user.id } } : undefined,
+    // Current-season only — otherwise archived same-name teams (e.g. old + new
+    // "H3" after a rollover) render as duplicate badges in the user card.
+    filter: user ? { _and: [{ member: { _eq: user.id } }, { season: { _eq: getCurrentSeason() } }] } : undefined,
     fields: ['*', 'team.*'],
     limit: 10,
     enabled: !!user && !isLoading,

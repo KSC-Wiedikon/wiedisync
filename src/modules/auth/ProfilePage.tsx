@@ -6,12 +6,13 @@ import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
 import { kscwApi } from '../../lib/api'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import StatusBadge from '../../components/StatusBadge'
 import TeamChip from '../../components/TeamChip'
 import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions, getPositionI18nKey } from '../../utils/memberPositions'
 import { memberName, flattenMemberIds } from '../../utils/relations'
-import { formatDate, toISODate } from '../../utils/dateHelpers'
+import { formatDate, getCurrentSeason, toISODate } from '../../utils/dateHelpers'
 import ProfileEditModal from './ProfileEditModal'
 import DeleteAccountModal from './DeleteAccountModal'
 import TeamRequestModal from './TeamRequestModal'
@@ -45,7 +46,9 @@ export default function ProfilePage() {
   const [leaving, setLeaving] = useState(false)
 
   const { data: memberTeamsRaw, refetch: refetchMemberTeams } = useCollection<ExpandedMemberTeam>('member_teams', {
-    filter: user ? { member: { _eq: user.id } } : undefined,
+    // Current-season only — archived same-name teams from prior seasons would
+    // otherwise show as duplicate rows the user could "leave".
+    filter: user ? { _and: [{ member: { _eq: user.id } }, { season: { _eq: getCurrentSeason() } }] } : undefined,
     fields: ['*', 'team.*'],
     limit: 20,
     enabled: !!user,

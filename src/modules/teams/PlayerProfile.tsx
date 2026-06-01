@@ -31,7 +31,9 @@ export default function PlayerProfile() {
   const [lightboxOpen, setLightboxOpen] = useState(false)
 
   const { data: memberTeamsRaw } = useCollection<ExpandedMemberTeam>('member_teams', {
-    filter: memberId ? { member: { _eq: memberId } } : { id: { _eq: -1 } },
+    // Current-season only — otherwise archived same-name teams (e.g. old + new
+    // "H3" after a rollover) render as duplicate badges.
+    filter: memberId ? { _and: [{ member: { _eq: memberId } }, { season: { _eq: getCurrentSeason() } }] } : { id: { _eq: -1 } },
     fields: ['*', 'team.*'],
     limit: 20,
   })
