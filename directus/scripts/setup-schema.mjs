@@ -402,6 +402,7 @@ const COLLECTIONS = [
       select('type', ['standard', 'weekly']),
       json('days_of_week'), // [0..6]
       boolean('indefinite'),
+      boolean('blocking', { default: true }), // blocks game scheduling (migration 076)
     ],
   },
 

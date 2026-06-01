@@ -555,7 +555,7 @@ async function main() {
     'date_created', 'date_updated',
   ]
   const MEMBER_ABSENCE_FIELDS = [
-    'id', 'member', 'type', 'start_date', 'end_date', 'indefinite',
+    'id', 'member', 'type', 'start_date', 'end_date', 'indefinite', 'blocking',
     'reason', 'reason_detail', 'affects', 'days_of_week',
     'last_edited_at', 'date_created', 'date_updated',
   ]

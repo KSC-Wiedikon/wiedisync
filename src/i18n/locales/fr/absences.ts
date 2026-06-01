@@ -82,6 +82,10 @@ export default {
   indefiniteHint: 'pas de date de fin',
   untilShort: "jusqu'au {{date}}",
 
+  // Blocking (game-scheduling relevance)
+  blocking: 'Bloque la planification des matchs',
+  blockingHint: 'Quand actif, ces dates deviennent indisponibles pour planifier des matchs. Désactive-le pour les absences où tu ne joueras pas de toute façon (p. ex. blessure, congé maternité), afin que le reste de l\'équipe puisse quand même être planifié.',
+
   // Weekly unavailability
   tabWeeklyUnavailability: 'Indisponibilite hebdomadaire',
   newWeekly: 'Nouvelle hebdomadaire',

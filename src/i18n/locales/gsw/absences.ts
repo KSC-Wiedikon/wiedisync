@@ -82,6 +82,10 @@ export default {
   indefiniteHint: 'käs Änddatum',
   untilShort: 'bis {{date}}',
 
+  // Blocking (game-scheduling relevance)
+  blocking: 'Blockiert d Spielplanig',
+  blockingHint: 'Wenn aa, sind die Täg für d Spielplanig nöd verfüegbar. Schalts ab bi Absänze, wo du sowieso nöd spilsch (z. B. Verletztig, Mutterschaftsurlaub), so dass de Rescht vom Team trotzdem chan iiteilt werde.',
+
   // Weekly unavailability
   tabWeeklyUnavailability: 'Wöchentlichi Abweseheit',
   newWeekly: 'Neui Wöchentlichi',

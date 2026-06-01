@@ -164,6 +164,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           'JOIN member_teams mt ON mt.member = a.member ' +
           'WHERE mt.team = ? AND (mt.guest_level = 0 OR mt.guest_level IS NULL) ' +
           "AND a.type IS DISTINCT FROM 'weekly' " +
+          'AND a.blocking IS NOT FALSE ' + // non-blocking absences (injury, maternity) don't block scheduling
           'AND a.start_date::date <= game_scheduling_slots.date AND a.end_date::date >= game_scheduling_slots.date ' +
           "AND (a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')) < 1",
           [opponent.kscw_team],
@@ -248,6 +249,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where('mt.team', opponent.kscw_team)
         .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
         .whereRaw("a.type IS DISTINCT FROM 'weekly'")
+        .whereRaw('a.blocking IS NOT FALSE') // non-blocking absences (injury, maternity) don't block scheduling
         .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
         .select(database.raw('a.member as member'), database.raw('a.start_date::text as s'), database.raw('a.end_date::text as e'))
       const absByDate = {}

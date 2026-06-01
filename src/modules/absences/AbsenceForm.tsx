@@ -66,6 +66,7 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
   const [reasonDetail, setReasonDetail] = useState('')
   const [affects, setAffects] = useState<string[]>(['all'])
   const [indefinite, setIndefinite] = useState(false)
+  const [blocking, setBlocking] = useState(true)
   const [validationError, setValidationError] = useState('')
 
   // Initialise form state once per modal-open. Including `user` in deps would
@@ -81,6 +82,7 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
       setReasonDetail(absence.reason_detail)
       setAffects(absence.affects ?? ['all'])
       setIndefinite(absence.indefinite ?? false)
+      setBlocking(absence.blocking ?? true)
     } else {
       setMemberId(user?.id ?? '')
       setStartDate('')
@@ -89,6 +91,7 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
       setReasonDetail('')
       setAffects(['all'])
       setIndefinite(false)
+      setBlocking(true)
     }
     setValidationError('')
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,6 +135,7 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
       affects,
       type: 'standard' as const,
       indefinite,
+      blocking,
     }
 
     try {
@@ -230,6 +234,22 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
           selected={affects}
           onChange={setAffects}
         />
+        </div>
+
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+          <label className="flex items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+            <Checkbox
+              className="mt-0.5"
+              checked={blocking}
+              onCheckedChange={(checked) => setBlocking(checked === true)}
+            />
+            <span>
+              <span className="font-medium">{t('blocking')}</span>
+              <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                {t('blockingHint')}
+              </span>
+            </span>
+          </label>
         </div>
 
         {validationError && (

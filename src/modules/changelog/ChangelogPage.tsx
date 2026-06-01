@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.16.2'
+const APP_VERSION = '4.17.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.17.0',
+    date: '2026-06-01',
+    sections: [
+      {
+        title: 'Mark absences as non-blocking for game scheduling',
+        items: [
+          'Absences now have a "Blocks game scheduling" toggle (on by default). When on, the absence makes its dates unavailable in the Spielplanung — home slots aren\'t offered and the opponent can\'t propose those dates.',
+          'Turn it off for absences where the player won\'t play anyway (e.g. long-term injury or maternity leave). The absence is still recorded and the player still shows as not attending their own games and trainings, but it no longer blocks the rest of the team from being scheduled on those dates.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.16.2',
     date: '2026-06-01',

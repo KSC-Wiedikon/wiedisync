@@ -82,6 +82,10 @@ export default {
   indefiniteHint: 'kein Enddatum',
   untilShort: 'bis {{date}}',
 
+  // Blocking (game-scheduling relevance)
+  blocking: 'Blockiert die Spielplanung',
+  blockingHint: 'Wenn aktiv, sind diese Tage für die Spielplanung nicht verfügbar. Schalte es aus bei Absenzen, bei denen du ohnehin nicht spielst (z. B. Verletzung, Mutterschaftsurlaub), damit das restliche Team trotzdem eingeplant werden kann.',
+
   // Weekly unavailability
   tabWeeklyUnavailability: 'Wöchentliche Abwesenheit',
   newWeekly: 'Neue Wöchentliche',
