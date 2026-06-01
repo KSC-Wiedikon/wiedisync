@@ -22,6 +22,7 @@ import { useAnnouncements } from '../../hooks/useAnnouncements'
 import { useUserVisibleEventIds } from '../../hooks/useUserVisibleEventIds'
 import ParticipationSummary from '../../components/ParticipationSummary'
 import { useBulkParticipationStatuses } from '../../hooks/useBulkParticipationStatuses'
+import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Ranking, BaseRecord } from '../../types'
 import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, CalendarDays, LayoutGrid, List } from 'lucide-react'
 import LoadingSpinner from '../../components/LoadingSpinner'
@@ -121,12 +122,17 @@ export default function HomePage() {
     return { kscw_team: { _in: userTeamIds } }
   }, [userTeamIds, hasTeams])
 
+  // Season-scoped so games/results flip to the new season once its data lands
+  // (falls back to the latest season with data in the gap before then).
+  const effGameSeason = useEffectiveSeason('games')
+  const effRankSeason = useEffectiveSeason('rankings')
+
   // Next 5 upcoming games (all) — only fetch when user toggled "show all" or has no teams
   const allGamesFilter = useMemo((): Record<string, unknown> => {
-    const conditions: Record<string, unknown>[] = [{ status: { _eq: 'scheduled' } }, { date: { _gte: today } }, { away_team: { _nnull: true } }]
+    const conditions: Record<string, unknown>[] = [{ status: { _eq: 'scheduled' } }, { date: { _gte: today } }, { away_team: { _nnull: true } }, { season: { _eq: effGameSeason } }]
     if (sportFilter) conditions.push(sportFilter)
     return { _and: conditions }
-  }, [today, sportFilter])
+  }, [today, sportFilter, effGameSeason])
   const { data: allNextGamesRaw, isLoading: gamesLoading } = useCollection<ExpandedGame>('games', {
     filter: allGamesFilter,
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
@@ -138,11 +144,11 @@ export default function HomePage() {
 
   // Next 5 upcoming games (my teams only)
   const myGamesFilter = useMemo((): Record<string, unknown> => {
-    const conditions: Record<string, unknown>[] = [{ status: { _eq: 'scheduled' } }, { date: { _gte: today } }, { away_team: { _nnull: true } }]
+    const conditions: Record<string, unknown>[] = [{ status: { _eq: 'scheduled' } }, { date: { _gte: today } }, { away_team: { _nnull: true } }, { season: { _eq: effGameSeason } }]
     if (teamGameFilter) conditions.push(teamGameFilter)
     if (sportFilter) conditions.push(sportFilter)
     return { _and: conditions }
-  }, [today, teamGameFilter, sportFilter])
+  }, [today, teamGameFilter, sportFilter, effGameSeason])
   const { data: myNextGamesRaw } = useCollection<ExpandedGame>('games', {
     filter: myGamesFilter,
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
@@ -154,10 +160,10 @@ export default function HomePage() {
 
   // Latest 5 results (all) — only fetch when user toggled "show all" or has no teams
   const allResultsFilter = useMemo((): Record<string, unknown> => {
-    const conditions: Record<string, unknown>[] = [{ status: { _eq: 'completed' } }, { date: { _nnull: true } }, { away_team: { _nnull: true } }]
+    const conditions: Record<string, unknown>[] = [{ status: { _eq: 'completed' } }, { date: { _nnull: true } }, { away_team: { _nnull: true } }, { season: { _eq: effGameSeason } }]
     if (sportFilter) conditions.push(sportFilter)
     return { _and: conditions }
-  }, [sportFilter])
+  }, [sportFilter, effGameSeason])
   const { data: allLatestResultsRaw, isLoading: resultsLoading } = useCollection<ExpandedGame>('games', {
     filter: allResultsFilter,
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
@@ -169,11 +175,11 @@ export default function HomePage() {
 
   // Latest 5 results (my teams only)
   const myResultsFilter = useMemo((): Record<string, unknown> => {
-    const conditions: Record<string, unknown>[] = [{ status: { _eq: 'completed' } }, { date: { _nnull: true } }, { away_team: { _nnull: true } }]
+    const conditions: Record<string, unknown>[] = [{ status: { _eq: 'completed' } }, { date: { _nnull: true } }, { away_team: { _nnull: true } }, { season: { _eq: effGameSeason } }]
     if (teamGameFilter) conditions.push(teamGameFilter)
     if (sportFilter) conditions.push(sportFilter)
     return { _and: conditions }
-  }, [teamGameFilter, sportFilter])
+  }, [teamGameFilter, sportFilter, effGameSeason])
   const { data: myLatestResultsRaw } = useCollection<ExpandedGame>('games', {
     filter: myResultsFilter,
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
@@ -257,7 +263,7 @@ export default function HomePage() {
   // Step 1: fetch only the user's own ranking rows to discover their league names
   const { data: userRankingRowsRaw } = useCollection<Ranking>('rankings', {
     filter: hasTeams && userSvTeamIds.length > 0
-      ? { team_id: { _in: userSvTeamIds } }
+      ? { _and: [{ team_id: { _in: userSvTeamIds } }, { season: { _eq: effRankSeason } }] }
       : undefined,
     fields: ['id', 'league', 'team_id'],
     enabled: hasTeams && userSvTeamIds.length > 0,
@@ -276,7 +282,7 @@ export default function HomePage() {
   // Step 2: fetch full league tables only for the user's leagues
   const { data: leagueRankingsRaw } = useCollection<Ranking>('rankings', {
     filter: userLeagueNames.length > 0
-      ? { league: { _in: userLeagueNames } }
+      ? { _and: [{ league: { _in: userLeagueNames } }, { season: { _eq: effRankSeason } }] }
       : undefined,
     sort: ['league', 'rank'],
     fields: ['id', 'league', 'rank', 'team_id', 'team_name', 'points', 'won', 'lost', 'wins_clear', 'wins_narrow', 'defeats_clear', 'defeats_narrow', 'sets_won', 'sets_lost', 'points_won', 'points_lost', 'played', 'season'],

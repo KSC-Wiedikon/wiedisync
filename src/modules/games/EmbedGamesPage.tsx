@@ -4,6 +4,7 @@ import type { Game, Ranking } from '../../types'
 import { useCollection } from '../../lib/query'
 import { teamIds } from '../../utils/teamColors'
 import { todayLocal } from '../../utils/dateHelpers'
+import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import GameTabs from './components/GameTabs'
 import type { TabKey } from './components/GameTabs'
 import GameCard from './components/GameCard'
@@ -24,11 +25,13 @@ export default function EmbedGamesPage() {
 
   const today = useMemo(() => todayLocal(), [])
   const teamFilter = buildTeamFilter(teamParam)
+  const effGameSeason = useEffectiveSeason('games')
+  const effRankSeason = useEffectiveSeason('rankings')
 
   const gameQuery = useMemo(() => {
     if (activeTab === 'rankings') return null
 
-    const conditions: Record<string, unknown>[] = []
+    const conditions: Record<string, unknown>[] = [{ season: { _eq: effGameSeason } }]
     switch (activeTab) {
       case 'upcoming':
         conditions.push({ status: { _eq: 'scheduled' } }, { date: { _gte: today } })
@@ -43,7 +46,7 @@ export default function EmbedGamesPage() {
       filter: conditions.length === 1 ? conditions[0] : { _and: conditions },
       sort: activeTab === 'upcoming' ? 'date,time' : '-date,-time',
     }
-  }, [activeTab, teamFilter, today])
+  }, [activeTab, teamFilter, today, effGameSeason])
 
   const { data: gamesRaw, isLoading: gamesLoading } = useCollection<Game>(
     'games',
@@ -54,6 +57,7 @@ export default function EmbedGamesPage() {
   const games = gamesRaw ?? []
 
   const { data: allRankingsRaw, isLoading: rankingsLoading } = useCollection<Ranking>('rankings', {
+    filter: { season: { _eq: effRankSeason } },
     sort: ['league', 'rank'],
     limit: 2000,
   })

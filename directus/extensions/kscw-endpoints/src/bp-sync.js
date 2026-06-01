@@ -150,6 +150,7 @@ export async function syncBpGames(db, log) {
   // Build lookups
   const pbTeams = await db('teams')
     .where('sport', 'basketball')
+    .where('active', true) // current-season team only (post-rollover the bb_source_id collides with the archived row)
     .whereNot('bb_source_id', '')
     .select('id', 'bb_source_id', 'features_enabled')
   const bpToPb = Object.fromEntries(pbTeams.map(t => [t.bb_source_id, t]))
@@ -233,7 +234,7 @@ export async function syncBpGames(db, log) {
       type: g.isHome ? 'home' : 'away',
       status: STATUS_MAP[g.status] || 'scheduled',
       home_score: g.scoreHome, away_score: g.scoreGuest,
-      league: g.league, season: g.season,
+      league: g.league, season: normalizeSeason(g.season),
       referees_json: '[]',
     }
     if (hallId) data.hall = hallId
@@ -276,6 +277,7 @@ export async function syncBpGames(db, log) {
 export async function syncBpRankings(db, log, leagueHoldingIds = {}) {
   const pbTeams = await db('teams')
     .where('sport', 'basketball')
+    .where('active', true) // current-season team only (post-rollover the bb_source_id collides with the archived row)
     .whereNot('bb_source_id', '')
     .select('id', 'bb_source_id')
   const bpToPb = Object.fromEntries(pbTeams.map(t => [t.bb_source_id, t.id]))
@@ -320,7 +322,7 @@ export async function syncBpRankings(db, log, leagueHoldingIds = {}) {
             rank: r.rank, played: r.played, won: r.won, lost: r.lost,
             sets_won: 0, sets_lost: 0,
             points_won: r.pointsFor, points_lost: r.pointsAgainst,
-            points: r.totalPoints, season: r.season, updated_at: nowStr,
+            points: r.totalPoints, season: normalizeSeason(r.season), updated_at: nowStr,
           }
           const pbTeamId = bpToPb[r.bpTeamId]
           if (pbTeamId) data.team = pbTeamId

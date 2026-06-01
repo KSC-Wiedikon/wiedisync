@@ -27,9 +27,13 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
   const [breakdown, setBreakdown] = useState<{ row: Ranking; mode: 'win' | 'loss' } | null>(null)
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null)
 
-  // Fetch all games for this league (skip in compact/homepage mode — no accordion)
+  // Fetch all games for this league (skip in compact/homepage mode — no accordion).
+  // Scope to the season of the table being shown so old-season games don't leak in.
+  const tableSeason = rankings[0]?.season
   const { data: leagueGamesRaw } = useCollection<Game>('games', {
-    filter: { league: { _eq: league } },
+    filter: tableSeason
+      ? { _and: [{ league: { _eq: league } }, { season: { _eq: tableSeason } }] }
+      : { league: { _eq: league } },
     sort: ['-date', '-time'],
     limit: 500,
     enabled: !compact,

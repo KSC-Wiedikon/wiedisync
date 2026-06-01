@@ -78,7 +78,11 @@ export async function syncSvGames(db, log) {
   log.info(`[SV Sync] ${kscwGames.length} KSCW games / ${allGames.length} total`)
 
   // Build lookups
-  const teamRows = await db('teams').whereNot('team_id', '').select('id', 'team_id', 'features_enabled')
+  // active=true so the lookup resolves to the current season's team — after a
+  // season rollover the same team_id exists on both the new (active) and the
+  // archived (inactive) team, and an unfiltered map would non-deterministically
+  // mislink games to the archived row.
+  const teamRows = await db('teams').where('active', true).whereNot('team_id', '').select('id', 'team_id', 'features_enabled')
   const teamLookup = Object.fromEntries(teamRows.map(t => [t.team_id, t]))
   const hallRows = await db('halls').whereNot('sv_hall_id', '').select('id', 'sv_hall_id')
   const hallLookup = Object.fromEntries(hallRows.map(h => [h.sv_hall_id, h.id]))

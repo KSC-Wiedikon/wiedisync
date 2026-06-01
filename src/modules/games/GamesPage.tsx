@@ -8,6 +8,7 @@ import { useMutation } from '../../hooks/useMutation'
 import type { Game, Ranking, Team, Participation, ParticipationWithMember } from '../../types'
 import { useCollection, useActivitiesWithParticipations } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
+import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import { teamIds } from '../../utils/teamColors'
 import { todayLocal } from '../../utils/dateHelpers'
 import { isCupGame } from '../../utils/leagueClassification'
@@ -136,6 +137,11 @@ export default function GamesPage() {
     return null
   }, [sport])
 
+  // Season-scoped so games + rankings flip to the new season once its data lands
+  // (falls back to the latest season with data until then).
+  const effGameSeason = useEffectiveSeason('games')
+  const effRankSeason = useEffectiveSeason('rankings')
+
   // Build game filter/sort based on active tab
   const gameQuery = useMemo(() => {
     if (activeTab === 'rankings' || activeTab === 'scoreboard') return null
@@ -156,12 +162,13 @@ export default function GamesPage() {
     }
     if (teamFilter) conditions.push(teamFilter)
     if (sportFilter) conditions.push(sportFilter)
+    conditions.push({ season: { _eq: effGameSeason } })
 
     return {
       filter: conditions.length === 1 ? conditions[0] : { _and: conditions },
       sort: activeTab === 'upcoming' ? 'date,time' : '-date,-time',
     }
-  }, [activeTab, teamFilter, sportFilter, today])
+  }, [activeTab, teamFilter, sportFilter, today, effGameSeason])
 
   const perPage = showAll ? 500 : INITIAL_LIMIT
 
@@ -226,6 +233,7 @@ export default function GamesPage() {
 
   // Rankings — always fetch (small dataset), group client-side
   const { data: allRankingsRaw, isLoading: rankingsLoading } = useCollection<Ranking>('rankings', {
+    filter: { season: { _eq: effRankSeason } },
     sort: ['league', 'rank'],
     fields: ['id', 'league', 'rank', 'team_id', 'team_name', 'points', 'won', 'lost', 'wins_clear', 'wins_narrow', 'defeats_clear', 'defeats_narrow', 'sets_won', 'sets_lost', 'points_won', 'points_lost', 'played', 'season'],
     limit: 2000,
