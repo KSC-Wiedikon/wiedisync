@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-05-31T11:06:49.209Z
+-- Generated:   2026-06-01T22:10:08.924Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -1742,7 +1742,8 @@ CREATE TABLE public.absences (
     last_edited_by uuid,
     last_edited_at timestamp with time zone,
     last_edited_name text,
-    last_edited_role text
+    last_edited_role text,
+    blocking boolean DEFAULT true NOT NULL
 );
 
 
@@ -1772,6 +1773,13 @@ COMMENT ON COLUMN public.absences.last_edited_name IS 'Display name of the write
 --
 
 COMMENT ON COLUMN public.absences.last_edited_role IS 'Role of the writer relative to the affected member: ''coach'', ''team_responsible'', ''admin'', or ''staff''. Resolved by checking teams_coaches / teams_responsibles for any overlap with the affected member''s teams. Stamped by kscw-hooks filter.';
+
+
+--
+-- Name: COLUMN absences.blocking; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.absences.blocking IS 'When true (default), this absence blocks game-scheduling availability (home slots offered + opponent away proposals) on its dates. Set false for absences that should not block scheduling (e.g. long-term injury, maternity leave) since the player won''t play regardless. Only standard absences affecting games/all are evaluated; weekly unavailabilities never block scheduling.';
 
 
 --
@@ -3278,6 +3286,9 @@ CREATE TABLE public.members (
     otr2_bb boolean DEFAULT false NOT NULL,
     otn_bb boolean DEFAULT false NOT NULL,
     referee_bb boolean DEFAULT false NOT NULL,
+    auto_confirm_trainings boolean DEFAULT false NOT NULL,
+    auto_confirm_games boolean DEFAULT false NOT NULL,
+    auto_confirm_events boolean DEFAULT false NOT NULL,
     CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin"]'::jsonb))
 );
 
@@ -3329,6 +3340,27 @@ COMMENT ON COLUMN public.members.otn_bb IS 'Basketball OTN (table official, nati
 --
 
 COMMENT ON COLUMN public.members.referee_bb IS 'Basketball referee licence.';
+
+
+--
+-- Name: COLUMN members.auto_confirm_trainings; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.auto_confirm_trainings IS 'When true, this member is auto-confirmed on every new training of their teams (OR-ed with teams.features_enabled.training_auto_confirm). Flipping on backfills existing upcoming trainings. Never overrides a manual answer or an absence-decline.';
+
+
+--
+-- Name: COLUMN members.auto_confirm_games; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.auto_confirm_games IS 'When true, this member is auto-confirmed on every new game of their teams (OR-ed with teams.features_enabled.game_auto_confirm). Guests (guest_level > 0) are still excluded by trg_participations_guest_block.';
+
+
+--
+-- Name: COLUMN members.auto_confirm_events; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.auto_confirm_events IS 'When true, this member is auto-confirmed on every new event they are eligible for (invited team / individual invite / club-wide), whole-event mode only. No team-level equivalent exists for events.';
 
 
 --
