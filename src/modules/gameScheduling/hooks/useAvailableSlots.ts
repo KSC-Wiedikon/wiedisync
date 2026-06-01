@@ -53,6 +53,7 @@ interface SlotsResponse {
   games: InviteGame[]
   slots: SlotData[]
   bookings: BookingData[]
+  blocked_away_dates: string[]
 }
 
 export function useAvailableSlots(token: string | undefined) {
@@ -86,18 +87,11 @@ export function useAvailableSlots(token: string | undefined) {
     return resp
   }, [token, fetchSlots])
 
-  const proposeAway = useCallback(async (proposals: {
-    proposed_datetime_1: string
-    proposed_place_1: string
-    proposed_datetime_2: string
-    proposed_place_2: string
-    proposed_datetime_3: string
-    proposed_place_3: string
-  }) => {
+  const proposeAway = useCallback(async (proposals: Array<{ date: string; start_time: string; location: string }>) => {
     if (!token) throw new Error('No token')
     const resp = await kscwApi(`/terminplanung/propose-away/${token}`, {
       method: 'POST',
-      body: proposals,
+      body: { proposals },
     })
     await fetchSlots()
     return resp
@@ -108,6 +102,7 @@ export function useAvailableSlots(token: string | undefined) {
     games: data?.games ?? [],
     slots: data?.slots ?? [],
     bookings: data?.bookings ?? [],
+    blockedAwayDates: data?.blocked_away_dates ?? [],
     isLoading,
     error,
     bookHomeSlot,

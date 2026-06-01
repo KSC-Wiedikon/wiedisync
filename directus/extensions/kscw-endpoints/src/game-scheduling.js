@@ -149,6 +149,45 @@ export function registerGameScheduling(router, { database, logger, services, get
 
       const team = await database('teams').where('id', opponent.kscw_team).first()
 
+      // Blocked away-proposal dates for this team — team events, games (±1 day)
+      // and one-off PLAYER absences (guests + weekly unavailabilities don't
+      // count). The opponent's calendar greys these out (mirrors the
+      // propose-away rejection below).
+      const blockedSet = new Set()
+      const addRange = (s, e) => {
+        if (!s) return
+        const d = new Date(`${s}T00:00:00Z`)
+        const end = new Date(`${e || s}T00:00:00Z`)
+        for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) blockedSet.add(d.toISOString().slice(0, 10))
+      }
+      const evRows = await database('events as e')
+        .join('events_teams as et', 'et.events_id', 'e.id')
+        .where('et.teams_id', opponent.kscw_team)
+        .select(
+          database.raw("(e.start_date AT TIME ZONE 'Europe/Zurich')::date::text as s"),
+          database.raw("(COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date::text as e"),
+        )
+      evRows.forEach((r) => addRange(r.s, r.e))
+      const gameRows = await database('games')
+        .where('kscw_team', opponent.kscw_team).whereNotNull('date')
+        .select(database.raw('games.date::text as d'))
+      gameRows.forEach((r) => {
+        const base = new Date(`${r.d}T00:00:00Z`)
+        for (let off = -1; off <= 1; off++) {
+          const x = new Date(base); x.setUTCDate(x.getUTCDate() + off)
+          blockedSet.add(x.toISOString().slice(0, 10))
+        }
+      })
+      const absRows = await database('absences as a')
+        .join('member_teams as mt', 'mt.member', 'a.member')
+        .where('mt.team', opponent.kscw_team)
+        .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
+        .whereRaw("a.type IS DISTINCT FROM 'weekly'")
+        .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
+        .select(database.raw('a.start_date::text as s'), database.raw('a.end_date::text as e'))
+      absRows.forEach((r) => addRange(r.s, r.e))
+      const blocked_away_dates = [...blockedSet].sort()
+
       // SVRZ fixtures between this KSCW team and this opponent
       // Matched by opponent.team_name on home_team_name or away_team_name, filtered to games involving KSCW.
       let svrzGames = []
@@ -192,6 +231,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         games: svrzGames,
         slots,
         bookings,
+        blocked_away_dates,
       })
     } catch (err) {
       log.error({ msg: `terminplanung/slots: ${err.message}`, endpoint: 'terminplanung/slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })

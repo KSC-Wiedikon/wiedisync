@@ -70,7 +70,7 @@ function GameContextCard({
 export default function OpponentFlowPage() {
   const { token } = useParams<{ token: string }>()
   const { t } = useTranslation('gameScheduling')
-  const { opponent, games, slots, bookings, isLoading, error, bookHomeSlot, proposeAway } = useAvailableSlots(token)
+  const { opponent, games, slots, bookings, blockedAwayDates, isLoading, error, bookHomeSlot, proposeAway } = useAvailableSlots(token)
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
 
@@ -117,14 +117,7 @@ export default function OpponentFlowPage() {
     }
   }
 
-  const handleProposeAway = async (proposals: {
-    proposed_datetime_1: string
-    proposed_place_1: string
-    proposed_datetime_2: string
-    proposed_place_2: string
-    proposed_datetime_3: string
-    proposed_place_3: string
-  }) => {
+  const handleProposeAway = async (proposals: Array<{ date: string; start_time: string; location: string }>) => {
     setBookingError('')
     setBookingSuccess('')
     try {
@@ -226,6 +219,7 @@ export default function OpponentFlowPage() {
             ) : (
               <AwayProposalForm
                 existingProposal={awayBooking || undefined}
+                blockedDates={blockedAwayDates}
                 onSubmit={handleProposeAway}
               />
             )}
