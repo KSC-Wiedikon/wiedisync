@@ -13,6 +13,7 @@ import { registerPasswordReset } from './password-reset.js'
 import { registerICalFeed } from './ical-feed.js'
 import { registerPublicEvents } from './public-events.js'
 import { registerGCalSync } from './gcal-sync.js'
+import { registerSchulferienSync } from './schulferien-sync.js'
 import { registerScorerReminders } from './scorer-reminders.js'
 import { registerGameScheduling } from './game-scheduling.js'
 import { registerContactForm } from './contact-form.js'
@@ -1871,6 +1872,7 @@ export default {
     registerICalFeed(router, ctx)
     registerPublicEvents(router, ctx)
     registerGCalSync(router, ctx)
+    registerSchulferienSync(router, ctx)
     registerScorerReminders(router, ctx)
     registerGameScheduling(router, ctx)
     registerContactForm(router, ctx)

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CalendarDays, List, CheckCircle, CalendarOff } from 'lucide-react'
 import { useTeamAbsences } from '../../hooks/useTeamAbsences'
+import { useCollection } from '../../lib/query'
 import EmptyState from '../../components/EmptyState'
 import AbsenceCard from './AbsenceCard'
 import Modal from '@/components/Modal'
@@ -15,7 +16,7 @@ import DatePicker from '@/components/ui/DatePicker'
 import AbsenceMemberFilter from './AbsenceMemberFilter'
 import { buildMemberOptions } from './absenceMemberOptions'
 import type { CalendarEntry } from '../../types/calendar'
-import type { Absence, Member } from '../../types'
+import type { Absence, Member, HallClosure } from '../../types'
 import { relId, asObj } from '../../utils/relations'
 
 interface TeamAbsenceViewProps {
@@ -106,6 +107,35 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
   const [excludedMembers, setExcludedMembers] = useState<Set<string>>(new Set())
 
   const { absences, memberMap, isLoading } = useTeamAbsences(teamIds, startDate, endDate)
+
+  // School-holiday closures (Schulferien) overlapping the viewed window. Rendered by
+  // MonthGrid as a faint red background on each covered day so members see when the
+  // halls are closed for the holidays. Scoped to source='school_holidays' on purpose:
+  // away games and one-off maintenance closures may still be in scope for a team, so
+  // only the canton-wide school holidays shade the calendar.
+  const { data: closuresRaw } = useCollection<HallClosure>('hall_closures', {
+    filter: {
+      _and: [
+        { source: { _eq: 'school_holidays' } },
+        { start_date: { _lte: endDate } },
+        { end_date: { _gte: startDate } },
+      ],
+    },
+    sort: ['start_date'],
+    fields: ['start_date', 'end_date'],
+    limit: 500,
+  })
+  const closedDates = useMemo(() => {
+    const dates = new Set<string>()
+    for (const c of closuresRaw ?? []) {
+      if (!c.start_date || !c.end_date) continue
+      const start = parseDate(c.start_date)
+      const end = parseDate(c.end_date)
+      if (isAfter(start, end)) continue
+      for (const day of eachDayOfInterval(start, end)) dates.add(toDateKey(day))
+    }
+    return dates
+  }, [closuresRaw])
 
   // Distinct members who have at least one absence in range — drives the filter
   // dropdown. Built from the full fetched set so it's stable across list/calendar.
@@ -231,7 +261,7 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
         <>
           <MonthGrid
             entries={calendarEntries}
-            closedDates={new Set()}
+            closedDates={closedDates}
             month={month}
             onMonthChange={setMonth}
             onEntryClick={setSelectedEntry}
