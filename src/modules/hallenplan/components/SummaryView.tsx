@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { HallSlot, HallClosure, Hall } from '../../../types'
+import type { HallSlot, HallClosure, Hall, Team } from '../../../types'
 import { toISODate } from '../../../utils/dateHelpers'
 import { timeToMinutes } from '../../../utils/dateHelpers'
 import { START_HOUR, END_HOUR } from '../utils/timeGrid'
@@ -50,9 +50,15 @@ interface SummaryViewProps {
   closures: HallClosure[]
   weekDays: Date[]
   halls: Hall[]
+  teams: Team[]
 }
 
-export default function SummaryView({ slots, closures, weekDays, halls }: SummaryViewProps) {
+export default function SummaryView({ slots, closures, weekDays, halls, teams }: SummaryViewProps) {
+  const teamMap = useMemo(() => {
+    const m = new Map<string, Team>()
+    for (const t of teams) m.set(String(t.id), t)
+    return m
+  }, [teams])
   const visibleHalls = useMemo(() => {
     const hallsWithSlots = new Set(slots.map((s) => s.hall))
     return halls.filter((h) => hallsWithSlots.has(h.id))
@@ -91,9 +97,16 @@ export default function SummaryView({ slots, closures, weekDays, halls }: Summar
     for (const slot of slots) {
       const startMin = timeToMinutes(slot.start_time)
       const endMin = timeToMinutes(slot.end_time)
-      const first = slot.team?.[0]
-      const teamName = (first != null && typeof first === 'object') ? (first as { name: string }).name ?? '' : ''
-      const teamSport = (first != null && typeof first === 'object') ? (first as { sport?: string }).sport : undefined
+      // First identifiable team — skip stale archived ids not in the active map.
+      let resolved: { name?: string; sport?: string } | undefined
+      for (const tid of slot.team ?? []) {
+        if (tid == null) continue
+        if (typeof tid === 'object') { resolved = tid as { name?: string; sport?: string }; break }
+        const found = teamMap.get(String(tid))
+        if (found) { resolved = found; break }
+      }
+      const teamName = resolved?.name ?? ''
+      const teamSport = resolved?.sport
 
       for (let m = startMin; m < endMin; m += SUMMARY_INTERVAL) {
         const bucketMin = Math.floor(m / SUMMARY_INTERVAL) * SUMMARY_INTERVAL
@@ -113,7 +126,7 @@ export default function SummaryView({ slots, closures, weekDays, halls }: Summar
       }
     }
     return map
-  }, [slots])
+  }, [slots, teamMap])
 
   const closureMap = useMemo(() => {
     const set = new Set<string>()

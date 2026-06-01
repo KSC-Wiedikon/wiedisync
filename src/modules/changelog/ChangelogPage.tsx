@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.16.1'
+const APP_VERSION = '4.16.2'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.16.2',
+    date: '2026-06-01',
+    sections: [
+      {
+        title: 'Calendar shows team names again after the season rollover',
+        items: [
+          'After the June 1 rollover, hall-plan slots showed up grey with no team name, and the VB / BB sport filter hid everything. Slots now show their team and sport again, and the filters work.',
+          'Cause: the rollover left every recurring slot pointing at last season\'s (archived) team alongside the new one. Cleaned up the data, fixed the rollover so it won\'t recur next season, and made the calendar resilient to it.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.16.1',
     date: '2026-06-01',

@@ -879,7 +879,25 @@ export function registerGameScheduling(router, { database, logger, services, get
           const coaches = await cloneJunction('teams_coaches', ['members_id'])
           const responsibles = await cloneJunction('teams_responsibles', ['members_id'])
           const sponsors = await cloneJunction('teams_sponsors', ['sponsors_id'])
-          const hallSlots = await cloneJunction('hall_slots_teams', ['hall_slots_id'])
+
+          // Hall-plan links MOVE to the new team (re-point), they do NOT
+          // duplicate. The recurring hall_slots are shared club infrastructure
+          // and must follow the active team, not stay pinned to the team we're
+          // about to archive. Cloning here (the pre-fix behaviour) left every
+          // slot dual-linked [archived, active] with the archived team sorting
+          // first — which broke the calendar's name/sport resolution and the
+          // VB/BB filter (migration 075 cleans up the rows that bug already
+          // wrote). Re-point where the new team isn't already on the slot, then
+          // drop any leftover old links so the archived team leaves the plan.
+          let hallSlots = 0
+          for (const [oldId, newId] of Object.entries(map)) {
+            const moved = await trx('hall_slots_teams')
+              .where('teams_id', oldId)
+              .whereNotIn('hall_slots_id', trx('hall_slots_teams').select('hall_slots_id').where('teams_id', newId))
+              .update({ teams_id: newId })
+            hallSlots += moved
+            await trx('hall_slots_teams').where('teams_id', oldId).del()
+          }
 
           // Clone the roster (member_teams, all guest levels) for cloned teams only
           let memberTeams = 0

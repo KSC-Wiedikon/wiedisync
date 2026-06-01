@@ -25,6 +25,11 @@ function getTodayDayIndex(): number {
   return dow === 0 ? 6 : dow - 1
 }
 
+/** Coerce a slot `team` entry (number | string | expanded object) to a string id. */
+function teamIdOf(t: unknown): string {
+  return String(typeof t === 'object' && t !== null ? (t as { id?: unknown }).id ?? '' : t)
+}
+
 export default function HallenplanView() {
   const { t } = useTranslation('hallenplan')
   const { isCoach } = useAuth()
@@ -88,10 +93,14 @@ export default function HallenplanView() {
     weekDays,
   )
 
-  // Filter slots by sport
+  // Filter slots by sport. Team ids must be compared as strings: `teams` ids are
+  // stringified by the API layer, but a slot's `team` entries can be numbers,
+  // strings, or expanded objects — comparing across those types silently fails
+  // the Set lookup and empties the VB/BB views (the symptom that made every
+  // slot vanish under the sport filter).
   const teamsBySport = useMemo(() => {
-    const vb = new Set(teams.filter((t: Team) => t.sport === 'volleyball').map((t: Team) => t.id))
-    const bb = new Set(teams.filter((t: Team) => t.sport === 'basketball').map((t: Team) => t.id))
+    const vb = new Set(teams.filter((t: Team) => t.sport === 'volleyball').map((t: Team) => String(t.id)))
+    const bb = new Set(teams.filter((t: Team) => t.sport === 'basketball').map((t: Team) => String(t.id)))
     return { vb, bb }
   }, [teams])
   const filteredSlots = useMemo(() => {
@@ -99,7 +108,7 @@ export default function HallenplanView() {
     const allowedTeams = sportFilter === 'vb' ? teamsBySport.vb : teamsBySport.bb
     return slots.filter((s) => {
       if (!s.team?.length) return true
-      if (!s.team.some(t => allowedTeams.has(t))) return false
+      if (!s.team.some(t => allowedTeams.has(teamIdOf(t)))) return false
       if (sportFilter === 'vb' && s._virtual?.source === 'hall_event' && s.slot_type === 'game') return false
       return true
     })
@@ -248,7 +257,7 @@ export default function HallenplanView() {
           {isLoading ? (
             <LoadingSpinner />
           ) : showSummary ? (
-            <SummaryView slots={filteredSlots} closures={closures} weekDays={weekDays} halls={halls} />
+            <SummaryView slots={filteredSlots} closures={closures} weekDays={weekDays} halls={halls} teams={teams} />
           ) : (
             <DaySlotView
               slots={filteredSlots}

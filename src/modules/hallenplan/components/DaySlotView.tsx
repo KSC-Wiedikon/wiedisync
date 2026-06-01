@@ -179,18 +179,25 @@ export default function DaySlotView({
     return m
   }, [teams])
 
+  // Resolve the first identifiable team on the slot, skipping stale archived ids
+  // (e.g. a season rollover that re-linked the new team but left the old one).
+  // The teams we load are active-only, so an archived id resolves to nothing.
+  function resolveTeam(slot: HallSlot): { name?: string; sport?: string } | undefined {
+    for (const tid of slot.team ?? []) {
+      if (tid == null) continue
+      if (typeof tid === 'object') return tid as { name?: string; sport?: string }
+      const found = teamMap.get(String(tid))
+      if (found) return found
+    }
+    return undefined
+  }
+
   function getTeamName(slot: HallSlot): string {
-    const first = slot.team?.[0]
-    if (first == null) return ''
-    if (typeof first === 'object') return (first as { name: string }).name ?? ''
-    return teamMap.get(String(first))?.name ?? ''
+    return resolveTeam(slot)?.name ?? ''
   }
 
   function getTeamSport(slot: HallSlot): 'volleyball' | 'basketball' | undefined {
-    const first = slot.team?.[0]
-    if (first == null) return undefined
-    if (typeof first === 'object') return (first as { sport?: string }).sport as 'volleyball' | 'basketball' | undefined
-    return teamMap.get(String(first))?.sport as 'volleyball' | 'basketball' | undefined
+    return resolveTeam(slot)?.sport as 'volleyball' | 'basketball' | undefined
   }
 
   const { startMin, endMin } = getDayRange(dayIndex)
