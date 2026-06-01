@@ -554,7 +554,12 @@ export interface SpielsamstagConfig {
 
 export interface TeamSlotConfig {
   [teamId: string]: {
-    source: 'hall_slot' | 'spielsamstag' | 'manual'
+    /** Additive home-slot sources. Empty/absent = manual (no slots generated).
+     *  'hall_slot' = the team's latest Doltschi/KWI evening slots (end 21:30);
+     *  'spielsamstag' = the central Game-Saturday pool. Both may be active. */
+    sources?: ('hall_slot' | 'spielsamstag')[]
+    /** @deprecated legacy single-select — still read for back-compat. */
+    source?: 'hall_slot' | 'spielsamstag' | 'manual'
     hall_slot_id?: string
   }
 }

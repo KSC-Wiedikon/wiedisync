@@ -37,8 +37,11 @@ export default {
   sourceSpielHalle: 'Spielhalle',
   sourceManual: 'Manuell',
   teamSlotConfig: 'Team-Konfiguration',
-  latestSlot: 'Abendbetrieb (spätester Slot)',
-  spielsamstagMode: 'Spielsamstag-Modus',
+  latestSlot: 'Standard-Slot',
+  spielsamstagMode: 'Samstag',
+  latestSlotHint: 'Der späteste wöchentliche Slot des Teams (Ende 21:30) in der Doltschi- oder KWI-Halle, jede Woche Sep–Mär.',
+  spielsamstagModeHint: 'Der zentrale Spielsamstag-Pool (KWI A/B/C · 11:00 / 13:30 / 16:00).',
+  manualHint: 'Standardmässig beide an. Beide aus = keine Slots (manuell vereinbaren; Gegner können trotzdem Auswärtstermine vorschlagen).',
 
   // Slot status
   available: 'Verfügbar',

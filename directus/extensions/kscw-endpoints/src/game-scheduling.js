@@ -307,21 +307,62 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
       // 2026-05-12 audit #22: validate date/time/location before storing or
       // later emailing. Token-flow rate-limit + auth are intact, but garbage
-      // data lands in admin UI + outbound emails (HTML-rendered).
+      // data lands in admin UI + outbound emails (HTML-rendered). Return a
+      // proper 400 with the message (was throwing into the generic 500 catch).
       const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
       const TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/
-      proposals.forEach((p, i) => {
+      for (let i = 0; i < proposals.length; i++) {
+        const p = proposals[i]
         if (!p.date || !DATE_RE.test(String(p.date))) {
-          throw new Error('Each proposal needs a valid date (YYYY-MM-DD)')
+          return res.status(400).json({ error: 'Each proposal needs a valid date (YYYY-MM-DD)' })
         }
         if (p.start_time && !TIME_RE.test(String(p.start_time))) {
-          throw new Error('start_time must be HH:MM')
+          return res.status(400).json({ error: 'start_time must be HH:MM' })
+        }
+        // Reject dates that hit an event for this KSCW team — the team is busy
+        // (mirrors the home-slot event exclusion). Zurich-local date compare.
+        const eventCover = await database('events as e')
+          .join('events_teams as et', 'et.events_id', 'e.id')
+          .where('et.teams_id', opponent.kscw_team)
+          .whereRaw(
+            "?::date BETWEEN (e.start_date AT TIME ZONE 'Europe/Zurich')::date " +
+            "AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date",
+            [String(p.date)],
+          )
+          .first('e.title')
+        if (eventCover) {
+          return res.status(400).json({ error: `${p.date} falls on a team event${eventCover.title ? ` (${eventCover.title})` : ''} — please pick another date.` })
+        }
+        // Reject if the team already has a game that day OR the day before/after
+        // (no back-to-back games).
+        const gameClash = await database('games')
+          .where('kscw_team', opponent.kscw_team)
+          .whereRaw("games.date::date BETWEEN ?::date - 1 AND ?::date + 1", [String(p.date), String(p.date)])
+          .first('games.date')
+        if (gameClash) {
+          return res.status(400).json({ error: `${p.date} is within a day of an existing game (${String(gameClash.date).slice(0, 10)}) — please leave at least a day's gap.` })
+        }
+        // Reject if any rostered member has a one-off absence (NOT a weekly
+        // unavailability) affecting games on that date. "No game if absence."
+        const absence = await database('absences as a')
+          .join('member_teams as mt', 'mt.member', 'a.member')
+          .where('mt.team', opponent.kscw_team)
+          // Players only — guests (guest_level > 0) don't block.
+          .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
+          // One-off absences only, not weekly unavailabilities. IS DISTINCT FROM
+          // so a NULL type (legacy one-off) still counts (`!= 'weekly'` is NULL).
+          .whereRaw("a.type IS DISTINCT FROM 'weekly'")
+          .whereRaw("a.start_date::date <= ?::date AND a.end_date::date >= ?::date", [String(p.date), String(p.date)])
+          .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
+          .first('a.id')
+        if (absence) {
+          return res.status(400).json({ error: `${p.date} clashes with a player absence — please pick another date.` })
         }
         const rawPlace = String(p.location || p.place || '').slice(0, 200)
         const dt = p.start_time ? `${p.date}T${p.start_time}` : p.date
         row[`proposed_datetime_${i + 1}`] = dt
         row[`proposed_place_${i + 1}`] = rawPlace
-      })
+      }
       await database('game_scheduling_bookings').insert(row)
 
       // Status lifecycle: away proposal transitions invited/viewed → booked
@@ -337,74 +378,192 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
-  // POST /kscw/admin/terminplanung/generate-slots — generate slots for season
-  router.post('/admin/terminplanung/generate-slots', async (req, res) => {
+  // POST /kscw/terminplanung/admin/generate-slots — (re)generate home slots for
+  // a season from its Spielsamstage + per-team slot config. Body: { season_id }.
+  // Idempotent: clears existing *available* slots for the season (booked/blocked
+  // survive), then regenerates for each team with an explicit team_slot_config
+  // entry ('spielsamstag' → Game-Saturday pool; 'hall_slot' → the team's weekly
+  // hall slots expanded across the picked-Saturday span; 'manual' → skipped).
+  router.post('/terminplanung/admin/generate-slots', async (req, res) => {
     if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
     try {
-      const { kscw_team, season_id } = req.body
-      if (!kscw_team || !season_id) return res.status(400).json({ error: 'kscw_team and season_id required' })
+      const { season_id } = req.body || {}
+      if (!season_id) return res.status(400).json({ error: 'season_id required' })
 
       const season = await database('game_scheduling_seasons').where('id', season_id).first()
       if (!season) return res.status(404).json({ error: 'Season not found' })
 
-      // Get recurring hall slots for this team
-      const hallSlots = await database('hall_slots')
-        .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
-        .where('hall_slots_teams.teams_id', kscw_team)
-        .select('hall_slots.*')
+      // JSON columns — jsonb comes back parsed, but guard against a string.
+      const parseJson = (v, fallback) => {
+        if (v == null) return fallback
+        if (typeof v === 'string') { try { return JSON.parse(v) } catch { return fallback } }
+        return v
+      }
+      const spielsamstage = parseJson(season.spielsamstage, [])
+      const teamConfig = parseJson(season.team_slot_config, {})
+      const seasonKey = String(season_id)
 
-      let created = 0
-      const startDate = new Date(season.start_date)
-      const endDate = new Date(season.end_date)
+      // "Overwrites not-yet-booked slots": drop existing available slots for the
+      // season before regenerating. Booked + blocked rows are preserved.
+      await database('game_scheduling_slots')
+        .where('season', seasonKey).where('status', 'available').del()
 
-      for (const slot of hallSlots) {
-        const d = new Date(startDate)
-        while (d <= endDate) {
-          if (d.getDay() === slot.day_of_week) {
-            const dateStr = d.toISOString().split('T')[0]
-            // Check not already exists
-            const exists = await database('game_scheduling_slots')
-              .where('kscw_team', kscw_team).where('date', dateStr)
-              .where('start_time', slot.start_time).first()
-            if (!exists) {
-              await database('game_scheduling_slots').insert({
-                kscw_team, date: dateStr, start_time: slot.start_time,
-                end_time: slot.end_time, hall: slot.hall, status: 'available',
+      const addHours = (hhmm, hrs) => {
+        const [h, m] = String(hhmm).split(':').map(Number)
+        const d = new Date(Date.UTC(2000, 0, 1, h || 0, m || 0))
+        d.setUTCHours(d.getUTCHours() + hrs)
+        return d.toISOString().slice(11, 16)
+      }
+
+      // Evening (hall_slot) mode repeats weekly across the volleyball season
+      // window: Sep 1 (first year) → Mar 31 (second year), parsed from the
+      // season name (e.g. "2026/27").
+      const seasonWindow = (name) => {
+        const m = String(name || '').match(/(\d{4})\D+(\d{2,4})/)
+        if (!m) return null
+        const y1 = parseInt(m[1], 10)
+        let y2 = parseInt(m[2], 10)
+        if (y2 < 100) y2 = 2000 + y2
+        return { start: new Date(Date.UTC(y1, 8, 1)), end: new Date(Date.UTC(y2, 2, 31)) }
+      }
+      const eveningWindow = seasonWindow(season.season)
+
+      // Club-wide Spielhalle pool: the shared game-hall slots (label
+      // 'Spielhalle', no team assigned — KWI A/B on Friday). Any team without
+      // its own 21:30 Döltschi/KWI slot falls back to these.
+      const spielhalleSlots = await database('hall_slots')
+        .whereRaw("LOWER(label) = 'spielhalle'")
+        .select('day_of_week', 'start_time', 'end_time', 'hall')
+
+      // Shared VOLLEYBALL Döltschi pool: the Under teams take each other's
+      // Tuesday Döltschi slots. Volleyball only — the BB Döltschi slots stay out.
+      const doltschiVbPool = await database('hall_slots')
+        .join('halls', 'hall_slots.hall', 'halls.id')
+        .where('hall_slots.sport', 'volleyball')
+        .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%')")
+        .select('hall_slots.day_of_week', 'hall_slots.start_time', 'hall_slots.end_time', 'hall_slots.hall')
+
+      const teams = await database('teams')
+        .where('sport', 'volleyball').where('active', true).select('id')
+
+      let total_created = 0
+      for (const team of teams) {
+        const cfg = teamConfig[String(team.id)]
+        // Additive sources. Default (no config) = both. Explicit empty = manual.
+        let sources
+        if (Array.isArray(cfg?.sources)) sources = cfg.sources
+        else if (cfg?.source === 'manual') sources = []
+        else if (cfg?.source) sources = [cfg.source]
+        else sources = ['hall_slot', 'spielsamstag']
+        if (sources.length === 0) continue
+
+        const candidates = []
+
+        // Game-Saturday pool: every picked Saturday × its configured slots.
+        if (sources.includes('spielsamstag')) {
+          for (const sat of (Array.isArray(spielsamstage) ? spielsamstage : [])) {
+            if (!sat?.date || !Array.isArray(sat.slots)) continue
+            for (const s of sat.slots) {
+              if (!s?.time || !s?.hall_id) continue
+              candidates.push({
+                date: sat.date, start_time: s.time, end_time: addHours(s.time, 2),
+                hall: parseInt(s.hall_id, 10) || null, source: 'spielsamstag',
               })
-              created++
             }
           }
-          d.setDate(d.getDate() + 1)
+        }
+
+        // Standard slot (volleyball-only generator):
+        //  - KWI teams: their own latest KWI block (ends 21:30).
+        //  - Döltschi (Under) teams: the SHARED volleyball Döltschi pool — any
+        //    team that uses Döltschi can take any VB Döltschi slot.
+        //  - Neither: fall back to the club Spielhalle pool (KWI A/B Friday).
+        // day_of_week is 0=Mon in the DB -> JS getUTCDay (0=Sun) via (dow + 1) % 7.
+        if (sources.includes('hall_slot') && eveningWindow) {
+          const ownKwi = await database('hall_slots')
+            .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
+            .join('halls', 'hall_slots.hall', 'halls.id')
+            .where('hall_slots_teams.teams_id', team.id)
+            .whereRaw("hall_slots.end_time::text LIKE '21:30%'")
+            .whereRaw("LOWER(halls.name) LIKE '%kwi%'")
+            .select('hall_slots.day_of_week', 'hall_slots.start_time', 'hall_slots.end_time', 'hall_slots.hall')
+          const usesDoltschi = await database('hall_slots')
+            .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
+            .join('halls', 'hall_slots.hall', 'halls.id')
+            .where('hall_slots_teams.teams_id', team.id)
+            .where('hall_slots.sport', 'volleyball')
+            .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%')")
+            .first()
+          let stdSlots = ownKwi.slice()
+          if (usesDoltschi) stdSlots = stdSlots.concat(doltschiVbPool)
+          let stdTag = 'hall_slot'
+          if (stdSlots.length === 0) { stdSlots = spielhalleSlots; stdTag = 'spielhalle' }
+          for (const hs of stdSlots) {
+            const targetJsDay = (hs.day_of_week + 1) % 7
+            const d = new Date(eveningWindow.start)
+            while (d <= eveningWindow.end) {
+              if (d.getUTCDay() === targetJsDay) {
+                candidates.push({
+                  date: d.toISOString().slice(0, 10), start_time: hs.start_time,
+                  end_time: hs.end_time, hall: hs.hall, source: stdTag,
+                })
+              }
+              d.setUTCDate(d.getUTCDate() + 1)
+            }
+          }
+        }
+
+        for (const c of candidates) {
+          // Don't duplicate a surviving booked/blocked slot at the same key.
+          const clash = await database('game_scheduling_slots')
+            .where({ kscw_team: team.id, date: c.date, start_time: c.start_time })
+            .modify((q) => { if (c.hall != null) q.where('hall', c.hall) })
+            .first()
+          if (clash) continue
+          await database('game_scheduling_slots').insert({
+            season: seasonKey, kscw_team: team.id, date: c.date,
+            start_time: c.start_time, end_time: c.end_time, hall: c.hall,
+            source: c.source, status: 'available',
+          })
+          total_created++
         }
       }
 
-      res.json({ success: true, created })
+      res.json({ success: true, total_created })
     } catch (err) {
-      log.error({ msg: `generate-slots: ${err.message}`, endpoint: 'generate-slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      log.error({ msg: `generate-slots: ${err.message}`, endpoint: 'terminplanung/admin/generate-slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
 
-  // POST /kscw/admin/terminplanung/confirm-away — confirm one of 3 proposals
-  router.post('/admin/terminplanung/confirm-away', async (req, res) => {
+  // POST /kscw/terminplanung/admin/confirm-away — confirm one of an opponent's
+  // away-date proposals. Body: { booking_id, proposal_number (1-3), admin_notes? }.
+  // Away proposals live on a single booking row (type 'away_proposal', status
+  // 'pending') with up to 3 proposed_datetime_N / proposed_place_N columns.
+  router.post('/terminplanung/admin/confirm-away', async (req, res) => {
     if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
     try {
-      const { booking_id } = req.body
-      if (!booking_id) return res.status(400).json({ error: 'booking_id required' })
-
-      const booking = await database('game_scheduling_bookings').where('id', booking_id).first()
-      if (!booking || booking.status !== 'proposed') {
-        return res.status(400).json({ error: 'Invalid booking' })
+      const { booking_id, proposal_number, admin_notes } = req.body || {}
+      const n = Number(proposal_number)
+      if (!booking_id || ![1, 2, 3].includes(n)) {
+        return res.status(400).json({ error: 'booking_id and proposal_number (1-3) required' })
       }
 
-      // Confirm this one, reject siblings
-      await database('game_scheduling_bookings').where('id', booking_id).update({ status: 'confirmed' })
-      await database('game_scheduling_bookings')
-        .where('opponent', booking.opponent).where('type', 'away')
-        .where('status', 'proposed').whereNot('id', booking_id)
-        .update({ status: 'rejected' })
+      const booking = await database('game_scheduling_bookings').where('id', booking_id).first()
+      if (!booking || booking.type !== 'away_proposal') {
+        return res.status(400).json({ error: 'Invalid booking' })
+      }
+      const chosenDateTime = booking[`proposed_datetime_${n}`]
+      const chosenPlace = booking[`proposed_place_${n}`]
+      if (!chosenDateTime) return res.status(400).json({ error: `Proposal ${n} is empty` })
 
-      // Email opponent
+      await database('game_scheduling_bookings').where('id', booking_id).update({
+        status: 'confirmed',
+        confirmed_proposal: n,
+        admin_notes: admin_notes || booking.admin_notes || null,
+      })
+
+      // Email opponent (best-effort — never blocks the confirmation)
       try {
         const opponent = await database('game_scheduling_opponents').where('id', booking.opponent).first()
         if (opponent?.contact_email) {
@@ -414,16 +573,16 @@ export function registerGameScheduling(router, { database, logger, services, get
           await mail.send({
             to: opponent.contact_email,
             subject: 'KSC Wiedikon – Auswärtsspiel bestätigt',
-            text: `Hallo ${opponent.contact_name},\n\nDas Auswärtsspiel am ${booking.date} wurde bestätigt.\n\nKSC Wiedikon`,
+            text: `Hallo ${opponent.contact_name || ''},\n\nDas Auswärtsspiel vom ${chosenDateTime}${chosenPlace ? ` (${chosenPlace})` : ''} wurde bestätigt.\n\nKSC Wiedikon`,
           })
         }
       } catch (mailErr) {
         log.warn(`Confirm-away email failed: ${mailErr.message}`)
       }
 
-      res.json({ success: true })
+      res.json({ success: true, confirmed_proposal: n })
     } catch (err) {
-      log.error({ msg: `confirm-away: ${err.message}`, endpoint: 'confirm-away', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      log.error({ msg: `confirm-away: ${err.message}`, endpoint: 'terminplanung/admin/confirm-away', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
@@ -627,6 +786,21 @@ export function registerGameScheduling(router, { database, logger, services, get
             .where('active', true)
             .update({ active: false })
 
+          // Carry UPCOMING events onto the new-season teams: re-point future
+          // events_teams links from each cloned old team to its new id, so
+          // event-day blocking (the Terminplanung slot picker) follows the
+          // active team. Past events stay on the archived team as history.
+          // Skip events already linked to the new team (avoids a dup junction).
+          let eventsRelinked = 0
+          for (const [oldId, newId] of Object.entries(map)) {
+            const updated = await trx('events_teams')
+              .where('teams_id', oldId)
+              .whereIn('events_id', trx('events').select('id').where('start_date', '>=', now))
+              .whereNotIn('events_id', trx('events_teams').select('events_id').where('teams_id', newId))
+              .update({ teams_id: newId })
+            eventsRelinked += updated
+          }
+
           counts = {
             from_season: fromSeason,
             to_season: toSeason,
@@ -638,6 +812,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             hall_slots: hallSlots,
             member_teams: memberTeams,
             teams_archived: teamsArchived,
+            events_relinked: eventsRelinked,
           }
 
           if (dryRun) {
@@ -666,15 +841,18 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
-  // POST /kscw/admin/terminplanung/block-slot — block/unblock a slot
-  router.post('/admin/terminplanung/block-slot', async (req, res) => {
+  // POST /kscw/terminplanung/admin/block-slot — block/unblock a slot.
+  // Body: { slot_id, action: 'block' | 'unblock' }.
+  router.post('/terminplanung/admin/block-slot', async (req, res) => {
     if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
     try {
-      const { slot_id, blocked } = req.body
+      const { slot_id, action } = req.body || {}
       if (!slot_id) return res.status(400).json({ error: 'slot_id required' })
-      await database('game_scheduling_slots').where('id', slot_id).update({ status: blocked ? 'blocked' : 'available' })
+      await database('game_scheduling_slots').where('id', slot_id)
+        .update({ status: action === 'block' ? 'blocked' : 'available' })
       res.json({ success: true })
     } catch (err) {
+      log.error({ msg: `block-slot: ${err.message}`, endpoint: 'terminplanung/admin/block-slot', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

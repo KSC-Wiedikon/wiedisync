@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { parseISO, isSaturday } from 'date-fns'
+import { parseISO, isSaturday, addDays } from 'date-fns'
 import { de } from 'date-fns/locale/de'
 import { enUS } from 'date-fns/locale'
 import { Calendar as CalendarIcon, X } from 'lucide-react'
@@ -26,6 +26,7 @@ export default function SpielsamstageEditor({ spielsamstage, onUpdate }: Props) 
   )
   const [saving, setSaving] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [events, setEvents] = useState<{ start_date: string; end_date: string | null }[]>([])
 
   useEffect(() => {
     setDates(spielsamstage.map(s => s.date).filter(Boolean))
@@ -34,6 +35,32 @@ export default function SpielsamstageEditor({ spielsamstage, onUpdate }: Props) 
   useEffect(() => {
     fetchAllItems<Hall>('halls', { sort: ['name'] }).then(setHalls).catch(() => {})
   }, [])
+
+  // Saturdays that fall on any event get greyed out in the picker, so a game
+  // day isn't booked onto an event. Zurich-local dates (matches the server).
+  useEffect(() => {
+    fetchAllItems<{ start_date: string; end_date: string | null }>('events', {
+      fields: ['id', 'start_date', 'end_date'],
+    })
+      .then(setEvents)
+      .catch(() => {})
+  }, [])
+
+  const eventDays = useMemo(() => {
+    const set = new Set<string>()
+    const zkey = (ts: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich' }).format(new Date(ts))
+    for (const e of events) {
+      if (!e.start_date) continue
+      let d = parseISO(zkey(e.start_date))
+      const last = parseISO(zkey(e.end_date || e.start_date))
+      let guard = 0
+      while (d <= last && guard++ < 400) {
+        set.add(toDateKey(d))
+        d = addDays(d, 1)
+      }
+    }
+    return set
+  }, [events])
 
   const lang = i18n.language
   const locale = lang === 'de' ? de : enUS
@@ -107,7 +134,7 @@ export default function SpielsamstageEditor({ spielsamstage, onUpdate }: Props) 
             weekStartsOn={1}
             showOutsideDays={false}
             captionLayout="dropdown"
-            disabled={(date) => !isSaturday(date)}
+            disabled={(date) => !isSaturday(date) || eventDays.has(toDateKey(date))}
             startMonth={new Date(new Date().getFullYear() - 1, 0)}
             endMonth={new Date(new Date().getFullYear() + 2, 11)}
           />

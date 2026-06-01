@@ -433,8 +433,20 @@ export default {
 
     router.get('/public/team/:id', async (req, res) => {
       try {
-        const team = await database('teams').where('id', req.params.id).first()
+        let team = await database('teams').where('id', req.params.id).first()
         if (!team) return res.status(404).json({ error: 'Team not found' })
+
+        // Season-rollover follow-through: the public site (kscw-website) hardcodes
+        // a team's numeric id per slug. After the June-1 rollover every team gets a
+        // new id (the old row is archived with active=false), so those hardcoded ids
+        // point at last season's roster. `team_id` (e.g. vb_12747) is stable across
+        // seasons, so if we were handed an archived team, hop to the active row that
+        // shares it. Keeps stale hardcoded ids auto-following future rollovers.
+        if (!team.active && team.team_id) {
+          const activeTeam = await database('teams')
+            .where('team_id', team.team_id).where('active', true).first()
+          if (activeTeam) team = activeTeam
+        }
 
         const today = new Date().toISOString().split('T')[0]
 
