@@ -42,6 +42,9 @@ export default {
   teamSlotConfig: 'Configuration par equipe',
   latestSlot: 'Creneau du soir (dernier)',
   spielsamstagMode: 'Mode samedi de match',
+  latestSlotHint: "Réutilise le dernier créneau d'entraînement hebdomadaire de l'équipe (même salle + heure).",
+  spielsamstagModeHint: 'Place les matchs à domicile sur les samedis de match centraux (KWI A/B/C · 11:00 / 13:30 / 16:00).',
+  manualHint: "Aucun créneau généré — organisez les dates à la main. Les adversaires peuvent quand même proposer des dates à l'extérieur.",
 
   // Slot status
   available: 'Disponible',

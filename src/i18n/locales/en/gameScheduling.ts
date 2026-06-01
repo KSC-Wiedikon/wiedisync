@@ -39,6 +39,9 @@ export default {
   teamSlotConfig: 'Team Configuration',
   latestSlot: 'Evening slot (latest)',
   spielsamstagMode: 'Game Saturday mode',
+  latestSlotHint: "Reuses the team's own latest weekly training slot (same hall + time).",
+  spielsamstagModeHint: 'Places home games on the central Game Saturdays (KWI A/B/C · 11:00 / 13:30 / 16:00).',
+  manualHint: 'No slots generated — arrange dates by hand. Opponents can still propose away dates.',
 
   // Slot status
   available: 'Available',

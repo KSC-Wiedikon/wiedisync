@@ -337,74 +337,141 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
-  // POST /kscw/admin/terminplanung/generate-slots — generate slots for season
-  router.post('/admin/terminplanung/generate-slots', async (req, res) => {
+  // POST /kscw/terminplanung/admin/generate-slots — (re)generate home slots for
+  // a season from its Spielsamstage + per-team slot config. Body: { season_id }.
+  // Idempotent: clears existing *available* slots for the season (booked/blocked
+  // survive), then regenerates for each team with an explicit team_slot_config
+  // entry ('spielsamstag' → Game-Saturday pool; 'hall_slot' → the team's weekly
+  // hall slots expanded across the picked-Saturday span; 'manual' → skipped).
+  router.post('/terminplanung/admin/generate-slots', async (req, res) => {
     if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
     try {
-      const { kscw_team, season_id } = req.body
-      if (!kscw_team || !season_id) return res.status(400).json({ error: 'kscw_team and season_id required' })
+      const { season_id } = req.body || {}
+      if (!season_id) return res.status(400).json({ error: 'season_id required' })
 
       const season = await database('game_scheduling_seasons').where('id', season_id).first()
       if (!season) return res.status(404).json({ error: 'Season not found' })
 
-      // Get recurring hall slots for this team
-      const hallSlots = await database('hall_slots')
-        .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
-        .where('hall_slots_teams.teams_id', kscw_team)
-        .select('hall_slots.*')
+      // JSON columns — jsonb comes back parsed, but guard against a string.
+      const parseJson = (v, fallback) => {
+        if (v == null) return fallback
+        if (typeof v === 'string') { try { return JSON.parse(v) } catch { return fallback } }
+        return v
+      }
+      const spielsamstage = parseJson(season.spielsamstage, [])
+      const teamConfig = parseJson(season.team_slot_config, {})
+      const seasonKey = String(season_id)
 
-      let created = 0
-      const startDate = new Date(season.start_date)
-      const endDate = new Date(season.end_date)
+      // "Overwrites not-yet-booked slots": drop existing available slots for the
+      // season before regenerating. Booked + blocked rows are preserved.
+      await database('game_scheduling_slots')
+        .where('season', seasonKey).where('status', 'available').del()
 
-      for (const slot of hallSlots) {
-        const d = new Date(startDate)
-        while (d <= endDate) {
-          if (d.getDay() === slot.day_of_week) {
-            const dateStr = d.toISOString().split('T')[0]
-            // Check not already exists
-            const exists = await database('game_scheduling_slots')
-              .where('kscw_team', kscw_team).where('date', dateStr)
-              .where('start_time', slot.start_time).first()
-            if (!exists) {
-              await database('game_scheduling_slots').insert({
-                kscw_team, date: dateStr, start_time: slot.start_time,
-                end_time: slot.end_time, hall: slot.hall, status: 'available',
+      const addHours = (hhmm, hrs) => {
+        const [h, m] = String(hhmm).split(':').map(Number)
+        const d = new Date(Date.UTC(2000, 0, 1, h || 0, m || 0))
+        d.setUTCHours(d.getUTCHours() + hrs)
+        return d.toISOString().slice(11, 16)
+      }
+
+      const satDates = (Array.isArray(spielsamstage) ? spielsamstage : [])
+        .map((s) => s?.date).filter(Boolean).sort()
+
+      const teams = await database('teams')
+        .where('sport', 'volleyball').where('active', true).select('id')
+
+      let total_created = 0
+      for (const team of teams) {
+        const cfg = teamConfig[String(team.id)]
+        if (!cfg || cfg.source === 'manual') continue
+
+        const candidates = []
+        if (cfg.source === 'spielsamstag') {
+          for (const sat of (Array.isArray(spielsamstage) ? spielsamstage : [])) {
+            if (!sat?.date || !Array.isArray(sat.slots)) continue
+            for (const s of sat.slots) {
+              if (!s?.time || !s?.hall_id) continue
+              candidates.push({
+                date: sat.date, start_time: s.time, end_time: addHours(s.time, 2),
+                hall: parseInt(s.hall_id, 10) || null, source: 'spielsamstag',
               })
-              created++
             }
           }
-          d.setDate(d.getDate() + 1)
+        } else if (cfg.source === 'hall_slot') {
+          // Expand the team's recurring hall slots across the picked-Saturday
+          // span. No Saturdays picked → no date window → nothing generated.
+          if (satDates.length === 0) continue
+          const start = new Date(satDates[0] + 'T00:00:00Z')
+          const end = new Date(satDates[satDates.length - 1] + 'T00:00:00Z')
+          const hallSlots = await database('hall_slots')
+            .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
+            .where('hall_slots_teams.teams_id', team.id)
+            .select('hall_slots.*')
+          for (const hs of hallSlots) {
+            const d = new Date(start)
+            while (d <= end) {
+              if (d.getUTCDay() === hs.day_of_week) {
+                candidates.push({
+                  date: d.toISOString().slice(0, 10), start_time: hs.start_time,
+                  end_time: hs.end_time, hall: hs.hall, source: 'hall_slot',
+                })
+              }
+              d.setUTCDate(d.getUTCDate() + 1)
+            }
+          }
+        }
+
+        for (const c of candidates) {
+          // Don't duplicate a surviving booked/blocked slot at the same key.
+          const clash = await database('game_scheduling_slots')
+            .where({ kscw_team: team.id, date: c.date, start_time: c.start_time })
+            .modify((q) => { if (c.hall != null) q.where('hall', c.hall) })
+            .first()
+          if (clash) continue
+          await database('game_scheduling_slots').insert({
+            season: seasonKey, kscw_team: team.id, date: c.date,
+            start_time: c.start_time, end_time: c.end_time, hall: c.hall,
+            source: c.source, status: 'available',
+          })
+          total_created++
         }
       }
 
-      res.json({ success: true, created })
+      res.json({ success: true, total_created })
     } catch (err) {
-      log.error({ msg: `generate-slots: ${err.message}`, endpoint: 'generate-slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      log.error({ msg: `generate-slots: ${err.message}`, endpoint: 'terminplanung/admin/generate-slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
 
-  // POST /kscw/admin/terminplanung/confirm-away — confirm one of 3 proposals
-  router.post('/admin/terminplanung/confirm-away', async (req, res) => {
+  // POST /kscw/terminplanung/admin/confirm-away — confirm one of an opponent's
+  // away-date proposals. Body: { booking_id, proposal_number (1-3), admin_notes? }.
+  // Away proposals live on a single booking row (type 'away_proposal', status
+  // 'pending') with up to 3 proposed_datetime_N / proposed_place_N columns.
+  router.post('/terminplanung/admin/confirm-away', async (req, res) => {
     if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
     try {
-      const { booking_id } = req.body
-      if (!booking_id) return res.status(400).json({ error: 'booking_id required' })
-
-      const booking = await database('game_scheduling_bookings').where('id', booking_id).first()
-      if (!booking || booking.status !== 'proposed') {
-        return res.status(400).json({ error: 'Invalid booking' })
+      const { booking_id, proposal_number, admin_notes } = req.body || {}
+      const n = Number(proposal_number)
+      if (!booking_id || ![1, 2, 3].includes(n)) {
+        return res.status(400).json({ error: 'booking_id and proposal_number (1-3) required' })
       }
 
-      // Confirm this one, reject siblings
-      await database('game_scheduling_bookings').where('id', booking_id).update({ status: 'confirmed' })
-      await database('game_scheduling_bookings')
-        .where('opponent', booking.opponent).where('type', 'away')
-        .where('status', 'proposed').whereNot('id', booking_id)
-        .update({ status: 'rejected' })
+      const booking = await database('game_scheduling_bookings').where('id', booking_id).first()
+      if (!booking || booking.type !== 'away_proposal') {
+        return res.status(400).json({ error: 'Invalid booking' })
+      }
+      const chosenDateTime = booking[`proposed_datetime_${n}`]
+      const chosenPlace = booking[`proposed_place_${n}`]
+      if (!chosenDateTime) return res.status(400).json({ error: `Proposal ${n} is empty` })
 
-      // Email opponent
+      await database('game_scheduling_bookings').where('id', booking_id).update({
+        status: 'confirmed',
+        confirmed_proposal: n,
+        admin_notes: admin_notes || booking.admin_notes || null,
+      })
+
+      // Email opponent (best-effort — never blocks the confirmation)
       try {
         const opponent = await database('game_scheduling_opponents').where('id', booking.opponent).first()
         if (opponent?.contact_email) {
@@ -414,16 +481,16 @@ export function registerGameScheduling(router, { database, logger, services, get
           await mail.send({
             to: opponent.contact_email,
             subject: 'KSC Wiedikon – Auswärtsspiel bestätigt',
-            text: `Hallo ${opponent.contact_name},\n\nDas Auswärtsspiel am ${booking.date} wurde bestätigt.\n\nKSC Wiedikon`,
+            text: `Hallo ${opponent.contact_name || ''},\n\nDas Auswärtsspiel vom ${chosenDateTime}${chosenPlace ? ` (${chosenPlace})` : ''} wurde bestätigt.\n\nKSC Wiedikon`,
           })
         }
       } catch (mailErr) {
         log.warn(`Confirm-away email failed: ${mailErr.message}`)
       }
 
-      res.json({ success: true })
+      res.json({ success: true, confirmed_proposal: n })
     } catch (err) {
-      log.error({ msg: `confirm-away: ${err.message}`, endpoint: 'confirm-away', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      log.error({ msg: `confirm-away: ${err.message}`, endpoint: 'terminplanung/admin/confirm-away', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
@@ -666,15 +733,18 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
-  // POST /kscw/admin/terminplanung/block-slot — block/unblock a slot
-  router.post('/admin/terminplanung/block-slot', async (req, res) => {
+  // POST /kscw/terminplanung/admin/block-slot — block/unblock a slot.
+  // Body: { slot_id, action: 'block' | 'unblock' }.
+  router.post('/terminplanung/admin/block-slot', async (req, res) => {
     if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
     try {
-      const { slot_id, blocked } = req.body
+      const { slot_id, action } = req.body || {}
       if (!slot_id) return res.status(400).json({ error: 'slot_id required' })
-      await database('game_scheduling_slots').where('id', slot_id).update({ status: blocked ? 'blocked' : 'available' })
+      await database('game_scheduling_slots').where('id', slot_id)
+        .update({ status: action === 'block' ? 'blocked' : 'available' })
       res.json({ success: true })
     } catch (err) {
+      log.error({ msg: `block-slot: ${err.message}`, endpoint: 'terminplanung/admin/block-slot', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

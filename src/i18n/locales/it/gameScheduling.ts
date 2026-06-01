@@ -42,6 +42,9 @@ export default {
   teamSlotConfig: 'Configurazione squadra',
   latestSlot: 'Fascia serale (ultima)',
   spielsamstagMode: 'Modalità sabato di gioco',
+  latestSlotHint: "Riutilizza l'ultimo slot di allenamento settimanale della squadra (stessa palestra + orario).",
+  spielsamstagModeHint: 'Colloca le partite in casa nei sabati di gioco centrali (KWI A/B/C · 11:00 / 13:30 / 16:00).',
+  manualHint: 'Nessuno slot generato — organizza le date a mano. Gli avversari possono comunque proporre date in trasferta.',
 
   // Slot status
   available: 'Disponibile',

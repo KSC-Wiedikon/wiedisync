@@ -39,6 +39,9 @@ export default {
   teamSlotConfig: 'Team-Konfiguration',
   latestSlot: 'Abendbetrieb (spätester Slot)',
   spielsamstagMode: 'Spielsamstag-Modus',
+  latestSlotHint: 'Nutzt den spätesten wöchentlichen Trainingsslot des Teams (gleiche Halle + Zeit).',
+  spielsamstagModeHint: 'Legt Heimspiele auf die zentralen Spielsamstage (KWI A/B/C · 11:00 / 13:30 / 16:00).',
+  manualHint: 'Keine Slots generiert — Termine manuell vereinbaren. Gegner können trotzdem Auswärtstermine vorschlagen.',
 
   // Slot status
   available: 'Verfügbar',

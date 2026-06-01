@@ -58,6 +58,21 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
           )
         })}
       </div>
+
+      <dl className="mt-4 space-y-1.5 border-t border-gray-100 pt-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <div>
+          <dt className="inline font-medium text-gray-700 dark:text-gray-300">{t('latestSlot')}:</dt>{' '}
+          <dd className="inline">{t('latestSlotHint')}</dd>
+        </div>
+        <div>
+          <dt className="inline font-medium text-gray-700 dark:text-gray-300">{t('spielsamstagMode')}:</dt>{' '}
+          <dd className="inline">{t('spielsamstagModeHint')}</dd>
+        </div>
+        <div>
+          <dt className="inline font-medium text-gray-700 dark:text-gray-300">{t('sourceManual')}:</dt>{' '}
+          <dd className="inline">{t('manualHint')}</dd>
+        </div>
+      </dl>
     </div>
   )
 }

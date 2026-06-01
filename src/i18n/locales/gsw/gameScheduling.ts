@@ -42,6 +42,9 @@ export default {
   teamSlotConfig: 'Team-Konfiguration',
   latestSlot: 'Abendbetriib (spötischte Slot)',
   spielsamstagMode: 'Spielsamschtig-Modus',
+  latestSlotHint: 'Nimmt de spötischt wüchentlich Trainingsslot vom Team (gliichi Halle + Ziit).',
+  spielsamstagModeHint: 'Leit Heimspiel uf di zentrale Spielsamschtig (KWI A/B/C · 11:00 / 13:30 / 16:00).',
+  manualHint: 'Kei Slots generiert — Termin vo Hand abmache. Gägner chönd trotzdem Auswärtstermin vorschlah.',
 
   // Slot status
   available: 'Verfüegbar',
