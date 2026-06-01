@@ -13,7 +13,7 @@ const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 // the kscw.ch apex is ClubDesk's SPF/DMARC (p=quarantine), so sending as
 // @kscw.ch via SES would be spam-foldered. Replies route to spielplanung_vb,
 // which forwards to the scheduling Google Group.
-const SCHEDULING_FROM = 'KSC Wiedikon Spielplanung <wiedisync@noreply.kscw.ch>'
+const SCHEDULING_FROM = 'KSC Wiedikon Spielplanung <spielplanung@mail.kscw.ch>'
 const SCHEDULING_REPLY_TO = 'spielplanung_vb@kscw.ch'
 
 async function verifyTurnstile(token) {
