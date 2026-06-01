@@ -22,3 +22,15 @@ export function currentSeasonLong(now: Date = new Date()): string {
   const startYear = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1
   return `${startYear}/${startYear + 1}`
 }
+
+/**
+ * Previous season in Wiedisync short form, given a short-form season.
+ * "2026/27" → "2025/26". Returns '' if the input doesn't match YYYY/YY.
+ */
+export function previousSeasonShort(season: string | null | undefined): string {
+  if (!season) return ''
+  const m = season.match(/^(\d{4})\/\d{2}$/)
+  if (!m) return ''
+  const startYear = parseInt(m[1], 10) - 1
+  return `${startYear}/${String(startYear + 1).slice(-2)}`
+}

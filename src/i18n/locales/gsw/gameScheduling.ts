@@ -15,6 +15,14 @@ export default {
   openForBooking: 'Für Buechige ufmache',
   closeBooking: 'Buechige schliesse',
 
+  // Saison-Übernahm (clubwiit)
+  rolloverHint: 'Die Saison isch läär. Ganze Club vo {{from}} übernäh — alli Teams, Kader, Staff, Sponsore und Hallepläng-Zuteilige uf {{to}} klone, denn {{from}} archiviere.',
+  rolloverButton: 'Vo {{from}} übernäh',
+  rolloverConfirm: 'Saison {{from}} → {{to}} übernäh? Das klont {{teams}} Teams und {{members}} Kaderiiträg uf {{to}} und deaktiviert denn d Teams vo {{from}}. Wiiter?',
+  rolloverSuccess: 'Vo {{from}} übernoh — {{teams}} Teams und {{members}} Kaderiiträg klont.',
+  rolloverNoPrev: 'D vorherig Saison het mer nöd chöne bestimme.',
+  rolloverEmptySource: 'Kei Teams i de Saison {{from}} zum übernäh gfunde.',
+
   // Spielsamstage
   spielsamstage: 'Spielsamschtig',
   addSpielssamstag: 'Spielsamschtig dezuetuä',

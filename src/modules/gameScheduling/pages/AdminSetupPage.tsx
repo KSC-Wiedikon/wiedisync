@@ -9,6 +9,7 @@ import { useAdminBookings } from '../hooks/useAdminBookings'
 import { useTeams } from '../../../hooks/useTeams'
 import LoadingSpinner from '../../../components/LoadingSpinner'
 import SeasonConfig from '../components/SeasonConfig'
+import { previousSeasonShort } from '../utils/formatSeason'
 import SpielsamstageEditor from '../components/SpielsamstageEditor'
 import SlotGenerationPanel from '../components/SlotGenerationPanel'
 import TeamSlotConfigPanel from '../components/TeamSlotConfigPanel'
@@ -16,12 +17,20 @@ import ExcelImportPanel from '../components/ExcelImportPanel'
 import InvitesPanel from '../components/InvitesPanel'
 import type { SpielsamstagConfig, TeamSlotConfig } from '../../../types'
 
+interface RolloverResult {
+  from_season: string
+  to_season: string
+  teams_cloned: number
+  member_teams: number
+  teams_archived: number
+}
+
 export default function AdminSetupPage() {
   const { t } = useTranslation('gameScheduling')
-  const { hasAdminAccessToSport } = useAuth()
+  const { hasAdminAccessToSport, isGlobalAdmin } = useAuth()
   const { season, allSeasons, isLoading, createSeason, updateSeason, setSeason, refetch: refetchSeasons } = useGameSchedulingSeason()
   const { generateSlots } = useAdminBookings(season?.id)
-  const { data: teams } = useTeams()
+  const { data: teams, refetch: refetchTeams } = useTeams()
   const [generating, setGenerating] = useState(false)
   const [genResult, setGenResult] = useState<{ total_created: number } | null>(null)
 
@@ -62,6 +71,38 @@ export default function AdminSetupPage() {
     }
   }
 
+  // Club-wide season rollover: deep-clone the previous season's teams + rosters +
+  // staff + sponsors + hall slots into the selected season, then archive the old one.
+  // Dry-run first to show real counts in the confirm dialog.
+  const handleRollover = async () => {
+    if (!season?.season) return
+    const from = previousSeasonShort(season.season)
+    if (!from) {
+      toast.error(t('rolloverNoPrev'))
+      return
+    }
+    try {
+      const preview = await kscwApi<RolloverResult>('/admin/terminplanung/rollover-season', {
+        method: 'POST',
+        body: { from_season: from, to_season: season.season, dry_run: true },
+      })
+      if (preview.teams_cloned === 0) {
+        toast.error(t('rolloverEmptySource', { from }))
+        return
+      }
+      if (!window.confirm(t('rolloverConfirm', { from, to: season.season, teams: preview.teams_cloned, members: preview.member_teams }))) return
+      const resp = await kscwApi<RolloverResult>('/admin/terminplanung/rollover-season', {
+        method: 'POST',
+        body: { from_season: from, to_season: season.season },
+      })
+      toast.success(t('rolloverSuccess', { teams: resp.teams_cloned, members: resp.member_teams, from }))
+      await refetchSeasons()
+      await refetchTeams()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   const handleGenerate = async () => {
     if (!season) return
     setGenerating(true)
@@ -77,6 +118,11 @@ export default function AdminSetupPage() {
   }
 
   const volleyballTeams = (teams || []).filter(t => t.sport === 'volleyball' && t.active)
+
+  // Offer rollover when the selected season has no teams yet and a previous season
+  // exists to clone from. Gated on full admin (the endpoint requires it).
+  const targetHasTeams = !!season?.season && (teams || []).some(t => t.season === season.season)
+  const canRollover = isGlobalAdmin && !!previousSeasonShort(season?.season) && !targetHasTeams
 
   return (
     <div className="space-y-6">
@@ -98,6 +144,8 @@ export default function AdminSetupPage() {
           if (season) await updateSeason(season.id, patch)
         }}
         onAfterArchive={refetchSeasons}
+        canRollover={canRollover}
+        onRollover={handleRollover}
       />
 
       {season && (

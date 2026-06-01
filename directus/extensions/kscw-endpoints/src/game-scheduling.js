@@ -516,6 +516,156 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // POST /kscw/admin/terminplanung/rollover-season — club-wide season rollover
+  // Deep-clones every team of `from_season` into `to_season` (all sports), carrying
+  // coaches, responsibles, captain, sponsors, hall-slot assignments and the full
+  // roster (member_teams, incl. guests), then archives the source season's teams
+  // (active=false). Idempotent: teams already present in `to_season` (matched by
+  // external team_id, falling back to name) are skipped, so re-runs fill gaps
+  // without duplicating. Whole operation runs in one transaction. With
+  // `dry_run: true` the work is rolled back and only the projected counts return —
+  // used to populate the confirmation dialog. Full Directus admin only.
+  router.post('/admin/terminplanung/rollover-season', async (req, res) => {
+    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+    try {
+      // Derive defaults from the Jun 1 cutover (mirrors currentSeasonLong in
+      // src/.../formatSeason.ts — Swiss Volley publishes new-season fixtures in June).
+      const now = new Date()
+      const startYear = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1
+      const short = (a, b) => `${a}/${String(b).slice(-2)}`
+      const defaultTo = short(startYear, startYear + 1)
+      const defaultFrom = short(startYear - 1, startYear)
+
+      const fromSeason = (req.body?.from_season || defaultFrom).trim()
+      const toSeason = (req.body?.to_season || defaultTo).trim()
+      const dryRun = req.body?.dry_run === true
+
+      if (!fromSeason || !toSeason) return res.status(400).json({ error: 'from_season and to_season required' })
+      if (fromSeason === toSeason) return res.status(400).json({ error: 'from_season and to_season must differ' })
+
+      // Columns never copied verbatim onto the clone
+      const OMIT = new Set(['id', 'date_created', 'date_updated'])
+
+      let counts
+      try {
+        await database.transaction(async (trx) => {
+          // Idempotency keys already present in the target season
+          const existing = await trx('teams').where('season', toSeason).select('team_id', 'name')
+          const seen = new Set(existing.map((t) => t.team_id || `name:${t.name}`))
+
+          const sourceTeams = await trx('teams').where('season', fromSeason)
+          if (sourceTeams.length === 0) {
+            const err = new Error('no teams found in from_season')
+            err.httpStatus = 400
+            throw err
+          }
+
+          const map = {} // oldTeamId -> newTeamId
+          let teamsCloned = 0
+          let skipped = 0
+          for (const team of sourceTeams) {
+            const key = team.team_id || `name:${team.name}`
+            if (seen.has(key)) { skipped++; continue }
+            const row = {}
+            for (const [k, v] of Object.entries(team)) {
+              if (OMIT.has(k)) continue
+              row[k] = v
+            }
+            row.season = toSeason
+            row.active = true
+            // Stale per-team dashboard window — let the new season recompute its default
+            row.dashboard_range_from = null
+            row.dashboard_range_to = null
+            // json column: pg won't accept a parsed object in a parameterised insert
+            if (row.features_enabled != null && typeof row.features_enabled === 'object') {
+              row.features_enabled = JSON.stringify(row.features_enabled)
+            }
+            const inserted = await trx('teams').insert(row).returning('id')
+            const newId = typeof inserted[0] === 'object' ? inserted[0].id : inserted[0]
+            map[team.id] = newId
+            teamsCloned++
+          }
+
+          // Clone team junctions for every freshly-cloned team
+          const cloneJunction = async (table, cols) => {
+            let n = 0
+            for (const [oldId, newId] of Object.entries(map)) {
+              const rows = await trx(table).where('teams_id', oldId)
+              for (const r of rows) {
+                const ins = { teams_id: newId }
+                for (const c of cols) ins[c] = r[c]
+                await trx(table).insert(ins)
+                n++
+              }
+            }
+            return n
+          }
+          const coaches = await cloneJunction('teams_coaches', ['members_id'])
+          const responsibles = await cloneJunction('teams_responsibles', ['members_id'])
+          const sponsors = await cloneJunction('teams_sponsors', ['sponsors_id'])
+          const hallSlots = await cloneJunction('hall_slots_teams', ['hall_slots_id'])
+
+          // Clone the roster (member_teams, all guest levels) for cloned teams only
+          let memberTeams = 0
+          const clonedOldIds = Object.keys(map).map(Number)
+          if (clonedOldIds.length > 0) {
+            const mtRows = await trx('member_teams')
+              .where('season', fromSeason)
+              .whereIn('team', clonedOldIds)
+            const inserts = mtRows
+              .filter((r) => map[r.team])
+              .map((r) => ({ member: r.member, team: map[r.team], season: toSeason, guest_level: r.guest_level }))
+            if (inserts.length > 0) {
+              await trx('member_teams').insert(inserts)
+              memberTeams = inserts.length
+            }
+          }
+
+          // Archive the source season's teams (club-wide, all sports)
+          const teamsArchived = await trx('teams')
+            .where('season', fromSeason)
+            .where('active', true)
+            .update({ active: false })
+
+          counts = {
+            from_season: fromSeason,
+            to_season: toSeason,
+            teams_cloned: teamsCloned,
+            skipped,
+            coaches,
+            responsibles,
+            sponsors,
+            hall_slots: hallSlots,
+            member_teams: memberTeams,
+            teams_archived: teamsArchived,
+          }
+
+          if (dryRun) {
+            const rollback = new Error('__dry_run__')
+            rollback.__dryRun = true
+            throw rollback
+          }
+        })
+      } catch (err) {
+        if (!err?.__dryRun) {
+          if (err?.httpStatus) return res.status(err.httpStatus).json({ error: err.message })
+          throw err
+        }
+      }
+
+      log.info({
+        msg: `rollover-season ${counts.from_season} → ${counts.to_season}${dryRun ? ' (dry-run)' : ''}`,
+        ...counts,
+        dry_run: dryRun,
+        userId: req.accountability?.user || null,
+      })
+      res.json({ success: true, dry_run: dryRun, ...counts })
+    } catch (err) {
+      log.error({ msg: `rollover-season: ${err.message}`, endpoint: 'admin/terminplanung/rollover-season', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // POST /kscw/admin/terminplanung/block-slot — block/unblock a slot
   router.post('/admin/terminplanung/block-slot', async (req, res) => {
     if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })

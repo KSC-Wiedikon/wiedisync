@@ -196,6 +196,14 @@ export default {
   restoreSeasonConfirm: 'Restore season {{season}}? Volleyball teams for this season will be reactivated. Previously expired invites stay dead — reissue them individually if needed. Continue?',
   restoreSeasonSuccess: 'Season {{season}} restored — {{teams}} teams reactivated.',
 
+  // Season rollover (club-wide)
+  rolloverHint: 'This season is empty. Roll the whole club over from {{from}} — clone every team, roster, staff, sponsor and hall-slot assignment into {{to}}, then archive {{from}}.',
+  rolloverButton: 'Roll over from {{from}}',
+  rolloverConfirm: 'Roll over {{from}} → {{to}}? This clones {{teams}} teams and {{members}} roster entries into {{to}}, then deactivates the {{from}} teams. Continue?',
+  rolloverSuccess: 'Rolled over from {{from}} — {{teams}} teams and {{members}} roster entries cloned.',
+  rolloverNoPrev: 'Could not determine the previous season to roll over from.',
+  rolloverEmptySource: 'No teams found in season {{from}} to roll over.',
+
   // English-first audit additions (previously hardcoded in components)
   cancel: 'Cancel',
   noSeasonConfigured: 'No season configured. Please create a season first.',

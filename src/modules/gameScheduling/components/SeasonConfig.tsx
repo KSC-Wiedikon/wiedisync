@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { kscwApi } from '../../../lib/api'
 import type { GameSchedulingSeason } from '../../../types'
-import { formatSeasonShort } from '../utils/formatSeason'
+import { formatSeasonShort, previousSeasonShort } from '../utils/formatSeason'
 
 interface Props {
   season: GameSchedulingSeason | null
@@ -13,6 +13,10 @@ interface Props {
   onStatusChange: (status: 'setup' | 'open' | 'closed') => Promise<void>
   onUpdateSeason?: (patch: Record<string, unknown>) => Promise<void>
   onAfterArchive?: () => Promise<void> | void
+  /** True when the selected season has no teams yet and a previous season exists to clone from. */
+  canRollover?: boolean
+  /** Deep-clone the previous season's teams + rosters into this season, then archive the old one. */
+  onRollover?: () => Promise<void>
 }
 
 interface ArchiveResult {
@@ -35,6 +39,8 @@ export default function SeasonConfig({
   onStatusChange,
   onUpdateSeason,
   onAfterArchive,
+  canRollover,
+  onRollover,
 }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [creating, setCreating] = useState(false)
@@ -112,6 +118,17 @@ export default function SeasonConfig({
       toast.error(err instanceof Error ? err.message : String(err))
     } finally {
       setArchiving(false)
+    }
+  }
+
+  const [rollingOver, setRollingOver] = useState(false)
+  const handleRolloverClick = async () => {
+    if (!onRollover) return
+    setRollingOver(true)
+    try {
+      await onRollover()
+    } finally {
+      setRollingOver(false)
     }
   }
 
@@ -270,6 +287,22 @@ export default function SeasonConfig({
               </>
             )}
           </div>
+
+          {/* Season rollover — only when this season is still empty */}
+          {onRollover && canRollover && status !== 'archived' && (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-900/20">
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                {t('rolloverHint', { from: previousSeasonShort(season?.season), to: formatSeasonShort(season?.season) })}
+              </p>
+              <button
+                onClick={handleRolloverClick}
+                disabled={rollingOver}
+                className="mt-2 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {rollingOver ? '…' : t('rolloverButton', { from: previousSeasonShort(season?.season) })}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
