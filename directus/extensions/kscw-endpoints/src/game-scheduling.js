@@ -127,7 +127,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       // (single-day or multi-day) — e.g. tournament weekend, team trip. Filter
       // at read time (not generation) so events added after slot generation
       // are respected without regenerating. Applies even on Spielsamstage.
-      const slots = await database('game_scheduling_slots')
+      const slotRows = await database('game_scheduling_slots')
         .where('kscw_team', opponent.kscw_team)
         .whereNot('status', 'blocked')
         .whereNotExists(function () {
@@ -159,6 +159,26 @@ export function registerGameScheduling(router, { database, logger, services, get
           [opponent.kscw_team],
         )
         .orderBy('date')
+
+      // Shape the raw slot rows into the SlotData the opponent UI expects:
+      // hall_name (rows only carry the hall id), date as yyyy-MM-dd (pg returns
+      // a Date/ISO — use local getters so it isn't shifted a day by TZ), HH:MM.
+      const hallNameById = {}
+      ;(await database('halls').select('id', 'name')).forEach((h) => { hallNameById[h.id] = h.name })
+      const ymd = (v) => {
+        if (typeof v === 'string') return v.slice(0, 10)
+        const d = new Date(v)
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      }
+      const slots = slotRows.map((s) => ({
+        id: s.id,
+        date: ymd(s.date),
+        start_time: String(s.start_time).slice(0, 5),
+        end_time: String(s.end_time).slice(0, 5),
+        source: s.source,
+        hall_id: s.hall,
+        hall_name: hallNameById[s.hall] || '',
+      }))
 
       const bookings = await database('game_scheduling_bookings')
         .where('opponent', opponent.id)
@@ -250,6 +270,17 @@ export function registerGameScheduling(router, { database, logger, services, get
         }))
       }
 
+      // Season window (Sep 1 → Mar 31) so the away calendar can bound itself.
+      const seasonRow = await database('game_scheduling_seasons').where('id', opponent.season).first()
+      let season_window = null
+      const sm = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
+      if (sm) {
+        const y1 = parseInt(sm[1], 10)
+        let y2 = parseInt(sm[2], 10)
+        if (y2 < 100) y2 = 2000 + y2
+        season_window = { start: `${y1}-09-01`, end: `${y2}-03-31` }
+      }
+
       res.json({
         opponent: {
           id: opponent.id,
@@ -269,6 +300,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         bookings,
         blocked_away_strict,
         blocked_away_loose,
+        season_window,
       })
     } catch (err) {
       log.error({ msg: `terminplanung/slots: ${err.message}`, endpoint: 'terminplanung/slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })

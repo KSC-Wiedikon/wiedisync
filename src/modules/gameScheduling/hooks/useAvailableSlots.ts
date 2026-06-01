@@ -55,6 +55,7 @@ interface SlotsResponse {
   bookings: BookingData[]
   blocked_away_strict: string[]
   blocked_away_loose: string[]
+  season_window: { start: string; end: string } | null
 }
 
 export function useAvailableSlots(token: string | undefined) {
@@ -105,6 +106,7 @@ export function useAvailableSlots(token: string | undefined) {
     bookings: data?.bookings ?? [],
     blockedStrict: data?.blocked_away_strict ?? [],
     blockedLoose: data?.blocked_away_loose ?? [],
+    seasonWindow: data?.season_window ?? null,
     isLoading,
     error,
     bookHomeSlot,

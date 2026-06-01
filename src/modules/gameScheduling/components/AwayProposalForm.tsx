@@ -1,18 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { parseISO, isBefore, startOfDay } from 'date-fns'
+import { parseISO, isBefore, isAfter, startOfDay } from 'date-fns'
 import { Calendar as CalendarIcon } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { Button } from '@/components/ui/button'
-import LocationCombobox from '@/components/LocationCombobox'
 import type { BookingData } from '../hooks/useAvailableSlots'
 import { toDateKey, formatDateLocale } from '@/utils/dateUtils'
 
 interface Slot {
   date: Date | null
   time: string
-  place: string
 }
 
 interface Props {
@@ -21,10 +19,12 @@ interface Props {
   blockedStrict: string[]
   /** Proposal 3: blocked on events, games(±1) and only 3+ player absences. */
   blockedLoose: string[]
+  /** Selectable window (Sep 1 → Mar 31), or null for no bound. */
+  seasonWindow: { start: string; end: string } | null
   onSubmit: (proposals: Array<{ date: string; start_time: string; location: string }>) => Promise<void>
 }
 
-export default function AwayProposalForm({ existingProposal, blockedStrict, blockedLoose, onSubmit }: Props) {
+export default function AwayProposalForm({ existingProposal, blockedStrict, blockedLoose, seasonWindow, onSubmit }: Props) {
   const { t, i18n } = useTranslation('gameScheduling')
   const [submitting, setSubmitting] = useState(false)
   const [openIdx, setOpenIdx] = useState<number | null>(null)
@@ -32,20 +32,20 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
   const [slots, setSlots] = useState<Slot[]>(() =>
     [1, 2, 3].map((n) => {
       const dt = existingProposal?.[`proposed_datetime_${n}` as keyof BookingData] as string | undefined
-      const pl = (existingProposal?.[`proposed_place_${n}` as keyof BookingData] as string | undefined) || ''
       const d = dt ? parseISO(dt) : null
-      return { date: d && !Number.isNaN(d.getTime()) ? d : null, time: dt ? dt.slice(11, 16) : '', place: pl }
+      return { date: d && !Number.isNaN(d.getTime()) ? d : null, time: dt ? dt.slice(11, 16) : '' }
     }),
   )
 
   const strictSet = useMemo(() => new Set(blockedStrict), [blockedStrict])
   const looseSet = useMemo(() => new Set(blockedLoose), [blockedLoose])
   const today = startOfDay(new Date())
+  const winStart = seasonWindow ? parseISO(seasonWindow.start) : null
+  const winEnd = seasonWindow ? parseISO(seasonWindow.end) : null
 
   const update = (i: number, patch: Partial<Slot>) =>
     setSlots((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
 
-  // A date already chosen in another proposal can't be reused.
   const otherDates = (i: number) =>
     new Set(
       slots
@@ -55,22 +55,20 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
     )
 
   const isDisabled = (i: number) => (date: Date) => {
+    if (isBefore(date, today)) return true
+    if (winStart && isBefore(date, winStart)) return true
+    if (winEnd && isAfter(date, winEnd)) return true
     const k = toDateKey(date)
-    const blocked = i < 2 ? strictSet : looseSet
-    return isBefore(date, today) || blocked.has(k) || otherDates(i).has(k)
+    return (i < 2 ? strictSet : looseSet).has(k) || otherDates(i).has(k)
   }
 
-  const allFilled = slots.every((s) => s.date && s.time && s.place)
+  const allFilled = slots.every((s) => s.date && s.time)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
     try {
-      const proposals = slots.map((s) => ({
-        date: toDateKey(s.date as Date),
-        start_time: s.time,
-        location: s.place,
-      }))
+      const proposals = slots.map((s) => ({ date: toDateKey(s.date as Date), start_time: s.time, location: '' }))
       await onSubmit(proposals)
     } finally {
       setSubmitting(false)
@@ -79,23 +77,16 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        {t('awayProposalsHint', {
-          defaultValue:
-            'Proposals 1 & 2 must be free of any player absence; proposal 3 allows up to 2. Team events and games (±1 day) are always blocked.',
-        })}
-      </p>
-
       {slots.map((s, i) => (
         <div key={i} className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700">
           <span className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {t('proposalNumber', { number: i + 1 })}
           </span>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Popover open={openIdx === i} onOpenChange={(o) => setOpenIdx(o ? i : null)}>
               <PopoverTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="w-full justify-start gap-2">
-                  <CalendarIcon className="h-4 w-4" />
+                <Button type="button" variant="outline" size="sm" className="h-10 w-full justify-start gap-2 sm:flex-1">
+                  <CalendarIcon className="h-4 w-4 shrink-0" />
                   {s.date ? formatDateLocale(s.date, 'EEE d. MMM yyyy', i18n.language) : t('proposalDate')}
                 </Button>
               </PopoverTrigger>
@@ -109,6 +100,8 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
                   }}
                   weekStartsOn={1}
                   showOutsideDays={false}
+                  startMonth={winStart ?? undefined}
+                  endMonth={winEnd ?? undefined}
                   disabled={isDisabled(i)}
                 />
               </PopoverContent>
@@ -117,10 +110,9 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
               type="time"
               value={s.time}
               onChange={(e) => update(i, { time: e.target.value })}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-500 dark:bg-gray-600 dark:text-gray-100"
+              className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm dark:border-gray-500 dark:bg-gray-600 dark:text-gray-100 sm:w-36"
               required
             />
-            <LocationCombobox value={s.place} onChange={(v) => update(i, { place: v })} placeholder={t('placeholderAwayHall')} />
           </div>
         </div>
       ))}

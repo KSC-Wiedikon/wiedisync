@@ -70,7 +70,7 @@ function GameContextCard({
 export default function OpponentFlowPage() {
   const { token } = useParams<{ token: string }>()
   const { t } = useTranslation('gameScheduling')
-  const { opponent, games, slots, bookings, blockedStrict, blockedLoose, isLoading, error, bookHomeSlot, proposeAway } = useAvailableSlots(token)
+  const { opponent, games, slots, bookings, blockedStrict, blockedLoose, seasonWindow, isLoading, error, bookHomeSlot, proposeAway } = useAvailableSlots(token)
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
 
@@ -221,6 +221,7 @@ export default function OpponentFlowPage() {
                 existingProposal={awayBooking || undefined}
                 blockedStrict={blockedStrict}
                 blockedLoose={blockedLoose}
+                seasonWindow={seasonWindow}
                 onSubmit={handleProposeAway}
               />
             )}
