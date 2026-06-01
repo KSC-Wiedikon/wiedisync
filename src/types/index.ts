@@ -135,6 +135,11 @@ export interface Member extends BaseRecord {
   language: 'english' | 'german' | 'french' | 'italian' | 'swiss_german' | ''
   hide_phone: boolean
   hide_email: boolean
+  // Per-member auto-confirm RSVP opt-in (migration 077). When on, the member is
+  // auto-confirmed on new activities of that type (OR-ed with the team setting).
+  auto_confirm_trainings: boolean
+  auto_confirm_games: boolean
+  auto_confirm_events: boolean
   birthdate_visibility: 'full' | 'year_only' | 'hidden'
   website_visible: boolean
   is_spielplaner: boolean

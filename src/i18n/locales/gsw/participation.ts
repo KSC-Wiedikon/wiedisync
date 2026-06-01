@@ -1,4 +1,10 @@
 export default {
+  // Auto sign-in (per-member auto-confirm RSVP) — profile toggles
+  autoSignInTitle: 'Automatisch zuesäge',
+  autoSignInHint: 'Wenns aa isch, wirsch bi neue Aktivitäte vo dem Typ automatisch zuegseit. Scho beantworteti Aktivitäte werded nie gänderet – du chasch jederziit einzeln absäge.',
+  autoSignInTrainings: 'Trainings',
+  autoSignInGames: 'Spiel',
+  autoSignInEvents: 'Events',
   confirmed: 'Zuegseit',
   declined: 'Abgseit',
   declinedAbsence: 'Abgseit (Absänz)',

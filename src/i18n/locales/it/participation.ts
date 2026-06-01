@@ -1,4 +1,10 @@
 export default {
+  // Auto sign-in (per-member auto-confirm RSVP) — profile toggles
+  autoSignInTitle: 'Iscrizione automatica',
+  autoSignInHint: 'Se attivo, vieni confermato automaticamente per le nuove attività di questo tipo. Le attività a cui hai già risposto non vengono mai modificate — puoi sempre rifiutare singolarmente.',
+  autoSignInTrainings: 'Allenamenti',
+  autoSignInGames: 'Partite',
+  autoSignInEvents: 'Eventi',
   confirmed: 'Confermato',
   declined: 'Rifiutato',
   declinedAbsence: 'Rifiutato (Assenza)',

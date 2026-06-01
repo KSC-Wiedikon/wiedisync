@@ -5,6 +5,8 @@
  * and upserts into Directus via knex.
  */
 
+import { sweepGameAutoConfirm } from './game-auto-confirm-sweep.js'
+
 const BP_BASE = 'https://www.basketplan.ch'
 const BP_CLUB_ID = 166
 
@@ -271,6 +273,7 @@ export async function syncBpGames(db, log) {
   }
 
   log.info(`[BP Sync] Games: ${created} created, ${updated} updated, ${skipped} unchanged, ${errors} errors`)
+  if (created > 0) await sweepGameAutoConfirm(db, log)
   return { created, updated, skipped, errors, leagueHoldingIds: allLhIds }
 }
 

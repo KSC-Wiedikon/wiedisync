@@ -304,6 +304,8 @@ const MEMBER_EDITABLE_FIELDS = [
   'requested_team',
   // ClubDesk personal data fields
   'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'ahv_nummer',
+  // 2026-06-01 migration 077: per-member auto-confirm RSVP opt-in (profile toggles)
+  'auto_confirm_trainings', 'auto_confirm_games', 'auto_confirm_events',
 ]
 
 /** Public fields for teams */
