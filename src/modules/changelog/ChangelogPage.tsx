@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.16.0'
+const APP_VERSION = '4.16.1'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.16.1',
+    date: '2026-06-01',
+    sections: [
+      {
+        title: 'Games & rankings show the right season again',
+        items: [
+          'After the June 1 season rollover, the Games, Rankings and Home views could show up empty until the new season\'s fixtures were published. They now automatically fall back to the most recent season that actually has data, and flip to the new season the moment its data lands.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.16.0',
     date: '2026-05-30',
