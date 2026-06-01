@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.17.0'
+const APP_VERSION = '4.18.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.18.0',
+    date: '2026-06-02',
+    sections: [
+      {
+        title: 'Auto sign-in for trainings, games and events',
+        items: [
+          'Your profile now has three "Auto sign-in" toggles — one each for trainings, games and events. Turn one on and you\'re automatically confirmed for new activities of that type as they appear, so you only need to act when you can\'t make it.',
+          'Switching a toggle on also confirms you for all your existing upcoming activities of that type at once. Activities you\'ve already answered are never changed, and you can still decline any of them individually.',
+          'Absences still win: if you\'re away, you won\'t be auto-confirmed for activities during that time.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.17.0',
     date: '2026-06-01',
