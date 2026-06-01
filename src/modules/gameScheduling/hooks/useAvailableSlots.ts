@@ -53,7 +53,8 @@ interface SlotsResponse {
   games: InviteGame[]
   slots: SlotData[]
   bookings: BookingData[]
-  blocked_away_dates: string[]
+  blocked_away_strict: string[]
+  blocked_away_loose: string[]
 }
 
 export function useAvailableSlots(token: string | undefined) {
@@ -102,7 +103,8 @@ export function useAvailableSlots(token: string | undefined) {
     games: data?.games ?? [],
     slots: data?.slots ?? [],
     bookings: data?.bookings ?? [],
-    blockedAwayDates: data?.blocked_away_dates ?? [],
+    blockedStrict: data?.blocked_away_strict ?? [],
+    blockedLoose: data?.blocked_away_loose ?? [],
     isLoading,
     error,
     bookHomeSlot,
