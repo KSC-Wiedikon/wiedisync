@@ -37,7 +37,10 @@ export default function OpponentFlowPage() {
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
 
-  if (isLoading) {
+  // Only blank to a spinner on the very first load. Booking / proposing refetch
+  // the slots (isLoading flips back to true) — without the `!opponent` guard the
+  // whole page flashed to a spinner on every submit, reading as a page reload.
+  if (isLoading && !opponent) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
         <LoadingSpinner />
