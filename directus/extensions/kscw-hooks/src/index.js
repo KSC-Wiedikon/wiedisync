@@ -2335,6 +2335,32 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // ── 10f. Cron: Schulferien sync (monthly, 1st @ 04:30 UTC) ──
+  // Imports the City of Zürich school-holiday calendar into hall_closures
+  // (source='school_holidays') so the halls show as closed during the holidays
+  // and holiday-date trainings auto-cancel. The published calendar only changes
+  // a few times a year, so a monthly poll is plenty; the job is idempotent so a
+  // missed month self-heals on the next run.
+  schedule('30 4 1 * *', async () => {
+    const startedAt = Date.now()
+    try {
+      const token = await getCronAccessToken(log, 'Schulferien sync')
+      if (!token) return
+      const res = await fetch('http://localhost:8055/kscw/admin/schulferien-sync', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const body = await res.text()
+      if (!res.ok) throw new Error(`${res.status} ${body}`)
+      log.info(`Schulferien sync cron: ${body.slice(0, 200)}`)
+      await logCronRun(database, 'schulferien_sync', { status: 'ok', durationMs: Date.now() - startedAt })
+    } catch (err) {
+      log.error({ msg: `Schulferien sync cron: ${err.message}`, event: 'cron.schulferien_sync', stack: err.stack })
+      logCronError('schulferien_sync', err)
+      await logCronRun(database, 'schulferien_sync', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: err.message })
+    }
+  })
+
   // ── 10d. Cron: Refresh teams.season dropdown choices (May 1 annually, 03:00 UTC) ──
   // Earliest allowed season is the one currently "live": Jan-Apr → last autumn's; May onwards → this autumn's.
   // The window only shifts on May 1 (old season ends), so one run per year is enough.
