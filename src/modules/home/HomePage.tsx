@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
 import { useNotifications } from '../../hooks/useNotifications'
 import { useSportPreference } from '../../hooks/useSportPreference'
-import { formatDate, formatDateCompact, formatTime, formatWeekday, todayLocal, toZurichDateString } from '../../utils/dateHelpers'
+import { formatDate, formatDateCompact, formatTime, formatWeekday, getCurrentSeason, todayLocal, toZurichDateString } from '../../utils/dateHelpers'
 import { asObj, relId, teamCoachIds } from '../../utils/relations'
 import TeamChip from '../../components/TeamChip'
 import StatusBadge from '../../components/StatusBadge'
@@ -103,7 +103,9 @@ export default function HomePage() {
 
   // Fetch user's team memberships (only when logged in)
   const { data: memberTeamsRaw, isLoading: memberTeamsLoading } = useCollection<MemberTeamExpanded>('member_teams', {
-    filter: user ? { member: { _eq: user.id } } : { id: { _eq: -1 } },
+    // Season-scope to the current season (mirrors useAuth) — otherwise archived
+    // previous-season memberships leak into userTeamIds after a rollover.
+    filter: user ? { _and: [{ member: { _eq: user.id } }, { season: { _eq: getCurrentSeason() } }] } : { id: { _eq: -1 } },
     fields: ['*', 'team.*'],
     limit: 20,
     enabled: !!user,

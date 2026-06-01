@@ -951,6 +951,34 @@ export function registerGameScheduling(router, { database, logger, services, get
             eventsRelinked += updated
           }
 
+          // Carry UPCOMING trainings onto the new-season teams. The recurring
+          // hall_slots already moved to the new team above, and the nightly
+          // slot-cascade generates fresh trainings against whichever team owns
+          // the slot — but the ~12 weeks of trainings ALREADY generated still
+          // point at the old team. Without this re-point they're stranded on
+          // the archived team: invisible to the rolled-over roster, so every
+          // player's training list (and home-page RSVP) breaks the morning
+          // after rollover (the 2026-06-01 incident — 341 trainings orphaned).
+          // Re-point future trainings old->new, preserving id + hall_slot so
+          // existing RSVPs/absence-declines survive and the cron's
+          // hall_slot+date dedup never double-generates. Suppress
+          // trg_trainings_notify (GUC, txn-local) so the bulk move is silent.
+          // Games are intentionally NOT re-pointed: future games re-sync from
+          // Swiss Volley onto the active team daily, and their notify trigger
+          // has no suppression hook.
+          let trainingsRelinked = 0
+          {
+            const startIso = now.toISOString().slice(0, 10)
+            await trx.raw("SELECT set_config('kscw.skip_trainings_notify', 'on', true)")
+            for (const [oldId, newId] of Object.entries(map)) {
+              const moved = await trx('trainings')
+                .where('team', oldId)
+                .andWhere('date', '>=', startIso)
+                .update({ team: newId })
+              trainingsRelinked += moved
+            }
+          }
+
           counts = {
             from_season: fromSeason,
             to_season: toSeason,
@@ -963,6 +991,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             member_teams: memberTeams,
             teams_archived: teamsArchived,
             events_relinked: eventsRelinked,
+            trainings_relinked: trainingsRelinked,
           }
 
           if (dryRun) {
