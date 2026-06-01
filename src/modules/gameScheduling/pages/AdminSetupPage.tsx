@@ -38,7 +38,11 @@ export default function AdminSetupPage() {
     return <Navigate to="/" replace />
   }
 
-  if (isLoading) return <LoadingSpinner />
+  // Only blank to a spinner on the very first load. Mutations (toggles,
+  // Spielsamstage save, status changes) refetch the season and flip isLoading
+  // back to true — without the `!season` guard that re-rendered the whole page
+  // to a spinner on every click, which read as a full page reload.
+  if (isLoading && !season) return <LoadingSpinner />
 
   const handleCreateSeason = async (name: string) => {
     await createSeason(name)

@@ -37,11 +37,11 @@ export default {
   sourceSpielHalle: 'Game Hall',
   sourceManual: 'Manual',
   teamSlotConfig: 'Team Configuration',
-  latestSlot: 'Evening slot (latest)',
-  spielsamstagMode: 'Game Saturday mode',
-  latestSlotHint: "Reuses the team's own latest weekly training slot (same hall + time).",
-  spielsamstagModeHint: 'Places home games on the central Game Saturdays (KWI A/B/C · 11:00 / 13:30 / 16:00).',
-  manualHint: 'No slots generated — arrange dates by hand. Opponents can still propose away dates.',
+  latestSlot: 'Standard slot',
+  spielsamstagMode: 'Saturday',
+  latestSlotHint: "The team's latest weekly slot (ending 21:30) in the Doltschi or KWI hall, every week Sep–Mar.",
+  spielsamstagModeHint: 'The central Game-Saturday pool (KWI A/B/C · 11:00 / 13:30 / 16:00).',
+  manualHint: 'Default is both on. Switch both off for no slots (arrange by hand; opponents can still propose away dates).',
 
   // Slot status
   available: 'Available',

@@ -374,8 +374,18 @@ export function registerGameScheduling(router, { database, logger, services, get
         return d.toISOString().slice(11, 16)
       }
 
-      const satDates = (Array.isArray(spielsamstage) ? spielsamstage : [])
-        .map((s) => s?.date).filter(Boolean).sort()
+      // Evening (hall_slot) mode repeats weekly across the volleyball season
+      // window: Sep 1 (first year) → Mar 31 (second year), parsed from the
+      // season name (e.g. "2026/27").
+      const seasonWindow = (name) => {
+        const m = String(name || '').match(/(\d{4})\D+(\d{2,4})/)
+        if (!m) return null
+        const y1 = parseInt(m[1], 10)
+        let y2 = parseInt(m[2], 10)
+        if (y2 < 100) y2 = 2000 + y2
+        return { start: new Date(Date.UTC(y1, 8, 1)), end: new Date(Date.UTC(y2, 2, 31)) }
+      }
+      const eveningWindow = seasonWindow(season.season)
 
       const teams = await database('teams')
         .where('sport', 'volleyball').where('active', true).select('id')
@@ -383,10 +393,18 @@ export function registerGameScheduling(router, { database, logger, services, get
       let total_created = 0
       for (const team of teams) {
         const cfg = teamConfig[String(team.id)]
-        if (!cfg || cfg.source === 'manual') continue
+        // Additive sources. Default (no config) = both. Explicit empty = manual.
+        let sources
+        if (Array.isArray(cfg?.sources)) sources = cfg.sources
+        else if (cfg?.source === 'manual') sources = []
+        else if (cfg?.source) sources = [cfg.source]
+        else sources = ['hall_slot', 'spielsamstag']
+        if (sources.length === 0) continue
 
         const candidates = []
-        if (cfg.source === 'spielsamstag') {
+
+        // Game-Saturday pool: every picked Saturday × its configured slots.
+        if (sources.includes('spielsamstag')) {
           for (const sat of (Array.isArray(spielsamstage) ? spielsamstage : [])) {
             if (!sat?.date || !Array.isArray(sat.slots)) continue
             for (const s of sat.slots) {
@@ -397,19 +415,21 @@ export function registerGameScheduling(router, { database, logger, services, get
               })
             }
           }
-        } else if (cfg.source === 'hall_slot') {
-          // Expand the team's recurring hall slots across the picked-Saturday
-          // span. No Saturdays picked → no date window → nothing generated.
-          if (satDates.length === 0) continue
-          const start = new Date(satDates[0] + 'T00:00:00Z')
-          const end = new Date(satDates[satDates.length - 1] + 'T00:00:00Z')
-          const hallSlots = await database('hall_slots')
+        }
+
+        // Evening slots: the team's latest (end 21:30) hall slots in the
+        // Doltschi or KWI halls, repeated weekly across the season window.
+        if (sources.includes('hall_slot') && eveningWindow) {
+          const eveningSlots = await database('hall_slots')
             .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
+            .join('halls', 'hall_slots.hall', 'halls.id')
             .where('hall_slots_teams.teams_id', team.id)
+            .whereRaw("hall_slots.end_time::text LIKE '21:30%'")
+            .whereRaw("(LOWER(halls.name) LIKE '%doltschi%' OR LOWER(halls.name) LIKE '%kwi%')")
             .select('hall_slots.*')
-          for (const hs of hallSlots) {
-            const d = new Date(start)
-            while (d <= end) {
+          for (const hs of eveningSlots) {
+            const d = new Date(eveningWindow.start)
+            while (d <= eveningWindow.end) {
               if (d.getUTCDay() === hs.day_of_week) {
                 candidates.push({
                   date: d.toISOString().slice(0, 10), start_time: hs.start_time,

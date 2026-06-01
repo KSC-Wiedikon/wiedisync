@@ -40,11 +40,11 @@ export default {
   sourceSpielHalle: 'Salle de match',
   sourceManual: 'Manuel',
   teamSlotConfig: 'Configuration par equipe',
-  latestSlot: 'Creneau du soir (dernier)',
-  spielsamstagMode: 'Mode samedi de match',
-  latestSlotHint: "Réutilise le dernier créneau d'entraînement hebdomadaire de l'équipe (même salle + heure).",
-  spielsamstagModeHint: 'Place les matchs à domicile sur les samedis de match centraux (KWI A/B/C · 11:00 / 13:30 / 16:00).',
-  manualHint: "Aucun créneau généré — organisez les dates à la main. Les adversaires peuvent quand même proposer des dates à l'extérieur.",
+  latestSlot: 'Créneau standard',
+  spielsamstagMode: 'Samedi',
+  latestSlotHint: "Le dernier créneau hebdomadaire de l'équipe (fin 21:30) dans la salle Doltschi ou KWI, chaque semaine de sep. à mars.",
+  spielsamstagModeHint: 'Le pool central des samedis de match (KWI A/B/C · 11:00 / 13:30 / 16:00).',
+  manualHint: "Les deux activés par défaut. Les deux désactivés = aucun créneau (à la main ; les adversaires peuvent proposer des dates à l'extérieur).",
 
   // Slot status
   available: 'Disponible',

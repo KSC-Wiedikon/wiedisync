@@ -11,9 +11,23 @@ interface Props {
 export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) {
   const { t } = useTranslation('gameScheduling')
 
-  const handleSourceChange = (teamId: string, source: 'hall_slot' | 'spielsamstag' | 'manual') => {
-    const updated = { ...config }
-    updated[teamId] = { ...updated[teamId], source }
+  // Sources are additive: a team can have evening slots AND the Saturday pool.
+  // Read the new `sources` array, falling back to the legacy single `source`.
+  const resolveSources = (tc: TeamSlotConfig[string] | undefined): Set<string> => {
+    if (Array.isArray(tc?.sources)) return new Set(tc.sources)            // explicit (incl. [] = manual)
+    if (tc?.source === 'manual') return new Set()                          // legacy explicit manual
+    if (tc?.source) return new Set([tc.source])                            // legacy single-select
+    return new Set(['hall_slot', 'spielsamstag'])                          // default: both on
+  }
+
+  const handleToggle = (teamId: string, source: 'hall_slot' | 'spielsamstag') => {
+    const next = resolveSources(config[teamId])
+    if (next.has(source)) next.delete(source)
+    else next.add(source)
+    const updated: TeamSlotConfig = {
+      ...config,
+      [teamId]: { sources: Array.from(next) as ('hall_slot' | 'spielsamstag')[] },
+    }
     onUpdate(updated)
   }
 
@@ -23,7 +37,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
 
       <div className="space-y-2">
         {teams.map(team => {
-          const teamConfig = config[team.id] || { source: 'hall_slot' }
+          const active = resolveSources(config[team.id])
           return (
             <div
               key={team.id}
@@ -36,23 +50,28 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
                 )}
               </span>
 
-              <div className="flex gap-1">
-                {(['hall_slot', 'spielsamstag', 'manual'] as const).map(source => {
-                  const selected = teamConfig.source === source
-                  return (
-                    <Button
-                      key={source}
-                      type="button"
-                      size="sm"
-                      variant={selected ? 'default' : 'outline'}
-                      onClick={() => handleSourceChange(team.id, source)}
-                      aria-pressed={selected}
-                      className="h-7 px-3 text-xs"
-                    >
-                      {source === 'hall_slot' ? t('latestSlot') : source === 'spielsamstag' ? t('spielsamstagMode') : t('sourceManual')}
-                    </Button>
-                  )
-                })}
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {(['hall_slot', 'spielsamstag'] as const).map(source => {
+                    const selected = active.has(source)
+                    return (
+                      <Button
+                        key={source}
+                        type="button"
+                        size="sm"
+                        variant={selected ? 'default' : 'outline'}
+                        onClick={() => handleToggle(team.id, source)}
+                        aria-pressed={selected}
+                        className="h-7 px-3 text-xs"
+                      >
+                        {source === 'hall_slot' ? t('latestSlot') : t('spielsamstagMode')}
+                      </Button>
+                    )
+                  })}
+                </div>
+                {active.size === 0 && (
+                  <span className="text-xs italic text-gray-400 dark:text-gray-500">{t('sourceManual')}</span>
+                )}
               </div>
             </div>
           )
