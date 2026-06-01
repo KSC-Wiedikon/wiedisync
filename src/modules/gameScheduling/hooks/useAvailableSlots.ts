@@ -46,6 +46,11 @@ export interface BookingData {
   proposed_datetime_3: string
   proposed_place_3: string
   confirmed_proposal: number
+  /** Decided home slot (enriched server-side for home_slot_pick bookings). */
+  slot_date?: string
+  slot_start?: string
+  slot_end?: string
+  slot_hall_name?: string
 }
 
 interface SlotsResponse {

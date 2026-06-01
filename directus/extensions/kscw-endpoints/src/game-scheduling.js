@@ -185,6 +185,20 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where('opponent', opponent.id)
         .select('*')
 
+      // Attach the chosen home slot's date/time/hall so the opponent sees the
+      // decided home game (the slot itself is no longer in the available list).
+      for (const b of bookings) {
+        if (b.type === 'home_slot_pick' && b.slot) {
+          const sl = await database('game_scheduling_slots').where('id', b.slot).first()
+          if (sl) {
+            b.slot_date = ymd(sl.date)
+            b.slot_start = String(sl.start_time).slice(0, 5)
+            b.slot_end = String(sl.end_time).slice(0, 5)
+            b.slot_hall_name = hallNameById[sl.hall] || ''
+          }
+        }
+      }
+
       const team = await database('teams').where('id', opponent.kscw_team).first()
 
       // Blocked away-proposal dates for this team — team events, games (±1 day)
