@@ -184,8 +184,21 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
         .whereRaw("a.type IS DISTINCT FROM 'weekly'")
         .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
-        .select(database.raw('a.start_date::text as s'), database.raw('a.end_date::text as e'))
-      absRows.forEach((r) => addRange(r.s, r.e))
+        .select(database.raw('a.member as member'), database.raw('a.start_date::text as s'), database.raw('a.end_date::text as e'))
+      // A date is blocked by absences only when 3+ distinct PLAYERS are absent
+      // (a single player out doesn't stop a game).
+      const absByDate = {}
+      for (const r of absRows) {
+        const d = new Date(`${r.s}T00:00:00Z`)
+        const end = new Date(`${r.e || r.s}T00:00:00Z`)
+        for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+          const k = d.toISOString().slice(0, 10)
+          ;(absByDate[k] || (absByDate[k] = new Set())).add(r.member)
+        }
+      }
+      for (const [k, members] of Object.entries(absByDate)) {
+        if (members.size >= 3) blockedSet.add(k)
+      }
       const blocked_away_dates = [...blockedSet].sort()
 
       // SVRZ fixtures between this KSCW team and this opponent
@@ -384,7 +397,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         }
         // Reject if any rostered member has a one-off absence (NOT a weekly
         // unavailability) affecting games on that date. "No game if absence."
-        const absence = await database('absences as a')
+        const absRow = await database('absences as a')
           .join('member_teams as mt', 'mt.member', 'a.member')
           .where('mt.team', opponent.kscw_team)
           // Players only — guests (guest_level > 0) don't block.
@@ -394,9 +407,11 @@ export function registerGameScheduling(router, { database, logger, services, get
           .whereRaw("a.type IS DISTINCT FROM 'weekly'")
           .whereRaw("a.start_date::date <= ?::date AND a.end_date::date >= ?::date", [String(p.date), String(p.date)])
           .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
-          .first('a.id')
-        if (absence) {
-          return res.status(400).json({ error: `${p.date} clashes with a player absence — please pick another date.` })
+          .countDistinct('a.member as c')
+          .first()
+        // Block only when 3+ distinct players are absent that day.
+        if (Number(absRow?.c || 0) >= 3) {
+          return res.status(400).json({ error: `${p.date} has 3 or more players absent — please pick another date.` })
         }
         const rawPlace = String(p.location || p.place || '').slice(0, 200)
         const dt = p.start_time ? `${p.date}T${p.start_time}` : p.date
