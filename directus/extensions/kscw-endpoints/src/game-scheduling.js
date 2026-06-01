@@ -387,6 +387,17 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
       const eveningWindow = seasonWindow(season.season)
 
+      // Club-wide Spielhalle fallback: a shared Friday evening game slot used by
+      // ANY team that has no 21:30 Döltschi/KWI slot of its own. Resolved by hall
+      // name (default "Döltschi 1") — there's no Spielhalle flag in the schema.
+      // TODO: make the hall + time admin-configurable on the season.
+      const spielhalleHall = await database('halls')
+        .whereRaw("LOWER(name) LIKE '%döltschi 1%' OR LOWER(name) LIKE '%doltschi 1%'")
+        .first()
+      const SPIELHALLE = spielhalleHall
+        ? { hall: spielhalleHall.id, day: 5, start_time: '19:00:00', end_time: '21:00:00' }
+        : null
+
       const teams = await database('teams')
         .where('sport', 'volleyball').where('active', true).select('id')
 
@@ -417,23 +428,38 @@ export function registerGameScheduling(router, { database, logger, services, get
           }
         }
 
-        // Evening slots: the team's latest (end 21:30) hall slots in the
-        // Doltschi or KWI halls, repeated weekly across the season window.
+        // Standard slot: the team's OWN latest (end 21:30) slot in a Döltschi/
+        // KWI hall, repeated weekly. If the team has none, it falls back to the
+        // club-wide Spielhalle Friday slot (shared, not from its hall_slots).
         if (sources.includes('hall_slot') && eveningWindow) {
-          const eveningSlots = await database('hall_slots')
+          const ownStandard = await database('hall_slots')
             .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
             .join('halls', 'hall_slots.hall', 'halls.id')
             .where('hall_slots_teams.teams_id', team.id)
             .whereRaw("hall_slots.end_time::text LIKE '21:30%'")
-            .whereRaw("(LOWER(halls.name) LIKE '%doltschi%' OR LOWER(halls.name) LIKE '%kwi%')")
+            .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%' OR LOWER(halls.name) LIKE '%kwi%')")
             .select('hall_slots.*')
-          for (const hs of eveningSlots) {
+          if (ownStandard.length > 0) {
+            for (const hs of ownStandard) {
+              const d = new Date(eveningWindow.start)
+              while (d <= eveningWindow.end) {
+                if (d.getUTCDay() === hs.day_of_week) {
+                  candidates.push({
+                    date: d.toISOString().slice(0, 10), start_time: hs.start_time,
+                    end_time: hs.end_time, hall: hs.hall, source: 'hall_slot',
+                  })
+                }
+                d.setUTCDate(d.getUTCDate() + 1)
+              }
+            }
+          } else if (SPIELHALLE) {
+            // Fallback: the club Spielhalle, every Friday across the season window.
             const d = new Date(eveningWindow.start)
             while (d <= eveningWindow.end) {
-              if (d.getUTCDay() === hs.day_of_week) {
+              if (d.getUTCDay() === SPIELHALLE.day) {
                 candidates.push({
-                  date: d.toISOString().slice(0, 10), start_time: hs.start_time,
-                  end_time: hs.end_time, hall: hs.hall, source: 'hall_slot',
+                  date: d.toISOString().slice(0, 10), start_time: SPIELHALLE.start_time,
+                  end_time: SPIELHALLE.end_time, hall: SPIELHALLE.hall, source: 'spielhalle',
                 })
               }
               d.setUTCDate(d.getUTCDate() + 1)
