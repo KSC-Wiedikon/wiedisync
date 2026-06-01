@@ -307,21 +307,46 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
       // 2026-05-12 audit #22: validate date/time/location before storing or
       // later emailing. Token-flow rate-limit + auth are intact, but garbage
-      // data lands in admin UI + outbound emails (HTML-rendered).
+      // data lands in admin UI + outbound emails (HTML-rendered). Return a
+      // proper 400 with the message (was throwing into the generic 500 catch).
       const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
       const TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/
-      proposals.forEach((p, i) => {
+      for (let i = 0; i < proposals.length; i++) {
+        const p = proposals[i]
         if (!p.date || !DATE_RE.test(String(p.date))) {
-          throw new Error('Each proposal needs a valid date (YYYY-MM-DD)')
+          return res.status(400).json({ error: 'Each proposal needs a valid date (YYYY-MM-DD)' })
         }
         if (p.start_time && !TIME_RE.test(String(p.start_time))) {
-          throw new Error('start_time must be HH:MM')
+          return res.status(400).json({ error: 'start_time must be HH:MM' })
+        }
+        // Reject dates that hit an event for this KSCW team — the team is busy
+        // (mirrors the home-slot event exclusion). Zurich-local date compare.
+        const eventCover = await database('events as e')
+          .join('events_teams as et', 'et.events_id', 'e.id')
+          .where('et.teams_id', opponent.kscw_team)
+          .whereRaw(
+            "?::date BETWEEN (e.start_date AT TIME ZONE 'Europe/Zurich')::date " +
+            "AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date",
+            [String(p.date)],
+          )
+          .first('e.title')
+        if (eventCover) {
+          return res.status(400).json({ error: `${p.date} falls on a team event${eventCover.title ? ` (${eventCover.title})` : ''} — please pick another date.` })
+        }
+        // Reject if the team already has a game that day OR the day before/after
+        // (no back-to-back games).
+        const gameClash = await database('games')
+          .where('kscw_team', opponent.kscw_team)
+          .whereRaw("games.date::date BETWEEN ?::date - 1 AND ?::date + 1", [String(p.date), String(p.date)])
+          .first('games.date')
+        if (gameClash) {
+          return res.status(400).json({ error: `${p.date} is within a day of an existing game (${String(gameClash.date).slice(0, 10)}) — please leave at least a day's gap.` })
         }
         const rawPlace = String(p.location || p.place || '').slice(0, 200)
         const dt = p.start_time ? `${p.date}T${p.start_time}` : p.date
         row[`proposed_datetime_${i + 1}`] = dt
         row[`proposed_place_${i + 1}`] = rawPlace
-      })
+      }
       await database('game_scheduling_bookings').insert(row)
 
       // Status lifecycle: away proposal transitions invited/viewed → booked
