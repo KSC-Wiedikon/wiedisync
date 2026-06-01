@@ -9,6 +9,13 @@ import { FRONTEND_URL } from './email-template.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
+// Spielplanung mail identity. From stays on the SES-verified noreply.kscw.ch —
+// the kscw.ch apex is ClubDesk's SPF/DMARC (p=quarantine), so sending as
+// @kscw.ch via SES would be spam-foldered. Replies route to spielplanung_vb,
+// which forwards to the scheduling Google Group.
+const SCHEDULING_FROM = 'KSC Wiedikon Spielplanung <wiedisync@noreply.kscw.ch>'
+const SCHEDULING_REPLY_TO = 'spielplanung_vb@kscw.ch'
+
 async function verifyTurnstile(token) {
   if (!TURNSTILE_SECRET) {
     console.error('[game-scheduling] TURNSTILE_SECRET not configured — rejecting request')
@@ -51,6 +58,8 @@ export function registerGameScheduling(router, { database, logger, services, get
         const mail = new MailService({ schema, knex: database })
         await mail.send({
           to: contact_email,
+          from: SCHEDULING_FROM,
+          replyTo: SCHEDULING_REPLY_TO,
           subject: `KSC Wiedikon – Spielplanung`,
           text: `Hallo ${contact_name},\n\nDein Zugangslink zur Spielplanung:\n${FRONTEND_URL}/terminplanung/${token}\n\nDieser Link ist 30 Tage gültig.\n\nKSC Wiedikon`,
         })
@@ -704,6 +713,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           const mail = new MailService({ schema, knex: database })
           await mail.send({
             to: opponent.contact_email,
+            from: SCHEDULING_FROM,
+            replyTo: SCHEDULING_REPLY_TO,
             subject: 'KSC Wiedikon – Auswärtsspiel bestätigt',
             text: `Hallo ${opponent.contact_name || ''},\n\nDas Auswärtsspiel vom ${chosenDateTime}${chosenPlace ? ` (${chosenPlace})` : ''} wurde bestätigt.\n\nKSC Wiedikon`,
           })
