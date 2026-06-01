@@ -1,14 +1,15 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CalendarDays, List, CheckCircle } from 'lucide-react'
+import { CalendarDays, List, CheckCircle, CalendarOff } from 'lucide-react'
 import { useTeamAbsences } from '../../hooks/useTeamAbsences'
 import EmptyState from '../../components/EmptyState'
 import AbsenceCard from './AbsenceCard'
+import Modal from '@/components/Modal'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import MonthGrid from '../calendar/components/MonthGrid'
 import CalendarEntryModal from '../calendar/CalendarEntryModal'
 import { toISODate, getDayOfWeek } from '../../utils/dateHelpers'
-import { parseDate, isSameDay, startOfMonth, eachDayOfInterval, toDateKey } from '../../utils/dateUtils'
+import { parseDate, isSameDay, startOfMonth, eachDayOfInterval, toDateKey, formatDate } from '../../utils/dateUtils'
 import { max as maxDate, min as minDate, isAfter } from 'date-fns'
 import DatePicker from '@/components/ui/DatePicker'
 import AbsenceMemberFilter from './AbsenceMemberFilter'
@@ -101,6 +102,7 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
   const [endDate, setEndDate] = useState(oneYearLater)
   const [month, setMonth] = useState<Date>(() => startOfMonth(new Date()))
   const [selectedEntry, setSelectedEntry] = useState<CalendarEntry | null>(null)
+  const [dayOverflow, setDayOverflow] = useState<{ entries: CalendarEntry[]; date: Date } | null>(null)
   const [excludedMembers, setExcludedMembers] = useState<Set<string>>(new Set())
 
   const { absences, memberMap, isLoading } = useTeamAbsences(teamIds, startDate, endDate)
@@ -233,11 +235,40 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
             month={month}
             onMonthChange={setMonth}
             onEntryClick={setSelectedEntry}
+            onOverflowClick={(items, date) => setDayOverflow({ entries: items, date })}
           />
           <CalendarEntryModal
             entry={selectedEntry}
             onClose={() => setSelectedEntry(null)}
           />
+          {/* Day overflow modal — opened when multiple people are absent on one day */}
+          <Modal
+            open={!!dayOverflow}
+            onClose={() => setDayOverflow(null)}
+            title={dayOverflow ? formatDate(dayOverflow.date, 'EEEE, d MMMM') : ''}
+            size="sm"
+          >
+            {dayOverflow && (
+              <div className="space-y-2">
+                {dayOverflow.entries.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => {
+                      setDayOverflow(null)
+                      setSelectedEntry(entry)
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700 dark:active:bg-gray-600"
+                  >
+                    <CalendarOff className="h-4 w-4 shrink-0 text-gray-700 dark:text-gray-300" strokeWidth={2.5} />
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {entry.title || t('common:unknown')}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Modal>
         </>
       )}
     </div>
