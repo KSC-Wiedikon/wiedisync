@@ -1,51 +1,49 @@
 /**
- * Schulferien sync — imports the City of Zürich school-holiday calendar and
- * materializes it as hall_closures rows (source='school_holidays') for every hall.
+ * Schulferien sync — keeps the school-holiday hall_closures topped up from the
+ * City of Zürich school calendar.
  *
  *   POST /kscw/admin/schulferien-sync   — manual trigger (admin only)
- *   Also registered as a daily cron in the kscw-hooks extension.
+ *   Also registered as a monthly cron in the kscw-hooks extension.
  *
  * Source: City of Zürich Open Data (Volksschule), the authoritative + complete
- * calendar for the city the club's gyms sit in. Unlike the OpenHolidays API it
- * includes the February Sportferien (which varies by municipality and is omitted
- * from the canton-level feed).
+ * calendar for the city the club's gyms sit in. Unlike the canton-level
+ * OpenHolidays feed it includes the February Sportferien.
  *   https://data.stadt-zuerich.ch/dataset/ssd_schulferien
  * CSV columns: start_date, end_date, summary, created_date.
  * NOTE: end_date is EXCLUSIVE (single-day Neujahrstag is 01.01→02.01), so a
- * holiday covers [start_date, end_date − 1 day].
+ * closure covers [start_date, end_date − 1 day].
  *
- * We import only the multi-week Ferien blocks (Sport / Frühlings / Sommer /
- * Herbst / Weihnachts) when the school gyms are genuinely shut — not the
- * single-day public holidays, half-days ("Schulschluss um 12 Uhr") or first
- * school day. Extend FERIEN_KEYWORDS to widen the scope.
+ * DESIGN — additive & non-destructive. The existing school_holidays closures
+ * are the source of truth: they have been hand-curated (adjacent holidays
+ * merged, e.g. "Ostern/Frühlingsferien"; weekend-only days like Pfingstsonntag
+ * trimmed). This job therefore NEVER updates or deletes a school_holidays row.
+ * For each Stadt-Zürich school-closure period in the CSV it inserts a closure
+ * per hall ONLY IF that hall has no school_holidays closure overlapping the
+ * period — so re-runs against the curated set are a perfect no-op, and the job
+ * only ever fills genuine gaps (e.g. when a new school year is published).
  *
- * Why hall_closures (not a separate table): reusing closures means everything
- * already built applies for free — the slot generator skips holiday dates, and
- * the hall_closures create/update/delete hook auto-cancels (and reverses)
- * trainings on those dates. Writes go through ItemsService so those hooks fire
- * (raw knex inserts would bypass them).
+ * Reusing hall_closures (source='school_holidays') means the closure machinery
+ * applies for free: the slot generator skips holiday dates, and the closure
+ * create hook auto-cancels trainings on those dates. New rows are written via
+ * ItemsService so that hook fires (raw knex inserts would bypass it).
  *
- * Idempotency: source='school_holidays' rows are importer-owned and keyed by
- * (hall, reason). Each run upserts the desired set for a forward window and
- * deletes future school-holiday rows that no longer match any imported Ferien.
- * Manual ad-hoc closures should therefore use source 'admin' / 'hauswart'.
+ * Excluded CSV rows: the non-closure admin entries ("Schulschluss um 12 Uhr",
+ * "1. Schultag", "Schuljahresbeginn", "Schuljahresende") — school is open.
  */
 
 const SCHULFERIEN_CSV_URL =
   'https://data.stadt-zuerich.ch/dataset/ssd_schulferien/download/schulferien.csv'
 
-// Canonical Ferien names matched against the CSV `summary` (case-insensitive).
-// Each appears in several summary variants ("Schulen Stadt Zürich: Sportferien",
-// "… schulfrei: Frühlingsferien (inkl. …)"), so we key off the bare keyword.
-const FERIEN_KEYWORDS = [
-  'Sportferien',
-  'Frühlingsferien',
-  'Sommerferien',
-  'Herbstferien',
-  'Weihnachtsferien',
-]
+// City school-closure rows are prefixed "Schulen Stadt Zürich". These variants
+// are NOT gym closures (school open / early dismissal / first/last day).
+const EXCLUDE_SUMMARY = ['Schulschluss', '1. Schultag', 'Schuljahresbeginn', 'Schuljahresende']
 
-const FORWARD_MONTHS = 18 // how far ahead to materialize closures
+// Canonical short labels for naming brand-new inserts (only used for gaps the
+// curated set doesn't already cover; matched case-insensitively in the summary).
+const LABEL_KEYWORDS = [
+  'Sportferien', 'Frühlingsferien', 'Sommerferien', 'Herbstferien', 'Weihnachtsferien',
+  'Ostern', 'Pfingsten', 'Auffahrt', 'Knabenschiessen', 'Sechseläuten', 'Tag der Arbeit',
+]
 
 function isoDay(d) {
   return d.toISOString().slice(0, 10)
@@ -78,11 +76,22 @@ function splitCsvLine(line) {
   return out
 }
 
+/** A human-readable reason for a freshly inserted period, e.g. "Sportferien 2031". */
+function deriveReason(summary, start, end) {
+  let label = summary.replace(/^Schulen Stadt Zürich(\s+schulfrei)?:\s*/i, '').trim()
+  const kw = LABEL_KEYWORDS.find((k) => label.toLowerCase().includes(k.toLowerCase()))
+  label = kw || label.split('(')[0].split(',')[0].trim()
+  const sy = start.slice(0, 4)
+  const ey = end.slice(0, 4)
+  const year = sy === ey ? sy : `${sy}/${ey.slice(2)}` // cross-boundary → "2031/32"
+  return `${label} ${year}`.trim()
+}
+
 /**
- * Fetch + parse the CSV into Ferien periods within [fromIso, toIso].
- * Returns [{ name, year, start, end }] with end already made inclusive.
+ * Fetch + parse the CSV into Stadt-Zürich school-closure periods that end on or
+ * after `fromIso`. Returns [{ summary, start, end }] with end made inclusive.
  */
-async function fetchFerien(fromIso, toIso) {
+async function fetchClosurePeriods(fromIso) {
   const resp = await fetch(SCHULFERIEN_CSV_URL, { headers: { Accept: 'text/csv' } })
   if (!resp.ok) {
     const body = await resp.text().catch(() => '')
@@ -102,21 +111,17 @@ async function fetchFerien(fromIso, toIso) {
   for (let r = 1; r < lines.length; r++) {
     const cols = splitCsvLine(lines[r])
     const summary = (cols[iSummary] ?? '').trim()
-    const keyword = FERIEN_KEYWORDS.find((k) =>
-      summary.toLowerCase().includes(k.toLowerCase()),
-    )
-    if (!keyword) continue
+    if (!summary.startsWith('Schulen Stadt Zürich')) continue
+    if (EXCLUDE_SUMMARY.some((x) => summary.includes(x))) continue
 
     const startRaw = (cols[iStart] ?? '').slice(0, 10)
     const endRaw = (cols[iEnd] ?? '').slice(0, 10)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startRaw) || !/^\d{4}-\d{2}-\d{2}$/.test(endRaw)) continue
 
     const end = minusOneDay(endRaw) // CSV end_date is exclusive
-    if (end < startRaw) continue
-    // Keep anything that overlaps our forward window.
-    if (end < fromIso || startRaw > toIso) continue
+    if (end < startRaw || end < fromIso) continue
 
-    periods.push({ name: keyword, year: startRaw.slice(0, 4), start: startRaw, end })
+    periods.push({ summary, start: startRaw, end })
   }
   return periods
 }
@@ -126,73 +131,59 @@ export function registerSchulferienSync(router, { services, database, getSchema,
   const { ItemsService } = services
 
   async function runSync(db) {
-    const now = new Date()
-    const fromIso = isoDay(now)
-    const toDate = new Date(now)
-    toDate.setMonth(toDate.getMonth() + FORWARD_MONTHS)
-    const toIso = isoDay(toDate)
-
-    const periods = await fetchFerien(fromIso, toIso)
+    const fromIso = isoDay(new Date())
+    const periods = await fetchClosurePeriods(fromIso)
     const halls = await db('halls').select('id')
     if (halls.length === 0) {
       log.warn('schulferien-sync: no halls found, nothing to do')
-      return { periods: periods.length, halls: 0, created: 0, updated: 0, deleted: 0 }
+      return { periods: periods.length, halls: 0, created: 0, skipped: 0 }
+    }
+
+    // Existing school_holidays closures (the curated source of truth) that
+    // reach into the future, grouped by hall as [start, end] intervals.
+    // Cast date columns to text — knex/pg otherwise returns `date` as a JS Date
+    // (at server-local midnight), and toISOString()/String() on that shifts or
+    // mangles the day. ::text yields a clean 'YYYY-MM-DD' that compares directly
+    // against the CSV's ISO strings.
+    const existing = await db('hall_closures')
+      .where('source', 'school_holidays')
+      .andWhere('end_date', '>=', fromIso)
+      .select('hall', db.raw('start_date::text as start_date'), db.raw('end_date::text as end_date'))
+    const byHall = new Map()
+    for (const row of existing) {
+      const list = byHall.get(row.hall) ?? []
+      list.push([row.start_date.slice(0, 10), row.end_date.slice(0, 10)])
+      byHall.set(row.hall, list)
     }
 
     const schema = await getSchema()
-    // System context (no accountability) so closure hooks fire (auto-cancel
-    // trainings + slot-skip) and permissions are bypassed.
+    // System context (no accountability) so the closure-create hook fires
+    // (auto-cancel trainings + slot-skip) and permissions are bypassed.
     const closures = new ItemsService('hall_closures', { schema, knex: db })
 
-    // Existing importer-owned rows for the forward window, keyed by hall|reason.
-    const existingRows = await db('hall_closures')
-      .where('source', 'school_holidays')
-      .andWhere('start_date', '>=', fromIso)
-      .select('id', 'hall', 'reason', 'start_date', 'end_date')
-    const existingByKey = new Map(
-      existingRows.map((row) => [`${row.hall}|${row.reason}`, row]),
-    )
-
-    const desiredKeys = new Set()
-    let created = 0, updated = 0, deleted = 0
-
+    let created = 0, skipped = 0
     for (const p of periods) {
-      const reason = `${p.name} ${p.year}` // e.g. "Sportferien 2026"
+      const reason = deriveReason(p.summary, p.start, p.end)
       for (const h of halls) {
-        const key = `${h.id}|${reason}`
-        desiredKeys.add(key)
-        const existing = existingByKey.get(key)
-        if (existing) {
-          const exStart = String(existing.start_date).slice(0, 10)
-          const exEnd = String(existing.end_date).slice(0, 10)
-          if (exStart !== p.start || exEnd !== p.end) {
-            await closures.updateOne(existing.id, { start_date: p.start, end_date: p.end })
-            updated++
-          }
-        } else {
-          await closures.createOne({
-            hall: h.id,
-            start_date: p.start,
-            end_date: p.end,
-            reason,
-            source: 'school_holidays',
-          })
-          created++
-        }
+        const intervals = byHall.get(h.id) ?? []
+        // Skip if any existing school_holidays closure for this hall overlaps the
+        // period — never duplicate or override the curated set.
+        const overlaps = intervals.some(([a, b]) => a <= p.end && p.start <= b)
+        if (overlaps) { skipped++; continue }
+        await closures.createOne({
+          hall: h.id,
+          start_date: p.start,
+          end_date: p.end,
+          reason,
+          source: 'school_holidays',
+        })
+        intervals.push([p.start, p.end]) // guard against double-insert within a run
+        byHall.set(h.id, intervals)
+        created++
       }
     }
 
-    // Reconcile: drop future importer rows that no longer match any Ferien
-    // (e.g. a holiday shifted name/year, or a hall was removed). Deleting fires
-    // the closure-delete hook, which un-cancels the trainings it had cancelled.
-    for (const row of existingRows) {
-      if (!desiredKeys.has(`${row.hall}|${row.reason}`)) {
-        await closures.deleteOne(row.id)
-        deleted++
-      }
-    }
-
-    return { periods: periods.length, halls: halls.length, created, updated, deleted }
+    return { periods: periods.length, halls: halls.length, created, skipped }
   }
 
   router.post('/admin/schulferien-sync', async (req, res) => {
