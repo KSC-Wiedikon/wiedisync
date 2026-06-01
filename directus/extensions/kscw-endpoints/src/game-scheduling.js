@@ -9,12 +9,12 @@ import { FRONTEND_URL } from './email-template.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
-// Spielplanung mail identity. From stays on the SES-verified noreply.kscw.ch —
-// the kscw.ch apex is ClubDesk's SPF/DMARC (p=quarantine), so sending as
-// @kscw.ch via SES would be spam-foldered. Replies route to spielplanung_vb,
-// which forwards to the scheduling Google Group.
-const SCHEDULING_FROM = 'KSC Wiedikon Spielplanung <spielplanung@mail.kscw.ch>'
-const SCHEDULING_REPLY_TO = 'spielplanung_vb@kscw.ch'
+// Spielplanung mail identity. spielplanung.kscw.ch is SES-verified (Easy DKIM),
+// so SES can send From it with DKIM-aligned DMARC. From + replies both land on
+// the dedicated Migadu mailbox volleyball@spielplanung.kscw.ch. (The kscw.ch
+// apex stays ClubDesk's — we never send from it.)
+const SCHEDULING_FROM = 'KSC Wiedikon Spielplanung <volleyball@spielplanung.kscw.ch>'
+const SCHEDULING_REPLY_TO = 'volleyball@spielplanung.kscw.ch'
 
 async function verifyTurnstile(token) {
   if (!TURNSTILE_SECRET) {

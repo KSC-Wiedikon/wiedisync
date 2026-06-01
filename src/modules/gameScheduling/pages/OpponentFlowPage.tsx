@@ -7,7 +7,7 @@ import AwayProposalForm from '../components/AwayProposalForm'
 import LoadingSpinner from '../../../components/LoadingSpinner'
 import { Badge } from '../../../components/ui/badge'
 
-const SUPPORT_EMAIL = 'spielplanung_vb@kscw.ch'
+const SUPPORT_EMAIL = 'volleyball@spielplanung.kscw.ch'
 
 // Always Swiss formatting regardless of UI language (CLAUDE.md → date format).
 function fmtDateTime(iso: string | null | undefined): string {
