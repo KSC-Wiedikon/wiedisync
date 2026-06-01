@@ -387,16 +387,12 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
       const eveningWindow = seasonWindow(season.season)
 
-      // Club-wide Spielhalle fallback: a shared Friday evening game slot used by
-      // ANY team that has no 21:30 Döltschi/KWI slot of its own. Resolved by hall
-      // name (default "Döltschi 1") — there's no Spielhalle flag in the schema.
-      // TODO: make the hall + time admin-configurable on the season.
-      const spielhalleHall = await database('halls')
-        .whereRaw("LOWER(name) LIKE '%döltschi 1%' OR LOWER(name) LIKE '%doltschi 1%'")
-        .first()
-      const SPIELHALLE = spielhalleHall
-        ? { hall: spielhalleHall.id, day: 5, start_time: '19:00:00', end_time: '21:00:00' }
-        : null
+      // Club-wide Spielhalle pool: the shared game-hall slots (label
+      // 'Spielhalle', no team assigned — KWI A/B on Friday). Any team without
+      // its own 21:30 Döltschi/KWI slot falls back to these.
+      const spielhalleSlots = await database('hall_slots')
+        .whereRaw("LOWER(label) = 'spielhalle'")
+        .select('day_of_week', 'start_time', 'end_time', 'hall')
 
       const teams = await database('teams')
         .where('sport', 'volleyball').where('active', true).select('id')
@@ -429,8 +425,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         }
 
         // Standard slot: the team's OWN latest (end 21:30) slot in a Döltschi/
-        // KWI hall, repeated weekly. If the team has none, it falls back to the
-        // club-wide Spielhalle Friday slot (shared, not from its hall_slots).
+        // KWI hall, repeated weekly. If it has none, fall back to the club-wide
+        // Spielhalle pool (KWI A/B Friday). day_of_week is 0=Mon in the DB, so
+        // convert to JS getUTCDay (0=Sun) via (dow + 1) % 7.
         if (sources.includes('hall_slot') && eveningWindow) {
           const ownStandard = await database('hall_slots')
             .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
@@ -438,28 +435,17 @@ export function registerGameScheduling(router, { database, logger, services, get
             .where('hall_slots_teams.teams_id', team.id)
             .whereRaw("hall_slots.end_time::text LIKE '21:30%'")
             .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%' OR LOWER(halls.name) LIKE '%kwi%')")
-            .select('hall_slots.*')
-          if (ownStandard.length > 0) {
-            for (const hs of ownStandard) {
-              const d = new Date(eveningWindow.start)
-              while (d <= eveningWindow.end) {
-                if (d.getUTCDay() === hs.day_of_week) {
-                  candidates.push({
-                    date: d.toISOString().slice(0, 10), start_time: hs.start_time,
-                    end_time: hs.end_time, hall: hs.hall, source: 'hall_slot',
-                  })
-                }
-                d.setUTCDate(d.getUTCDate() + 1)
-              }
-            }
-          } else if (SPIELHALLE) {
-            // Fallback: the club Spielhalle, every Friday across the season window.
+            .select('hall_slots.day_of_week', 'hall_slots.start_time', 'hall_slots.end_time', 'hall_slots.hall')
+          const stdSlots = ownStandard.length > 0 ? ownStandard : spielhalleSlots
+          const stdTag = ownStandard.length > 0 ? 'hall_slot' : 'spielhalle'
+          for (const hs of stdSlots) {
+            const targetJsDay = (hs.day_of_week + 1) % 7
             const d = new Date(eveningWindow.start)
             while (d <= eveningWindow.end) {
-              if (d.getUTCDay() === SPIELHALLE.day) {
+              if (d.getUTCDay() === targetJsDay) {
                 candidates.push({
-                  date: d.toISOString().slice(0, 10), start_time: SPIELHALLE.start_time,
-                  end_time: SPIELHALLE.end_time, hall: SPIELHALLE.hall, source: 'spielhalle',
+                  date: d.toISOString().slice(0, 10), start_time: hs.start_time,
+                  end_time: hs.end_time, hall: hs.hall, source: stdTag,
                 })
               }
               d.setUTCDate(d.getUTCDate() + 1)
