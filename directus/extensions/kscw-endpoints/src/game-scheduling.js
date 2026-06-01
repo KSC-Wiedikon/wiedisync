@@ -129,7 +129,8 @@ export function registerGameScheduling(router, { database, logger, services, get
       // are respected without regenerating. Applies even on Spielsamstage.
       const slotRows = await database('game_scheduling_slots')
         .where('kscw_team', opponent.kscw_team)
-        .whereNot('status', 'blocked')
+        // Only offer available slots — a booked KWI A drops out so KWI B shows alone.
+        .where('status', 'available')
         .whereNotExists(function () {
           this.select(database.raw('1'))
             .from('events as e')
