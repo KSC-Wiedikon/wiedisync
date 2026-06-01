@@ -15,6 +15,14 @@ export default {
   openForBooking: 'Ouvrir les reservations',
   closeBooking: 'Fermer les reservations',
 
+  // Report de saison (tout le club)
+  rolloverHint: 'Cette saison est vide. Reporter tout le club depuis {{from}} — cloner chaque équipe, effectif, staff, sponsor et attribution de créneaux de salle vers {{to}}, puis archiver {{from}}.',
+  rolloverButton: 'Reporter depuis {{from}}',
+  rolloverConfirm: 'Reporter la saison {{from}} → {{to}} ? Cela clone {{teams}} équipes et {{members}} entrées d\'effectif vers {{to}}, puis désactive les équipes de {{from}}. Continuer ?',
+  rolloverSuccess: 'Reporté depuis {{from}} — {{teams}} équipes et {{members}} entrées d\'effectif clonées.',
+  rolloverNoPrev: 'Impossible de déterminer la saison précédente.',
+  rolloverEmptySource: 'Aucune équipe trouvée dans la saison {{from}} à reporter.',
+
   // Spielsamstage
   spielsamstage: 'Samedis de match',
   addSpielssamstag: 'Ajouter un samedi de match',

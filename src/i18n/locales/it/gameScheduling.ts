@@ -15,6 +15,14 @@ export default {
   openForBooking: 'Apri per prenotazione',
   closeBooking: 'Chiudi prenotazione',
 
+  // Trasferimento stagione (tutto il club)
+  rolloverHint: 'Questa stagione è vuota. Trasferisci tutto il club da {{from}} — clona ogni squadra, rosa, staff, sponsor e assegnazione di slot palestra in {{to}}, poi archivia {{from}}.',
+  rolloverButton: 'Trasferisci da {{from}}',
+  rolloverConfirm: 'Trasferire la stagione {{from}} → {{to}}? Questo clona {{teams}} squadre e {{members}} voci di rosa in {{to}}, poi disattiva le squadre di {{from}}. Continuare?',
+  rolloverSuccess: 'Trasferito da {{from}} — {{teams}} squadre e {{members}} voci di rosa clonate.',
+  rolloverNoPrev: 'Impossibile determinare la stagione precedente.',
+  rolloverEmptySource: 'Nessuna squadra trovata nella stagione {{from}} da trasferire.',
+
   // Spielsamstage
   spielsamstage: 'Sabati di gioco',
   addSpielssamstag: 'Aggiungi sabato di gioco',

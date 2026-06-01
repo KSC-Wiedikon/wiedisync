@@ -196,6 +196,14 @@ export default {
   restoreSeasonConfirm: 'Saison {{season}} wiederherstellen? Volleyball-Teams werden wieder aktiviert. Abgelaufene Einladungen bleiben tot — bei Bedarf einzeln neu senden. Fortfahren?',
   restoreSeasonSuccess: 'Saison {{season}} wiederhergestellt — {{teams}} Teams wieder aktiviert.',
 
+  // Saison-Übernahme (clubweit)
+  rolloverHint: 'Diese Saison ist leer. Ganzen Club von {{from}} übernehmen — alle Teams, Kader, Staff, Sponsoren und Hallenplan-Zuteilungen nach {{to}} klonen, dann {{from}} archivieren.',
+  rolloverButton: 'Von {{from}} übernehmen',
+  rolloverConfirm: 'Saison {{from}} → {{to}} übernehmen? Dies klont {{teams}} Teams und {{members}} Kadereinträge nach {{to}} und deaktiviert anschliessend die Teams von {{from}}. Fortfahren?',
+  rolloverSuccess: 'Von {{from}} übernommen — {{teams}} Teams und {{members}} Kadereinträge geklont.',
+  rolloverNoPrev: 'Die vorherige Saison konnte nicht bestimmt werden.',
+  rolloverEmptySource: 'Keine Teams in Saison {{from}} zum Übernehmen gefunden.',
+
   // English-first audit additions (German translations)
   cancel: 'Abbrechen',
   noSeasonConfigured: 'Keine Saison konfiguriert. Bitte zuerst eine Saison erstellen.',
