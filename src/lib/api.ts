@@ -359,6 +359,31 @@ export async function countItems(
   }
 }
 
+/**
+ * Fetch the distinct, descending-sorted values of a season-scoped collection's
+ * `season` field via Directus `groupBy`. Used by `useEffectiveSeason`.
+ *
+ * Directus rejects comparison operators (`_lte`/`_lt`) on `string`-typed fields
+ * with a 400, so the season is selected client-side rather than server-side. A
+ * `groupBy` aggregate returns one row per distinct season regardless of how many
+ * games/rankings rows that season has, so the result set stays tiny.
+ */
+export async function fetchSeasons(collection: 'games' | 'rankings'): Promise<string[]> {
+  try {
+    const result = await client.request(aggregate(collection, {
+      aggregate: { count: '*' },
+      groupBy: ['season'],
+      query: { sort: ['-season'] } as never,
+    }))
+    return (result as Array<{ season: string | null }>)
+      .map(r => r.season)
+      .filter((s): s is string => !!s)
+  } catch (err) {
+    captureApiError(err, { operation: 'fetchSeasons', collection })
+    throw err
+  }
+}
+
 /** Create a new item. */
 export async function createRecord<T = Record<string, unknown>>(
   collection: string,

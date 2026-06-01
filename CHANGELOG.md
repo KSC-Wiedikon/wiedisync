@@ -2,6 +2,10 @@
 
 All notable changes to Wiedisync are documented in this file. Recent releases carry more detail; older entries are one-liners — see `git log` for the full text.
 
+## v4.16.1 — 2026-06-01
+
+- **Games/rankings season fallback fixed.** `useEffectiveSeason` filtered the `season` field server-side with `_lte`, but Directus rejects comparison operators on `string`-typed fields (`"string" field type does not contain the "_lte" filter operator` → 400). The query had always 400'd and silently fallen back to the current season; harmless until the June 1 rollover made the current season (`2026/27`) empty, leaving Games/Rankings/Home blank. The comparison now runs client-side over a `groupBy: ['season']` aggregate (`fetchSeasons` in `api.ts`), so the views fall back to the latest season with data and flip to the new season once it lands. Frontend-only.
+
 ## v4.16.0 — 2026-05-30
 
 - **PWA install guide.** Members can add Wiedisync to their phone home screen. A mobile login banner ("Remind me later" / "I understood", remembered per device) and an "Install the app" entry in the Guide section. One-tap native install on Android/Chrome; illustrated Share → Add to Home Screen steps on iOS Safari. No backend change.
