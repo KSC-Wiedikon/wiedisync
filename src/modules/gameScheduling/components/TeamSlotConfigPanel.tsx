@@ -15,12 +15,13 @@ interface HallSlotLite {
   day_of_week: number
   start_time: string
   end_time: string
+  label: string | null
   hall: { name?: string } | null
   teams: { teams_id: number }[]
 }
 
-// day_of_week: 0 = Sunday (matches the generator's getUTCDay()).
-const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+// day_of_week is 0 = Monday in the DB (per TrainingForm), so index directly.
+const DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const hm = (s: string) => String(s || '').slice(0, 5)
 const isStandardHall = (name: string) => /döltschi|doltschi|kwi/.test(name.toLowerCase())
 
@@ -30,7 +31,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
 
   useEffect(() => {
     fetchAllItems<HallSlotLite>('hall_slots', {
-      fields: ['id', 'day_of_week', 'start_time', 'end_time', 'hall.name', 'teams.teams_id'],
+      fields: ['id', 'day_of_week', 'start_time', 'end_time', 'label', 'hall.name', 'teams.teams_id'],
     })
       .then(setHallSlots)
       .catch(() => {})
@@ -50,7 +51,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
   }, [hallSlots])
 
   // Mirrors the backend: a team's own 21:30 Döltschi/KWI slot, else the
-  // club-wide Spielhalle Friday fallback.
+  // club-wide Spielhalle pool (hall_slots labelled 'Spielhalle' — KWI A/B Fri).
   const resolveStandard = (teamId: string | number) => {
     const own = (slotsByTeam.get(String(teamId)) || []).filter(
       (s) => hm(s.end_time) === '21:30' && isStandardHall(s.hall?.name || ''),
@@ -61,7 +62,12 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
         fallback: false,
       }
     }
-    return { label: 'Spielhalle · Fri 19:00 · Döltschi 1', fallback: true }
+    const sh = hallSlots.filter((s) => (s.label || '').toLowerCase() === 'spielhalle')
+    if (sh.length) {
+      const halls = [...new Set(sh.map((s) => s.hall?.name).filter(Boolean))].join(', ')
+      return { label: `Spielhalle · ${DAY[sh[0].day_of_week]} ${hm(sh[0].start_time)} · ${halls}`, fallback: true }
+    }
+    return { label: '—', fallback: true }
   }
 
   // Sources are additive: a team can have the Standard slot AND the Saturday
