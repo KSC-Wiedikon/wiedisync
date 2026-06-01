@@ -16,6 +16,7 @@ interface HallSlotLite {
   start_time: string
   end_time: string
   label: string | null
+  sport: string | null
   hall: { name?: string } | null
   teams: { teams_id: number }[]
 }
@@ -23,7 +24,8 @@ interface HallSlotLite {
 // day_of_week is 0 = Monday in the DB (per TrainingForm), so index directly.
 const DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const hm = (s: string) => String(s || '').slice(0, 5)
-const isStandardHall = (name: string) => /döltschi|doltschi|kwi/.test(name.toLowerCase())
+const isKwi = (n: string) => /kwi/.test(n.toLowerCase())
+const isDoltschi = (n: string) => /döltschi|doltschi/.test(n.toLowerCase())
 
 export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) {
   const { t } = useTranslation('gameScheduling')
@@ -31,7 +33,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
 
   useEffect(() => {
     fetchAllItems<HallSlotLite>('hall_slots', {
-      fields: ['id', 'day_of_week', 'start_time', 'end_time', 'label', 'hall.name', 'teams.teams_id'],
+      fields: ['id', 'day_of_week', 'start_time', 'end_time', 'label', 'sport', 'hall.name', 'teams.teams_id'],
     })
       .then(setHallSlots)
       .catch(() => {})
@@ -50,17 +52,19 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
     return m
   }, [hallSlots])
 
-  // Mirrors the backend: a team's own 21:30 Döltschi/KWI slot, else the
-  // club-wide Spielhalle pool (hall_slots labelled 'Spielhalle' — KWI A/B Fri).
+  // Mirrors the backend: own latest KWI block (ends 21:30); teams that use
+  // Döltschi get the shared volleyball Döltschi pool; else the club Spielhalle.
   const resolveStandard = (teamId: string | number) => {
-    const own = (slotsByTeam.get(String(teamId)) || []).filter(
-      (s) => hm(s.end_time) === '21:30' && isStandardHall(s.hall?.name || ''),
-    )
-    if (own.length) {
-      return {
-        label: own.map((s) => `${DAY[s.day_of_week]} ${hm(s.start_time)}–${hm(s.end_time)} · ${s.hall?.name}`).join(', '),
-        fallback: false,
-      }
+    const mine = slotsByTeam.get(String(teamId)) || []
+    const kwiOwn = mine.filter((s) => hm(s.end_time) === '21:30' && isKwi(s.hall?.name || ''))
+    const usesDoltschi = mine.some((s) => s.sport === 'volleyball' && isDoltschi(s.hall?.name || ''))
+    const pool = usesDoltschi
+      ? hallSlots.filter((s) => s.sport === 'volleyball' && isDoltschi(s.hall?.name || ''))
+      : []
+    const parts = [...kwiOwn, ...pool]
+    if (parts.length) {
+      const labels = [...new Set(parts.map((s) => `${DAY[s.day_of_week]} ${hm(s.start_time)}–${hm(s.end_time)} · ${s.hall?.name}`))]
+      return { label: labels.join(', '), fallback: false }
     }
     const sh = hallSlots.filter((s) => (s.label || '').toLowerCase() === 'spielhalle')
     if (sh.length) {
