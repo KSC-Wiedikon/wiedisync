@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '../../../hooks/useAuth'
 import { kscwApi } from '../../../lib/api'
@@ -10,6 +10,7 @@ import { useTeams } from '../../../hooks/useTeams'
 import LoadingSpinner from '../../../components/LoadingSpinner'
 import SeasonConfig from '../components/SeasonConfig'
 import { previousSeasonShort } from '../utils/formatSeason'
+import { isSchedulableTeam } from '../utils/schedulableTeams'
 import SpielsamstageEditor from '../components/SpielsamstageEditor'
 import SlotGenerationPanel from '../components/SlotGenerationPanel'
 import TeamSlotConfigPanel from '../components/TeamSlotConfigPanel'
@@ -121,7 +122,7 @@ export default function AdminSetupPage() {
     }
   }
 
-  const volleyballTeams = (teams || []).filter(t => t.sport === 'volleyball' && t.active)
+  const volleyballTeams = (teams || []).filter(isSchedulableTeam)
 
   // Offer rollover when the selected season has no teams yet and a previous season
   // exists to clone from. Gated on full admin (the endpoint requires it).
@@ -131,10 +132,19 @@ export default function AdminSetupPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">
           {t('setupTitle')}
         </h1>
+        {/* The dashboard (where away-proposals are confirmed) has no menu entry
+            of its own — this link is the only way to reach it from the UI. */}
+        <Link
+          to="/admin/terminplanung/dashboard"
+          className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:self-auto dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+        >
+          {t('dashboardTitle')}
+          <span aria-hidden>→</span>
+        </Link>
       </div>
 
       {/* Season Config */}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../../../hooks/useAuth'
 import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
 import { useAdminBookings } from '../hooks/useAdminBookings'
@@ -13,6 +13,9 @@ import { Badge } from '../../../components/ui/badge'
 import type { GameSchedulingOpponent, GameSchedulingSlot, InviteStatus, InviteSource } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import { formatSeasonShort } from '../utils/formatSeason'
+import { useHalls } from '../../../hooks/useData'
+import { formatDateCompactZurich } from '../../../utils/dateHelpers'
+import { isSchedulableTeam } from '../utils/schedulableTeams'
 
 const INVITE_STATUS_VARIANT: Record<InviteStatus, 'info' | 'warning' | 'success' | 'danger' | 'neutral' | 'secondary'> = {
   invited: 'info',
@@ -44,7 +47,7 @@ export default function AdminDashboardPage() {
   const { t } = useTranslation('gameScheduling')
   const { hasAdminAccessToSport } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
-  const { bookings, opponents, slots, isLoading, confirmAwayProposal, blockSlot } = useAdminBookings(season?.id)
+  const { bookings, opponents, slots, isLoading, hasLoaded, confirmAwayProposal, blockSlot } = useAdminBookings(season?.id)
   const { data: teams } = useTeams()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
 
@@ -52,7 +55,9 @@ export default function AdminDashboardPage() {
     return <Navigate to="/" replace />
   }
 
-  if (seasonLoading || isLoading) return <LoadingSpinner />
+  // Only the very first load blanks to a spinner. After data has loaded once,
+  // confirming a proposal refetches in the background without flashing the page.
+  if (seasonLoading || (isLoading && !hasLoaded)) return <LoadingSpinner />
 
   if (!season) {
     return (
@@ -62,7 +67,7 @@ export default function AdminDashboardPage() {
     )
   }
 
-  const volleyballTeams = (teams || []).filter(tm => tm.sport === 'volleyball' && tm.active)
+  const volleyballTeams = (teams || []).filter(isSchedulableTeam)
 
   const getTeamOpponents = (teamId: string) =>
     opponents.filter(o => String(o.kscw_team) === String(teamId))
@@ -90,6 +95,13 @@ export default function AdminDashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
+          <Link
+            to="/admin/terminplanung"
+            className="mb-1 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          >
+            <span aria-hidden>←</span>
+            {t('setupTitle')}
+          </Link>
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('dashboardTitle')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{formatSeasonShort(season.season)}</p>
         </div>
@@ -127,7 +139,7 @@ export default function AdminDashboardPage() {
                 <div className="flex flex-shrink-0 items-center gap-3 text-xs text-gray-600 sm:text-sm dark:text-gray-400">
                   {stats.opponents > 0 && (
                     <span className="hidden sm:inline">
-                      {stats.opponents} {t('opponent')}
+                      {t('opponentCount', { count: stats.opponents })}
                     </span>
                   )}
                   <div className="flex items-center gap-1">
@@ -183,6 +195,8 @@ function TeamBookingsContent({
   onBlockSlot: (slotId: string, action: 'block' | 'unblock') => Promise<void>
 }) {
   const { t } = useTranslation('gameScheduling')
+  const { data: halls } = useHalls()
+  const hallsById = new Map((halls || []).map((h) => [String(h.id), h.name]))
 
   if (teamOpponents.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t('noBookingsYet')}</p>
@@ -197,18 +211,36 @@ function TeamBookingsContent({
         })
         const homeBooking = oppBookings.find(b => b.type === 'home_slot_pick')
         const awayBooking = oppBookings.find(b => b.type === 'away_proposal')
+        // slot is fetched expanded (`slot.*`) but typed `string` after the
+        // intersection collapse — cast to read the date/time/hall.
+        const homeSlot =
+          homeBooking && typeof homeBooking.slot === 'object'
+            ? (homeBooking.slot as unknown as GameSchedulingSlot)
+            : null
         const inviteStatus = (opp.status as InviteStatus) || 'active'
         const source = (opp.source as InviteSource) || 'self_registration'
+
+        // Colour the card by how far this matchup's scheduling has got:
+        // both legs confirmed → green, one leg → yellow, neither → red. Subtle tints.
+        const homeConfirmed = homeBooking?.status === 'confirmed'
+        const awayConfirmed = awayBooking?.status === 'confirmed'
+        const confirmedCount = (homeConfirmed ? 1 : 0) + (awayConfirmed ? 1 : 0)
+        const cardClass =
+          confirmedCount === 2
+            ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20'
+            : confirmedCount === 1
+              ? 'border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-900/20'
+              : 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-900/20'
 
         return (
           <div
             key={opp.id}
-            className="rounded-md border border-gray-100 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700"
+            className={`rounded-md border p-3 ${cardClass}`}
           >
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{opp.club_name}</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{opp.club_name || opp.team_name}</span>
                   <Badge variant={INVITE_STATUS_VARIANT[inviteStatus]} size="sm">
                     {t(inviteStatusKey(inviteStatus))}
                   </Badge>
@@ -233,11 +265,13 @@ function TeamBookingsContent({
               <div>
                 <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('homeBookings')}</h4>
                 {homeBooking ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <BookingStatusBadge status={homeBooking.status} />
-                    {homeBooking.slot && (
+                    {homeSlot && (
                       <span className="text-sm text-gray-600 dark:text-gray-400">
-                        Slot: {typeof homeBooking.slot === 'object' ? (homeBooking.slot as GameSchedulingSlot).id : homeBooking.slot}
+                        {formatDateCompactZurich(homeSlot.date)} · {homeSlot.start_time?.slice(0, 5)}–
+                        {homeSlot.end_time?.slice(0, 5)}
+                        {hallsById.get(String(homeSlot.hall)) ? ` · ${hallsById.get(String(homeSlot.hall))}` : ''}
                       </span>
                     )}
                   </div>

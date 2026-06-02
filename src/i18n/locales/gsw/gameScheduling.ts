@@ -64,6 +64,8 @@ export default {
   pending: 'Usstehend',
   rejected: 'Abglehnt',
   opponent: 'Gegner',
+  opponentCount_one: '{{count}} Gegner',
+  opponentCount_other: '{{count}} Gegner',
   contactEmail: 'Kontakt-E-Mail',
   adminNotes: 'Admin-Notize',
   override: 'Überschriibe',

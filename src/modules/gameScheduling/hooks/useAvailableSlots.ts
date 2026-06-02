@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { kscwApi } from '../../../lib/api'
+
+// Normalise i18next's language ('en-US' → 'en') to one of the 5 stored codes.
+const baseLang = (l: string | undefined): string => (l || '').split('-')[0].toLowerCase()
 
 export interface SlotData {
   id: string
@@ -23,6 +27,8 @@ export interface OpponentData {
   away_game: string
   source: 'self_registration' | 'manual' | 'svrz'
   status: 'invited' | 'viewed' | 'booked' | 'revoked' | 'expired' | 'active'
+  /** Opponent's remembered UI language (de/gsw/en/fr/it), or null if not chosen yet. */
+  language: string | null
 }
 
 export interface InviteGame {
@@ -64,6 +70,7 @@ interface SlotsResponse {
 }
 
 export function useAvailableSlots(token: string | undefined) {
+  const { i18n } = useTranslation()
   const [data, setData] = useState<SlotsResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -88,21 +95,29 @@ export function useAvailableSlots(token: string | undefined) {
     if (!token) throw new Error('No token')
     const resp = await kscwApi(`/terminplanung/book-home/${token}`, {
       method: 'POST',
-      body: { slot_id: slotId },
+      body: { slot_id: slotId, language: baseLang(i18n.resolvedLanguage || i18n.language) },
     })
     await fetchSlots()
     return resp
-  }, [token, fetchSlots])
+  }, [token, fetchSlots, i18n])
 
   const proposeAway = useCallback(async (proposals: Array<{ date: string; start_time: string; location: string }>) => {
     if (!token) throw new Error('No token')
     const resp = await kscwApi(`/terminplanung/propose-away/${token}`, {
       method: 'POST',
-      body: { proposals },
+      body: { proposals, language: baseLang(i18n.resolvedLanguage || i18n.language) },
     })
     await fetchSlots()
     return resp
-  }, [token, fetchSlots])
+  }, [token, fetchSlots, i18n])
+
+  // Persist the opponent's chosen language (best-effort) so emails use it.
+  const setLanguage = useCallback(async (language: string) => {
+    if (!token) return
+    try {
+      await kscwApi(`/terminplanung/set-language/${token}`, { method: 'POST', body: { language } })
+    } catch { /* best-effort — a failed language save must never disrupt the flow */ }
+  }, [token])
 
   return {
     opponent: data?.opponent ?? null,
@@ -116,6 +131,7 @@ export function useAvailableSlots(token: string | undefined) {
     error,
     bookHomeSlot,
     proposeAway,
+    setLanguage,
     refetch: fetchSlots,
   }
 }

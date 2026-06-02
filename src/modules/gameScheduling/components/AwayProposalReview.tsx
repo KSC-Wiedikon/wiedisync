@@ -8,6 +8,17 @@ interface Props {
   onConfirm: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
 }
 
+// Proposals are stored as a naive wall-clock (`${date}T${start_time}`) but come
+// back from the DB as "…Z". Slice the parts out instead of tz-converting, so we
+// show the exact time the opponent picked (Swiss dd.mm.yyyy HH:MM).
+function fmtProposal(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/)
+  if (!m) return String(iso)
+  const [, y, mo, d, hh, mm] = m
+  return hh ? `${d}.${mo}.${y} ${hh}:${mm}` : `${d}.${mo}.${y}`
+}
+
 export default function AwayProposalReview({ booking, onConfirm }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [confirming, setConfirming] = useState(false)
@@ -34,7 +45,8 @@ export default function AwayProposalReview({ booking, onConfirm }: Props) {
         <BookingStatusBadge status="confirmed" />
         {confirmed && (
           <span className="text-sm text-gray-600 dark:text-gray-400">
-            {confirmed.datetime} — {confirmed.place}
+            {fmtProposal(confirmed.datetime)}
+            {confirmed.place ? ` — ${confirmed.place}` : ''}
           </span>
         )}
       </div>
@@ -53,8 +65,8 @@ export default function AwayProposalReview({ booking, onConfirm }: Props) {
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
               {t('proposalNumber', { number: p.num })}
             </span>
-            <p className="text-sm text-gray-900 dark:text-gray-100">{p.datetime}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{p.place}</p>
+            <p className="text-sm text-gray-900 dark:text-gray-100">{fmtProposal(p.datetime)}</p>
+            {p.place && <p className="text-xs text-gray-500 dark:text-gray-400">{p.place}</p>}
           </div>
           {booking.status === 'pending' && (
             <button
