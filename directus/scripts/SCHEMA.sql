@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-01T22:10:08.924Z
+-- Generated:   2026-06-02T18:07:08.592Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -2783,8 +2783,16 @@ CREATE TABLE public.game_scheduling_opponents (
     source character varying(32) DEFAULT 'self_registration'::character varying NOT NULL,
     first_viewed_at timestamp with time zone,
     expires_at timestamp with time zone,
-    team_name character varying(255) DEFAULT NULL::character varying
+    team_name character varying(255) DEFAULT NULL::character varying,
+    language character varying(5)
 );
+
+
+--
+-- Name: COLUMN game_scheduling_opponents.language; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_opponents.language IS 'Opponent UI language chosen on the public Terminplanung page (de/gsw/en/fr/it). Used for transactional emails. Null = not yet chosen (falls back to de).';
 
 
 --
