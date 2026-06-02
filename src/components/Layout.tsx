@@ -232,9 +232,15 @@ export default function Layout() {
   const messagingOn = messagingFeatureEnabled(user?.id)
   const unreadMessages = useUnreadTotal()
 
-  // Auto-activate admin mode when navigating to /admin/* routes
+  // Auto-activate admin mode when navigating to /admin/* routes — EXCEPT the
+  // scheduler tools (Spielplanung/Terminplanung), which are reachable directly
+  // from the main nav by Spielplaner members. Forcing admin mode there would
+  // yank the entries out of the main nav into the Admin section on every click.
   useEffect(() => {
-    if (isAdmin && location.pathname.startsWith('/admin') && !isAdminMode) {
+    const isSchedulerRoute =
+      location.pathname.startsWith('/admin/spielplanung') ||
+      location.pathname.startsWith('/admin/terminplanung')
+    if (isAdmin && location.pathname.startsWith('/admin') && !isAdminMode && !isSchedulerRoute) {
       setAdminMode(true)
     }
   }, [location.pathname, isAdmin, isAdminMode, setAdminMode])
