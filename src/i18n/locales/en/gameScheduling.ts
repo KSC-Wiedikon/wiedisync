@@ -61,6 +61,8 @@ export default {
   pending: 'Pending',
   rejected: 'Rejected',
   opponent: 'Opponent',
+  opponentCount_one: '{{count}} opponent',
+  opponentCount_other: '{{count}} opponents',
   contactEmail: 'Contact Email',
   adminNotes: 'Admin Notes',
   override: 'Override',

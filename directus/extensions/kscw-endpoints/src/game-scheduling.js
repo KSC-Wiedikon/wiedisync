@@ -6,6 +6,7 @@
 
 import crypto from 'crypto'
 import { FRONTEND_URL } from './email-template.js'
+import { VALID_LANGS, schedEmail } from './terminplanung-emails.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -29,16 +30,36 @@ async function verifyTurnstile(token) {
   return (await resp.json()).success === true
 }
 
+// Format a stored date / naive datetime for emails as Swiss { date: dd.mm.yyyy,
+// time: HH:MM }. Values arrive as 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM…Z' (a naive
+// wall-clock stored with a Z suffix) — slice the parts out rather than
+// tz-converting, so the shown time matches what was picked.
+function fmtDateMail(val) {
+  const m = String(val || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/)
+  if (!m) return { date: String(val || ''), time: '' }
+  return { date: `${m[3]}.${m[2]}.${m[1]}`, time: m[4] ? `${m[4]}:${m[5]}` : '' }
+}
+
 export function registerGameScheduling(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'game-scheduling' })
+
+  // Send a Terminplanung email from the dedicated spielplanung identity.
+  // Best-effort: callers wrap in try/catch so a mail failure never blocks the action.
+  async function sendSchedulingMail(to, subject, text) {
+    const schema = await getSchema()
+    const { MailService } = services
+    const mail = new MailService({ schema, knex: database })
+    await mail.send({ to, from: SCHEDULING_FROM, replyTo: SCHEDULING_REPLY_TO, subject, text })
+  }
 
   // POST /kscw/terminplanung/register — opponent registers (public + Turnstile)
   router.post('/terminplanung/register', async (req, res) => {
     try {
-      const { team_name, contact_name, contact_email, turnstile_token, kscw_team } = req.body
+      const { team_name, contact_name, contact_email, turnstile_token, kscw_team, language } = req.body
       if (!team_name || !contact_name || !contact_email || !kscw_team) {
         return res.status(400).json({ error: 'team_name, contact_name, contact_email, kscw_team required' })
       }
+      const lang = VALID_LANGS.includes(String(language || '').toLowerCase()) ? String(language).toLowerCase() : null
       if (!turnstile_token || !(await verifyTurnstile(turnstile_token))) {
         return res.status(400).json({ error: 'Captcha verification failed' })
       }
@@ -48,7 +69,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
       await database('game_scheduling_opponents').insert({
         team_name, contact_name, contact_email: contact_email.toLowerCase().trim(),
-        token, kscw_team, status: 'active', expires_at: expiresAt,
+        token, kscw_team, status: 'active', expires_at: expiresAt, language: lang,
       })
 
       // Send confirmation email
@@ -80,6 +101,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   // In-memory rate limiter for token lookups and writes (per IP)
   const tokenAttempts = new Map() // ip → { count, resetAt }
   const writeAttempts = new Map() // ip → { count, resetAt }
+  const langAttempts = new Map()  // ip → { count, resetAt } — language flips (generous)
 
   function rateLimit(map, req, maxAttempts, windowMs) {
     // 2026-05-12 audit #20: prefer CF-Connecting-IP (set by Cloudflare Tunnel)
@@ -103,6 +125,43 @@ export function registerGameScheduling(router, { database, logger, services, get
       for (const [k, v] of map) { if (now > v.resetAt) map.delete(k) }
     }
     return true
+  }
+
+  // Dates (YYYY-MM-DD) the KSCW team is already committed to play — real SVRZ
+  // games, home slots an opponent has already booked, and confirmed away
+  // proposals — each expanded ±1 day so the team never plays back-to-back. A
+  // booked slot or a confirmed proposal therefore blocks exactly like a real
+  // game: no other opponent can take that date or an adjacent one (home-slot
+  // list + away proposals + away calendar greying). Pending proposals are
+  // intentionally excluded — they're temporary; only the confirmed one is
+  // definitive.
+  async function committedGameDates(kscwTeamId) {
+    const set = new Set()
+    const addPm1 = (val) => {
+      if (!val) return
+      const base = new Date(`${String(val).slice(0, 10)}T00:00:00Z`)
+      if (Number.isNaN(base.getTime())) return
+      for (let off = -1; off <= 1; off++) {
+        const x = new Date(base); x.setUTCDate(x.getUTCDate() + off)
+        set.add(x.toISOString().slice(0, 10))
+      }
+    }
+    const games = await database('games')
+      .where('kscw_team', kscwTeamId).whereNotNull('date')
+      .select(database.raw('games.date::text as d'))
+    games.forEach((g) => addPm1(g.d))
+    const booked = await database('game_scheduling_slots')
+      .where('kscw_team', kscwTeamId).where('status', 'booked')
+      .select(database.raw('date::text as d'))
+    booked.forEach((s) => addPm1(s.d))
+    const confirmed = await database('game_scheduling_bookings as b')
+      .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
+      .where('o.kscw_team', kscwTeamId)
+      .where('b.type', 'away_proposal').where('b.status', 'confirmed')
+      .select('b.confirmed_proposal as n', 'b.proposed_datetime_1 as d1',
+              'b.proposed_datetime_2 as d2', 'b.proposed_datetime_3 as d3')
+    confirmed.forEach((b) => addPm1(b[`d${b.n}`]))
+    return set
   }
 
   // GET /kscw/terminplanung/slots/:token — view available slots
@@ -132,6 +191,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         opponent.first_viewed_at = nowIso
       }
 
+      // Games, booked home slots and confirmed away proposals (each ±1 day).
+      const committed = await committedGameDates(opponent.kscw_team)
+
       // Exclude slots whose date falls within any event linked to this team
       // (single-day or multi-day) — e.g. tournament weekend, team trip. Filter
       // at read time (not generation) so events added after slot generation
@@ -151,12 +213,8 @@ export function registerGameScheduling(router, { database, logger, services, get
               "AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date"
             )
         })
-        // Exclude home slots within ±1 day of an existing game.
-        .whereNotExists(function () {
-          this.select(database.raw('1')).from('games as g')
-            .whereRaw('g.kscw_team = ?', [opponent.kscw_team])
-            .whereRaw('game_scheduling_slots.date BETWEEN g.date::date - 1 AND g.date::date + 1')
-        })
+        // Games / booked slots / confirmed proposals (±1 day) are filtered in JS
+        // below via `committed` — a booked slot blocks its neighbours too.
         // Exclude home slots where ANY player is absent — slots we OFFER are
         // strict (full squad), unlike the opponent's away proposals.
         .whereRaw(
@@ -181,15 +239,18 @@ export function registerGameScheduling(router, { database, logger, services, get
         const d = new Date(v)
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       }
-      const slots = slotRows.map((s) => ({
-        id: s.id,
-        date: ymd(s.date),
-        start_time: String(s.start_time).slice(0, 5),
-        end_time: String(s.end_time).slice(0, 5),
-        source: s.source,
-        hall_id: s.hall,
-        hall_name: hallNameById[s.hall] || '',
-      }))
+      const slots = slotRows
+        .map((s) => ({
+          id: s.id,
+          date: ymd(s.date),
+          start_time: String(s.start_time).slice(0, 5),
+          end_time: String(s.end_time).slice(0, 5),
+          source: s.source,
+          hall_id: s.hall,
+          hall_name: hallNameById[s.hall] || '',
+        }))
+        // Drop slots on/adjacent to a game, a booked slot or a confirmed proposal.
+        .filter((s) => !committed.has(s.date))
 
       const bookings = await database('game_scheduling_bookings')
         .where('opponent', opponent.id)
@@ -234,16 +295,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           database.raw("(COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date::text as e"),
         )
       evRows.forEach((r) => addRange(r.s, r.e))
-      const gameRows = await database('games')
-        .where('kscw_team', opponent.kscw_team).whereNotNull('date')
-        .select(database.raw('games.date::text as d'))
-      gameRows.forEach((r) => {
-        const base = new Date(`${r.d}T00:00:00Z`)
-        for (let off = -1; off <= 1; off++) {
-          const x = new Date(base); x.setUTCDate(x.getUTCDate() + off)
-          hardSet.add(x.toISOString().slice(0, 10))
-        }
-      })
+      // Games + booked home slots + confirmed away proposals (all already ±1 day).
+      for (const d of committed) hardSet.add(d)
       const absRows = await database('absences as a')
         .join('member_teams as mt', 'mt.member', 'a.member')
         .where('mt.team', opponent.kscw_team)
@@ -320,6 +373,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           away_game: opponent.away_game,
           source: opponent.source || 'self_registration',
           status: opponent.status || 'active',
+          language: opponent.language || null,
         },
         games: svrzGames,
         slots,
@@ -350,6 +404,13 @@ export function registerGameScheduling(router, { database, logger, services, get
 
       const { slot_id } = req.body
       if (!slot_id) return res.status(400).json({ error: 'slot_id required' })
+
+      // Remember the language the opponent is acting in (for emails).
+      const lang = VALID_LANGS.includes(String(req.body?.language || '').toLowerCase()) ? String(req.body.language).toLowerCase() : null
+      if (lang) {
+        await database('game_scheduling_opponents').where('id', opponent.id).update({ language: lang })
+        opponent.language = lang
+      }
 
       // Run the slot reservation in a transaction with SELECT … FOR UPDATE so
       // two concurrent calls for the same slot can't both pass the
@@ -390,6 +451,15 @@ export function registerGameScheduling(router, { database, logger, services, get
           throw Object.assign(new Error('Slot already booked'), { httpStatus: 400 })
         }
 
+        // A game / booked slot / confirmed proposal on or ±1 day from this slot
+        // blocks it too. The read-time list already hides these; re-check here to
+        // close the concurrent race where a neighbour was booked in between.
+        const committed = await committedGameDates(opponent.kscw_team)
+        const slotYmd = (typeof slot.date === 'string' ? slot.date : new Date(slot.date).toISOString()).slice(0, 10)
+        if (committed.has(slotYmd)) {
+          throw Object.assign(new Error('Slot not available — the team already plays on or next to this date'), { httpStatus: 400 })
+        }
+
         await trx('game_scheduling_bookings').insert({
           opponent: opponent.id,
           slot: slot_id,
@@ -404,6 +474,29 @@ export function registerGameScheduling(router, { database, logger, services, get
           .whereIn('status', ['invited', 'viewed'])
           .update({ status: 'booked' })
       })
+
+      // Confirmation email to the opponent (in their language) + KSCW notification.
+      // Best-effort — never blocks the booking.
+      try {
+        const slot = await database('game_scheduling_slots').where('id', slot_id).first()
+        const team = await database('teams').where('id', opponent.kscw_team).first()
+        const hall = slot?.hall ? await database('halls').where('id', slot.hall).first() : null
+        const { date, time } = fmtDateMail(slot?.date)
+        const endTime = slot ? String(slot.end_time).slice(0, 5) : ''
+        const timeRange = time ? `${time}${endTime ? `–${endTime}` : ''}` : ''
+        const kscw = `KSCW ${team?.name || ''}`.trim()
+        const opp = opponent.club_name || opponent.team_name || ''
+        if (opponent.contact_email) {
+          const { subject, text } = schedEmail(opponent.language, 'home_booked', {
+            contact: opponent.contact_name || '', kscw, opp, date, time: timeRange, hall: hall?.name || '',
+          })
+          await sendSchedulingMail(opponent.contact_email, subject, text)
+        }
+        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Heimspiel gebucht – ${opp} (${kscw})`,
+          `${opp} hat einen Heimspiel-Slot gebucht:\n${date}, ${timeRange} Uhr, ${hall?.name || ''} (${kscw}).`)
+      } catch (mailErr) {
+        log.warn(`book-home email failed: ${mailErr.message}`)
+      }
 
       res.json({ success: true })
     } catch (err) {
@@ -429,6 +522,13 @@ export function registerGameScheduling(router, { database, logger, services, get
         .first()
       if (!opponent) return res.status(404).json({ error: 'Invalid link' })
 
+      // Remember the language the opponent is acting in (for emails).
+      const lang = VALID_LANGS.includes(String(req.body?.language || '').toLowerCase()) ? String(req.body.language).toLowerCase() : null
+      if (lang) {
+        await database('game_scheduling_opponents').where('id', opponent.id).update({ language: lang })
+        opponent.language = lang
+      }
+
       const { proposals } = req.body
       if (!Array.isArray(proposals) || proposals.length === 0 || proposals.length > 3) {
         return res.status(400).json({ error: '1-3 proposals required' })
@@ -437,6 +537,11 @@ export function registerGameScheduling(router, { database, logger, services, get
       // Schema stores up to 3 proposals as parallel columns on a single booking row
       const row = {
         opponent: opponent.id,
+        // Without season the admin dashboard never sees the proposal — it filters
+        // bookings by season, so a null-season row is silently dropped (opponent
+        // submits, admin sees "Pending" forever). opponent.season is the season id,
+        // the same value the home booking copies from slot.season.
+        season: opponent.season,
         type: 'away_proposal',
         status: 'pending',
       }
@@ -446,6 +551,9 @@ export function registerGameScheduling(router, { database, logger, services, get
       // proper 400 with the message (was throwing into the generic 500 catch).
       const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
       const TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/
+      // Games / booked home slots / confirmed away proposals (all ±1 day) — a
+      // new proposal can't land on or adjacent to any of them.
+      const committed = await committedGameDates(opponent.kscw_team)
       for (let i = 0; i < proposals.length; i++) {
         const p = proposals[i]
         if (!p.date || !DATE_RE.test(String(p.date))) {
@@ -468,14 +576,11 @@ export function registerGameScheduling(router, { database, logger, services, get
         if (eventCover) {
           return res.status(400).json({ error: `${p.date} falls on a team event${eventCover.title ? ` (${eventCover.title})` : ''} — please pick another date.` })
         }
-        // Reject if the team already has a game that day OR the day before/after
-        // (no back-to-back games).
-        const gameClash = await database('games')
-          .where('kscw_team', opponent.kscw_team)
-          .whereRaw("games.date::date BETWEEN ?::date - 1 AND ?::date + 1", [String(p.date), String(p.date)])
-          .first('games.date')
-        if (gameClash) {
-          return res.status(400).json({ error: `${p.date} is within a day of an existing game (${String(gameClash.date).slice(0, 10)}) — please leave at least a day's gap.` })
+        // Reject if the team already plays on or next to this date — a real game,
+        // a home slot another opponent booked, or a confirmed away proposal (all
+        // ±1 day; pending proposals don't count). No back-to-back games.
+        if (committed.has(String(p.date).slice(0, 10))) {
+          return res.status(400).json({ error: `${p.date} is on or within a day of an existing game — please pick another date.` })
         }
         // Reject if any rostered member has a one-off absence (NOT a weekly
         // unavailability) affecting games on that date. "No game if absence."
@@ -487,6 +592,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           // One-off absences only, not weekly unavailabilities. IS DISTINCT FROM
           // so a NULL type (legacy one-off) still counts (`!= 'weekly'` is NULL).
           .whereRaw("a.type IS DISTINCT FROM 'weekly'")
+          // Non-blocking absences (long-term injury, maternity) don't block scheduling.
+          .whereRaw('a.blocking IS NOT FALSE')
           .whereRaw("a.start_date::date <= ?::date AND a.end_date::date >= ?::date", [String(p.date), String(p.date)])
           .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
           .countDistinct('a.member as c')
@@ -506,6 +613,12 @@ export function registerGameScheduling(router, { database, logger, services, get
         row[`proposed_datetime_${i + 1}`] = dt
         row[`proposed_place_${i + 1}`] = rawPlace
       }
+      // "Update proposals" re-submits via the same endpoint — replace any prior
+      // pending away_proposal for this opponent instead of accumulating duplicate
+      // booking rows. A confirmed one is left intact (opponent UI won't re-propose).
+      await database('game_scheduling_bookings')
+        .where({ opponent: opponent.id, type: 'away_proposal', status: 'pending' })
+        .del()
       await database('game_scheduling_bookings').insert(row)
 
       // Status lifecycle: away proposal transitions invited/viewed → booked
@@ -514,9 +627,59 @@ export function registerGameScheduling(router, { database, logger, services, get
         .whereIn('status', ['invited', 'viewed'])
         .update({ status: 'booked' })
 
+      // Receipt email to the opponent (their language) + KSCW notify to confirm.
+      // Best-effort — never blocks the submission.
+      try {
+        const team = await database('teams').where('id', opponent.kscw_team).first()
+        const kscw = `KSCW ${team?.name || ''}`.trim()
+        const opp = opponent.club_name || opponent.team_name || ''
+        const lines = []
+        for (let i = 1; i <= 3; i++) {
+          const dt = row[`proposed_datetime_${i}`]
+          if (!dt) continue
+          const { date, time } = fmtDateMail(dt)
+          lines.push(`• ${date}${time ? `, ${time}` : ''}`)
+        }
+        const list = lines.join('\n')
+        if (opponent.contact_email) {
+          const { subject, text } = schedEmail(opponent.language, 'proposals_sent', {
+            contact: opponent.contact_name || '', kscw, opp, list,
+          })
+          await sendSchedulingMail(opponent.contact_email, subject, text)
+        }
+        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Auswärts-Terminvorschläge – ${opp} (${kscw})`,
+          `${opp} hat Auswärts-Termine vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${FRONTEND_URL}/admin/terminplanung/dashboard`)
+      } catch (mailErr) {
+        log.warn(`propose-away email failed: ${mailErr.message}`)
+      }
+
       res.json({ success: true, proposals_count: proposals.length })
     } catch (err) {
       log.error({ msg: `terminplanung/propose-away: ${err.message}`, endpoint: 'terminplanung/propose-away', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/terminplanung/set-language/:token — remember the opponent's UI
+  // language so transactional emails go out in it. Called on page load and each
+  // time the opponent flips the language switcher. Idempotent.
+  router.post('/terminplanung/set-language/:token', async (req, res) => {
+    try {
+      if (!rateLimit(langAttempts, req, 40, 15 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many requests. Try again later.' })
+      }
+      const language = String(req.body?.language || '').toLowerCase()
+      if (!VALID_LANGS.includes(language)) {
+        return res.status(400).json({ error: 'Invalid language' })
+      }
+      const updated = await database('game_scheduling_opponents')
+        .where('token', req.params.token)
+        .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
+        .update({ language })
+      if (!updated) return res.status(404).json({ error: 'Invalid link' })
+      res.json({ success: true })
+    } catch (err) {
+      log.error({ msg: `terminplanung/set-language: ${err.message}`, endpoint: 'terminplanung/set-language', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
@@ -697,7 +860,6 @@ export function registerGameScheduling(router, { database, logger, services, get
         return res.status(400).json({ error: 'Invalid booking' })
       }
       const chosenDateTime = booking[`proposed_datetime_${n}`]
-      const chosenPlace = booking[`proposed_place_${n}`]
       if (!chosenDateTime) return res.status(400).json({ error: `Proposal ${n} is empty` })
 
       await database('game_scheduling_bookings').where('id', booking_id).update({
@@ -706,20 +868,19 @@ export function registerGameScheduling(router, { database, logger, services, get
         admin_notes: admin_notes || booking.admin_notes || null,
       })
 
-      // Email opponent (best-effort — never blocks the confirmation)
+      // Confirmation email to the opponent in their language — final date +
+      // "enter it in VolleyManager, we'll do the home game". Best-effort.
       try {
         const opponent = await database('game_scheduling_opponents').where('id', booking.opponent).first()
         if (opponent?.contact_email) {
-          const schema = await getSchema()
-          const { MailService } = services
-          const mail = new MailService({ schema, knex: database })
-          await mail.send({
-            to: opponent.contact_email,
-            from: SCHEDULING_FROM,
-            replyTo: SCHEDULING_REPLY_TO,
-            subject: 'KSC Wiedikon – Auswärtsspiel bestätigt',
-            text: `Hallo ${opponent.contact_name || ''},\n\nDas Auswärtsspiel vom ${chosenDateTime}${chosenPlace ? ` (${chosenPlace})` : ''} wurde bestätigt.\n\nKSC Wiedikon`,
+          const team = await database('teams').where('id', opponent.kscw_team).first()
+          const kscw = `KSCW ${team?.name || ''}`.trim()
+          const opp = opponent.club_name || opponent.team_name || ''
+          const { date, time } = fmtDateMail(chosenDateTime)
+          const { subject, text } = schedEmail(opponent.language, 'game_confirmed', {
+            contact: opponent.contact_name || '', kscw, opp, date, time,
           })
+          await sendSchedulingMail(opponent.contact_email, subject, text)
         }
       } catch (mailErr) {
         log.warn(`Confirm-away email failed: ${mailErr.message}`)

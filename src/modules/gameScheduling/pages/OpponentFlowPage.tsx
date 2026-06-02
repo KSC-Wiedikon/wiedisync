@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
@@ -32,11 +32,26 @@ type LegStatus = 'open' | 'proposed' | 'confirmed'
 
 export default function OpponentFlowPage() {
   const { token } = useParams<{ token: string }>()
-  const { t } = useTranslation('gameScheduling')
-  const { opponent, slots, bookings, blockedStrict, blockedLoose, seasonWindow, isLoading, error, bookHomeSlot, proposeAway } =
+  const { t, i18n } = useTranslation('gameScheduling')
+  const { opponent, slots, bookings, blockedStrict, blockedLoose, seasonWindow, isLoading, error, bookHomeSlot, proposeAway, setLanguage } =
     useAvailableSlots(token)
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
+
+  // Language memory: restore the opponent's saved language once their record
+  // loads, then persist whenever they flip the switcher so emails match.
+  const didInitLang = useRef(false)
+  useEffect(() => {
+    if (didInitLang.current || !opponent) return
+    didInitLang.current = true
+    if (opponent.language && opponent.language !== i18n.language) {
+      i18n.changeLanguage(opponent.language)
+    }
+  }, [opponent, i18n])
+  useEffect(() => {
+    if (!didInitLang.current) return
+    setLanguage((i18n.language || '').split('-')[0].toLowerCase())
+  }, [i18n.language, setLanguage])
 
   // Only blank to a spinner on the very first load. Booking / proposing refetch
   // the slots (isLoading flips back to true) — without the `!opponent` guard the

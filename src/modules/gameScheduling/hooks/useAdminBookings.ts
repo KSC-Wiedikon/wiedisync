@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import type { GameSchedulingBooking, GameSchedulingOpponent, GameSchedulingSlot } from '../../../types'
 import { fetchAllItems, kscwApi } from '../../../lib/api'
 
+// Note: the base `GameSchedulingBooking.{opponent,slot}: string` intersects the
+// union down to `string`, so callers reading the *expanded* object must cast
+// (e.g. `homeBooking.slot as unknown as GameSchedulingSlot`). Kept as an
+// intersection (not Omit) so ExpandedBooking stays assignable to
+// GameSchedulingBooking for the components that expect the base type.
 export type ExpandedBooking = GameSchedulingBooking & {
   opponent: GameSchedulingOpponent | string
   slot: GameSchedulingSlot | string
@@ -12,6 +17,10 @@ export function useAdminBookings(seasonId: string | undefined) {
   const [opponents, setOpponents] = useState<GameSchedulingOpponent[]>([])
   const [slots, setSlots] = useState<GameSchedulingSlot[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  // True once the first fetch completes. Lets the page keep showing the loaded
+  // dashboard while a confirm/refetch runs in the background, instead of blanking
+  // back to a full-page spinner (which reads as a page reload).
+  const [hasLoaded, setHasLoaded] = useState(false)
 
   const fetchAll = useCallback(async () => {
     if (!seasonId) return
@@ -39,6 +48,7 @@ export function useAdminBookings(seasonId: string | undefined) {
       console.error('Failed to fetch admin bookings:', err)
     } finally {
       setIsLoading(false)
+      setHasLoaded(true)
     }
   }, [seasonId])
 
@@ -74,6 +84,7 @@ export function useAdminBookings(seasonId: string | undefined) {
     opponents,
     slots,
     isLoading,
+    hasLoaded,
     confirmAwayProposal,
     blockSlot,
     generateSlots,
