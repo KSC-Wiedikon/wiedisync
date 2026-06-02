@@ -664,6 +664,10 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
   const socialUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const facebookUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tiktokUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Auto-confirm toggles warn in both directions: turning ON backfills future
+  // activities + confirms everyone; turning OFF is forward-only and leaves
+  // existing confirmations untouched (not a reset) — both are easy to misread.
+  const [autoConfirmPrompt, setAutoConfirmPrompt] = useState<{ kind: 'game' | 'training'; turningOn: boolean } | null>(null)
 
   const save = async (patch: Partial<TeamSettings>) => {
     const next = { ...settings, ...patch }
@@ -673,6 +677,11 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
 
   const toggleBool = (key: keyof TeamSettings) => {
     save({ [key]: !settings[key] })
+  }
+
+  const requestAutoConfirmToggle = (kind: 'game' | 'training') => {
+    const key = kind === 'game' ? 'game_auto_confirm' : 'training_auto_confirm'
+    setAutoConfirmPrompt({ kind, turningOn: settings[key] !== true })
   }
 
   const setNumber = (key: keyof TeamSettings, v: number) => {
@@ -776,7 +785,7 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
         {/* Game Defaults */}
         <SettingsGroup title={t('settingsGameDefaults')}>
           <SettingRow label={t('featureAutoConfirmGame')} hint={t('featureAutoConfirmGameHint')}>
-            <SwitchToggle checked={settings.game_auto_confirm === true} onChange={() => toggleBool('game_auto_confirm')} />
+            <SwitchToggle checked={settings.game_auto_confirm === true} onChange={() => requestAutoConfirmToggle('game')} />
           </SettingRow>
           <SettingRow label={t('settingsRequireNoteIfAbsent')} hint={t('settingsRequireNoteHint')}>
             <SwitchToggle checked={settings.game_require_note_if_absent === true} onChange={() => toggleBool('game_require_note_if_absent')} />
@@ -792,7 +801,7 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
         {/* Training Defaults */}
         <SettingsGroup title={t('settingsTrainingDefaults')}>
           <SettingRow label={t('featureAutoConfirmTraining')} hint={t('featureAutoConfirmTrainingHint')}>
-            <SwitchToggle checked={settings.training_auto_confirm === true} onChange={() => toggleBool('training_auto_confirm')} />
+            <SwitchToggle checked={settings.training_auto_confirm === true} onChange={() => requestAutoConfirmToggle('training')} />
           </SettingRow>
           <SettingRow label={t('settingsAutoCancelOnMin')} hint={t('settingsAutoCancelOnMinHint')}>
             <SwitchToggle checked={settings.training_auto_cancel_on_min === true} onChange={() => toggleBool('training_auto_cancel_on_min')} />
@@ -811,6 +820,17 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
         {/* Fines */}
         <FinesSettings teamId={team.id} />
       </div>
+
+      {autoConfirmPrompt && (
+        <ConfirmDialog
+          open
+          onClose={() => setAutoConfirmPrompt(null)}
+          onConfirm={() => toggleBool(autoConfirmPrompt.kind === 'game' ? 'game_auto_confirm' : 'training_auto_confirm')}
+          title={t(autoConfirmPrompt.turningOn ? 'autoConfirmOnTitle' : 'autoConfirmOffTitle')}
+          message={t(`${autoConfirmPrompt.kind}AutoConfirm${autoConfirmPrompt.turningOn ? 'On' : 'Off'}Message`)}
+          confirmLabel={t(autoConfirmPrompt.turningOn ? 'autoConfirmOnCta' : 'autoConfirmOffCta')}
+        />
+      )}
 
       <TrainingForm
         open={trialFormOpen}
