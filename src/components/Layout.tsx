@@ -36,7 +36,7 @@ type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 
 function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number | string | null) {
   const { t } = useTranslation('nav')
-  const { memberTeamIds } = useAuth()
+  const { memberTeamIds, isAdmin, is_spielplaner, spielplanerTeamIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   const showTeamsPlural = effectiveIsAdmin || effectiveIsVorstand || memberTeamIds.length > 1
   const iconClass = 'h-5 w-5'
@@ -68,8 +68,22 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
     { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
     { to: '/news', label: t('news'), icon: <Newspaper className={iconClass} /> },
   ]
+  // Spielplaner tools surfaced directly in the main nav (no admin-mode toggle)
+  // for non-admin members who hold scheduling access. Admins reach these via the
+  // Admin menu instead. Spielplanung = club-wide or per-team Spielplaner;
+  // Terminplanung = club-wide Spielplaner only (matches AdminOrSpielplanerRoute).
+  const spielplanerItems = !isAdmin
+    ? [
+        ...(is_spielplaner || spielplanerTeamIds.length > 0
+          ? [{ to: '/admin/spielplanung', label: t('gameplan'), icon: <ClipboardList className={iconClass} /> }]
+          : []),
+        ...(is_spielplaner
+          ? [{ to: '/admin/terminplanung', label: t('terminplanung'), icon: <CalendarClock className={iconClass} /> }]
+          : []),
+      ]
+    : []
   return {
-    navItems: isLoggedIn && isApproved ? [...publicItems, ...authItems] : publicItems,
+    navItems: isLoggedIn && isApproved ? [...publicItems, ...authItems, ...spielplanerItems] : publicItems,
     adminItems: [
       { to: '/admin/spielplanung', label: t('gameplan'), icon: <ClipboardList className={iconClass} /> },
       { to: '/admin/hallenplan', label: t('hallenplan'), icon: <Building2 className={iconClass} /> },

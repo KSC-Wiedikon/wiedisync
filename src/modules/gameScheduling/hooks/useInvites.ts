@@ -27,6 +27,27 @@ export interface SvrzImportPreview {
   total_games_matched: number
 }
 
+export interface SvrzClubContact {
+  name: string
+  email: string
+  phone: string
+}
+
+export interface SvrzClub {
+  club_id: string
+  club_name: string
+  team_name: string
+  game_count: number
+  suggested_contacts: SvrzClubContact[]
+}
+
+export interface SvrzClubsResponse {
+  season: string
+  season_uuid: string | null
+  kscw_team: { id: string | number; name: string; league: string }
+  clubs: SvrzClub[]
+}
+
 export interface CreateInviteRow {
   team_name: string
   contact_email: string
@@ -106,6 +127,13 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
     return kscwApi<SvrzImportPreview>(`/admin/terminplanung/invites/import-from-svrz?${qs}`)
   }, [kscwTeamId, seasonId])
 
+  // Semi-manual: fast league club list (no live SVRZ login) for prefilling drafts.
+  const listSvrzClubs = useCallback(async () => {
+    if (!kscwTeamId || !seasonId) throw new Error('kscw_team and season required')
+    const qs = new URLSearchParams({ kscw_team: String(kscwTeamId), season: String(seasonId) })
+    return kscwApi<SvrzClubsResponse>(`/admin/terminplanung/invites/svrz-clubs?${qs}`)
+  }, [kscwTeamId, seasonId])
+
   return {
     invites,
     isLoading,
@@ -114,6 +142,7 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
     reissue,
     revoke,
     importFromSvrz,
+    listSvrzClubs,
     refetch: fetchInvites,
   }
 }

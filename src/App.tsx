@@ -10,6 +10,7 @@ import Layout from './components/Layout'
 import AdminRoute from './components/AdminRoute'
 import SuperAdminRoute from './components/SuperAdminRoute'
 import SpielplanerOrAdminRoute from './components/SpielplanerOrAdminRoute'
+import AdminOrSpielplanerRoute from './components/AdminOrSpielplanerRoute'
 import GamesPage from './modules/games/GamesPage'
 import SpielplanungPage from './modules/spielplanung/SpielplanungPage'
 import TrainingsPage from './modules/trainings/TrainingsPage'
@@ -168,8 +169,8 @@ export default function App() {
             <Route path="options/messaging" element={<AuthRoute><Suspense fallback={null}><MessagingSettingsPage /></Suspense></AuthRoute>} />
             <Route path="admin/spielplanung" element={<SpielplanerOrAdminRoute><SpielplanungPage /></SpielplanerOrAdminRoute>} />
             <Route path="admin/hallenplan" element={<AdminRoute><HallenplanPage /></AdminRoute>} />
-            <Route path="admin/terminplanung" element={<AdminRoute><AdminSetupPage /></AdminRoute>} />
-            <Route path="admin/terminplanung/dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
+            <Route path="admin/terminplanung" element={<AdminOrSpielplanerRoute><AdminSetupPage /></AdminOrSpielplanerRoute>} />
+            <Route path="admin/terminplanung/dashboard" element={<AdminOrSpielplanerRoute><AdminDashboardPage /></AdminOrSpielplanerRoute>} />
             <Route path="admin/scorer-assign" element={<AdminRoute><ScorerAssignPage /></AdminRoute>} />
             <Route path="admin/referee-expenses" element={<AdminRoute><RefereeExpensesPage /></AdminRoute>} />
             <Route path="admin/club-stats" element={<AdminRoute><ClubStatsPage /></AdminRoute>} />

@@ -178,6 +178,12 @@ export default {
   inviteLinkExpires: 'Valid until {{date}}',
   selectToInvite: 'Select opponent',
   importedFromSvrz: 'Imported from SVRZ',
+  importFromSvrzHint: 'Fetches opponents and their scheduling contacts from SVRZ automatically.',
+  addFromLeague: 'Add from league',
+  addFromLeagueHint: "Lists every club in this team's league from SVRZ — you fill in each contact email and name.",
+  loadingClubs: 'Loading clubs…',
+  noClubsFound: 'No clubs found for this league.',
+  multipleContactsHint: 'Several SVRZ contacts — enter the right one',
 
   // SVRZ season link
   svrzSeasonLabel: 'SVRZ season',

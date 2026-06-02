@@ -28,14 +28,14 @@ interface RolloverResult {
 
 export default function AdminSetupPage() {
   const { t } = useTranslation('gameScheduling')
-  const { hasAdminAccessToSport, isGlobalAdmin } = useAuth()
+  const { hasAdminAccessToSport, isGlobalAdmin, is_spielplaner } = useAuth()
   const { season, allSeasons, isLoading, createSeason, updateSeason, setSeason, refetch: refetchSeasons } = useGameSchedulingSeason()
   const { generateSlots } = useAdminBookings(season?.id)
   const { data: teams, refetch: refetchTeams } = useTeams()
   const [generating, setGenerating] = useState(false)
   const [genResult, setGenResult] = useState<{ total_created: number } | null>(null)
 
-  if (!hasAdminAccessToSport('volleyball')) {
+  if (!hasAdminAccessToSport('volleyball') && !is_spielplaner) {
     return <Navigate to="/" replace />
   }
 

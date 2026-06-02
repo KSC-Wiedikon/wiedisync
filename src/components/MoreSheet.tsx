@@ -31,7 +31,10 @@ function useAnimatedClose(onClose: () => void) {
 
 const iconClass = 'h-5 w-5'
 
-function buildSecondaryItems(memberId: number | string | undefined | null) {
+function buildSecondaryItems(
+  memberId: number | string | undefined | null,
+  sched: { isAdmin: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[] },
+) {
   const items = [
     ...(messagingFeatureEnabled(memberId)
       ? [{ to: '/inbox', labelKey: 'inbox', icon: <Inbox className={iconClass} /> }]
@@ -42,6 +45,16 @@ function buildSecondaryItems(memberId: number | string | undefined | null) {
     { to: '/scorer', labelKey: 'scorer', icon: <PenSquare className={iconClass} /> },
     { to: '/news', labelKey: 'news', icon: <Newspaper className={iconClass} /> },
   ]
+  // Spielplaner tools in the main list for non-admins with scheduling access
+  // (admins reach these via the Admin section). Mirrors Layout.tsx.
+  if (!sched.isAdmin) {
+    if (sched.is_spielplaner || sched.spielplanerTeamIds.length > 0) {
+      items.push({ to: '/admin/spielplanung', labelKey: 'gameplan', icon: <ClipboardList className={iconClass} /> })
+    }
+    if (sched.is_spielplaner) {
+      items.push({ to: '/admin/terminplanung', labelKey: 'terminplanung', icon: <CalendarClock className={iconClass} /> })
+    }
+  }
   return items
 }
 
@@ -193,7 +206,7 @@ interface MoreSheetProps {
 }
 
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
-  const { user, isApproved, isSuperAdmin, logout } = useAuth()
+  const { user, isApproved, isSuperAdmin, isAdmin, is_spielplaner, spielplanerTeamIds, logout } = useAuth()
   const { isAdminMode } = useAdminMode()
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
@@ -295,7 +308,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
             </>
           )}
-          {(!user || !isApproved) ? null : buildSecondaryItems(user.id).map((item) => (
+          {(!user || !isApproved) ? null : buildSecondaryItems(user.id, { isAdmin, is_spielplaner, spielplanerTeamIds }).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

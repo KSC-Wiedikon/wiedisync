@@ -45,13 +45,13 @@ function sourceKey(source: InviteSource | undefined): string {
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation('gameScheduling')
-  const { hasAdminAccessToSport } = useAuth()
+  const { hasAdminAccessToSport, is_spielplaner } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
   const { bookings, opponents, slots, isLoading, hasLoaded, confirmAwayProposal, blockSlot } = useAdminBookings(season?.id)
   const { data: teams } = useTeams()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
 
-  if (!hasAdminAccessToSport('volleyball')) {
+  if (!hasAdminAccessToSport('volleyball') && !is_spielplaner) {
     return <Navigate to="/" replace />
   }
 
