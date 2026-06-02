@@ -1562,22 +1562,25 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!kscwTeamRow) return res.status(404).json({ error: 'kscw_team not found' })
       const seasonUuid = seasonRow.svrz_season_uuid || process.env.SVRZ_SEASON_UUID || ''
 
-      // Clubs KSCW plays in this league (same scoping as import-from-svrz).
+      // All KSCW schedulable games this season, then keep the ones for THIS team
+      // by matching the KSCW-side team name. SVRZ labels our teams "KSC Wiedikon
+      // H3" etc., so the name reliably identifies the team. League-string matching
+      // is unreliable (verbose teams.league vs SVRZ "3L" codes) and would conflate
+      // same-league teams (e.g. D2 & D3 are both 3L). Naming caveat: teams whose
+      // SVRZ label differs from teams.name (e.g. U23 → "KSC Wiedikon 1") won't match.
       const games = await database('svrz_games')
         .whereIn('status', ['open', 'waitingForApproval'])
         .where(function () {
           this.where('home_club_id', KSCW_SVRZ_CLUB_ID).orWhere('away_club_id', KSCW_SVRZ_CLUB_ID)
         })
-        .andWhere(function () {
-          if (kscwTeamRow.league) {
-            this.where('league_short', kscwTeamRow.league).orWhere('league_name', 'like', `%${kscwTeamRow.league}%`)
-          }
-        })
         .orderBy('starting_date_time')
 
+      const wantName = `ksc wiedikon ${String(kscwTeamRow.name || '').trim().toLowerCase()}`
       const byClub = new Map()
       for (const g of games) {
         const isHomeKscw = g.home_club_id === KSCW_SVRZ_CLUB_ID
+        const kscwSideName = String((isHomeKscw ? g.home_team_name : g.away_team_name) || '').trim().toLowerCase()
+        if (kscwSideName !== wantName) continue
         const clubId = isHomeKscw ? g.away_club_id : g.home_club_id
         const clubName = isHomeKscw ? g.away_club_name : g.home_club_name
         const teamName = isHomeKscw ? g.away_team_name : g.home_team_name
