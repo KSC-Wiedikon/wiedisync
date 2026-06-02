@@ -127,21 +127,39 @@ export function registerGameScheduling(router, { database, logger, services, get
     return true
   }
 
+  // True if the caller is a full admin OR a club-wide Spielplaner
+  // (members.is_spielplaner = true). Used to gate the operational
+  // /admin/terminplanung/* action endpoints (the items-API reads/writes are
+  // gated by the "KSCW Terminplanung" Directus policy instead). Structural
+  // season ops (restore/archive/rollover) stay admin-only.
+  async function isAdminOrSpielplaner(req) {
+    if (req.accountability?.admin) return true
+    const userId = req.accountability?.user
+    if (!userId) return false
+    const member = await database('members').where('user', userId).select('is_spielplaner').first()
+    return member?.is_spielplaner === true
+  }
+
+  // How many days around a committed game stay blocked. ±7 means the team never
+  // plays two games within a week of each other (the date itself plus 7 days on
+  // either side → a 15-day exclusion span per game).
+  const GAME_SPACING_DAYS = 7
+
   // Dates (YYYY-MM-DD) the KSCW team is already committed to play — real SVRZ
   // games, home slots an opponent has already booked, and confirmed away
-  // proposals — each expanded ±1 day so the team never plays back-to-back. A
-  // booked slot or a confirmed proposal therefore blocks exactly like a real
-  // game: no other opponent can take that date or an adjacent one (home-slot
-  // list + away proposals + away calendar greying). Pending proposals are
-  // intentionally excluded — they're temporary; only the confirmed one is
-  // definitive.
+  // proposals — each expanded ±GAME_SPACING_DAYS so the team never plays games
+  // closer together than that. A booked slot or a confirmed proposal therefore
+  // blocks exactly like a real game: no other opponent can take that date or one
+  // within the window (home-slot list + away proposals + away calendar greying).
+  // Pending proposals are intentionally excluded — they're temporary; only the
+  // confirmed one is definitive.
   async function committedGameDates(kscwTeamId) {
     const set = new Set()
-    const addPm1 = (val) => {
+    const addWindow = (val) => {
       if (!val) return
       const base = new Date(`${String(val).slice(0, 10)}T00:00:00Z`)
       if (Number.isNaN(base.getTime())) return
-      for (let off = -1; off <= 1; off++) {
+      for (let off = -GAME_SPACING_DAYS; off <= GAME_SPACING_DAYS; off++) {
         const x = new Date(base); x.setUTCDate(x.getUTCDate() + off)
         set.add(x.toISOString().slice(0, 10))
       }
@@ -149,18 +167,18 @@ export function registerGameScheduling(router, { database, logger, services, get
     const games = await database('games')
       .where('kscw_team', kscwTeamId).whereNotNull('date')
       .select(database.raw('games.date::text as d'))
-    games.forEach((g) => addPm1(g.d))
+    games.forEach((g) => addWindow(g.d))
     const booked = await database('game_scheduling_slots')
       .where('kscw_team', kscwTeamId).where('status', 'booked')
       .select(database.raw('date::text as d'))
-    booked.forEach((s) => addPm1(s.d))
+    booked.forEach((s) => addWindow(s.d))
     const confirmed = await database('game_scheduling_bookings as b')
       .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
       .where('o.kscw_team', kscwTeamId)
       .where('b.type', 'away_proposal').where('b.status', 'confirmed')
       .select('b.confirmed_proposal as n', 'b.proposed_datetime_1 as d1',
               'b.proposed_datetime_2 as d2', 'b.proposed_datetime_3 as d3')
-    confirmed.forEach((b) => addPm1(b[`d${b.n}`]))
+    confirmed.forEach((b) => addWindow(b[`d${b.n}`]))
     return set
   }
 
@@ -691,7 +709,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   // entry ('spielsamstag' → Game-Saturday pool; 'hall_slot' → the team's weekly
   // hall slots expanded across the picked-Saturday span; 'manual' → skipped).
   router.post('/terminplanung/admin/generate-slots', async (req, res) => {
-    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { season_id } = req.body || {}
       if (!season_id) return res.status(400).json({ error: 'season_id required' })
@@ -847,7 +865,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   // Away proposals live on a single booking row (type 'away_proposal', status
   // 'pending') with up to 3 proposed_datetime_N / proposed_place_N columns.
   router.post('/terminplanung/admin/confirm-away', async (req, res) => {
-    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { booking_id, proposal_number, admin_notes } = req.body || {}
       const n = Number(proposal_number)
@@ -1197,7 +1215,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   // POST /kscw/terminplanung/admin/block-slot — block/unblock a slot.
   // Body: { slot_id, action: 'block' | 'unblock' }.
   router.post('/terminplanung/admin/block-slot', async (req, res) => {
-    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { slot_id, action } = req.body || {}
       if (!slot_id) return res.status(400).json({ error: 'slot_id required' })
@@ -1216,7 +1234,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   // in the detached run leave a trail. The daily cron path uses execSync and
   // already emits to Sentry via logCronError on non-zero exit.
   router.post('/admin/terminplanung/svrz-sync', async (req, res) => {
-    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { season_uuid, season_name } = req.body || {}
       const auth = req.headers?.authorization || ''
@@ -1284,7 +1302,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // GET /admin/terminplanung/svrz-available-seasons — list seasons seen in synced data
   router.get('/admin/terminplanung/svrz-available-seasons', async (req, res) => {
-    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const rows = await database('svrz_spielplaner_contacts')
         .distinct('season_uuid', 'season_name')
@@ -1299,7 +1317,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // POST /admin/terminplanung/invites — create tokenized invites
   router.post('/admin/terminplanung/invites', async (req, res) => {
-    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { kscw_team, season, rows } = req.body || {}
       if (!kscw_team || !season || !Array.isArray(rows)) {
@@ -1337,7 +1355,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // GET /admin/terminplanung/invites?kscw_team=&season= — list invites
   router.get('/admin/terminplanung/invites', async (req, res) => {
-    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { kscw_team, season } = req.query
       if (!kscw_team) return res.status(400).json({ error: 'kscw_team required' })
@@ -1353,7 +1371,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // POST /admin/terminplanung/invites/:id/reissue — new token + reset lifecycle
   router.post('/admin/terminplanung/invites/:id/reissue', async (req, res) => {
-    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const id = parseInt(req.params.id, 10)
       if (!id) return res.status(400).json({ error: 'invalid id' })
@@ -1372,7 +1390,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // POST /admin/terminplanung/invites/:id/revoke — disable token
   router.post('/admin/terminplanung/invites/:id/revoke', async (req, res) => {
-    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const id = parseInt(req.params.id, 10)
       if (!id) return res.status(400).json({ error: 'invalid id' })
@@ -1390,7 +1408,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   // Lists opponent clubs from synced svrz_games plus per-game Spielplanverantwortlicher
   // contacts, with fallback to the bulk svrz_spielplaner_contacts feed.
   router.get('/admin/terminplanung/invites/import-from-svrz', async (req, res) => {
-    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { kscw_team, season } = req.query
       if (!kscw_team || !season) return res.status(400).json({ error: 'kscw_team, season required' })
@@ -1522,6 +1540,80 @@ export function registerGameScheduling(router, { database, logger, services, get
       })
     } catch (err) {
       log.error({ msg: `import-from-svrz: ${err.message}`, endpoint: 'admin/terminplanung/invites/import-from-svrz', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // GET /admin/terminplanung/invites/svrz-clubs?kscw_team=&season= — fast list of
+  // the clubs in this team's league for the semi-manual invite flow. Unlike
+  // import-from-svrz this does NO live SVRZ login: the club list comes straight
+  // from synced svrz_games (KSCW-scoped, league-filtered → in a round-robin league
+  // that's every other club) and contacts are only *suggestions* from the bulk
+  // svrz_spielplaner_contacts feed. The admin fills in / confirms each contact.
+  router.get('/admin/terminplanung/invites/svrz-clubs', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const { kscw_team, season } = req.query
+      if (!kscw_team || !season) return res.status(400).json({ error: 'kscw_team, season required' })
+
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
+      if (!seasonRow) return res.status(404).json({ error: 'season not found' })
+      const kscwTeamRow = await database('teams').where('id', kscw_team).first()
+      if (!kscwTeamRow) return res.status(404).json({ error: 'kscw_team not found' })
+      const seasonUuid = seasonRow.svrz_season_uuid || process.env.SVRZ_SEASON_UUID || ''
+
+      // Clubs KSCW plays in this league (same scoping as import-from-svrz).
+      const games = await database('svrz_games')
+        .whereIn('status', ['open', 'waitingForApproval'])
+        .where(function () {
+          this.where('home_club_id', KSCW_SVRZ_CLUB_ID).orWhere('away_club_id', KSCW_SVRZ_CLUB_ID)
+        })
+        .andWhere(function () {
+          if (kscwTeamRow.league) {
+            this.where('league_short', kscwTeamRow.league).orWhere('league_name', 'like', `%${kscwTeamRow.league}%`)
+          }
+        })
+        .orderBy('starting_date_time')
+
+      const byClub = new Map()
+      for (const g of games) {
+        const isHomeKscw = g.home_club_id === KSCW_SVRZ_CLUB_ID
+        const clubId = isHomeKscw ? g.away_club_id : g.home_club_id
+        const clubName = isHomeKscw ? g.away_club_name : g.home_club_name
+        const teamName = isHomeKscw ? g.away_team_name : g.home_team_name
+        if (!clubId) continue
+        if (!byClub.has(clubId)) byClub.set(clubId, { club_id: clubId, club_name: clubName, team_name: teamName, game_count: 0 })
+        byClub.get(clubId).game_count++
+      }
+
+      // Contact suggestions from the bulk feed only — no live per-game fetch.
+      const clubIds = [...byClub.keys()]
+      const contactsByClub = new Map()
+      if (seasonUuid && clubIds.length) {
+        const bulk = await database('svrz_spielplaner_contacts')
+          .whereIn('club_id', clubIds)
+          .where('season_uuid', seasonUuid)
+        for (const c of bulk) {
+          const email = (c.contact_email || '').toLowerCase().trim()
+          if (!email) continue
+          if (!contactsByClub.has(c.club_id)) contactsByClub.set(c.club_id, new Map())
+          const m = contactsByClub.get(c.club_id)
+          if (!m.has(email)) m.set(email, { name: c.contact_name || '', email, phone: c.contact_phone || '' })
+        }
+      }
+
+      const clubs = [...byClub.values()]
+        .map((c) => ({ ...c, suggested_contacts: [...(contactsByClub.get(c.club_id)?.values() || [])] }))
+        .sort((a, b) => (a.club_name || '').localeCompare(b.club_name || ''))
+
+      res.json({
+        season: seasonRow.season,
+        season_uuid: seasonUuid || null,
+        kscw_team: { id: kscwTeamRow.id, name: kscwTeamRow.name, league: kscwTeamRow.league },
+        clubs,
+      })
+    } catch (err) {
+      log.error({ msg: `svrz-clubs: ${err.message}`, endpoint: 'admin/terminplanung/invites/svrz-clubs', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

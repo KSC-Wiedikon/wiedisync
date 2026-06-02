@@ -378,6 +378,13 @@ async function main() {
   const VORSTAND_POLICY = await findOrCreatePolicy('KSCW Vorstand', { icon: 'groups', app_access: true })
   const SPORT_ADMIN_POLICY = await findOrCreatePolicy('KSCW Sport Admin', { icon: 'sports', app_access: true })
   const ADMIN_POLICY = await findOrCreatePolicy('KSCW Admin', { icon: 'admin_panel_settings', admin_access: true, app_access: true })
+  // Terminplanung (opponent game-scheduling) admin access for club-wide
+  // Spielplaner members. Distinct from the Member-role-attached "KSCW Spielplaner"
+  // policy (which grants scoped manual-game CRUD to every member): this one is
+  // attached only to the directus users of members with is_spielplaner=true
+  // (backfilled in section 12), so the unfiltered game_scheduling perms below are
+  // gated purely by who holds the policy.
+  const TERMINPLANUNG_POLICY = await findOrCreatePolicy('KSCW Terminplanung', { icon: 'event_available', app_access: true })
 
   console.log(`  Member policy: ${MEMBER_POLICY}`)
   console.log(`  Team Responsible policy: ${LEADER_POLICY}`)
@@ -420,6 +427,7 @@ async function main() {
   await clearPolicyPermissions(VORSTAND_POLICY, 'Vorstand')
   await clearPolicyPermissions(SPORT_ADMIN_POLICY, 'Sport Admin')
   await clearPolicyPermissions(ADMIN_POLICY, 'Admin')
+  await clearPolicyPermissions(TERMINPLANUNG_POLICY, 'Terminplanung')
 
   // ── 5. Public permissions ──────────────────────────────────────
 
@@ -1082,6 +1090,31 @@ async function main() {
 
   console.log(`  ✓ Sport Admin permissions set`)
 
+  // ── 9b. Terminplanung permissions ──────────────────────────────
+  //
+  // Club-wide Spielplaner members run the opponent game-scheduling flow. The
+  // admin UI reads/writes these collections via the Directus items API
+  // (useGameSchedulingSeason + useAdminBookings), so they need real policy
+  // permissions — the custom /admin/terminplanung/* action endpoints (slot
+  // generation, confirm, invites, SVRZ sync) run on the system DB connection and
+  // are gated separately in the kscw-endpoints extension.
+  //
+  // No row-level filter: the policy is attached only to is_spielplaner users
+  // (section 12), so holding it IS the gate. Season create/update is allowed
+  // (open/close + config); structural ops (archive/rollover/restore) stay
+  // admin-only at the endpoint layer.
+
+  console.log('\n9b. Terminplanung permissions...')
+
+  await setPerm(TERMINPLANUNG_POLICY, 'game_scheduling_seasons', 'create')
+  await setPermRead(TERMINPLANUNG_POLICY, 'game_scheduling_seasons')
+  await setPerm(TERMINPLANUNG_POLICY, 'game_scheduling_seasons', 'update')
+  await setPermRead(TERMINPLANUNG_POLICY, 'game_scheduling_slots')
+  await setPermRead(TERMINPLANUNG_POLICY, 'game_scheduling_opponents')
+  await setPermRead(TERMINPLANUNG_POLICY, 'game_scheduling_bookings')
+
+  console.log(`  ✓ Terminplanung permissions set`)
+
   // ── 10. Backfill user-level LEADER access for every coach/TR ───
   //
   // Permission gating must not depend on Directus role assignment. The
@@ -1140,6 +1173,49 @@ async function main() {
     }
   }
   if (stale.length > 0) console.log(`  ✓ Revoked LEADER policy from ${stale.length} ex-coach/TR user(s)`)
+
+  // ── 12. Backfill user-level TERMINPLANUNG access for is_spielplaner ───
+  //
+  // Attach the Terminplanung policy directly to the directus user of every
+  // member with is_spielplaner=true (club-wide schedulers). Same idempotent
+  // sync + stale-cleanup pattern as the LEADER backfill above. A newly-flagged
+  // member gets access on the next perms deploy.
+
+  console.log('\n12. Backfilling user-level TERMINPLANUNG access for is_spielplaner members...')
+
+  const spielplanerMembers = await api('GET', '/items/members?filter[is_spielplaner][_eq]=true&fields=user&limit=-1')
+  const spielplanerUserIds = new Set(spielplanerMembers.map(m => m.user).filter(Boolean))
+
+  const existingTp = await api('GET', `/access?filter[policy][_eq]=${TERMINPLANUNG_POLICY}&filter[user][_nnull]=true&fields=user&limit=-1`)
+  const haveTp = new Set(existingTp.map(a => a.user).filter(Boolean))
+
+  let tpAttached = 0
+  let tpSkipped = 0
+  for (const userId of spielplanerUserIds) {
+    if (haveTp.has(userId)) { tpSkipped++; continue }
+    try {
+      await api('POST', '/access', { user: userId, policy: TERMINPLANUNG_POLICY })
+      tpAttached++
+    } catch (e) {
+      if (!e.message.includes('RECORD_NOT_UNIQUE')) {
+        console.warn(`  ⚠ attach TERMINPLANUNG to ${userId}: ${e.message.slice(0, 100)}`)
+      } else {
+        tpSkipped++
+      }
+    }
+  }
+  console.log(`  ✓ Attached TERMINPLANUNG policy to ${tpAttached} user(s) (${tpSkipped} already had it, ${spielplanerUserIds.size} total is_spielplaner)`)
+
+  const tpAccessWithIds = await api('GET', `/access?filter[policy][_eq]=${TERMINPLANUNG_POLICY}&filter[user][_nnull]=true&fields=id,user&limit=-1`)
+  const tpStale = tpAccessWithIds.filter(a => a.user && !spielplanerUserIds.has(a.user))
+  for (const row of tpStale) {
+    try {
+      await api('DELETE', `/access/${row.id}`)
+    } catch (e) {
+      console.warn(`  ⚠ revoke TERMINPLANUNG from ${row.user}: ${e.message.slice(0, 100)}`)
+    }
+  }
+  if (tpStale.length > 0) console.log(`  ✓ Revoked TERMINPLANUNG policy from ${tpStale.length} ex-is_spielplaner user(s)`)
 
   // ── 11. Admin policy (admin_access=true — bypasses all) ────────
 

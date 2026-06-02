@@ -185,6 +185,12 @@ export default {
   inviteLinkExpires: 'Gültig bis {{date}}',
   selectToInvite: 'Gegner auswählen',
   importedFromSvrz: 'Aus SVRZ übernommen',
+  importFromSvrzHint: 'Holt Gegner und ihre Spielplanungs-Kontakte automatisch aus SVRZ.',
+  addFromLeague: 'Aus Liga hinzufügen',
+  addFromLeagueHint: 'Listet alle Vereine in der Liga dieses Teams aus SVRZ — Kontakt-E-Mail und Name trägst du selbst ein.',
+  loadingClubs: 'Vereine werden geladen…',
+  noClubsFound: 'Keine Vereine für diese Liga gefunden.',
+  multipleContactsHint: 'Mehrere SVRZ-Kontakte — den richtigen eintragen',
 
   // SVRZ season link
   svrzSeasonLabel: 'SVRZ-Saison',

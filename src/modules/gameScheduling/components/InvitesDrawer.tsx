@@ -48,6 +48,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
   const [drafts, setDrafts] = useState<DraftRow[]>([])
   const [csvText, setCsvText] = useState('')
   const [importing, setImporting] = useState(false)
+  const [loadingClubs, setLoadingClubs] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const selectedCount = useMemo(() => drafts.filter((d) => d.selected).length, [drafts])
@@ -97,6 +98,44 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
       toast.error(err instanceof Error ? err.message : String(err))
     } finally {
       setImporting(false)
+    }
+  }
+
+  // Semi-manual: list every club in the team's league (from synced SVRZ games),
+  // prefill the club/team name + game count, and auto-fill a contact only when
+  // exactly one is known. The admin fills in the rest by hand.
+  const loadLeagueClubs = async () => {
+    if (!kscwTeam) return
+    setLoadingClubs(true)
+    try {
+      const resp = await api.listSvrzClubs()
+      const rows: DraftRow[] = resp.clubs.map((c) => {
+        const only = c.suggested_contacts.length === 1 ? c.suggested_contacts[0] : null
+        return {
+          id: uid(),
+          team_name: c.team_name || c.club_name,
+          contact_email: only?.email ?? '',
+          contact_name: only?.name ?? '',
+          source: 'svrz',
+          // Pre-selected so a typed email is included immediately; rows without
+          // an email are skipped at submit anyway.
+          selected: true,
+          imported: true,
+          game_count: c.game_count,
+          warning:
+            c.suggested_contacts.length > 1
+              ? t('multipleContactsHint')
+              : c.suggested_contacts.length === 0
+                ? t('noContactWarning')
+                : undefined,
+        }
+      })
+      setDrafts((prev) => [...rows, ...prev])
+      if (rows.length === 0) toast.info(t('noClubsFound'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoadingClubs(false)
     }
   }
 
@@ -170,7 +209,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
         </DrawerHeader>
 
         <div className="space-y-5 overflow-y-auto px-6 pb-4">
-          {/* SVRZ import */}
+          {/* SVRZ import — full auto: fetches opponents AND their contacts live */}
           <div>
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('importFromSvrz')}</h3>
@@ -178,6 +217,18 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                 {importing ? t('svrzImportLoading') : t('importFromSvrz')}
               </Button>
             </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('importFromSvrzHint')}</p>
+          </div>
+
+          {/* Add from league — semi-manual: lists league clubs, admin fills contacts */}
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('addFromLeague')}</h3>
+              <Button size="sm" variant="secondary" onClick={loadLeagueClubs} disabled={loadingClubs || !kscwTeam}>
+                {loadingClubs ? t('loadingClubs') : t('addFromLeague')}
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('addFromLeagueHint')}</p>
           </div>
 
           {/* Manual CSV paste */}
