@@ -13,6 +13,8 @@ export interface SlotData {
   hall_id: string
   hall_name: string
   source: string
+  /** Junior Sunday slots: true when another junior team already plays this Sunday (soft cluster hint). */
+  preferred?: boolean
 }
 
 export interface OpponentData {

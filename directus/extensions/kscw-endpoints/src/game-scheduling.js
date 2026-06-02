@@ -182,6 +182,100 @@ export function registerGameScheduling(router, { database, logger, services, get
     return set
   }
 
+  // ── Scheduling-rule helpers (A1–A4, C1 cross-team) ───────────────────────
+  // Juniors (HU23-1, HU20, DU23-1, DU23-2, …) are detected by name pattern: a
+  // "U" followed by a digit. They have no Saturday cap and are the only teams
+  // eligible for Sunday home slots.
+  const isJuniorTeam = (name) => /u\d/i.test(String(name || ''))
+
+  // UTC day-of-week from a YYYY-MM-DD string (0=Sun … 6=Sat). Matches the UTC
+  // date math used elsewhere in this file; never use local getDay() (TZ shift).
+  const dowUTC = (ymd) => new Date(`${String(ymd).slice(0, 10)}T00:00:00Z`).getUTCDay()
+  const isSaturday = (ymd) => dowUTC(ymd) === 6
+  const isSunday = (ymd) => dowUTC(ymd) === 0
+
+  // A team "has an evening slot" if it owns a KWI block ending 21:30 OR uses a
+  // volleyball Döltschi slot — i.e. it would NOT fall back to the club Spielhalle
+  // pool in generate-slots. Teams with no evening slot get a higher Saturday cap.
+  async function hasEveningSlot(teamId, db = database) {
+    const ownKwi = await db('hall_slots')
+      .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
+      .join('halls', 'hall_slots.hall', 'halls.id')
+      .where('hall_slots_teams.teams_id', teamId)
+      .whereRaw("hall_slots.end_time::text LIKE '21:30%'")
+      .whereRaw("LOWER(halls.name) LIKE '%kwi%'")
+      .first()
+    if (ownKwi) return true
+    const doltschi = await db('hall_slots')
+      .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
+      .join('halls', 'hall_slots.hall', 'halls.id')
+      .where('hall_slots_teams.teams_id', teamId)
+      .where('hall_slots.sport', 'volleyball')
+      .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%')")
+      .first()
+    return !!doltschi
+  }
+
+  // Effective max number of Saturday home games per season for a team:
+  //   junior → ∞ (A2), no evening slot → 3 (A4), otherwise → 2 (A1).
+  async function teamSaturdayCap(team, db = database) {
+    if (isJuniorTeam(team?.name)) return Infinity
+    if (!(await hasEveningSlot(team.id, db))) return 3
+    return 2
+  }
+
+  // Other team ids that share ≥1 real player (guest_level 0/null) with this team.
+  // Drives the cross-team same-day rule (a junior on two teams must not play twice
+  // in a day).
+  async function sharedPlayerTeams(teamId, db = database) {
+    const rows = await db('member_teams as mt1')
+      .join('member_teams as mt2', 'mt2.member', 'mt1.member')
+      .where('mt1.team', teamId)
+      .whereRaw('mt2.team <> ?', [teamId])
+      .where(function () { this.where('mt1.guest_level', 0).orWhereNull('mt1.guest_level') })
+      .where(function () { this.where('mt2.guest_level', 0).orWhereNull('mt2.guest_level') })
+      .distinct('mt2.team as team')
+    return rows.map((r) => r.team)
+  }
+
+  // Which of the given teams have a committed game (real game, booked home slot,
+  // or confirmed away proposal) on the exact date `ymd`. Returns the conflicting
+  // team ids (empty = none). Drives the cross-team same-day rule + its message.
+  async function teamsCommittedOnDate(teamIds, ymd, db = database) {
+    const out = new Set()
+    if (!teamIds || teamIds.length === 0) return []
+    const day = String(ymd).slice(0, 10)
+    const games = await db('games').whereIn('kscw_team', teamIds)
+      .whereRaw('date::text = ?', [day]).pluck('kscw_team')
+    games.forEach((id) => out.add(id))
+    const booked = await db('game_scheduling_slots').whereIn('kscw_team', teamIds)
+      .where('status', 'booked').whereRaw('date::text = ?', [day]).pluck('kscw_team')
+    booked.forEach((id) => out.add(id))
+    const confirmed = await db('game_scheduling_bookings as b')
+      .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
+      .whereIn('o.kscw_team', teamIds)
+      .where('b.type', 'away_proposal').where('b.status', 'confirmed')
+      .select('o.kscw_team as t', 'b.confirmed_proposal as n',
+              'b.proposed_datetime_1 as d1', 'b.proposed_datetime_2 as d2', 'b.proposed_datetime_3 as d3')
+    confirmed.forEach((b) => { if (String(b[`d${b.n}`] || '').slice(0, 10) === day) out.add(b.t) })
+    return [...out]
+  }
+
+  // Distinct Saturday dates a team already has a HOME game on — booked home slots
+  // (the tool's own picks) plus KSCW-home rows in `games` (home_team is KSCW),
+  // deduped by date. Drives the Saturday cap (A1/A4).
+  async function committedSaturdayDates(teamId, db = database) {
+    const set = new Set()
+    const booked = await db('game_scheduling_slots').where('kscw_team', teamId).where('status', 'booked')
+      .select(db.raw('date::text as d'))
+    booked.forEach((s) => { if (isSaturday(s.d)) set.add(String(s.d).slice(0, 10)) })
+    const homeGames = await db('games').where('kscw_team', teamId).whereNotNull('date')
+      .whereRaw("LOWER(home_team) LIKE 'ksc wiedikon%'")
+      .select(db.raw('date::text as d'))
+    homeGames.forEach((g) => { if (isSaturday(g.d)) set.add(String(g.d).slice(0, 10)) })
+    return set
+  }
+
   // GET /kscw/terminplanung/slots/:token — view available slots
   router.get('/terminplanung/slots/:token', async (req, res) => {
     try {
@@ -378,6 +472,25 @@ export function registerGameScheduling(router, { database, logger, services, get
         season_window = { start: `${y1}-09-01`, end: `${y2}-03-31` }
       }
 
+      // Soft clustering (A2): for a junior team, flag Sunday slots that land on a
+      // Sunday another junior team already plays a HOME game on, so the opponent
+      // is steered to a shared Sunday. No hard block — every Sunday stays bookable.
+      let slotsOut = slots
+      if (isJuniorTeam(team?.name)) {
+        const juniorIds = await database('teams')
+          .where('sport', 'volleyball').where('active', true)
+          .whereRaw("name ~* 'u[0-9]'").whereNot('id', opponent.kscw_team).pluck('id')
+        const usedJuniorSundays = new Set()
+        if (juniorIds.length) {
+          const bk = await database('game_scheduling_slots').whereIn('kscw_team', juniorIds)
+            .where('status', 'booked').select(database.raw('date::text as d'))
+          const hg = await database('games').whereIn('kscw_team', juniorIds).whereNotNull('date')
+            .whereRaw("LOWER(home_team) LIKE 'ksc wiedikon%'").select(database.raw('date::text as d'))
+          ;[...bk, ...hg].forEach((r) => { const d = String(r.d).slice(0, 10); if (isSunday(d)) usedJuniorSundays.add(d) })
+        }
+        slotsOut = slots.map((s) => ({ ...s, preferred: s.source === 'spielsonntag' && usedJuniorSundays.has(s.date) }))
+      }
+
       res.json({
         opponent: {
           id: opponent.id,
@@ -394,7 +507,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           language: opponent.language || null,
         },
         games: svrzGames,
-        slots,
+        slots: slotsOut,
         bookings,
         blocked_away_strict,
         blocked_away_loose,
@@ -478,6 +591,28 @@ export function registerGameScheduling(router, { database, logger, services, get
           throw Object.assign(new Error('Slot not available — the team already plays on or next to this date'), { httpStatus: 400 })
         }
 
+        const team = await trx('teams').where('id', opponent.kscw_team).first('id', 'name')
+
+        // A1/A2/A4 — Saturday home-game cap (junior ∞, no-evening-slot 3, else 2).
+        // Sunday slots never count toward this. Run on trx to close the TOCTOU
+        // window where two opponents book the team's 2nd + 3rd Saturday at once.
+        if (isSaturday(slotYmd)) {
+          const cap = await teamSaturdayCap(team, trx)
+          const satDates = await committedSaturdayDates(team.id, trx)
+          if (satDates.size + 1 > cap) {
+            throw Object.assign(new Error('conflict_sat_cap'), { httpStatus: 400 })
+          }
+        }
+
+        // C1 cross-team — a team sharing players with this one must not already
+        // play on the same date (a junior rostered on two teams plays once a day).
+        const others = await sharedPlayerTeams(team.id, trx)
+        const conflictTeams = await teamsCommittedOnDate(others, slotYmd, trx)
+        if (conflictTeams.length) {
+          const names = await trx('teams').whereIn('id', conflictTeams).pluck('name')
+          throw Object.assign(new Error('conflict_cross_team'), { httpStatus: 400, teams: names.join(', ') })
+        }
+
         await trx('game_scheduling_bookings').insert({
           opponent: opponent.id,
           slot: slot_id,
@@ -519,7 +654,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       res.json({ success: true })
     } catch (err) {
       if (err && err.httpStatus) {
-        return res.status(err.httpStatus).json({ error: err.message })
+        return res.status(err.httpStatus).json({ error: err.message, ...(err.teams ? { teams: err.teams } : {}) })
       }
       log.error({ msg: `terminplanung/book-home: ${err.message}`, endpoint: 'terminplanung/book-home', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
@@ -569,6 +704,28 @@ export function registerGameScheduling(router, { database, logger, services, get
       // proper 400 with the message (was throwing into the generic 500 catch).
       const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
       const TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/
+
+      const team = await database('teams').where('id', opponent.kscw_team).first('id', 'name')
+      const isJunior = isJuniorTeam(team?.name)
+
+      // A3 — for non-junior teams, the away proposals may include at most one
+      // Saturday and no Sunday (hard reject). Juniors are exempt. Malformed dates
+      // are caught per-proposal in the loop below.
+      if (!isJunior) {
+        const validDates = proposals.filter((p) => p?.date && DATE_RE.test(String(p.date)))
+        if (validDates.some((p) => isSunday(p.date))) {
+          return res.status(400).json({ error: 'away_no_sunday' })
+        }
+        if (validDates.filter((p) => isSaturday(p.date)).length > 1) {
+          return res.status(400).json({ error: 'away_max_one_saturday' })
+        }
+      }
+
+      // C1 cross-team — teams sharing players with this one must not already play
+      // on a proposed date (checked per proposal in the loop). Applies to juniors
+      // too — it's player-driven, not team-type-driven.
+      const sharedTeams = await sharedPlayerTeams(opponent.kscw_team)
+
       // Games / booked home slots / confirmed away proposals (all ±1 day) — a
       // new proposal can't land on or adjacent to any of them.
       const committed = await committedGameDates(opponent.kscw_team)
@@ -599,6 +756,12 @@ export function registerGameScheduling(router, { database, logger, services, get
         // ±1 day; pending proposals don't count). No back-to-back games.
         if (committed.has(String(p.date).slice(0, 10))) {
           return res.status(400).json({ error: `${p.date} is on or within a day of an existing game — please pick another date.` })
+        }
+        // C1 cross-team: a roster-sharing team must not already play this date.
+        const xTeams = await teamsCommittedOnDate(sharedTeams, String(p.date), database)
+        if (xTeams.length) {
+          const names = await database('teams').whereIn('id', xTeams).pluck('name')
+          return res.status(400).json({ error: 'conflict_cross_team', teams: names.join(', ') })
         }
         // Reject if any rostered member has a one-off absence (NOT a weekly
         // unavailability) affecting games on that date. "No game if absence."
@@ -767,8 +930,49 @@ export function registerGameScheduling(router, { database, logger, services, get
         .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%')")
         .select('hall_slots.day_of_week', 'hall_slots.start_time', 'hall_slots.end_time', 'hall_slots.hall')
 
+      // KWI game halls — used for junior Sunday slots (rule A2/C1). Juniors may
+      // play home games on any Sunday; the times are fixed.
+      const kwiHalls = await database('halls')
+        .whereRaw("LOWER(name) LIKE '%kwi%'").orderBy('name').select('id')
+      const SUNDAY_TIMES = ['11:00', '13:00', '15:00']
+
       const teams = await database('teams')
-        .where('sport', 'volleyball').where('active', true).select('id')
+        .where('sport', 'volleyball').where('active', true).select('id', 'name')
+
+      // B1/B2 — Friday gym split with basketball. Until the October vacation
+      // (Herbstferien) volleyball uses both halls every Friday. After it, Fridays
+      // alternate VB / BB, so VB only gets every other Friday. Parity (documented):
+      // the first Friday on/after Herbstferien end is a VB Friday. If no
+      // Herbstferien closure is found, keep the pre-vacation behaviour (all Fridays).
+      let herbstStart = null
+      let herbstEndExclusive = null // first open day after the vacation
+      if (eveningWindow) {
+        const herbst = await database('hall_closures')
+          .where('source', 'school_holidays')
+          .whereRaw("LOWER(reason) LIKE '%herbst%'")
+          .andWhere('end_date', '>=', eveningWindow.start)
+          .andWhere('start_date', '<=', eveningWindow.end)
+          .select(database.raw('MIN(start_date)::text as s'), database.raw('MAX(end_date)::text as e'))
+          .first()
+        if (herbst?.s) herbstStart = new Date(`${herbst.s.slice(0, 10)}T00:00:00Z`)
+        if (herbst?.e) herbstEndExclusive = new Date(`${herbst.e.slice(0, 10)}T00:00:00Z`)
+      }
+      // The reference VB Friday after the vacation = the first Friday on/after the
+      // first open day. Used to compute alternating-week parity.
+      let firstPostHerbstFriday = null
+      if (herbstEndExclusive) {
+        const d = new Date(herbstEndExclusive)
+        while (d.getUTCDay() !== 5) d.setUTCDate(d.getUTCDate() + 1)
+        firstPostHerbstFriday = d
+      }
+      // Should a Friday `spielhalle` slot be generated for volleyball on `date`?
+      const fridayIsVolleyball = (date) => {
+        if (!herbstStart || !firstPostHerbstFriday) return true // no Herbst data → all Fridays
+        if (date < herbstStart) return true                    // before vacation → every Friday
+        if (date < firstPostHerbstFriday) return false         // inside vacation / pre-first-VB-Friday
+        const weeks = Math.round((date - firstPostHerbstFriday) / (7 * 86400000))
+        return weeks % 2 === 0                                 // alternate; first post-Herbst Friday is VB
+      }
 
       let total_created = 0
       for (const team of teams) {
@@ -793,6 +997,27 @@ export function registerGameScheduling(router, { database, logger, services, get
                 date: sat.date, start_time: s.time, end_time: addHours(s.time, 2),
                 hall: parseInt(s.hall_id, 10) || null, source: 'spielsamstag',
               })
+            }
+          }
+          // A2/C1 — juniors may play home games on ANY Sunday. Generate a Sunday
+          // slot on every Sunday in the season window at the fixed times × KWI
+          // halls. Not a curated "game-Sunday" list; the soft clustering onto
+          // Sundays another junior already uses happens at slot-display time.
+          if (isJuniorTeam(team.name) && eveningWindow) {
+            const d = new Date(eveningWindow.start)
+            while (d <= eveningWindow.end) {
+              if (d.getUTCDay() === 0) {
+                const date = d.toISOString().slice(0, 10)
+                for (const time of SUNDAY_TIMES) {
+                  for (const h of kwiHalls) {
+                    candidates.push({
+                      date, start_time: time, end_time: addHours(time, 2),
+                      hall: h.id, source: 'spielsonntag',
+                    })
+                  }
+                }
+              }
+              d.setUTCDate(d.getUTCDate() + 1)
             }
           }
         }
@@ -827,10 +1052,15 @@ export function registerGameScheduling(router, { database, logger, services, get
             const d = new Date(eveningWindow.start)
             while (d <= eveningWindow.end) {
               if (d.getUTCDay() === targetJsDay) {
-                candidates.push({
-                  date: d.toISOString().slice(0, 10), start_time: hs.start_time,
-                  end_time: hs.end_time, hall: hs.hall, source: stdTag,
-                })
+                // B1/B2 — the shared Friday Spielhalle pool alternates with
+                // basketball after the October vacation. Skip VB-off Fridays.
+                const isFridaySpielhalle = stdTag === 'spielhalle' && targetJsDay === 5
+                if (!isFridaySpielhalle || fridayIsVolleyball(d)) {
+                  candidates.push({
+                    date: d.toISOString().slice(0, 10), start_time: hs.start_time,
+                    end_time: hs.end_time, hall: hs.hall, source: stdTag,
+                  })
+                }
               }
               d.setUTCDate(d.getUTCDate() + 1)
             }

@@ -72,6 +72,11 @@ export default function HomeSlotPicker({ slots, onPickSlot }: Props) {
 
   const availableDates = useMemo(() => new Set(byDate.keys()), [byDate])
   const sortedDates = useMemo(() => [...byDate.keys()].sort(), [byDate])
+  // Junior soft-cluster hint: dates another junior team already plays (Sundays).
+  const preferredDates = useMemo(
+    () => new Set(slots.filter((s) => s.preferred).map((s) => s.date)),
+    [slots],
+  )
 
   if (slots.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t('noSlotsAvailable')}</p>
@@ -123,8 +128,13 @@ export default function HomeSlotPicker({ slots, onPickSlot }: Props) {
                 onClick={() => setModalDate(dk)}
                 className="flex w-full items-center justify-between rounded-md border border-gray-200 bg-white px-3 py-2.5 text-left text-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600"
               >
-                <span className="font-medium text-gray-900 dark:text-gray-100">
+                <span className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
                   {formatDateLocale(parseISO(dk), 'EEE d. MMM yyyy', i18n.language)}
+                  {preferredDates.has(dk) && (
+                    <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
+                      {t('preferredSunday', { defaultValue: 'Shared Sunday' })}
+                    </span>
+                  )}
                 </span>
                 <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                   {opts.length === 1

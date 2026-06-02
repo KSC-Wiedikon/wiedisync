@@ -11,7 +11,10 @@ import type { Hall, SpielsamstagConfig } from '../../../types'
 import { fetchAllItems } from '../../../lib/api'
 import { toDateKey, formatDateLocale } from '../../../utils/dateUtils'
 
-const DEFAULT_TIMES = ['11:00', '13:30', '16:00']
+// Fixed game-Saturday times (rule C1) — not editable. Juniors may also play on
+// any Sunday at fixed times (11:00/13:00/15:00); those slots are generated for
+// every Sunday automatically, so there is no Sunday picker here.
+const DEFAULT_TIMES = ['11:00', '13:30', '16:00', '18:30']
 
 interface Props {
   spielsamstage: SpielsamstagConfig[]
