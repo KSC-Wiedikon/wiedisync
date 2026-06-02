@@ -11,7 +11,7 @@ export default {
   teams: 'Squadre',
   events: 'Eventi',
   inbox: 'Messaggi',
-  gameplan: 'Calendario partite',
+  gameplan: 'Calendario partite manuali',
   hallenplan: 'Fasce palestra',
   terminplanung: 'Pianificazione partite',
   manageDb: 'Gestisci database',

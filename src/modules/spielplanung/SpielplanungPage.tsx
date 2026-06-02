@@ -8,7 +8,6 @@ import ListView from './ListView'
 import GameDetailDrawer from './GameDetailDrawer'
 import ManualGameModal from './ManualGameModal'
 import ImportPanel from './ImportPanel'
-import SpielplanerAssignmentsAccordion from './SpielplanerAssignmentsAccordion'
 import {
   Collapsible,
   CollapsibleContent,
@@ -186,11 +185,6 @@ export default function SpielplanungPage() {
       {/* Filters */}
       <div data-tour="spielplanung-filters">
         <SpielplanungFilters filters={filters} onChange={setFilters} />
-      </div>
-
-      {/* Admin tools row (assignments + bulk import) */}
-      <div className="flex flex-wrap gap-2">
-        {isAdmin && <SpielplanerAssignmentsAccordion />}
       </div>
 
       {/* Bulk import (only when the caller can create manual games) */}
