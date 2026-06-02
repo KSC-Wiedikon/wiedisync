@@ -28,6 +28,7 @@ export default {
   full: 'Complet',
   summaryOf: 'sur {{total}}',
   guests: 'Invites',
+  guestBadge: 'Invite',
   guestsCount_one: '{{count}} invite',
   guestsCount_other: '{{count}} invites',
   staffPresent: 'Staff present',

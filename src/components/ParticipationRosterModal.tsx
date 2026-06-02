@@ -246,6 +246,20 @@ export default function ParticipationRosterModal({
 
   const memberIds = memberList.map((m) => m.id)
 
+  // Guest players (member_teams.guest_level > 0) — surfaced with a "Guest" badge
+  // in each row so a coach scanning the roster can tell core players from guests
+  // borrowed off another team. Empty when club-wide (no team junction context).
+  const guestMemberIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (isClubWide) return ids
+    for (const mt of members) {
+      const lvl = Number((mt as { guest_level?: number }).guest_level ?? 0)
+      const mid = String(asObj<Member>(mt.member)?.id ?? '')
+      if (mid && lvl > 0) ids.add(mid)
+    }
+    return ids
+  }, [members, isClubWide])
+
   // For regular (non-session) mode, filter by session tab if active
   const { participations: regularParticipations, isLoading: regularLoading } = useTeamParticipations(
     activityType,
@@ -1354,6 +1368,11 @@ export default function ParticipationRosterModal({
                     {leadershipRoles.has(member.id) && (
                       <span className="ml-1.5 inline-block rounded bg-brand-100 px-1 py-px text-[10px] font-medium leading-tight text-brand-700 dark:bg-brand-900/30 dark:text-brand-400">
                         {leadershipRoles.get(member.id) === 'coach' ? 'Coach' : leadershipRoles.get(member.id) === 'captain' ? 'C' : 'TR'}
+                      </span>
+                    )}
+                    {guestMemberIds.has(member.id) && (
+                      <span className="ml-1.5 inline-block rounded bg-amber-100 px-1 py-px text-[10px] font-medium leading-tight text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                        {t('guestBadge')}
                       </span>
                     )}
                     {participation && (participation.guest_count ?? 0) > 0 && (

@@ -28,6 +28,7 @@ export default {
   full: 'Voll',
   summaryOf: 'vo {{total}}',
   guests: 'Gäst',
+  guestBadge: 'Gascht',
   guestsCount_one: '{{count}} Gascht',
   guestsCount_other: '{{count}} Gäst',
   staffPresent: 'Staff debii',

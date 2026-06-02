@@ -28,6 +28,7 @@ export default {
   full: 'Completo',
   summaryOf: 'di {{total}}',
   guests: 'Ospiti',
+  guestBadge: 'Ospite',
   guestsCount_one: '{{count}} ospite',
   guestsCount_other: '{{count}} ospiti',
   staffPresent: 'Staff presente',
