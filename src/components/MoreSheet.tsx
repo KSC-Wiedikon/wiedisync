@@ -33,7 +33,7 @@ const iconClass = 'h-5 w-5'
 
 function buildSecondaryItems(
   memberId: number | string | undefined | null,
-  sched: { isAdmin: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[] },
+  sched: { isAdminMode: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[] },
 ) {
   const items = [
     ...(messagingFeatureEnabled(memberId)
@@ -45,9 +45,10 @@ function buildSecondaryItems(
     { to: '/scorer', labelKey: 'scorer', icon: <PenSquare className={iconClass} /> },
     { to: '/news', labelKey: 'news', icon: <Newspaper className={iconClass} /> },
   ]
-  // Spielplaner tools in the main list for non-admins with scheduling access
-  // (admins reach these via the Admin section). Mirrors Layout.tsx.
-  if (!sched.isAdmin) {
+  // Spielplaner tools in the main list for anyone with scheduling access — no
+  // admin-mode toggle needed. Hidden when the Admin section is showing (admin
+  // mode on) to avoid duplication. Mirrors Layout.tsx.
+  if (!sched.isAdminMode) {
     if (sched.is_spielplaner || sched.spielplanerTeamIds.length > 0) {
       items.push({ to: '/admin/spielplanung', labelKey: 'gameplan', icon: <ClipboardList className={iconClass} /> })
     }
@@ -206,7 +207,7 @@ interface MoreSheetProps {
 }
 
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
-  const { user, isApproved, isSuperAdmin, isAdmin, is_spielplaner, spielplanerTeamIds, logout } = useAuth()
+  const { user, isApproved, isSuperAdmin, is_spielplaner, spielplanerTeamIds, logout } = useAuth()
   const { isAdminMode } = useAdminMode()
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
@@ -308,7 +309,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
             </>
           )}
-          {(!user || !isApproved) ? null : buildSecondaryItems(user.id, { isAdmin, is_spielplaner, spielplanerTeamIds }).map((item) => (
+          {(!user || !isApproved) ? null : buildSecondaryItems(user.id, { isAdminMode, is_spielplaner, spielplanerTeamIds }).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

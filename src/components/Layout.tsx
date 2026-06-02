@@ -36,8 +36,8 @@ type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 
 function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number | string | null) {
   const { t } = useTranslation('nav')
-  const { memberTeamIds, isAdmin, is_spielplaner, spielplanerTeamIds } = useAuth()
-  const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
+  const { memberTeamIds, is_spielplaner, spielplanerTeamIds } = useAuth()
+  const { effectiveIsAdmin, effectiveIsVorstand, isAdminMode } = useAdminMode()
   const showTeamsPlural = effectiveIsAdmin || effectiveIsVorstand || memberTeamIds.length > 1
   const iconClass = 'h-5 w-5'
   const publicItems = [
@@ -68,11 +68,12 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
     { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
     { to: '/news', label: t('news'), icon: <Newspaper className={iconClass} /> },
   ]
-  // Spielplaner tools surfaced directly in the main nav (no admin-mode toggle)
-  // for non-admin members who hold scheduling access. Admins reach these via the
-  // Admin menu instead. Spielplanung = club-wide or per-team Spielplaner;
+  // Spielplaner tools surfaced directly in the main nav for anyone with
+  // scheduling access — no admin-mode toggle needed. When the Admin section is
+  // showing (admin mode on), these live there instead, so we hide them here to
+  // avoid duplication. Spielplanung = club-wide or per-team Spielplaner;
   // Terminplanung = club-wide Spielplaner only (matches AdminOrSpielplanerRoute).
-  const spielplanerItems = !isAdmin
+  const spielplanerItems = !isAdminMode
     ? [
         ...(is_spielplaner || spielplanerTeamIds.length > 0
           ? [{ to: '/admin/spielplanung', label: t('gameplan'), icon: <ClipboardList className={iconClass} /> }]
