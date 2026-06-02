@@ -54,6 +54,11 @@ export default function AdminSetupPage() {
     await updateSeason(season.id, { spielsamstage } as Record<string, unknown>)
   }
 
+  const handleUpdateSpielsonntage = async (spielsonntage: SpielsamstagConfig[]) => {
+    if (!season) return
+    await updateSeason(season.id, { spielsonntage } as Record<string, unknown>)
+  }
+
   const handleUpdateTeamConfig = async (config: TeamSlotConfig) => {
     if (!season) return
     await updateSeason(season.id, { team_slot_config: config } as Record<string, unknown>)
@@ -168,6 +173,8 @@ export default function AdminSetupPage() {
           <SpielsamstageEditor
             spielsamstage={season.spielsamstage || []}
             onUpdate={handleUpdateSpielsamstage}
+            spielsonntage={season.spielsonntage || []}
+            onUpdateSundays={handleUpdateSpielsonntage}
           />
 
           {/* Team Slot Configuration */}

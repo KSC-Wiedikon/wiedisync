@@ -25,6 +25,10 @@ export default {
   pickSaturdays: 'Samstage auswählen',
   noSpielsamstage: 'Keine Spielsamstage ausgewählt.',
   spielsamstageAutoHint: 'Pro Samstag werden automatisch {{count}} Slots erstellt — {{times}} × {{halls}}.',
+  spielsonntage: 'Spielsonntage (Juniorenteams)',
+  pickSundays: 'Sonntage auswählen',
+  noSpielsonntage: 'Noch keine Spielsonntage.',
+  spielsonntageAutoHint: 'Nur Juniorenteams. Pro gewähltem Sonntag werden automatisch {{count}} Slots erstellt — {{times}} × {{halls}}.',
   noKwiHalls: 'Keine KWI-Hallen gefunden — Hallen "KWI A/B/C" anlegen, damit Slots automatisch generiert werden.',
 
   // Slot generation
@@ -131,6 +135,9 @@ export default {
   conflictClosure: 'Die Halle ist an diesem Datum geschlossen.',
   conflictDoubleBooking: 'Dieser Termin ist bereits belegt.',
   conflictCrossTeam: 'Spieler aus {{teams}} haben an diesem Datum ein anderes Spiel.',
+  conflictSatCap: 'Dieses Team hat sein Limit an Heimspielen am Samstag erreicht.',
+  awayNoSunday: 'Auswärtsspiele am Sonntag sind für dieses Team nicht möglich.',
+  awayMaxOneSaturday: 'Höchstens einer der vorgeschlagenen Auswärtstermine darf ein Samstag sein.',
   invalidEmail: 'Bitte gib eine gültige E-Mail-Adresse ein.',
   required: 'Dieses Feld ist erforderlich.',
   turnstileError: 'Bitte bestätige, dass du kein Roboter bist.',

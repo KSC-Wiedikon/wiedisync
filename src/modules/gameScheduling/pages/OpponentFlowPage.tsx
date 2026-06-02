@@ -104,6 +104,26 @@ export default function OpponentFlowPage() {
     )
   }
 
+  // Map a scheduling API error to a localized message. kscwApi attaches the
+  // parsed JSON body as err.body; the backend puts a stable code in body.error
+  // (e.g. 'conflict_sat_cap') plus optional body.teams for cross-team conflicts.
+  const schedErrorMessage = (err: unknown): string => {
+    const body = (err as { body?: { error?: string; teams?: string } })?.body
+    const code = body?.error || ''
+    switch (code) {
+      case 'conflict_sat_cap': return t('conflictSatCap')
+      case 'conflict_cross_team': return t('conflictCrossTeam', { teams: body?.teams || '' })
+      case 'away_no_sunday': return t('awayNoSunday')
+      case 'away_max_one_saturday': return t('awayMaxOneSaturday')
+      case 'slot_unavailable': return t('slotUnavailable')
+      case 'conflict_same_day': return t('conflictSameDay')
+      case 'conflict_gap_rule': return t('conflictGapRule')
+      case 'conflict_closure': return t('conflictClosure')
+      // Otherwise show the backend's human message if present, else a generic one.
+      default: return body?.error || (err instanceof Error ? err.message : String(err))
+    }
+  }
+
   const handleBookSlot = async (slotId: string) => {
     setBookingError('')
     setBookingSuccess('')
@@ -111,12 +131,7 @@ export default function OpponentFlowPage() {
       await bookHomeSlot(slotId)
       setBookingSuccess(t('slotBooked'))
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (msg.includes('slot_unavailable')) setBookingError(t('slotUnavailable'))
-      else if (msg.includes('conflict_same_day')) setBookingError(t('conflictSameDay'))
-      else if (msg.includes('conflict_gap_rule')) setBookingError(t('conflictGapRule'))
-      else if (msg.includes('conflict_closure')) setBookingError(t('conflictClosure'))
-      else setBookingError(msg)
+      setBookingError(schedErrorMessage(err))
     }
   }
 
@@ -127,7 +142,7 @@ export default function OpponentFlowPage() {
       await proposeAway(proposals)
       setBookingSuccess(t('proposalsSubmitted'))
     } catch (err: unknown) {
-      setBookingError(err instanceof Error ? err.message : String(err))
+      setBookingError(schedErrorMessage(err))
     }
   }
 

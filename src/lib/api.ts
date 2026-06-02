@@ -483,9 +483,10 @@ export async function kscwApi<T = unknown>(
 
   if (!res.ok) {
     const responseBody = await res.text().catch(() => '')
-    const err = new Error(`API ${path}: ${res.status}`) as Error & { code?: string }
-    // Parse response body and attach error code if present
-    try { const parsed = JSON.parse(responseBody); if (parsed?.code) err.code = parsed.code } catch { /* ignore */ }
+    const err = new Error(`API ${path}: ${res.status}`) as Error & { code?: string; body?: unknown }
+    // Parse response body and attach error code + full body if present (callers
+    // like the Terminplanung opponent flow map on body.error / body.teams).
+    try { const parsed = JSON.parse(responseBody); if (parsed?.code) err.code = parsed.code; err.body = parsed } catch { /* ignore */ }
     // Benign: an unauthenticated session hitting a protected endpoint (e.g. iOS
     // Safari evicted the stored token while backgrounded). The throw still drives
     // the login redirect; reporting it to Sentry/JSONL is just noise. Mirrors the
