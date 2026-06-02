@@ -472,6 +472,25 @@ export function registerGameScheduling(router, { database, logger, services, get
         season_window = { start: `${y1}-09-01`, end: `${y2}-03-31` }
       }
 
+      // Soft clustering (A2): for a junior team, flag Sunday slots that land on a
+      // Sunday another junior team already plays a HOME game on, so the opponent
+      // is steered to a shared Sunday. No hard block — every Sunday stays bookable.
+      let slotsOut = slots
+      if (isJuniorTeam(team?.name)) {
+        const juniorIds = await database('teams')
+          .where('sport', 'volleyball').where('active', true)
+          .whereRaw("name ~* 'u[0-9]'").whereNot('id', opponent.kscw_team).pluck('id')
+        const usedJuniorSundays = new Set()
+        if (juniorIds.length) {
+          const bk = await database('game_scheduling_slots').whereIn('kscw_team', juniorIds)
+            .where('status', 'booked').select(database.raw('date::text as d'))
+          const hg = await database('games').whereIn('kscw_team', juniorIds).whereNotNull('date')
+            .whereRaw("LOWER(home_team) LIKE 'ksc wiedikon%'").select(database.raw('date::text as d'))
+          ;[...bk, ...hg].forEach((r) => { const d = String(r.d).slice(0, 10); if (isSunday(d)) usedJuniorSundays.add(d) })
+        }
+        slotsOut = slots.map((s) => ({ ...s, preferred: s.source === 'spielsonntag' && usedJuniorSundays.has(s.date) }))
+      }
+
       res.json({
         opponent: {
           id: opponent.id,
@@ -488,7 +507,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           language: opponent.language || null,
         },
         games: svrzGames,
-        slots,
+        slots: slotsOut,
         bookings,
         blocked_away_strict,
         blocked_away_loose,
@@ -868,7 +887,6 @@ export function registerGameScheduling(router, { database, logger, services, get
         return v
       }
       const spielsamstage = parseJson(season.spielsamstage, [])
-      const spielsonntage = parseJson(season.spielsonntage, [])
       const teamConfig = parseJson(season.team_slot_config, {})
       const seasonKey = String(season_id)
 
@@ -911,6 +929,12 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where('hall_slots.sport', 'volleyball')
         .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%')")
         .select('hall_slots.day_of_week', 'hall_slots.start_time', 'hall_slots.end_time', 'hall_slots.hall')
+
+      // KWI game halls — used for junior Sunday slots (rule A2/C1). Juniors may
+      // play home games on any Sunday; the times are fixed.
+      const kwiHalls = await database('halls')
+        .whereRaw("LOWER(name) LIKE '%kwi%'").orderBy('name').select('id')
+      const SUNDAY_TIMES = ['11:00', '13:00', '15:00']
 
       const teams = await database('teams')
         .where('sport', 'volleyball').where('active', true).select('id', 'name')
@@ -975,20 +999,25 @@ export function registerGameScheduling(router, { database, logger, services, get
               })
             }
           }
-          // C1/A2 — Game-Sunday pool: junior teams only. Same shape as Saturdays
-          // (fixed Sunday times set in the editor); piggybacks on the spielsamstag
-          // source toggle. Non-junior teams never get Sunday slots even if the
-          // admin accidentally picks Sundays.
-          if (isJuniorTeam(team.name)) {
-            for (const sun of (Array.isArray(spielsonntage) ? spielsonntage : [])) {
-              if (!sun?.date || !Array.isArray(sun.slots)) continue
-              for (const s of sun.slots) {
-                if (!s?.time || !s?.hall_id) continue
-                candidates.push({
-                  date: sun.date, start_time: s.time, end_time: addHours(s.time, 2),
-                  hall: parseInt(s.hall_id, 10) || null, source: 'spielsonntag',
-                })
+          // A2/C1 — juniors may play home games on ANY Sunday. Generate a Sunday
+          // slot on every Sunday in the season window at the fixed times × KWI
+          // halls. Not a curated "game-Sunday" list; the soft clustering onto
+          // Sundays another junior already uses happens at slot-display time.
+          if (isJuniorTeam(team.name) && eveningWindow) {
+            const d = new Date(eveningWindow.start)
+            while (d <= eveningWindow.end) {
+              if (d.getUTCDay() === 0) {
+                const date = d.toISOString().slice(0, 10)
+                for (const time of SUNDAY_TIMES) {
+                  for (const h of kwiHalls) {
+                    candidates.push({
+                      date, start_time: time, end_time: addHours(time, 2),
+                      hall: h.id, source: 'spielsonntag',
+                    })
+                  }
+                }
               }
+              d.setUTCDate(d.getUTCDate() + 1)
             }
           }
         }

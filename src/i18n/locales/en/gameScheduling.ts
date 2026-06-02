@@ -25,10 +25,6 @@ export default {
   pickSaturdays: 'Pick Saturdays',
   noSpielsamstage: 'No game Saturdays selected.',
   spielsamstageAutoHint: 'Each Saturday auto-generates {{count}} slots — {{times}} × {{halls}}.',
-  spielsonntage: 'Game Sundays (junior teams)',
-  pickSundays: 'Pick Sundays',
-  noSpielsonntage: 'No game Sundays yet.',
-  spielsonntageAutoHint: 'Junior teams only. Each selected Sunday auto-generates {{count}} slots — {{times}} × {{halls}}.',
   noKwiHalls: 'No KWI halls found — add halls named "KWI A/B/C" to enable auto-slot generation.',
 
   // Slot generation
@@ -131,6 +127,7 @@ export default {
   conflictSatCap: 'This team has reached its limit of Saturday home games.',
   awayNoSunday: 'Away games on Sundays are not possible for this team.',
   awayMaxOneSaturday: 'At most one of your proposed away dates may be a Saturday.',
+  preferredSunday: 'Shared Sunday',
   invalidEmail: 'Please enter a valid email address.',
   required: 'This field is required.',
   turnstileError: 'Please confirm you are not a robot.',

@@ -554,8 +554,6 @@ export interface GameSchedulingSeason extends BaseRecord {
   season: string
   status: 'setup' | 'open' | 'closed'
   spielsamstage: SpielsamstagConfig[]
-  /** Junior Game-Sundays — same shape; home slots generated for junior teams only. */
-  spielsonntage: SpielsamstagConfig[]
   team_slot_config: TeamSlotConfig | null
   notes: string
 
