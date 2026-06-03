@@ -155,9 +155,19 @@ export default function InfraHealthPage() {
     const clickedAt = Date.now()
     const token = getAccessToken()
     const authHeader = token ? { Authorization: `Bearer ${token}` } : undefined
+    let async202 = false
     try {
-      await fetch(`${PROD_URL}/kscw/admin/${endpoint}`, { method: 'POST', headers: authHeader })
-    } catch { /* poll reflects the outcome */ }
+      const res = await fetch(`${PROD_URL}/kscw/admin/${endpoint}`, { method: 'POST', headers: authHeader })
+      async202 = res.status === 202 // VM / SVRZ run as background children
+    } catch { /* poll / refresh reflects the outcome */ }
+
+    // Synchronous syncs (SV / BP / GCal) have already finished when the POST
+    // resolves — refresh and stop the spinner immediately, no polling.
+    if (!async202) {
+      setTriggering(prev => ({ ...prev, [source]: false }))
+      infraRef.current.refresh()
+      return
+    }
 
     let polls = 0
     const MAX_POLLS = 12 // ~100s
