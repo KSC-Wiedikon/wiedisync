@@ -59,11 +59,18 @@ const barColors: Record<string, { bg: string; text: string; darkBg: string; dark
   event:       { bg: 'bg-purple-200', text: 'text-purple-900', darkBg: 'dark:bg-purple-800', darkText: 'dark:text-purple-100' },
   hall:        { bg: 'bg-cyan-200', text: 'text-cyan-900', darkBg: 'dark:bg-cyan-800', darkText: 'dark:text-cyan-100' },
   absence:     { bg: 'bg-gray-900', text: 'text-white', darkBg: 'dark:bg-gray-100', darkText: 'dark:text-gray-900' },
+  blue:        { bg: 'bg-blue-200', text: 'text-blue-900', darkBg: 'dark:bg-blue-800', darkText: 'dark:text-blue-100' },
 }
 
 function colorKey(e: CalendarEntry): string {
   if (e.type === 'game' && e.gameType) return `game-${e.gameType}`
   return e.type
+}
+
+/** Palette key for colouring — honours an entry's `colorOverride`. The icon
+ *  shape still follows `colorKey()`/`type`, so only the colour changes. */
+function paintKey(e: CalendarEntry): string {
+  return e.colorOverride ?? colorKey(e)
 }
 
 const dotColors: Record<string, string> = {
@@ -75,6 +82,7 @@ const dotColors: Record<string, string> = {
   event: 'bg-purple-500',
   hall: 'bg-cyan-500',
   absence: 'bg-gray-900 dark:bg-gray-100',
+  blue: 'bg-blue-500',
 }
 
 /* ── spanning bar layout algorithm ───────────────────────── */
@@ -307,7 +315,7 @@ export default function MonthGrid({
 
                   // Pick the first visible all-day entry for full-cell background
                   const bgBar = visibleBars[0] ?? null
-                  const bgColor = bgBar ? barColors[colorKey(bgBar.entry)] : null
+                  const bgColor = bgBar ? barColors[paintKey(bgBar.entry)] : null
 
                   return (
                     <div
@@ -350,7 +358,7 @@ export default function MonthGrid({
                           {visibleBars.map((bar) => {
                             // Only show label on the first column of the span
                             if (ci !== bar.startCol) return null
-                            const c = barColors[colorKey(bar.entry)]
+                            const c = barColors[paintKey(bar.entry)]
                             return (
                               <div key={bar.entry.id} className={`truncate text-center text-[10px] font-semibold leading-tight lg:text-xs ${c.text} ${c.darkText}`}>
                                 {bar.entry.title}
@@ -364,7 +372,7 @@ export default function MonthGrid({
                       {inMonth && (visibleTimed.length + overflow > 0) && (
                         <div className="mt-auto space-y-px overflow-hidden">
                           {visibleTimed.map((entry) => {
-                            const entryColor = barColors[colorKey(entry)]
+                            const entryColor = barColors[paintKey(entry)]
                             const useChip = !bgColor && (entry.type === 'event' || entry.type === 'game')
                             return (
                             <button
@@ -382,7 +390,7 @@ export default function MonthGrid({
                                     : 'text-gray-800 dark:text-gray-200'
                               }`}
                             >
-                              <TypeIcon type={colorKey(entry)} sport={entry.sport} className={dotColors[colorKey(entry)].replace('bg-', 'text-')} />
+                              <TypeIcon type={colorKey(entry)} sport={entry.sport} className={dotColors[paintKey(entry)].replace('bg-', 'text-')} />
                               {entry.startTime && (
                                 <span className="font-medium">{entry.startTime}</span>
                               )}

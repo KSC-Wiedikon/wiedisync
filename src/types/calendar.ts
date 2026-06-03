@@ -19,6 +19,12 @@ export interface CalendarEntry {
   gameType?: 'home' | 'away'
   /** Sport type — set for game entries to show correct ball icon */
   sport?: 'volleyball' | 'basketball'
+  /**
+   * Optional MonthGrid palette-key override (e.g. 'blue'). Recolours the entry
+   * without changing its `type` — the icon shape still follows `type`. Used to
+   * tint events blue on the team absence calendar.
+   */
+  colorOverride?: string
 }
 
 export type ViewMode = 'calendar' | 'week' | 'list-date' | 'list-team'

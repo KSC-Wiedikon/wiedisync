@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CalendarDays, List, CheckCircle, CalendarOff } from 'lucide-react'
+import { CalendarDays, List, CheckCircle, CalendarOff, Star, CircleX } from 'lucide-react'
 import { useTeamAbsences } from '../../hooks/useTeamAbsences'
 import { useCollection } from '../../lib/query'
 import EmptyState from '../../components/EmptyState'
@@ -9,6 +9,7 @@ import Modal from '@/components/Modal'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import MonthGrid from '../calendar/components/MonthGrid'
 import CalendarEntryModal from '../calendar/CalendarEntryModal'
+import { useCalendarData } from '../calendar/hooks/useCalendarData'
 import { toISODate, getDayOfWeek } from '../../utils/dateHelpers'
 import { parseDate, isSameDay, startOfMonth, eachDayOfInterval, toDateKey, formatDate } from '../../utils/dateUtils'
 import { max as maxDate, min as minDate, isAfter } from 'date-fns'
@@ -16,7 +17,7 @@ import DatePicker from '@/components/ui/DatePicker'
 import { Switch } from '@/components/ui/switch'
 import AbsenceMemberFilter from './AbsenceMemberFilter'
 import { buildMemberOptions } from './absenceMemberOptions'
-import type { CalendarEntry } from '../../types/calendar'
+import type { CalendarEntry, SourceFilter } from '../../types/calendar'
 import type { Absence, Member, HallClosure } from '../../types'
 import { relId, asObj } from '../../utils/relations'
 
@@ -185,33 +186,72 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
     }),
     [visibleAbsences, hideUnavailabilities, hideNonBlocking],
   )
-  const calendarEntries = useMemo(
-    () => absencesToEntries(calendarAbsences, memberMap, calendarRangeStart, calendarRangeEnd),
-    [calendarAbsences, memberMap, calendarRangeStart, calendarRangeEnd],
+  // Overlay the team's events (tinted blue) and hall closures (red) on the
+  // calendar so staff see the full availability picture. Reuses the main
+  // calendar's data hook — it already team-scopes events correctly (club-wide +
+  // events_teams) and fetches hall_closures. Only fetched in calendar view.
+  const overlayFilters = useMemo(
+    () => ({ sources: ['event', 'closure'] as SourceFilter[], selectedTeamIds: teamIds }),
+    [teamIds],
   )
+  const { entries: overlayRaw } = useCalendarData({
+    filters: overlayFilters,
+    rangeStart: calendarRangeStart,
+    rangeEnd: calendarRangeEnd,
+    enabled: viewMode === 'calendar',
+  })
+  const calendarEntries = useMemo(() => {
+    const absenceEntries = absencesToEntries(calendarAbsences, memberMap, calendarRangeStart, calendarRangeEnd)
+    const overlay = overlayRaw
+      // School-holiday closures already render as the faint red background
+      // (closedDates) — drop them here so they don't double up as red bars.
+      .filter((e) => !(e.type === 'closure' && (e.source as HallClosure).source === 'school_holidays'))
+      // Tint events blue (closures keep their native red).
+      .map((e) => (e.type === 'event' ? { ...e, colorOverride: 'blue' } : e))
+    return [...absenceEntries, ...overlay]
+  }, [calendarAbsences, memberMap, calendarRangeStart, calendarRangeEnd, overlayRaw])
 
-  // Day-overflow modal: collapse multiple absence records for the same member into
-  // one row (a member can have BOTH a one-off absence and a weekly unavailability on
-  // the same day). Absence overrides unavailability, so the merged row opens the
-  // one-off absence entry and is labelled "Absent / Unavailable" when both exist.
-  const dayOverflowGroups = useMemo(() => {
+  // Day-overflow modal rows. Absences collapse per member (a member can have BOTH a
+  // one-off absence and a weekly unavailability on a day → one "Absent / Unavailable"
+  // row; absence overrides unavailability so the merged row opens the one-off entry).
+  // Events/closures (which can land here too via MonthGrid's overflow) render as their
+  // own rows with a type-appropriate icon — never mislabelled as an absence.
+  const dayOverflowGroups = useMemo<{ id: string; name: string; detail: string; kind: 'absence' | 'event' | 'closure' | 'other'; entry: CalendarEntry }[]>(() => {
     if (!dayOverflow) return []
     const byMember = new Map<string, { id: string; name: string; hasAbsence: boolean; hasWeekly: boolean; entry: CalendarEntry }>()
+    const others: { id: string; name: string; detail: string; kind: 'event' | 'closure' | 'other'; entry: CalendarEntry }[] = []
     for (const entry of dayOverflow.entries) {
-      const src = entry.source as Absence
-      const memberId = relId(src.member) || entry.id
-      const isWeekly = src.type === 'weekly'
-      const existing = byMember.get(memberId)
-      if (existing) {
-        existing.hasAbsence = existing.hasAbsence || !isWeekly
-        existing.hasWeekly = existing.hasWeekly || isWeekly
-        if (!isWeekly) existing.entry = entry // absence overrides unavailability
+      if (entry.type === 'absence') {
+        const src = entry.source as Absence
+        const memberId = relId(src.member) || entry.id
+        const isWeekly = src.type === 'weekly'
+        const existing = byMember.get(memberId)
+        if (existing) {
+          existing.hasAbsence = existing.hasAbsence || !isWeekly
+          existing.hasWeekly = existing.hasWeekly || isWeekly
+          if (!isWeekly) existing.entry = entry // absence overrides unavailability
+        } else {
+          byMember.set(memberId, { id: memberId, name: entry.title, hasAbsence: !isWeekly, hasWeekly: isWeekly, entry })
+        }
       } else {
-        byMember.set(memberId, { id: memberId, name: entry.title, hasAbsence: !isWeekly, hasWeekly: isWeekly, entry })
+        others.push({
+          id: entry.id,
+          name: entry.title,
+          detail: entry.location ?? '',
+          kind: entry.type === 'event' ? 'event' : entry.type === 'closure' ? 'closure' : 'other',
+          entry,
+        })
       }
     }
-    return [...byMember.values()]
-  }, [dayOverflow])
+    const absenceRows = [...byMember.values()].map((g) => ({
+      id: g.id,
+      name: g.name,
+      detail: g.hasAbsence && g.hasWeekly ? t('absentUnavailable') : g.hasWeekly ? t('unavailable') : t('absent'),
+      kind: 'absence' as const,
+      entry: g.entry,
+    }))
+    return [...absenceRows, ...others]
+  }, [dayOverflow, t])
 
   if (isLoading) {
     return <div className="py-8 text-center text-gray-500 dark:text-gray-400">{t('common:loading')}</div>
@@ -338,11 +378,12 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
             {dayOverflow && (
               <div className="space-y-2">
                 {dayOverflowGroups.map((g) => {
-                  const detail = g.hasAbsence && g.hasWeekly
-                    ? t('absentUnavailable')
-                    : g.hasWeekly
-                      ? t('unavailable')
-                      : t('absent')
+                  const Icon = g.kind === 'event' ? Star : g.kind === 'closure' ? CircleX : CalendarOff
+                  const iconClass = g.kind === 'event'
+                    ? 'text-blue-500'
+                    : g.kind === 'closure'
+                      ? 'text-red-500'
+                      : 'text-gray-700 dark:text-gray-300'
                   return (
                     <button
                       key={g.id}
@@ -353,12 +394,12 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
                       }}
                       className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700 dark:active:bg-gray-600"
                     >
-                      <CalendarOff className="h-4 w-4 shrink-0 text-gray-700 dark:text-gray-300" strokeWidth={2.5} />
+                      <Icon className={`h-4 w-4 shrink-0 ${iconClass}`} strokeWidth={2.5} {...(g.kind === 'event' ? { fill: 'currentColor' } : {})} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
                           {g.name || t('common:unknown')}
                         </p>
-                        <p className="truncate text-xs text-gray-500 dark:text-gray-400">{detail}</p>
+                        {g.detail && <p className="truncate text-xs text-gray-500 dark:text-gray-400">{g.detail}</p>}
                       </div>
                     </button>
                   )
