@@ -52,6 +52,29 @@ export function registerGameScheduling(router, { database, logger, services, get
     await mail.send({ to, from: SCHEDULING_FROM, replyTo: SCHEDULING_REPLY_TO, subject, text })
   }
 
+  // Coach + team-responsible emails for a KSCW team (deduped, real addresses
+  // only). M2M: teams_coaches / teams_responsibles (teams_id, members_id) join
+  // members.email — same pattern as contact-form.js. Used to inform team staff
+  // on slot confirmations: they're told the outcome, they don't decide.
+  async function teamStaffEmails(teamId) {
+    if (!teamId) return []
+    const [coaches, trs] = await Promise.all([
+      database('teams_coaches')
+        .join('members', 'members.id', 'teams_coaches.members_id')
+        .where('teams_coaches.teams_id', teamId)
+        .whereNotNull('members.email')
+        .select('members.email'),
+      database('teams_responsibles')
+        .join('members', 'members.id', 'teams_responsibles.members_id')
+        .where('teams_responsibles.teams_id', teamId)
+        .whereNotNull('members.email')
+        .select('members.email'),
+    ])
+    return Array.from(new Set(
+      [...coaches, ...trs].map(r => r.email).filter(e => e && !e.includes('@placeholder'))
+    ))
+  }
+
   // POST /kscw/terminplanung/register — opponent registers (public + Turnstile)
   router.post('/terminplanung/register', async (req, res) => {
     try {
@@ -645,6 +668,9 @@ export function registerGameScheduling(router, { database, logger, services, get
           })
           await sendSchedulingMail(opponent.contact_email, subject, text)
         }
+        // Per-leg notice → spielplanung mailbox only (auto-forwards to the VB
+        // Spielplanung group). Coaches/TR are NOT notified here — they get a
+        // single combined summary once the full schedule is confirmed.
         await sendSchedulingMail(SCHEDULING_REPLY_TO, `Heimspiel gebucht – ${opp} (${kscw})`,
           `${opp} hat einen Heimspiel-Slot gebucht:\n${date}, ${timeRange} Uhr, ${hall?.name || ''} (${kscw}).`)
       } catch (mailErr) {
@@ -1120,15 +1146,26 @@ export function registerGameScheduling(router, { database, logger, services, get
       // "enter it in VolleyManager, we'll do the home game". Best-effort.
       try {
         const opponent = await database('game_scheduling_opponents').where('id', booking.opponent).first()
-        if (opponent?.contact_email) {
+        if (opponent) {
           const team = await database('teams').where('id', opponent.kscw_team).first()
           const kscw = `KSCW ${team?.name || ''}`.trim()
           const opp = opponent.club_name || opponent.team_name || ''
           const { date, time } = fmtDateMail(chosenDateTime)
-          const { subject, text } = schedEmail(opponent.language, 'game_confirmed', {
-            contact: opponent.contact_name || '', kscw, opp, date, time,
-          })
-          await sendSchedulingMail(opponent.contact_email, subject, text)
+          const place = booking[`proposed_place_${n}`] || ''
+
+          // Opponent confirmation (their language).
+          if (opponent.contact_email) {
+            const { subject, text } = schedEmail(opponent.language, 'game_confirmed', {
+              contact: opponent.contact_name || '', kscw, opp, date, time,
+            })
+            await sendSchedulingMail(opponent.contact_email, subject, text)
+          }
+
+          // Per-leg notice → spielplanung mailbox only (auto-forwards to the VB
+          // Spielplanung group). Coaches/TR are NOT notified here — they get a
+          // single combined summary once the full schedule is confirmed.
+          await sendSchedulingMail(SCHEDULING_REPLY_TO, `Auswärtsspiel bestätigt – ${opp} (${kscw})`,
+            `Auswärtsspiel bestätigt:\n\n${kscw} (Auswärts) bei ${opp}\n${date}${time ? `, ${time} Uhr` : ''}${place ? `, ${place}` : ''}`)
         }
       } catch (mailErr) {
         log.warn(`Confirm-away email failed: ${mailErr.message}`)
