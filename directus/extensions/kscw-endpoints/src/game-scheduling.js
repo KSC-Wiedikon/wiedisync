@@ -45,11 +45,11 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // Send a Terminplanung email from the dedicated spielplanung identity.
   // Best-effort: callers wrap in try/catch so a mail failure never blocks the action.
-  async function sendSchedulingMail(to, subject, text) {
+  async function sendSchedulingMail(to, subject, text, cc = null) {
     const schema = await getSchema()
     const { MailService } = services
     const mail = new MailService({ schema, knex: database })
-    await mail.send({ to, from: SCHEDULING_FROM, replyTo: SCHEDULING_REPLY_TO, subject, text })
+    await mail.send({ to, cc: cc || undefined, from: SCHEDULING_FROM, replyTo: SCHEDULING_REPLY_TO, subject, text })
   }
 
   // Coach + team-responsible emails for a KSCW team (deduped, real addresses
@@ -1319,9 +1319,10 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (pending.length) parts.push('', `Noch offen (${pending.length}):`, ...pending)
       const text = parts.join('\n')
 
+      // To: the spielplanung mailbox (auto-forwards to the VB Spielplanung
+      // group). Cc: the team's coaches + team-responsibles.
       const staff = await teamStaffEmails(teamId)
-      const to = [SCHEDULING_REPLY_TO, ...staff].join(',')
-      await sendSchedulingMail(to, `Spielplan ${kscw}${seasonLabel ? ` ${seasonLabel}` : ''}`, text)
+      await sendSchedulingMail(SCHEDULING_REPLY_TO, `Spielplan ${kscw}${seasonLabel ? ` ${seasonLabel}` : ''}`, text, staff.length ? staff.join(',') : null)
 
       res.json({ success: true, staff: staff.length, home: homeLines.length, away: awayLines.length, pending: pending.length })
     } catch (err) {
