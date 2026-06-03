@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CalendarDays, List, CheckCircle, CalendarOff, Star, CircleX } from 'lucide-react'
 import { useTeamAbsences } from '../../hooks/useTeamAbsences'
@@ -27,6 +27,14 @@ interface TeamAbsenceViewProps {
   onEdit?: (absence: Absence) => void
   onDelete?: (absenceId: string) => void
   canEdit?: boolean
+  /**
+   * Bumped by the parent after an absence is saved/deleted so this view's own
+   * `useTeamAbsences` instance refetches. Realtime refresh is best-effort
+   * (silent no-op if the WebSocket is down), so a just-saved `blocking` change
+   * would otherwise leave the calendar/list showing a stale snapshot — the
+   * reopened edit modal then reads the old value and looks "not saved".
+   */
+  refreshKey?: number
 }
 
 /**
@@ -92,7 +100,7 @@ function absencesToEntries(
   return out
 }
 
-export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: TeamAbsenceViewProps) {
+export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, refreshKey }: TeamAbsenceViewProps) {
   const { t } = useTranslation('absences')
   const today = toISODate(new Date())
   const oneYearLater = (() => {
@@ -114,7 +122,19 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
   const [hideUnavailabilities, setHideUnavailabilities] = useState(false)
   const [hideNonBlocking, setHideNonBlocking] = useState(false)
 
-  const { absences, memberMap, isLoading } = useTeamAbsences(teamIds, startDate, endDate)
+  const { absences, memberMap, isLoading, refetch } = useTeamAbsences(teamIds, startDate, endDate)
+
+  // Refetch when the parent signals a save/delete. Skip the initial mount —
+  // useTeamAbsences already fetches on mount and whenever teamIds/range change.
+  const didMountRefresh = useRef(false)
+  useEffect(() => {
+    if (!didMountRefresh.current) {
+      didMountRefresh.current = true
+      return
+    }
+    refetch()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   // School-holiday closures (Schulferien) overlapping the viewed window. Rendered by
   // MonthGrid as a faint red background on each covered day so members see when the

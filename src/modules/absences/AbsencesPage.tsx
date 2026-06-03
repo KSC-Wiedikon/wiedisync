@@ -44,6 +44,10 @@ export default function AbsencesPage() {
   const [weeklyFormOpen, setWeeklyFormOpen] = useState(false)
   const [editingWeekly, setEditingWeekly] = useState<Absence | null>(null)
   const [showOlder, setShowOlder] = useState(false)
+  // Bumped on save/delete so TeamAbsenceView refetches its own absences instance
+  // (its data is otherwise refreshed only by best-effort realtime — and the
+  // `refetch` below targets *my* absences, not the team view).
+  const [teamRefreshKey, setTeamRefreshKey] = useState(0)
 
   const { data: allTeamsRaw } = useCollection<Team>('teams', { filter: { active: { _eq: true } }, sort: ['name'], limit: 50 })
   const allTeams = useMemo(() => allTeamsRaw ?? [], [allTeamsRaw])
@@ -104,6 +108,7 @@ export default function AbsencesPage() {
     setDeletingId(null)
     refetch()
     refetchWeekly()
+    setTeamRefreshKey((k) => k + 1)
   }
 
   function handleEdit(absence: Absence) {
@@ -115,6 +120,7 @@ export default function AbsencesPage() {
     setFormOpen(false)
     setEditingAbsence(null)
     refetch()
+    setTeamRefreshKey((k) => k + 1)
   }
 
   function handleWeeklyEdit(absence: Absence) {
@@ -307,6 +313,7 @@ export default function AbsencesPage() {
               onEdit={handleEdit}
               onDelete={setDeletingId}
               canEdit
+              refreshKey={teamRefreshKey}
             />
           </div>
         </div>
