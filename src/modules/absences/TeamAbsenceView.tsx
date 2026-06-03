@@ -453,9 +453,18 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
                     >
                       <Icon className={`h-4 w-4 shrink-0 ${iconClass}`} strokeWidth={2.5} {...(g.kind === 'event' ? { fill: 'currentColor' } : {})} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {g.name || t('common:unknown')}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {g.name || t('common:unknown')}
+                          </p>
+                          {g.kind === 'absence'
+                            && (g.entry.source as Absence).type !== 'weekly'
+                            && (g.entry.source as Absence).blocking === false && (
+                            <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-300">
+                              {t('nonBlocking')}
+                            </span>
+                          )}
+                        </div>
                         {g.detail && <p className="truncate text-xs text-gray-500 dark:text-gray-400">{g.detail}</p>}
                       </div>
                     </button>

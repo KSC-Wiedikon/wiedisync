@@ -69,10 +69,23 @@ export default function AbsencesPage() {
     const base = visibleTeamIds
       ? allTeams.filter((tm) => visibleTeamIds.includes(tm.id))
       : allTeams
+    const volleyball = t('common:volleyball')
+    const basketball = t('common:basketball')
     return base
       .filter((tm) => tm.sport === 'volleyball' || tm.sport === 'basketball')
-      .map((tm) => ({ value: tm.id, label: tm.name, colorKey: teamNameToColorKey(tm.name, tm.sport) }))
-  }, [allTeams, visibleTeamIds])
+      .map((tm) => ({
+        value: tm.id,
+        label: tm.name,
+        colorKey: teamNameToColorKey(tm.name, tm.sport),
+        group: tm.sport === 'volleyball' ? volleyball : basketball,
+      }))
+      // Volleyball group first, then Basketball; alphabetical within each.
+      .sort((a, b) =>
+        a.group === b.group
+          ? a.label.localeCompare(b.label)
+          : a.group === volleyball ? -1 : 1,
+      )
+  }, [allTeams, visibleTeamIds, t])
 
   // ── Personal absences (excludes weekly) ────────────────────────
   const { data: myAbsencesRaw, refetch } = useCollection<Absence>('absences', {

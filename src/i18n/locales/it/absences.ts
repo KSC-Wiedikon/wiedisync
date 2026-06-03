@@ -128,6 +128,8 @@ export default {
   // Calendar filter toggles (flipping one ON hides that category)
   hideUnavailabilities: 'Nascondi indisponibilità',
   hideNonBlocking: 'Nascondi assenze non bloccanti',
+  // Badge shown next to an absence whose blocking flag is off
+  nonBlocking: 'Non bloccante',
   // Calendar closure label (generic "Halle geschlossen" closures)
   hallClosed: 'Palestra chiusa',
 } as const

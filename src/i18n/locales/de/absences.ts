@@ -141,6 +141,8 @@ export default {
   // Calendar filter toggles (flipping one ON hides that category)
   hideUnavailabilities: 'Verhinderungen ausblenden',
   hideNonBlocking: 'Nicht-blockierende Abwesenheiten ausblenden',
+  // Badge shown next to an absence whose blocking flag is off
+  nonBlocking: 'Nicht blockierend',
   // Calendar closure label (generic "Halle geschlossen" closures)
   hallClosed: 'Halle geschlossen',
 } as const

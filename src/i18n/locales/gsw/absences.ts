@@ -128,6 +128,8 @@ export default {
   // Calendar filter toggles (flipping one ON hides that category)
   hideUnavailabilities: 'Verhinderige uusblände',
   hideNonBlocking: 'Nöd-blockierendi Abweseheite uusblände',
+  // Badge shown next to an absence whose blocking flag is off
+  nonBlocking: 'Nöd blockierend',
   // Calendar closure label (generic "Halle geschlossen" closures)
   hallClosed: 'Halle gschlosse',
 } as const
