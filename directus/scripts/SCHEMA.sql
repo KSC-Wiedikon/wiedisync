@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-02T18:07:08.592Z
+-- Generated:   2026-06-03T10:51:29.678Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -4698,8 +4698,24 @@ CREATE TABLE public.sv_vm_check (
     licence_activation_date date,
     licence_validation_date date,
     federation character varying(255),
-    licence_club_assoc character varying(255)
+    licence_club_assoc character varying(255),
+    is_referee boolean DEFAULT false NOT NULL,
+    referee_assoc text
 );
+
+
+--
+-- Name: COLUMN sv_vm_check.is_referee; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sv_vm_check.is_referee IS 'Person holds a volleyball referee licence (appears in clubreferee for KSC Wiedikon). Drives members.referee_vb.';
+
+
+--
+-- Name: COLUMN sv_vm_check.referee_assoc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sv_vm_check.referee_assoc IS 'Managing association(s) the referee is licensed under, e.g. "SVRZ" or "SVRZ, SVRNO". VM exposes no referee grade.';
 
 
 --
