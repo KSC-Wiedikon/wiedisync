@@ -77,6 +77,13 @@ export default function HomeSlotPicker({ slots, onPickSlot }: Props) {
     () => new Set(slots.filter((s) => s.preferred).map((s) => s.date)),
     [slots],
   )
+  // Game-Saturday (Spielsamstag) dates — surfaced first so opponents fill the
+  // central game-Saturday pool before grabbing other slots.
+  const spielsamstagDates = useMemo(
+    () => [...new Set(slots.filter((s) => s.source === 'spielsamstag').map((s) => s.date))].sort(),
+    [slots],
+  )
+  const spielsamstagSet = useMemo(() => new Set(spielsamstagDates), [spielsamstagDates])
 
   if (slots.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t('noSlotsAvailable')}</p>
@@ -96,6 +103,35 @@ export default function HomeSlotPicker({ slots, onPickSlot }: Props) {
 
   return (
     <div className="space-y-3">
+      {/* Game Saturdays first — we want the central pool filled before other dates. */}
+      {spielsamstagDates.length > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-900/20">
+          <p className="mb-2 text-xs font-medium text-amber-800 dark:text-amber-200">
+            {t('spielsamstagPickFirst', { defaultValue: 'Game Saturdays — please pick one of these first if it works for you.' })}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {spielsamstagDates.map((dk) => {
+              const opts = byDate.get(dk) ?? []
+              return (
+                <button
+                  key={dk}
+                  type="button"
+                  onClick={() => setModalDate(dk)}
+                  className="inline-flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-amber-900/40"
+                >
+                  {formatDateLocale(parseISO(dk), 'EEE d. MMM', i18n.language)}
+                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                    {opts.length === 1
+                      ? `${hm(opts[0].start_time)}–${hm(opts[0].end_time)}`
+                      : t('nTimeOptions', { count: opts.length, defaultValue: `${opts.length} times` })}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-1">
         <Button type="button" size="sm" variant={view === 'calendar' ? 'default' : 'outline'} onClick={() => setView('calendar')}>
           {t('calendarView', { defaultValue: 'Calendar' })}
@@ -111,10 +147,16 @@ export default function HomeSlotPicker({ slots, onPickSlot }: Props) {
             mode="single"
             weekStartsOn={1}
             showOutsideDays={false}
-            startMonth={sortedDates.length ? parseISO(sortedDates[0]) : undefined}
-            endMonth={sortedDates.length ? parseISO(sortedDates[sortedDates.length - 1]) : undefined}
+            defaultMonth={parseISO(sortedDates[0])}
+            startMonth={parseISO(sortedDates[0])}
+            endMonth={parseISO(sortedDates[sortedDates.length - 1])}
             disabled={(date) => !availableDates.has(toDateKey(date))}
-            onSelect={(d) => d && setModalDate(toDateKey(d))}
+            modifiers={{ spielsamstag: (date) => spielsamstagSet.has(toDateKey(date)) }}
+            modifiersClassNames={{ spielsamstag: 'bg-amber-100 dark:bg-amber-900/40 font-semibold' }}
+            onDayClick={(day, modifiers) => {
+              if (modifiers.disabled) return
+              setModalDate(toDateKey(day))
+            }}
           />
         </div>
       ) : (
@@ -130,6 +172,11 @@ export default function HomeSlotPicker({ slots, onPickSlot }: Props) {
               >
                 <span className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
                   {formatDateLocale(parseISO(dk), 'EEE d. MMM yyyy', i18n.language)}
+                  {spielsamstagSet.has(dk) && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                      {t('sourceSpielsamstag')}
+                    </span>
+                  )}
                   {preferredDates.has(dk) && (
                     <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
                       {t('preferredSunday', { defaultValue: 'Shared Sunday' })}

@@ -37,6 +37,7 @@ export default {
   slotSource: 'Origine',
   sourceHallSlot: 'Piano palestra',
   sourceSpielsamstag: 'Sabato di gioco',
+  spielsamstagPickFirst: 'Sabati di gioco — scegline uno per primo se ti va bene.',
   sourceSpielHalle: 'Palestra di gioco',
   sourceManual: 'Manuale',
   teamSlotConfig: 'Configurazione squadra',

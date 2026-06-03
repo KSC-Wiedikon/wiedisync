@@ -37,6 +37,7 @@ export default {
   slotSource: 'Quelle',
   sourceHallSlot: 'Halleplan',
   sourceSpielsamstag: 'Spielsamschtig',
+  spielsamstagPickFirst: 'Spielsamschtig — bitte nimm wenn möglich zerscht eine vo dene.',
   sourceSpielHalle: 'Spielhalle',
   sourceManual: 'Manuell',
   teamSlotConfig: 'Team-Konfiguration',

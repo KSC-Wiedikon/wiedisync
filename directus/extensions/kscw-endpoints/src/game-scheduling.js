@@ -174,10 +174,17 @@ export function registerGameScheduling(router, { database, logger, services, get
     return member?.is_spielplaner === true
   }
 
-  // How many days around a committed game stay blocked. ±7 means the team never
-  // plays two games within a week of each other (the date itself plus 7 days on
-  // either side → a 15-day exclusion span per game).
-  const GAME_SPACING_DAYS = 7
+  // How many days around a committed game stay blocked. ±4 means the team never
+  // plays two games closer than 4 days apart (the date itself plus 4 days on
+  // either side → a 9-day exclusion span per game).
+  const GAME_SPACING_DAYS = 4
+
+  // Advisory-lock namespace (classid) for serializing home-slot bookings per
+  // team. pg_advisory_xact_lock(GSCH_BOOK_LOCK_CLASS, kscw_team) makes two
+  // opponents booking different-but-nearby slots for the same team wait in line,
+  // so the GAME_SPACING + Saturday-cap checks can't be raced (the per-slot FOR
+  // UPDATE only guards the same slot row). Arbitrary constant, unused elsewhere.
+  const GSCH_BOOK_LOCK_CLASS = 920601
 
   // Dates (YYYY-MM-DD) the KSCW team is already committed to play — real SVRZ
   // games, home slots an opponent has already booked, and confirmed away
@@ -586,6 +593,14 @@ export function registerGameScheduling(router, { database, logger, services, get
       // could mark slots from OTHER teams as booked, effectively sabotaging
       // their schedule.
       await database.transaction(async (trx) => {
+        // Serialize all home bookings for this team. The per-slot FOR UPDATE
+        // below only stops two opponents grabbing the SAME slot; it does nothing
+        // for two opponents booking two DIFFERENT slots within GAME_SPACING_DAYS
+        // at the same instant (each committedGameDates() read would miss the
+        // other's in-flight booking). A per-team advisory xact lock makes the
+        // second booking wait until the first commits, so the gap + Saturday-cap
+        // checks always see prior bookings. Contention is per-team → negligible.
+        await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [GSCH_BOOK_LOCK_CLASS, opponent.kscw_team])
         const slot = await trx('game_scheduling_slots').where('id', slot_id).forUpdate().first()
         if (!slot || slot.status === 'blocked' || slot.status === 'booked') {
           throw Object.assign(new Error('Slot not available'), { httpStatus: 400 })
@@ -616,9 +631,9 @@ export function registerGameScheduling(router, { database, logger, services, get
           throw Object.assign(new Error('Slot already booked'), { httpStatus: 400 })
         }
 
-        // A game / booked slot / confirmed proposal on or ±1 day from this slot
-        // blocks it too. The read-time list already hides these; re-check here to
-        // close the concurrent race where a neighbour was booked in between.
+        // A game / booked slot / confirmed proposal on or ±GAME_SPACING_DAYS from
+        // this slot blocks it too. The read-time list already hides these; re-check
+        // here to close the concurrent race where a neighbour was booked in between.
         const committed = await committedGameDates(opponent.kscw_team)
         const slotYmd = (typeof slot.date === 'string' ? slot.date : new Date(slot.date).toISOString()).slice(0, 10)
         if (committed.has(slotYmd)) {

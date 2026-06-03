@@ -34,6 +34,7 @@ export default {
   slotSource: 'Source',
   sourceHallSlot: 'Hall Plan',
   sourceSpielsamstag: 'Game Saturday',
+  spielsamstagPickFirst: 'Game Saturdays — please pick one of these first if it works for you.',
   sourceSpielHalle: 'Game Hall',
   sourceManual: 'Manual',
   teamSlotConfig: 'Team Configuration',
