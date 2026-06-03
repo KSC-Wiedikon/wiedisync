@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-03T10:51:29.678Z
+-- Generated:   2026-06-03T14:15:49.435Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -2828,8 +2828,16 @@ CREATE TABLE public.game_scheduling_seasons (
     notes text,
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
-    svrz_season_uuid character varying(64) DEFAULT NULL::character varying
+    svrz_season_uuid character varying(64) DEFAULT NULL::character varying,
+    gap_config jsonb DEFAULT '{"home": 4, "proposal": 4, "proposal3": 2}'::jsonb NOT NULL
 );
+
+
+--
+-- Name: COLUMN game_scheduling_seasons.gap_config; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_seasons.gap_config IS 'Per-season game-spacing gaps in days {home, proposal, proposal3}: minimum days between games. proposal3 is the lenient gap for the 3rd away proposal.';
 
 
 --
@@ -4240,6 +4248,7 @@ CREATE TABLE public.teams (
     dashboard_range_from date,
     dashboard_range_to date,
     dashboard_league_only boolean DEFAULT false NOT NULL,
+    recruiting_positions jsonb,
     CONSTRAINT teams_season_format_check CHECK (((season IS NULL) OR ((season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text)))
 );
 
@@ -4263,6 +4272,13 @@ COMMENT ON COLUMN public.teams.dashboard_range_to IS 'Coach Dashboard "To" date 
 --
 
 COMMENT ON COLUMN public.teams.dashboard_league_only IS 'Coach Dashboard: exclude cup/tournament games from the games attendance count';
+
+
+--
+-- Name: COLUMN teams.recruiting_positions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.recruiting_positions IS 'Positions the team is recruiting for (e.g. ["setter","middle"]). NULL/[] = open to all positions. Surfaced on the public team page when open_for_players=true.';
 
 
 --
