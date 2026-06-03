@@ -181,6 +181,11 @@ export function registerGameScheduling(router, { database, logger, services, get
   // can differ, and the lenient 3rd away proposal can use a smaller gap.
   const DEFAULT_GAPS = { home: 4, proposal: 4, proposal3: 2 }
 
+  // How wide a *held* first proposal (choice 1) blocks others — a soft reserve,
+  // intentionally narrower than the full game-spacing gap. Choices 2 & 3 don't
+  // hold (they warn; see the admin review's windowed contention: ±2 / ±1).
+  const HOLD_WINDOW_DAYS = 2
+
   // Read the per-season gaps, falling back to DEFAULT_GAPS for missing/invalid
   // values. gap_config is jsonb → knex returns a parsed object.
   async function seasonGaps(seasonId) {
@@ -221,11 +226,11 @@ export function registerGameScheduling(router, { database, logger, services, get
   // doesn't block their own alternatives (2 & 3) or their re-proposal.
   async function committedGameDates(kscwTeamId, gapDays = DEFAULT_GAPS.home, opts = {}) {
     const set = new Set()
-    const addWindow = (val) => {
+    const addWindow = (val, w = gapDays) => {
       if (!val) return
       const base = new Date(`${String(val).slice(0, 10)}T00:00:00Z`)
       if (Number.isNaN(base.getTime())) return
-      for (let off = -gapDays; off <= gapDays; off++) {
+      for (let off = -w; off <= w; off++) {
         const x = new Date(base); x.setUTCDate(x.getUTCDate() + off)
         set.add(x.toISOString().slice(0, 10))
       }
@@ -254,17 +259,18 @@ export function registerGameScheduling(router, { database, logger, services, get
         if (opts.excludeOpponent) q.whereNot('b.opponent', opts.excludeOpponent)
         return q
       }
-      // Home: pending proposed_slot_1 → its slot date.
+      // Home: pending proposed_slot_1 → its slot date. Held with the fixed,
+      // narrow HOLD_WINDOW_DAYS (not the context gap) — a soft reserve.
       const heldHome = await heldBase()
         .where('b.type', 'home_slot_pick').whereNotNull('b.proposed_slot_1')
         .join('game_scheduling_slots as s', 's.id', 'b.proposed_slot_1')
         .select(database.raw('s.date::text as d'))
-      heldHome.forEach((r) => addWindow(r.d))
+      heldHome.forEach((r) => addWindow(r.d, HOLD_WINDOW_DAYS))
       // Away: pending proposed_datetime_1.
       const heldAway = await heldBase()
         .where('b.type', 'away_proposal').whereNotNull('b.proposed_datetime_1')
         .select('b.proposed_datetime_1 as d')
-      heldAway.forEach((r) => addWindow(r.d))
+      heldAway.forEach((r) => addWindow(r.d, HOLD_WINDOW_DAYS))
     }
     return set
   }
@@ -420,6 +426,14 @@ export function registerGameScheduling(router, { database, logger, services, get
               "AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date"
             )
         })
+        // Team blocking (migration 085) — a hard block on every proposal, like an
+        // event. Dates are plain `date` columns so no TZ conversion needed.
+        .whereNotExists(function () {
+          this.select(database.raw('1'))
+            .from('scheduling_blocks as sb')
+            .whereRaw('sb.team = ?', [opponent.kscw_team])
+            .whereRaw('game_scheduling_slots.date BETWEEN sb.start_date AND sb.end_date')
+        })
         // Games / booked slots / confirmed proposals are filtered in JS below via
         // the committed sets. Per-slot absent-player count is kept as a COLUMN
         // (not a hard filter) so the tiering below can offer absence-laden slots
@@ -534,6 +548,12 @@ export function registerGameScheduling(router, { database, logger, services, get
           database.raw("(COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date::text as e"),
         )
       evRows.forEach((r) => addRange(r.s, r.e))
+      // Team blocking (migration 085) — merged into eventSet so it lands in BOTH
+      // strictSet and looseSet: a hard block on away proposals 1, 2 AND 3.
+      const blockRows = await database('scheduling_blocks')
+        .where('team', opponent.kscw_team)
+        .select(database.raw('start_date::text as s'), database.raw('end_date::text as e'))
+      blockRows.forEach((r) => addRange(r.s, r.e))
       const absRows = await database('absences as a')
         .join('member_teams as mt', 'mt.member', 'a.member')
         .where('mt.team', opponent.kscw_team)
@@ -703,6 +723,12 @@ export function registerGameScheduling(router, { database, logger, services, get
           .first()
         if (eventCover) return res.status(400).json({ error: `Slot ${i + 1} falls on a team event — please pick another.` })
 
+        const blockCover = await database('scheduling_blocks')
+          .where('team', opponent.kscw_team)
+          .whereRaw('?::date BETWEEN start_date AND end_date', [day])
+          .first()
+        if (blockCover) return res.status(400).json({ error: `Slot ${i + 1} falls on a team block — please pick another.` })
+
         const absRow = await database('absences as a')
           .join('member_teams as mt', 'mt.member', 'a.member')
           .where('mt.team', opponent.kscw_team)
@@ -820,6 +846,12 @@ export function registerGameScheduling(router, { database, logger, services, get
           .whereRaw("?::date BETWEEN (e.start_date AT TIME ZONE 'Europe/Zurich')::date AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date", [slot.date])
           .first()
         if (eventCover) throw Object.assign(new Error('Slot falls on a team event'), { httpStatus: 400 })
+
+        const blockCover = await trx('scheduling_blocks')
+          .where('team', opponent.kscw_team)
+          .whereRaw('?::date BETWEEN start_date AND end_date', [slot.date])
+          .first()
+        if (blockCover) throw Object.assign(new Error('Slot falls on a team block'), { httpStatus: 400 })
 
         const gaps = await seasonGaps(opponent.season)
         const gap = n < 3 ? gaps.home : gaps.proposal3

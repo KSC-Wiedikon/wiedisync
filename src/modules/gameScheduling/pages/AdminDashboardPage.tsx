@@ -247,16 +247,35 @@ function TeamBookingsContent({
   const { data: halls } = useHalls()
   const hallsById = new Map((halls || []).map((h) => [String(h.id), h.name]))
   const slotsById = new Map(teamSlots.map((s) => [String(s.id), s]))
-  // slotId -> set of pending home-proposal booking ids referencing it (contention).
-  const proposalRefs = new Map<string, Set<string>>()
+  // All PENDING proposal dates (home: slot date; away: datetime) with their
+  // booking id — for windowed contention warnings (choice 2 ±2, choice 3 ±1).
+  const dayNum = (ymd: string) => Math.floor(new Date(`${ymd}T00:00:00Z`).getTime() / 86400000)
+  const pendingDates: { bookingId: string; day: number }[] = []
   for (const b of allBookings) {
-    if (b.type !== 'home_slot_pick' || b.status !== 'pending') continue
-    for (const sid of [b.proposed_slot_1, b.proposed_slot_2, b.proposed_slot_3]) {
-      if (sid == null) continue
-      const k = String(sid)
-      if (!proposalRefs.has(k)) proposalRefs.set(k, new Set())
-      proposalRefs.get(k)!.add(String(b.id))
+    if (b.status !== 'pending') continue
+    if (b.type === 'home_slot_pick') {
+      for (const sid of [b.proposed_slot_1, b.proposed_slot_2, b.proposed_slot_3]) {
+        if (sid == null) continue
+        const s = slotsById.get(String(sid))
+        if (s?.date) pendingDates.push({ bookingId: String(b.id), day: dayNum(String(s.date).slice(0, 10)) })
+      }
+    } else if (b.type === 'away_proposal') {
+      for (const dt of [b.proposed_datetime_1, b.proposed_datetime_2, b.proposed_datetime_3]) {
+        if (!dt) continue
+        pendingDates.push({ bookingId: String(b.id), day: dayNum(String(dt).slice(0, 10)) })
+      }
     }
+  }
+  // Count distinct OTHER pending bookings with a proposal within `windowDays`.
+  const warnContention = (bookingId: string, ymd: string | undefined, windowDays: number) => {
+    if (!ymd) return 0
+    const d = dayNum(ymd)
+    const others = new Set<string>()
+    for (const p of pendingDates) {
+      if (p.bookingId === String(bookingId)) continue
+      if (Math.abs(p.day - d) <= windowDays) others.add(p.bookingId)
+    }
+    return others.size
   }
 
   if (teamOpponents.length === 0) {
@@ -324,10 +343,7 @@ function TeamBookingsContent({
                     booking={homeBooking}
                     slotsById={slotsById}
                     hallsById={hallsById}
-                    contention={(slotId) => {
-                      const set = proposalRefs.get(String(slotId))
-                      return set ? [...set].filter((id) => id !== String(homeBooking.id)).length : 0
-                    }}
+                    warn={(ymd, w) => warnContention(homeBooking.id, ymd, w)}
                     onConfirm={onConfirmHome}
                   />
                 ) : (
@@ -339,7 +355,11 @@ function TeamBookingsContent({
               <div>
                 <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('awayProposals')}</h4>
                 {awayBooking ? (
-                  <AwayProposalReview booking={awayBooking} onConfirm={onConfirmAway} />
+                  <AwayProposalReview
+                    booking={awayBooking}
+                    warn={(ymd, w) => warnContention(awayBooking.id, ymd, w)}
+                    onConfirm={onConfirmAway}
+                  />
                 ) : (
                   <span className="text-sm text-gray-400">{t('pending')}</span>
                 )}
