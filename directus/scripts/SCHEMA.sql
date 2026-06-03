@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-03T15:18:25.240Z
+-- Generated:   2026-06-03T21:22:46.514Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -4036,6 +4036,66 @@ CREATE TABLE public.reports (
 
 
 --
+-- Name: scheduling_blocks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scheduling_blocks (
+    id integer NOT NULL,
+    team integer NOT NULL,
+    start_date date NOT NULL,
+    end_date date NOT NULL,
+    reason text,
+    created_by integer,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    user_updated uuid,
+    CONSTRAINT scheduling_blocks_dates_check CHECK ((end_date >= start_date))
+);
+
+
+--
+-- Name: TABLE scheduling_blocks; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.scheduling_blocks IS 'Team-level game-scheduling blackouts (Team blocking). A row hard-blocks game scheduling for `team` on every date in [start_date, end_date] — home-slot offering AND all three away proposals — exactly like a team event, but coach/TR-managed with no RSVP/chat. Created via the app by coaches/TRs (scoped in setup-permissions.mjs + enforced in the kscw-hooks create filter).';
+
+
+--
+-- Name: COLUMN scheduling_blocks.reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scheduling_blocks.reason IS 'Optional free text shown to schedulers / on the team absence calendar (e.g. "Exam period", "League closure", "Tournament prep").';
+
+
+--
+-- Name: COLUMN scheduling_blocks.created_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scheduling_blocks.created_by IS 'Member (coach/TR) who created the block. Stamped by the kscw-hooks create filter from accountability.user.';
+
+
+--
+-- Name: scheduling_blocks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.scheduling_blocks_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: scheduling_blocks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.scheduling_blocks_id_seq OWNED BY public.scheduling_blocks.id;
+
+
+--
 -- Name: scorer_courses; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5571,6 +5631,13 @@ ALTER TABLE ONLY public.registrations ALTER COLUMN id SET DEFAULT nextval('publi
 
 
 --
+-- Name: scheduling_blocks id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduling_blocks ALTER COLUMN id SET DEFAULT nextval('public.scheduling_blocks_id_seq'::regclass);
+
+
+--
 -- Name: scorer_courses id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -6175,6 +6242,14 @@ ALTER TABLE ONLY public.registrations
 
 ALTER TABLE ONLY public.reports
     ADD CONSTRAINT reports_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: scheduling_blocks scheduling_blocks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduling_blocks
+    ADD CONSTRAINT scheduling_blocks_pkey PRIMARY KEY (id);
 
 
 --
@@ -7171,6 +7246,20 @@ CREATE INDEX reports_resolved_by_index ON public.reports USING btree (resolved_b
 
 
 --
+-- Name: scheduling_blocks_team_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scheduling_blocks_team_idx ON public.scheduling_blocks USING btree (team);
+
+
+--
+-- Name: scheduling_blocks_team_range_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scheduling_blocks_team_range_idx ON public.scheduling_blocks USING btree (team, start_date, end_date);
+
+
+--
 -- Name: scorer_delegations_from_member_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8038,6 +8127,22 @@ ALTER TABLE ONLY public.reports
 
 ALTER TABLE ONLY public.reports
     ADD CONSTRAINT reports_resolved_by_foreign FOREIGN KEY (resolved_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: scheduling_blocks scheduling_blocks_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduling_blocks
+    ADD CONSTRAINT scheduling_blocks_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: scheduling_blocks scheduling_blocks_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduling_blocks
+    ADD CONSTRAINT scheduling_blocks_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
 
 
 --
