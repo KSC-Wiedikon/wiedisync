@@ -137,6 +137,8 @@ export default {
   settingsWebsite: 'Site web',
   featureOpenForPlayers: 'Ouvert aux nouveaux joueurs',
   featureOpenForPlayersHint: 'Affiche un bouton de contact sur la page d\'équipe pour que les nouveaux joueurs puissent contacter l\'entraîneur',
+  recruitingPositionsLabel: 'Postes recherchés',
+  recruitingPositionsHint: 'Affiché aux joueurs et joueuses intéressé·e·s sur la page publique de l\'équipe, à côté du bouton "Contactez-nous". Laisser vide si tous les postes sont ouverts.',
   trialTrainingLabel: 'Entraînement d\'essai',
   trialTrainingHint: 'Planifier un entraînement d\'essai unique — affiché sur la page d\'équipe à côté du bouton "Contactez-nous"',
   newTrialTraining: 'Nouvel entraînement d\'essai',

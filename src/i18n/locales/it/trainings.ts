@@ -107,6 +107,4 @@ export default {
   isTrialTraining: 'Allenamento di prova',
   isTrialTrainingHint: 'Visibile pubblicamente sulla pagina della squadra quando la squadra è aperta a nuovi giocatori.',
   trialBadge: 'Prova',
-  recruitingPositionsLabel: 'Ruoli ricercati',
-  recruitingPositionsHint: 'Mostrato ai potenziali giocatori e giocatrici sulla pagina pubblica della squadra. Lasciare vuoto se tutti i ruoli sono aperti.',
 } as const

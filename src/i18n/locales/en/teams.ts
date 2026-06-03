@@ -151,6 +151,8 @@ export default {
   settingsWebsite: 'Website',
   featureOpenForPlayers: 'Open for new players',
   featureOpenForPlayersHint: 'Show a contact button on the team page so new players can reach the coach',
+  recruitingPositionsLabel: 'Positions we are looking for',
+  recruitingPositionsHint: 'Shown to prospective players on the public team page, next to the "Get in touch" button. Leave empty if open to all positions.',
   trialTrainingLabel: 'Trial training',
   trialTrainingHint: 'Schedule a one-off trial training (Probetraining) — shown on the team page next to the "Get in touch" button',
   newTrialTraining: 'New trial training',

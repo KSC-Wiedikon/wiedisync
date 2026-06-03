@@ -13,11 +13,10 @@ import { FormInput, FormTextarea, FormField } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import DatePicker from '@/components/ui/DatePicker'
 import { Switch } from '@/components/ui/switch'
-import type { Training, Team, Hall, HallSlot, SlotClaim, TeamSettings, MemberPosition } from '../../types'
+import type { Training, Team, Hall, HallSlot, SlotClaim, TeamSettings } from '../../types'
 import type { RecurringEditScope } from './RecurringEditDialog'
 import { fetchAllItems, fetchItem, updateRecord, flattenM2MTeams } from '../../lib/api'
 import { asObj, relId } from '../../utils/relations'
-import { getPositionsForSport, coercePositions, getPositionI18nKey } from '../../utils/memberPositions'
 
 // day_of_week in DB: 0=Mon, 1=Tue, ..., 6=Sun
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
@@ -50,7 +49,6 @@ interface TrainingFormProps {
 
 export default function TrainingForm({ open, training, editScope = 'this', defaultTeamId, defaultIsTrial = false, onSave, onCancel }: TrainingFormProps) {
   const { t } = useTranslation('trainings')
-  const { t: tPos } = useTranslation('teams')
   const { t: tc } = useTranslation('common')
   const { create, update, isLoading: isMutating } = useMutation<Training>('trainings')
   const { hasAdminAccessToTeam, coachTeamIds } = useAuth()
@@ -87,7 +85,6 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
   const [autoConfirmRsvp, setAutoConfirmRsvp] = useState<boolean | null>(null)
   const [teamAutoConfirmDefault, setTeamAutoConfirmDefault] = useState(false)
   const [isTrial, setIsTrial] = useState(false)
-  const [recruitingPositions, setRecruitingPositions] = useState<MemberPosition[]>([])
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -256,7 +253,6 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
       const rawAcr = (training as Training).auto_confirm_rsvp
       setAutoConfirmRsvp(rawAcr === true ? true : rawAcr === false ? false : null)
       setIsTrial(!!training.is_trial)
-      setRecruitingPositions(coercePositions((training as Training).recruiting_positions))
       // Edit mode: if training has a hall_slot, start in auto mode with it pre-selected
       if (training.hall_slot) {
         setSlotMode('auto')
@@ -286,7 +282,6 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
       setAutoConfirmRsvp(null)
       setTeamAutoConfirmDefault(false)
       setIsTrial(defaultIsTrial)
-      setRecruitingPositions([])
       defaultsAppliedForTeam.current = null
       setSlotMode('auto')
       setSelectedSlotKey('')
@@ -344,7 +339,6 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
       excluded_guest_levels: excludedGuestLevels,
       auto_confirm_rsvp: autoConfirmRsvp,
       is_trial: isTrial,
-      recruiting_positions: isTrial ? recruitingPositions : null,
     }
 
     setIsLoading(true)
@@ -645,44 +639,6 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
             <p className="text-xs text-muted-foreground">{t('isTrialTrainingHint')}</p>
           </div>
         </div>
-
-        {isTrial && (() => {
-          const selectedTeam = allTeamsRaw?.find((tm) => String(tm.id) === String(teamId))
-          const positionOptions = getPositionsForSport(selectedTeam?.sport).filter(
-            (p) => p !== 'guest' && p !== 'other',
-          )
-          return (
-            <div className="ml-7 space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
-              <div>
-                <span className="font-medium">{t('recruitingPositionsLabel')}</span>
-                <p className="text-xs text-muted-foreground">{t('recruitingPositionsHint')}</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {positionOptions.map((p) => {
-                  const active = recruitingPositions.includes(p)
-                  return (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() =>
-                        setRecruitingPositions((prev) =>
-                          active ? prev.filter((x) => x !== p) : [...prev, p],
-                        )
-                      }
-                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                        active
-                          ? 'border-brand-500 bg-brand-500 text-white'
-                          : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-500 dark:text-gray-300 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      {getPositionI18nKey(p) ? tPos(getPositionI18nKey(p)!) : p}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })()}
 
         <div className="space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
           <div>

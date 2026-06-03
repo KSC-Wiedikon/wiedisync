@@ -56,6 +56,8 @@ export interface Team extends BaseRecord {
   sponsors_logos: string[]
   bb_source_id: string
   open_for_players: boolean
+  /** Positions the team is recruiting for (team-level). Empty/undefined = open to all. Shown on the public team page when open_for_players=true. */
+  recruiting_positions?: MemberPosition[] | null
   features_enabled: TeamSettings
   /** Coach Dashboard: persisted From date (NULL = computed default). */
   dashboard_range_from?: string | null
@@ -422,8 +424,6 @@ export interface Training extends BaseRecord {
   auto_confirm_rsvp?: boolean | null
   /** Trial training (Probetraining): publicly visible on the website when the team is open for new players. */
   is_trial?: boolean
-  /** Trial training only: positions the team is recruiting for. Empty/undefined = open to all. */
-  recruiting_positions?: MemberPosition[] | null
 }
 
 export interface Absence extends BaseRecord {

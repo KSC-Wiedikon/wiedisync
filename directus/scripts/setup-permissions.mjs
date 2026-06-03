@@ -318,6 +318,9 @@ const PUBLIC_TEAM_FIELDS = [
   // Exposed so the kscw-website contact form can filter the team dropdown to
   // recruiting teams only. Boolean flag, no PII.
   'open_for_players',
+  // Positions the team is recruiting for — shown next to the "Get in touch"
+  // CTA on the public team page. Array of position keys, no PII.
+  'recruiting_positions',
 ]
 
 /** Coach Dashboard prefs — readable by Coach/Team Responsible/Admin via an explicit read row. NOT added to PUBLIC_TEAM_FIELDS. */

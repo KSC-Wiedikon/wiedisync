@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { User, X } from 'lucide-react'
 import { logActivity } from '../../utils/logActivity'
-import { coercePositions, getPositionI18nKey, getPositionInitial, getSelectablePositions, isNonPlayingStaff } from '../../utils/memberPositions'
+import { coercePositions, getPositionI18nKey, getPositionInitial, getPositionsForSport, getSelectablePositions, isNonPlayingStaff } from '../../utils/memberPositions'
 import { useAuth } from '../../hooks/useAuth'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
 import { useMutation } from '../../hooks/useMutation'
@@ -656,6 +656,9 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
   const { update } = useMutation<Team>('teams')
   const settings: TeamSettings = (team.features_enabled as TeamSettings) ?? {}
   const [openForPlayers, setOpenForPlayers] = useState(team.open_for_players ?? false)
+  const [recruitingPositions, setRecruitingPositions] = useState<MemberPosition[]>(
+    coercePositions(team.recruiting_positions),
+  )
   const [showGuests, setShowGuests] = useState(team.show_guests_on_website ?? true)
   const [trialFormOpen, setTrialFormOpen] = useState(false)
   const [socialUrl, setSocialUrl] = useState(team.social_url ?? '')
@@ -694,6 +697,14 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
     setOpenForPlayers(next)
   }
 
+  const toggleRecruitingPosition = async (p: MemberPosition) => {
+    const next = recruitingPositions.includes(p)
+      ? recruitingPositions.filter((x) => x !== p)
+      : [...recruitingPositions, p]
+    setRecruitingPositions(next)
+    await update(team.id, { recruiting_positions: next })
+  }
+
   const toggleShowGuests = async () => {
     const next = !showGuests
     await update(team.id, { show_guests_on_website: next })
@@ -724,6 +735,35 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
           <SettingRow label={t('featureOpenForPlayers')} hint={t('featureOpenForPlayersHint')}>
             <SwitchToggle checked={openForPlayers} onChange={toggleOpenForPlayers} />
           </SettingRow>
+          {openForPlayers && (
+            <div className="space-y-1.5 px-4 py-3">
+              <div>
+                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{t('recruitingPositionsLabel')}</div>
+                <div className="text-xs italic text-gray-500 dark:text-gray-400">{t('recruitingPositionsHint')}</div>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {getPositionsForSport(team.sport)
+                  .filter((p) => p !== 'guest' && p !== 'other')
+                  .map((p) => {
+                    const active = recruitingPositions.includes(p)
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => toggleRecruitingPosition(p)}
+                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          active
+                            ? 'border-brand-500 bg-brand-500 text-white'
+                            : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-500 dark:text-gray-300 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {getPositionI18nKey(p) ? t(getPositionI18nKey(p)!) : p}
+                      </button>
+                    )
+                  })}
+              </div>
+            </div>
+          )}
           {openForPlayers && (
             <div className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="min-w-0 flex-1">

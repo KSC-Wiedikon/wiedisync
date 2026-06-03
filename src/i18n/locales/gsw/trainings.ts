@@ -107,6 +107,4 @@ export default {
   isTrialTraining: 'Probetraining',
   isTrialTrainingHint: 'Uf de Teamsiite öffentlich sichtbar, wenn s Team für neui Spieler offe isch.',
   trialBadge: 'Probetraining',
-  recruitingPositionsLabel: 'Gsuechti Positione',
-  recruitingPositionsHint: 'Wird interessierten Spieler:innen uf de öffentliche Teamsiite azeigt. Läär laa, wenn alli Positione offe sind.',
 } as const

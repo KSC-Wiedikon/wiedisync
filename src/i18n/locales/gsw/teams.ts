@@ -151,6 +151,8 @@ export default {
   settingsWebsite: 'Website',
   featureOpenForPlayers: 'Offe für neui Spieler',
   featureOpenForPlayersHint: 'Zeigt en Kontakt-Chnopf uf de Teamsiite, demit neui Spieler de Trainer erriiche chönd',
+  recruitingPositionsLabel: 'Gsuechti Positione',
+  recruitingPositionsHint: 'Wird interessierte Spieler:inne uf de öffentliche Teamsiite näbe em "Kontakt ufnäh"-Chnopf azeigt. Läär laa, wenn alli Positione offe sind.',
   trialTrainingLabel: 'Probetraining',
   trialTrainingHint: 'Es einmaligs Probetraining plane — wird uf de Teamsiite näbe em "Kontakt ufnäh"-Chnopf azeigt',
   newTrialTraining: 'Neus Probetraining',

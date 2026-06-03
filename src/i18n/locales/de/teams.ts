@@ -151,6 +151,8 @@ export default {
   settingsWebsite: 'Website',
   featureOpenForPlayers: 'Offen für neue Spieler',
   featureOpenForPlayersHint: 'Zeigt einen Kontakt-Button auf der Teamseite, damit neue Spieler den Trainer erreichen können',
+  recruitingPositionsLabel: 'Gesuchte Positionen',
+  recruitingPositionsHint: 'Wird interessierten Spieler:innen auf der öffentlichen Teamseite neben dem "Kontakt aufnehmen"-Button angezeigt. Leer lassen, wenn alle Positionen offen sind.',
   trialTrainingLabel: 'Probetraining',
   trialTrainingHint: 'Ein einmaliges Probetraining planen — wird auf der Teamseite neben dem "Kontakt aufnehmen"-Button angezeigt',
   newTrialTraining: 'Neues Probetraining',
