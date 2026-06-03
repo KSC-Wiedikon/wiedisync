@@ -145,4 +145,18 @@ export default {
   nonBlocking: 'Nicht blockierend',
   // Calendar closure label (generic "Halle geschlossen" closures)
   hallClosed: 'Halle geschlossen',
+  // Team blocking (migration 085) — coach/TR scheduling blackouts
+  teamBlocks: 'Team-Sperren',
+  teamBlocksHint: 'Sperrt die Spielplanung für ein Team an diesen Tagen — eine harte Sperre, auch wenn nur wenige Spieler fehlen.',
+  addTeamBlock: 'Team-Sperre hinzufügen',
+  noTeamBlocks: 'Keine bevorstehenden Team-Sperren.',
+  teamBlocking: 'Team-Sperre',
+  teamBlockTitle: 'Neue Team-Sperre',
+  teamBlockHint: 'Für dieses Team werden an den gewählten Tagen keine Spiele angesetzt (Heim oder Auswärts).',
+  blockTeam: 'Team',
+  blockTeamRequired: 'Bitte wähle ein Team',
+  blockReason: 'Grund (optional)',
+  blockReasonPlaceholder: 'z. B. Prüfungszeit, Turniervorbereitung',
+  deleteTeamBlockTitle: 'Team-Sperre löschen',
+  deleteTeamBlockMessage: 'Bist du sicher, dass du diese Team-Sperre löschen willst?',
 } as const

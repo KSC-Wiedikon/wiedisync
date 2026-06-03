@@ -453,6 +453,23 @@ export interface Absence extends BaseRecord {
   last_edited_role?: 'coach' | 'team_responsible' | 'admin' | 'staff' | null
 }
 
+/**
+ * Migration 085: team-level game-scheduling blackout ("Team blocking").
+ * A row hard-blocks game scheduling for `team` on every date in
+ * [start_date, end_date] — home-slot offering AND all three away proposals —
+ * like a team event but coach/TR-managed with no RSVP/chat. Created in the
+ * Team Absences view; scoped to coach/TR teams (admins/Spielplaner: any team).
+ */
+export interface SchedulingBlock extends BaseRecord {
+  team: string
+  start_date: string // YYYY-MM-DD
+  end_date: string // YYYY-MM-DD
+  reason: string | null
+  created_by: string | null
+  date_created?: string
+  date_updated?: string
+}
+
 export interface Event extends BaseRecord {
   title: string
   description: string

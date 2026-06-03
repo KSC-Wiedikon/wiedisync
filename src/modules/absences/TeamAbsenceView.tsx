@@ -1,17 +1,23 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CalendarDays, List, CheckCircle, CalendarOff, Star, CircleX } from 'lucide-react'
+import { CalendarDays, List, CheckCircle, CalendarOff, Star, CircleX, Ban, Plus, Trash2 } from 'lucide-react'
 import { useTeamAbsences } from '../../hooks/useTeamAbsences'
 import { useCollection } from '../../lib/query'
+import { useMutation } from '../../hooks/useMutation'
 import EmptyState from '../../components/EmptyState'
 import AbsenceCard from './AbsenceCard'
+import TeamBlockModal from './TeamBlockModal'
+import TeamChip from '../../components/TeamChip'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import { teamNameToColorKey } from '../../utils/teamColors'
+import { Button } from '@/components/ui/button'
 import Modal from '@/components/Modal'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import MonthGrid from '../calendar/components/MonthGrid'
 import CalendarEntryModal from '../calendar/CalendarEntryModal'
 import { useCalendarData } from '../calendar/hooks/useCalendarData'
 import { CLOSURE_PATTERN } from '../hallenplan/utils/virtualSlots'
-import { toISODate, getDayOfWeek } from '../../utils/dateHelpers'
+import { toISODate, getDayOfWeek, formatDateZurich } from '../../utils/dateHelpers'
 import { parseDate, isSameDay, startOfMonth, eachDayOfInterval, toDateKey, formatDate } from '../../utils/dateUtils'
 import { max as maxDate, min as minDate, isAfter } from 'date-fns'
 import DatePicker from '@/components/ui/DatePicker'
@@ -19,7 +25,7 @@ import { Switch } from '@/components/ui/switch'
 import AbsenceMemberFilter from './AbsenceMemberFilter'
 import { buildMemberOptions } from './absenceMemberOptions'
 import type { CalendarEntry, SourceFilter } from '../../types/calendar'
-import type { Absence, Member, HallClosure } from '../../types'
+import type { Absence, Member, HallClosure, SchedulingBlock, Team } from '../../types'
 import { relId, asObj } from '../../utils/relations'
 
 interface TeamAbsenceViewProps {
@@ -35,6 +41,12 @@ interface TeamAbsenceViewProps {
    * reopened edit modal then reads the old value and looks "not saved".
    */
   refreshKey?: number
+  /**
+   * Teams the user may create a Team blocking for (coach/TR teams; all teams
+   * for admins/Spielplaner). When non-empty AND `canEdit`, the "Team blocks"
+   * management section is shown. Empty/undefined hides it.
+   */
+  manageableTeamOptions?: { value: string; label: string; colorKey?: string }[]
 }
 
 /**
@@ -100,7 +112,7 @@ function absencesToEntries(
   return out
 }
 
-export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, refreshKey }: TeamAbsenceViewProps) {
+export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, refreshKey, manageableTeamOptions }: TeamAbsenceViewProps) {
   const { t } = useTranslation('absences')
   const today = toISODate(new Date())
   const oneYearLater = (() => {
@@ -124,6 +136,18 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
 
   const { absences, memberMap, isLoading, refetch } = useTeamAbsences(teamIds, startDate, endDate)
 
+  // Team blockings (migration 085) for the viewed teams — rendered as a red
+  // overlay on the calendar and managed in the section below (coach/TR only).
+  const { data: blocksRaw, refetch: blocksRefetch } = useCollection<SchedulingBlock>('scheduling_blocks', {
+    filter: { team: { _in: teamIds.length > 0 ? teamIds : ['-1'] } },
+    fields: ['id', 'team', 'team.name', 'team.sport', 'start_date', 'end_date', 'reason'],
+    sort: ['start_date'],
+    enabled: teamIds.length > 0,
+  })
+  const { remove: removeBlock } = useMutation('scheduling_blocks')
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null)
+
   // Refetch when the parent signals a save/delete. Skip the initial mount —
   // useTeamAbsences already fetches on mount and whenever teamIds/range change.
   const didMountRefresh = useRef(false)
@@ -133,8 +157,16 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
       return
     }
     refetch()
+    blocksRefetch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
+
+  async function handleDeleteBlock() {
+    if (!deletingBlockId) return
+    await removeBlock(deletingBlockId)
+    setDeletingBlockId(null)
+    blocksRefetch()
+  }
 
   // School-holiday closures (Schulferien) overlapping the viewed window. Rendered by
   // MonthGrid as a faint red background on each covered day so members see when the
@@ -177,6 +209,59 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
     }
     return map
   }, [closuresRaw])
+
+  // Team blockings rendered the same way as closures: a red background on every
+  // covered day, with the reason in the tooltip. Blocks take precedence over a
+  // coincident school holiday in the reason map (the team's own block is more
+  // specific). The localized "Team blocking" prefix distinguishes it from a
+  // bare Schulferien tooltip.
+  const blockLabel = t('teamBlocking')
+  const blockedDates = useMemo(() => {
+    const dates = new Set<string>()
+    for (const b of blocksRaw ?? []) {
+      if (!b.start_date || !b.end_date) continue
+      const start = parseDate(b.start_date)
+      const end = parseDate(b.end_date)
+      if (isAfter(start, end)) continue
+      for (const day of eachDayOfInterval(start, end)) dates.add(toDateKey(day))
+    }
+    return dates
+  }, [blocksRaw])
+  const blockReasons = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const b of blocksRaw ?? []) {
+      if (!b.start_date || !b.end_date) continue
+      const start = parseDate(b.start_date)
+      const end = parseDate(b.end_date)
+      if (isAfter(start, end)) continue
+      const label = b.reason ? `${blockLabel}: ${b.reason}` : blockLabel
+      for (const day of eachDayOfInterval(start, end)) map.set(toDateKey(day), label)
+    }
+    return map
+  }, [blocksRaw, blockLabel])
+  // Union of school-holiday closures and team blockings for the MonthGrid overlay.
+  const overlayClosedDates = useMemo(() => {
+    if (blockedDates.size === 0) return closedDates
+    const s = new Set(closedDates)
+    for (const d of blockedDates) s.add(d)
+    return s
+  }, [closedDates, blockedDates])
+  const overlayClosedReasons = useMemo(() => {
+    if (blockReasons.size === 0) return closedReasons
+    const m = new Map(closedReasons)
+    for (const [k, v] of blockReasons) m.set(k, v) // block precedence
+    return m
+  }, [closedReasons, blockReasons])
+
+  // Current + future blockings for the management list (past ones drop off).
+  const upcomingBlocks = useMemo(() => {
+    const today = toISODate(new Date())
+    return (blocksRaw ?? [])
+      .filter((b) => (b.end_date ?? '9999-12-31') >= today)
+      .sort((a, b) => (a.start_date ?? '').localeCompare(b.start_date ?? ''))
+  }, [blocksRaw])
+
+  const showBlockManager = !!canEdit && (manageableTeamOptions?.length ?? 0) > 0
 
   // Distinct members who have at least one absence in range — drives the filter
   // dropdown. Built from the full fetched set so it's stable across list/calendar.
@@ -369,6 +454,51 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
       </div>
       </div>
 
+      {/* ── Team blocks (coach/TR only) — hard scheduling blackouts ── */}
+      {showBlockManager && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50/40 p-3 dark:border-red-900/40 dark:bg-red-950/20">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Ban className="h-4 w-4 text-red-600 dark:text-red-400" />
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{t('teamBlocks')}</h3>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setBlockModalOpen(true)}>
+              <Plus className="h-4 w-4" />
+              {t('addTeamBlock')}
+            </Button>
+          </div>
+          <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">{t('teamBlocksHint')}</p>
+          {upcomingBlocks.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('noTeamBlocks')}</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {upcomingBlocks.map((b) => {
+                const tm = asObj<Team>(b.team)
+                const range = b.start_date === b.end_date
+                  ? formatDateZurich(b.start_date)
+                  : `${formatDateZurich(b.start_date)} – ${formatDateZurich(b.end_date)}`
+                return (
+                  <li key={b.id} className="flex items-center gap-2 rounded-md bg-white px-2.5 py-1.5 text-sm dark:bg-gray-800">
+                    {tm?.name && <TeamChip team={teamNameToColorKey(tm.name, tm.sport)} label={tm.name} size="xs" />}
+                    <span className="font-medium text-gray-700 dark:text-gray-200">{range}</span>
+                    {b.reason && <span className="truncate text-gray-500 dark:text-gray-400">— {b.reason}</span>}
+                    <button
+                      type="button"
+                      onClick={() => setDeletingBlockId(String(b.id))}
+                      className="ml-auto shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+                      title={t('common:delete')}
+                      aria-label={t('common:delete')}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
       {viewMode === 'list' ? (
         /* ── List view ── */
         sortedAbsences.length === 0 ? (
@@ -413,8 +543,8 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
         <>
           <MonthGrid
             entries={calendarEntries}
-            closedDates={closedDates}
-            closedReasons={closedReasons}
+            closedDates={overlayClosedDates}
+            closedReasons={overlayClosedReasons}
             closedClassName="bg-red-100/70 dark:bg-red-900/30"
             month={month}
             onMonthChange={setMonth}
@@ -475,6 +605,24 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
           </Modal>
         </>
       )}
+
+      {showBlockManager && blockModalOpen && (
+        <TeamBlockModal
+          open
+          onClose={() => setBlockModalOpen(false)}
+          onSaved={() => { setBlockModalOpen(false); blocksRefetch() }}
+          teamOptions={manageableTeamOptions ?? []}
+        />
+      )}
+      <ConfirmDialog
+        open={!!deletingBlockId}
+        onClose={() => setDeletingBlockId(null)}
+        onConfirm={handleDeleteBlock}
+        title={t('deleteTeamBlockTitle')}
+        message={t('deleteTeamBlockMessage')}
+        confirmLabel={t('common:delete')}
+        danger
+      />
     </div>
   )
 }

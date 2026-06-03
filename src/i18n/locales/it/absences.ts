@@ -132,4 +132,18 @@ export default {
   nonBlocking: 'Non bloccante',
   // Calendar closure label (generic "Halle geschlossen" closures)
   hallClosed: 'Palestra chiusa',
+  // Team blocking (migration 085) — coach/TR scheduling blackouts
+  teamBlocks: 'Blocchi squadra',
+  teamBlocksHint: 'Blocca tutta la pianificazione delle partite per una squadra in queste date — un blocco rigido, anche se mancano solo pochi giocatori.',
+  addTeamBlock: 'Aggiungi blocco',
+  noTeamBlocks: 'Nessun blocco in arrivo.',
+  teamBlocking: 'Blocco squadra',
+  teamBlockTitle: 'Nuovo blocco squadra',
+  teamBlockHint: 'Nessuna partita verrà pianificata per questa squadra nelle date scelte (casa o trasferta).',
+  blockTeam: 'Squadra',
+  blockTeamRequired: 'Seleziona una squadra',
+  blockReason: 'Motivo (facoltativo)',
+  blockReasonPlaceholder: 'es. periodo d\'esami, preparazione torneo',
+  deleteTeamBlockTitle: 'Elimina blocco',
+  deleteTeamBlockMessage: 'Sei sicuro di voler eliminare questo blocco squadra?',
 } as const

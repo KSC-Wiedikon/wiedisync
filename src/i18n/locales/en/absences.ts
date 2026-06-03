@@ -145,4 +145,18 @@ export default {
   nonBlocking: 'Non-blocking',
   // Calendar closure label (generic "Halle geschlossen" closures)
   hallClosed: 'Gym closed',
+  // Team blocking (migration 085) — coach/TR scheduling blackouts
+  teamBlocks: 'Team blocks',
+  teamBlocksHint: 'Block all game scheduling for a team on these dates — a hard block, even when only a few players are away.',
+  addTeamBlock: 'Add team block',
+  noTeamBlocks: 'No upcoming team blocks.',
+  teamBlocking: 'Team blocking',
+  teamBlockTitle: 'New team block',
+  teamBlockHint: 'No games will be scheduled for this team on the selected dates (home or away).',
+  blockTeam: 'Team',
+  blockTeamRequired: 'Please select a team',
+  blockReason: 'Reason (optional)',
+  blockReasonPlaceholder: 'e.g. Exam period, tournament prep',
+  deleteTeamBlockTitle: 'Delete team block',
+  deleteTeamBlockMessage: 'Are you sure you want to delete this team block?',
 } as const

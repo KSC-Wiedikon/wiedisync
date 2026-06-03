@@ -32,7 +32,7 @@ type Scope = 'mine' | 'team'
 
 export default function AbsencesPage() {
   const { t } = useTranslation('absences')
-  const { user, isCoach, memberTeamIds, coachTeamIds } = useAuth()
+  const { user, isCoach, memberTeamIds, coachTeamIds, is_spielplaner } = useAuth()
   const { effectiveIsAdmin, effectiveIsCoach, effectiveIsVorstand } = useAdminMode()
   const [viewType, setViewType] = useState<ViewType>('absences')
   const [scope, setScope] = useState<Scope>('mine')
@@ -86,6 +86,19 @@ export default function AbsencesPage() {
           : a.group === volleyball ? -1 : 1,
       )
   }, [allTeams, visibleTeamIds, t])
+
+  // Teams the user may create a Team blocking for: coach/TR teams (coachTeamIds
+  // already unions coach + team_responsible), or every team for admins /
+  // Vorstand / club-wide Spielplaner. Drives the block modal's team picker +
+  // whether the "Team blocks" section shows at all.
+  const manageableTeamOptions = useMemo(() => {
+    const canManageAll = effectiveIsAdmin || effectiveIsVorstand || is_spielplaner
+    const teams = canManageAll ? allTeams : allTeams.filter((tm) => coachTeamIds.includes(tm.id))
+    return teams
+      .filter((tm) => tm.sport === 'volleyball' || tm.sport === 'basketball')
+      .map((tm) => ({ value: tm.id, label: tm.name, colorKey: teamNameToColorKey(tm.name, tm.sport) }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [allTeams, coachTeamIds, effectiveIsAdmin, effectiveIsVorstand, is_spielplaner])
 
   // ── Personal absences (excludes weekly) ────────────────────────
   const { data: myAbsencesRaw, refetch } = useCollection<Absence>('absences', {
@@ -327,6 +340,7 @@ export default function AbsencesPage() {
               onDelete={setDeletingId}
               canEdit
               refreshKey={teamRefreshKey}
+              manageableTeamOptions={manageableTeamOptions}
             />
           </div>
         </div>

@@ -3184,6 +3184,31 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return payload
   })
 
+  // ── Scheduling blocks create: stamp creator + enforce team scope ────────
+  // The `scheduling_blocks.create` policy permission is unfiltered (Directus
+  // can't validate a relational filter on a not-yet-existing row), so this
+  // filter is the real gate: a coach/TR may only block a team they coach or are
+  // responsible for. Club-wide Spielplaner + full admin may block any team
+  // (mirrors games.items.create). created_by is stamped from accountability.
+  filter('scheduling_blocks.items.create', async (payload, _meta, { accountability, database: db }) => {
+    if (!accountability?.user) return payload
+    const member = await db('members').where('user', accountability.user).first('id', 'is_spielplaner')
+    const out = member?.id ? { ...payload, created_by: payload?.created_by ?? member.id } : payload
+    if (accountability.admin) return out            // full admin — any team
+    if (!member) return out                         // not a member — Directus denies via policy
+    if (member.is_spielplaner === true) return out  // club-wide Spielplaner — any team
+    const team = out.team
+    if (team == null) {
+      throw kscwScopeError('Team blocking requires a team', 400, 'INVALID_PAYLOAD')
+    }
+    const isCoach = await db('teams_coaches').where({ teams_id: team, members_id: member.id }).first('id')
+    const isTR = await db('teams_responsibles').where({ teams_id: team, members_id: member.id }).first('id')
+    if (!isCoach && !isTR) {
+      throw kscwScopeError('You can only block teams you coach or are responsible for', 403, 'FORBIDDEN')
+    }
+    return out
+  })
+
   // ── Participation create: absence-aware auto-decline ────────────────────
   // System-context creates (the cron writing a fresh declined row when an
   // absence is created) still get auto-flipped to declined. User-driven

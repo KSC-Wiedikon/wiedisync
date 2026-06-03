@@ -754,6 +754,14 @@ async function main() {
     team: { member_teams: { member: { user: { _eq: '$CURRENT_USER' } } } },
   })
 
+  // Scheduling blocks (migration 085) — team blackout dates. Read-only for
+  // members so the team absence calendar can render them as overlays. UNFILTERED
+  // on purpose: the frontend filters by `{ team: { _in: [...] } }`, and a member
+  // read filter that ALSO walked `team.members` would hit the M2M double-walk
+  // trap (silent empty for non-admin). Blackout dates aren't sensitive (no PII),
+  // so club-wide read is acceptable. Create/update/delete stay coach/TR-only.
+  await setPermRead(MEMBER_POLICY, 'scheduling_blocks')
+
   // Files — create (upload profile pics)
   await setPerm(MEMBER_POLICY, 'directus_files', 'create')
 
@@ -1028,6 +1036,25 @@ async function main() {
   await setPerm(LEADER_POLICY, 'fine_rules', 'update', COACH_OR_TR_OF_FINE)
   await setPerm(LEADER_POLICY, 'fine_rules', 'delete', COACH_OR_TR_OF_FINE)
 
+  // Scheduling blocks (migration 085) — team-level game-scheduling blackouts.
+  // Same team-scoping shape as fines (direct `team` FK → coach/TR walk). Create
+  // is unfiltered at the policy layer (Directus can't validate a relational
+  // filter on a not-yet-existing row) and enforced in the kscw-hooks
+  // `scheduling_blocks.items.create` filter, which stamps created_by and rejects
+  // teams the caller doesn't coach / isn't TR for (mirrors games.items.create).
+  const COACH_OR_TR_OF_BLOCK = {
+    team: {
+      _or: [
+        { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+      ],
+    },
+  }
+  await setPermRead(LEADER_POLICY, 'scheduling_blocks', COACH_OR_TR_OF_BLOCK)
+  await setPerm(LEADER_POLICY, 'scheduling_blocks', 'create')
+  await setPerm(LEADER_POLICY, 'scheduling_blocks', 'update', COACH_OR_TR_OF_BLOCK)
+  await setPerm(LEADER_POLICY, 'scheduling_blocks', 'delete', COACH_OR_TR_OF_BLOCK)
+
   // Files — create (upload team photos)
   await setPerm(LEADER_POLICY, 'directus_files', 'create')
 
@@ -1048,6 +1075,8 @@ async function main() {
     'announcements',
     // Fines (migration 069) — Vorstand sees club-wide for oversight.
     'fines', 'fine_rules',
+    // Scheduling blocks (migration 085) — club-wide read for oversight.
+    'scheduling_blocks',
   ]
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)
@@ -1081,6 +1110,8 @@ async function main() {
     // Fines (migration 069) — Sport Admin full CRUD (override coach-only scope
     // for cross-team rule edits + correction of bad fines).
     'fines', 'fine_rules',
+    // Scheduling blocks (migration 085) — club-wide CRUD for any team's blackouts.
+    'scheduling_blocks',
     'directus_files',
   ]
   for (const col of SPORT_ADMIN_FULL_CRUD) {
@@ -1118,6 +1149,13 @@ async function main() {
   await setPermRead(TERMINPLANUNG_POLICY, 'game_scheduling_slots')
   await setPermRead(TERMINPLANUNG_POLICY, 'game_scheduling_opponents')
   await setPermRead(TERMINPLANUNG_POLICY, 'game_scheduling_bookings')
+  // Scheduling blocks (migration 085) — club-wide Spielplaner can manage team
+  // blackouts for any team (no row filter; holding the policy IS the gate, like
+  // the season collections above). The create hook still stamps created_by.
+  await setPermRead(TERMINPLANUNG_POLICY, 'scheduling_blocks')
+  await setPerm(TERMINPLANUNG_POLICY, 'scheduling_blocks', 'create')
+  await setPerm(TERMINPLANUNG_POLICY, 'scheduling_blocks', 'update')
+  await setPerm(TERMINPLANUNG_POLICY, 'scheduling_blocks', 'delete')
 
   console.log(`  ✓ Terminplanung permissions set`)
 
