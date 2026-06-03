@@ -168,6 +168,7 @@ export default function AdminSetupPage() {
           <SpielsamstageEditor
             spielsamstage={season.spielsamstage || []}
             onUpdate={handleUpdateSpielsamstage}
+            season={season.season}
           />
 
           {/* Team Slot Configuration */}

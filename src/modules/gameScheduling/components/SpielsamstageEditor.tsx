@@ -19,9 +19,11 @@ const DEFAULT_TIMES = ['11:00', '13:30', '16:00', '18:30']
 interface Props {
   spielsamstage: SpielsamstagConfig[]
   onUpdate: (spielsamstage: SpielsamstagConfig[]) => Promise<void>
+  /** Season string ("YYYY/YYYY") — bounds the picker to Sep 1 → Mar 31. */
+  season: string
 }
 
-export default function SpielsamstageEditor({ spielsamstage, onUpdate }: Props) {
+export default function SpielsamstageEditor({ spielsamstage, onUpdate, season }: Props) {
   const { t, i18n } = useTranslation('gameScheduling')
   const [halls, setHalls] = useState<Hall[]>([])
   const [dates, setDates] = useState<string[]>(
@@ -77,6 +79,18 @@ export default function SpielsamstageEditor({ spielsamstage, onUpdate }: Props) 
     () => dates.map(d => parseISO(d)).sort((a, b) => a.getTime() - b.getTime()),
     [dates],
   )
+
+  // The volleyball season runs Sep 1 (start year) → Mar 31 (end year). Bound the
+  // picker so only Saturdays inside that window are selectable / navigable.
+  const seasonRange = useMemo(() => {
+    const m = String(season || '').match(/^(\d{4})/)
+    if (!m) return null
+    const startYear = parseInt(m[1], 10)
+    return {
+      start: new Date(startYear, 8, 1),            // 1 Sep
+      end: new Date(startYear + 1, 2, 31, 23, 59),  // 31 Mar
+    }
+  }, [season])
 
   const handleCalendarSelect = (newDates: Date[] | undefined) => {
     const keys = (newDates ?? []).map(toDateKey)
@@ -137,9 +151,13 @@ export default function SpielsamstageEditor({ spielsamstage, onUpdate }: Props) 
             weekStartsOn={1}
             showOutsideDays={false}
             captionLayout="dropdown"
-            disabled={(date) => !isSaturday(date) || eventDays.has(toDateKey(date))}
-            startMonth={new Date(new Date().getFullYear() - 1, 0)}
-            endMonth={new Date(new Date().getFullYear() + 2, 11)}
+            disabled={(date) =>
+              !isSaturday(date) ||
+              eventDays.has(toDateKey(date)) ||
+              (!!seasonRange && (date < seasonRange.start || date > seasonRange.end))
+            }
+            startMonth={seasonRange ? seasonRange.start : new Date(new Date().getFullYear() - 1, 0)}
+            endMonth={seasonRange ? seasonRange.end : new Date(new Date().getFullYear() + 2, 11)}
           />
         </PopoverContent>
       </Popover>
