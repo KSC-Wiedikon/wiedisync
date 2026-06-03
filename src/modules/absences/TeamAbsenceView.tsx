@@ -359,6 +359,7 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
           <MonthGrid
             entries={calendarEntries}
             closedDates={closedDates}
+            closedClassName="bg-red-100 dark:bg-red-900/40"
             month={month}
             onMonthChange={setMonth}
             onEntryClick={setSelectedEntry}
