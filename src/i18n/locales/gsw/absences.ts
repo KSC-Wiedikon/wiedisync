@@ -125,7 +125,7 @@ export default {
   absent: 'Abwäsend',
   unavailable: 'Verhinderet',
   absentUnavailable: 'Abwäsend / Verhinderet',
-  // Calendar filter toggles
-  showWeekly: 'Wuchäverhinderige azeige',
-  showNonBlocking: 'Nöd-blockierendi Abweseheite azeige',
+  // Calendar filter toggles (flipping one ON hides that category)
+  hideUnavailabilities: 'Verhinderige uusblände',
+  hideNonBlocking: 'Nöd-blockierendi Abweseheite uusblände',
 } as const

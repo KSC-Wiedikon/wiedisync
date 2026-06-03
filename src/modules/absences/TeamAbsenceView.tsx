@@ -106,10 +106,11 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
   const [selectedEntry, setSelectedEntry] = useState<CalendarEntry | null>(null)
   const [dayOverflow, setDayOverflow] = useState<{ entries: CalendarEntry[]; date: Date } | null>(null)
   const [excludedMembers, setExcludedMembers] = useState<Set<string>>(new Set())
-  // Calendar filter toggles. Weeklies show by default; non-blocking absences
-  // (those flagged "doesn't block scheduling", e.g. injury) are hidden by default.
-  const [showWeekly, setShowWeekly] = useState(true)
-  const [showNonBlocking, setShowNonBlocking] = useState(false)
+  // Exclude toggles — everything shows by default; flipping a toggle ON HIDES that
+  // category. One for weekly unavailabilities, one for non-blocking absences (those
+  // flagged "doesn't block scheduling", e.g. injury).
+  const [hideUnavailabilities, setHideUnavailabilities] = useState(false)
+  const [hideNonBlocking, setHideNonBlocking] = useState(false)
 
   const { absences, memberMap, isLoading } = useTeamAbsences(teamIds, startDate, endDate)
 
@@ -161,9 +162,9 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
   const sortedAbsences = useMemo(() =>
     [...visibleAbsences]
       .filter((a) => a.type !== 'weekly')
-      .filter((a) => showNonBlocking || a.blocking !== false)
+      .filter((a) => !hideNonBlocking || a.blocking !== false)
       .sort((a, b) => a.start_date.localeCompare(b.start_date)),
-  [visibleAbsences, showNonBlocking])
+  [visibleAbsences, hideNonBlocking])
 
   // Calendar entries — both standard blocks and per-weekday weekly occurrences,
   // clipped to the currently displayed month so we don't pre-expand a year of dots.
@@ -174,15 +175,15 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
     d.setDate(0)
     return d
   }, [month])
-  // Calendar-only source: weeklies hide when showWeekly is off; non-blocking
-  // one-off absences hide unless showNonBlocking is on. Weeklies are governed
-  // solely by showWeekly (the blocking flag doesn't apply to them).
+  // Calendar source: weeklies drop when hideUnavailabilities is on; non-blocking
+  // one-off absences drop when hideNonBlocking is on. Weeklies are governed solely
+  // by hideUnavailabilities (the blocking flag doesn't apply to them).
   const calendarAbsences = useMemo(
     () => visibleAbsences.filter((a) => {
-      if (a.type === 'weekly') return showWeekly
-      return showNonBlocking || a.blocking !== false
+      if (a.type === 'weekly') return !hideUnavailabilities
+      return !hideNonBlocking || a.blocking !== false
     }),
-    [visibleAbsences, showWeekly, showNonBlocking],
+    [visibleAbsences, hideUnavailabilities, hideNonBlocking],
   )
   const calendarEntries = useMemo(
     () => absencesToEntries(calendarAbsences, memberMap, calendarRangeStart, calendarRangeEnd),
@@ -256,20 +257,18 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
           </button>
         </div>
       </div>
-      {/* Calendar filter toggles (non-blocking also affects the list view) */}
+      {/* Exclude toggles — flipping one ON hides that category */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        {viewMode === 'calendar' && (
-          <div className="flex items-center gap-2">
-            <Switch id="abs-show-weekly" checked={showWeekly} onCheckedChange={setShowWeekly} />
-            <label htmlFor="abs-show-weekly" className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
-              {t('showWeekly')}
-            </label>
-          </div>
-        )}
         <div className="flex items-center gap-2">
-          <Switch id="abs-show-nonblocking" checked={showNonBlocking} onCheckedChange={setShowNonBlocking} />
-          <label htmlFor="abs-show-nonblocking" className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
-            {t('showNonBlocking')}
+          <Switch id="abs-hide-unavailabilities" checked={hideUnavailabilities} onCheckedChange={setHideUnavailabilities} />
+          <label htmlFor="abs-hide-unavailabilities" className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('hideUnavailabilities')}
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="abs-hide-nonblocking" checked={hideNonBlocking} onCheckedChange={setHideNonBlocking} />
+          <label htmlFor="abs-hide-nonblocking" className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('hideNonBlocking')}
           </label>
         </div>
       </div>

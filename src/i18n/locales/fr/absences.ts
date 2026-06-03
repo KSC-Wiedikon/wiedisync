@@ -125,7 +125,7 @@ export default {
   absent: 'Absent',
   unavailable: 'Indisponible',
   absentUnavailable: 'Absent / Indisponible',
-  // Calendar filter toggles
-  showWeekly: 'Afficher les indisponibilités hebdomadaires',
-  showNonBlocking: 'Afficher les absences non bloquantes',
+  // Calendar filter toggles (flipping one ON hides that category)
+  hideUnavailabilities: 'Masquer les indisponibilités',
+  hideNonBlocking: 'Masquer les absences non bloquantes',
 } as const

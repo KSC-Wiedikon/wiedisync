@@ -138,7 +138,7 @@ export default {
   absent: 'Abwesend',
   unavailable: 'Verhindert',
   absentUnavailable: 'Abwesend / Verhindert',
-  // Calendar filter toggles
-  showWeekly: 'Wöchentliche Verhinderungen anzeigen',
-  showNonBlocking: 'Nicht-blockierende Abwesenheiten anzeigen',
+  // Calendar filter toggles (flipping one ON hides that category)
+  hideUnavailabilities: 'Verhinderungen ausblenden',
+  hideNonBlocking: 'Nicht-blockierende Abwesenheiten ausblenden',
 } as const
