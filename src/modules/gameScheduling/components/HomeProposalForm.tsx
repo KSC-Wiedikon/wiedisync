@@ -279,6 +279,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit }: Props) {
         >
           <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
             {t('slotN', { number: i + 1 })}
+            {i === 0 && <span className="ml-1 text-green-700 dark:text-green-300">· {t('slotReserved')}</span>}
             {i === 2 && <span className="ml-1 text-orange-600 dark:text-orange-300">· {t('slotLenientHint')}</span>}
           </span>
           <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -288,7 +289,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit }: Props) {
       ))}
 
       <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-        {t('homeSlotsNotReserved')}
+        {t('firstChoiceReservedNote')}
       </p>
       {existing?.status === 'pending' && (
         <p className="text-xs text-yellow-600 dark:text-yellow-400">{t('awaitingConfirmation')}</p>

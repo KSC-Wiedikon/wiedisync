@@ -71,7 +71,10 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, cont
             className="flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
           >
             <div className="min-w-0">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('proposalNumber', { number: p.num })}</span>
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                {t('proposalNumber', { number: p.num })}
+                {p.num === 1 && <span className="ml-1 text-green-700 dark:text-green-300">· {t('slotReserved')}</span>}
+              </span>
               <p className="text-sm text-gray-900 dark:text-gray-100">{info ? info.label : t('slotMaybeTaken')}</p>
               {info && !info.available && (
                 <p className="text-xs text-red-600 dark:text-red-400">⚠ {t('slotMaybeTaken')}</p>

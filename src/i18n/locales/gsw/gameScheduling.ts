@@ -60,6 +60,8 @@ export default {
   slotMaybeTaken: 'Villicht scho vergä',
   slotAlsoProposed_one: 'Au vo {{count}} anderem Verein vorgschlage',
   slotAlsoProposed_other: 'Au vo {{count}} andere Verein vorgschlage',
+  slotReserved: 'Reserviert',
+  firstChoiceReservedNote: 'Dini 1. Wahl wird bim Absände reserviert. Wahl 2 & 3 sind Ersatz — nöd reserviert, en andere Verein cha si au vorschla.',
   sourceSpielHalle: 'Spielhalle',
   sourceManual: 'Manuell',
   teamSlotConfig: 'Team-Konfiguration',

@@ -57,6 +57,8 @@ export default {
   slotMaybeTaken: 'Evtl. schon vergeben',
   slotAlsoProposed_one: 'Auch von {{count}} anderen Verein vorgeschlagen',
   slotAlsoProposed_other: 'Auch von {{count}} anderen Vereinen vorgeschlagen',
+  slotReserved: 'Reserviert',
+  firstChoiceReservedNote: 'Deine 1. Wahl wird beim Absenden reserviert. Wahl 2 & 3 sind Ersatz — nicht reserviert, ein anderer Verein kann sie ebenfalls vorschlagen.',
   sourceSpielHalle: 'Spielhalle',
   sourceManual: 'Manuell',
   teamSlotConfig: 'Team-Konfiguration',

@@ -81,6 +81,7 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
         <div key={i} className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700">
           <span className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {t('proposalNumber', { number: i + 1 })}
+            {i === 0 && <span className="ml-1 text-green-700 dark:text-green-300">· {t('slotReserved')}</span>}
           </span>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Popover open={openIdx === i} onOpenChange={(o) => setOpenIdx(o ? i : null)}>
@@ -117,6 +118,9 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
         </div>
       ))}
 
+      <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+        {t('firstChoiceReservedNote')}
+      </p>
       {existingProposal && existingProposal.status === 'pending' && (
         <p className="text-xs text-yellow-600 dark:text-yellow-400">{t('awaitingConfirmation')}</p>
       )}

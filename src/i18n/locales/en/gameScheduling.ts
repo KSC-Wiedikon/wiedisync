@@ -57,6 +57,8 @@ export default {
   slotMaybeTaken: 'May already be taken',
   slotAlsoProposed_one: 'Also proposed by {{count}} other club',
   slotAlsoProposed_other: 'Also proposed by {{count}} other clubs',
+  slotReserved: 'Reserved',
+  firstChoiceReservedNote: 'Your 1st choice is reserved when you submit. Choices 2 & 3 are backups — not reserved, so another club may also propose them.',
   sourceSpielHalle: 'Game Hall',
   sourceManual: 'Manual',
   teamSlotConfig: 'Team Configuration',

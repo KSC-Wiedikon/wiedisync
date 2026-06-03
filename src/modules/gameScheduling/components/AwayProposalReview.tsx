@@ -64,6 +64,7 @@ export default function AwayProposalReview({ booking, onConfirm }: Props) {
           <div>
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
               {t('proposalNumber', { number: p.num })}
+              {p.num === 1 && <span className="ml-1 text-green-700 dark:text-green-300">· {t('slotReserved')}</span>}
             </span>
             <p className="text-sm text-gray-900 dark:text-gray-100">{fmtProposal(p.datetime)}</p>
             {p.place && <p className="text-xs text-gray-500 dark:text-gray-400">{p.place}</p>}

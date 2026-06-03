@@ -211,9 +211,15 @@ export function registerGameScheduling(router, { database, logger, services, get
   // exactly like a real game: no other opponent can take that date or one within
   // the window (home-slot list + away proposals + away calendar greying). The
   // window size is caller-supplied because home games, away proposals 1-2 and
-  // away proposal 3 may each use a different gap (see seasonGaps). Pending
-  // proposals are intentionally excluded — only the confirmed one is definitive.
-  async function committedGameDates(kscwTeamId, gapDays = DEFAULT_GAPS.home) {
+  // away proposal 3 may each use a different gap (see seasonGaps).
+  //
+  // opts.includeHeld: also treat the FIRST proposal of any *pending* booking as
+  // committed ("held") — a held home slot-1 / away date-1 reserves the date the
+  // same way a real game does, so no one else can take it. Proposals 2 & 3 never
+  // hold (they're soft alternatives — the admin just gets a contention warning).
+  // opts.excludeOpponent: skip that opponent's own holds, so their slot-1 reserve
+  // doesn't block their own alternatives (2 & 3) or their re-proposal.
+  async function committedGameDates(kscwTeamId, gapDays = DEFAULT_GAPS.home, opts = {}) {
     const set = new Set()
     const addWindow = (val) => {
       if (!val) return
@@ -239,6 +245,27 @@ export function registerGameScheduling(router, { database, logger, services, get
       .select('b.confirmed_proposal as n', 'b.proposed_datetime_1 as d1',
               'b.proposed_datetime_2 as d2', 'b.proposed_datetime_3 as d3')
     confirmed.forEach((b) => addWindow(b[`d${b.n}`]))
+
+    if (opts.includeHeld) {
+      const heldBase = () => {
+        const q = database('game_scheduling_bookings as b')
+          .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
+          .where('o.kscw_team', kscwTeamId).where('b.status', 'pending')
+        if (opts.excludeOpponent) q.whereNot('b.opponent', opts.excludeOpponent)
+        return q
+      }
+      // Home: pending proposed_slot_1 → its slot date.
+      const heldHome = await heldBase()
+        .where('b.type', 'home_slot_pick').whereNotNull('b.proposed_slot_1')
+        .join('game_scheduling_slots as s', 's.id', 'b.proposed_slot_1')
+        .select(database.raw('s.date::text as d'))
+      heldHome.forEach((r) => addWindow(r.d))
+      // Away: pending proposed_datetime_1.
+      const heldAway = await heldBase()
+        .where('b.type', 'away_proposal').whereNotNull('b.proposed_datetime_1')
+        .select('b.proposed_datetime_1 as d')
+      heldAway.forEach((r) => addWindow(r.d))
+    }
     return set
   }
 
@@ -367,9 +394,12 @@ export function registerGameScheduling(router, { database, logger, services, get
       // season's gap. Home slots use the home gap; away proposals use the
       // proposal gap (1-2) and the lenient proposal-3 gap.
       const gaps = await seasonGaps(opponent.season)
-      const committedHome = await committedGameDates(opponent.kscw_team, gaps.home)
-      const committedProposal = await committedGameDates(opponent.kscw_team, gaps.proposal)
-      const committedProposal3 = await committedGameDates(opponent.kscw_team, gaps.proposal3)
+      // Include other opponents' held first-proposals (slot-1 / date-1 reserve the
+      // date); exclude this opponent's own holds so their alternatives stay open.
+      const held = { includeHeld: true, excludeOpponent: opponent.id }
+      const committedHome = await committedGameDates(opponent.kscw_team, gaps.home, held)
+      const committedProposal = await committedGameDates(opponent.kscw_team, gaps.proposal, held)
+      const committedProposal3 = await committedGameDates(opponent.kscw_team, gaps.proposal3, held)
 
       // Exclude slots whose date falls within any event linked to this team
       // (single-day or multi-day) — e.g. tournament weekend, team trip. Filter
@@ -652,8 +682,9 @@ export function registerGameScheduling(router, { database, logger, services, get
       // + 0 absences; pick 3 lenient: proposal-3 gap + <3 absences), mirroring the
       // read-time list. Slots are not held.
       const gaps = await seasonGaps(opponent.season)
-      const committedHome = await committedGameDates(opponent.kscw_team, gaps.home)
-      const committedProposal3 = await committedGameDates(opponent.kscw_team, gaps.proposal3)
+      const held = { includeHeld: true, excludeOpponent: opponent.id }
+      const committedHome = await committedGameDates(opponent.kscw_team, gaps.home, held)
+      const committedProposal3 = await committedGameDates(opponent.kscw_team, gaps.proposal3, held)
       const toYmd = (v) => (typeof v === 'string' ? v.slice(0, 10) : new Date(v).toISOString().slice(0, 10))
 
       for (let i = 0; i < 3; i++) {
@@ -919,8 +950,9 @@ export function registerGameScheduling(router, { database, logger, services, get
       // gap; proposal 3 the (smaller) proposal-3 gap (mirrors the strict/loose
       // sets the calendar greys with).
       const proposalGaps = await seasonGaps(opponent.season)
-      const committedStrict = await committedGameDates(opponent.kscw_team, proposalGaps.proposal)
-      const committedLoose = await committedGameDates(opponent.kscw_team, proposalGaps.proposal3)
+      const held = { includeHeld: true, excludeOpponent: opponent.id }
+      const committedStrict = await committedGameDates(opponent.kscw_team, proposalGaps.proposal, held)
+      const committedLoose = await committedGameDates(opponent.kscw_team, proposalGaps.proposal3, held)
       for (let i = 0; i < proposals.length; i++) {
         const p = proposals[i]
         if (!p.date || !DATE_RE.test(String(p.date))) {

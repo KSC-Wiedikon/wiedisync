@@ -60,6 +60,8 @@ export default {
   slotMaybeTaken: 'Peut-être déjà pris',
   slotAlsoProposed_one: 'Également proposé par {{count}} autre club',
   slotAlsoProposed_other: 'Également proposé par {{count}} autres clubs',
+  slotReserved: 'Réservé',
+  firstChoiceReservedNote: "Votre 1er choix est réservé lors de l'envoi. Les choix 2 et 3 sont des options de secours — non réservés, un autre club peut aussi les proposer.",
   sourceSpielHalle: 'Salle de match',
   sourceManual: 'Manuel',
   teamSlotConfig: 'Configuration par equipe',
