@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.18.0'
+const APP_VERSION = '4.19.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,26 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.19.0',
+    date: '2026-06-03',
+    sections: [
+      {
+        title: 'Team names and leagues now come straight from Volleymanager',
+        items: [
+          'Each volleyball team\'s name and league are now read directly from Volleymanager, so they stay correct after a division change or when teams swap places between seasons — no more stale labels or manual edits.',
+          'Referee licences are synced too: members who hold a volleyball referee licence are now flagged automatically.',
+          'The club website follows the same live data, so its team pages and menus always show the up-to-date names and leagues.',
+        ],
+      },
+      {
+        title: 'Manual data-refresh buttons on the status page (admins)',
+        items: [
+          'Admins can now refresh each data source on demand from the status page — one "Run now" button each for Swiss Volley, Basketplan, Volleymanager, SVRZ scheduling and Google Calendar — instead of waiting for the scheduled sync.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.18.0',
     date: '2026-06-02',
