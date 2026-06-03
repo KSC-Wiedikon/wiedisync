@@ -141,4 +141,6 @@ export default {
   // Calendar filter toggles (flipping one ON hides that category)
   hideUnavailabilities: 'Hide unavailabilities',
   hideNonBlocking: 'Hide non-blocking absences',
+  // Calendar closure label (generic "Halle geschlossen" closures)
+  hallClosed: 'Gym closed',
 } as const

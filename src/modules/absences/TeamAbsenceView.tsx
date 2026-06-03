@@ -10,6 +10,7 @@ import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components
 import MonthGrid from '../calendar/components/MonthGrid'
 import CalendarEntryModal from '../calendar/CalendarEntryModal'
 import { useCalendarData } from '../calendar/hooks/useCalendarData'
+import { CLOSURE_PATTERN } from '../hallenplan/utils/virtualSlots'
 import { toISODate, getDayOfWeek } from '../../utils/dateHelpers'
 import { parseDate, isSameDay, startOfMonth, eachDayOfInterval, toDateKey, formatDate } from '../../utils/dateUtils'
 import { max as maxDate, min as minDate, isAfter } from 'date-fns'
@@ -129,7 +130,7 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
       ],
     },
     sort: ['start_date'],
-    fields: ['start_date', 'end_date'],
+    fields: ['start_date', 'end_date', 'reason'],
     limit: 500,
   })
   const closedDates = useMemo(() => {
@@ -142,6 +143,19 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
       for (const day of eachDayOfInterval(start, end)) dates.add(toDateKey(day))
     }
     return dates
+  }, [closuresRaw])
+  // date → school-holiday reason, surfaced as the cell tooltip so staff see *why*
+  // the hall is closed (e.g. "Sommerferien 2026") rather than a bare red day.
+  const closedReasons = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const c of closuresRaw ?? []) {
+      if (!c.start_date || !c.end_date || !c.reason) continue
+      const start = parseDate(c.start_date)
+      const end = parseDate(c.end_date)
+      if (isAfter(start, end)) continue
+      for (const day of eachDayOfInterval(start, end)) map.set(toDateKey(day), c.reason)
+    }
+    return map
   }, [closuresRaw])
 
   // Distinct members who have at least one absence in range — drives the filter
@@ -202,14 +216,35 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
   })
   const calendarEntries = useMemo(() => {
     const absenceEntries = absencesToEntries(calendarAbsences, memberMap, calendarRangeStart, calendarRangeEnd)
-    const overlay = overlayRaw
-      // School-holiday closures already render as the faint red background
-      // (closedDates) — drop them here so they don't double up as red bars.
-      .filter((e) => !(e.type === 'closure' && (e.source as HallClosure).source === 'school_holidays'))
-      // Tint events blue (closures keep their native red).
-      .map((e) => (e.type === 'event' ? { ...e, colorOverride: 'blue' } : e))
+    const overlay: CalendarEntry[] = []
+    const seenClosure = new Set<string>()
+    for (const e of overlayRaw) {
+      if (e.type === 'event') {
+        overlay.push({ ...e, colorOverride: 'blue' })
+        continue
+      }
+      if (e.type === 'closure') {
+        const src = e.source as HallClosure
+        // School-holiday closures render as the red background (closedDates) — never a bar.
+        if (src.source === 'school_holidays') continue
+        const dateKey = toDateKey(e.date)
+        const generic = CLOSURE_PATTERN.test(src.reason ?? '')
+        // A school holiday already explains why the hall is closed → the generic
+        // "Halle geschlossen" closure is redundant; the holiday wins.
+        if (generic && closedDates.has(dateKey)) continue
+        // Localise the generic German "Halle geschlossen"; keep specific reasons as-is.
+        const title = generic ? t('hallClosed') : e.title
+        // Collapse the casing / trailing-space variants into one bar per day.
+        const key = `${dateKey}|${e.endDate ? toDateKey(e.endDate) : ''}|${title}`
+        if (seenClosure.has(key)) continue
+        seenClosure.add(key)
+        overlay.push({ ...e, title })
+        continue
+      }
+      overlay.push(e)
+    }
     return [...absenceEntries, ...overlay]
-  }, [calendarAbsences, memberMap, calendarRangeStart, calendarRangeEnd, overlayRaw])
+  }, [calendarAbsences, memberMap, calendarRangeStart, calendarRangeEnd, overlayRaw, closedDates, t])
 
   // Day-overflow modal rows. Absences collapse per member (a member can have BOTH a
   // one-off absence and a weekly unavailability on a day → one "Absent / Unavailable"
@@ -359,7 +394,8 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
           <MonthGrid
             entries={calendarEntries}
             closedDates={closedDates}
-            closedClassName="bg-red-100 dark:bg-red-900/40"
+            closedReasons={closedReasons}
+            closedClassName="bg-red-100/70 dark:bg-red-900/30"
             month={month}
             onMonthChange={setMonth}
             onEntryClick={setSelectedEntry}

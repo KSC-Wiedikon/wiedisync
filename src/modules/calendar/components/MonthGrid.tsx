@@ -205,6 +205,8 @@ interface MonthGridProps {
   onOverflowClick?: (entries: CalendarEntry[], date: Date) => void
   /** Tailwind classes for closed (school-holiday) day cells. Defaults to a faint tint. */
   closedClassName?: string
+  /** Optional date → reason map; surfaced as the closed-day cell tooltip. */
+  closedReasons?: Map<string, string>
 }
 
 export default function MonthGrid({
@@ -215,6 +217,7 @@ export default function MonthGrid({
   onEntryClick,
   onOverflowClick,
   closedClassName = 'bg-red-50/40 dark:bg-red-950/20',
+  closedReasons,
 }: MonthGridProps) {
   const { t } = useTranslation()
   const today = new Date()
@@ -332,6 +335,7 @@ export default function MonthGrid({
                               ? closedClassName
                               : 'bg-white dark:bg-gray-800'
                       }`}
+                      title={isClosed ? closedReasons?.get(key) : undefined}
                       onClick={bgBar ? () => onEntryClick?.(bgBar.entry) : undefined}
                       role={bgBar ? 'button' : undefined}
                     >
