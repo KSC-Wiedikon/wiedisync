@@ -62,6 +62,14 @@ export function useAdminBookings(seasonId: string | undefined) {
     await fetchAll()
   }, [fetchAll])
 
+  const confirmHomeProposal = useCallback(async (bookingId: string, proposalNumber: number, adminNotes?: string) => {
+    await kscwApi('/terminplanung/admin/confirm-home', {
+      method: 'POST',
+      body: { booking_id: bookingId, proposal_number: proposalNumber, admin_notes: adminNotes || '' },
+    })
+    await fetchAll()
+  }, [fetchAll])
+
   const blockSlot = useCallback(async (slotId: string, action: 'block' | 'unblock') => {
     await kscwApi('/terminplanung/admin/block-slot', {
       method: 'POST',
@@ -96,6 +104,7 @@ export function useAdminBookings(seasonId: string | undefined) {
     isLoading,
     hasLoaded,
     confirmAwayProposal,
+    confirmHomeProposal,
     blockSlot,
     generateSlots,
     finalizeNotify,

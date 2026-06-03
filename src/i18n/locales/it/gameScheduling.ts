@@ -48,6 +48,18 @@ export default {
   gapProposal3: 'Proposta trasferta 3',
   gapProposal3Hint: 'Ultima proposta di riserva — può essere più piccola.',
   gapSaved: 'Distanza tra partite salvata',
+  // Proposte partita in casa (l'avversario propone 3 slot; lo spielplaner ne conferma uno)
+  homeProposalDesc: 'Proponi 3 slot nella nostra palestra — lo spielplaner ne conferma uno. Gli slot 1 e 2 sono standard; lo slot 3 può essere più flessibile.',
+  homeSlotsNotReserved: 'Nota: proporre non riserva lo slot. Ne confermiamo uno dei tuoi tre; uno slot potrebbe nel frattempo essere preso da un altro club.',
+  homeProposalsSubmitted: 'Proposte di slot in casa inviate!',
+  homeProposalsPending: 'I tuoi slot in casa proposti (in attesa di conferma):',
+  slotN: 'Slot {{number}}',
+  slotLenientHint: 'più flessibile',
+  pickTimeProposalHint: 'Scegli un orario per aggiungere questo slot alle tue proposte.',
+  tightOption: 'Opzione più stretta',
+  slotMaybeTaken: 'Forse già preso',
+  slotAlsoProposed_one: 'Proposto anche da {{count}} altro club',
+  slotAlsoProposed_other: 'Proposto anche da {{count}} altri club',
   sourceSpielHalle: 'Palestra di gioco',
   sourceManual: 'Manuale',
   teamSlotConfig: 'Configurazione squadra',
@@ -124,7 +136,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'Partita in casa KSCW',
-  homeGameDesc: 'Scegli una fascia per la partita nella nostra palestra',
+  homeGameDesc: 'Proponi 3 slot per la partita nella nostra palestra — ne confermiamo uno.',
   pickSlot: 'Scegli fascia',
   confirmSlot: 'Conferma fascia',
   slotBooked: 'Fascia prenotata!',

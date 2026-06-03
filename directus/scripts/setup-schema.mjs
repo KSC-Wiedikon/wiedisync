@@ -601,6 +601,10 @@ const COLLECTIONS = [
       string('proposed_place_2'),
       datetime('proposed_datetime_3'),
       string('proposed_place_3'),
+      // home-slot proposals (migration 084) — slot ids the opponent proposed
+      integer('proposed_slot_1'),
+      integer('proposed_slot_2'),
+      integer('proposed_slot_3'),
       integer('confirmed_proposal'),
       select('status', ['pending', 'confirmed', 'rejected']),
       text('admin_notes'),

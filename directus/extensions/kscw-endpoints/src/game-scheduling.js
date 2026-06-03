@@ -390,20 +390,21 @@ export function registerGameScheduling(router, { database, logger, services, get
               "AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date"
             )
         })
-        // Games / booked slots / confirmed proposals (±1 day) are filtered in JS
-        // below via `committed` — a booked slot blocks its neighbours too.
-        // Exclude home slots where ANY player is absent — slots we OFFER are
-        // strict (full squad), unlike the opponent's away proposals.
-        .whereRaw(
+        // Games / booked slots / confirmed proposals are filtered in JS below via
+        // the committed sets. Per-slot absent-player count is kept as a COLUMN
+        // (not a hard filter) so the tiering below can offer absence-laden slots
+        // only as the lenient 3rd pick — mirrors the away strict/loose split.
+        // (one-off blocking absences affecting games; guests + weekly don't count)
+        .select('game_scheduling_slots.*', database.raw(
           '(SELECT count(DISTINCT a.member) FROM absences a ' +
           'JOIN member_teams mt ON mt.member = a.member ' +
           'WHERE mt.team = ? AND (mt.guest_level = 0 OR mt.guest_level IS NULL) ' +
           "AND a.type IS DISTINCT FROM 'weekly' " +
-          'AND a.blocking IS NOT FALSE ' + // non-blocking absences (injury, maternity) don't block scheduling
+          'AND a.blocking IS NOT FALSE ' +
           'AND a.start_date::date <= game_scheduling_slots.date AND a.end_date::date >= game_scheduling_slots.date ' +
-          "AND (a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')) < 1",
+          "AND (a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')) as abs_count",
           [opponent.kscw_team],
-        )
+        ))
         .orderBy('date')
 
       // Shape the raw slot rows into the SlotData the opponent UI expects:
@@ -416,18 +417,27 @@ export function registerGameScheduling(router, { database, logger, services, get
         const d = new Date(v)
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       }
+      // Two-tier home slots: a slot is OFFERED if it clears the LOOSE bar
+      // (proposal-3 gap + <3 absences). `strict` marks the stricter bar (home
+      // gap + 0 absences) required for home picks 1 & 2; pick 3 may use any
+      // offered slot. Mirrors the away strict/loose split.
       const slots = slotRows
-        .map((s) => ({
-          id: s.id,
-          date: ymd(s.date),
-          start_time: String(s.start_time).slice(0, 5),
-          end_time: String(s.end_time).slice(0, 5),
-          source: s.source,
-          hall_id: s.hall,
-          hall_name: hallNameById[s.hall] || '',
-        }))
-        // Drop slots on/adjacent to a game, a booked slot or a confirmed proposal.
-        .filter((s) => !committedHome.has(s.date))
+        .map((s) => {
+          const date = ymd(s.date)
+          const absCount = Number(s.abs_count || 0)
+          if (committedProposal3.has(date) || absCount >= 3) return null
+          return {
+            id: s.id,
+            date,
+            start_time: String(s.start_time).slice(0, 5),
+            end_time: String(s.end_time).slice(0, 5),
+            source: s.source,
+            hall_id: s.hall,
+            hall_name: hallNameById[s.hall] || '',
+            strict: !committedHome.has(date) && absCount === 0,
+          }
+        })
+        .filter(Boolean)
 
       const bookings = await database('game_scheduling_bookings')
         .where('opponent', opponent.id)
@@ -444,6 +454,25 @@ export function registerGameScheduling(router, { database, logger, services, get
             b.slot_end = String(sl.end_time).slice(0, 5)
             b.slot_hall_name = hallNameById[sl.hall] || ''
           }
+        }
+        // Pending home proposal: resolve the up-to-3 proposed slots so the
+        // opponent sees what they proposed + whether each is still available.
+        if (b.type === 'home_slot_pick' && b.status === 'pending') {
+          const ids = [b.proposed_slot_1, b.proposed_slot_2, b.proposed_slot_3].filter((x) => x != null)
+          const sls = ids.length ? await database('game_scheduling_slots').whereIn('id', ids).select('*') : []
+          const byId = new Map(sls.map((x) => [x.id, x]))
+          b.proposed_slots = ids.map((id) => {
+            const sl = byId.get(id)
+            if (!sl) return { slot_id: id, available: false }
+            return {
+              slot_id: id,
+              date: ymd(sl.date),
+              start: String(sl.start_time).slice(0, 5),
+              end: String(sl.end_time).slice(0, 5),
+              hall_name: hallNameById[sl.hall] || '',
+              available: sl.status === 'available',
+            }
+          })
         }
       }
 
@@ -587,10 +616,13 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
-  // POST /kscw/terminplanung/book-home/:token — book a home slot
-  router.post('/terminplanung/book-home/:token', async (req, res) => {
+  // POST /kscw/terminplanung/propose-home/:token — propose exactly 3 home slots
+  // (opponent picks slots in OUR hall; the spielplaner confirms one). Mirrors
+  // propose-away. Slots are NOT reserved on proposal — only the confirmed one
+  // books the slot, so two opponents may propose the same slot (admin arbitrates;
+  // the opponent + admin are warned a proposed slot might not be available).
+  router.post('/terminplanung/propose-home/:token', async (req, res) => {
     try {
-      // Rate limit: max 10 booking attempts per 15 min per IP
       if (!rateLimit(writeAttempts, req, 10, 15 * 60 * 1000)) {
         return res.status(429).json({ error: 'Too many requests. Try again later.' })
       }
@@ -601,9 +633,6 @@ export function registerGameScheduling(router, { database, logger, services, get
         .first()
       if (!opponent) return res.status(404).json({ error: 'Invalid link' })
 
-      const { slot_id } = req.body
-      if (!slot_id) return res.status(400).json({ error: 'slot_id required' })
-
       // Remember the language the opponent is acting in (for emails).
       const lang = VALID_LANGS.includes(String(req.body?.language || '').toLowerCase()) ? String(req.body.language).toLowerCase() : null
       if (lang) {
@@ -611,104 +640,186 @@ export function registerGameScheduling(router, { database, logger, services, get
         opponent.language = lang
       }
 
-      // Run the slot reservation in a transaction with SELECT … FOR UPDATE so
-      // two concurrent calls for the same slot can't both pass the
-      // availability check (the original code had a TOCTOU window between the
-      // existence check and the booking insert).
-      // Cross-team check: the slot must belong to the same kscw_team as the
-      // opponent's invite — without this, any opponent with a valid token
-      // could mark slots from OTHER teams as booked, effectively sabotaging
-      // their schedule.
+      const ids = Array.isArray(req.body?.slot_ids) ? req.body.slot_ids.map((x) => Number(x)) : []
+      if (ids.length !== 3 || ids.some((x) => !Number.isInteger(x) || x <= 0)) {
+        return res.status(400).json({ error: 'exactly 3 slot_ids required' })
+      }
+      if (new Set(ids).size !== 3) {
+        return res.status(400).json({ error: 'slot_ids must be distinct' })
+      }
+
+      // Validate each proposed slot against its tier (picks 1-2 strict: home gap
+      // + 0 absences; pick 3 lenient: proposal-3 gap + <3 absences), mirroring the
+      // read-time list. Slots are not held.
+      const gaps = await seasonGaps(opponent.season)
+      const committedHome = await committedGameDates(opponent.kscw_team, gaps.home)
+      const committedProposal3 = await committedGameDates(opponent.kscw_team, gaps.proposal3)
+      const toYmd = (v) => (typeof v === 'string' ? v.slice(0, 10) : new Date(v).toISOString().slice(0, 10))
+
+      for (let i = 0; i < 3; i++) {
+        const slot = await database('game_scheduling_slots').where('id', ids[i]).first()
+        if (!slot || slot.kscw_team !== opponent.kscw_team) {
+          return res.status(400).json({ error: `Slot ${i + 1} is invalid` })
+        }
+        if (slot.status !== 'available') {
+          return res.status(400).json({ error: `Slot ${i + 1} is no longer available — please pick another.` })
+        }
+        const day = toYmd(slot.date)
+        const eventCover = await database('events as e')
+          .join('events_teams as et', 'et.events_id', 'e.id')
+          .where('et.teams_id', opponent.kscw_team)
+          .whereRaw("?::date BETWEEN (e.start_date AT TIME ZONE 'Europe/Zurich')::date AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date", [day])
+          .first()
+        if (eventCover) return res.status(400).json({ error: `Slot ${i + 1} falls on a team event — please pick another.` })
+
+        const absRow = await database('absences as a')
+          .join('member_teams as mt', 'mt.member', 'a.member')
+          .where('mt.team', opponent.kscw_team)
+          .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
+          .whereRaw("a.type IS DISTINCT FROM 'weekly'")
+          .whereRaw('a.blocking IS NOT FALSE')
+          .whereRaw('a.start_date::date <= ?::date AND a.end_date::date >= ?::date', [day, day])
+          .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
+          .countDistinct('a.member as c')
+          .first()
+        const absCount = Number(absRow?.c || 0)
+        const gapSet = i < 2 ? committedHome : committedProposal3
+        const absMax = i < 2 ? 0 : 2
+        if (gapSet.has(day)) {
+          return res.status(400).json({ error: `Slot ${i + 1} is too close to an existing game — please pick another.` })
+        }
+        if (absCount > absMax) {
+          return res.status(400).json({ error: `Slot ${i + 1} has too many absent players — please pick another.` })
+        }
+      }
+
+      // Replace any prior PENDING home proposal (a confirmed one stays intact).
+      await database('game_scheduling_bookings')
+        .where({ opponent: opponent.id, type: 'home_slot_pick', status: 'pending' })
+        .del()
+      await database('game_scheduling_bookings').insert({
+        opponent: opponent.id,
+        season: opponent.season,
+        type: 'home_slot_pick',
+        status: 'pending',
+        proposed_slot_1: ids[0],
+        proposed_slot_2: ids[1],
+        proposed_slot_3: ids[2],
+      })
+
+      await database('game_scheduling_opponents')
+        .where('id', opponent.id)
+        .whereIn('status', ['invited', 'viewed'])
+        .update({ status: 'booked' })
+
+      // Receipt to the opponent (their language) + KSCW notify. Best-effort.
+      try {
+        const team = await database('teams').where('id', opponent.kscw_team).first()
+        const hallNameById = {}
+        ;(await database('halls').select('id', 'name')).forEach((h) => { hallNameById[h.id] = h.name })
+        const kscw = `KSCW ${team?.name || ''}`.trim()
+        const opp = opponent.club_name || opponent.team_name || ''
+        const slotsFull = await database('game_scheduling_slots').whereIn('id', ids).select('*')
+        const byId = new Map(slotsFull.map((s) => [s.id, s]))
+        const lines = ids.map((id) => {
+          const s = byId.get(id)
+          if (!s) return null
+          const { date } = fmtDateMail(s.date)
+          const st = String(s.start_time).slice(0, 5)
+          const et = String(s.end_time).slice(0, 5)
+          return `• ${date}, ${st}–${et}${hallNameById[s.hall] ? `, ${hallNameById[s.hall]}` : ''}`
+        }).filter(Boolean)
+        const list = lines.join('\n')
+        if (opponent.contact_email) {
+          const { subject, text } = schedEmail(opponent.language, 'home_proposals_sent', {
+            contact: opponent.contact_name || '', kscw, opp, list,
+          })
+          await sendSchedulingMail(opponent.contact_email, subject, text)
+        }
+        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Heim-Slot-Vorschläge – ${opp} (${kscw})`,
+          `${opp} hat Heimspiel-Slots vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${FRONTEND_URL}/admin/terminplanung/dashboard`)
+      } catch (mailErr) {
+        log.warn(`propose-home email failed: ${mailErr.message}`)
+      }
+
+      res.json({ success: true, proposals_count: 3 })
+    } catch (err) {
+      log.error({ msg: `terminplanung/propose-home: ${err.message}`, endpoint: 'terminplanung/propose-home', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/terminplanung/admin/confirm-home — confirm one of an opponent's 3
+  // proposed home slots. Body: { booking_id, proposal_number (1-3), admin_notes? }.
+  // Mirrors confirm-away, but books a real slot: it applies the SAME locks the old
+  // instant-book did (advisory lock + FOR UPDATE + availability + event + gap +
+  // Saturday cap + cross-team), marks the chosen slot booked and copies it into
+  // `slot`. Pick 3 (n===3) uses the lenient gap, mirroring how it was proposed.
+  router.post('/terminplanung/admin/confirm-home', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const { booking_id, proposal_number, admin_notes } = req.body || {}
+      const n = Number(proposal_number)
+      if (!booking_id || ![1, 2, 3].includes(n)) {
+        return res.status(400).json({ error: 'booking_id and proposal_number (1-3) required' })
+      }
+      const booking = await database('game_scheduling_bookings').where('id', booking_id).first()
+      if (!booking || booking.type !== 'home_slot_pick') {
+        return res.status(400).json({ error: 'Invalid booking' })
+      }
+      const slotId = booking[`proposed_slot_${n}`]
+      if (!slotId) return res.status(400).json({ error: `Proposal ${n} is empty` })
+      const opponent = await database('game_scheduling_opponents').where('id', booking.opponent).first()
+      if (!opponent) return res.status(400).json({ error: 'Opponent not found' })
+
       await database.transaction(async (trx) => {
-        // Serialize all home bookings for this team. The per-slot FOR UPDATE
-        // below only stops two opponents grabbing the SAME slot; it does nothing
-        // for two opponents booking two DIFFERENT slots within the gap window
-        // at the same instant (each committedGameDates() read would miss the
-        // other's in-flight booking). A per-team advisory xact lock makes the
-        // second booking wait until the first commits, so the gap + Saturday-cap
-        // checks always see prior bookings. Contention is per-team → negligible.
         await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [GSCH_BOOK_LOCK_CLASS, opponent.kscw_team])
-        const slot = await trx('game_scheduling_slots').where('id', slot_id).forUpdate().first()
+        const slot = await trx('game_scheduling_slots').where('id', slotId).forUpdate().first()
         if (!slot || slot.status === 'blocked' || slot.status === 'booked') {
-          throw Object.assign(new Error('Slot not available'), { httpStatus: 400 })
+          throw Object.assign(new Error('Slot is no longer available'), { httpStatus: 400 })
         }
         if (slot.kscw_team !== opponent.kscw_team) {
           throw Object.assign(new Error('Slot does not belong to this team'), { httpStatus: 400 })
         }
+        const slotYmd = (typeof slot.date === 'string' ? slot.date : new Date(slot.date).toISOString()).slice(0, 10)
 
-        // Re-check event coverage at booking time: an event may have been
-        // added between when the opponent loaded the slot list and clicked
-        // book. Mirrors the read-time filter in /terminplanung/slots.
         const eventCover = await trx('events as e')
           .join('events_teams as et', 'et.events_id', 'e.id')
           .where('et.teams_id', opponent.kscw_team)
-          .whereRaw(
-            "?::date BETWEEN (e.start_date AT TIME ZONE 'Europe/Zurich')::date " +
-            "AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date",
-            [slot.date]
-          )
+          .whereRaw("?::date BETWEEN (e.start_date AT TIME ZONE 'Europe/Zurich')::date AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date", [slot.date])
           .first()
-        if (eventCover) {
-          throw Object.assign(new Error('Slot not available — team has an event on this date'), { httpStatus: 400 })
-        }
+        if (eventCover) throw Object.assign(new Error('Slot falls on a team event'), { httpStatus: 400 })
 
-        const existing = await trx('game_scheduling_bookings')
-          .where('slot', slot_id).where('status', 'confirmed').first()
-        if (existing) {
-          throw Object.assign(new Error('Slot already booked'), { httpStatus: 400 })
-        }
-
-        // A game / booked slot / confirmed proposal within the home gap of this
-        // slot blocks it too. The read-time list already hides these; re-check
-        // here to close the concurrent race where a neighbour was booked in between.
-        const homeGap = (await seasonGaps(opponent.season)).home
-        const committed = await committedGameDates(opponent.kscw_team, homeGap)
-        const slotYmd = (typeof slot.date === 'string' ? slot.date : new Date(slot.date).toISOString()).slice(0, 10)
-        if (committed.has(slotYmd)) {
-          throw Object.assign(new Error('Slot not available — the team already plays on or next to this date'), { httpStatus: 400 })
-        }
+        const gaps = await seasonGaps(opponent.season)
+        const gap = n < 3 ? gaps.home : gaps.proposal3
+        const committed = await committedGameDates(opponent.kscw_team, gap)
+        if (committed.has(slotYmd)) throw Object.assign(new Error('Too close to another game for this team'), { httpStatus: 400 })
 
         const team = await trx('teams').where('id', opponent.kscw_team).first('id', 'name')
-
-        // A1/A2/A4 — Saturday home-game cap (junior ∞, no-evening-slot 3, else 2).
-        // Sunday slots never count toward this. Run on trx to close the TOCTOU
-        // window where two opponents book the team's 2nd + 3rd Saturday at once.
         if (isSaturday(slotYmd)) {
           const cap = await teamSaturdayCap(team, trx)
           const satDates = await committedSaturdayDates(team.id, trx)
-          if (satDates.size + 1 > cap) {
-            throw Object.assign(new Error('conflict_sat_cap'), { httpStatus: 400 })
-          }
+          if (satDates.size + 1 > cap) throw Object.assign(new Error('Saturday home-game cap reached for this team'), { httpStatus: 400 })
         }
-
-        // C1 cross-team — a team sharing players with this one must not already
-        // play on the same date (a junior rostered on two teams plays once a day).
         const others = await sharedPlayerTeams(team.id, trx)
         const conflictTeams = await teamsCommittedOnDate(others, slotYmd, trx)
         if (conflictTeams.length) {
           const names = await trx('teams').whereIn('id', conflictTeams).pluck('name')
-          throw Object.assign(new Error('conflict_cross_team'), { httpStatus: 400, teams: names.join(', ') })
+          throw Object.assign(new Error(`Cross-team conflict: ${names.join(', ')} already play that day`), { httpStatus: 400 })
         }
 
-        await trx('game_scheduling_bookings').insert({
-          opponent: opponent.id,
-          slot: slot_id,
-          type: 'home_slot_pick',
-          season: slot.season,
+        await trx('game_scheduling_bookings').where('id', booking_id).update({
           status: 'confirmed',
+          confirmed_proposal: n,
+          slot: slotId,
+          admin_notes: admin_notes || booking.admin_notes || null,
         })
-        await trx('game_scheduling_slots').where('id', slot_id).update({ status: 'booked' })
-
-        await trx('game_scheduling_opponents')
-          .where('id', opponent.id)
-          .whereIn('status', ['invited', 'viewed'])
-          .update({ status: 'booked' })
+        await trx('game_scheduling_slots').where('id', slotId).update({ status: 'booked' })
       })
 
-      // Confirmation email to the opponent (in their language) + KSCW notification.
-      // Best-effort — never blocks the booking.
+      // Confirmation email to the opponent (their language) + mailbox notice.
       try {
-        const slot = await database('game_scheduling_slots').where('id', slot_id).first()
+        const slot = await database('game_scheduling_slots').where('id', slotId).first()
         const team = await database('teams').where('id', opponent.kscw_team).first()
         const hall = slot?.hall ? await database('halls').where('id', slot.hall).first() : null
         const { date, time } = fmtDateMail(slot?.date)
@@ -722,21 +833,18 @@ export function registerGameScheduling(router, { database, logger, services, get
           })
           await sendSchedulingMail(opponent.contact_email, subject, text)
         }
-        // Per-leg notice → spielplanung mailbox only (auto-forwards to the VB
-        // Spielplanung group). Coaches/TR are NOT notified here — they get a
-        // single combined summary once the full schedule is confirmed.
-        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Heimspiel gebucht – ${opp} (${kscw})`,
-          `${opp} hat einen Heimspiel-Slot gebucht:\n${date}, ${timeRange} Uhr, ${hall?.name || ''} (${kscw}).`)
+        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Heimspiel bestätigt – ${opp} (${kscw})`,
+          `Heimspiel bestätigt:\n\n${kscw} (Heim) vs ${opp}\n${date}, ${timeRange} Uhr${hall?.name ? `, ${hall.name}` : ''}.`)
       } catch (mailErr) {
-        log.warn(`book-home email failed: ${mailErr.message}`)
+        log.warn(`confirm-home email failed: ${mailErr.message}`)
       }
 
-      res.json({ success: true })
+      res.json({ success: true, confirmed_proposal: n })
     } catch (err) {
       if (err && err.httpStatus) {
-        return res.status(err.httpStatus).json({ error: err.message, ...(err.teams ? { teams: err.teams } : {}) })
+        return res.status(err.httpStatus).json({ error: err.message })
       }
-      log.error({ msg: `terminplanung/book-home: ${err.message}`, endpoint: 'terminplanung/book-home', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      log.error({ msg: `confirm-home: ${err.message}`, endpoint: 'terminplanung/admin/confirm-home', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

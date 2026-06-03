@@ -15,6 +15,18 @@ export interface SlotData {
   source: string
   /** Junior Sunday slots: true when another junior team already plays this Sunday (soft cluster hint). */
   preferred?: boolean
+  /** True if the slot clears the strict bar (home gap + 0 absences) — required for home picks 1 & 2. Loose-only slots (false) are selectable only as the 3rd pick. */
+  strict?: boolean
+}
+
+export interface ProposedHomeSlot {
+  slot_id: string | number
+  date?: string
+  start?: string
+  end?: string
+  hall_name?: string
+  /** False if the slot has since been booked/blocked by someone else. */
+  available: boolean
 }
 
 export interface OpponentData {
@@ -53,12 +65,18 @@ export interface BookingData {
   proposed_place_2: string
   proposed_datetime_3: string
   proposed_place_3: string
+  /** Home-slot proposals (slot ids) while a home booking is pending. */
+  proposed_slot_1?: string | number | null
+  proposed_slot_2?: string | number | null
+  proposed_slot_3?: string | number | null
   confirmed_proposal: number
-  /** Decided home slot (enriched server-side for home_slot_pick bookings). */
+  /** Decided home slot (enriched server-side for confirmed home_slot_pick bookings). */
   slot_date?: string
   slot_start?: string
   slot_end?: string
   slot_hall_name?: string
+  /** Pending home proposal: the resolved proposed slots (enriched server-side). */
+  proposed_slots?: ProposedHomeSlot[]
 }
 
 interface SlotsResponse {
@@ -93,11 +111,11 @@ export function useAvailableSlots(token: string | undefined) {
 
   useEffect(() => { fetchSlots() }, [fetchSlots])
 
-  const bookHomeSlot = useCallback(async (slotId: string) => {
+  const proposeHome = useCallback(async (slotIds: Array<string | number>) => {
     if (!token) throw new Error('No token')
-    const resp = await kscwApi(`/terminplanung/book-home/${token}`, {
+    const resp = await kscwApi(`/terminplanung/propose-home/${token}`, {
       method: 'POST',
-      body: { slot_id: slotId, language: baseLang(i18n.resolvedLanguage || i18n.language) },
+      body: { slot_ids: slotIds.map((x) => Number(x)), language: baseLang(i18n.resolvedLanguage || i18n.language) },
     })
     await fetchSlots()
     return resp
@@ -131,7 +149,7 @@ export function useAvailableSlots(token: string | undefined) {
     seasonWindow: data?.season_window ?? null,
     isLoading,
     error,
-    bookHomeSlot,
+    proposeHome,
     proposeAway,
     setLanguage,
     refetch: fetchSlots,

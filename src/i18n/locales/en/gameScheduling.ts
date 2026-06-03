@@ -45,6 +45,18 @@ export default {
   gapProposal3: 'Away proposal 3',
   gapProposal3Hint: 'Last fallback proposal — can be smaller.',
   gapSaved: 'Game spacing saved',
+  // Home-game proposals (opponent proposes 3 slots; spielplaner confirms one)
+  homeProposalDesc: 'Propose 3 slots in our hall — the spielplaner confirms one. Slots 1 & 2 are standard; slot 3 can be more flexible.',
+  homeSlotsNotReserved: "Heads up: proposing doesn't reserve a slot. We confirm one of your three; a slot may be taken by another club before then.",
+  homeProposalsSubmitted: 'Home-slot proposals submitted!',
+  homeProposalsPending: 'Your proposed home slots (awaiting confirmation):',
+  slotN: 'Slot {{number}}',
+  slotLenientHint: 'more flexible',
+  pickTimeProposalHint: 'Pick a time to add this slot to your proposals.',
+  tightOption: 'Tighter option',
+  slotMaybeTaken: 'May already be taken',
+  slotAlsoProposed_one: 'Also proposed by {{count}} other club',
+  slotAlsoProposed_other: 'Also proposed by {{count}} other clubs',
   sourceSpielHalle: 'Game Hall',
   sourceManual: 'Manual',
   teamSlotConfig: 'Team Configuration',
@@ -107,7 +119,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'KSCW Home Game',
-  homeGameDesc: 'Choose a slot for the game in our hall',
+  homeGameDesc: 'Propose 3 slots for the game in our hall — we confirm one.',
   pickSlot: 'Pick Slot',
   confirmSlot: 'Confirm Slot',
   slotBooked: 'Slot booked!',

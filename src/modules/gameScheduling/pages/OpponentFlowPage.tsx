@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
-import HomeSlotPicker from '../components/HomeSlotPicker'
+import HomeProposalForm from '../components/HomeProposalForm'
 import AwayProposalForm from '../components/AwayProposalForm'
 import LoadingSpinner from '../../../components/LoadingSpinner'
 import { Badge } from '../../../components/ui/badge'
@@ -33,7 +33,7 @@ type LegStatus = 'open' | 'proposed' | 'confirmed'
 export default function OpponentFlowPage() {
   const { token } = useParams<{ token: string }>()
   const { t, i18n } = useTranslation('gameScheduling')
-  const { opponent, slots, bookings, blockedStrict, blockedLoose, seasonWindow, isLoading, error, bookHomeSlot, proposeAway, setLanguage } =
+  const { opponent, slots, bookings, blockedStrict, blockedLoose, seasonWindow, isLoading, error, proposeHome, proposeAway, setLanguage } =
     useAvailableSlots(token)
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
@@ -87,7 +87,7 @@ export default function OpponentFlowPage() {
   const homeMatch = `${kscwName} – ${oppName}` // KSCW hosts
   const awayMatch = `${oppName} – ${kscwName}` // opponent hosts
 
-  const homeStatus: LegStatus = homeBooking ? 'confirmed' : 'open'
+  const homeStatus: LegStatus = !homeBooking ? 'open' : homeBooking.status === 'confirmed' ? 'confirmed' : 'proposed'
   const awayStatus: LegStatus = !awayBooking ? 'open' : awayBooking.status === 'confirmed' ? 'confirmed' : 'proposed'
 
   const statusBadge = (s: LegStatus) => {
@@ -124,12 +124,12 @@ export default function OpponentFlowPage() {
     }
   }
 
-  const handleBookSlot = async (slotId: string) => {
+  const handleProposeHome = async (slotIds: string[]) => {
     setBookingError('')
     setBookingSuccess('')
     try {
-      await bookHomeSlot(slotId)
-      setBookingSuccess(t('slotBooked'))
+      await proposeHome(slotIds)
+      setBookingSuccess(t('homeProposalsSubmitted'))
     } catch (err: unknown) {
       setBookingError(schedErrorMessage(err))
     }
@@ -195,7 +195,7 @@ export default function OpponentFlowPage() {
             </div>
             <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">{t('homeGameDesc')}</p>
 
-            {homeBooking ? (
+            {homeBooking?.status === 'confirmed' ? (
               <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
                 <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('slotBooked')}</p>
                 <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
@@ -204,7 +204,26 @@ export default function OpponentFlowPage() {
                 </p>
               </div>
             ) : (
-              <HomeSlotPicker slots={slots} onPickSlot={handleBookSlot} />
+              <>
+                {homeBooking?.status === 'pending' && homeBooking.proposed_slots && (
+                  <div className="mb-4 rounded-md bg-yellow-50 p-3 dark:bg-yellow-900/20">
+                    <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">{t('homeProposalsPending')}</p>
+                    <ul className="mt-1 space-y-0.5">
+                      {homeBooking.proposed_slots.map((p, idx) => (
+                        <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
+                          {p.date ? `${fmtDate(p.date)} · ${p.start}–${p.end}${p.hall_name ? ` · ${p.hall_name}` : ''}` : t('slotN', { number: idx + 1 })}
+                          {!p.available && <span className="ml-2 text-xs text-red-600 dark:text-red-400">⚠ {t('slotMaybeTaken')}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <HomeProposalForm
+                  slots={slots}
+                  existing={homeBooking?.status === 'pending' ? homeBooking : undefined}
+                  onSubmit={handleProposeHome}
+                />
+              </>
             )}
           </div>
 

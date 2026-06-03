@@ -45,6 +45,18 @@ export default {
   gapProposal3: 'Auswärts-Vorschlag 3',
   gapProposal3Hint: 'Letzter Ausweich-Vorschlag — darf kleiner sein.',
   gapSaved: 'Spielabstand gespeichert',
+  // Heimspiel-Vorschläge (Gegner schlägt 3 Slots vor; Spielplaner bestätigt einen)
+  homeProposalDesc: 'Schlage 3 Slots in unserer Halle vor — der Spielplaner bestätigt einen. Slots 1 & 2 sind Standard; Slot 3 darf flexibler sein.',
+  homeSlotsNotReserved: 'Hinweis: Ein Vorschlag reserviert den Slot nicht. Wir bestätigen einen deiner drei; ein Slot kann vorher von einem anderen Verein belegt werden.',
+  homeProposalsSubmitted: 'Heim-Slot-Vorschläge gesendet!',
+  homeProposalsPending: 'Deine vorgeschlagenen Heim-Slots (warten auf Bestätigung):',
+  slotN: 'Slot {{number}}',
+  slotLenientHint: 'flexibler',
+  pickTimeProposalHint: 'Wähle eine Zeit, um diesen Slot zu deinen Vorschlägen hinzuzufügen.',
+  tightOption: 'Engere Option',
+  slotMaybeTaken: 'Evtl. schon vergeben',
+  slotAlsoProposed_one: 'Auch von {{count}} anderen Verein vorgeschlagen',
+  slotAlsoProposed_other: 'Auch von {{count}} anderen Vereinen vorgeschlagen',
   sourceSpielHalle: 'Spielhalle',
   sourceManual: 'Manuell',
   teamSlotConfig: 'Team-Konfiguration',
@@ -114,7 +126,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'Heimspiel KSCW',
-  homeGameDesc: 'Wähle einen Termin für das Spiel in unserer Halle',
+  homeGameDesc: 'Schlage 3 Slots für das Spiel in unserer Halle vor — wir bestätigen einen.',
   pickSlot: 'Termin wählen',
   confirmSlot: 'Termin bestätigen',
   slotBooked: 'Termin gebucht!',

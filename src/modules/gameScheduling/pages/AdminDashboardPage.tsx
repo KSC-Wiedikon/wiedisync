@@ -7,15 +7,14 @@ import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
 import { useAdminBookings } from '../hooks/useAdminBookings'
 import { useTeams } from '../../../hooks/useTeams'
 import LoadingSpinner from '../../../components/LoadingSpinner'
-import BookingStatusBadge from '../components/BookingStatusBadge'
 import AwayProposalReview from '../components/AwayProposalReview'
+import HomeProposalReview from '../components/HomeProposalReview'
 import ExcelExportButton from '../components/ExcelExportButton'
 import { Badge } from '../../../components/ui/badge'
 import type { GameSchedulingOpponent, GameSchedulingSlot, InviteStatus, InviteSource } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import { formatSeasonShort } from '../utils/formatSeason'
 import { useHalls } from '../../../hooks/useData'
-import { formatDateCompactZurich } from '../../../utils/dateHelpers'
 import { isSchedulableTeam } from '../utils/schedulableTeams'
 
 const INVITE_STATUS_VARIANT: Record<InviteStatus, 'info' | 'warning' | 'success' | 'danger' | 'neutral' | 'secondary'> = {
@@ -48,7 +47,7 @@ export default function AdminDashboardPage() {
   const { t } = useTranslation('gameScheduling')
   const { hasAdminAccessToSport, is_spielplaner } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
-  const { bookings, opponents, slots, isLoading, hasLoaded, confirmAwayProposal, blockSlot, finalizeNotify } = useAdminBookings(season?.id)
+  const { bookings, opponents, slots, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, blockSlot, finalizeNotify } = useAdminBookings(season?.id)
   const { data: teams } = useTeams()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
@@ -217,6 +216,7 @@ export default function AdminDashboardPage() {
                     bookings={bookings}
                     slots={getTeamSlots(team.id)}
                     onConfirmAway={confirmAwayProposal}
+                    onConfirmHome={confirmHomeProposal}
                     onBlockSlot={blockSlot}
                   />
                 </div>
@@ -232,17 +232,32 @@ export default function AdminDashboardPage() {
 function TeamBookingsContent({
   opponents: teamOpponents,
   bookings: allBookings,
+  slots: teamSlots,
   onConfirmAway,
+  onConfirmHome,
 }: {
   opponents: GameSchedulingOpponent[]
   bookings: ExpandedBooking[]
   slots: GameSchedulingSlot[]
   onConfirmAway: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
+  onConfirmHome: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   onBlockSlot: (slotId: string, action: 'block' | 'unblock') => Promise<void>
 }) {
   const { t } = useTranslation('gameScheduling')
   const { data: halls } = useHalls()
   const hallsById = new Map((halls || []).map((h) => [String(h.id), h.name]))
+  const slotsById = new Map(teamSlots.map((s) => [String(s.id), s]))
+  // slotId -> set of pending home-proposal booking ids referencing it (contention).
+  const proposalRefs = new Map<string, Set<string>>()
+  for (const b of allBookings) {
+    if (b.type !== 'home_slot_pick' || b.status !== 'pending') continue
+    for (const sid of [b.proposed_slot_1, b.proposed_slot_2, b.proposed_slot_3]) {
+      if (sid == null) continue
+      const k = String(sid)
+      if (!proposalRefs.has(k)) proposalRefs.set(k, new Set())
+      proposalRefs.get(k)!.add(String(b.id))
+    }
+  }
 
   if (teamOpponents.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t('noBookingsYet')}</p>
@@ -257,12 +272,6 @@ function TeamBookingsContent({
         })
         const homeBooking = oppBookings.find(b => b.type === 'home_slot_pick')
         const awayBooking = oppBookings.find(b => b.type === 'away_proposal')
-        // slot is fetched expanded (`slot.*`) but typed `string` after the
-        // intersection collapse — cast to read the date/time/hall.
-        const homeSlot =
-          homeBooking && typeof homeBooking.slot === 'object'
-            ? (homeBooking.slot as unknown as GameSchedulingSlot)
-            : null
         const inviteStatus = (opp.status as InviteStatus) || 'active'
         const source = (opp.source as InviteSource) || 'self_registration'
 
@@ -311,16 +320,16 @@ function TeamBookingsContent({
               <div>
                 <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('homeBookings')}</h4>
                 {homeBooking ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <BookingStatusBadge status={homeBooking.status} />
-                    {homeSlot && (
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {formatDateCompactZurich(homeSlot.date)} · {homeSlot.start_time?.slice(0, 5)}–
-                        {homeSlot.end_time?.slice(0, 5)}
-                        {hallsById.get(String(homeSlot.hall)) ? ` · ${hallsById.get(String(homeSlot.hall))}` : ''}
-                      </span>
-                    )}
-                  </div>
+                  <HomeProposalReview
+                    booking={homeBooking}
+                    slotsById={slotsById}
+                    hallsById={hallsById}
+                    contention={(slotId) => {
+                      const set = proposalRefs.get(String(slotId))
+                      return set ? [...set].filter((id) => id !== String(homeBooking.id)).length : 0
+                    }}
+                    onConfirm={onConfirmHome}
+                  />
                 ) : (
                   <span className="text-sm text-gray-400">{t('pending')}</span>
                 )}

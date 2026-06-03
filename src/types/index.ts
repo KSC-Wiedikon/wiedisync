@@ -649,6 +649,10 @@ export interface GameSchedulingBooking extends BaseRecord {
   proposed_place_2: string
   proposed_datetime_3: string
   proposed_place_3: string
+  /** Home-slot proposals (slot ids) while a home booking is pending. */
+  proposed_slot_1: string | number | null
+  proposed_slot_2: string | number | null
+  proposed_slot_3: string | number | null
   confirmed_proposal: number
   status: 'pending' | 'confirmed' | 'rejected'
   admin_notes: string

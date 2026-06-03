@@ -48,6 +48,18 @@ export default {
   gapProposal3: 'Proposition extérieur 3',
   gapProposal3Hint: 'Dernière proposition de repli — peut être plus petite.',
   gapSaved: 'Espacement des matchs enregistré',
+  // Propositions de match à domicile (l'adversaire propose 3 créneaux ; le spielplaner en confirme un)
+  homeProposalDesc: 'Proposez 3 créneaux dans notre salle — le spielplaner en confirme un. Les créneaux 1 et 2 sont standard ; le créneau 3 peut être plus flexible.',
+  homeSlotsNotReserved: "À noter : proposer ne réserve pas le créneau. Nous en confirmons un sur vos trois ; un créneau peut entre-temps être pris par un autre club.",
+  homeProposalsSubmitted: 'Propositions de créneaux à domicile envoyées !',
+  homeProposalsPending: 'Vos créneaux à domicile proposés (en attente de confirmation) :',
+  slotN: 'Créneau {{number}}',
+  slotLenientHint: 'plus flexible',
+  pickTimeProposalHint: 'Choisissez une heure pour ajouter ce créneau à vos propositions.',
+  tightOption: 'Option plus serrée',
+  slotMaybeTaken: 'Peut-être déjà pris',
+  slotAlsoProposed_one: 'Également proposé par {{count}} autre club',
+  slotAlsoProposed_other: 'Également proposé par {{count}} autres clubs',
   sourceSpielHalle: 'Salle de match',
   sourceManual: 'Manuel',
   teamSlotConfig: 'Configuration par equipe',
@@ -124,7 +136,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'Match a domicile KSCW',
-  homeGameDesc: 'Choisissez un creneau pour le match dans notre salle',
+  homeGameDesc: 'Proposez 3 créneaux pour le match dans notre salle — nous en confirmons un.',
   pickSlot: 'Choisir un creneau',
   confirmSlot: 'Confirmer le creneau',
   slotBooked: 'Creneau reserve !',
