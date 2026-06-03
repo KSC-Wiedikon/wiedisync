@@ -111,6 +111,17 @@ export function registerGameScheduling(router, { database, logger, services, get
         log.warn(`Scheduling email failed: ${mailErr.message}`)
       }
 
+      // Notify the spielplanung mailbox (auto-forwards to the VB Spielplanung
+      // group) that a new opponent registered. Best-effort.
+      try {
+        const team = await database('teams').where('id', kscw_team).first('name')
+        const kscw = `KSCW ${team?.name || ''}`.trim()
+        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Neue Anmeldung Spielplanung – ${team_name} (${kscw})`,
+          `${team_name} (${contact_name}, ${contact_email}) hat sich für die Spielplanung gegen ${kscw} registriert.`)
+      } catch (mailErr) {
+        log.warn(`Scheduling group notice failed: ${mailErr.message}`)
+      }
+
       // Do NOT return the token here — it travels via email only. Returning
       // it in the response would let any caller who passes Turnstile receive
       // a token bound to an arbitrary contact_email they don't control.
@@ -1174,6 +1185,99 @@ export function registerGameScheduling(router, { database, logger, services, get
       res.json({ success: true, confirmed_proposal: n })
     } catch (err) {
       log.error({ msg: `confirm-away: ${err.message}`, endpoint: 'terminplanung/admin/confirm-away', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/terminplanung/admin/finalize-notify — send the finalized schedule
+  // (all confirmed home + away games) for one team+season to the team's coaches
+  // + team-responsibles AND the spielplanung mailbox (which auto-forwards to the
+  // VB Spielplanung group). Manual: the spielplaner clicks this once the schedule
+  // is complete. Opponents are NOT included — they already received per-leg
+  // confirmations, and a team-wide summary would leak other clubs' games.
+  // Body: { team_id, season_id }.
+  router.post('/terminplanung/admin/finalize-notify', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const teamId = Number(req.body?.team_id)
+      const seasonId = Number(req.body?.season_id)
+      if (!teamId || !seasonId) return res.status(400).json({ error: 'team_id and season_id required' })
+
+      const [team, season] = await Promise.all([
+        database('teams').where('id', teamId).first('id', 'name'),
+        database('game_scheduling_seasons').where('id', seasonId).first('id', 'season'),
+      ])
+      if (!team) return res.status(404).json({ error: 'Team not found' })
+      const kscw = `KSCW ${team.name || ''}`.trim()
+      const seasonLabel = season?.season || ''
+
+      const opponents = await database('game_scheduling_opponents')
+        .where('kscw_team', teamId).where('season', seasonId)
+        .whereNotIn('status', ['revoked', 'expired'])
+        .select('id', 'team_name', 'club_name')
+      const oppName = (o) => (o && (o.club_name || o.team_name)) || '—'
+      const oppById = new Map(opponents.map((o) => [o.id, o]))
+      const oppIds = opponents.map((o) => o.id)
+
+      let homeRows = [], awayRows = []
+      if (oppIds.length) {
+        ;[homeRows, awayRows] = await Promise.all([
+          database('game_scheduling_bookings as b')
+            .join('game_scheduling_slots as s', 's.id', 'b.slot')
+            .leftJoin('halls as h', 'h.id', 's.hall')
+            .whereIn('b.opponent', oppIds).where('b.type', 'home_slot_pick').where('b.status', 'confirmed')
+            .select('b.opponent', 's.date', 's.start_time', 's.end_time', 'h.name as hall'),
+          database('game_scheduling_bookings')
+            .whereIn('opponent', oppIds).where('type', 'away_proposal').where('status', 'confirmed')
+            .select('opponent', 'confirmed_proposal',
+              'proposed_datetime_1', 'proposed_datetime_2', 'proposed_datetime_3',
+              'proposed_place_1', 'proposed_place_2', 'proposed_place_3'),
+        ])
+      }
+
+      const homeByOpp = new Map(homeRows.map((r) => [r.opponent, r]))
+      const awayByOpp = new Map(awayRows.map((r) => [r.opponent, r]))
+
+      // Home game lines, sorted by date.
+      const homeLines = homeRows.map((r) => {
+        const { date } = fmtDateMail(r.date)
+        const start = String(r.start_time || '').slice(0, 5)
+        const end = String(r.end_time || '').slice(0, 5)
+        const time = start ? `${start}${end ? `–${end}` : ''}` : ''
+        return { sort: String(r.date || ''), text: `• ${date}${time ? `, ${time} Uhr` : ''}${r.hall ? `, ${r.hall}` : ''} – vs ${oppName(oppById.get(r.opponent))}` }
+      }).sort((a, b) => a.sort.localeCompare(b.sort)).map((x) => x.text)
+
+      // Away game lines (confirmed proposal), sorted by datetime.
+      const awayLines = awayRows.map((r) => {
+        const dt = r[`proposed_datetime_${r.confirmed_proposal}`]
+        const place = r[`proposed_place_${r.confirmed_proposal}`] || ''
+        const { date, time } = fmtDateMail(dt)
+        return { sort: String(dt || ''), text: `• ${date}${time ? `, ${time} Uhr` : ''}${place ? `, ${place}` : ''} – bei ${oppName(oppById.get(r.opponent))}` }
+      }).sort((a, b) => a.sort.localeCompare(b.sort)).map((x) => x.text)
+
+      // Opponents still missing a confirmed leg — surfaced so coaches see gaps.
+      const pending = opponents
+        .filter((o) => !homeByOpp.has(o.id) || !awayByOpp.has(o.id))
+        .map((o) => {
+          const miss = []
+          if (!homeByOpp.has(o.id)) miss.push('Heimspiel')
+          if (!awayByOpp.has(o.id)) miss.push('Auswärtsspiel')
+          return `• ${oppName(o)}: ${miss.join(' + ')} offen`
+        })
+
+      const parts = [`Spielplan ${kscw}${seasonLabel ? ` – Saison ${seasonLabel}` : ''}`, '']
+      parts.push(`Heimspiele (${homeLines.length}):`, ...(homeLines.length ? homeLines : ['• keine']), '')
+      parts.push(`Auswärtsspiele (${awayLines.length}):`, ...(awayLines.length ? awayLines : ['• keine']))
+      if (pending.length) parts.push('', `Noch offen (${pending.length}):`, ...pending)
+      const text = parts.join('\n')
+
+      const staff = await teamStaffEmails(teamId)
+      const to = [SCHEDULING_REPLY_TO, ...staff].join(',')
+      await sendSchedulingMail(to, `Spielplan ${kscw}${seasonLabel ? ` ${seasonLabel}` : ''}`, text)
+
+      res.json({ success: true, staff: staff.length, home: homeLines.length, away: awayLines.length, pending: pending.length })
+    } catch (err) {
+      log.error({ msg: `finalize-notify: ${err.message}`, endpoint: 'terminplanung/admin/finalize-notify', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

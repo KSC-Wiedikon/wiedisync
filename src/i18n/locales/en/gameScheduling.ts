@@ -239,4 +239,14 @@ export default {
   inviteGamesHeader_other: 'We have {{count}} games together this season',
   inviteGameHome: 'Home (KSCW)',
   inviteGameAway: 'Away (you host)',
+
+  // Finalize & notify (admin dashboard)
+  finalizeNotify: 'Notify coaches',
+  finalizeNotifySending: 'Sending…',
+  finalizeNotifySent: 'Schedule emailed ({{home}} home, {{away}} away)',
+  finalizeNotifyReady: 'All matchups confirmed — ready to send the schedule to the coaches and the planning group.',
+  finalizeNotifyPending_one: '{{count}} matchup still missing a confirmed game.',
+  finalizeNotifyPending_other: '{{count}} matchups still missing a confirmed game.',
+  finalizeNotifyConfirmPending_one: '{{count}} matchup is not fully confirmed yet. Send the schedule anyway?',
+  finalizeNotifyConfirmPending_other: '{{count}} matchups are not fully confirmed yet. Send the schedule anyway?',
 }

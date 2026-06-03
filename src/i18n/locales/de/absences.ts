@@ -134,4 +134,11 @@ export default {
   selectAllMembers: 'Alle auswählen',
   deselectAllMembers: 'Alle abwählen',
   noMembersMatchFilter: 'Keine Mitglieder entsprechen dem aktuellen Filter.',
+  // Calendar day-detail (overflow modal) status labels
+  absent: 'Abwesend',
+  unavailable: 'Verhindert',
+  absentUnavailable: 'Abwesend / Verhindert',
+  // Calendar filter toggles
+  showWeekly: 'Wöchentliche Verhinderungen anzeigen',
+  showNonBlocking: 'Nicht-blockierende Abwesenheiten anzeigen',
 } as const

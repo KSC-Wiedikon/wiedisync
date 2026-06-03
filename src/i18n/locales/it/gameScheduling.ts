@@ -152,4 +152,14 @@ export default {
   // Email
   emailBookingConfirmSubject: 'Fascia di gioco confermata – KSCW',
   emailNewBookingSubject: 'Nuova prenotazione – {{opponent}}',
+
+  // Finalize & notify (admin dashboard)
+  finalizeNotify: 'Avvisa gli allenatori',
+  finalizeNotifySending: 'Invio…',
+  finalizeNotifySent: 'Calendario inviato ({{home}} casa, {{away}} trasferta)',
+  finalizeNotifyReady: 'Tutti gli incontri confermati — pronto a inviare il calendario agli allenatori e al gruppo di pianificazione.',
+  finalizeNotifyPending_one: '{{count}} incontro senza partita confermata.',
+  finalizeNotifyPending_other: '{{count}} incontri senza partita confermata.',
+  finalizeNotifyConfirmPending_one: '{{count}} incontro non è ancora completamente confermato. Inviare comunque il calendario?',
+  finalizeNotifyConfirmPending_other: '{{count}} incontri non sono ancora completamente confermati. Inviare comunque il calendario?',
 }

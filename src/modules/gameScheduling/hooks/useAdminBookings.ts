@@ -79,6 +79,16 @@ export function useAdminBookings(seasonId: string | undefined) {
     return resp as { total_created: number }
   }, [fetchAll])
 
+  // Email the finalized schedule (all confirmed home + away games) for one team
+  // to its coaches + team-responsibles and the spielplanung mailbox (→ group).
+  const finalizeNotify = useCallback(async (teamId: string, seasonIdParam: string) => {
+    const resp = await kscwApi('/terminplanung/admin/finalize-notify', {
+      method: 'POST',
+      body: { team_id: teamId, season_id: seasonIdParam },
+    })
+    return resp as { staff: number; home: number; away: number; pending: number }
+  }, [])
+
   return {
     bookings,
     opponents,
@@ -88,6 +98,7 @@ export function useAdminBookings(seasonId: string | undefined) {
     confirmAwayProposal,
     blockSlot,
     generateSlots,
+    finalizeNotify,
     refetch: fetchAll,
   }
 }

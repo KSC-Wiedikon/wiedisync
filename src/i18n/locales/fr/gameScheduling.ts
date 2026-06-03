@@ -152,4 +152,14 @@ export default {
   // Email
   emailBookingConfirmSubject: 'Creneau de match confirme – KSCW',
   emailNewBookingSubject: 'Nouvelle reservation – {{opponent}}',
+
+  // Finalize & notify (admin dashboard)
+  finalizeNotify: 'Notifier les coachs',
+  finalizeNotifySending: 'Envoi…',
+  finalizeNotifySent: 'Calendrier envoyé ({{home}} domicile, {{away}} extérieur)',
+  finalizeNotifyReady: 'Toutes les rencontres sont confirmées — prêt à envoyer le calendrier aux coachs et au groupe de planification.',
+  finalizeNotifyPending_one: '{{count}} rencontre sans match confirmé.',
+  finalizeNotifyPending_other: '{{count}} rencontres sans match confirmé.',
+  finalizeNotifyConfirmPending_one: '{{count}} rencontre n\'est pas encore entièrement confirmée. Envoyer quand même le calendrier ?',
+  finalizeNotifyConfirmPending_other: '{{count}} rencontres ne sont pas encore entièrement confirmées. Envoyer quand même le calendrier ?',
 }

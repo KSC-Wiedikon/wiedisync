@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CalendarEntry } from '../../../types/calendar'
+import { relId } from '../../../utils/relations'
 import { CalendarOff, TrafficCone, CircleX, Star } from 'lucide-react'
 import BasketballIcon from '../../../components/BasketballIcon'
 import VolleyballIcon from '../../../components/VolleyballIcon'
@@ -425,21 +426,34 @@ export default function MonthGrid({
 
               {/* Absence bar overlay — merged spans that break only when count changes */}
               {hasAnyAbsence && (() => {
-                // Build merged segments: adjacent columns with same absence count + same IDs → one span
-                const segments: { startCol: number; span: number; count: number; absences: CalendarEntry[]; allAbsences: CalendarEntry[] }[] = []
+                // A member can have BOTH a one-off absence and a weekly unavailability on
+                // the same day — they should count and render as ONE person. Key by member,
+                // and prefer the one-off absence entry for the single-entry click (absence
+                // overrides unavailability).
+                const memberKey = (e: CalendarEntry): string => {
+                  const src = e.source as { member?: unknown } | null | undefined
+                  const id = src && typeof src === 'object' && 'member' in src ? relId(src.member) : ''
+                  return id || e.id
+                }
+                const isWeekly = (e: CalendarEntry): boolean =>
+                  (e.source as { type?: string } | null | undefined)?.type === 'weekly'
+                const pickPrimary = (col: CalendarEntry[]): CalendarEntry =>
+                  col.find((a) => !isWeekly(a)) ?? col[0]
+                // Build merged segments: adjacent columns with the same set of absence rows → one span
+                const segments: { startCol: number; span: number; count: number; idsKey: string; primary: CalendarEntry; allAbsences: CalendarEntry[] }[] = []
                 for (let ci = 0; ci < 7; ci++) {
                   const col = absencesByCol[ci]
                   if (col.length === 0) continue
                   const ids = col.map((a) => a.id).sort().join(',')
                   const prev = segments[segments.length - 1]
-                  if (prev && prev.startCol + prev.span === ci && prev.absences.map((a) => a.id).sort().join(',') === ids) {
+                  if (prev && prev.startCol + prev.span === ci && prev.idsKey === ids) {
                     prev.span++
                     // Accumulate all unique absences across the span
                     for (const a of col) {
                       if (!prev.allAbsences.find((e) => e.id === a.id)) prev.allAbsences.push(a)
                     }
                   } else {
-                    segments.push({ startCol: ci, span: 1, count: col.length, absences: col, allAbsences: [...col] })
+                    segments.push({ startCol: ci, span: 1, count: new Set(col.map(memberKey)).size, idsKey: ids, primary: pickPrimary(col), allAbsences: [...col] })
                   }
                 }
                 const c = barColors.absence
@@ -447,7 +461,7 @@ export default function MonthGrid({
                   <div className="pointer-events-none absolute inset-x-0 top-[28px] z-10 grid grid-cols-7" style={{ height: BAR_H }}>
                     {segments.map((seg) => {
                       const label = seg.count === 1
-                        ? seg.absences[0].title.replace(/^Absence · /, '')
+                        ? seg.primary.title.replace(/^Absence · /, '')
                         : `${seg.count} absent`
                       return (
                         <button
@@ -464,7 +478,7 @@ export default function MonthGrid({
                           onClick={(e) => {
                             e.stopPropagation()
                             if (seg.count === 1) {
-                              onEntryClick?.(seg.absences[0])
+                              onEntryClick?.(seg.primary)
                             } else {
                               onOverflowClick?.(seg.allAbsences, week[seg.startCol])
                             }

@@ -152,4 +152,14 @@ export default {
   // Email
   emailBookingConfirmSubject: 'Spieltermin bestätigt – KSCW',
   emailNewBookingSubject: 'Neui Terminbuechig – {{opponent}}',
+
+  // Finalize & notify (admin dashboard)
+  finalizeNotify: 'Trainer benachrichtige',
+  finalizeNotifySending: 'Am Sände…',
+  finalizeNotifySent: 'Spielplan gschickt ({{home}} Heim, {{away}} Uswärts)',
+  finalizeNotifyReady: 'Alli Begegnige bestätigt — parat, de Spielplan a d Trainer und d Planigsgruppe z schicke.',
+  finalizeNotifyPending_one: '{{count}} Begegnig het no kes bestätigts Spiel.',
+  finalizeNotifyPending_other: '{{count}} Begegnige hend no kes bestätigts Spiel.',
+  finalizeNotifyConfirmPending_one: '{{count}} Begegnig isch no nöd ganz bestätigt. De Spielplan trotzdem schicke?',
+  finalizeNotifyConfirmPending_other: '{{count}} Begegnige sind no nöd ganz bestätigt. De Spielplan trotzdem schicke?',
 }

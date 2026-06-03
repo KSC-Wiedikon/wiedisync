@@ -121,4 +121,11 @@ export default {
   selectAllMembers: 'Alli uswähle',
   deselectAllMembers: 'Alli abwähle',
   noMembersMatchFilter: 'Kei Mitglieder entspräched em aktuelle Filter.',
+  // Calendar day-detail (overflow modal) status labels
+  absent: 'Abwäsend',
+  unavailable: 'Verhinderet',
+  absentUnavailable: 'Abwäsend / Verhinderet',
+  // Calendar filter toggles
+  showWeekly: 'Wuchäverhinderige azeige',
+  showNonBlocking: 'Nöd-blockierendi Abweseheite azeige',
 } as const

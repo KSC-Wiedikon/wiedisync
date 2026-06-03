@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.19.0'
+const APP_VERSION = '4.20.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.20.0',
+    date: '2026-06-03',
+    sections: [
+      {
+        title: 'Team absence calendar: multiple teams and clearer day details',
+        items: [
+          'You can now select several teams at once in the team absence view, instead of one at a time — handy for coaches and admins who follow more than one team.',
+          'When someone is both absent and unavailable on the same day, they now appear once, labelled "Absent / Unavailable", instead of showing up twice.',
+          'New calendar filters: "Show weekly unavailabilities" (on by default) and "Show non-blocking absences" (off by default, so absences that don\'t block scheduling stay out of the way until you want them).',
+        ],
+      },
+    ],
+  },
   {
     version: '4.19.0',
     date: '2026-06-03',

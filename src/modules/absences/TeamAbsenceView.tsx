@@ -13,6 +13,7 @@ import { toISODate, getDayOfWeek } from '../../utils/dateHelpers'
 import { parseDate, isSameDay, startOfMonth, eachDayOfInterval, toDateKey, formatDate } from '../../utils/dateUtils'
 import { max as maxDate, min as minDate, isAfter } from 'date-fns'
 import DatePicker from '@/components/ui/DatePicker'
+import { Switch } from '@/components/ui/switch'
 import AbsenceMemberFilter from './AbsenceMemberFilter'
 import { buildMemberOptions } from './absenceMemberOptions'
 import type { CalendarEntry } from '../../types/calendar'
@@ -105,6 +106,10 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
   const [selectedEntry, setSelectedEntry] = useState<CalendarEntry | null>(null)
   const [dayOverflow, setDayOverflow] = useState<{ entries: CalendarEntry[]; date: Date } | null>(null)
   const [excludedMembers, setExcludedMembers] = useState<Set<string>>(new Set())
+  // Calendar filter toggles. Weeklies show by default; non-blocking absences
+  // (those flagged "doesn't block scheduling", e.g. injury) are hidden by default.
+  const [showWeekly, setShowWeekly] = useState(true)
+  const [showNonBlocking, setShowNonBlocking] = useState(false)
 
   const { absences, memberMap, isLoading } = useTeamAbsences(teamIds, startDate, endDate)
 
@@ -156,8 +161,9 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
   const sortedAbsences = useMemo(() =>
     [...visibleAbsences]
       .filter((a) => a.type !== 'weekly')
+      .filter((a) => showNonBlocking || a.blocking !== false)
       .sort((a, b) => a.start_date.localeCompare(b.start_date)),
-  [visibleAbsences])
+  [visibleAbsences, showNonBlocking])
 
   // Calendar entries — both standard blocks and per-weekday weekly occurrences,
   // clipped to the currently displayed month so we don't pre-expand a year of dots.
@@ -168,10 +174,43 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
     d.setDate(0)
     return d
   }, [month])
-  const calendarEntries = useMemo(
-    () => absencesToEntries(visibleAbsences, memberMap, calendarRangeStart, calendarRangeEnd),
-    [visibleAbsences, memberMap, calendarRangeStart, calendarRangeEnd],
+  // Calendar-only source: weeklies hide when showWeekly is off; non-blocking
+  // one-off absences hide unless showNonBlocking is on. Weeklies are governed
+  // solely by showWeekly (the blocking flag doesn't apply to them).
+  const calendarAbsences = useMemo(
+    () => visibleAbsences.filter((a) => {
+      if (a.type === 'weekly') return showWeekly
+      return showNonBlocking || a.blocking !== false
+    }),
+    [visibleAbsences, showWeekly, showNonBlocking],
   )
+  const calendarEntries = useMemo(
+    () => absencesToEntries(calendarAbsences, memberMap, calendarRangeStart, calendarRangeEnd),
+    [calendarAbsences, memberMap, calendarRangeStart, calendarRangeEnd],
+  )
+
+  // Day-overflow modal: collapse multiple absence records for the same member into
+  // one row (a member can have BOTH a one-off absence and a weekly unavailability on
+  // the same day). Absence overrides unavailability, so the merged row opens the
+  // one-off absence entry and is labelled "Absent / Unavailable" when both exist.
+  const dayOverflowGroups = useMemo(() => {
+    if (!dayOverflow) return []
+    const byMember = new Map<string, { id: string; name: string; hasAbsence: boolean; hasWeekly: boolean; entry: CalendarEntry }>()
+    for (const entry of dayOverflow.entries) {
+      const src = entry.source as Absence
+      const memberId = relId(src.member) || entry.id
+      const isWeekly = src.type === 'weekly'
+      const existing = byMember.get(memberId)
+      if (existing) {
+        existing.hasAbsence = existing.hasAbsence || !isWeekly
+        existing.hasWeekly = existing.hasWeekly || isWeekly
+        if (!isWeekly) existing.entry = entry // absence overrides unavailability
+      } else {
+        byMember.set(memberId, { id: memberId, name: entry.title, hasAbsence: !isWeekly, hasWeekly: isWeekly, entry })
+      }
+    }
+    return [...byMember.values()]
+  }, [dayOverflow])
 
   if (isLoading) {
     return <div className="py-8 text-center text-gray-500 dark:text-gray-400">{t('common:loading')}</div>
@@ -180,7 +219,8 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
   return (
     <div>
       {/* Controls row */}
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-4 space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-wrap items-end gap-4">
           <DatePicker label={t('fromTo')} value={startDate} onChange={setStartDate} />
           <DatePicker label={t('until')} value={endDate} onChange={setEndDate} />
@@ -215,6 +255,24 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
             <CalendarDays className="h-4 w-4" />
           </button>
         </div>
+      </div>
+      {/* Calendar filter toggles (non-blocking also affects the list view) */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        {viewMode === 'calendar' && (
+          <div className="flex items-center gap-2">
+            <Switch id="abs-show-weekly" checked={showWeekly} onCheckedChange={setShowWeekly} />
+            <label htmlFor="abs-show-weekly" className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('showWeekly')}
+            </label>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <Switch id="abs-show-nonblocking" checked={showNonBlocking} onCheckedChange={setShowNonBlocking} />
+          <label htmlFor="abs-show-nonblocking" className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('showNonBlocking')}
+          </label>
+        </div>
+      </div>
       </div>
 
       {viewMode === 'list' ? (
@@ -280,22 +338,32 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit }: 
           >
             {dayOverflow && (
               <div className="space-y-2">
-                {dayOverflow.entries.map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onClick={() => {
-                      setDayOverflow(null)
-                      setSelectedEntry(entry)
-                    }}
-                    className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700 dark:active:bg-gray-600"
-                  >
-                    <CalendarOff className="h-4 w-4 shrink-0 text-gray-700 dark:text-gray-300" strokeWidth={2.5} />
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {entry.title || t('common:unknown')}
-                    </p>
-                  </button>
-                ))}
+                {dayOverflowGroups.map((g) => {
+                  const detail = g.hasAbsence && g.hasWeekly
+                    ? t('absentUnavailable')
+                    : g.hasWeekly
+                      ? t('unavailable')
+                      : t('absent')
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => {
+                        setDayOverflow(null)
+                        setSelectedEntry(g.entry)
+                      }}
+                      className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700 dark:active:bg-gray-600"
+                    >
+                      <CalendarOff className="h-4 w-4 shrink-0 text-gray-700 dark:text-gray-300" strokeWidth={2.5} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {g.name || t('common:unknown')}
+                        </p>
+                        <p className="truncate text-xs text-gray-500 dark:text-gray-400">{detail}</p>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </Modal>

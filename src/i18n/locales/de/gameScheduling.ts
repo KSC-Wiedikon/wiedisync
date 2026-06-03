@@ -246,4 +246,14 @@ export default {
   inviteGamesHeader_other: 'Wir haben {{count}} Spiele zusammen in dieser Saison',
   inviteGameHome: 'Heim (KSCW)',
   inviteGameAway: 'Auswärts (ihr seid Heim)',
+
+  // Finalize & notify (admin dashboard)
+  finalizeNotify: 'Trainer benachrichtigen',
+  finalizeNotifySending: 'Senden…',
+  finalizeNotifySent: 'Spielplan versendet ({{home}} Heim, {{away}} Auswärts)',
+  finalizeNotifyReady: 'Alle Begegnungen bestätigt — bereit, den Spielplan an die Trainer und die Planungsgruppe zu senden.',
+  finalizeNotifyPending_one: '{{count}} Begegnung hat noch kein bestätigtes Spiel.',
+  finalizeNotifyPending_other: '{{count}} Begegnungen haben noch kein bestätigtes Spiel.',
+  finalizeNotifyConfirmPending_one: '{{count}} Begegnung ist noch nicht vollständig bestätigt. Spielplan trotzdem senden?',
+  finalizeNotifyConfirmPending_other: '{{count}} Begegnungen sind noch nicht vollständig bestätigt. Spielplan trotzdem senden?',
 }

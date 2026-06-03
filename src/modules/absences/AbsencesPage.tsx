@@ -8,7 +8,8 @@ import { useMutation } from '../../hooks/useMutation'
 import { useRealtime } from '../../hooks/useRealtime'
 import { relId, asObj } from '../../utils/relations'
 import { useTeamAbsences } from '../../hooks/useTeamAbsences'
-import TeamFilter from '../../components/TeamFilter'
+import TeamMultiSelect from '../../components/TeamMultiSelect'
+import { teamNameToColorKey } from '../../utils/teamColors'
 import EmptyState from '../../components/EmptyState'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import AbsenceCard from './AbsenceCard'
@@ -35,7 +36,7 @@ export default function AbsencesPage() {
   const { effectiveIsAdmin, effectiveIsCoach, effectiveIsVorstand } = useAdminMode()
   const [viewType, setViewType] = useState<ViewType>('absences')
   const [scope, setScope] = useState<Scope>('mine')
-  const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
+  const [selectedTeams, setSelectedTeams] = useState<string[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [editingAbsence, setEditingAbsence] = useState<Absence | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -45,7 +46,7 @@ export default function AbsencesPage() {
   const [showOlder, setShowOlder] = useState(false)
 
   const { data: allTeamsRaw } = useCollection<Team>('teams', { filter: { active: { _eq: true } }, sort: ['name'], limit: 50 })
-  const allTeams = allTeamsRaw ?? []
+  const allTeams = useMemo(() => allTeamsRaw ?? [], [allTeamsRaw])
 
   const visibleTeamIds = useMemo(() => {
     if (effectiveIsAdmin || effectiveIsVorstand) return undefined
@@ -53,10 +54,21 @@ export default function AbsencesPage() {
   }, [effectiveIsAdmin, effectiveIsVorstand, memberTeamIds, coachTeamIds])
 
   const effectiveTeamIds = useMemo(() => {
-    if (selectedTeam) return [selectedTeam]
+    if (selectedTeams.length > 0) return selectedTeams
     if (visibleTeamIds) return visibleTeamIds
     return allTeams.map((t) => t.id)
-  }, [selectedTeam, visibleTeamIds, allTeams])
+  }, [selectedTeams, visibleTeamIds, allTeams])
+
+  // Options for the multi-team filter (admins see all active teams; coaches/members
+  // are limited to their own). Mirrors TeamFilter's option-building.
+  const teamFilterOptions = useMemo(() => {
+    const base = visibleTeamIds
+      ? allTeams.filter((tm) => visibleTeamIds.includes(tm.id))
+      : allTeams
+    return base
+      .filter((tm) => tm.sport === 'volleyball' || tm.sport === 'basketball')
+      .map((tm) => ({ value: tm.id, label: tm.name, colorKey: teamNameToColorKey(tm.name, tm.sport) }))
+  }, [allTeams, visibleTeamIds])
 
   // ── Personal absences (excludes weekly) ────────────────────────
   const { data: myAbsencesRaw, refetch } = useCollection<Absence>('absences', {
@@ -281,7 +293,14 @@ export default function AbsencesPage() {
 
       {isTeamScope && viewType === 'absences' && (
         <div className="mt-6" data-tour="team-absences">
-          <TeamFilter selected={selectedTeam} onChange={setSelectedTeam} limitToTeamIds={visibleTeamIds} />
+          {teamFilterOptions.length > 0 && (
+            <TeamMultiSelect
+              options={teamFilterOptions}
+              selected={selectedTeams}
+              onChange={setSelectedTeams}
+              placeholder={t('common:allTeams')}
+            />
+          )}
           <div className="mt-4">
             <TeamAbsenceView
               teamIds={effectiveTeamIds}
@@ -295,7 +314,14 @@ export default function AbsencesPage() {
 
       {isTeamScope && viewType === 'weekly' && (
         <div className="mt-6" data-tour="team-weekly">
-          <TeamFilter selected={selectedTeam} onChange={setSelectedTeam} limitToTeamIds={visibleTeamIds} />
+          {teamFilterOptions.length > 0 && (
+            <TeamMultiSelect
+              options={teamFilterOptions}
+              selected={selectedTeams}
+              onChange={setSelectedTeams}
+              placeholder={t('common:allTeams')}
+            />
+          )}
           <div className="mt-4">
             <TeamWeeklySection
               teamIds={effectiveTeamIds}

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../../../hooks/useAuth'
 import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
@@ -47,9 +48,24 @@ export default function AdminDashboardPage() {
   const { t } = useTranslation('gameScheduling')
   const { hasAdminAccessToSport, is_spielplaner } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
-  const { bookings, opponents, slots, isLoading, hasLoaded, confirmAwayProposal, blockSlot } = useAdminBookings(season?.id)
+  const { bookings, opponents, slots, isLoading, hasLoaded, confirmAwayProposal, blockSlot, finalizeNotify } = useAdminBookings(season?.id)
   const { data: teams } = useTeams()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
+  const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
+
+  const handleFinalizeNotify = async (teamId: string, pendingCount: number) => {
+    if (!season) return
+    if (pendingCount > 0 && !window.confirm(t('finalizeNotifyConfirmPending', { count: pendingCount }))) return
+    setNotifyingTeam(teamId)
+    try {
+      const res = await finalizeNotify(teamId, season.id)
+      toast.success(t('finalizeNotifySent', { home: res.home, away: res.away }))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setNotifyingTeam(null)
+    }
+  }
 
   if (!hasAdminAccessToSport('volleyball') && !is_spielplaner) {
     return <Navigate to="/" replace />
@@ -74,6 +90,21 @@ export default function AdminDashboardPage() {
 
   const getTeamSlots = (teamId: string) =>
     slots.filter(s => String(s.kscw_team) === String(teamId))
+
+  // Opponents (excluding revoked/expired) still missing a confirmed home or away
+  // leg — mirrors the backend's "Noch offen" count for the finalize warning.
+  const teamPending = (teamId: string) =>
+    getTeamOpponents(teamId)
+      .filter(o => !['revoked', 'expired'].includes(String(o.status)))
+      .filter(o => {
+        const ob = bookings.filter(b => {
+          const oid = typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent
+          return String(oid) === String(o.id)
+        })
+        const home = ob.find(b => b.type === 'home_slot_pick')?.status === 'confirmed'
+        const away = ob.find(b => b.type === 'away_proposal')?.status === 'confirmed'
+        return !home || !away
+      }).length
 
   const teamStats = (teamId: string) => {
     const teamSlots = getTeamSlots(teamId)
@@ -166,6 +197,21 @@ export default function AdminDashboardPage() {
               {/* Expanded content */}
               {isExpanded && (
                 <div className="border-t border-gray-200 px-4 py-4 dark:border-gray-700">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {teamPending(team.id) > 0
+                        ? t('finalizeNotifyPending', { count: teamPending(team.id) })
+                        : t('finalizeNotifyReady')}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleFinalizeNotify(team.id, teamPending(team.id))}
+                      disabled={notifyingTeam === team.id || stats.opponents === 0}
+                      className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                    >
+                      {notifyingTeam === team.id ? t('finalizeNotifySending') : t('finalizeNotify')}
+                    </button>
+                  </div>
                   <TeamBookingsContent
                     opponents={getTeamOpponents(team.id)}
                     bookings={bookings}

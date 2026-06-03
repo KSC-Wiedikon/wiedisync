@@ -134,4 +134,11 @@ export default {
   selectAllMembers: 'Select all',
   deselectAllMembers: 'Deselect all',
   noMembersMatchFilter: 'No members match the current filter.',
+  // Calendar day-detail (overflow modal) status labels
+  absent: 'Absent',
+  unavailable: 'Unavailable',
+  absentUnavailable: 'Absent / Unavailable',
+  // Calendar filter toggles
+  showWeekly: 'Show weekly unavailabilities',
+  showNonBlocking: 'Show non-blocking absences',
 } as const
