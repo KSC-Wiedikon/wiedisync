@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-03T14:15:49.435Z
+-- Generated:   2026-06-03T15:18:25.240Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -2738,8 +2738,18 @@ CREATE TABLE public.game_scheduling_bookings (
     game integer,
     slot integer,
     date_created timestamp with time zone,
-    date_updated timestamp with time zone
+    date_updated timestamp with time zone,
+    proposed_slot_1 integer,
+    proposed_slot_2 integer,
+    proposed_slot_3 integer
 );
+
+
+--
+-- Name: COLUMN game_scheduling_bookings.proposed_slot_1; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_bookings.proposed_slot_1 IS 'Home-slot proposal 1 — game_scheduling_slots.id the opponent proposed (pending home_slot_pick). On confirm, the chosen one is copied into `slot`.';
 
 
 --
