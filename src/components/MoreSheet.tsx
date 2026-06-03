@@ -33,7 +33,7 @@ const iconClass = 'h-5 w-5'
 
 function buildSecondaryItems(
   memberId: number | string | undefined | null,
-  sched: { isAdminMode: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[] },
+  sched: { effectiveIsAdmin: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[] },
 ) {
   const items = [
     ...(messagingFeatureEnabled(memberId)
@@ -45,24 +45,21 @@ function buildSecondaryItems(
     { to: '/scorer', labelKey: 'scorer', icon: <PenSquare className={iconClass} /> },
     { to: '/news', labelKey: 'news', icon: <Newspaper className={iconClass} /> },
   ]
-  // Spielplaner tools in the main list for anyone with scheduling access — no
-  // admin-mode toggle needed. Hidden when the Admin section is showing (admin
-  // mode on) to avoid duplication. Mirrors Layout.tsx.
-  if (!sched.isAdminMode) {
-    if (sched.is_spielplaner || sched.spielplanerTeamIds.length > 0) {
-      items.push({ to: '/admin/spielplanung', labelKey: 'gameplan', icon: <ClipboardList className={iconClass} /> })
-    }
-    if (sched.is_spielplaner) {
-      items.push({ to: '/admin/terminplanung', labelKey: 'terminplanung', icon: <CalendarClock className={iconClass} /> })
-    }
+  // Spielplaner tools always live in this main list — never the Admin section —
+  // so admins keep the full regular nav in admin mode. Spielplaner members see
+  // them in both modes; admins see them whenever admin mode is on. Mirrors
+  // Layout.tsx.
+  if (sched.effectiveIsAdmin || sched.is_spielplaner || sched.spielplanerTeamIds.length > 0) {
+    items.push({ to: '/admin/spielplanung', labelKey: 'gameplan', icon: <ClipboardList className={iconClass} /> })
+  }
+  if (sched.effectiveIsAdmin || sched.is_spielplaner) {
+    items.push({ to: '/admin/terminplanung', labelKey: 'terminplanung', icon: <CalendarClock className={iconClass} /> })
   }
   return items
 }
 
 const adminItems = [
-  { to: '/admin/spielplanung', labelKey: 'gameplan', icon: <ClipboardList className={iconClass} /> },
   { to: '/admin/hallenplan', labelKey: 'hallenplan', icon: <Building2 className={iconClass} /> },
-  { to: '/admin/terminplanung', labelKey: 'terminplanung', icon: <CalendarClock className={iconClass} /> },
   { to: '/admin/referee-expenses', labelKey: 'refereeExpenses', icon: <Banknote className={iconClass} /> },
   { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: <UserPlus className={iconClass} /> },
   { to: '/admin/club-stats', labelKey: 'clubStats', icon: <BarChart3 className={iconClass} /> },
@@ -208,7 +205,7 @@ interface MoreSheetProps {
 
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
   const { user, isApproved, isSuperAdmin, is_spielplaner, spielplanerTeamIds, logout } = useAuth()
-  const { isAdminMode } = useAdminMode()
+  const { isAdminMode, effectiveIsAdmin } = useAdminMode()
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
   const { closing, startClose, onAnimEnd } = useAnimatedClose(onClose)
@@ -309,7 +306,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
             </>
           )}
-          {(!user || !isApproved) ? null : buildSecondaryItems(user.id, { isAdminMode, is_spielplaner, spielplanerTeamIds }).map((item) => (
+          {(!user || !isApproved) ? null : buildSecondaryItems(user.id, { effectiveIsAdmin, is_spielplaner, spielplanerTeamIds }).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

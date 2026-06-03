@@ -594,8 +594,11 @@ async function main() {
   // (migration 024). Self-read row is added below with editable fields.
   await setPermRead(MEMBER_POLICY, 'members', null, MEMBER_VISIBLE_FIELDS)
 
-  // Members — read own profile with expanded fields (editable fields must be readable)
-  const MEMBER_OWN_READABLE = [...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS])]
+  // Members — read own profile with expanded fields (editable fields must be readable).
+  // `is_spielplaner` is read-only here (NOT in MEMBER_EDITABLE_FIELDS) so members
+  // can see their own scheduling flag — the frontend nav gates the Spielplanung /
+  // Terminplanung links on it (useAuth) — but cannot self-grant it.
+  const MEMBER_OWN_READABLE = [...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, 'is_spielplaner'])]
   await setPermRead(MEMBER_POLICY, 'members', OWN_USER, MEMBER_OWN_READABLE)
 
   // Members — update own profile (limited fields)

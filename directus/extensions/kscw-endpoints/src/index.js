@@ -7,6 +7,7 @@
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
+import { spawn } from 'node:child_process'
 import { syncSvGames, syncSvRankings } from './sv-sync.js'
 import { syncBpGames, syncBpRankings } from './bp-sync.js'
 import { registerPasswordReset } from './password-reset.js'
@@ -20,7 +21,7 @@ import { registerContactForm } from './contact-form.js'
 import { registerWebPush, sendPushToMember, sendPushToMembers } from './web-push.js'
 import { FRONTEND_URL } from './email-template.js'
 import { sendLocalizedPush, tPush, memberLangToCode } from './push-i18n.js'
-import { writeErrorLog, logErrorToFile, logAuthDenial, logWarning, cleanOldLogs, computeErrorHash } from './error-log.js'
+import { writeErrorLog, logErrorToFile, logAuthDenial, logWarning, cleanOldLogs, computeErrorHash, logCronRun } from './error-log.js'
 import { registerStats } from './stats.js'
 import { registerRegistration } from './registration.js'
 import { registerNewsletter } from './newsletter.js'
@@ -714,6 +715,108 @@ export default {
         res.json({ status: 'ok', games, rankings })
       } catch (err) {
         logEndpointError(log, 'admin/bp-sync', err, req)
+        res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
+      }
+    })
+
+    // ── Manual VM / SVRZ scraper triggers (fire-and-forget) ─────
+    // VM + SVRZ run as child processes (cold runs ~9 min), so the handler
+    // returns 202 immediately and records the sync_runs heartbeat when the
+    // child exits. The data-health UI polls /admin/sync-status for completion.
+    // (SV / BP / GCal stay synchronous — they're in-process and fast.)
+    const childSyncRunning = new Set()
+
+    // Mint a short-lived access token from the sync service account — same
+    // source the cron uses (getCronAccessToken). DIRECTUS_ADMIN_TOKEN is not a
+    // valid Directus static token here, and svrz-scheduling-sync.mjs has no
+    // email/password fallback, so the child must be handed a real bearer token.
+    async function mintSyncToken() {
+      const email = process.env.DIRECTUS_SYNC_EMAIL
+      const password = process.env.DIRECTUS_SYNC_PASSWORD
+      if (!email || !password) return null
+      try {
+        const r = await fetch('http://127.0.0.1:8055/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        })
+        if (!r.ok) return null
+        const { data } = await r.json()
+        return data?.access_token || null
+      } catch { return null }
+    }
+
+    async function triggerChildSync(source, script, extraEnv = {}) {
+      if (childSyncRunning.has(source)) return { started: false, reason: 'already-running' }
+      if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
+        return { started: false, reason: 'vm-credentials-missing' }
+      }
+      const token = await mintSyncToken()
+      if (!token) return { started: false, reason: 'sync-credentials-missing' }
+      childSyncRunning.add(source)
+      const startedAt = Date.now()
+      const env = {
+        HOME: process.env.HOME,
+        PATH: process.env.PATH,
+        VM_USERNAME: process.env.VM_USERNAME,
+        VM_PASSWORD: process.env.VM_PASSWORD,
+        DIRECTUS_URL: 'http://127.0.0.1:8055',
+        DIRECTUS_TOKEN: token,
+        ...extraEnv,
+      }
+      const child = spawn('node', [script], { env })
+      let stderr = ''
+      child.stderr.on('data', (c) => { stderr += c.toString() })
+      const timer = setTimeout(() => child.kill('SIGKILL'), 900_000)
+      const finish = async (status, errorMessage) => {
+        clearTimeout(timer)
+        childSyncRunning.delete(source)
+        try {
+          await logCronRun(database, source, { status, durationMs: Date.now() - startedAt, errorMessage: errorMessage || null })
+        } catch (e) { log.error(`${source} logCronRun failed: ${e.message}`) }
+      }
+      child.on('error', (err) => {
+        log.error({ msg: `${source} manual sync spawn error: ${err.message}`, endpoint: `admin/${source}` })
+        finish('error', err.message)
+      })
+      child.on('close', (code) => {
+        if (code === 0) { log.info(`${source} manual sync ok`); finish('ok') }
+        else { log.error({ msg: `${source} manual sync exited ${code}: ${stderr.slice(-300)}`, endpoint: `admin/${source}` }); finish('error', stderr.slice(-300) || `exited ${code}`) }
+      })
+      return { started: true }
+    }
+
+    router.post('/admin/vm-sync', async (req, res) => {
+      try {
+        requireAdmin(req, log)
+        const r = await triggerChildSync('vm_sync', '/directus/scripts/vm-sync-check.mjs')
+        if (!r.started) return res.status(409).json({ status: 'skipped', reason: r.reason })
+        log.info('Manual VM sync triggered')
+        res.status(202).json({ status: 'started' })
+      } catch (err) {
+        logEndpointError(log, 'admin/vm-sync', err, req)
+        res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
+      }
+    })
+
+    router.post('/admin/svrz-sync', async (req, res) => {
+      try {
+        requireAdmin(req, log)
+        // Resolve the current season's SVRZ uuid the same way the cron does.
+        const now = new Date()
+        const startYear = now.getUTCMonth() >= 5 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
+        const seasonName = `${startYear}/${startYear + 1}`
+        const known = await database('svrz_spielplaner_contacts')
+          .where('season_name', seasonName).whereNotNull('season_uuid').first()
+        const seasonUuid = known?.season_uuid || 'dcafddfe-8139-4e02-baad-d3f88ec00cd0'
+        const r = await triggerChildSync('svrz_sync', '/directus/scripts/svrz-scheduling-sync.mjs', {
+          SVRZ_SEASON_UUID: seasonUuid, SVRZ_SEASON_NAME: seasonName,
+        })
+        if (!r.started) return res.status(409).json({ status: 'skipped', reason: r.reason })
+        log.info('Manual SVRZ sync triggered')
+        res.status(202).json({ status: 'started' })
+      } catch (err) {
+        logEndpointError(log, 'admin/svrz-sync', err, req)
         res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
       }
     })

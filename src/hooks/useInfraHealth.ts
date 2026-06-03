@@ -21,16 +21,7 @@ export interface SyncStatus {
   awaitingFirstRun?: boolean
 }
 
-export interface InfraHealth {
-  services: ServiceHealth[]
-  syncs: SyncStatus[]
-  isLoading: boolean
-  refresh: () => void
-}
-
-const STALE_THRESHOLD_MS = 36 * 60 * 60 * 1000 // 36 hours
-
-type SyncRun = {
+export interface SyncRun {
   source: string
   last_run_at: string | null
   status: 'ok' | 'error'
@@ -40,9 +31,22 @@ type SyncRun = {
   duration_ms?: number
 }
 
+export interface InfraHealth {
+  services: ServiceHealth[]
+  syncs: SyncStatus[]
+  /** Raw sync_runs heartbeats keyed by source — lets callers render
+   *  per-source cards / trigger buttons (e.g. the data-health refresh row). */
+  runs: SyncRun[]
+  isLoading: boolean
+  refresh: () => void
+}
+
+const STALE_THRESHOLD_MS = 36 * 60 * 60 * 1000 // 36 hours
+
 export function useInfraHealth(): InfraHealth {
   const [services, setServices] = useState<ServiceHealth[]>([])
   const [syncs, setSyncs] = useState<SyncStatus[]>([])
+  const [runs, setRuns] = useState<SyncRun[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   const checkHealth = useCallback(async () => {
@@ -80,6 +84,7 @@ export function useInfraHealth(): InfraHealth {
       const syncChecks: SyncStatus[] = []
       try {
         const { runs } = await kscwApi<{ runs: SyncRun[] }>('/admin/sync-status')
+        setRuns(runs)
         const byKey = new Map<string, SyncRun>(runs.map((r) => [r.source, r]))
 
         // Map our internal cron sources to the public /status row keys.
@@ -125,6 +130,7 @@ export function useInfraHealth(): InfraHealth {
       } catch {
         // /admin/sync-status not deployed yet (transient on first migration
         // run) — render every source as stale rather than blank.
+        setRuns([])
         syncChecks.push({ source: 'swiss_volley', lastUpdated: null, isStale: true })
         syncChecks.push({ source: 'basketplan', lastUpdated: null, isStale: true })
         syncChecks.push({ source: 'gcal', lastUpdated: null, isStale: true })
@@ -139,7 +145,7 @@ export function useInfraHealth(): InfraHealth {
   useEffect(() => { checkHealth() }, [checkHealth])
 
   return useMemo(
-    () => ({ services, syncs, isLoading, refresh: checkHealth }),
-    [services, syncs, isLoading, checkHealth],
+    () => ({ services, syncs, runs, isLoading, refresh: checkHealth }),
+    [services, syncs, runs, isLoading, checkHealth],
   )
 }

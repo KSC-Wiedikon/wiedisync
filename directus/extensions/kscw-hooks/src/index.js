@@ -421,6 +421,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         }
       }
     }
+    // is_spielplaner flipped → attach/revoke the TERMINPLANUNG policy so the
+    // backend game_scheduling_* API tracks the flag without a setup-perms re-run.
+    if (payload && 'is_spielplaner' in payload) {
+      for (const id of keys) {
+        if (payload.is_spielplaner === true) await ensureTerminplanungAccess(id)
+        else await revokeTerminplanungAccessIfNotSpielplaner(id)
+      }
+    }
     // Auto-confirm opt-in flipped on (migration 077) → backfill existing
     // upcoming activities of that type. Idempotent (NOT EXISTS), so a no-op
     // when the flag was already on or nothing is outstanding.
@@ -469,6 +477,54 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } catch (err) {
       log.warn({ msg: `[leader-access] attach failed for member ${memberId}: ${err.message}`, memberId, stack: err.stack })
       logWarning('leader_access_attach', err.message, { memberId, stack: err.stack })
+    }
+  }
+
+  // ── Direct TERMINPLANUNG policy attachment ──────────────────────
+  // Mirrors the LEADER pattern: the `KSCW Terminplanung` policy (club-wide
+  // game-scheduling, CRUD on game_scheduling_*) is layered per-user via a
+  // directus_access row, gated on members.is_spielplaner. Keeps the backend
+  // items-API access in lockstep with the flag so admins don't have to re-run
+  // setup-permissions.mjs after toggling it. setup-permissions.mjs §12 still
+  // performs the same attach/revoke as an idempotent reconcile on every deploy.
+  async function getTerminplanungPolicyId() {
+    const row = await database('directus_policies').where('name', 'KSCW Terminplanung').select('id').first()
+    return row?.id ?? null
+  }
+
+  async function ensureTerminplanungAccess(memberId) {
+    try {
+      const member = await database('members').where('id', memberId).select('user').first()
+      if (!member?.user) return
+      const policyId = await getTerminplanungPolicyId()
+      if (!policyId) return
+      const existing = await database('directus_access')
+        .where({ user: member.user, policy: policyId })
+        .first()
+      if (existing) return
+      const { randomUUID } = await import('node:crypto')
+      await database('directus_access').insert({ id: randomUUID(), user: member.user, policy: policyId })
+      log.info(`[terminplanung-access] Attached TERMINPLANUNG policy to user ${member.user} (member ${memberId})`)
+    } catch (err) {
+      log.warn({ msg: `[terminplanung-access] attach failed for member ${memberId}: ${err.message}`, memberId, stack: err.stack })
+      logWarning('terminplanung_access_attach', err.message, { memberId, stack: err.stack })
+    }
+  }
+
+  async function revokeTerminplanungAccessIfNotSpielplaner(memberId) {
+    try {
+      const member = await database('members').where('id', memberId).select('user', 'is_spielplaner').first()
+      if (!member?.user) return
+      if (member.is_spielplaner === true) return
+      const policyId = await getTerminplanungPolicyId()
+      if (!policyId) return
+      const deleted = await database('directus_access')
+        .where({ user: member.user, policy: policyId })
+        .delete()
+      if (deleted) log.info(`[terminplanung-access] Revoked TERMINPLANUNG policy from user ${member.user} (member ${memberId} no longer is_spielplaner)`)
+    } catch (err) {
+      log.warn({ msg: `[terminplanung-access] revoke failed for member ${memberId}: ${err.message}`, memberId, stack: err.stack })
+      logWarning('terminplanung_access_revoke', err.message, { memberId, stack: err.stack })
     }
   }
 
@@ -2349,10 +2405,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
-  // ── 10b. Cron: Volleymanager Sync (1st of each month, 04:00 UTC) ──
-  // Calls the vm-sync-check script via the admin endpoint
-
-  schedule('0 4 1 * *', async () => {
+  // ── 10b. Cron: Volleymanager Sync (weekly, Mondays 04:00 UTC) ──
+  // Runs vm-sync-check.mjs: team metadata → `teams`, players/writers/referees
+  // → `sv_vm_check` + members licence flags. Weekly (was monthly) so team
+  // name/league corrections — heaviest around season rollover — propagate fast.
+  schedule('0 4 * * 1', async () => {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
       log.warn('VM sync skipped: VM_USERNAME or VM_PASSWORD not set')
       return

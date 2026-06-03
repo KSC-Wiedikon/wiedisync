@@ -16,7 +16,20 @@ interface HealthCheck {
   detail: string
   responseTime?: number | null
   value?: string | number | null
+  /** When set, the card renders a "Run now" button that triggers this scraper. */
+  onRefresh?: () => void
+  refreshing?: boolean
 }
+
+// Manually-triggerable data sources → their /kscw/admin/<endpoint> route.
+// SV / BP / GCal run in-process (fast); VM / SVRZ spawn a child and return 202.
+const SYNC_SOURCES: { key: string; labelKey: string; endpoint: string }[] = [
+  { key: 'sv_sync', labelKey: 'infraSvSync', endpoint: 'sv-sync' },
+  { key: 'bp_sync', labelKey: 'infraBpSync', endpoint: 'bp-sync' },
+  { key: 'vm_sync', labelKey: 'infraVmSync', endpoint: 'vm-sync' },
+  { key: 'svrz_sync', labelKey: 'infraSvrzSync', endpoint: 'svrz-sync' },
+  { key: 'gcal_sync', labelKey: 'infraGcalSync', endpoint: 'gcal-sync' },
+]
 
 function statusColor(s: Status) {
   switch (s) {
@@ -82,6 +95,23 @@ function Card({ check }: { check: HealthCheck }) {
           {t('infraResponseTime')}: {check.responseTime}ms
         </p>
       )}
+      {check.onRefresh && (
+        <button
+          onClick={check.onRefresh}
+          disabled={check.refreshing}
+          className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+        >
+          {check.refreshing ? (
+            <>
+              <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              {t('infraChecking')}
+            </>
+          ) : t('infraRunNow')}
+        </button>
+      )}
     </div>
   )
 }
@@ -114,22 +144,70 @@ export default function InfraHealthPage() {
   const [slowQueries, setSlowQueries] = useState<{ avg_ms: number; max_ms: number; calls: number; total_ms: number; rows: number; query: string }[]>([])
   const [lastCheck, setLastCheck] = useState<string>('')
   const [loading, setLoading] = useState(false)
+  const [triggering, setTriggering] = useState<Record<string, boolean>>({})
 
-  // Map hook sync statuses → page HealthCheck shape whenever hook data updates
-  useEffect(() => {
-    const sourceNameMap: Record<string, string> = {
-      swiss_volley: t('infraSvSync'),
-      basketplan: t('infraBpSync'),
-      gcal: t('infraGcalSync'),
+  // Trigger a scraper, then poll sync_runs until its heartbeat advances past
+  // the click (capped). VM / SVRZ are long-running (return 202 immediately);
+  // the poll cap just stops the spinner — the heartbeat reflects completion
+  // on the next manual refresh regardless.
+  const triggerSync = useCallback(async (source: string, endpoint: string) => {
+    setTriggering(prev => ({ ...prev, [source]: true }))
+    const clickedAt = Date.now()
+    const token = getAccessToken()
+    const authHeader = token ? { Authorization: `Bearer ${token}` } : undefined
+    try {
+      await fetch(`${PROD_URL}/kscw/admin/${endpoint}`, { method: 'POST', headers: authHeader })
+    } catch { /* poll reflects the outcome */ }
+
+    let polls = 0
+    const MAX_POLLS = 12 // ~100s
+    const poll = async () => {
+      polls++
+      let advanced = false
+      try {
+        const r = await fetch(`${PROD_URL}/kscw/admin/sync-status`, { headers: authHeader })
+        if (r.ok) {
+          const { runs } = await r.json()
+          const run = (runs || []).find((x: { source: string }) => x.source === source) as { last_run_at?: string } | undefined
+          advanced = !!run?.last_run_at && new Date(run.last_run_at).getTime() > clickedAt - 5000
+        }
+      } catch { /* keep polling */ }
+      if (advanced || polls >= MAX_POLLS) {
+        setTriggering(prev => ({ ...prev, [source]: false }))
+        infraRef.current.refresh()
+      } else {
+        setTimeout(poll, 8000)
+      }
     }
-    setSyncs(
-      infraHealth.syncs.map(s => ({
-        name: sourceNameMap[s.source] ?? s.source,
-        status: s.lastUpdated === null ? 'unknown' : s.isStale ? 'stale' : 'healthy',
-        detail: s.lastUpdated ? timeAgo(s.lastUpdated, t) : t('infraNoData'),
-      }))
-    )
-  }, [infraHealth.syncs, t])
+    setTimeout(poll, 8000)
+  }, [])
+
+  // Map sync_runs heartbeats → one triggerable card per scraper.
+  useEffect(() => {
+    const byKey = new Map(infraHealth.runs.map(r => [r.source, r]))
+    const SYNC_STALE = 48 * 3600000
+    setSyncs(SYNC_SOURCES.map(src => {
+      const run = byKey.get(src.key)
+      const ranAt = run?.last_run_at && new Date(run.last_run_at).getTime() > new Date('2000-01-01').getTime()
+        ? run.last_run_at : null
+      let status: Status = 'unknown'
+      let detail = t('infraNoData')
+      if (ranAt) {
+        const ageMs = (run!.age_seconds ?? 0) * 1000
+        status = run!.status === 'error' ? 'down' : ageMs > SYNC_STALE ? 'stale' : 'healthy'
+        detail = run!.status === 'error'
+          ? (run!.error_message?.slice(0, 60) || timeAgo(ranAt, t))
+          : timeAgo(ranAt, t)
+      }
+      return {
+        name: t(src.labelKey),
+        status,
+        detail,
+        onRefresh: () => triggerSync(src.key, src.endpoint),
+        refreshing: !!triggering[src.key],
+      }
+    }))
+  }, [infraHealth.runs, triggering, t, triggerSync])
 
   const runChecks = useCallback(async () => {
     setLoading(true)

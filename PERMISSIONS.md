@@ -80,7 +80,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | Collection | Filter | Fields | Source migration |
 |---|---|---|---|
 | members | none | `MEMBER_VISIBLE_FIELDS` (no `email`/`phone`) | 024 |
-| members | `OWN_USER` | `MEMBER_OWN_READABLE` (incl. PII + 029 messaging fields + 030 + 042) | 029, 030, 042 |
+| members | `OWN_USER` | `MEMBER_OWN_READABLE` (incl. PII + 029 messaging fields + 030 + 042 + read-only `is_spielplaner` so the frontend nav can gate the Spielplanung/Terminplanung links on it) | 029, 030, 042 |
 | trainings | `MY_TEAMS` | `*` | 032 |
 | events | `EVENTS_VISIBLE` | `*` | 033 |
 | event_sessions | events `EVENTS_VISIBLE` | `*` | 036 |

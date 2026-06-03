@@ -172,6 +172,45 @@ async function fetchWriters(jar, csrf, wuid) {
   return items;
 }
 
+async function fetchReferees(jar, csrf, wuid) {
+  console.log('[3b/5] Fetching club referees...');
+  const items = await vmSearch(jar, csrf, wuid,
+    '/api/sportmanager.indoorvolleyball/api%5cclubreferee',
+    [
+      'indoorAssociationReferee.indoorReferee.person.associationId',
+      'indoorAssociationReferee.indoorReferee.person.firstName',
+      'indoorAssociationReferee.indoorReferee.person.lastName',
+      'indoorAssociationReferee.indoorReferee.person.primaryEmailAddress.emailAddress',
+      'indoorAssociationReferee.managingAssociation.shortName',
+    ],
+    { referer: '/sportmanager.indoorvolleyball/clubreferee/index' },
+  );
+  console.log(`  → ${items.length} referee rows`);
+  // clubreferee/index is club-scoped (returns KSC Wiedikon's referees). One
+  // person appears once per managing association (e.g. SVRZ + SVRNO), so
+  // collapse to associationId → { person fields, Set of association shortNames }.
+  // VM exposes no referee *grade* — the association is the only licence detail.
+  const byAssocId = new Map();
+  for (const r of items) {
+    const ref = r.indoorAssociationReferee || {};
+    const person = ref.indoorReferee?.person || {};
+    const id = person.associationId;
+    if (!id) continue;
+    if (!byAssocId.has(id)) {
+      byAssocId.set(id, {
+        firstName: person.firstName || null,
+        lastName: person.lastName || null,
+        email: person.primaryEmailAddress?.emailAddress || null,
+        assocs: new Set(),
+      });
+    }
+    const assoc = ref.managingAssociation?.shortName;
+    if (assoc) byAssocId.get(id).assocs.add(assoc);
+  }
+  console.log(`  → ${byAssocId.size} unique referees`);
+  return byAssocId;
+}
+
 async function fetchTeamMembers(jar, csrf, wuid) {
   console.log('[4/4] Fetching team-player assignments...');
   const items = await vmSearch(jar, csrf, wuid,
@@ -194,13 +233,19 @@ async function fetchTeamMembers(jar, csrf, wuid) {
 
 // ─── Merge into flat check table ─────────────────────────────────────
 
-function buildCheckTable(players, writers, teamMembers, teams) {
+function buildCheckTable(players, writers, referees, teamMembers, teams) {
   // Index writers by associationId → Set
   const writerIds = new Set();
   for (const w of writers) {
     const id = w.person?.associationId;
     if (id) writerIds.add(id);
   }
+
+  // referees: Map<associationId, { firstName, lastName, email, assocs:Set }>
+  const refereeAssoc = (id) => {
+    const r = referees.get(id);
+    return r && r.assocs.size ? [...r.assocs].sort().join(', ') : null;
+  };
 
   // Index team members: associationId → array of { team_id, team_name, function }
   const memberTeams = new Map();
@@ -273,8 +318,27 @@ function buildCheckTable(players, writers, teamMembers, teams) {
       licence_validated: license.validatedInCurrentSeason ?? null,
       licence_validation_date: license.validationDate || null,
       is_writer: writerIds.has(assocId),
+      is_referee: referees.has(assocId),
+      referee_assoc: refereeAssoc(assocId),
       team_names: teamNames.length > 0 ? teamNames.join(', ') : null,
       team_ids: teamIds.length > 0 ? teamIds.join(', ') : null,
+      synced_at: new Date().toISOString(),
+    });
+  }
+
+  // Referee-only rows: KSCW referees who aren't in the indoor-player list still
+  // need a row so members.referee_vb can sync (a referee need not be a player).
+  const seen = new Set(rows.map(r => r.association_id));
+  for (const [assocId, ref] of referees) {
+    if (seen.has(assocId)) continue;
+    rows.push({
+      association_id: assocId,
+      first_name: ref.firstName,
+      last_name: ref.lastName,
+      email: ref.email,
+      is_writer: writerIds.has(assocId),
+      is_referee: true,
+      referee_assoc: refereeAssoc(assocId),
       synced_at: new Date().toISOString(),
     });
   }
@@ -393,6 +457,101 @@ async function upsertToDirectus(rows) {
   console.log(`  Created: ${created}, Updated: ${updated}, Errors: ${errors}`);
 }
 
+// ─── Sync team metadata to `teams` ───────────────────────────────────
+
+// VM season displayName "2026/2027" → app format "2026/27".
+function normalizeSeason(display) {
+  if (!display) return null;
+  const m = String(display).match(/^(\d{4})\/\d{2}(\d{2})$/); // 2026/2027 → 2026/27
+  if (m) return `${m[1]}/${m[2]}`;
+  const m2 = String(display).match(/^\d{4}\/\d{2}$/);          // already 2026/27
+  if (m2) return display;
+  return null;
+}
+
+// Current season in app format. June (month index 5) rollover — mirrors the
+// SVRZ cron's logic. Overridable via SYNC_SEASON for manual backfills.
+function currentSeason() {
+  if (process.env.SYNC_SEASON) return process.env.SYNC_SEASON;
+  const now = new Date();
+  const startYear = now.getUTCMonth() >= 5 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+  return `${startYear}/${String(startYear + 1).slice(2)}`;
+}
+
+// "KSC Wiedikon D1" → "D1". null if nothing meaningful remains (junk/tournament
+// registrations whose VM name is the bare club name).
+function shortTeamName(vmName) {
+  if (!vmName) return null;
+  const stripped = vmName.replace(/^KSC\s+Wiedikon\s*/i, '').trim();
+  return stripped || null;
+}
+
+async function syncToTeams(teams) {
+  const season = currentSeason();
+  console.log(`\nSyncing teams → \`teams\` (season ${season})...`);
+  const token = await getDirectusToken();
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  // VM teams for the current season only (one row per staticTeamIdentifier).
+  const vmCurrent = teams.filter(t => normalizeSeason(t.season) === season);
+  console.log(`  VM teams this season: ${vmCurrent.length}`);
+
+  // Existing teams (small table). Match on team_id + season — team_id repeats
+  // across seasons, so both are needed to hit the right row.
+  const existing = [];
+  let page = 1;
+  while (true) {
+    const res = await fetch(`${DIRECTUS_URL}/items/teams?fields=id,name,full_name,team_id,sport,league,season&limit=200&page=${page}`, { headers });
+    if (!res.ok) throw new Error(`teams list failed: ${res.status}`);
+    const { data } = await res.json();
+    if (!data || data.length === 0) break;
+    existing.push(...data);
+    page++;
+  }
+  const byKey = new Map();
+  for (const t of existing) byKey.set(`${t.team_id}|${t.season}`, t);
+
+  let updated = 0, unchanged = 0, unmatched = 0, errors = 0;
+  for (const vt of vmCurrent) {
+    if (vt.team_id == null) { unmatched++; continue; }
+    const teamId = `vb_${vt.team_id}`;              // staticTeamIdentifier → app team_id
+    const dbTeam = byKey.get(`${teamId}|${season}`);
+    if (!dbTeam) { unmatched++; continue; }         // update-only: never create
+
+    const fullName = vt.team_name || null;           // "KSC Wiedikon D1"
+    const shortName = shortTeamName(fullName);        // "D1"
+
+    const payload = {};
+    // VM owns name + full_name (they're the same datum, prefix aside). Guard
+    // against blanking when VM name is the bare club name — keep existing then.
+    if (fullName && shortName) {
+      if (fullName !== dbTeam.full_name) payload.full_name = fullName;
+      if (shortName !== dbTeam.name) payload.name = shortName;
+    }
+    // VM owns league (terse code, e.g. "2L"). This fixes stale cloned league
+    // text after a division change. The Swiss Volley API's richer
+    // "Frauen 3. Liga Gruppe A" form can override later once it has this season.
+    if (vt.league_category && vt.league_category !== dbTeam.league) {
+      payload.league = vt.league_category;
+    }
+
+    if (Object.keys(payload).length === 0) { unchanged++; continue; }
+    const res = await fetch(`${DIRECTUS_URL}/items/teams/${dbTeam.id}`, {
+      method: 'PATCH', headers, body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      updated++;
+      console.log(`  ✓ ${dbTeam.name} (${teamId}) ${JSON.stringify(payload)}`);
+    } else {
+      const text = await res.text();
+      console.error(`  team ${dbTeam.id} update error: ${res.status} ${text.slice(0, 200)}`);
+      errors++;
+    }
+  }
+  console.log(`  Teams: updated=${updated}, unchanged=${unchanged}, no-match=${unmatched}, errors=${errors}`);
+  return { updated, unchanged, unmatched, errors };
+}
+
 // ─── Sync to members ────────────────────────────────────────────────
 
 async function syncToMembers(rows) {
@@ -435,7 +594,7 @@ async function syncToMembers(rows) {
   const members = [];
   let page = 1;
   while (true) {
-    const url = `${DIRECTUS_URL}/items/members?fields=id,license_nr,sex,licences,scorer_vb,vm_email,email,first_name,last_name,birthdate,birthdate_visibility,licence_category,licence_activated,licence_validated&limit=250&page=${page}`;
+    const url = `${DIRECTUS_URL}/items/members?fields=id,license_nr,sex,licences,scorer_vb,referee_vb,vm_email,email,first_name,last_name,birthdate,birthdate_visibility,licence_category,licence_activated,licence_validated&limit=250&page=${page}`;
     const res = await fetch(url, { headers });
     if (!res.ok) throw new Error(`Directus members list failed: ${res.status}`);
     const { data } = await res.json();
@@ -544,6 +703,25 @@ async function syncToMembers(rows) {
       changed = true;
     }
 
+    // Referee licence (vb). Same dual-write (boolean + legacy JSON) as scorer.
+    // Read the licences base from payload first so a combined scorer+referee
+    // change doesn't clobber the scorer edit. Never touch referee_bb.
+    const licBase = () => (Array.isArray(payload.licences)
+      ? payload.licences
+      : (Array.isArray(member.licences) ? [...member.licences] : []));
+    const hasReferee = member.referee_vb === true;
+    if (row.is_referee && !hasReferee) {
+      payload.referee_vb = true;
+      const lic = licBase();
+      if (!lic.includes('referee_vb')) lic.push('referee_vb');
+      payload.licences = lic;
+      changed = true;
+    } else if (!row.is_referee && hasReferee) {
+      payload.referee_vb = false;
+      payload.licences = licBase().filter(l => l !== 'referee_vb');
+      changed = true;
+    }
+
     if (changed) updates.push(payload);
   }
 
@@ -587,18 +765,22 @@ async function main() {
   const { csrf, wuid } = await csrfFromPage(jar, '/sportmanager.indoorvolleyball/indoorwriter/index');
   console.log('✓ Logged in to Volleymanager\n');
 
-  // Fetch all 4 datasets
+  // Fetch all datasets
   const teams = await fetchTeams(jar, csrf, wuid);
   const players = await fetchPlayers(jar, csrf, wuid);
   const writers = await fetchWriters(jar, csrf, wuid);
+  const referees = await fetchReferees(jar, csrf, wuid);
   const teamMembers = await fetchTeamMembers(jar, csrf, wuid);
 
   // Build merged table
   console.log('\nMerging...');
-  const rows = buildCheckTable(players, writers, teamMembers, teams);
+  const rows = buildCheckTable(players, writers, referees, teamMembers, teams);
 
   // Upsert to Directus
   await upsertToDirectus(rows);
+
+  // Sync team metadata (name / full_name / league) to `teams`
+  const teamSync = await syncToTeams(teams);
 
   // Sync VM data to members
   const memberSync = await syncToMembers(rows);
@@ -606,9 +788,11 @@ async function main() {
   // Summary
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`\n========== SUMMARY (${elapsed}s) ==========`);
-  console.log(`Teams:          ${teams.length}`);
-  console.log(`Players:        ${rows.length}`);
+  console.log(`Teams (VM):     ${teams.length}`);
+  console.log(`  └ Synced:     updated=${teamSync.updated}, unchanged=${teamSync.unchanged}, no-match=${teamSync.unmatched}, errors=${teamSync.errors}`);
+  console.log(`Check rows:     ${rows.length}`);
   console.log(`  ├ Writers:    ${rows.filter(r => r.is_writer).length}`);
+  console.log(`  ├ Referees:   ${rows.filter(r => r.is_referee).length}`);
   console.log(`  └ With team:  ${rows.filter(r => r.team_names).length}`);
   console.log(`Team members:   ${teamMembers.length} assignments`);
   console.log(`Members synced: ${memberSync.matched} matched, ${memberSync.updated} updated, ${memberSync.errors} errors`);
