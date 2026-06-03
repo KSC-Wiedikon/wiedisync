@@ -14,9 +14,10 @@ import { isSchedulableTeam } from '../utils/schedulableTeams'
 import SpielsamstageEditor from '../components/SpielsamstageEditor'
 import SlotGenerationPanel from '../components/SlotGenerationPanel'
 import TeamSlotConfigPanel from '../components/TeamSlotConfigPanel'
+import GapConfigPanel from '../components/GapConfigPanel'
 import ExcelImportPanel from '../components/ExcelImportPanel'
 import InvitesPanel from '../components/InvitesPanel'
-import type { SpielsamstagConfig, TeamSlotConfig } from '../../../types'
+import type { SpielsamstagConfig, TeamSlotConfig, GameSchedulingGapConfig } from '../../../types'
 
 interface RolloverResult {
   from_season: string
@@ -57,6 +58,11 @@ export default function AdminSetupPage() {
   const handleUpdateTeamConfig = async (config: TeamSlotConfig) => {
     if (!season) return
     await updateSeason(season.id, { team_slot_config: config } as Record<string, unknown>)
+  }
+
+  const handleUpdateGapConfig = async (cfg: GameSchedulingGapConfig) => {
+    if (!season) return
+    await updateSeason(season.id, { gap_config: cfg } as Record<string, unknown>)
   }
 
   const handleStatusChange = async (status: 'setup' | 'open' | 'closed') => {
@@ -177,6 +183,9 @@ export default function AdminSetupPage() {
             config={season.team_slot_config || {}}
             onUpdate={handleUpdateTeamConfig}
           />
+
+          {/* Game-spacing gaps (home / proposals / lenient 3rd proposal) */}
+          <GapConfigPanel gapConfig={season.gap_config} onUpdate={handleUpdateGapConfig} />
 
           {/* Excel Import */}
           <ExcelImportPanel />

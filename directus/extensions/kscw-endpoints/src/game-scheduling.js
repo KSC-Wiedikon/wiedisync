@@ -174,33 +174,52 @@ export function registerGameScheduling(router, { database, logger, services, get
     return member?.is_spielplaner === true
   }
 
-  // How many days around a committed game stay blocked. ±4 means the team never
-  // plays two games closer than 4 days apart (the date itself plus 4 days on
-  // either side → a 9-day exclusion span per game).
-  const GAME_SPACING_DAYS = 4
+  // Default game-spacing gaps (days) when a season has no gap_config. ±N means
+  // the team never plays two games closer than N days apart (date ± N → a
+  // (2N+1)-day exclusion span per game). Per-season overrides live in
+  // game_scheduling_seasons.gap_config (migration 083); home and away proposals
+  // can differ, and the lenient 3rd away proposal can use a smaller gap.
+  const DEFAULT_GAPS = { home: 4, proposal: 4, proposal3: 2 }
+
+  // Read the per-season gaps, falling back to DEFAULT_GAPS for missing/invalid
+  // values. gap_config is jsonb → knex returns a parsed object.
+  async function seasonGaps(seasonId) {
+    let cfg = {}
+    if (seasonId) {
+      const row = await database('game_scheduling_seasons').where('id', seasonId).first('gap_config')
+      if (row && row.gap_config && typeof row.gap_config === 'object') cfg = row.gap_config
+    }
+    const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.floor(Number(v)) : d)
+    return {
+      home: num(cfg.home, DEFAULT_GAPS.home),
+      proposal: num(cfg.proposal, DEFAULT_GAPS.proposal),
+      proposal3: num(cfg.proposal3, DEFAULT_GAPS.proposal3),
+    }
+  }
 
   // Advisory-lock namespace (classid) for serializing home-slot bookings per
   // team. pg_advisory_xact_lock(GSCH_BOOK_LOCK_CLASS, kscw_team) makes two
   // opponents booking different-but-nearby slots for the same team wait in line,
-  // so the GAME_SPACING + Saturday-cap checks can't be raced (the per-slot FOR
-  // UPDATE only guards the same slot row). Arbitrary constant, unused elsewhere.
+  // so the gap + Saturday-cap checks can't be raced (the per-slot FOR UPDATE
+  // only guards the same slot row). Arbitrary constant, unused elsewhere.
   const GSCH_BOOK_LOCK_CLASS = 920601
 
   // Dates (YYYY-MM-DD) the KSCW team is already committed to play — real SVRZ
   // games, home slots an opponent has already booked, and confirmed away
-  // proposals — each expanded ±GAME_SPACING_DAYS so the team never plays games
-  // closer together than that. A booked slot or a confirmed proposal therefore
-  // blocks exactly like a real game: no other opponent can take that date or one
-  // within the window (home-slot list + away proposals + away calendar greying).
-  // Pending proposals are intentionally excluded — they're temporary; only the
-  // confirmed one is definitive.
-  async function committedGameDates(kscwTeamId) {
+  // proposals — each expanded ±gapDays so the team never plays games closer
+  // together than that. A booked slot or a confirmed proposal therefore blocks
+  // exactly like a real game: no other opponent can take that date or one within
+  // the window (home-slot list + away proposals + away calendar greying). The
+  // window size is caller-supplied because home games, away proposals 1-2 and
+  // away proposal 3 may each use a different gap (see seasonGaps). Pending
+  // proposals are intentionally excluded — only the confirmed one is definitive.
+  async function committedGameDates(kscwTeamId, gapDays = DEFAULT_GAPS.home) {
     const set = new Set()
     const addWindow = (val) => {
       if (!val) return
       const base = new Date(`${String(val).slice(0, 10)}T00:00:00Z`)
       if (Number.isNaN(base.getTime())) return
-      for (let off = -GAME_SPACING_DAYS; off <= GAME_SPACING_DAYS; off++) {
+      for (let off = -gapDays; off <= gapDays; off++) {
         const x = new Date(base); x.setUTCDate(x.getUTCDate() + off)
         set.add(x.toISOString().slice(0, 10))
       }
@@ -344,8 +363,13 @@ export function registerGameScheduling(router, { database, logger, services, get
         opponent.first_viewed_at = nowIso
       }
 
-      // Games, booked home slots and confirmed away proposals (each ±1 day).
-      const committed = await committedGameDates(opponent.kscw_team)
+      // Games, booked home slots and confirmed away proposals — expanded by the
+      // season's gap. Home slots use the home gap; away proposals use the
+      // proposal gap (1-2) and the lenient proposal-3 gap.
+      const gaps = await seasonGaps(opponent.season)
+      const committedHome = await committedGameDates(opponent.kscw_team, gaps.home)
+      const committedProposal = await committedGameDates(opponent.kscw_team, gaps.proposal)
+      const committedProposal3 = await committedGameDates(opponent.kscw_team, gaps.proposal3)
 
       // Exclude slots whose date falls within any event linked to this team
       // (single-day or multi-day) — e.g. tournament weekend, team trip. Filter
@@ -403,7 +427,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           hall_name: hallNameById[s.hall] || '',
         }))
         // Drop slots on/adjacent to a game, a booked slot or a confirmed proposal.
-        .filter((s) => !committed.has(s.date))
+        .filter((s) => !committedHome.has(s.date))
 
       const bookings = await database('game_scheduling_bookings')
         .where('opponent', opponent.id)
@@ -429,16 +453,19 @@ export function registerGameScheduling(router, { database, logger, services, get
       // and one-off PLAYER absences (guests + weekly unavailabilities don't
       // count). The opponent's calendar greys these out (mirrors the
       // propose-away rejection below).
-      // Conflict dates for away proposals. Events + games(±1) are HARD blocks on
-      // every proposal. Absences are graded: proposals 1 & 2 reject ANY player
-      // absence; proposal 3 rejects only 3+ absent. So expose two sets — strict
-      // (hard ∪ any-absence) and loose (hard ∪ 3+-absence).
-      const hardSet = new Set()
+      // Conflict dates for away proposals. Events are HARD blocks on every
+      // proposal. Games / booked slots / confirmed proposals are gap-expanded:
+      // proposals 1 & 2 use the proposal gap, proposal 3 the (smaller) proposal-3
+      // gap. Absences are graded: proposals 1 & 2 reject ANY player absence;
+      // proposal 3 rejects only 3+ absent. So expose two sets — strict (events ∪
+      // proposal-gap games ∪ any-absence) and loose (events ∪ proposal3-gap games
+      // ∪ 3+-absence).
+      const eventSet = new Set()
       const addRange = (s, e) => {
         if (!s) return
         const d = new Date(`${s}T00:00:00Z`)
         const end = new Date(`${e || s}T00:00:00Z`)
-        for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) hardSet.add(d.toISOString().slice(0, 10))
+        for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) eventSet.add(d.toISOString().slice(0, 10))
       }
       const evRows = await database('events as e')
         .join('events_teams as et', 'et.events_id', 'e.id')
@@ -448,8 +475,6 @@ export function registerGameScheduling(router, { database, logger, services, get
           database.raw("(COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date::text as e"),
         )
       evRows.forEach((r) => addRange(r.s, r.e))
-      // Games + booked home slots + confirmed away proposals (all already ±1 day).
-      for (const d of committed) hardSet.add(d)
       const absRows = await database('absences as a')
         .join('member_teams as mt', 'mt.member', 'a.member')
         .where('mt.team', opponent.kscw_team)
@@ -467,8 +492,10 @@ export function registerGameScheduling(router, { database, logger, services, get
           ;(absByDate[k] || (absByDate[k] = new Set())).add(r.member)
         }
       }
-      const strictSet = new Set(hardSet)
-      const looseSet = new Set(hardSet)
+      const strictSet = new Set(eventSet)
+      for (const d of committedProposal) strictSet.add(d)
+      const looseSet = new Set(eventSet)
+      for (const d of committedProposal3) looseSet.add(d)
       for (const [k, members] of Object.entries(absByDate)) {
         strictSet.add(k)                        // proposals 1 & 2: any absence
         if (members.size >= 3) looseSet.add(k)  // proposal 3: only 3+ absent
@@ -595,7 +622,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       await database.transaction(async (trx) => {
         // Serialize all home bookings for this team. The per-slot FOR UPDATE
         // below only stops two opponents grabbing the SAME slot; it does nothing
-        // for two opponents booking two DIFFERENT slots within GAME_SPACING_DAYS
+        // for two opponents booking two DIFFERENT slots within the gap window
         // at the same instant (each committedGameDates() read would miss the
         // other's in-flight booking). A per-team advisory xact lock makes the
         // second booking wait until the first commits, so the gap + Saturday-cap
@@ -631,10 +658,11 @@ export function registerGameScheduling(router, { database, logger, services, get
           throw Object.assign(new Error('Slot already booked'), { httpStatus: 400 })
         }
 
-        // A game / booked slot / confirmed proposal on or ±GAME_SPACING_DAYS from
-        // this slot blocks it too. The read-time list already hides these; re-check
+        // A game / booked slot / confirmed proposal within the home gap of this
+        // slot blocks it too. The read-time list already hides these; re-check
         // here to close the concurrent race where a neighbour was booked in between.
-        const committed = await committedGameDates(opponent.kscw_team)
+        const homeGap = (await seasonGaps(opponent.season)).home
+        const committed = await committedGameDates(opponent.kscw_team, homeGap)
         const slotYmd = (typeof slot.date === 'string' ? slot.date : new Date(slot.date).toISOString()).slice(0, 10)
         if (committed.has(slotYmd)) {
           throw Object.assign(new Error('Slot not available — the team already plays on or next to this date'), { httpStatus: 400 })
@@ -778,9 +806,13 @@ export function registerGameScheduling(router, { database, logger, services, get
       // too — it's player-driven, not team-type-driven.
       const sharedTeams = await sharedPlayerTeams(opponent.kscw_team)
 
-      // Games / booked home slots / confirmed away proposals (all ±1 day) — a
-      // new proposal can't land on or adjacent to any of them.
-      const committed = await committedGameDates(opponent.kscw_team)
+      // Games / booked home slots / confirmed away proposals — a new proposal
+      // can't land within the gap of any of them. Proposals 1-2 use the proposal
+      // gap; proposal 3 the (smaller) proposal-3 gap (mirrors the strict/loose
+      // sets the calendar greys with).
+      const proposalGaps = await seasonGaps(opponent.season)
+      const committedStrict = await committedGameDates(opponent.kscw_team, proposalGaps.proposal)
+      const committedLoose = await committedGameDates(opponent.kscw_team, proposalGaps.proposal3)
       for (let i = 0; i < proposals.length; i++) {
         const p = proposals[i]
         if (!p.date || !DATE_RE.test(String(p.date))) {
@@ -803,11 +835,12 @@ export function registerGameScheduling(router, { database, logger, services, get
         if (eventCover) {
           return res.status(400).json({ error: `${p.date} falls on a team event${eventCover.title ? ` (${eventCover.title})` : ''} — please pick another date.` })
         }
-        // Reject if the team already plays on or next to this date — a real game,
-        // a home slot another opponent booked, or a confirmed away proposal (all
-        // ±1 day; pending proposals don't count). No back-to-back games.
-        if (committed.has(String(p.date).slice(0, 10))) {
-          return res.status(400).json({ error: `${p.date} is on or within a day of an existing game — please pick another date.` })
+        // Reject if the team already plays within the gap of this date — a real
+        // game, a home slot another opponent booked, or a confirmed away proposal
+        // (pending proposals don't count). Proposal 3 (i===2) uses the lenient gap.
+        const committedForProposal = i < 2 ? committedStrict : committedLoose
+        if (committedForProposal.has(String(p.date).slice(0, 10))) {
+          return res.status(400).json({ error: `${p.date} is too close to an existing game — please pick another date.` })
         }
         // C1 cross-team: a roster-sharing team must not already play this date.
         const xTeams = await teamsCommittedOnDate(sharedTeams, String(p.date), database)

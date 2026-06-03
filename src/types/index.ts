@@ -555,8 +555,19 @@ export interface GameSchedulingSeason extends BaseRecord {
   status: 'setup' | 'open' | 'closed'
   spielsamstage: SpielsamstagConfig[]
   team_slot_config: TeamSlotConfig | null
+  /** Per-season game-spacing gaps in days. Null/missing → defaults {4,4,2}. */
+  gap_config: GameSchedulingGapConfig | null
   notes: string
 
+}
+
+export interface GameSchedulingGapConfig {
+  /** Min days between a home game and any other committed game. */
+  home: number
+  /** Same, for away proposals 1 & 2. */
+  proposal: number
+  /** Same, for the lenient 3rd away proposal. */
+  proposal3: number
 }
 
 export interface SpielsamstagConfig {

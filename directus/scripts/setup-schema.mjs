@@ -556,6 +556,7 @@ const COLLECTIONS = [
       select('status', ['setup', 'open', 'closed']),
       json('spielsamstage'),
       json('team_slot_config'),
+      json('gap_config'),
       text('notes'),
     ],
   },
