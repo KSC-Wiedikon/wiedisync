@@ -8,7 +8,6 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { useAdminMode } from '../hooks/useAdminMode'
 import { Bell, UserX, PenSquare, PartyPopper, ClipboardList, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj } from '../utils/relations'
@@ -33,7 +32,7 @@ const iconClass = 'h-5 w-5'
 
 function buildSecondaryItems(
   memberId: number | string | undefined | null,
-  sched: { effectiveIsAdmin: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[] },
+  sched: { isAdmin: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[] },
 ) {
   const items = [
     ...(messagingFeatureEnabled(memberId)
@@ -45,14 +44,13 @@ function buildSecondaryItems(
     { to: '/scorer', labelKey: 'scorer', icon: <PenSquare className={iconClass} /> },
     { to: '/news', labelKey: 'news', icon: <Newspaper className={iconClass} /> },
   ]
-  // Spielplaner tools always live in this main list — never the Admin section —
-  // so admins keep the full regular nav in admin mode. Spielplaner members see
-  // them in both modes; admins see them whenever admin mode is on. Mirrors
-  // Layout.tsx.
-  if (sched.effectiveIsAdmin || sched.is_spielplaner || sched.spielplanerTeamIds.length > 0) {
+  // Spielplaner tools live in this main list — never the Admin section. Gated on
+  // ROLE, not the admin-mode toggle, so they stay put in both modes (mirrors
+  // Layout.tsx + the route guards).
+  if (sched.isAdmin || sched.is_spielplaner || sched.spielplanerTeamIds.length > 0) {
     items.push({ to: '/admin/spielplanung', labelKey: 'gameplan', icon: <ClipboardList className={iconClass} /> })
   }
-  if (sched.effectiveIsAdmin || sched.is_spielplaner) {
+  if (sched.isAdmin || sched.is_spielplaner) {
     items.push({ to: '/admin/terminplanung', labelKey: 'terminplanung', icon: <CalendarClock className={iconClass} /> })
   }
   return items
@@ -204,8 +202,7 @@ interface MoreSheetProps {
 }
 
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
-  const { user, isApproved, isSuperAdmin, is_spielplaner, spielplanerTeamIds, logout } = useAuth()
-  const { isAdminMode, effectiveIsAdmin } = useAdminMode()
+  const { user, isApproved, isAdmin, isSuperAdmin, is_spielplaner, spielplanerTeamIds, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
   const { closing, startClose, onAnimEnd } = useAnimatedClose(onClose)
@@ -306,7 +303,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
             </>
           )}
-          {(!user || !isApproved) ? null : buildSecondaryItems(user.id, { effectiveIsAdmin, is_spielplaner, spielplanerTeamIds }).map((item) => (
+          {(!user || !isApproved) ? null : buildSecondaryItems(user.id, { isAdmin, is_spielplaner, spielplanerTeamIds }).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -324,7 +321,10 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
             </NavLink>
           ))}
 
-          {isAdminMode && (
+          {/* Admin/Superadmin nav gated on ROLE, not the toggle — the navbar is
+              always complete for privileged users; the admin-mode toggle only
+              changes data scope. Routes enforce the same raw-role gate. */}
+          {isAdmin && (
             <>
               <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
               <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
@@ -350,7 +350,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
             </>
           )}
 
-          {isAdminMode && isSuperAdmin && (
+          {isSuperAdmin && (
             <>
               <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
               <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">

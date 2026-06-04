@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
@@ -36,7 +36,7 @@ type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 
 function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number | string | null) {
   const { t } = useTranslation('nav')
-  const { memberTeamIds, is_spielplaner, spielplanerTeamIds } = useAuth()
+  const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   const showTeamsPlural = effectiveIsAdmin || effectiveIsVorstand || memberTeamIds.length > 1
   const iconClass = 'h-5 w-5'
@@ -68,17 +68,17 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
     { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
     { to: '/news', label: t('news'), icon: <Newspaper className={iconClass} /> },
   ]
-  // Spielplaner tools always live in the main nav — never the Admin section — so
-  // admins keep the full regular navbar in admin mode (nothing gets moved out
-  // from under them). Spielplaner members see them in both modes; admins see
-  // them whenever admin mode is on (effectiveIsAdmin = isAdmin && admin mode).
-  // Spielplanung = admin / club-wide / per-team Spielplaner (SpielplanerOrAdminRoute);
-  // Terminplanung = admin / club-wide Spielplaner (AdminOrSpielplanerRoute).
+  // Spielplaner tools live in the main nav — never the Admin section. They're
+  // gated on ROLE, not on the admin-mode toggle, so they stay put regardless of
+  // the admin/member data-scope switch (matches the route guards: an admin can
+  // open these pages in either mode). Spielplanung = admin / club-wide / per-team
+  // Spielplaner (SpielplanerOrAdminRoute); Terminplanung = admin / club-wide
+  // Spielplaner (AdminOrSpielplanerRoute).
   const spielplanerItems = [
-    ...(effectiveIsAdmin || is_spielplaner || spielplanerTeamIds.length > 0
+    ...(isAdmin || is_spielplaner || spielplanerTeamIds.length > 0
       ? [{ to: '/admin/spielplanung', label: t('gameplan'), icon: <ClipboardList className={iconClass} /> }]
       : []),
-    ...(effectiveIsAdmin || is_spielplaner
+    ...(isAdmin || is_spielplaner
       ? [{ to: '/admin/terminplanung', label: t('terminplanung'), icon: <CalendarClock className={iconClass} /> }]
       : []),
   ]
@@ -223,24 +223,15 @@ export default function Layout() {
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
   const isDesktop = useIsDesktop()
-  const location = useLocation()
-  const { isAdminMode, setAdminMode } = useAdminMode()
+  const { isAdminMode } = useAdminMode()
   const { navItems, adminItems, superadminItems } = useNavItems(!!user, isApproved, user?.id)
   const messagingOn = messagingFeatureEnabled(user?.id)
   const unreadMessages = useUnreadTotal()
 
-  // Auto-activate admin mode when navigating to /admin/* routes — EXCEPT the
-  // scheduler tools (Spielplanung/Terminplanung), which are reachable directly
-  // from the main nav by Spielplaner members. Forcing admin mode there would
-  // yank the entries out of the main nav into the Admin section on every click.
-  useEffect(() => {
-    const isSchedulerRoute =
-      location.pathname.startsWith('/admin/spielplanung') ||
-      location.pathname.startsWith('/admin/terminplanung')
-    if (isAdmin && location.pathname.startsWith('/admin') && !isAdminMode && !isSchedulerRoute) {
-      setAdminMode(true)
-    }
-  }, [location.pathname, isAdmin, isAdminMode, setAdminMode])
+  // NOTE: the admin-mode toggle is fully manual — nothing auto-flips it. Visiting
+  // an /admin route no longer forces admin mode on. The navbar is always complete
+  // for privileged users (role-gated), and the toggle only changes the data scope
+  // (own teams vs club-wide) + the gold banner.
   const { data: memberTeamsRaw } = useCollection<ExpandedMemberTeam>('member_teams', {
     // Current-season only — otherwise archived same-name teams (e.g. old + new
     // "H3" after a rollover) render as duplicate badges in the user card.
@@ -376,7 +367,13 @@ export default function Layout() {
                 })}
               </ul>
 
-              {isAdminMode && (
+              {/* Admin/Superadmin nav are gated on ROLE, not the toggle, so the
+                  full navbar is always available to privileged users. The
+                  admin-mode toggle only changes the DATA scope (own teams vs
+                  club-wide) + the gold banner — never which pages are listed.
+                  Routes themselves enforce the same raw-role gate (AdminRoute /
+                  SuperAdminRoute). */}
+              {isAdmin && (
                 <>
                   <div className={`my-3 border-t ${
                     theme === 'light' ? 'border-gray-200' : 'border-brand-800'
@@ -413,7 +410,7 @@ export default function Layout() {
                 </>
               )}
 
-              {isAdminMode && isSuperAdmin && (
+              {isSuperAdmin && (
                 <>
                   <div className={`my-3 border-t ${
                     theme === 'light' ? 'border-gray-200' : 'border-brand-800'
