@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useAdminMode } from '../hooks/useAdminMode'
 import SwitchToggle from '@/components/SwitchToggle'
@@ -14,18 +13,16 @@ export default function AdminToggle({ size = 'sm', onAfterToggle }: AdminToggleP
   const { isAdmin } = useAuth()
   const { isAdminMode, toggleAdminMode, hasElevatedAccess } = useAdminMode()
   const { t } = useTranslation('nav')
-  const location = useLocation()
-  const navigate = useNavigate()
 
   if (!hasElevatedAccess) return null
 
+  // Pure data-scope toggle — flips the lens (own teams vs club-wide) and nothing
+  // else. The navbar stays complete in both modes, so there's no reason to
+  // navigate away when switching to member mode; you can preview member view in
+  // place. onAfterToggle lets the mobile MoreSheet close itself after the flip.
   const handleToggle = () => {
-    // If turning off admin mode while on an admin-only route, navigate home
-    if (isAdminMode && location.pathname.startsWith('/admin')) {
-      navigate('/', { replace: true })
-      onAfterToggle?.()
-    }
     toggleAdminMode()
+    onAfterToggle?.()
   }
 
   const iconOff = isAdmin ? <Shield /> : <EyeOff />
