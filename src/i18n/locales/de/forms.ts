@@ -120,4 +120,5 @@ export default {
   errorClosed: 'Dieses Formular ist geschlossen.',
   errorSubmit: 'Einreichen fehlgeschlagen. Bitte versuche es erneut.',
   errorSlugRequired: 'Ein öffentliches Formular braucht eine Web-Adresse.',
+  errorSlugTaken: 'Diese Web-Adresse ist bereits vergeben — wähle eine andere.',
 }

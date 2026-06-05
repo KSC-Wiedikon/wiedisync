@@ -211,8 +211,13 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
       else await createRecord('forms', payload)
       invalidate('forms')
       onSave()
-    } catch {
-      setError(tc('errorSaving'))
+    } catch (err) {
+      // The only unique constraint on `forms` is the public slug, so a
+      // uniqueness violation always means the chosen web address is taken.
+      const e = err as { message?: string; errors?: { message?: string; extensions?: { code?: string } }[] }
+      const detail = [e?.message, ...(e?.errors ?? []).map((x) => `${x.message ?? ''} ${x.extensions?.code ?? ''}`)].join(' ')
+      if (/unique/i.test(detail)) setError(t('errorSlugTaken'))
+      else setError(tc('errorSaving'))
     } finally {
       setSaving(false)
     }

@@ -120,4 +120,5 @@ export default {
   errorClosed: 'This form is closed.',
   errorSubmit: 'Could not submit. Please try again.',
   errorSlugRequired: 'A public form needs a web address.',
+  errorSlugTaken: 'That web address is already taken — choose another.',
 }
