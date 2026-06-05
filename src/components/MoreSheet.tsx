@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
@@ -8,7 +8,7 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, UserX, PenSquare, PartyPopper, ClipboardList, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal } from 'lucide-react'
+import { Bell, UserX, PenSquare, PartyPopper, ClipboardList, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
@@ -30,31 +30,40 @@ function useAnimatedClose(onClose: () => void) {
 
 const iconClass = 'h-5 w-5'
 
+interface SheetItem { to: string; labelKey: string; icon: ReactNode }
+
 function buildSecondaryItems(
   memberId: number | string | undefined | null,
   sched: { isAdmin: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[]; canManageForms: boolean },
-) {
-  const items = [
-    ...(messagingFeatureEnabled(memberId)
-      ? [{ to: '/inbox', labelKey: 'inbox', icon: <Inbox className={iconClass} /> }]
-      : []),
+): { primary: SheetItem[]; memberTools: SheetItem[]; spielplaner: SheetItem[] } {
+  // Primary = items NOT already on the bottom tab bar (Home/Calendar/Games/
+  // Trainings live there); shown ungrouped at the top of the sheet.
+  const primary: SheetItem[] = [
     { to: '/events', labelKey: 'events', icon: <PartyPopper className={iconClass} /> },
-    ...(sched.canManageForms ? [{ to: '/forms', labelKey: 'forms', icon: <ScrollText className={iconClass} /> }] : []),
+  ]
+  // Member tools — grouped under one header. Forms is here (author-only; gated);
+  // News (the read feed) lives here too.
+  const memberTools: SheetItem[] = [
     { to: '/teams', labelKey: 'teams', icon: <Users className={iconClass} /> },
     { to: '/absences', labelKey: 'absences', icon: <UserX className={iconClass} /> },
     { to: '/scorer', labelKey: 'scorer', icon: <PenSquare className={iconClass} /> },
+    { to: '/fines', labelKey: 'fines', icon: <Gavel className={iconClass} /> },
+    ...(messagingFeatureEnabled(memberId)
+      ? [{ to: '/inbox', labelKey: 'inbox', icon: <Inbox className={iconClass} /> }]
+      : []),
+    ...(sched.canManageForms ? [{ to: '/forms', labelKey: 'forms', icon: <ScrollText className={iconClass} /> }] : []),
     { to: '/news', labelKey: 'news', icon: <Newspaper className={iconClass} /> },
   ]
-  // Spielplaner tools live in this main list — never the Admin section. Gated on
-  // ROLE, not the admin-mode toggle, so they stay put in both modes (mirrors
-  // Layout.tsx + the route guards).
-  if (sched.isAdmin || sched.is_spielplaner || sched.spielplanerTeamIds.length > 0) {
-    items.push({ to: '/admin/spielplanung', labelKey: 'gameplan', icon: <ClipboardList className={iconClass} /> })
-  }
-  if (sched.isAdmin || sched.is_spielplaner) {
-    items.push({ to: '/admin/terminplanung', labelKey: 'terminplanung', icon: <CalendarClock className={iconClass} /> })
-  }
-  return items
+  // Spielplaner tools — own role-gated section (mirrors Layout.tsx + route guards).
+  const spielplaner: SheetItem[] = [
+    ...(sched.isAdmin || sched.is_spielplaner || sched.spielplanerTeamIds.length > 0
+      ? [{ to: '/admin/spielplanung', labelKey: 'gameplan', icon: <ClipboardList className={iconClass} /> }]
+      : []),
+    ...(sched.isAdmin || sched.is_spielplaner
+      ? [{ to: '/admin/terminplanung', labelKey: 'terminplanung', icon: <CalendarClock className={iconClass} /> }]
+      : []),
+  ]
+  return { primary, memberTools, spielplaner }
 }
 
 const adminItems = [
@@ -305,23 +314,49 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
             </>
           )}
-          {(!user || !isApproved) ? null : buildSecondaryItems(user.id, { isAdmin, is_spielplaner, spielplanerTeamIds, canManageForms }).map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={startClose}
-              className={({ isActive }) =>
-                `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
-                  isActive
-                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                }`
-              }
-            >
-              {item.icon}
-              {t(item.labelKey)}
-            </NavLink>
-          ))}
+          {(!user || !isApproved) ? null : (() => {
+            const groups = buildSecondaryItems(user.id, { isAdmin, is_spielplaner, spielplanerTeamIds, canManageForms })
+            const renderItem = (item: SheetItem) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={startClose}
+                className={({ isActive }) =>
+                  `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
+                    isActive
+                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
+                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                  }`
+                }
+              >
+                {item.icon}
+                {t(item.labelKey)}
+              </NavLink>
+            )
+            return (
+              <>
+                {groups.primary.map(renderItem)}
+                {groups.memberTools.length > 0 && (
+                  <>
+                    <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
+                    <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                      {t('memberTools')}
+                    </p>
+                    {groups.memberTools.map(renderItem)}
+                  </>
+                )}
+                {groups.spielplaner.length > 0 && (
+                  <>
+                    <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
+                    <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                      {t('spielplanung')}
+                    </p>
+                    {groups.spielplaner.map(renderItem)}
+                  </>
+                )}
+              </>
+            )
+          })()}
 
           {/* Admin/Superadmin nav gated on ROLE, not the toggle — the navbar is
               always complete for privileged users; the admin-mode toggle only

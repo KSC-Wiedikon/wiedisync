@@ -49,7 +49,9 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
     { to: '/calendar', label: t('calendar'), icon: <Calendar className={iconClass} /> },
     { to: '/games', label: t('games'), icon: <Trophy className={iconClass} /> },
   ]
-  const authItems = [
+  // Primary = the daily "what's happening" views (these mirror the mobile bottom
+  // tab bar). Everything else is grouped under a section header below.
+  const primaryAuthItems = [
     {
       to: '/trainings',
       label: t('trainings'),
@@ -63,20 +65,23 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
       ),
     },
     { to: '/events', label: t('events'), icon: <PartyPopper className={iconClass} /> },
-    ...(canManageForms ? [{ to: '/forms', label: t('forms'), icon: <ScrollText className={iconClass} /> }] : []),
-    ...(messagingFeatureEnabled(memberId)
-      ? [{ to: '/inbox', label: t('inbox'), icon: <Inbox className={iconClass} /> }]
-      : []),
+  ]
+  // Member tools — lower-frequency tools grouped under one "Member tools" header.
+  // Forms is here too (author-only; gated). News (the read feed) lives here too.
+  const memberToolsItems = [
     { to: '/teams', label: t(showTeamsPlural ? 'teams' : 'team'), icon: <Users className={iconClass} /> },
     { to: '/absences', label: t('absences'), icon: <UserX className={iconClass} /> },
     { to: '/scorer', label: t('scorer'), icon: <PenSquare className={iconClass} /> },
     { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
+    ...(messagingFeatureEnabled(memberId)
+      ? [{ to: '/inbox', label: t('inbox'), icon: <Inbox className={iconClass} /> }]
+      : []),
+    ...(canManageForms ? [{ to: '/forms', label: t('forms'), icon: <ScrollText className={iconClass} /> }] : []),
     { to: '/news', label: t('news'), icon: <Newspaper className={iconClass} /> },
   ]
-  // Spielplaner tools live in the main nav — never the Admin section. They're
-  // gated on ROLE, not on the admin-mode toggle, so they stay put regardless of
-  // the admin/member data-scope switch (matches the route guards: an admin can
-  // open these pages in either mode). Spielplanung = admin / club-wide / per-team
+  // Spielplaner tools — their own role-gated section (NOT the Admin section).
+  // Gated on ROLE, not the admin-mode toggle (matches the route guards: an admin
+  // can open these in either mode). Spielplanung = admin / club-wide / per-team
   // Spielplaner (SpielplanerOrAdminRoute); Terminplanung = admin / club-wide
   // Spielplaner (AdminOrSpielplanerRoute).
   const spielplanerItems = [
@@ -88,7 +93,9 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
       : []),
   ]
   return {
-    navItems: isLoggedIn && isApproved ? [...publicItems, ...authItems, ...spielplanerItems] : publicItems,
+    navItems: isLoggedIn && isApproved ? [...publicItems, ...primaryAuthItems] : publicItems,
+    memberToolsItems: isLoggedIn && isApproved ? memberToolsItems : [],
+    spielplanerItems,
     adminItems: [
       { to: '/admin/hallenplan', label: t('hallenplan'), icon: <Building2 className={iconClass} /> },
       { to: '/admin/referee-expenses', label: t('refereeExpenses'), icon: <Banknote className={iconClass} /> },
@@ -229,7 +236,7 @@ export default function Layout() {
   const { t } = useTranslation('nav')
   const isDesktop = useIsDesktop()
   const { isAdminMode } = useAdminMode()
-  const { navItems, adminItems, superadminItems } = useNavItems(!!user, isApproved, user?.id)
+  const { navItems, memberToolsItems, spielplanerItems, adminItems, superadminItems } = useNavItems(!!user, isApproved, user?.id)
   const messagingOn = messagingFeatureEnabled(user?.id)
   const unreadMessages = useUnreadTotal()
 
@@ -371,6 +378,93 @@ export default function Layout() {
                   )
                 })}
               </ul>
+
+              {memberToolsItems.length > 0 && (
+                <>
+                  <div className={`my-3 border-t ${
+                    theme === 'light' ? 'border-gray-200' : 'border-brand-800'
+                  }`} />
+                  <p className={`mb-1 px-3 text-xs font-semibold uppercase tracking-wider ${
+                    theme === 'light' ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    {t('memberTools')}
+                  </p>
+                  <ul className="space-y-1">
+                    {memberToolsItems.map((item) => {
+                      const showBadge = messagingOn && item.to === '/inbox' && unreadMessages > 0
+                      return (
+                        <li key={item.to}>
+                          <NavLink
+                            to={item.to}
+                            onClick={() => setSidebarView('closed')}
+                            className={({ isActive }) =>
+                              `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                theme === 'light'
+                                  ? isActive
+                                    ? 'bg-brand-50 text-brand-700'
+                                    : 'text-gray-700 hover:bg-gray-100'
+                                  : isActive
+                                    ? 'border-l-3 border-gold-400 bg-brand-800 text-gold-400'
+                                    : 'text-gray-300 hover:bg-brand-800 hover:text-white'
+                              }`
+                            }
+                          >
+                            <span className="relative flex items-center gap-3">
+                              {item.icon}
+                              {item.label}
+                              {showBadge && (
+                                <span
+                                  className="absolute -top-1 -right-2 rounded-full bg-primary text-primary-foreground text-[10px] leading-none px-1.5 py-0.5 min-w-[18px] text-center"
+                                  aria-label={`${unreadMessages} ungelesene Nachrichten`}
+                                >
+                                  {unreadMessages > 99 ? '99+' : unreadMessages}
+                                </span>
+                              )}
+                            </span>
+                          </NavLink>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </>
+              )}
+
+              {spielplanerItems.length > 0 && (
+                <>
+                  <div className={`my-3 border-t ${
+                    theme === 'light' ? 'border-gray-200' : 'border-brand-800'
+                  }`} />
+                  <p className={`mb-1 px-3 text-xs font-semibold uppercase tracking-wider ${
+                    theme === 'light' ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    {t('spielplanung')}
+                  </p>
+                  <ul className="space-y-1">
+                    {spielplanerItems.map((item) => (
+                      <li key={item.to}>
+                        <NavLink
+                          to={item.to}
+                          onClick={() => setSidebarView('closed')}
+                          className={({ isActive }) =>
+                            `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                              theme === 'light'
+                                ? isActive
+                                  ? 'bg-brand-50 text-brand-700'
+                                  : 'text-gray-700 hover:bg-gray-100'
+                                : isActive
+                                  ? 'border-l-3 border-gold-400 bg-brand-800 text-gold-400'
+                                  : 'text-gray-300 hover:bg-brand-800 hover:text-white'
+                            }`
+                          }
+                        >
+                          {item.icon}
+                          {item.label}
+                        </NavLink>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
 
               {/* Admin/Superadmin nav are gated on ROLE, not the toggle, so the
                   full navbar is always available to privileged users. The
