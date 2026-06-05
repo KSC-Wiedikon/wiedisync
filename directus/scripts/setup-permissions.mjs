@@ -1128,11 +1128,17 @@ async function main() {
     'fines', 'fine_rules',
     // Scheduling blocks (migration 085) — club-wide read for oversight.
     'scheduling_blocks',
-    // Forms (migrations 086/087) — club-wide read for oversight.
-    'forms', 'form_submissions', 'forms_teams',
   ]
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)
+  }
+
+  // Forms (migrations 086/087) — Vorstand has FULL management (decision
+  // 2026-06-05): create/edit/delete any form club-wide + read all submissions,
+  // exactly like a global admin. (Sport Admins are sport-scoped in the FormsPage
+  // UI; their policy keeps club-wide CRUD, matching every other collection.)
+  for (const col of ['forms', 'forms_teams', 'form_submissions']) {
+    await setPermCRUD(VORSTAND_POLICY, col)
   }
 
   console.log(`  ✓ Vorstand permissions set`)
@@ -1165,7 +1171,9 @@ async function main() {
     'fines', 'fine_rules',
     // Scheduling blocks (migration 085) — club-wide CRUD for any team's blackouts.
     'scheduling_blocks',
-    // Forms (migrations 086/087) — club-wide CRUD.
+    // Forms (migrations 086/087) — club-wide CRUD at the policy layer; per-sport
+    // scoping is enforced in the FormsPage UI (consistent with every other Sport
+    // Admin collection, which are likewise club-wide CRUD + UI-scoped).
     'forms', 'form_submissions', 'forms_teams',
     'directus_files',
   ]

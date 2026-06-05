@@ -8,7 +8,6 @@ import { Switch } from '@/components/ui/switch'
 import TeamMultiSelect from '@/components/TeamMultiSelect'
 import { ChevronUp, ChevronDown, Trash2, Plus } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
-import { useAdminMode } from '../../hooks/useAdminMode'
 import { useCollection } from '../../lib/query'
 import { createRecord, updateRecord } from '../../lib/api'
 import { teamNameToColorKey } from '../../utils/teamColors'
@@ -41,16 +40,19 @@ const CHOICE_TYPES: FieldType[] = ['single_choice', 'multi_choice']
 export default function FormBuilder({ open, form, onSave, onCancel }: Props) {
   const { t } = useTranslation('forms')
   const { t: tc } = useTranslation('common')
-  const { user, coachTeamIds } = useAuth()
-  const { effectiveIsAdmin } = useAdminMode()
+  const { user, coachTeamIds, teamResponsibleIds, isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin } = useAuth()
+  // Full managers (global admin + Vorstand) can target any audience incl.
+  // club-wide; everyone else is locked to team-scoped forms.
+  const canClubWide = isGlobalAdmin || isVorstand
 
   const { data: allTeamsRaw } = useCollection<Team>('teams', { filter: { active: { _eq: true } }, sort: ['name'], limit: 50 })
   const allTeams = allTeamsRaw ?? []
   const availableTeams = useMemo(() => {
-    if (effectiveIsAdmin) return allTeams
-    if (coachTeamIds.length === 0) return allTeams
-    return allTeams.filter((tm) => coachTeamIds.includes(tm.id))
-  }, [allTeams, effectiveIsAdmin, coachTeamIds])
+    if (isGlobalAdmin || isVorstand) return allTeams
+    if (isVbAdmin || isBbAdmin) return allTeams.filter((tm) => (tm.sport === 'volleyball' ? isVbAdmin : tm.sport === 'basketball' ? isBbAdmin : false))
+    const leaderTeams = new Set<string>([...coachTeamIds, ...teamResponsibleIds])
+    return allTeams.filter((tm) => leaderTeams.has(tm.id))
+  }, [allTeams, isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin, coachTeamIds, teamResponsibleIds])
   const teamOptions = useMemo(
     () =>
       availableTeams.map((tm) => ({
@@ -97,7 +99,7 @@ export default function FormBuilder({ open, form, onSave, onCancel }: Props) {
       setTitle('')
       setDescription('')
       setStatus('draft')
-      setAudience('club_wide')
+      setAudience(canClubWide ? 'club_wide' : 'teams')
       setSelectedTeams([])
       setAnonymous(false)
       setAllowMultiple(false)
@@ -180,15 +182,17 @@ export default function FormBuilder({ open, form, onSave, onCancel }: Props) {
               </SelectContent>
             </Select>
           </FormField>
-          <FormField label={t('audience')}>
-            <Select value={audience} onValueChange={(v) => setAudience(v as FormAudience)}>
-              <SelectTrigger className="min-h-[44px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="club_wide">{t('audienceClub')}</SelectItem>
-                <SelectItem value="teams">{t('audienceTeams')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </FormField>
+          {canClubWide && (
+            <FormField label={t('audience')}>
+              <Select value={audience} onValueChange={(v) => setAudience(v as FormAudience)}>
+                <SelectTrigger className="min-h-[44px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="club_wide">{t('audienceClub')}</SelectItem>
+                  <SelectItem value="teams">{t('audienceTeams')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormField>
+          )}
         </div>
 
         {audience === 'teams' && (

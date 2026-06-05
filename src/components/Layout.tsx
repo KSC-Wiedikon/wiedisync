@@ -36,8 +36,12 @@ type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 
 function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number | string | null) {
   const { t } = useTranslation('nav')
-  const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin } = useAuth()
+  const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin, isVorstand, coachTeamIds, teamResponsibleIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
+  // Forms authoring is a leadership tool — gated on ROLE (not the admin-mode
+  // toggle), like the Spielplaner items below. Members reach forms-to-fill via
+  // the Home page card instead. Coaches/TRs/Sport Admins/Vorstand/Admins manage.
+  const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   const showTeamsPlural = effectiveIsAdmin || effectiveIsVorstand || memberTeamIds.length > 1
   const iconClass = 'h-5 w-5'
   const publicItems = [
@@ -59,7 +63,7 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
       ),
     },
     { to: '/events', label: t('events'), icon: <PartyPopper className={iconClass} /> },
-    { to: '/forms', label: t('forms'), icon: <ScrollText className={iconClass} /> },
+    ...(canManageForms ? [{ to: '/forms', label: t('forms'), icon: <ScrollText className={iconClass} /> }] : []),
     ...(messagingFeatureEnabled(memberId)
       ? [{ to: '/inbox', label: t('inbox'), icon: <Inbox className={iconClass} /> }]
       : []),

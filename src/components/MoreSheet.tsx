@@ -32,14 +32,14 @@ const iconClass = 'h-5 w-5'
 
 function buildSecondaryItems(
   memberId: number | string | undefined | null,
-  sched: { isAdmin: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[] },
+  sched: { isAdmin: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[]; canManageForms: boolean },
 ) {
   const items = [
     ...(messagingFeatureEnabled(memberId)
       ? [{ to: '/inbox', labelKey: 'inbox', icon: <Inbox className={iconClass} /> }]
       : []),
     { to: '/events', labelKey: 'events', icon: <PartyPopper className={iconClass} /> },
-    { to: '/forms', labelKey: 'forms', icon: <ScrollText className={iconClass} /> },
+    ...(sched.canManageForms ? [{ to: '/forms', labelKey: 'forms', icon: <ScrollText className={iconClass} /> }] : []),
     { to: '/teams', labelKey: 'teams', icon: <Users className={iconClass} /> },
     { to: '/absences', labelKey: 'absences', icon: <UserX className={iconClass} /> },
     { to: '/scorer', labelKey: 'scorer', icon: <PenSquare className={iconClass} /> },
@@ -203,7 +203,8 @@ interface MoreSheetProps {
 }
 
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
-  const { user, isApproved, isAdmin, isSuperAdmin, is_spielplaner, spielplanerTeamIds, logout } = useAuth()
+  const { user, isApproved, isAdmin, isSuperAdmin, isVorstand, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, logout } = useAuth()
+  const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
   const { closing, startClose, onAnimEnd } = useAnimatedClose(onClose)
@@ -304,7 +305,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
             </>
           )}
-          {(!user || !isApproved) ? null : buildSecondaryItems(user.id, { isAdmin, is_spielplaner, spielplanerTeamIds }).map((item) => (
+          {(!user || !isApproved) ? null : buildSecondaryItems(user.id, { isAdmin, is_spielplaner, spielplanerTeamIds, canManageForms }).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

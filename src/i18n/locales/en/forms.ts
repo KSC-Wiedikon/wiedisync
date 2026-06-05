@@ -3,6 +3,7 @@ export default {
   newForm: 'New form',
   editForm: 'Edit form',
   openForYou: 'Open for you',
+  formsToFill: 'Forms to fill',
   manageForms: 'Manage forms',
   noOpenForms: 'No open forms right now.',
   noManagedForms: "You haven't created any forms yet.",

@@ -3,6 +3,7 @@ export default {
   newForm: 'Neues Formular',
   editForm: 'Formular bearbeiten',
   openForYou: 'Für dich offen',
+  formsToFill: 'Formulare zum Ausfüllen',
   manageForms: 'Formulare verwalten',
   noOpenForms: 'Aktuell keine offenen Formulare.',
   noManagedForms: 'Du hast noch keine Formulare erstellt.',

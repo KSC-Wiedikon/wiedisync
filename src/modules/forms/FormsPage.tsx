@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Plus, Pencil, BarChart3, Trash2, Lock, Unlock } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
-import { useAdminMode } from '../../hooks/useAdminMode'
 import { useCollection } from '../../lib/query'
 import { updateRecord, deleteRecord } from '../../lib/api'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
@@ -15,13 +14,13 @@ import type { FormDef, FormStatus } from './types'
 
 interface SubmissionRef { id: string; form: string }
 
-function teamRefs(form: FormDef): { id: string; name: string }[] {
+function teamRefs(form: FormDef): { id: string; name: string; sport?: string }[] {
   return (form.teams ?? []).map((tref) => {
     if (typeof tref === 'object' && tref !== null && 'teams_id' in tref) {
       const tid = (tref as { teams_id: unknown }).teams_id
       if (typeof tid === 'object' && tid !== null) {
-        const o = tid as { id: string | number; name?: string }
-        return { id: String(o.id), name: o.name ?? String(o.id) }
+        const o = tid as { id: string | number; name?: string; sport?: string }
+        return { id: String(o.id), name: o.name ?? String(o.id), sport: o.sport }
       }
       return { id: String(tid), name: String(tid) }
     }
@@ -43,12 +42,15 @@ function StatusBadge({ status }: { status: FormStatus }) {
 export default function FormsPage() {
   const { t } = useTranslation('forms')
   const { t: tc } = useTranslation('common')
-  const { user, coachTeamIds, memberTeamIds } = useAuth()
-  const { effectiveIsAdmin } = useAdminMode()
-  const canAuthor = effectiveIsAdmin || coachTeamIds.length > 0
+  const { user, coachTeamIds, teamResponsibleIds, memberTeamIds, isAdmin, isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin } = useAuth()
+  // Authoring is role-gated (see Layout) — members never reach this page via nav,
+  // they fill forms from the Home card. Coaches/TRs/Sport Admins/Vorstand/Admins.
+  const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
+  // Full managers (global admin + Vorstand) manage every form incl. club-wide.
+  const fullManager = isGlobalAdmin || isVorstand
 
   const { data: formsRaw, isLoading, refetch } = useCollection<FormDef>('forms', {
-    fields: ['*', 'teams.teams_id.id', 'teams.teams_id.name'],
+    fields: ['*', 'teams.teams_id.id', 'teams.teams_id.name', 'teams.teams_id.sport'],
     sort: ['-date_created'],
     limit: 200,
   })
@@ -62,12 +64,26 @@ export default function FormsPage() {
   })
   const submittedFormIds = useMemo(() => new Set((mySubsRaw ?? []).map((s) => String(s.form))), [mySubsRaw])
 
-  const editable = (f: FormDef): boolean =>
-    effectiveIsAdmin ||
-    String(f.created_by ?? '') === String(user?.id ?? '') ||
-    teamRefs(f).some((tr) => coachTeamIds.includes(tr.id))
+  const editable = (f: FormDef): boolean => {
+    if (fullManager) return true
+    const teams = teamRefs(f)
+    // Sport Admin: only team-scoped forms whose targeted teams are ALL in their
+    // sport. Club-wide (cross-sport) forms stay with full managers.
+    if (
+      (isVbAdmin || isBbAdmin) &&
+      f.audience === 'teams' &&
+      teams.length > 0 &&
+      teams.every((tr) => (tr.sport === 'volleyball' ? isVbAdmin : tr.sport === 'basketball' ? isBbAdmin : false))
+    ) {
+      return true
+    }
+    // Coach/TR: any targeted team they lead, or forms they created themselves.
+    const myLeaderTeams = new Set<string>([...coachTeamIds, ...teamResponsibleIds])
+    if (teams.some((tr) => myLeaderTeams.has(tr.id))) return true
+    return String(f.created_by ?? '') === String(user?.id ?? '')
+  }
 
-  const managedForms = useMemo(() => (canAuthor ? forms.filter(editable) : []), [forms, canAuthor]) // eslint-disable-line react-hooks/exhaustive-deps
+  const managedForms = useMemo(() => (canManageForms ? forms.filter(editable) : []), [forms, canManageForms]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openForms = useMemo(
     () =>
@@ -99,7 +115,7 @@ export default function FormsPage() {
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t('title')}</h1>
-        {canAuthor && (
+        {canManageForms && (
           <Button onClick={() => { setEditForm(null); setBuilderOpen(true) }}>
             <Plus size={16} className="mr-1" /> {t('newForm')}
           </Button>
@@ -147,7 +163,7 @@ export default function FormsPage() {
       </section>
 
       {/* Manage */}
-      {canAuthor && (
+      {canManageForms && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">{t('manageForms')}</h2>
           {managedForms.length === 0 ? (

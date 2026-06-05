@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
 import { useNotifications } from '../../hooks/useNotifications'
 import { useSportPreference } from '../../hooks/useSportPreference'
-import { formatDate, formatDateCompact, formatTime, formatWeekday, getCurrentSeason, todayLocal, toZurichDateString } from '../../utils/dateHelpers'
+import { formatDate, formatDateCompact, formatTime, formatWeekday, getCurrentSeason, todayLocal, toZurichDateString, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { asObj, relId, teamCoachIds } from '../../utils/relations'
 import TeamChip from '../../components/TeamChip'
 import StatusBadge from '../../components/StatusBadge'
@@ -24,10 +24,13 @@ import ParticipationSummary from '../../components/ParticipationSummary'
 import { useBulkParticipationStatuses } from '../../hooks/useBulkParticipationStatuses'
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Ranking, BaseRecord } from '../../types'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, CalendarDays, LayoutGrid, List } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, CalendarDays, LayoutGrid, List, ScrollText } from 'lucide-react'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import RankingsTable from '../games/components/RankingsTable'
 import InstallBanner from '../guide/install/InstallBanner'
+import FormFillModal from '../forms/FormFillModal'
+import { useFillableForms } from '../../hooks/useFillableForms'
+import type { FormDef } from '../forms/types'
 
 type ExpandedGame = Game & {
   kscw_team?: Team & BaseRecord | string
@@ -48,8 +51,11 @@ type MemberTeamExpanded = MemberTeam & { team?: Team | string }
 export default function HomePage() {
   const { t } = useTranslation('home')
   const { t: tn } = useTranslation('notifications')
+  const { t: tf } = useTranslation('forms')
 
   const { user, isApproved, primarySport, coachTeamIds } = useAuth()
+  const { forms: fillableForms, refetch: refetchForms } = useFillableForms()
+  const [fillForm, setFillForm] = useState<FormDef | null>(null)
   const { sport, setSport } = useSportPreference()
   // Hide sport toggle for users who play only one sport
   const showSportToggle = primarySport === 'both'
@@ -445,6 +451,45 @@ export default function HomePage() {
         <AnnouncementDetailModal
           announcement={selectedAnnouncement}
           onClose={() => setSelectedAnnouncement(null)}
+        />
+      )}
+
+      {/* Forms to fill — surfaced here because the /forms nav item is author-only. */}
+      {user && isApproved && fillableForms.length > 0 && (
+        <div className="mb-6 lg:flex lg:flex-col lg:items-center">
+          <div className="w-full overflow-hidden rounded-xl border border-blue-200 bg-blue-50/60 lg:max-w-2xl dark:border-blue-800/50 dark:bg-blue-900/20">
+            <div className="flex items-center gap-2 border-b border-blue-200 px-4 py-2.5 dark:border-blue-800/50">
+              <ScrollText className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+              <h2 className="text-sm font-semibold text-blue-900 dark:text-blue-100">{tf('formsToFill')}</h2>
+            </div>
+            <ul className="divide-y divide-blue-100 dark:divide-blue-800/40">
+              {fillableForms.map((f) => (
+                <li key={f.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{f.title}</p>
+                    {f.closes_at && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{tf('closesAt')}: {formatDateTimeCompactZurich(f.closes_at)}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setFillForm(f)}
+                    className="min-h-[36px] shrink-0 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400 dark:text-blue-950"
+                  >
+                    {tf('fill')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {fillForm && (
+        <FormFillModal
+          open={!!fillForm}
+          form={fillForm}
+          onSubmitted={() => { setFillForm(null); refetchForms() }}
+          onCancel={() => setFillForm(null)}
         />
       )}
 
