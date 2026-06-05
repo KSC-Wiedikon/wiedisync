@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -7,7 +8,6 @@ import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
 import { updateRecord, deleteRecord } from '../../lib/api'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
-import FormBuilder from './FormBuilder'
 import FormFillModal from './FormFillModal'
 import FormResponsesModal from './FormResponsesModal'
 import type { FormDef, FormStatus } from './types'
@@ -42,6 +42,7 @@ function StatusBadge({ status }: { status: FormStatus }) {
 export default function FormsPage() {
   const { t } = useTranslation('forms')
   const { t: tc } = useTranslation('common')
+  const navigate = useNavigate()
   const { user, coachTeamIds, teamResponsibleIds, memberTeamIds, isAdmin, isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin } = useAuth()
   // Authoring is role-gated (see Layout) — members never reach this page via nav,
   // they fill forms from the Home card. Coaches/TRs/Sport Admins/Vorstand/Admins.
@@ -95,8 +96,6 @@ export default function FormsPage() {
     [forms, memberTeamIds],
   )
 
-  const [builderOpen, setBuilderOpen] = useState(false)
-  const [editForm, setEditForm] = useState<FormDef | null>(null)
   const [fillForm, setFillForm] = useState<FormDef | null>(null)
   const [responsesForm, setResponsesForm] = useState<FormDef | null>(null)
 
@@ -116,7 +115,7 @@ export default function FormsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t('title')}</h1>
         {canManageForms && (
-          <Button onClick={() => { setEditForm(null); setBuilderOpen(true) }}>
+          <Button onClick={() => navigate('/forms/new')}>
             <Plus size={16} className="mr-1" /> {t('newForm')}
           </Button>
         )}
@@ -191,7 +190,7 @@ export default function FormsPage() {
                       <TableCell>
                         <div className="flex flex-col justify-end gap-1 sm:flex-row">
                           <Button variant="ghost" size="sm" onClick={() => setResponsesForm(f)} title={t('responses')}><BarChart3 size={15} /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => { setEditForm(f); setBuilderOpen(true) }} title={tc('edit')}><Pencil size={15} /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => navigate(`/forms/${f.id}/edit`)} title={tc('edit')}><Pencil size={15} /></Button>
                           <Button variant="ghost" size="sm" onClick={() => toggleStatus(f)} title={f.status === 'open' ? t('close') : t('open')}>
                             {f.status === 'open' ? <Lock size={15} /> : <Unlock size={15} />}
                           </Button>
@@ -207,14 +206,6 @@ export default function FormsPage() {
         </section>
       )}
 
-      {builderOpen && (
-        <FormBuilder
-          open={builderOpen}
-          form={editForm}
-          onSave={() => { setBuilderOpen(false); setEditForm(null); refetch() }}
-          onCancel={() => { setBuilderOpen(false); setEditForm(null) }}
-        />
-      )}
       {fillForm && (
         <FormFillModal
           open={!!fillForm}

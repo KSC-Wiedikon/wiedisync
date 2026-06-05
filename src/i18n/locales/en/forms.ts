@@ -46,6 +46,12 @@ export default {
   type_number: 'Number',
   type_date: 'Date',
   type_yes_no: 'Yes / no',
+  type_email: 'Email',
+  type_phone: 'Phone',
+  type_url: 'Link (URL)',
+  type_time: 'Time',
+  type_datetime: 'Date & time',
+  type_rating: 'Rating (1–5)',
 
   fill: 'Fill in',
   submit: 'Submit',

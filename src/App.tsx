@@ -37,6 +37,7 @@ import PendingPage from './modules/auth/PendingPage'
 import ProfilePage from './modules/auth/ProfilePage'
 import EventsPage from './modules/events/EventsPage'
 import FormsPage from './modules/forms/FormsPage'
+import FormBuilderPage from './modules/forms/FormBuilderPage'
 import FinesPage from './modules/fines/FinesPage'
 import DatenschutzPage from './modules/legal/DatenschutzPage'
 import ImpressumPage from './modules/legal/ImpressumPage'
@@ -159,6 +160,8 @@ export default function App() {
             <Route path="teams/player/:memberId" element={<AuthRoute><PlayerProfile /></AuthRoute>} />
             <Route path="events" element={<AuthRoute><EventsPage /></AuthRoute>} />
             <Route path="forms" element={<AuthRoute><FormsPage /></AuthRoute>} />
+            <Route path="forms/new" element={<AuthRoute><FormBuilderPage /></AuthRoute>} />
+            <Route path="forms/:formId/edit" element={<AuthRoute><FormBuilderPage /></AuthRoute>} />
             <Route path="fines" element={<AuthRoute><FinesPage /></AuthRoute>} />
             <Route path="datenschutz" element={<DatenschutzPage />} />
             <Route path="impressum" element={<ImpressumPage />} />

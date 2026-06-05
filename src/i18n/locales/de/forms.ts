@@ -46,6 +46,12 @@ export default {
   type_number: 'Zahl',
   type_date: 'Datum',
   type_yes_no: 'Ja / nein',
+  type_email: 'E-Mail',
+  type_phone: 'Telefon',
+  type_url: 'Link (URL)',
+  type_time: 'Uhrzeit',
+  type_datetime: 'Datum & Uhrzeit',
+  type_rating: 'Bewertung (1–5)',
 
   fill: 'Ausfüllen',
   submit: 'Absenden',

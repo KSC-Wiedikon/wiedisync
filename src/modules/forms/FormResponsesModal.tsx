@@ -67,6 +67,7 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
     if (v === null || v === undefined || v === '') return ''
     if (field.type === 'multi_choice' && Array.isArray(v)) return v.join(', ')
     if (field.type === 'yes_no' || typeof v === 'boolean') return v ? t('yes') : t('no')
+    if (field.type === 'rating') return `${v}/5`
     return String(v)
   }
 

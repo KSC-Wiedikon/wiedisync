@@ -43,16 +43,53 @@ export default function FormFieldRenderer({ field, value, onChange, disabled }: 
         />
       )
 
+    case 'email':
+    case 'phone':
+    case 'url':
     case 'date':
+    case 'time':
+    case 'datetime':
       return (
         <FormInput
           label={label}
-          type="date"
+          type={
+            field.type === 'phone'
+              ? 'tel'
+              : field.type === 'datetime'
+                ? 'datetime-local'
+                : field.type
+          }
           value={(value as string) ?? ''}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
         />
       )
+
+    case 'rating': {
+      const current = typeof value === 'number' ? value : 0
+      return (
+        <FormField label={label}>
+          <div className="flex gap-1.5">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(n === current ? null : n)}
+                aria-label={`${n}`}
+                className={`h-10 w-10 rounded-md border text-sm font-medium transition-colors ${
+                  n <= current
+                    ? 'border-brand-500 bg-brand-500 text-white'
+                    : 'border-gray-200 text-gray-600 hover:bg-muted dark:border-gray-600 dark:text-gray-300'
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </FormField>
+      )
+    }
 
     case 'yes_no':
       return (

@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import { FormInput, FormTextarea, FormField } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -8,7 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import TeamMultiSelect from '@/components/TeamMultiSelect'
 import { ChevronUp, ChevronDown, Trash2, Plus } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
-import { useCollection } from '../../lib/query'
+import { useCollection, useInvalidate } from '../../lib/query'
 import { createRecord, updateRecord } from '../../lib/api'
 import { teamNameToColorKey } from '../../utils/teamColors'
 import { toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso } from '../../utils/dateHelpers'
@@ -24,7 +23,6 @@ import {
 } from './types'
 
 interface Props {
-  open: boolean
   form?: FormDef | null
   onSave: () => void
   onCancel: () => void
@@ -37,9 +35,10 @@ function newId(): string {
 
 const CHOICE_TYPES: FieldType[] = ['single_choice', 'multi_choice']
 
-export default function FormBuilder({ open, form, onSave, onCancel }: Props) {
+export default function FormBuilder({ form, onSave, onCancel }: Props) {
   const { t } = useTranslation('forms')
   const { t: tc } = useTranslation('common')
+  const invalidate = useInvalidate()
   const { user, coachTeamIds, teamResponsibleIds, isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin } = useAuth()
   // Full managers (global admin + Vorstand) can target any audience incl.
   // club-wide; everyone else is locked to team-scoped forms.
@@ -109,7 +108,7 @@ export default function FormBuilder({ open, form, onSave, onCancel }: Props) {
     setShowPreview(false)
     setPreview({})
     setError('')
-  }, [form, open])
+  }, [form])
 
   function addField() {
     setFields((prev) => [...prev, { id: newId(), type: 'short_text', label: '', required: false }])
@@ -157,6 +156,7 @@ export default function FormBuilder({ open, form, onSave, onCancel }: Props) {
     try {
       if (form) await updateRecord('forms', form.id, payload)
       else await createRecord('forms', payload)
+      invalidate('forms')
       onSave()
     } catch {
       setError(tc('errorSaving'))
@@ -166,8 +166,7 @@ export default function FormBuilder({ open, form, onSave, onCancel }: Props) {
   }
 
   return (
-    <Modal open={open} onClose={onCancel} title={form ? t('editForm') : t('newForm')} size="md">
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
         <FormInput label={t('formTitle')} value={title} onChange={(e) => setTitle(e.target.value)} required />
         <FormTextarea label={t('formDescription')} value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
 
@@ -298,7 +297,6 @@ export default function FormBuilder({ open, form, onSave, onCancel }: Props) {
           <Button variant="ghost" type="button" onClick={onCancel}>{tc('cancel')}</Button>
           <Button type="submit" loading={saving}>{saving ? tc('saving') : tc('save')}</Button>
         </div>
-      </form>
-    </Modal>
+    </form>
   )
 }

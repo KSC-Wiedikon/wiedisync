@@ -3,20 +3,32 @@
 export type FieldType =
   | 'short_text'
   | 'long_text'
+  | 'email'
+  | 'phone'
+  | 'url'
+  | 'number'
   | 'single_choice'
   | 'multi_choice'
-  | 'number'
-  | 'date'
   | 'yes_no'
+  | 'date'
+  | 'time'
+  | 'datetime'
+  | 'rating'
 
 export const FIELD_TYPES: FieldType[] = [
   'short_text',
   'long_text',
+  'email',
+  'phone',
+  'url',
+  'number',
   'single_choice',
   'multi_choice',
-  'number',
-  'date',
   'yes_no',
+  'date',
+  'time',
+  'datetime',
+  'rating',
 ]
 
 /** A single field definition stored in `forms.fields` (JSONB). */
