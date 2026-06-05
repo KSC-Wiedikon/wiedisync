@@ -43,8 +43,8 @@ docs/superpowers/specs/
 # Handbook & presentation PDF generator (ad-hoc tooling, not for the repo)
 docs/handbook/
 
-# Claude Code settings (contains permission tokens/credentials)
-.claude/settings.json
+# Claude Code (settings contain permission tokens/credentials; session data is local-only)
+.claude/
 
 # Superpowers plugin artifacts
 .superpowers/
