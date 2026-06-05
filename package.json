@@ -26,6 +26,7 @@
     "db:setup-perms:prod": "DIRECTUS_URL=https://directus.kscw.ch node directus/scripts/setup-permissions.mjs",
     "db:smoke:dev": "SMOKE_TEST_URL=https://directus-dev.kscw.ch node directus/scripts/smoke-test.mjs",
     "db:smoke:prod": "SMOKE_TEST_URL=https://directus.kscw.ch node directus/scripts/smoke-test.mjs",
+    "db:refresh-dev": "bash directus/scripts/refresh-dev-from-prod.sh",
     "db:snapshot:dev": "ssh hetzner 'sudo /usr/local/bin/predeploy-snapshot.sh dev'",
     "db:snapshot:prod": "ssh hetzner 'sudo /usr/local/bin/predeploy-snapshot.sh prod'",
     "db:deploy:dev": "npm run db:snapshot:dev && npm run db:migrate:dev && npm run db:setup-perms:dev && npm run db:smoke:dev",
