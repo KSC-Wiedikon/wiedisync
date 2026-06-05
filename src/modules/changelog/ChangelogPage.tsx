@@ -22,7 +22,7 @@ const CHANGELOG: ChangelogEntry[] = [
           'Open the responses to see how many of the targeted members have answered, and send a one-tap reminder to everyone who hasn\'t yet.',
           'Members can edit their own response while a form is still open, and you can show a custom thank-you message after submitting.',
           'New "File upload" field type so people can attach a document or photo, plus per-language field labels so a club-wide form reads natively in everyone\'s language.',
-          'Forms can now be published on the club website for anyone to fill in — no login needed (great for trial-training sign-ups or public registrations). Spam-protected and copy-link ready.',
+          'Mark a form "public" and it gets its own shareable link automatically — anyone can fill it in with no login (great for trial-training sign-ups or public registrations). Spam-protected, copy-link ready.',
         ],
       },
     ],

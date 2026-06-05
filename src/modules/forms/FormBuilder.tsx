@@ -293,7 +293,7 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
             {isPublic && (
               <FormField label={t('slug')} helperText={t('slugHint')}>
                 <div className="flex items-center gap-1">
-                  <span className="shrink-0 text-xs text-muted-foreground">/formular/</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">/f/</span>
                   <input
                     type="text"
                     value={slug}
@@ -302,6 +302,11 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                     className="min-h-[44px] flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
                   />
                 </div>
+                {(slug.trim() || title.trim()) && (
+                  <p className="mt-1 break-all text-xs text-muted-foreground">
+                    {t('publicAddress')}: {window.location.origin}/f/{slug.trim() || slugify(title)}
+                  </p>
+                )}
               </FormField>
             )}
           </div>

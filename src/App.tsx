@@ -38,6 +38,7 @@ import ProfilePage from './modules/auth/ProfilePage'
 import EventsPage from './modules/events/EventsPage'
 import FormsPage from './modules/forms/FormsPage'
 import FormBuilderPage from './modules/forms/FormBuilderPage'
+import PublicFormPage from './modules/forms/PublicFormPage'
 import FinesPage from './modules/fines/FinesPage'
 import DatenschutzPage from './modules/legal/DatenschutzPage'
 import ImpressumPage from './modules/legal/ImpressumPage'
@@ -146,6 +147,7 @@ export default function App() {
           <Route path="set-password" element={<SetPasswordPage />} />
           <Route path="terminplanung" element={<PublicTerminplanungPage />} />
           <Route path="terminplanung/:token" element={<OpponentFlowPage />} />
+          <Route path="f/:slug" element={<PublicFormPage />} />
 
           <Route element={<Layout />}>
             <Route index element={<AuthRoute><HomePage /></AuthRoute>} />

@@ -13,9 +13,6 @@ import FormFillModal from './FormFillModal'
 import FormResponsesModal from './FormResponsesModal'
 import type { FormDef, FormStatus } from './types'
 
-/** Public website base for copyable public-form links (prod). */
-const PUBLIC_FORMS_BASE = 'https://kscw.ch'
-
 function teamRefs(form: FormDef): { id: string; name: string; sport?: string }[] {
   return (form.teams ?? []).map((tref) => {
     if (typeof tref === 'object' && tref !== null && 'teams_id' in tref) {
@@ -99,7 +96,7 @@ export default function FormsPage() {
   }
   async function copyPublicLink(f: FormDef) {
     if (!f.slug) return
-    const url = `${PUBLIC_FORMS_BASE}/de/formular/?f=${encodeURIComponent(f.slug)}`
+    const url = `${window.location.origin}/f/${f.slug}`
     try {
       await navigator.clipboard.writeText(url)
       setCopiedId(String(f.id))
