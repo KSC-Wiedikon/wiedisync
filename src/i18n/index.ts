@@ -33,6 +33,7 @@ import messaging from './locales/en/messaging'
 import broadcast from './locales/en/broadcast'
 import fines from './locales/en/fines'
 import pwa from './locales/en/pwa'
+import forms from './locales/en/forms'
 
 import deCommon from './locales/de/common'
 import deNav from './locales/de/nav'
@@ -66,6 +67,7 @@ import deMessaging from './locales/de/messaging'
 import deBroadcast from './locales/de/broadcast'
 import deFines from './locales/de/fines'
 import dePwa from './locales/de/pwa'
+import deForms from './locales/de/forms'
 
 import frCommon from './locales/fr/common'
 import frNav from './locales/fr/nav'
@@ -217,6 +219,7 @@ i18n.use(initReactI18next).init({
     'broadcast',
     'fines',
     'pwa',
+    'forms',
   ],
   defaultNS: 'common',
   resources: {
@@ -253,6 +256,7 @@ i18n.use(initReactI18next).init({
       broadcast,
       fines,
       pwa,
+      forms,
     },
     de: {
       common: deCommon,
@@ -287,6 +291,7 @@ i18n.use(initReactI18next).init({
       broadcast: deBroadcast,
       fines: deFines,
       pwa: dePwa,
+      forms: deForms,
     },
     fr: {
       common: frCommon,

@@ -10,6 +10,7 @@ export default {
   team: 'Team',
   teams: 'Teams',
   events: 'Events',
+  forms: 'Forms',
   inbox: 'Inbox',
   gameplan: 'Manual game calendar',
   hallenplan: 'Hall Slots',

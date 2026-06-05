@@ -56,6 +56,7 @@ function getNavigationPath(n: Notification): string {
     case 'game': return '/games'
     case 'training': return '/trainings'
     case 'event': return '/events'
+    case 'form': return '/forms'
     default: return '/'
   }
 }

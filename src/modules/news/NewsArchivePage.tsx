@@ -216,6 +216,7 @@ function NotificationTableRow({
     if (notification.activity_type === 'game') return '/games'
     if (notification.activity_type === 'training') return '/trainings'
     if (notification.activity_type === 'event') return '/events'
+    if (notification.activity_type === 'form') return '/forms'
     return '/'
   })()
 

@@ -2,8 +2,8 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-03T21:22:46.514Z
--- Source:      prod (db=postgres)
+-- Generated:   2026-06-05T10:09:10.684Z
+-- Source:      dev (db=directus_kscw_dev)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
 -- This is the consolidated DDL/triggers/FKs/grants snapshot for a FRESH
@@ -42,20 +42,6 @@ SET row_security = off;
 --
 
 CREATE SCHEMA _realtime;
-
-
---
--- Name: pg_cron; Type: EXTENSION; Schema: -; Owner: -
---
-
-CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
-
-
---
--- Name: EXTENSION pg_cron; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON EXTENSION pg_cron IS 'Job scheduler for PostgreSQL';
 
 
 --
@@ -129,6 +115,13 @@ COMMENT ON EXTENSION pgsodium IS 'Pgsodium is a modern cryptography library for 
 
 
 --
+-- Name: public; Type: SCHEMA; Schema: -; Owner: -
+--
+
+-- *not* creating schema, since initdb creates it
+
+
+--
 -- Name: pg_graphql; Type: EXTENSION; Schema: -; Owner: -
 --
 
@@ -196,20 +189,6 @@ CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
 --
 
 COMMENT ON EXTENSION supabase_vault IS 'Supabase Vault Extension';
-
-
---
--- Name: unaccent; Type: EXTENSION; Schema: -; Owner: -
---
-
-CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
-
-
---
--- Name: EXTENSION unaccent; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON EXTENSION unaccent IS 'text search dictionary that removes accents';
 
 
 --
@@ -1191,6 +1170,36 @@ $$;
 
 
 --
+-- Name: trg_form_submissions_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_form_submissions_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  f forms%ROWTYPE;
+BEGIN
+  SELECT * INTO f FROM forms WHERE id = NEW.form;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'form_submissions: form % does not exist', NEW.form;
+  END IF;
+  IF f.status <> 'open' THEN
+    RAISE EXCEPTION 'form_submissions: form % is not open (status=%)', NEW.form, f.status;
+  END IF;
+  IF f.closes_at IS NOT NULL AND now() > f.closes_at THEN
+    RAISE EXCEPTION 'form_submissions: form % is past its deadline (%)', NEW.form, f.closes_at;
+  END IF;
+  IF NEW.member IS NOT NULL AND NOT f.allow_multiple AND EXISTS (
+    SELECT 1 FROM form_submissions s WHERE s.form = NEW.form AND s.member = NEW.member
+  ) THEN
+    RAISE EXCEPTION 'form_submissions: member % already submitted to form %', NEW.member, NEW.form;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: trg_games_notify(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1910,7 +1919,7 @@ CREATE TABLE public.broadcasts (
     message text NOT NULL,
     delivery_results jsonb,
     sent_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT broadcasts_activity_type_check CHECK (((activity_type)::text = ANY ((ARRAY['event'::character varying, 'game'::character varying, 'training'::character varying])::text[])))
+    CONSTRAINT broadcasts_activity_type_check CHECK (((activity_type)::text = ANY (ARRAY[('event'::character varying)::text, ('game'::character varying)::text, ('training'::character varying)::text])))
 );
 
 
@@ -2271,7 +2280,7 @@ CREATE TABLE public.conversations (
     activity_type character varying(16),
     activity_id integer,
     CONSTRAINT conversations_activity_type_check CHECK (((activity_type IS NULL) OR ((activity_type)::text = 'event'::text))),
-    CONSTRAINT conversations_shape_check CHECK (((((type)::text = 'team'::text) AND (team IS NOT NULL) AND (activity_type IS NULL) AND (activity_id IS NULL)) OR (((type)::text = ANY ((ARRAY['dm'::character varying, 'dm_request'::character varying, 'group_dm'::character varying])::text[])) AND (team IS NULL) AND (activity_type IS NULL) AND (activity_id IS NULL)) OR (((type)::text = 'activity_chat'::text) AND (team IS NULL) AND (activity_type IS NOT NULL) AND (activity_id IS NOT NULL))))
+    CONSTRAINT conversations_shape_check CHECK (((((type)::text = 'team'::text) AND (team IS NOT NULL) AND (activity_type IS NULL) AND (activity_id IS NULL)) OR (((type)::text = ANY (ARRAY[('dm'::character varying)::text, ('dm_request'::character varying)::text, ('group_dm'::character varying)::text])) AND (team IS NULL) AND (activity_type IS NULL) AND (activity_id IS NULL)) OR (((type)::text = 'activity_chat'::text) AND (team IS NULL) AND (activity_type IS NOT NULL) AND (activity_id IS NOT NULL))))
 );
 
 
@@ -2602,8 +2611,8 @@ CREATE TABLE public.fine_rules (
     user_created uuid,
     user_updated uuid,
     updated_by integer,
-    CONSTRAINT fine_rules_category_check CHECK (((category)::text = ANY ((ARRAY['late_signin'::character varying, 'no_show'::character varying, 'late_payment'::character varying, 'custom'::character varying])::text[]))),
-    CONSTRAINT fine_rules_reset_window_check CHECK (((reset_window)::text = ANY ((ARRAY['calendar_month'::character varying, 'rolling_30d'::character varying, 'rolling_90d'::character varying, 'season'::character varying, 'never'::character varying])::text[])))
+    CONSTRAINT fine_rules_category_check CHECK (((category)::text = ANY (ARRAY[('late_signin'::character varying)::text, ('no_show'::character varying)::text, ('late_payment'::character varying)::text, ('custom'::character varying)::text]))),
+    CONSTRAINT fine_rules_reset_window_check CHECK (((reset_window)::text = ANY (ARRAY[('calendar_month'::character varying)::text, ('rolling_30d'::character varying)::text, ('rolling_90d'::character varying)::text, ('season'::character varying)::text, ('never'::character varying)::text])))
 );
 
 
@@ -2681,12 +2690,12 @@ CREATE TABLE public.fines (
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
     user_created uuid,
     user_updated uuid,
-    CONSTRAINT fines_activity_type_check CHECK (((activity_type IS NULL) OR ((activity_type)::text = ANY ((ARRAY['training'::character varying, 'game'::character varying, 'event'::character varying])::text[])))),
+    CONSTRAINT fines_activity_type_check CHECK (((activity_type IS NULL) OR ((activity_type)::text = ANY (ARRAY[('training'::character varying)::text, ('game'::character varying)::text, ('event'::character varying)::text])))),
     CONSTRAINT fines_amount_nonneg CHECK ((amount >= (0)::numeric)),
-    CONSTRAINT fines_category_check CHECK (((category)::text = ANY ((ARRAY['late_signin'::character varying, 'no_show'::character varying, 'late_payment'::character varying, 'custom'::character varying])::text[]))),
-    CONSTRAINT fines_paid_method_check CHECK (((paid_method IS NULL) OR ((paid_method)::text = ANY ((ARRAY['cash'::character varying, 'twint'::character varying, 'transfer'::character varying, 'other'::character varying])::text[])))),
-    CONSTRAINT fines_paid_to_check CHECK (((paid_to IS NULL) OR ((paid_to)::text = ANY ((ARRAY['team_kasse'::character varying, 'club_kasse'::character varying])::text[])))),
-    CONSTRAINT fines_status_check CHECK (((status)::text = ANY ((ARRAY['open'::character varying, 'paid'::character varying, 'waived'::character varying])::text[])))
+    CONSTRAINT fines_category_check CHECK (((category)::text = ANY (ARRAY[('late_signin'::character varying)::text, ('no_show'::character varying)::text, ('late_payment'::character varying)::text, ('custom'::character varying)::text]))),
+    CONSTRAINT fines_paid_method_check CHECK (((paid_method IS NULL) OR ((paid_method)::text = ANY (ARRAY[('cash'::character varying)::text, ('twint'::character varying)::text, ('transfer'::character varying)::text, ('other'::character varying)::text])))),
+    CONSTRAINT fines_paid_to_check CHECK (((paid_to IS NULL) OR ((paid_to)::text = ANY (ARRAY[('team_kasse'::character varying)::text, ('club_kasse'::character varying)::text])))),
+    CONSTRAINT fines_status_check CHECK (((status)::text = ANY (ARRAY[('open'::character varying)::text, ('paid'::character varying)::text, ('waived'::character varying)::text])))
 );
 
 
@@ -2715,6 +2724,164 @@ CREATE SEQUENCE public.fines_id_seq
 --
 
 ALTER SEQUENCE public.fines_id_seq OWNED BY public.fines.id;
+
+
+--
+-- Name: form_submissions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.form_submissions (
+    id integer NOT NULL,
+    form integer NOT NULL,
+    member integer,
+    answers jsonb DEFAULT '{}'::jsonb NOT NULL,
+    submitted_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE form_submissions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_submissions IS 'One row per form submission. `answers` is a JSON object keyed by form.fields[].id. `member` is NULL for anonymous forms.';
+
+
+--
+-- Name: form_submissions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.form_submissions_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: form_submissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.form_submissions_id_seq OWNED BY public.form_submissions.id;
+
+
+--
+-- Name: forms; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forms (
+    id integer NOT NULL,
+    title text NOT NULL,
+    description text,
+    status text DEFAULT 'draft'::text NOT NULL,
+    audience text DEFAULT 'club_wide'::text NOT NULL,
+    fields jsonb DEFAULT '[]'::jsonb NOT NULL,
+    anonymous boolean DEFAULT false NOT NULL,
+    allow_multiple boolean DEFAULT false NOT NULL,
+    opens_at timestamp with time zone,
+    closes_at timestamp with time zone,
+    created_by integer,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    user_updated uuid,
+    CONSTRAINT forms_audience_check CHECK ((audience = ANY (ARRAY['club_wide'::text, 'teams'::text]))),
+    CONSTRAINT forms_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'open'::text, 'closed'::text])))
+);
+
+
+--
+-- Name: TABLE forms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forms IS 'Internal form definitions. `fields` is the JSON form schema (array of {id,type,label,required,options?}); `answers` on form_submissions is keyed by those field ids. Scoped club-wide or to teams (via the forms_teams M2M, migration 087). Authored by Sport Admin (any) or coaches/TRs (own teams) per setup-permissions.mjs.';
+
+
+--
+-- Name: COLUMN forms.fields; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forms.fields IS 'Form definition: array of field defs. Field types v1: short_text, long_text, single_choice, multi_choice, number, date, yes_no. Choice types carry options[].';
+
+
+--
+-- Name: COLUMN forms.anonymous; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forms.anonymous IS 'When true, submissions store member=NULL — no "who responded" tracking and no per-member dedup.';
+
+
+--
+-- Name: COLUMN forms.allow_multiple; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forms.allow_multiple IS 'When true, a member may submit more than once (ignored for anonymous forms).';
+
+
+--
+-- Name: COLUMN forms.closes_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forms.closes_at IS 'Optional deadline. After this instant the submission guard rejects new submissions.';
+
+
+--
+-- Name: forms_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.forms_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: forms_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.forms_id_seq OWNED BY public.forms.id;
+
+
+--
+-- Name: forms_teams; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forms_teams (
+    id integer NOT NULL,
+    forms_id integer,
+    teams_id integer
+);
+
+
+--
+-- Name: TABLE forms_teams; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forms_teams IS 'M2M junction: forms ⇄ teams. Scopes a form (audience=teams) to specific teams. Mirrors events_teams.';
+
+
+--
+-- Name: forms_teams_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.forms_teams_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: forms_teams_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.forms_teams_id_seq OWNED BY public.forms_teams.id;
 
 
 --
@@ -4628,7 +4795,7 @@ CREATE VIEW public.stats_games_missing_schreiber WITH (security_invoker='true') 
     COALESCE(g.scorer_duty_team, g.bb_duty_team) AS duty_team_id
    FROM (public.games g
      JOIN public.teams t ON ((t.id = g.kscw_team)))
-  WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying])::text[])) AND ((((t.sport)::text = 'volleyball'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))
+  WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = ANY (ARRAY[('scheduled'::character varying)::text, ('live'::character varying)::text])) AND ((((t.sport)::text = 'volleyball'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))
   ORDER BY g.date, g."time";
 
 
@@ -5456,6 +5623,27 @@ ALTER TABLE ONLY public.fines ALTER COLUMN id SET DEFAULT nextval('public.fines_
 
 
 --
+-- Name: form_submissions id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_submissions ALTER COLUMN id SET DEFAULT nextval('public.form_submissions_id_seq'::regclass);
+
+
+--
+-- Name: forms id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms ALTER COLUMN id SET DEFAULT nextval('public.forms_id_seq'::regclass);
+
+
+--
+-- Name: forms_teams id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms_teams ALTER COLUMN id SET DEFAULT nextval('public.forms_teams_id_seq'::regclass);
+
+
+--
 -- Name: game_scheduling_bookings id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -5970,6 +6158,30 @@ ALTER TABLE ONLY public.fine_rules
 
 ALTER TABLE ONLY public.fines
     ADD CONSTRAINT fines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_submissions form_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_submissions
+    ADD CONSTRAINT form_submissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forms forms_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms
+    ADD CONSTRAINT forms_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forms_teams forms_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms_teams
+    ADD CONSTRAINT forms_teams_pkey PRIMARY KEY (id);
 
 
 --
@@ -6592,6 +6804,48 @@ CREATE INDEX fines_member_status_idx ON public.fines USING btree (member, status
 --
 
 CREATE INDEX fines_team_status_issued_idx ON public.fines USING btree (team, status, issued_at DESC);
+
+
+--
+-- Name: form_submissions_form_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_submissions_form_idx ON public.form_submissions USING btree (form);
+
+
+--
+-- Name: form_submissions_member_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_submissions_member_idx ON public.form_submissions USING btree (member);
+
+
+--
+-- Name: forms_created_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forms_created_by_idx ON public.forms USING btree (created_by);
+
+
+--
+-- Name: forms_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forms_status_idx ON public.forms USING btree (status);
+
+
+--
+-- Name: forms_teams_forms_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forms_teams_forms_id_idx ON public.forms_teams USING btree (forms_id);
+
+
+--
+-- Name: forms_teams_teams_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forms_teams_teams_id_idx ON public.forms_teams USING btree (teams_id);
 
 
 --
@@ -7505,6 +7759,13 @@ CREATE OR REPLACE VIEW public.stats_team_roster WITH (security_invoker='true') A
 
 
 --
+-- Name: form_submissions form_submissions_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER form_submissions_guard BEFORE INSERT ON public.form_submissions FOR EACH ROW EXECUTE FUNCTION public.trg_form_submissions_guard();
+
+
+--
 -- Name: events trg_activity_chat_event_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -7895,6 +8156,46 @@ ALTER TABLE ONLY public.fines
 
 ALTER TABLE ONLY public.fines
     ADD CONSTRAINT fines_waived_by_fkey FOREIGN KEY (waived_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: form_submissions form_submissions_form_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_submissions
+    ADD CONSTRAINT form_submissions_form_fkey FOREIGN KEY (form) REFERENCES public.forms(id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_submissions form_submissions_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_submissions
+    ADD CONSTRAINT form_submissions_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forms forms_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms
+    ADD CONSTRAINT forms_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forms_teams forms_teams_forms_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms_teams
+    ADD CONSTRAINT forms_teams_forms_id_fkey FOREIGN KEY (forms_id) REFERENCES public.forms(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forms_teams forms_teams_teams_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms_teams
+    ADD CONSTRAINT forms_teams_teams_id_fkey FOREIGN KEY (teams_id) REFERENCES public.teams(id) ON DELETE CASCADE;
 
 
 --

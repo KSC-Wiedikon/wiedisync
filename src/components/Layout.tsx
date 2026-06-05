@@ -59,6 +59,7 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
       ),
     },
     { to: '/events', label: t('events'), icon: <PartyPopper className={iconClass} /> },
+    { to: '/forms', label: t('forms'), icon: <ScrollText className={iconClass} /> },
     ...(messagingFeatureEnabled(memberId)
       ? [{ to: '/inbox', label: t('inbox'), icon: <Inbox className={iconClass} /> }]
       : []),

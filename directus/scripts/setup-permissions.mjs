@@ -629,6 +629,34 @@ async function main() {
   await setPerm(MEMBER_POLICY, 'notifications', 'update', OWN_MEMBER)
   await setPerm(MEMBER_POLICY, 'notifications', 'delete', OWN_MEMBER)
 
+  // ── Forms (migrations 086/087) ──────────────────────────────
+  // Members see non-draft forms scoped to them (club-wide ∪ their teams) and
+  // create/read their OWN submissions. Anonymous forms allow member = NULL.
+  // The frontend resolves visibility via the two-step junction fetch
+  // (useUserVisibleFormIds) — it must NOT deep-filter forms.teams while this
+  // policy also walks it (the M2M-deep-filter + policy-walk silent-[] landmine).
+  const FORMS_VISIBLE = {
+    _and: [
+      { status: { _in: ['open', 'closed'] } },
+      {
+        _or: [
+          { audience: { _eq: 'club_wide' } },
+          { teams: { teams_id: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } } },
+        ],
+      },
+    ],
+  }
+  await setPermRead(MEMBER_POLICY, 'forms', FORMS_VISIBLE)
+  await setPermRead(MEMBER_POLICY, 'forms_teams')
+  // Submissions: read own; create own OR anonymous (member = NULL). The _or
+  // self-scope blocks posting a submission AS another member while still
+  // allowing anonymous forms.
+  const FORM_SUBMISSION_OWN = { member: { user: { _eq: '$CURRENT_USER' } } }
+  await setPermRead(MEMBER_POLICY, 'form_submissions', FORM_SUBMISSION_OWN)
+  await setPerm(MEMBER_POLICY, 'form_submissions', 'create', {
+    _or: [{ member: { _null: true } }, { member: { user: { _eq: '$CURRENT_USER' } } }],
+  })
+
   // Announcements (Vereinsnews) — read only published, non-expired posts.
   // Audience matching (sport / teams / roles) is enforced client-side in
   // useAnnouncements; the server-side filter just prevents draft leakage.
@@ -903,6 +931,29 @@ async function main() {
   await setPerm(LEADER_POLICY, 'events_teams', 'update')
   await setPerm(LEADER_POLICY, 'events_teams', 'delete')
 
+  // Forms (migrations 086/087) — coach/TR author forms for teams they coach/TR,
+  // plus read club-wide forms + forms they created. Mirrors the events block
+  // above with the coach/TR M2M traversal. update/delete scoped to creator or
+  // coach/TR of an attached team. They read submissions of forms in their scope.
+  const FORMS_LEADER_SCOPE = {
+    _or: [
+      { created_by: { user: { _eq: '$CURRENT_USER' } } },
+      { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
+      { teams: { teams_id: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
+    ],
+  }
+  await setPermRead(LEADER_POLICY, 'forms', {
+    _or: [{ audience: { _eq: 'club_wide' } }, ...FORMS_LEADER_SCOPE._or],
+  })
+  await setPerm(LEADER_POLICY, 'forms', 'create')
+  await setPerm(LEADER_POLICY, 'forms', 'update', FORMS_LEADER_SCOPE)
+  await setPerm(LEADER_POLICY, 'forms', 'delete', FORMS_LEADER_SCOPE)
+  await setPermRead(LEADER_POLICY, 'forms_teams')
+  await setPerm(LEADER_POLICY, 'forms_teams', 'create')
+  await setPerm(LEADER_POLICY, 'forms_teams', 'update')
+  await setPerm(LEADER_POLICY, 'forms_teams', 'delete')
+  await setPermRead(LEADER_POLICY, 'form_submissions', { form: FORMS_LEADER_SCOPE })
+
   // Participations — read + update scoped to members on teams I coach/TR
   // (plus own row). 2026-05-12 audit: was unfiltered full-club RSVP dump.
   // Filter walks: participation.member → member.member_teams.team.{coach|TR}.
@@ -1077,6 +1128,8 @@ async function main() {
     'fines', 'fine_rules',
     // Scheduling blocks (migration 085) — club-wide read for oversight.
     'scheduling_blocks',
+    // Forms (migrations 086/087) — club-wide read for oversight.
+    'forms', 'form_submissions', 'forms_teams',
   ]
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)
@@ -1112,6 +1165,8 @@ async function main() {
     'fines', 'fine_rules',
     // Scheduling blocks (migration 085) — club-wide CRUD for any team's blackouts.
     'scheduling_blocks',
+    // Forms (migrations 086/087) — club-wide CRUD.
+    'forms', 'form_submissions', 'forms_teams',
     'directus_files',
   ]
   for (const col of SPORT_ADMIN_FULL_CRUD) {

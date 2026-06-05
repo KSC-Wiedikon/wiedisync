@@ -270,6 +270,22 @@ const T = {
     fr: 'Tu as {count} amende(s) ouverte(s) — total {amount}',
     it: 'Hai {count} multa(e) aperta(e) — totale {amount}',
   },
+  // Forms (migrations 086/087) — fired once when a form transitions to open.
+  // {title} = form title.
+  'formPublished.title': {
+    de: 'Neues Formular',
+    gsw: 'Neus Formular',
+    en: 'New form',
+    fr: 'Nouveau formulaire',
+    it: 'Nuovo modulo',
+  },
+  'formPublished.body': {
+    de: '{title} — bitte ausfüllen',
+    gsw: '{title} — bitte usfülle',
+    en: '{title} — please fill in',
+    fr: '{title} — merci de remplir',
+    it: '{title} — si prega di compilare',
+  },
 }
 
 /**

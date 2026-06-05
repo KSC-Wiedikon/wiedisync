@@ -30,6 +30,7 @@ export default {
   training_cancelled: 'Training cancelled on {{date}}',
   training_deleted: 'Training deleted on {{date}}',
   event_created: 'New event: {{title}}',
+  form_published: 'New form: {{title}}',
   event_updated: 'Event updated: {{title}}',
   event_deleted: 'Event cancelled: {{title}}',
   upcoming_game: '{{home_team}} vs {{away_team}} at {{hall}} on {{date}} {{time}}',

@@ -1734,6 +1734,90 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     )
   }
 
+  // ── Forms (migrations 086/087) ──────────────────────────────────────
+  // Notify the scoped audience once, when a form transitions to `open`.
+  // Dedupes on an existing form_published notification so editing an already
+  // open form (the builder always re-sends status) never re-notifies.
+  async function notifyFormPublished(formId) {
+    const form = await database('forms').where('id', formId)
+      .select('id', 'title', 'status', 'audience').first()
+    if (!form || form.status !== 'open') return
+
+    const already = await database('notifications')
+      .where({ type: 'form_published', activity_id: String(form.id) }).first()
+    if (already) return
+
+    let memberIds = []
+    if (form.audience === 'club_wide') {
+      const rows = await database('members').where('wiedisync_active', true).select('id')
+      memberIds = rows.map(r => r.id)
+    } else {
+      const teamRows = await database('forms_teams').where('forms_id', formId).select('teams_id')
+      const teamIds = [...new Set(teamRows.map(r => r.teams_id).filter(Boolean))]
+      if (teamIds.length === 0) return
+      const [players, coaches, trs] = await Promise.all([
+        database('member_teams').whereIn('team', teamIds).select('member'),
+        database('teams_coaches').whereIn('teams_id', teamIds).select('members_id'),
+        database('teams_responsibles').whereIn('teams_id', teamIds).select('members_id'),
+      ])
+      memberIds = [...new Set([
+        ...players.map(r => r.member),
+        ...coaches.map(r => r.members_id),
+        ...trs.map(r => r.members_id),
+      ].filter(Boolean))]
+    }
+    if (memberIds.length === 0) return
+
+    const active = await database('members')
+      .whereIn('id', memberIds)
+      .andWhere('wiedisync_active', true)
+      .select('id')
+    const recipientIds = active.map(r => r.id)
+    if (recipientIds.length === 0) return
+
+    await database('notifications').insert(recipientIds.map(rid => ({
+      member: rid,
+      type: 'form_published',
+      title: 'form_published',
+      body: JSON.stringify({ title: form.title }),
+      activity_type: 'form',
+      activity_id: String(form.id),
+      team: null,
+      read: false,
+    })))
+
+    await sendLocalizedPush(
+      database,
+      recipientIds,
+      (pids, title, body) => sendPushToMembers(database, pids, title, body, `${FRONTEND_URL}/forms`, `form-${form.id}`, log),
+      'formPublished.title',
+      'formPublished.body',
+      { title: form.title },
+    )
+  }
+
+  action('forms.items.update', async ({ keys, payload }) => {
+    if (payload && payload.status === 'open') {
+      for (const k of keys) {
+        try {
+          await notifyFormPublished(k)
+        } catch (err) {
+          log.error({ msg: `[form-published-notify] ${err.message}`, event: 'form_published_notify', keys: [k], stack: err.stack })
+        }
+      }
+    }
+  })
+
+  action('forms.items.create', async ({ key, payload }) => {
+    if (payload && payload.status === 'open') {
+      try {
+        await notifyFormPublished(key)
+      } catch (err) {
+        log.error({ msg: `[form-published-notify] ${err.message}`, event: 'form_published_notify', keys: [key], stack: err.stack })
+      }
+    }
+  })
+
   action('trainings.items.update', async ({ keys, payload }) => {
     // Notify the team when a training is cancelled (coach/TR pressed "Cancel
     // training"). payload.cancelled === true only on the cancel transition.
