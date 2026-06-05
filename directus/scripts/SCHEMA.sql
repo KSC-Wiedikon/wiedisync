@@ -2,8 +2,8 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-05T10:09:10.684Z
--- Source:      dev (db=directus_kscw_dev)
+-- Generated:   2026-06-05T19:58:49.339Z
+-- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
 -- This is the consolidated DDL/triggers/FKs/grants snapshot for a FRESH
@@ -42,6 +42,20 @@ SET row_security = off;
 --
 
 CREATE SCHEMA _realtime;
+
+
+--
+-- Name: pg_cron; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+
+
+--
+-- Name: EXTENSION pg_cron; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION pg_cron IS 'Job scheduler for PostgreSQL';
 
 
 --
@@ -115,13 +129,6 @@ COMMENT ON EXTENSION pgsodium IS 'Pgsodium is a modern cryptography library for 
 
 
 --
--- Name: public; Type: SCHEMA; Schema: -; Owner: -
---
-
--- *not* creating schema, since initdb creates it
-
-
---
 -- Name: pg_graphql; Type: EXTENSION; Schema: -; Owner: -
 --
 
@@ -189,6 +196,20 @@ CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
 --
 
 COMMENT ON EXTENSION supabase_vault IS 'Supabase Vault Extension';
+
+
+--
+-- Name: unaccent; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION unaccent; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION unaccent IS 'text search dictionary that removes accents';
 
 
 --
@@ -1200,6 +1221,36 @@ $$;
 
 
 --
+-- Name: trg_form_submissions_update_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_form_submissions_update_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  f forms%ROWTYPE;
+BEGIN
+  -- Only re-validate when the answers actually change (status flips / admin
+  -- back-office edits on other columns shouldn't be blocked by a closed form).
+  IF NEW.answers IS NOT DISTINCT FROM OLD.answers THEN
+    RETURN NEW;
+  END IF;
+  SELECT * INTO f FROM forms WHERE id = NEW.form;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'form_submissions: form % does not exist', NEW.form;
+  END IF;
+  IF f.status <> 'open' THEN
+    RAISE EXCEPTION 'form_submissions: form % is not open (status=%)', NEW.form, f.status;
+  END IF;
+  IF f.closes_at IS NOT NULL AND now() > f.closes_at THEN
+    RAISE EXCEPTION 'form_submissions: form % is past its deadline (%)', NEW.form, f.closes_at;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: trg_games_notify(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1919,7 +1970,7 @@ CREATE TABLE public.broadcasts (
     message text NOT NULL,
     delivery_results jsonb,
     sent_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT broadcasts_activity_type_check CHECK (((activity_type)::text = ANY (ARRAY[('event'::character varying)::text, ('game'::character varying)::text, ('training'::character varying)::text])))
+    CONSTRAINT broadcasts_activity_type_check CHECK (((activity_type)::text = ANY ((ARRAY['event'::character varying, 'game'::character varying, 'training'::character varying])::text[])))
 );
 
 
@@ -2280,7 +2331,7 @@ CREATE TABLE public.conversations (
     activity_type character varying(16),
     activity_id integer,
     CONSTRAINT conversations_activity_type_check CHECK (((activity_type IS NULL) OR ((activity_type)::text = 'event'::text))),
-    CONSTRAINT conversations_shape_check CHECK (((((type)::text = 'team'::text) AND (team IS NOT NULL) AND (activity_type IS NULL) AND (activity_id IS NULL)) OR (((type)::text = ANY (ARRAY[('dm'::character varying)::text, ('dm_request'::character varying)::text, ('group_dm'::character varying)::text])) AND (team IS NULL) AND (activity_type IS NULL) AND (activity_id IS NULL)) OR (((type)::text = 'activity_chat'::text) AND (team IS NULL) AND (activity_type IS NOT NULL) AND (activity_id IS NOT NULL))))
+    CONSTRAINT conversations_shape_check CHECK (((((type)::text = 'team'::text) AND (team IS NOT NULL) AND (activity_type IS NULL) AND (activity_id IS NULL)) OR (((type)::text = ANY ((ARRAY['dm'::character varying, 'dm_request'::character varying, 'group_dm'::character varying])::text[])) AND (team IS NULL) AND (activity_type IS NULL) AND (activity_id IS NULL)) OR (((type)::text = 'activity_chat'::text) AND (team IS NULL) AND (activity_type IS NOT NULL) AND (activity_id IS NOT NULL))))
 );
 
 
@@ -2611,8 +2662,8 @@ CREATE TABLE public.fine_rules (
     user_created uuid,
     user_updated uuid,
     updated_by integer,
-    CONSTRAINT fine_rules_category_check CHECK (((category)::text = ANY (ARRAY[('late_signin'::character varying)::text, ('no_show'::character varying)::text, ('late_payment'::character varying)::text, ('custom'::character varying)::text]))),
-    CONSTRAINT fine_rules_reset_window_check CHECK (((reset_window)::text = ANY (ARRAY[('calendar_month'::character varying)::text, ('rolling_30d'::character varying)::text, ('rolling_90d'::character varying)::text, ('season'::character varying)::text, ('never'::character varying)::text])))
+    CONSTRAINT fine_rules_category_check CHECK (((category)::text = ANY ((ARRAY['late_signin'::character varying, 'no_show'::character varying, 'late_payment'::character varying, 'custom'::character varying])::text[]))),
+    CONSTRAINT fine_rules_reset_window_check CHECK (((reset_window)::text = ANY ((ARRAY['calendar_month'::character varying, 'rolling_30d'::character varying, 'rolling_90d'::character varying, 'season'::character varying, 'never'::character varying])::text[])))
 );
 
 
@@ -2690,12 +2741,12 @@ CREATE TABLE public.fines (
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
     user_created uuid,
     user_updated uuid,
-    CONSTRAINT fines_activity_type_check CHECK (((activity_type IS NULL) OR ((activity_type)::text = ANY (ARRAY[('training'::character varying)::text, ('game'::character varying)::text, ('event'::character varying)::text])))),
+    CONSTRAINT fines_activity_type_check CHECK (((activity_type IS NULL) OR ((activity_type)::text = ANY ((ARRAY['training'::character varying, 'game'::character varying, 'event'::character varying])::text[])))),
     CONSTRAINT fines_amount_nonneg CHECK ((amount >= (0)::numeric)),
-    CONSTRAINT fines_category_check CHECK (((category)::text = ANY (ARRAY[('late_signin'::character varying)::text, ('no_show'::character varying)::text, ('late_payment'::character varying)::text, ('custom'::character varying)::text]))),
-    CONSTRAINT fines_paid_method_check CHECK (((paid_method IS NULL) OR ((paid_method)::text = ANY (ARRAY[('cash'::character varying)::text, ('twint'::character varying)::text, ('transfer'::character varying)::text, ('other'::character varying)::text])))),
-    CONSTRAINT fines_paid_to_check CHECK (((paid_to IS NULL) OR ((paid_to)::text = ANY (ARRAY[('team_kasse'::character varying)::text, ('club_kasse'::character varying)::text])))),
-    CONSTRAINT fines_status_check CHECK (((status)::text = ANY (ARRAY[('open'::character varying)::text, ('paid'::character varying)::text, ('waived'::character varying)::text])))
+    CONSTRAINT fines_category_check CHECK (((category)::text = ANY ((ARRAY['late_signin'::character varying, 'no_show'::character varying, 'late_payment'::character varying, 'custom'::character varying])::text[]))),
+    CONSTRAINT fines_paid_method_check CHECK (((paid_method IS NULL) OR ((paid_method)::text = ANY ((ARRAY['cash'::character varying, 'twint'::character varying, 'transfer'::character varying, 'other'::character varying])::text[])))),
+    CONSTRAINT fines_paid_to_check CHECK (((paid_to IS NULL) OR ((paid_to)::text = ANY ((ARRAY['team_kasse'::character varying, 'club_kasse'::character varying])::text[])))),
+    CONSTRAINT fines_status_check CHECK (((status)::text = ANY ((ARRAY['open'::character varying, 'paid'::character varying, 'waived'::character varying])::text[])))
 );
 
 
@@ -2786,6 +2837,9 @@ CREATE TABLE public.forms (
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
     user_created uuid,
     user_updated uuid,
+    success_message text,
+    is_public boolean DEFAULT false NOT NULL,
+    slug text,
     CONSTRAINT forms_audience_check CHECK ((audience = ANY (ARRAY['club_wide'::text, 'teams'::text]))),
     CONSTRAINT forms_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'open'::text, 'closed'::text])))
 );
@@ -2824,6 +2878,27 @@ COMMENT ON COLUMN public.forms.allow_multiple IS 'When true, a member may submit
 --
 
 COMMENT ON COLUMN public.forms.closes_at IS 'Optional deadline. After this instant the submission guard rejects new submissions.';
+
+
+--
+-- Name: COLUMN forms.success_message; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forms.success_message IS 'Optional custom confirmation text shown to the member after a successful submission (falls back to a generic "thank you" when null).';
+
+
+--
+-- Name: COLUMN forms.is_public; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forms.is_public IS 'When true and status=open, the form is served on the public website via /kscw/public/forms/:slug and accepts anonymous submissions through the Turnstile-protected public endpoint.';
+
+
+--
+-- Name: COLUMN forms.slug; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forms.slug IS 'URL-safe public identifier (unique). Required when is_public; powers /de/formular/<slug> on kscw-website.';
 
 
 --
@@ -4795,7 +4870,7 @@ CREATE VIEW public.stats_games_missing_schreiber WITH (security_invoker='true') 
     COALESCE(g.scorer_duty_team, g.bb_duty_team) AS duty_team_id
    FROM (public.games g
      JOIN public.teams t ON ((t.id = g.kscw_team)))
-  WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = ANY (ARRAY[('scheduled'::character varying)::text, ('live'::character varying)::text])) AND ((((t.sport)::text = 'volleyball'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))
+  WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying])::text[])) AND ((((t.sport)::text = 'volleyball'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))
   ORDER BY g.date, g."time";
 
 
@@ -6828,6 +6903,13 @@ CREATE INDEX forms_created_by_idx ON public.forms USING btree (created_by);
 
 
 --
+-- Name: forms_slug_unique_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX forms_slug_unique_idx ON public.forms USING btree (slug) WHERE (slug IS NOT NULL);
+
+
+--
 -- Name: forms_status_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7763,6 +7845,13 @@ CREATE OR REPLACE VIEW public.stats_team_roster WITH (security_invoker='true') A
 --
 
 CREATE TRIGGER form_submissions_guard BEFORE INSERT ON public.form_submissions FOR EACH ROW EXECUTE FUNCTION public.trg_form_submissions_guard();
+
+
+--
+-- Name: form_submissions form_submissions_update_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER form_submissions_update_guard BEFORE UPDATE ON public.form_submissions FOR EACH ROW EXECUTE FUNCTION public.trg_form_submissions_update_guard();
 
 
 --
