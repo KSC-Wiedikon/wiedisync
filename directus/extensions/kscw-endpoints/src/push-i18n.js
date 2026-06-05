@@ -286,6 +286,36 @@ const T = {
     fr: '{title} — merci de remplir',
     it: '{title} — si prega di compilare',
   },
+  // Reminder nudge to members who haven't filled the form yet. {title} = form title.
+  'formReminder.title': {
+    de: 'Erinnerung',
+    gsw: 'Erinnerig',
+    en: 'Reminder',
+    fr: 'Rappel',
+    it: 'Promemoria',
+  },
+  'formReminder.body': {
+    de: 'Bitte fülle «{title}» noch aus',
+    gsw: 'Bitte füll «{title}» no us',
+    en: 'Please still fill in "{title}"',
+    fr: 'Merci de remplir ce formulaire : {title}',
+    it: 'Si prega di compilare «{title}»',
+  },
+  // Sent to the form owner (+ co-managers) when a response arrives. {title} = form title.
+  'formSubmission.title': {
+    de: 'Neue Antwort',
+    gsw: 'Neui Antwort',
+    en: 'New response',
+    fr: 'Nouvelle réponse',
+    it: 'Nuova risposta',
+  },
+  'formSubmission.body': {
+    de: 'Neue Antwort auf «{title}»',
+    gsw: 'Neui Antwort uf «{title}»',
+    en: 'New response to "{title}"',
+    fr: 'Nouvelle réponse à « {title} »',
+    it: 'Nuova risposta a «{title}»',
+  },
 }
 
 /**

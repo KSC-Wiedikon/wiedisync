@@ -3,16 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Plus, Pencil, BarChart3, Trash2, Lock, Unlock } from 'lucide-react'
+import { Plus, Pencil, BarChart3, Trash2, Lock, Unlock, Link as LinkIcon, Globe } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
+import { useFillableForms, type FillableForm } from '../../hooks/useFillableForms'
 import { updateRecord, deleteRecord } from '../../lib/api'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import FormFillModal from './FormFillModal'
 import FormResponsesModal from './FormResponsesModal'
 import type { FormDef, FormStatus } from './types'
 
-interface SubmissionRef { id: string; form: string }
+/** Public website base for copyable public-form links (prod). */
+const PUBLIC_FORMS_BASE = 'https://kscw.ch'
 
 function teamRefs(form: FormDef): { id: string; name: string; sport?: string }[] {
   return (form.teams ?? []).map((tref) => {
@@ -43,7 +45,7 @@ export default function FormsPage() {
   const { t } = useTranslation('forms')
   const { t: tc } = useTranslation('common')
   const navigate = useNavigate()
-  const { user, coachTeamIds, teamResponsibleIds, memberTeamIds, isAdmin, isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin } = useAuth()
+  const { user, coachTeamIds, teamResponsibleIds, isAdmin, isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin } = useAuth()
   // Authoring is role-gated (see Layout) — members never reach this page via nav,
   // they fill forms from the Home card. Coaches/TRs/Sport Admins/Vorstand/Admins.
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
@@ -57,13 +59,8 @@ export default function FormsPage() {
   })
   const forms = formsRaw ?? []
 
-  const { data: mySubsRaw } = useCollection<SubmissionRef>('form_submissions', {
-    filter: { member: { _eq: user?.id } },
-    fields: ['id', 'form'],
-    limit: 1000,
-    enabled: !!user,
-  })
-  const submittedFormIds = useMemo(() => new Set((mySubsRaw ?? []).map((s) => String(s.form))), [mySubsRaw])
+  // Forms the current user can fill / edit (club-wide ∪ their player teams).
+  const { items: fillable, refetch: refetchFillable } = useFillableForms()
 
   const editable = (f: FormDef): boolean => {
     if (fullManager) return true
@@ -86,18 +83,9 @@ export default function FormsPage() {
 
   const managedForms = useMemo(() => (canManageForms ? forms.filter(editable) : []), [forms, canManageForms]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openForms = useMemo(
-    () =>
-      forms.filter(
-        (f) =>
-          f.status === 'open' &&
-          (f.audience === 'club_wide' || teamRefs(f).some((tr) => memberTeamIds.includes(tr.id))),
-      ),
-    [forms, memberTeamIds],
-  )
-
-  const [fillForm, setFillForm] = useState<FormDef | null>(null)
+  const [fillItem, setFillItem] = useState<FillableForm | null>(null)
   const [responsesForm, setResponsesForm] = useState<FormDef | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   async function toggleStatus(f: FormDef) {
     const next: FormStatus = f.status === 'open' ? 'closed' : 'open'
@@ -108,6 +96,15 @@ export default function FormsPage() {
     if (!window.confirm(t('confirmDelete', { title: f.title }))) return
     await deleteRecord('forms', f.id)
     refetch()
+  }
+  async function copyPublicLink(f: FormDef) {
+    if (!f.slug) return
+    const url = `${PUBLIC_FORMS_BASE}/de/formular/?f=${encodeURIComponent(f.slug)}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedId(String(f.id))
+      setTimeout(() => setCopiedId((c) => (c === String(f.id) ? null : c)), 2000)
+    } catch { /* clipboard blocked — no-op */ }
   }
 
   return (
@@ -126,7 +123,7 @@ export default function FormsPage() {
         <h2 className="text-lg font-semibold">{t('openForYou')}</h2>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">{t('loading')}</p>
-        ) : openForms.length === 0 ? (
+        ) : fillable.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('noOpenForms')}</p>
         ) : (
           <Table>
@@ -138,24 +135,19 @@ export default function FormsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {openForms.map((f) => {
-                const done = !f.anonymous && !f.allow_multiple && submittedFormIds.has(String(f.id))
-                return (
-                  <TableRow key={f.id}>
-                    <TableCell className="font-medium">{f.title}</TableCell>
-                    <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
-                      {f.closes_at ? formatDateTimeCompactZurich(f.closes_at) : '—'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {done ? (
-                        <span className="text-sm text-green-600 dark:text-green-400">{t('submitted')}</span>
-                      ) : (
-                        <Button size="sm" onClick={() => setFillForm(f)}>{t('fill')}</Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
+              {fillable.map((item) => (
+                <TableRow key={item.form.id}>
+                  <TableCell className="font-medium">{item.form.title}</TableCell>
+                  <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
+                    {item.form.closes_at ? formatDateTimeCompactZurich(item.form.closes_at) : '—'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant={item.submission ? 'outline' : 'default'} onClick={() => setFillItem(item)}>
+                      {item.submission ? t('edit') : t('fill')}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         )}
@@ -182,13 +174,27 @@ export default function FormsPage() {
                   const teams = teamRefs(f)
                   return (
                     <TableRow key={f.id}>
-                      <TableCell className="font-medium">{f.title}</TableCell>
+                      <TableCell className="font-medium">
+                        <span className="flex items-center gap-1.5">
+                          {f.title}
+                          {f.is_public && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" title={t('isPublicHint')}>
+                              <Globe size={10} /> {t('publicBadge')}
+                            </span>
+                          )}
+                        </span>
+                      </TableCell>
                       <TableCell><StatusBadge status={f.status} /></TableCell>
                       <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
                         {f.audience === 'club_wide' ? t('audienceClub') : teams.map((tr) => tr.name).join(', ') || t('audienceTeams')}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col justify-end gap-1 sm:flex-row">
+                          {f.is_public && f.slug && (
+                            <Button variant="ghost" size="sm" onClick={() => copyPublicLink(f)} title={t('copyLink')}>
+                              <LinkIcon size={15} className={copiedId === String(f.id) ? 'text-green-600 dark:text-green-400' : ''} />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="sm" onClick={() => setResponsesForm(f)} title={t('responses')}><BarChart3 size={15} /></Button>
                           <Button variant="ghost" size="sm" onClick={() => navigate(`/forms/${f.id}/edit`)} title={tc('edit')}><Pencil size={15} /></Button>
                           <Button variant="ghost" size="sm" onClick={() => toggleStatus(f)} title={f.status === 'open' ? t('close') : t('open')}>
@@ -206,12 +212,13 @@ export default function FormsPage() {
         </section>
       )}
 
-      {fillForm && (
+      {fillItem && (
         <FormFillModal
-          open={!!fillForm}
-          form={fillForm}
-          onSubmitted={() => { setFillForm(null); refetch() }}
-          onCancel={() => setFillForm(null)}
+          open={!!fillItem}
+          form={fillItem.form}
+          existing={fillItem.submission}
+          onSubmitted={() => { setFillItem(null); refetchFillable() }}
+          onCancel={() => setFillItem(null)}
         />
       )}
       {responsesForm && (

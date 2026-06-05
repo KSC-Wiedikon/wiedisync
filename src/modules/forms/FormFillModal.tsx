@@ -1,15 +1,23 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { CheckCircle2 } from 'lucide-react'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '../../hooks/useAuth'
-import { createRecord } from '../../lib/api'
+import { createRecord, updateRecord } from '../../lib/api'
 import FormFieldRenderer from './FormFieldRenderer'
 import type { FormDef, FieldDef, AnswerValue } from './types'
+
+interface ExistingSubmission {
+  id: string
+  answers: Record<string, AnswerValue>
+}
 
 interface Props {
   open: boolean
   form: FormDef
+  /** When set, the modal edits this existing submission instead of creating one. */
+  existing?: ExistingSubmission | null
   onSubmitted: () => void
   onCancel: () => void
 }
@@ -19,6 +27,8 @@ function isMissing(field: FieldDef, v: AnswerValue): boolean {
   switch (field.type) {
     case 'multi_choice':
       return !(Array.isArray(v) && v.length > 0)
+    case 'file':
+      return !(v && typeof v === 'object' && 'id' in v)
     case 'number':
       return v === null || v === undefined || (v as unknown) === ''
     case 'yes_no':
@@ -28,18 +38,28 @@ function isMissing(field: FieldDef, v: AnswerValue): boolean {
   }
 }
 
-export default function FormFillModal({ open, form, onSubmitted, onCancel }: Props) {
+function blankAnswers(form: FormDef): Record<string, AnswerValue> {
+  const a: Record<string, AnswerValue> = {}
+  for (const f of form.fields) a[f.id] = f.type === 'multi_choice' ? [] : f.type === 'yes_no' ? false : null
+  return a
+}
+
+export default function FormFillModal({ open, form, existing, onSubmitted, onCancel }: Props) {
   const { t } = useTranslation('forms')
   const { t: tc } = useTranslation('common')
   const { user } = useAuth()
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({})
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [done, setDone] = useState(false)
+
+  const isEdit = !!existing
 
   useEffect(() => {
-    setAnswers({})
+    setAnswers(existing ? { ...blankAnswers(form), ...existing.answers } : {})
     setError('')
-  }, [form, open])
+    setDone(false)
+  }, [form, open, existing])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -51,20 +71,48 @@ export default function FormFillModal({ open, form, onSubmitted, onCancel }: Pro
     }
     setSaving(true)
     try {
-      await createRecord('form_submissions', {
-        form: form.id,
-        member: form.anonymous ? null : user?.id,
-        answers,
-      })
-      onSubmitted()
+      if (isEdit) {
+        await updateRecord('form_submissions', existing.id, { answers })
+      } else {
+        await createRecord('form_submissions', {
+          form: form.id,
+          member: form.anonymous ? null : user?.id,
+          answers,
+        })
+      }
+      setDone(true)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       if (/already submitted/i.test(msg)) setError(t('errorAlreadySubmitted'))
       else if (/not open|deadline/i.test(msg)) setError(t('errorClosed'))
+      else if (/required field/i.test(msg)) setError(t('errorRequiredGeneric'))
       else setError(t('errorSubmit'))
     } finally {
       setSaving(false)
     }
+  }
+
+  // Success view — show the (optional) custom thank-you, then close or, for
+  // multi-submission forms, offer to fill in another response.
+  if (done) {
+    return (
+      <Modal open={open} onClose={onSubmitted} title={form.title} size="md">
+        <div className="space-y-5 py-2 text-center">
+          <CheckCircle2 className="mx-auto h-10 w-10 text-green-500" />
+          <p className="whitespace-pre-line text-sm text-foreground">
+            {form.success_message?.trim() || (isEdit ? t('saveSuccess') : t('submitSuccess'))}
+          </p>
+          <div className="flex justify-center gap-3">
+            {form.allow_multiple && !isEdit && (
+              <Button variant="outline" onClick={() => { setAnswers({}); setDone(false) }}>
+                {t('submitAnother')}
+              </Button>
+            )}
+            <Button onClick={onSubmitted}>{t('done')}</Button>
+          </div>
+        </div>
+      </Modal>
+    )
   }
 
   return (
@@ -85,7 +133,7 @@ export default function FormFillModal({ open, form, onSubmitted, onCancel }: Pro
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex justify-end gap-3 pt-2">
           <Button variant="ghost" type="button" onClick={onCancel}>{tc('cancel')}</Button>
-          <Button type="submit" loading={saving}>{saving ? tc('saving') : t('submit')}</Button>
+          <Button type="submit" loading={saving}>{saving ? tc('saving') : isEdit ? tc('save') : t('submit')}</Button>
         </div>
       </form>
     </Modal>

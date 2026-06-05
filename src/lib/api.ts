@@ -433,6 +433,25 @@ export async function deleteRecord(
   }
 }
 
+/**
+ * Upload a single file to Directus (`POST /files`) as the current user and
+ * return its id + display name. Used by the `file` form-field type. Members
+ * already hold `directus_files.create` (profile photos / feedback screenshots).
+ */
+export async function uploadFile(file: File): Promise<{ id: string; name: string }> {
+  const token = getAccessToken()
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await fetch(`${API_URL}/files`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  })
+  if (!res.ok) throw new Error(`Upload failed (${res.status})`)
+  const { data } = await res.json()
+  return { id: String(data.id), name: data.filename_download || file.name }
+}
+
 /** Get a Directus asset URL (images, files). */
 export function assetUrl(fileId: string | null | undefined, transforms?: string): string {
   if (!fileId) return ''

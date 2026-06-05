@@ -31,6 +31,8 @@ export default {
   training_deleted: 'Entrainement supprime le {{date}}',
   event_created: 'Nouvel evenement : {{title}}',
   form_published: 'Nouveau formulaire : {{title}}',
+  form_submission: 'Nouvelle réponse : {{title}}',
+  form_reminder: 'Rappel — merci de remplir : {{title}}',
   event_updated: 'Evenement modifie : {{title}}',
   event_deleted: 'Evenement annule : {{title}}',
   upcoming_game: '{{home_team}} vs {{away_team}} a {{hall}} le {{date}} {{time}}',

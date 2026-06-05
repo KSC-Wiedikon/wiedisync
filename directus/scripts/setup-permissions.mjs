@@ -656,6 +656,11 @@ async function main() {
   await setPerm(MEMBER_POLICY, 'form_submissions', 'create', {
     _or: [{ member: { _null: true } }, { member: { user: { _eq: '$CURRENT_USER' } } }],
   })
+  // Editable submissions (migration 088): a member may revise their own answers
+  // while the form is open. Restricted to the `answers` field so they cannot
+  // reassign a submission to another member or another form; the BEFORE UPDATE
+  // guard additionally blocks edits once the form is closed / past deadline.
+  await setPerm(MEMBER_POLICY, 'form_submissions', 'update', FORM_SUBMISSION_OWN, ['answers'])
 
   // Announcements (Vereinsnews) — read only published, non-expired posts.
   // Audience matching (sport / teams / roles) is enforced client-side in

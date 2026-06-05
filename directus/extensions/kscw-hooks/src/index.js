@@ -1818,6 +1818,102 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // ── Form submissions: server-side required-field validation ─────────
+  // The app validates required fields client-side; this is the backstop for
+  // any write that reaches Directus (member fill view, admin back-office). The
+  // public website submits via the knex endpoint, which validates separately.
+  // Best-effort: never block on an unexpected shape, only on a genuine miss.
+  function answerIsEmpty(field, v) {
+    if (v === null || v === undefined) return true
+    if (field.type === 'multi_choice') return !(Array.isArray(v) && v.length > 0)
+    if (field.type === 'yes_no') return false // a boolean is always an answer
+    if (typeof v === 'string') return v.trim() === ''
+    return false
+  }
+  filter('form_submissions.items.create', async (payload) => {
+    try {
+      if (!payload || !payload.form) return payload
+      const form = await database('forms').where('id', payload.form).select('fields').first()
+      const fields = Array.isArray(form?.fields) ? form.fields : []
+      const answers = payload.answers && typeof payload.answers === 'object' ? payload.answers : {}
+      for (const f of fields) {
+        if (f && f.required && answerIsEmpty(f, answers[f.id])) {
+          throw new Error(`Missing required field: ${f.label || f.id}`)
+        }
+      }
+    } catch (err) {
+      if (err.message && err.message.startsWith('Missing required field')) throw err
+      // Swallow lookup/shape errors — the guard trigger still enforces integrity.
+      log.warn({ msg: `[form-submission-validate] ${err.message}`, event: 'form_submission_validate' })
+    }
+    return payload
+  })
+
+  // ── Notify the form's owner (+ co-managers) when a response arrives ──
+  // The author no longer has to keep re-opening the responses view. Recipients:
+  // the form creator, plus coaches/TRs of any team the form is scoped to. The
+  // submitter is excluded (so test-filling your own form is quiet). Anonymous
+  // forms still notify — the owner sees a response landed, not who sent it.
+  async function notifyFormSubmission(submissionId) {
+    const sub = await database('form_submissions').where('id', submissionId)
+      .select('id', 'form', 'member').first()
+    if (!sub) return
+    const form = await database('forms').where('id', sub.form)
+      .select('id', 'title', 'created_by', 'audience').first()
+    if (!form) return
+
+    const recipients = new Set()
+    if (form.created_by) recipients.add(form.created_by)
+    if (form.audience === 'teams') {
+      const teamRows = await database('forms_teams').where('forms_id', form.id).select('teams_id')
+      const teamIds = [...new Set(teamRows.map(r => r.teams_id).filter(Boolean))]
+      if (teamIds.length > 0) {
+        const [coaches, trs] = await Promise.all([
+          database('teams_coaches').whereIn('teams_id', teamIds).select('members_id'),
+          database('teams_responsibles').whereIn('teams_id', teamIds).select('members_id'),
+        ])
+        for (const r of coaches) if (r.members_id) recipients.add(r.members_id)
+        for (const r of trs) if (r.members_id) recipients.add(r.members_id)
+      }
+    }
+    // Don't notify the person who just submitted.
+    if (sub.member) recipients.delete(sub.member)
+    if (recipients.size === 0) return
+
+    const active = await database('members')
+      .whereIn('id', [...recipients]).andWhere('wiedisync_active', true).select('id')
+    const recipientIds = active.map(r => r.id)
+    if (recipientIds.length === 0) return
+
+    await database('notifications').insert(recipientIds.map(rid => ({
+      member: rid,
+      type: 'form_submission',
+      title: 'form_submission',
+      body: JSON.stringify({ title: form.title }),
+      activity_type: 'form',
+      activity_id: String(form.id),
+      team: null,
+      read: false,
+    })))
+
+    await sendLocalizedPush(
+      database,
+      recipientIds,
+      (pids, title, body) => sendPushToMembers(database, pids, title, body, `${FRONTEND_URL}/forms`, `form-sub-${form.id}`, log),
+      'formSubmission.title',
+      'formSubmission.body',
+      { title: form.title },
+    )
+  }
+
+  action('form_submissions.items.create', async ({ key }) => {
+    try {
+      await notifyFormSubmission(key)
+    } catch (err) {
+      log.error({ msg: `[form-submission-notify] ${err.message}`, event: 'form_submission_notify', keys: [key], stack: err.stack })
+    }
+  })
+
   action('trainings.items.update', async ({ keys, payload }) => {
     // Notify the team when a training is cancelled (coach/TR pressed "Cancel
     // training"). payload.cancelled === true only on the cancel transition.

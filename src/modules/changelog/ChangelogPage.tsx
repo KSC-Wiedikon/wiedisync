@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.21.0'
+const APP_VERSION = '4.22.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,22 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.22',
+    date: '05.06.2026',
+    sections: [
+      {
+        title: 'Forms — responses, reminders, files & public forms',
+        items: [
+          'You now get a notification (and a push) the moment someone responds to a form you manage — no more re-opening the responses view to check.',
+          'Open the responses to see how many of the targeted members have answered, and send a one-tap reminder to everyone who hasn\'t yet.',
+          'Members can edit their own response while a form is still open, and you can show a custom thank-you message after submitting.',
+          'New "File upload" field type so people can attach a document or photo, plus per-language field labels so a club-wide form reads natively in everyone\'s language.',
+          'Forms can now be published on the club website for anyone to fill in — no login needed (great for trial-training sign-ups or public registrations). Spam-protected and copy-link ready.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.21',
     date: '05.06.2026',

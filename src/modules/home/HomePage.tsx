@@ -29,8 +29,7 @@ import LoadingSpinner from '../../components/LoadingSpinner'
 import RankingsTable from '../games/components/RankingsTable'
 import InstallBanner from '../guide/install/InstallBanner'
 import FormFillModal from '../forms/FormFillModal'
-import { useFillableForms } from '../../hooks/useFillableForms'
-import type { FormDef } from '../forms/types'
+import { useFillableForms, type FillableForm } from '../../hooks/useFillableForms'
 
 type ExpandedGame = Game & {
   kscw_team?: Team & BaseRecord | string
@@ -54,8 +53,8 @@ export default function HomePage() {
   const { t: tf } = useTranslation('forms')
 
   const { user, isApproved, primarySport, coachTeamIds } = useAuth()
-  const { forms: fillableForms, refetch: refetchForms } = useFillableForms()
-  const [fillForm, setFillForm] = useState<FormDef | null>(null)
+  const { items: fillableForms, refetch: refetchForms } = useFillableForms()
+  const [fillItem, setFillItem] = useState<FillableForm | null>(null)
   const { sport, setSport } = useSportPreference()
   // Hide sport toggle for users who play only one sport
   const showSportToggle = primarySport === 'both'
@@ -463,19 +462,19 @@ export default function HomePage() {
               <h2 className="text-sm font-semibold text-blue-900 dark:text-blue-100">{tf('formsToFill')}</h2>
             </div>
             <ul className="divide-y divide-blue-100 dark:divide-blue-800/40">
-              {fillableForms.map((f) => (
-                <li key={f.id} className="flex items-center justify-between gap-3 px-4 py-3">
+              {fillableForms.map((item) => (
+                <li key={item.form.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{f.title}</p>
-                    {f.closes_at && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{tf('closesAt')}: {formatDateTimeCompactZurich(f.closes_at)}</p>
+                    <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{item.form.title}</p>
+                    {item.form.closes_at && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{tf('closesAt')}: {formatDateTimeCompactZurich(item.form.closes_at)}</p>
                     )}
                   </div>
                   <button
-                    onClick={() => setFillForm(f)}
+                    onClick={() => setFillItem(item)}
                     className="min-h-[36px] shrink-0 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400 dark:text-blue-950"
                   >
-                    {tf('fill')}
+                    {item.submission ? tf('edit') : tf('fill')}
                   </button>
                 </li>
               ))}
@@ -484,12 +483,13 @@ export default function HomePage() {
         </div>
       )}
 
-      {fillForm && (
+      {fillItem && (
         <FormFillModal
-          open={!!fillForm}
-          form={fillForm}
-          onSubmitted={() => { setFillForm(null); refetchForms() }}
-          onCancel={() => setFillForm(null)}
+          open={!!fillItem}
+          form={fillItem.form}
+          existing={fillItem.submission}
+          onSubmitted={() => { setFillItem(null); refetchForms() }}
+          onCancel={() => setFillItem(null)}
         />
       )}
 

@@ -5,7 +5,7 @@ import { FormInput, FormTextarea, FormField } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import TeamMultiSelect from '@/components/TeamMultiSelect'
-import { ChevronUp, ChevronDown, Trash2, Plus } from 'lucide-react'
+import { ChevronUp, ChevronDown, Trash2, Plus, Languages } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useCollection, useInvalidate } from '../../lib/query'
 import { createRecord, updateRecord } from '../../lib/api'
@@ -13,6 +13,7 @@ import { teamNameToColorKey } from '../../utils/teamColors'
 import { toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso } from '../../utils/dateHelpers'
 import type { Team } from '../../types'
 import FormFieldRenderer from './FormFieldRenderer'
+import { FORM_LOCALES } from './labels'
 import {
   FIELD_TYPES,
   type FieldDef,
@@ -20,7 +21,22 @@ import {
   type FormDef,
   type FormStatus,
   type FormAudience,
+  type FormLocale,
 } from './types'
+
+/** Build a URL-safe slug from a title (lowercase, dashes, ASCII-ish). */
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+}
+
+const FORM_LOCALE_LABELS: Record<FormLocale, string> = {
+  de: 'DE', en: 'EN', fr: 'FR', gsw: 'GSW', it: 'IT',
+}
 
 interface Props {
   form?: FormDef | null
@@ -41,8 +57,10 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
   const invalidate = useInvalidate()
   const { user, coachTeamIds, teamResponsibleIds, isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin } = useAuth()
   // Full managers (global admin + Vorstand) can target any audience incl.
-  // club-wide; everyone else is locked to team-scoped forms.
+  // club-wide; everyone else is locked to team-scoped forms. Public exposure
+  // (anonymous internet submissions) is also full-manager-only.
   const canClubWide = isGlobalAdmin || isVorstand
+  const canPublic = isGlobalAdmin || isVorstand
 
   const { data: allTeamsRaw } = useCollection<Team>('teams', { filter: { active: { _eq: true } }, sort: ['name'], limit: 50 })
   const allTeams = allTeamsRaw ?? []
@@ -70,8 +88,12 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
   const [selectedTeams, setSelectedTeams] = useState<string[]>([])
   const [anonymous, setAnonymous] = useState(false)
   const [allowMultiple, setAllowMultiple] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
+  const [isPublic, setIsPublic] = useState(false)
+  const [slug, setSlug] = useState('')
   const [closesAt, setClosesAt] = useState('')
   const [fields, setFields] = useState<FieldDef[]>([])
+  const [transOpen, setTransOpen] = useState<Set<string>>(new Set())
   const [showPreview, setShowPreview] = useState(false)
   const [preview, setPreview] = useState<Record<string, unknown>>({})
   const [error, setError] = useState('')
@@ -92,6 +114,9 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
       )
       setAnonymous(form.anonymous)
       setAllowMultiple(form.allow_multiple)
+      setSuccessMessage(form.success_message ?? '')
+      setIsPublic(!!form.is_public)
+      setSlug(form.slug ?? '')
       setClosesAt(form.closes_at ? toDatetimeLocalFromUtcIso(form.closes_at) : '')
       setFields(Array.isArray(form.fields) ? form.fields : [])
     } else {
@@ -102,9 +127,13 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
       setSelectedTeams([])
       setAnonymous(false)
       setAllowMultiple(false)
+      setSuccessMessage('')
+      setIsPublic(false)
+      setSlug('')
       setClosesAt('')
       setFields([])
     }
+    setTransOpen(new Set())
     setShowPreview(false)
     setPreview({})
     setError('')
@@ -118,6 +147,25 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
   }
   function removeField(id: string) {
     setFields((prev) => prev.filter((f) => f.id !== id))
+  }
+  function setFieldLabelI18n(id: string, loc: FormLocale, value: string) {
+    setFields((prev) =>
+      prev.map((f) => {
+        if (f.id !== id) return f
+        const next = { ...(f.label_i18n ?? {}) }
+        if (value.trim()) next[loc] = value
+        else delete next[loc]
+        return { ...f, label_i18n: Object.keys(next).length ? next : undefined }
+      }),
+    )
+  }
+  function toggleTrans(id: string) {
+    setTransOpen((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
   function moveField(index: number, dir: -1 | 1) {
     setFields((prev) => {
@@ -138,6 +186,8 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
     if (fields.some((f) => CHOICE_TYPES.includes(f.type) && (f.options ?? []).length === 0))
       return setError(t('errorChoiceOptions'))
     if (audience === 'teams' && selectedTeams.length === 0) return setError(t('errorTeamsRequired'))
+    const finalSlug = isPublic ? (slug.trim() || slugify(title)) : ''
+    if (isPublic && !finalSlug) return setError(t('errorSlugRequired'))
 
     const payload = {
       title: title.trim(),
@@ -147,6 +197,9 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
       fields,
       anonymous,
       allow_multiple: allowMultiple,
+      success_message: successMessage.trim() || null,
+      is_public: canPublic ? isPublic : false,
+      slug: canPublic && isPublic ? finalSlug : null,
       closes_at: closesAt ? toUtcIsoFromDatetimeLocal(closesAt) : null,
       created_by: user?.id,
       teams: audience === 'teams' ? selectedTeams.map((id) => ({ teams_id: id })) : [],
@@ -217,6 +270,43 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
           <div><span>{t('allowMultiple')}</span><p className="text-xs text-muted-foreground">{t('allowMultipleHint')}</p></div>
         </div>
 
+        <FormTextarea
+          label={t('successMessage')}
+          value={successMessage}
+          onChange={(e) => setSuccessMessage(e.target.value)}
+          rows={2}
+          helperText={t('successMessageHint')}
+        />
+
+        {canPublic && (
+          <div className="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <Switch
+                checked={isPublic}
+                onCheckedChange={(v) => {
+                  setIsPublic(v)
+                  if (v && !slug.trim()) setSlug(slugify(title))
+                }}
+              />
+              <div><span>{t('isPublic')}</span><p className="text-xs text-muted-foreground">{t('isPublicHint')}</p></div>
+            </div>
+            {isPublic && (
+              <FormField label={t('slug')} helperText={t('slugHint')}>
+                <div className="flex items-center gap-1">
+                  <span className="shrink-0 text-xs text-muted-foreground">/formular/</span>
+                  <input
+                    type="text"
+                    value={slug}
+                    onChange={(e) => setSlug(slugify(e.target.value))}
+                    placeholder={slugify(title) || 'mein-formular'}
+                    className="min-h-[44px] flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
+                  />
+                </div>
+              </FormField>
+            )}
+          </div>
+        )}
+
         {/* Field editor */}
         <div className="rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700">
@@ -271,6 +361,18 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                       <Switch checked={f.required} onCheckedChange={(v) => updateField(f.id, { required: v })} />
                       {t('required')}
                     </label>
+                    <button
+                      type="button"
+                      onClick={() => toggleTrans(f.id)}
+                      className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium ${
+                        transOpen.has(f.id) || f.label_i18n
+                          ? 'text-brand-600 dark:text-brand-400'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      title={t('translateLabel')}
+                    >
+                      <Languages size={14} /> {t('translateLabel')}
+                    </button>
                   </div>
                   {CHOICE_TYPES.includes(f.type) && (
                     <textarea
@@ -280,6 +382,23 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                       rows={3}
                       className="w-full rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
                     />
+                  )}
+                  {transOpen.has(f.id) && (
+                    <div className="space-y-1.5 rounded-md bg-muted/50 p-2">
+                      <p className="text-xs text-muted-foreground">{t('translateHint')}</p>
+                      {FORM_LOCALES.map((loc) => (
+                        <div key={loc} className="flex items-center gap-2">
+                          <span className="w-9 shrink-0 text-xs font-medium text-muted-foreground">{FORM_LOCALE_LABELS[loc]}</span>
+                          <input
+                            type="text"
+                            value={f.label_i18n?.[loc] ?? ''}
+                            onChange={(e) => setFieldLabelI18n(f.id, loc, e.target.value)}
+                            placeholder={f.label}
+                            className="min-h-[36px] flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               ))}
