@@ -57,7 +57,7 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
         )}
         <DetailRow label={t('league')} value={game.league || ''} />
         <DetailRow label={t('start')} value={game.time ? formatTime(game.time) : ''} />
-        <DetailRow label={t('slot')} value={`${slot.start_time}–${slot.end_time}`} />
+        <DetailRow label={t('slot')} value={`${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}`} />
         {game.status && (
           <DetailRow label={t('common:status')} value={statusLabels[game.status] || game.status} />
         )}
@@ -89,8 +89,8 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
             </span>
           </div>
         )}
-        <DetailRow label={t('startTime')} value={slot.start_time} />
-        <DetailRow label={t('endTime')} value={slot.end_time} />
+        <DetailRow label={t('startTime')} value={slot.start_time?.slice(0, 5) || ''} />
+        <DetailRow label={t('endTime')} value={slot.end_time?.slice(0, 5) || ''} />
         <DetailRow label={t('notes')} value={training.notes} />
         {meta.isCancelled && (
           <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">
@@ -139,7 +139,7 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
       {meta.isSpielhalleFreed ? (
         <div className="space-y-1">
           <DetailRow label={t('hall')} value={hallName} />
-          <DetailRow label={t('slot')} value={`${slot.start_time}–${slot.end_time}`} />
+          <DetailRow label={t('slot')} value={`${slot.start_time?.slice(0, 5)}–${slot.end_time?.slice(0, 5)}`} />
         </div>
       ) : (
         <>

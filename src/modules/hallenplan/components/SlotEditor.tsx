@@ -365,6 +365,7 @@ export default function SlotEditor({
                   <DatePicker
                     value={form.valid_from}
                     onChange={(v) => update('valid_from', v)}
+                    fromYear={new Date().getFullYear()}
                   />
                 </div>
                 <div className={`flex shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs font-medium ${indefinitely ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 dark:border-brand-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
@@ -384,6 +385,7 @@ export default function SlotEditor({
                 label={t('validTo')}
                 value={form.valid_until}
                 onChange={(v) => update('valid_until', v)}
+                fromYear={new Date().getFullYear()}
               />
             )}
           </div>

@@ -24,6 +24,9 @@ interface DatePickerProps {
   required?: boolean
   disabled?: boolean
   className?: string
+  /** Earliest year shown in the year dropdown. Defaults to 1900 (needed for birthdates).
+   *  Clamped to the selected date's year so editing an older value stays selectable. */
+  fromYear?: number
 }
 
 export default function DatePicker({
@@ -38,6 +41,7 @@ export default function DatePicker({
   id,
   disabled,
   className = '',
+  fromYear,
 }: DatePickerProps) {
   const { t, i18n } = useTranslation('common')
   const lang = i18n.language
@@ -55,6 +59,11 @@ export default function DatePicker({
 
   const minDate = min ? parseISO(min) : undefined
   const maxDate = max ? parseISO(max) : undefined
+
+  const startYear =
+    fromYear != null
+      ? Math.min(fromYear, selectedDate ? selectedDate.getFullYear() : fromYear)
+      : 1900
 
   const displayValue = selectedDate
     ? formatDateLocale(selectedDate, 'd. MMM yyyy', lang)
@@ -114,7 +123,7 @@ export default function DatePicker({
             onMonthChange={setMonth}
             locale={locale}
             weekStartsOn={1}
-            startMonth={new Date(1900, 0)}
+            startMonth={new Date(startYear, 0)}
             endMonth={new Date(Math.max(2035, new Date().getFullYear() + 10), 11)}
             disabled={(date) => {
               if (minDate && toDateKey(date) < toDateKey(minDate)) return true
