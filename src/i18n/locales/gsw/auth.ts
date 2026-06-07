@@ -186,6 +186,7 @@ export default {
   leaveTeam: 'Team verla',
   leaveTeamTitle: 'Team verla',
   leaveTeamConfirm: 'Wotsch {{team}} würkli verla? Du wirsch usem Kader gnoh und bruuchsch e Bestätigung zum wieder biträte.',
+  leaveTeamError: 'S Team het nöd chöne verla werde. Bitte probiers nomal.',
   teamRequestSent: 'Aafrag gschickt',
 
   // Bueße

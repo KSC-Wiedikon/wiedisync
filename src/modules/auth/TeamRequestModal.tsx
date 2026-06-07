@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import SearchableSelect from '@/components/ui/SearchableSelect'
@@ -119,7 +120,9 @@ export default function TeamRequestModal({
       refetchMyTeams()
       onChange?.()
     } catch {
-      // error already captured by deleteRecord
+      // deleteRecord already captured the error; surface it so a failed leave
+      // isn't mistaken for success (was a silent swallow).
+      toast.error(t('leaveTeamError'))
     } finally {
       setLeavingId(null)
     }

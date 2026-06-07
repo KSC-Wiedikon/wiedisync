@@ -50,6 +50,9 @@ export interface AuthContextValue {
   /** Re-derive team context (member/coach team ids etc.) after a membership
    *  change — e.g. leaving a team — without a full page reload. */
   refreshTeamContext: () => Promise<void>
+  /** Re-fetch the current member record (e.g. after a profile edit / new
+   *  photo) so the UI updates without a full page reload. */
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -282,6 +285,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user?.id) await loadTeamContext(user.id)
   }, [user, loadTeamContext])
 
+  const refreshUser = useCallback(async () => {
+    const member = await fetchMember()
+    if (member) setUser(member)
+  }, [fetchMember])
+
   // ── Derived ─────────────────────────────────────────────────────
 
   const roles = user?.role ?? []
@@ -350,7 +358,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, is_spielplaner: isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
     canViewTeam, isVorstand, getGuestLevel, isGuestIn, isLoading, login, loginWithOAuth, logout,
-    refreshTeamContext,
+    refreshTeamContext, refreshUser,
   }), [
     user, isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
     hasAdminAccessToSport, hasAdminAccessToTeam, isApproved, isProfileComplete,
@@ -358,7 +366,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
     canViewTeam, isVorstand, getGuestLevel, isGuestIn, isLoading, login, loginWithOAuth, logout,
-    refreshTeamContext,
+    refreshTeamContext, refreshUser,
   ])
 
   // Block the entire app while restoring a previous session so no route

@@ -184,6 +184,7 @@ export default {
   leaveTeam: 'Lascia la squadra',
   leaveTeamTitle: 'Lascia la squadra',
   leaveTeamConfirm: 'Vuoi davvero lasciare {{team}}? Verrai rimosso dalla rosa e dovrai ottenere un\'approvazione per rientrare.',
+  leaveTeamError: 'Impossibile lasciare la squadra. Riprova.',
   teamRequestSent: 'Richiesta inviata',
 
   // Multe

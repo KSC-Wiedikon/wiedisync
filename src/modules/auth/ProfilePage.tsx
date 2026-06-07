@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Plus, X, Clock } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
@@ -146,7 +147,9 @@ export default function ProfilePage() {
       refetchMemberTeams()
       refreshTeamContext()
     } catch {
-      // ignore — error already captured by deleteRecord
+      // deleteRecord already captured the error; surface it so a failed leave
+      // isn't mistaken for success (was a silent swallow).
+      toast.error(t('leaveTeamError'))
     } finally {
       setLeaving(false)
     }

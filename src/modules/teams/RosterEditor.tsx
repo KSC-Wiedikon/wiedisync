@@ -21,7 +21,7 @@ import { getCurrentSeason } from '../../utils/dateHelpers'
 import type { Team, Member, MemberPosition, MemberTeam, TeamSettings } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
-import { fetchAllItems, fetchItems, updateRecord } from '../../lib/api'
+import { fetchAllItems, fetchItems, updateRecord, uploadFile } from '../../lib/api'
 import { asObj, relId } from '../../utils/relations'
 
 type LeadershipRole = 'coach' | 'captain' | 'team_responsible'
@@ -195,9 +195,13 @@ export default function RosterEditor() {
     }
     setUploadingPicture(true)
     try {
-      const formData = new FormData()
-      formData.append('team_picture', file)
-      const updated = await updateRecord<Team>('teams', team.id, formData as unknown as Record<string, unknown>)
+      // Upload to /files first (multipart), then set the FK on the team.
+      // Passing FormData straight to updateRecord() is a silent no-op: the
+      // Directus SDK's updateItem JSON.stringifies the body, and
+      // JSON.stringify(FormData) === '{}' → empty PATCH that "succeeds" but
+      // saves nothing. File fields must go through POST /files.
+      const { id: fileId } = await uploadFile(file)
+      const updated = await updateRecord<Team>('teams', team.id, { team_picture: fileId })
       logActivity('update', 'teams', team.id, { team_picture: updated.team_picture })
       setTeam((prev) => prev ? { ...prev, team_picture: updated.team_picture } : prev)
       toast.success(t('common:saved'))

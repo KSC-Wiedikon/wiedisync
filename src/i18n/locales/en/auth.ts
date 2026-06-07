@@ -186,6 +186,7 @@ export default {
   leaveTeam: 'Leave team',
   leaveTeamTitle: 'Leave team',
   leaveTeamConfirm: 'Are you sure you want to leave {{team}}? You\'ll be removed from the roster and will need approval to rejoin.',
+  leaveTeamError: 'Could not leave the team. Please try again.',
   teamRequestSent: 'Request sent',
 
   // Fines

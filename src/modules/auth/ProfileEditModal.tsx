@@ -24,7 +24,7 @@ import { CheckIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { logActivity } from '../../utils/logActivity'
 import type { MemberPosition } from '../../types'
-import { client, fetchAllItems, kscwApi, updateRecord } from '../../lib/api'
+import { client, fetchAllItems, kscwApi, updateRecord, uploadFile } from '../../lib/api'
 
 
 interface ProfileEditModalProps {
@@ -34,7 +34,7 @@ interface ProfileEditModalProps {
 }
 
 export default function ProfileEditModal({ open, onClose, onboarding }: ProfileEditModalProps) {
-  const { user, primarySport, memberTeamNames } = useAuth()
+  const { user, primarySport, memberTeamNames, refreshUser } = useAuth()
   const { t, i18n } = useTranslation('auth')
   const { t: tc } = useTranslation('common')
   const { t: tt } = useTranslation('teams')
@@ -225,21 +225,16 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       payload.sex = sex
       payload.ahv_nummer = ahvNummer
 
-      // Use FormData only when uploading a photo, otherwise plain object
+      // Upload the photo to /files first (multipart), then set the FK in the
+      // plain-JSON payload. Passing FormData straight to updateRecord() is a
+      // silent no-op: the Directus SDK's updateItem JSON.stringifies the body,
+      // and JSON.stringify(FormData) === '{}' → empty PATCH that "succeeds"
+      // but saves nothing. File fields must go through POST /files.
       if (photoFile) {
-        const formData = new FormData()
-        for (const [key, value] of Object.entries(payload)) {
-          if (Array.isArray(value)) {
-            formData.append(key, JSON.stringify(value))
-          } else {
-            formData.append(key, String(value))
-          }
-        }
-        formData.append('photo', photoFile)
-        await updateRecord('members', user.id, formData as unknown as Record<string, unknown>)
-      } else {
-        await updateRecord('members', user.id, payload)
+        const { id: fileId } = await uploadFile(photoFile)
+        payload.photo = fileId
       }
+      await updateRecord('members', user.id, payload)
       logActivity('update', 'members', user.id, { first_name: fn, last_name: ln, phone, language, position: selectedPositions })
       // Detect ClubDesk field changes and notify admin
       const clubdeskFields = {
@@ -285,6 +280,9 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       // Persist language to localStorage
       localStorage.setItem('wiedisync-lang', backendLangToI18n(language))
       await client.refresh()
+      // Re-fetch the member so the new photo / edited fields show without a
+      // full page reload.
+      await refreshUser()
       onClose()
     } catch {
       setError(t('errorSaving'))

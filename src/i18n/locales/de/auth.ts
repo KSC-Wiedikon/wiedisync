@@ -186,6 +186,7 @@ export default {
   leaveTeam: 'Team verlassen',
   leaveTeamTitle: 'Team verlassen',
   leaveTeamConfirm: 'Möchtest du {{team}} wirklich verlassen? Du wirst vom Kader entfernt und brauchst eine Bestätigung, um wieder beizutreten.',
+  leaveTeamError: 'Das Team konnte nicht verlassen werden. Bitte versuche es erneut.',
   teamRequestSent: 'Anfrage gesendet',
 
   // Bussen

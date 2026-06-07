@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.23.0'
+const APP_VERSION = '4.23.1'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.23.1',
+    date: '07.06.2026',
+    sections: [
+      {
+        title: 'Picture uploads fixed',
+        items: [
+          'Uploading a team picture or a profile photo now actually saves — it used to show "Saved" without storing anything.',
+          'Your new picture appears straight away, without reloading the page.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.23',
     date: '07.06.2026',
