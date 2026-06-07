@@ -2,6 +2,7 @@ export default {
   title: 'Teams & Mitglieder',
   subtitleSeason: 'Saison {{season}}',
   joinAnotherTeam: 'Eme neue Team biträte',
+  manageTeams: 'Teams verwalte',
   players_one: '{{count}} Spiler',
   players_other: '{{count}} Spiler',
   guests_one: '{{count}} Gascht',

@@ -602,7 +602,7 @@ function SocialLinkRow({ label, hint, value, onChange, placeholder }: {
 }
 
 /* ── Collapsible accordion group ── */
-function SettingsGroup({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+function SettingsGroup({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-700">

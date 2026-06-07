@@ -784,7 +784,10 @@ async function main() {
   // double-walk trap doesn't apply.
   await setPermRead(MEMBER_POLICY, 'fines', { member: { user: { _eq: '$CURRENT_USER' } } })
   await setPermRead(MEMBER_POLICY, 'fine_rules', {
-    team: { member_teams: { member: { user: { _eq: '$CURRENT_USER' } } } },
+    // `members` is the o2m alias on teams (each row is a member_teams junction);
+    // `teams.member_teams` is NOT a relational field → "Invalid query" that
+    // broke fine_rules reads on the home page + roster editor for everyone.
+    team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } },
   })
 
   // Scheduling blocks (migration 085) — team blackout dates. Read-only for

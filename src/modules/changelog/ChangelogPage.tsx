@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.22.0'
+const APP_VERSION = '4.23.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.23',
+    date: '07.06.2026',
+    sections: [
+      {
+        title: 'Leave a team, clearer settings',
+        items: [
+          'You can now leave a team straight from the Teams page — the new "Manage teams" button lets you both request to join a team and step out of one you\'re already on.',
+          'Team settings sections (game & training defaults, fines) now start expanded, so everything is visible at a glance instead of hidden behind collapsed headers.',
+          'Fixed an error that broke the team roster editor and the home page when loading fine rules.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.22',
     date: '05.06.2026',

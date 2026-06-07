@@ -178,6 +178,7 @@ export default {
   // Team requests
   addTeam: 'Team dezuetue',
   addTeamTitle: 'Team biitrete',
+  manageTeamsTitle: 'Teams verwalte',
   addTeamDescription: 'Wähl es Team, wo du wotsch biitrete. De Trainer muess d Aafrag bestätige.',
   noTeamsAvailable: 'Kei wiiteri Teams verfüägbar.',
   sendRequest: 'Aafrag schicke',

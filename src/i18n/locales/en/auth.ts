@@ -178,6 +178,7 @@ export default {
   // Team requests
   addTeam: 'Add Team',
   addTeamTitle: 'Join a Team',
+  manageTeamsTitle: 'Manage teams',
   addTeamDescription: 'Select a team you\'d like to join. The coach needs to approve your request.',
   noTeamsAvailable: 'No more teams available.',
   sendRequest: 'Send Request',

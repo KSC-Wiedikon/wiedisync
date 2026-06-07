@@ -34,7 +34,7 @@ interface FinesSettingsProps {
  */
 export default function FinesSettings({ teamId }: FinesSettingsProps) {
   const { t } = useTranslation(['fines'])
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const { data: rulesRaw, refetch } = useFineRules(teamId, { enabled: open })
   const rules = rulesRaw ?? []
 

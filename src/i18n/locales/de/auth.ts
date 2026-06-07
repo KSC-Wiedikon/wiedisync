@@ -178,6 +178,7 @@ export default {
   // Team requests
   addTeam: 'Team hinzufügen',
   addTeamTitle: 'Team beitreten',
+  manageTeamsTitle: 'Teams verwalten',
   addTeamDescription: 'Wähle ein Team, dem du beitreten möchtest. Der Trainer muss die Anfrage bestätigen.',
   noTeamsAvailable: 'Keine weiteren Teams verfügbar.',
   sendRequest: 'Anfrage senden',

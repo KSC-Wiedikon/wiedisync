@@ -94,7 +94,7 @@ function AutoSignInCard() {
 }
 
 export default function ProfilePage() {
-  const { user, coachTeamIds, primarySport } = useAuth()
+  const { user, coachTeamIds, primarySport, refreshTeamContext } = useAuth()
   const { t } = useTranslation('auth')
   const { t: tt } = useTranslation('teams')
   const [editOpen, setEditOpen] = useState(false)
@@ -144,6 +144,7 @@ export default function ProfilePage() {
       await deleteRecord('member_teams', leavingTeam.id)
       setLeavingTeam(null)
       refetchMemberTeams()
+      refreshTeamContext()
     } catch {
       // ignore — error already captured by deleteRecord
     } finally {
@@ -531,6 +532,7 @@ export default function ProfilePage() {
           refetchRequests()
         }}
         currentTeamIds={currentTeamIds}
+        showLeave={false}
       />
       <DeleteAccountModal
         open={deleteOpen}

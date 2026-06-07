@@ -15,7 +15,7 @@ import { relId } from '../../utils/relations'
 
 export default function TeamsPage() {
   const { t } = useTranslation('teams')
-  const { canViewTeam, memberTeamIds, coachTeamIds } = useAuth()
+  const { canViewTeam, memberTeamIds, coachTeamIds, refreshTeamContext } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   const [joinOpen, setJoinOpen] = useState(false)
   const currentTeamIds = useMemo(
@@ -29,7 +29,7 @@ export default function TeamsPage() {
   })
   const teams = teamsRaw ?? []
   const season = getCurrentSeason()
-  const { data: memberTeamsRaw } = useCollection<MemberTeam>('member_teams', {
+  const { data: memberTeamsRaw, refetch: refetchMemberTeams } = useCollection<MemberTeam>('member_teams', {
     filter: { season: { _eq: season } },
     all: true,
   })
@@ -110,6 +110,7 @@ export default function TeamsPage() {
           onClose={() => setJoinOpen(false)}
           onComplete={() => setJoinOpen(false)}
           currentTeamIds={currentTeamIds}
+          showLeave={false}
         />
       </>
     )
@@ -125,7 +126,7 @@ export default function TeamsPage() {
         {!hasElevatedAccess && (
           <Button variant="outline" size="sm" onClick={() => setJoinOpen(true)} className="shrink-0">
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">{t('joinAnotherTeam')}</span>
+            <span className="hidden sm:inline">{t('manageTeams')}</span>
           </Button>
         )}
       </div>
@@ -159,6 +160,10 @@ export default function TeamsPage() {
         onClose={() => setJoinOpen(false)}
         onComplete={() => setJoinOpen(false)}
         currentTeamIds={currentTeamIds}
+        onChange={() => {
+          refetchMemberTeams()
+          refreshTeamContext()
+        }}
       />
     </div>
   )

@@ -176,6 +176,7 @@ export default {
   // Team requests
   addTeam: 'Aggiungi squadra',
   addTeamTitle: 'Unisciti a una squadra',
+  manageTeamsTitle: 'Gestisci le squadre',
   addTeamDescription: 'Seleziona una squadra a cui vorresti unirti. L\'allenatore deve approvare la tua richiesta.',
   noTeamsAvailable: 'Nessuna altra squadra disponibile.',
   sendRequest: 'Invia richiesta',

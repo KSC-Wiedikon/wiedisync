@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, consolidated into release eras (newest first). Each era summarises a range of point releases; for the full per-version detail see `git log` and the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`).
 
+## v4.23 — 2026-06-07
+
+- **Leave a team from the Teams page**: `TeamRequestModal` is now a combined "Manage teams" modal (join-request + per-team leave with inline confirm); Teams-page button relabelled `manageTeams`. New `useAuth().refreshTeamContext()` re-derives team context after a leave so cards/counts update without a reload (also wired into ProfilePage's existing inline leave). i18n `manageTeams`/`manageTeamsTitle` ×5. ProfilePage's modal stays join-only (`showLeave={false}`) since it already exposes inline per-team leave.
+- **Settings default open**: the team-settings accordion `SettingsGroup` default flipped to open (Game Defaults + Training Defaults were collapsed; Website + Features already open) and `FinesSettings` starts open. Non-settings collapsibles (scorer info, referee-expense, admin explorer, Spielplanung import) left untouched.
+- **`fine_rules` permission fix** (`setup-permissions.mjs`): the Member read filter walked `teams.member_teams`, which is not a relational field → `Invalid query` that broke `fine_rules` reads on the home page + roster editor for **everyone** (surfaced via repeated DU23-1 roster-editor errors). Corrected to the `teams.members` o2m alias. Applied via `db:setup-perms:dev` + `db:setup-perms:prod`.
+
 ## v4.22 — 2026-06-05
 
 Forms v2 — submission UX, roster-aware tracking, file/multi-language fields, and public forms.
