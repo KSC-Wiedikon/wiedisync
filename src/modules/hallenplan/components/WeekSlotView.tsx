@@ -210,12 +210,24 @@ export default function WeekSlotView({
           for (const hid of ps.slot._virtual.spanHallIds) activeHallIds.add(hid)
         }
       }
-      // Show at least 1 hall per day (first visible hall) so the day column isn't empty
       const dayHalls = visibleHalls.filter((h) => activeHallIds.has(h.id))
-      map.set(dayIndex, dayHalls.length > 0 ? dayHalls : [visibleHalls[0]])
+      if (dayHalls.length > 0) {
+        map.set(dayIndex, dayHalls)
+        continue
+      }
+      // No slots this day. When some (but not all) halls are closed the
+      // all-closed collapse path never fires, so show the actually-closed halls
+      // with their CLOSED overlay instead of an arbitrary placeholder hall —
+      // which would otherwise display a misleading name that flips with the hall
+      // filter (it was just visibleHalls[0]). Fall back to the first visible
+      // hall only when nothing is closed either (e.g. a forced-empty weekday).
+      const closedHalls = visibleHalls.filter(
+        (h) => (closuresByDayHall.get(`${dayIndex}:${h.id}`)?.length ?? 0) > 0,
+      )
+      map.set(dayIndex, closedHalls.length > 0 ? closedHalls : [visibleHalls[0]])
     }
     return map
-  }, [multiHall, visibleDays, visibleHalls, slotsByDayHall, positioned])
+  }, [multiHall, visibleDays, visibleHalls, slotsByDayHall, positioned, closuresByDayHall])
 
   // Detect days where ALL visible halls are closed and no slots exist → collapse to 1 column
   const allClosedDays = useMemo(() => {
