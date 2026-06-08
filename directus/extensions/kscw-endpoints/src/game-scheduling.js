@@ -2140,27 +2140,31 @@ export function registerGameScheduling(router, { database, logger, services, get
       // SVRZ stores season_name as the start year ("2026" for 2026/27). Scope to
       // it so stale `waitingForApproval` fixtures from old seasons (which never
       // got approved) don't leak in and double the game count.
+      // Scope to THIS team by NAME, not league. `teams.league` doesn't reliably
+      // match SVRZ's `league_short`: juniors are the clear case — wiedisync stores
+      // "HU20"/"DU20" but SVRZ files those games under "U20 Ligamodus", so the old
+      // hard league gate silently dropped every junior fixture (0 opponents). The
+      // reliable signal is the SVRZ side name, always "KSC Wiedikon <team>"
+      // (suffix and all, e.g. "KSC Wiedikon HU23-1"). Pull all KSCW season games
+      // and match on a normalised identity (lowercase, strip the "KSC Wiedikon"
+      // prefix, drop punctuation/spacing). This scopes H1 vs H3, and the
+      // same-league-code HU23 vs DU23 (both "U23", different gender), precisely —
+      // and naturally yields 0 for a team with no synced fixtures (e.g. DU20,
+      // which has none) instead of a garbage superset.
       const svrzSeasonName = String(seasonRow.season || '').split('/')[0].trim()
-      const leagueGames = await database('svrz_games')
+      const allGames = await database('svrz_games')
         .whereIn('status', ['open', 'waitingForApproval'])
         .where(function () {
           this.where('home_club_id', KSCW_SVRZ_CLUB_ID).orWhere('away_club_id', KSCW_SVRZ_CLUB_ID)
         })
-        .andWhere(function () {
-          if (kscwTeamRow.league) {
-            this.where('league_short', kscwTeamRow.league).orWhere('league_name', 'like', `%${kscwTeamRow.league}%`)
-          }
-        })
         .modify((q) => { if (svrzSeasonName) q.where('season_name', svrzSeasonName) })
         .orderBy('starting_date_time')
-      const kscwSvrzName = `ksc wiedikon ${String(kscwTeamRow.name || '').trim()}`.toLowerCase()
+      const normTeamId = (s) =>
+        String(s || '').toLowerCase().trim().replace(/^ksc\s+wiedikon\s+/, '').replace(/[^a-z0-9]/g, '')
+      const teamId = normTeamId(kscwTeamRow.name)
       const kscwSideName = (g) =>
         (String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID) ? g.home_team_name : g.away_team_name) || ''
-      const scoped = leagueGames.filter((g) => kscwSideName(g).trim().toLowerCase() === kscwSvrzName)
-      // Fallback: if the SVRZ name doesn't follow the "KSC Wiedikon <team>"
-      // convention (naming drift), keep the league-filtered set rather than show
-      // no opponents at all.
-      const games = scoped.length ? scoped : leagueGames
+      const games = allGames.filter((g) => normTeamId(kscwSideName(g)) === teamId)
 
       // 2. Group by opponent TEAM (club id + team name). Grouping by club alone
       // merged a club's several teams into one row; keying on the opposing team

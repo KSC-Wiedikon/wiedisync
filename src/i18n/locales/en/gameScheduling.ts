@@ -107,6 +107,13 @@ export default {
 
   // Public opponent flow
   publicTitle: 'Game Scheduling KSCW',
+  calendarView: 'Calendar',
+  listView: 'List',
+  nTimeOptions: '{{count}} times',
+  pickTimeHint: 'Pick a time to confirm the home game.',
+  legOpen: 'Open',
+  legProposed: 'Proposed',
+  legConfirmed: 'Confirmed',
   publicSubtitle: 'Schedule your games with KSCW',
   selectGender: 'Gender',
   genderMen: 'Men',
