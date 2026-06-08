@@ -96,6 +96,8 @@ export default {
   saved: 'Salvato',
   errorSaving: 'Errore durante il salvataggio',
   errorLoading: 'Errore durante il caricamento:',
+  error: 'Si è verificato un errore',
+  confirmDelete: 'Eliminare questo elemento?',
   overlapDetected: 'Sovrapposizione rilevata:',
   tryAdjustingFilter: 'Prova a modificare il filtro squadra.',
   approved: 'Approvato',

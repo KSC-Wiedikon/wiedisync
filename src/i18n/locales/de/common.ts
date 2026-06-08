@@ -96,6 +96,8 @@ export default {
   saved: 'Gespeichert',
   errorSaving: 'Fehler beim Speichern',
   errorLoading: 'Fehler beim Laden:',
+  error: 'Ein Fehler ist aufgetreten',
+  confirmDelete: 'Diesen Eintrag löschen?',
   overlapDetected: 'Überschneidung erkannt:',
   tryAdjustingFilter: 'Versuche den Teamfilter anzupassen.',
   approved: 'Genehmigt',

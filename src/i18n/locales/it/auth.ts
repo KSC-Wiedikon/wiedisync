@@ -139,6 +139,7 @@ export default {
   otpInvalid: 'Codice non valido. Riprova.',
   otpExpired: 'Codice scaduto. Richiedine uno nuovo.',
   otpError: 'Impossibile inviare il codice. Riprova.',
+  otpResendError: 'Impossibile inviare di nuovo il codice. Riprova.',
   codeSentTo: 'Abbiamo inviato un codice a 8 cifre a',
 
   // Context-aware OTP titles

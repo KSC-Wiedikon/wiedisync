@@ -96,6 +96,8 @@ export default {
   saved: 'Saved',
   errorSaving: 'Error saving',
   errorLoading: 'Error loading:',
+  error: 'An error occurred',
+  confirmDelete: 'Delete this item?',
   overlapDetected: 'Overlap detected:',
   tryAdjustingFilter: 'Try adjusting the team filter.',
   approved: 'Approved',

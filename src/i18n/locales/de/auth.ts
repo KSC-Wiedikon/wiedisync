@@ -141,6 +141,7 @@ export default {
   otpInvalid: 'Ungültiger Code. Bitte versuche es erneut.',
   otpExpired: 'Code abgelaufen. Bitte fordere einen neuen an.',
   otpError: 'Code konnte nicht gesendet werden. Bitte versuche es erneut.',
+  otpResendError: 'Code konnte nicht erneut gesendet werden. Bitte versuche es erneut.',
   codeSentTo: 'Wir haben einen 8-stelligen Code gesendet an',
 
   // Context-aware OTP titles

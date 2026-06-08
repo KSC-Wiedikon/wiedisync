@@ -96,6 +96,8 @@ export default {
   saved: 'Gspeicheret',
   errorSaving: 'Bim Speichere isch öppis schief gange',
   errorLoading: 'Bim Lade isch öppis schief gange:',
+  error: 'Es het en Fähler gäh',
+  confirmDelete: 'Das Iitrag lösche?',
   overlapDetected: 'Überschnidig gfunde:',
   tryAdjustingFilter: 'Probier de Teamfilter azpasse.',
   approved: 'Freigäh',

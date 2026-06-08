@@ -141,6 +141,7 @@ export default {
   otpInvalid: 'Ungültige Code. Bitte probier\'s nomal.',
   otpExpired: 'Code abglaufe. Bitte fordere en neue ah.',
   otpError: 'Code het nöd chönne gschickt werde. Bitte probier\'s nomal.',
+  otpResendError: 'De Code het nöd chönne nomal gschickt werde. Bitte probier\'s nomal.',
   codeSentTo: 'Mir hend en 8-stellige Code gschickt an',
 
   // Context-aware OTP titles

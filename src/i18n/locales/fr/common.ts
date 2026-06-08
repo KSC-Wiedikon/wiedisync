@@ -96,6 +96,8 @@ export default {
   saved: 'Enregistré',
   errorSaving: 'Erreur lors de l\'enregistrement',
   errorLoading: 'Erreur de chargement :',
+  error: 'Une erreur est survenue',
+  confirmDelete: 'Supprimer cet élément ?',
   overlapDetected: 'Chevauchement detecte :',
   tryAdjustingFilter: 'Essayez d\'ajuster le filtre d\'equipe.',
   approved: 'Approuve',

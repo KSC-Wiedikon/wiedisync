@@ -523,7 +523,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
             </h4>
             {(asObj<Member & BaseRecord>(expanded.bb_scorer_member) || game.bb_scorer_member) && (
               <DutyPersonRow
-                label={t('bbScorer')}
+                label={t('bbScorer', { ns: 'scorer' })}
                 member={asObj<Member & BaseRecord>(expanded.bb_scorer_member)}
                 dutyTeam={asObj<Team & BaseRecord>(expanded.bb_scorer_duty_team) ?? asObj<Team & BaseRecord>(expanded.bb_duty_team)}
                 showContact={showScorerContact}
@@ -531,7 +531,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
             )}
             {(asObj<Member & BaseRecord>(expanded.bb_timekeeper_member) || game.bb_timekeeper_member) && (
               <DutyPersonRow
-                label={t('bbTimekeeper')}
+                label={t('bbTimekeeper', { ns: 'scorer' })}
                 member={asObj<Member & BaseRecord>(expanded.bb_timekeeper_member)}
                 dutyTeam={asObj<Team & BaseRecord>(expanded.bb_timekeeper_duty_team) ?? asObj<Team & BaseRecord>(expanded.bb_duty_team)}
                 showContact={showScorerContact}
