@@ -70,7 +70,7 @@ export default function InviteExternalUserModal({ open, onClose, teamId, teamNam
     <Modal open={open} onClose={handleClose} title={t('teams:inviteExternalUser')}>
       <div className="space-y-4">
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t('teams:inviteExternalUserDesc', { team: teamName })}
+          {t('teams:inviteExternalUserDesc', { teamName })}
         </p>
 
         {!qrUrl ? (
