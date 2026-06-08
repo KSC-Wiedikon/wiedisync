@@ -566,6 +566,29 @@ export function registerGameScheduling(router, { database, logger, services, get
       const derbyAnchors = await confirmedDerbyAnchors(opponent.kscw_team, opponent.season, rueckStart)
       const derbyBlocked = buildDerbyBlockedSet(derbyAnchors, rueckStart, seasonRow)
 
+      // Döltschi rules: the club may schedule at most DOLTSCHI_SEASON_CAP games in
+      // Döltschi per season (club-wide), and never two simultaneous games there —
+      // Döltschi 1 + 2 count as ONE venue for games, so only one game per
+      // date+time. Computed club-wide (all teams) from booked Döltschi slots.
+      const DOLTSCHI_SEASON_CAP = 10
+      const doltschiHallIds = await database('halls')
+        .whereRaw("LOWER(name) LIKE '%döltschi%' OR LOWER(name) LIKE '%doltschi%'").pluck('id')
+      const isDoltschiHall = (h) => h != null && doltschiHallIds.includes(h)
+      let doltschiFull = false
+      const doltschiTakenTimes = new Set() // 'YYYY-MM-DD|HH:MM' already booked in Döltschi
+      if (doltschiHallIds.length) {
+        const bookedDoltschi = await database('game_scheduling_slots')
+          .where('season', opponent.season).where('status', 'booked')
+          .whereIn('hall', doltschiHallIds)
+          .select(database.raw('date::text as d'), 'start_time')
+        doltschiFull = bookedDoltschi.length >= DOLTSCHI_SEASON_CAP
+        for (const r of bookedDoltschi) {
+          doltschiTakenTimes.add(`${String(r.d).slice(0, 10)}|${String(r.start_time).slice(0, 5)}`)
+        }
+      }
+      // Dedupe offered Döltschi slots to one per date+time (1+2 = one venue).
+      const offeredDoltschiTimes = new Set()
+
       // Exclude slots whose date falls within any event linked to this team
       // (single-day or multi-day) — e.g. tournament weekend, team trip. Filter
       // at read time (not generation) so events added after slot generation
@@ -630,10 +653,18 @@ export function registerGameScheduling(router, { database, logger, services, get
           const absCount = Number(s.abs_count || 0)
           if (committedProposal3.has(date) || absCount >= 3) return null
           if (derbyBlocked.has(date)) return null  // before the derby in this half (Art. 27)
+          const startHM = String(s.start_time).slice(0, 5)
+          if (isDoltschiHall(s.hall)) {
+            // Döltschi: drop if the season cap is reached, the date+time is already
+            // booked in Döltschi, or we've already offered this date+time (1+2=one).
+            const key = `${date}|${startHM}`
+            if (doltschiFull || doltschiTakenTimes.has(key) || offeredDoltschiTimes.has(key)) return null
+            offeredDoltschiTimes.add(key)
+          }
           return {
             id: s.id,
             date,
-            start_time: String(s.start_time).slice(0, 5),
+            start_time: startHM,
             end_time: String(s.end_time).slice(0, 5),
             source: s.source,
             hall_id: s.hall,
@@ -1029,6 +1060,26 @@ export function registerGameScheduling(router, { database, logger, services, get
         const gap = n < 3 ? gaps.home : gaps.proposal3
         const committed = await committedGameDates(opponent.kscw_team, gap)
         if (committed.has(slotYmd)) throw Object.assign(new Error('Too close to another game for this team'), { httpStatus: 400 })
+
+        // Döltschi: club-wide season cap (10) + no two simultaneous games there
+        // (Döltschi 1 + 2 = one venue). Checked across all teams. (Admin confirms
+        // are sequential in practice; the per-team advisory lock above doesn't
+        // serialise cross-team, but a stray race is caught on the next confirm.)
+        const doltschiHallIds = await trx('halls')
+          .whereRaw("LOWER(name) LIKE '%döltschi%' OR LOWER(name) LIKE '%doltschi%'").pluck('id')
+        if (doltschiHallIds.includes(slot.hall)) {
+          const bookedD = await trx('game_scheduling_slots')
+            .where('season', opponent.season).where('status', 'booked')
+            .whereIn('hall', doltschiHallIds)
+            .select(trx.raw('date::text as d'), 'start_time')
+          if (bookedD.length >= 10) {
+            throw Object.assign(new Error('Döltschi season limit (10 games) reached'), { httpStatus: 400 })
+          }
+          const slotHM = String(slot.start_time).slice(0, 5)
+          if (bookedD.some((r) => `${String(r.d).slice(0, 10)}|${String(r.start_time).slice(0, 5)}` === `${slotYmd}|${slotHM}`)) {
+            throw Object.assign(new Error('Another game is already booked in Döltschi at this time'), { httpStatus: 400 })
+          }
+        }
 
         const team = await trx('teams').where('id', opponent.kscw_team).first('id', 'name')
         if (isSaturday(slotYmd)) {
@@ -1500,22 +1551,33 @@ export function registerGameScheduling(router, { database, logger, services, get
             .where('hall_slots.sport', 'volleyball')
             .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%')")
             .first()
-          let stdSlots = ownKwi.slice()
-          if (usesDoltschi) stdSlots = stdSlots.concat(doltschiVbPool)
-          let stdTag = 'hall_slot'
-          if (stdSlots.length === 0) { stdSlots = spielhalleSlots; stdTag = 'spielhalle' }
-          for (const hs of stdSlots) {
+          // Build (slot, source-tag) entries. Juniors (Under teams) ALWAYS get the
+          // shared VB Döltschi pool — they may play in Döltschi even when it isn't
+          // their own slot — AND the club Spielhalle pool (both). Non-juniors keep
+          // their own KWI slot, take the Döltschi pool only if assigned, and fall
+          // back to Spielhalle only when they have no evening slot at all.
+          const isJr = isJuniorTeam(team.name)
+          const stdEntries = ownKwi.map((hs) => ({ hs, tag: 'hall_slot' }))
+          if (usesDoltschi || isJr) {
+            for (const hs of doltschiVbPool) stdEntries.push({ hs, tag: 'hall_slot' })
+          }
+          if (isJr) {
+            for (const hs of spielhalleSlots) stdEntries.push({ hs, tag: 'spielhalle' })
+          } else if (stdEntries.length === 0) {
+            for (const hs of spielhalleSlots) stdEntries.push({ hs, tag: 'spielhalle' })
+          }
+          for (const { hs, tag } of stdEntries) {
             const targetJsDay = (hs.day_of_week + 1) % 7
             const d = new Date(eveningWindow.start)
             while (d <= eveningWindow.end) {
               if (d.getUTCDay() === targetJsDay) {
                 // B1/B2 — the shared Friday Spielhalle pool alternates with
                 // basketball after the October vacation. Skip VB-off Fridays.
-                const isFridaySpielhalle = stdTag === 'spielhalle' && targetJsDay === 5
+                const isFridaySpielhalle = tag === 'spielhalle' && targetJsDay === 5
                 if (!isFridaySpielhalle || fridayIsVolleyball(d)) {
                   candidates.push({
                     date: d.toISOString().slice(0, 10), start_time: hs.start_time,
-                    end_time: hs.end_time, hall: hs.hall, source: stdTag,
+                    end_time: hs.end_time, hall: hs.hall, source: tag,
                   })
                 }
               }
