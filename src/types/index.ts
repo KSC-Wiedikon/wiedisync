@@ -592,6 +592,37 @@ export interface SpielsamstagConfig {
   slots: { time: string; hall_id: string }[]
 }
 
+/** One head-to-head leg of an intra-club derby (e.g. H1 vs H3) — Art. 27 SVRZ. */
+export interface DerbyLeg {
+  svrz_id: string
+  display_name: string | null
+  home_team: { id: number; name: string }
+  away_team: { id: number; name: string }
+  /** Placeholder/scheduled datetime as the SVRZ feed currently has it. */
+  feed_datetime: string | null
+  /** Round the feed currently files it under, e.g. "Runde 7" (the case Art. 27 overrides). */
+  round: string | null
+  /** Date the spielplaner fixed (YYYY-MM-DD), or null. */
+  date: string | null
+  half: 'vorrunde' | 'rueckrunde' | null
+}
+
+/** A detected derby pair: two KSCW teams sharing a league group + their two legs. */
+export interface Derby {
+  team_a: { id: number; name: string }
+  team_b: { id: number; name: string }
+  legs: DerbyLeg[]
+  confirmed: boolean
+  stored_id: number | null
+}
+
+export interface DerbiesResponse {
+  season: string
+  /** Vor-/Rückrunde boundary (YYYY-01-01) the halves split on. */
+  boundary: string | null
+  derbies: Derby[]
+}
+
 export interface TeamSlotConfig {
   [teamId: string]: {
     /** Additive home-slot sources. Empty/absent = manual (no slots generated).

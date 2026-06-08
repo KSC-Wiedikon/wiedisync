@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.24.1'
+const APP_VERSION = '4.25.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.25.0',
+    date: '08.06.2026',
+    sections: [
+      {
+        title: 'Intra-club derby dates (game scheduling)',
+        items: [
+          'When two KSC Wiedikon teams play in the same league group (e.g. H1 and H3 in 2L), league rules require their two head-to-head games to be the first game of the Vorrunde and of the Rückrunde — otherwise the home team forfeits.',
+          'The scheduling setup now detects these pairs automatically and lets you fix the two derby dates. Once confirmed, opponents can only book home slots and away dates after them, so the derby always stays first.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.24.1',
     date: '08.06.2026',

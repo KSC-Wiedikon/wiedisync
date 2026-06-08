@@ -312,6 +312,13 @@ export function registerGameScheduling(router, { database, logger, services, get
       .select('b.confirmed_proposal as n', 'b.proposed_datetime_1 as d1',
               'b.proposed_datetime_2 as d2', 'b.proposed_datetime_3 as d3')
     confirmed.forEach((b) => addWindow(b[`d${b.n}`]))
+    // Confirmed intra-club derby legs are real games — block their gap window
+    // too (Art. 27). A team is team_a or team_b of the pair.
+    const derbies = await database('game_scheduling_derbies')
+      .where('confirmed', true)
+      .where(function () { this.where('team_a', kscwTeamId).orWhere('team_b', kscwTeamId) })
+      .select(database.raw('leg1_date::text as leg1_date'), database.raw('leg2_date::text as leg2_date'))
+    derbies.forEach((r) => { addWindow(r.leg1_date); addWindow(r.leg2_date) })
 
     if (opts.includeHeld) {
       const heldBase = () => {
@@ -431,6 +438,86 @@ export function registerGameScheduling(router, { database, logger, services, get
     return set
   }
 
+  // ── Intra-club derby anchoring (Art. 27 SVRZ) ────────────────────────
+  // When two KSCW teams share a league group (e.g. H1 & H3 in 2L), their two
+  // head-to-head games MUST be the first game of the Vorrunde and of the
+  // Rückrunde (Art. 27 Abs. 6 lit. a — forfait otherwise). The spielplaner fixes
+  // those two dates manually (game_scheduling_derbies); once confirmed, every
+  // OTHER home-slot offer + away-date proposal for both teams is clamped to
+  // after the relevant derby date, per half.
+
+  // Normalise a date column value (pg Date object or ISO string) → 'YYYY-MM-DD'.
+  const ymdOf = (v) => {
+    if (!v) return null
+    if (typeof v === 'string') return v.slice(0, 10)
+    const d = new Date(v)
+    if (Number.isNaN(d.getTime())) return null
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+  }
+
+  // Boundary between the Vorrunde and the Rückrunde = 01.01 of the season's
+  // second year. Swiss indoor volleyball always spans the new year (Vorrunde
+  // Sep–Dec, Rückrunde Jan–Mar), so the year turn is the reliable split and
+  // needs no per-season config. Returns 'YYYY-01-01' or null if unparseable.
+  const rueckrundeStart = (seasonRow) => {
+    const m = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
+    if (!m) return null
+    let y2 = parseInt(m[2], 10)
+    if (y2 < 100) y2 = 2000 + y2
+    return `${y2}-01-01`
+  }
+
+  // Confirmed-derby anchors for a team in a season: the LATEST Vorrunde-leg date
+  // and the LATEST Rückrunde-leg date across every confirmed derby the team is in
+  // (latest, so ALL its derbies come first when a club has 3+ teams in a group).
+  // A leg counts as Vorrunde if its date < boundary, else Rückrunde.
+  async function confirmedDerbyAnchors(kscwTeamId, seasonId, boundary) {
+    const anchors = { vor: null, rueck: null }
+    if (!kscwTeamId || !seasonId || !boundary) return anchors
+    const rows = await database('game_scheduling_derbies')
+      .where('season', seasonId).where('confirmed', true)
+      .where(function () { this.where('team_a', kscwTeamId).orWhere('team_b', kscwTeamId) })
+      .select('leg1_date', 'leg2_date')
+    for (const r of rows) {
+      for (const raw of [r.leg1_date, r.leg2_date]) {
+        const d = ymdOf(raw)
+        if (!d) continue
+        if (d < boundary) { if (!anchors.vor || d > anchors.vor) anchors.vor = d }
+        else { if (!anchors.rueck || d > anchors.rueck) anchors.rueck = d }
+      }
+    }
+    return anchors
+  }
+
+  // Is candidate date `d` blocked by the derby anchors — i.e. on/before the
+  // derby date within its own half? (The derby is first; nothing else before it.)
+  const derbyDateBlocked = (d, anchors, boundary) => {
+    if (!d || !anchors || !boundary) return false
+    const day = String(d).slice(0, 10)
+    return day < boundary
+      ? !!(anchors.vor && day <= anchors.vor)
+      : !!(anchors.rueck && day <= anchors.rueck)
+  }
+
+  // Materialise the blocked dates across the season window (used to grey the
+  // away calendar, which works off explicit date lists). ~270 iterations.
+  const buildDerbyBlockedSet = (anchors, boundary, seasonRow) => {
+    const set = new Set()
+    if (!anchors || (!anchors.vor && !anchors.rueck) || !boundary) return set
+    const m = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
+    if (!m) return set
+    const y1 = parseInt(m[1], 10)
+    let y2 = parseInt(m[2], 10)
+    if (y2 < 100) y2 = 2000 + y2
+    const cur = new Date(`${y1}-08-01T00:00:00Z`)
+    const end = new Date(`${y2}-04-30T00:00:00Z`)
+    for (; cur <= end; cur.setUTCDate(cur.getUTCDate() + 1)) {
+      const day = cur.toISOString().slice(0, 10)
+      if (derbyDateBlocked(day, anchors, boundary)) set.add(day)
+    }
+    return set
+  }
+
   // GET /kscw/terminplanung/slots/:token — view available slots
   router.get('/terminplanung/slots/:token', async (req, res) => {
     try {
@@ -468,6 +555,16 @@ export function registerGameScheduling(router, { database, logger, services, get
       const committedHome = await committedGameDates(opponent.kscw_team, gaps.home, held)
       const committedProposal = await committedGameDates(opponent.kscw_team, gaps.proposal, held)
       const committedProposal3 = await committedGameDates(opponent.kscw_team, gaps.proposal3, held)
+
+      // Intra-club derby clamp (Art. 27): once this team's derby dates are
+      // confirmed, nothing may be offered/booked before the relevant derby date
+      // within its half — neither a home slot nor an away date. `derbyBlocked` is
+      // the materialised set of pre-derby dates, applied to home slots below and
+      // merged into the away strict/loose sets further down.
+      const seasonRow = await database('game_scheduling_seasons').where('id', opponent.season).first()
+      const rueckStart = rueckrundeStart(seasonRow)
+      const derbyAnchors = await confirmedDerbyAnchors(opponent.kscw_team, opponent.season, rueckStart)
+      const derbyBlocked = buildDerbyBlockedSet(derbyAnchors, rueckStart, seasonRow)
 
       // Exclude slots whose date falls within any event linked to this team
       // (single-day or multi-day) — e.g. tournament weekend, team trip. Filter
@@ -532,6 +629,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           const date = ymd(s.date)
           const absCount = Number(s.abs_count || 0)
           if (committedProposal3.has(date) || absCount >= 3) return null
+          if (derbyBlocked.has(date)) return null  // before the derby in this half (Art. 27)
           return {
             id: s.id,
             date,
@@ -616,6 +714,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where('team', opponent.kscw_team)
         .select(database.raw('start_date::text as s'), database.raw('end_date::text as e'))
       blockRows.forEach((r) => addRange(r.s, r.e))
+      // Intra-club derby clamp — pre-derby dates hard-block every away proposal
+      // too (merged into eventSet → lands in both strictSet and looseSet).
+      for (const d of derbyBlocked) eventSet.add(d)
       const absRows = await database('absences as a')
         .join('member_teams as mt', 'mt.member', 'a.member')
         .where('mt.team', opponent.kscw_team)
@@ -671,7 +772,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
 
       // Season window (Sep 1 → Mar 31) so the away calendar can bound itself.
-      const seasonRow = await database('game_scheduling_seasons').where('id', opponent.season).first()
+      // (seasonRow already fetched above for the derby clamp.)
       let season_window = null
       const sm = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
       if (sm) {
@@ -1066,6 +1167,11 @@ export function registerGameScheduling(router, { database, logger, services, get
       const held = { includeHeld: true, excludeOpponent: opponent.id }
       const committedStrict = await committedGameDates(opponent.kscw_team, proposalGaps.proposal, held)
       const committedLoose = await committedGameDates(opponent.kscw_team, proposalGaps.proposal3, held)
+      // Intra-club derby clamp (Art. 27): reject any away date before this team's
+      // confirmed derby date within its half.
+      const awaySeasonRow = await database('game_scheduling_seasons').where('id', opponent.season).first()
+      const awayRueckStart = rueckrundeStart(awaySeasonRow)
+      const awayDerbyAnchors = await confirmedDerbyAnchors(opponent.kscw_team, opponent.season, awayRueckStart)
       for (let i = 0; i < proposals.length; i++) {
         const p = proposals[i]
         if (!p.date || !DATE_RE.test(String(p.date))) {
@@ -1073,6 +1179,10 @@ export function registerGameScheduling(router, { database, logger, services, get
         }
         if (p.start_time && !TIME_RE.test(String(p.start_time))) {
           return res.status(400).json({ error: 'start_time must be HH:MM' })
+        }
+        // Reject dates before this team's confirmed derby in that half (Art. 27).
+        if (derbyDateBlocked(p.date, awayDerbyAnchors, awayRueckStart)) {
+          return res.status(400).json({ error: 'away_before_derby' })
         }
         // Reject dates that hit an event for this KSCW team — the team is busy
         // (mirrors the home-slot event exclusion). Zurich-local date compare.
@@ -2357,6 +2467,156 @@ export function registerGameScheduling(router, { database, logger, services, get
       })
     } catch (err) {
       log.error({ msg: `svrz-clubs: ${err.message}`, endpoint: 'admin/terminplanung/invites/svrz-clubs', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── Intra-club derby anchoring (Art. 27 SVRZ) ────────────────────────
+  // GET /admin/terminplanung/derbies?season= — detect KSCW team pairs that share
+  // a league group (an all-KSCW fixture exists in the SVRZ feed → they play each
+  // other) and merge with any dates the spielplaner has fixed. Each pair carries
+  // its two head-to-head legs (with the round the feed currently files them
+  // under, e.g. "Runde 7" — the case Art. 27 overrides).
+  router.get('/admin/terminplanung/derbies', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const { season } = req.query
+      if (!season) return res.status(400).json({ error: 'season required' })
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
+      if (!seasonRow) return res.status(404).json({ error: 'season not found' })
+      const boundary = rueckrundeStart(seasonRow)
+      const svrzSeasonName = String(seasonRow.season || '').split('/')[0].trim()
+
+      // All-KSCW fixtures this season (both sides our club).
+      const games = await database('svrz_games')
+        .whereIn('status', ['open', 'waitingForApproval'])
+        .where('home_club_id', KSCW_SVRZ_CLUB_ID)
+        .where('away_club_id', KSCW_SVRZ_CLUB_ID)
+        .modify((q) => { if (svrzSeasonName) q.where('season_name', svrzSeasonName) })
+        .orderBy('starting_date_time')
+
+      // Map SVRZ side name → KSCW team (active volleyball teams = current season).
+      const normTeamId = (s) =>
+        String(s || '').toLowerCase().trim().replace(/^ksc\s+wiedikon\s+/, '').replace(/[^a-z0-9]/g, '')
+      const teamRows = await database('teams')
+        .where('sport', 'volleyball').where('active', true).select('id', 'name')
+      const teamByNorm = new Map()
+      for (const t of teamRows) teamByNorm.set(normTeamId(t.name), t)
+
+      const pairKey = (a, b) => `${Math.min(a, b)}:${Math.max(a, b)}`
+      const stored = await database('game_scheduling_derbies').where('season', season)
+        .select('id', 'team_a', 'team_b', 'leg1_svrz_id', database.raw('leg1_date::text as leg1_date'),
+                'leg2_svrz_id', database.raw('leg2_date::text as leg2_date'), 'confirmed')
+      const storedByKey = new Map(stored.map((s) => [pairKey(s.team_a, s.team_b), s]))
+
+      const pairs = new Map()
+      for (const g of games) {
+        const homeT = teamByNorm.get(normTeamId(g.home_team_name))
+        const awayT = teamByNorm.get(normTeamId(g.away_team_name))
+        if (!homeT || !awayT || homeT.id === awayT.id) continue
+        const [a, b] = homeT.id < awayT.id ? [homeT, awayT] : [awayT, homeT]
+        const key = pairKey(a.id, b.id)
+        if (!pairs.has(key)) pairs.set(key, { team_a: a, team_b: b, legs: [] })
+        const raw = g.raw && typeof g.raw === 'object' ? g.raw : null
+        const round = raw?.group?.phase?.name || raw?.group?.name || null
+        pairs.get(key).legs.push({
+          svrz_id: g.svrz_persistence_id,
+          display_name: g.display_name,
+          home_team: { id: homeT.id, name: homeT.name },
+          away_team: { id: awayT.id, name: awayT.name },
+          feed_datetime: g.starting_date_time,
+          round,
+        })
+      }
+
+      const derbies = [...pairs.values()].map((p) => {
+        const s = storedByKey.get(pairKey(p.team_a.id, p.team_b.id))
+        const dateBySvrz = {}
+        if (s) {
+          if (s.leg1_svrz_id) dateBySvrz[s.leg1_svrz_id] = s.leg1_date
+          if (s.leg2_svrz_id) dateBySvrz[s.leg2_svrz_id] = s.leg2_date
+        }
+        const legs = p.legs.map((lg) => {
+          const date = dateBySvrz[lg.svrz_id] || null
+          return { ...lg, date, half: date && boundary ? (date < boundary ? 'vorrunde' : 'rueckrunde') : null }
+        })
+        return {
+          team_a: { id: p.team_a.id, name: p.team_a.name },
+          team_b: { id: p.team_b.id, name: p.team_b.name },
+          legs,
+          confirmed: s?.confirmed === true,
+          stored_id: s?.id ?? null,
+        }
+      }).sort((x, y) => (x.team_a.name || '').localeCompare(y.team_a.name || ''))
+
+      res.json({ season: seasonRow.season, boundary, derbies })
+    } catch (err) {
+      log.error({ msg: `derbies GET: ${err.message}`, endpoint: 'admin/terminplanung/derbies', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /admin/terminplanung/derbies — the spielplaner fixes the two derby
+  // dates. Body: { season, team_a, team_b, legs:[{svrz_id, home_team_id, date}, …×2], confirmed }.
+  // Confirm requires both dates set and exactly one per half (Vor-/Rückrunde).
+  router.post('/admin/terminplanung/derbies', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const { season, legs, confirmed } = req.body || {}
+      let team_a = parseInt(req.body?.team_a, 10)
+      let team_b = parseInt(req.body?.team_b, 10)
+      if (!season || !Number.isInteger(team_a) || !Number.isInteger(team_b) || team_a === team_b) {
+        return res.status(400).json({ error: 'season, team_a, team_b required' })
+      }
+      if (!Array.isArray(legs) || legs.length !== 2) {
+        return res.status(400).json({ error: 'exactly 2 legs required' })
+      }
+      const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+      for (const lg of legs) {
+        if (lg?.date != null && lg.date !== '' && !DATE_RE.test(String(lg.date))) {
+          return res.status(400).json({ error: 'leg date must be YYYY-MM-DD' })
+        }
+      }
+      if (team_a > team_b) { const t = team_a; team_a = team_b; team_b = t }
+
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
+      if (!seasonRow) return res.status(404).json({ error: 'season not found' })
+      const boundary = rueckrundeStart(seasonRow)
+
+      const wantConfirm = confirmed === true || confirmed === 'true'
+      const dates = legs.map((l) => (l?.date ? String(l.date).slice(0, 10) : null))
+      if (wantConfirm) {
+        if (dates.some((d) => !d)) return res.status(400).json({ error: 'both_dates_required' })
+        if (boundary) {
+          const halves = dates.map((d) => (d < boundary ? 'v' : 'r')).sort().join('')
+          if (halves !== 'rv') return res.status(400).json({ error: 'one_per_half' })
+        }
+      }
+      const homeId = (v) => (Number.isInteger(parseInt(v, 10)) ? parseInt(v, 10) : null)
+
+      const row = {
+        season,
+        team_a,
+        team_b,
+        leg1_svrz_id: legs[0].svrz_id || null,
+        leg1_home_team: homeId(legs[0].home_team_id),
+        leg1_date: dates[0],
+        leg2_svrz_id: legs[1].svrz_id || null,
+        leg2_home_team: homeId(legs[1].home_team_id),
+        leg2_date: dates[1],
+        confirmed: wantConfirm,
+        date_updated: new Date().toISOString(),
+        user_updated: req.accountability?.user || null,
+      }
+      const existing = await database('game_scheduling_derbies').where({ season, team_a, team_b }).first('id')
+      if (existing) {
+        await database('game_scheduling_derbies').where('id', existing.id).update(row)
+      } else {
+        await database('game_scheduling_derbies').insert({ ...row, user_created: req.accountability?.user || null })
+      }
+      res.json({ success: true, confirmed: wantConfirm })
+    } catch (err) {
+      log.error({ msg: `derbies POST: ${err.message}`, endpoint: 'admin/terminplanung/derbies', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

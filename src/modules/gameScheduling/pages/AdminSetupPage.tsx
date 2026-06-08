@@ -15,6 +15,7 @@ import SpielsamstageEditor from '../components/SpielsamstageEditor'
 import SlotGenerationPanel from '../components/SlotGenerationPanel'
 import TeamSlotConfigPanel from '../components/TeamSlotConfigPanel'
 import GapConfigPanel from '../components/GapConfigPanel'
+import DerbyPanel from '../components/DerbyPanel'
 import ExcelImportPanel from '../components/ExcelImportPanel'
 import InvitesPanel from '../components/InvitesPanel'
 import type { SpielsamstagConfig, TeamSlotConfig, GameSchedulingGapConfig } from '../../../types'
@@ -186,6 +187,10 @@ export default function AdminSetupPage() {
 
           {/* Game-spacing gaps (home / proposals / lenient 3rd proposal) */}
           <GapConfigPanel gapConfig={season.gap_config} onUpdate={handleUpdateGapConfig} />
+
+          {/* Intra-club derby dates (Art. 27) — fix first, then opponents slot in
+              behind them. Needs the SVRZ feed, which syncs when the season opens. */}
+          {season.status === 'open' && <DerbyPanel seasonId={season.id} />}
 
           {/* Excel Import */}
           <ExcelImportPanel />

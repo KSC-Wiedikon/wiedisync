@@ -115,6 +115,7 @@ export default function OpponentFlowPage() {
       case 'conflict_cross_team': return t('conflictCrossTeam', { teams: body?.teams || '' })
       case 'away_no_sunday': return t('awayNoSunday')
       case 'away_max_one_saturday': return t('awayMaxOneSaturday')
+      case 'away_before_derby': return t('awayBeforeDerby')
       case 'slot_unavailable': return t('slotUnavailable')
       case 'conflict_same_day': return t('conflictSameDay')
       case 'conflict_gap_rule': return t('conflictGapRule')

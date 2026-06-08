@@ -1,4 +1,22 @@
 export default {
+  // Vereinsinternes Derby (Art. 27 SVRZ)
+  derbyTitle: 'Vereinsinterne Derby-Daten (erste Spiele)',
+  derbyHint: 'Wenn zwei KSCW-Teams in derselben Gruppe einer Liga spielen, müssen ihre direkten Begegnungen das erste Spiel der Vor- bzw. Rückrunde sein (Art. 27). Lege hier die beiden Daten fest — Gegner können danach nur spätere Termine buchen.',
+  derbyBoundaryHint: 'Vorrunde vor dem {{date}}, Rückrunde ab dem {{date}}.',
+  derbyEmpty: 'Diese Saison spielen keine zwei KSCW-Teams in derselben Gruppe. Nichts festzulegen.',
+  derbyHosts: '{{home}} empfängt {{away}}',
+  derbyFeedRound: 'Aktuell im Volleymanager als {{round}} angesetzt — muss nach vorne verschoben werden.',
+  derbyVorrunde: 'Vorrunde',
+  derbyRueckrunde: 'Rückrunde',
+  derbyConfirm: 'Daten bestätigen',
+  derbyUpdate: 'Daten aktualisieren',
+  derbySaveDraftAction: 'Ohne Bestätigung speichern',
+  derbyConfirmed: 'Derby-Daten bestätigt.',
+  derbySavedDraft: 'Gespeichert.',
+  derbyConfirmedBadge: 'Bestätigt',
+  derbyBothDatesRequired: 'Bitte beide Daten setzen, bevor du bestätigst.',
+  derbyOnePerHalf: 'Ein Datum muss in der Vorrunde, das andere in der Rückrunde liegen.',
+  awayBeforeDerby: 'Dieses Datum liegt vor dem vereinsinternen Derby, das zuerst gespielt werden muss (Art. 27). Bitte ein späteres Datum wählen.',
   // Nav & page titles
   title: 'Terminplanung',
   adminTitle: 'Terminplanung (Admin)',

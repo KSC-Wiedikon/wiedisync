@@ -1,4 +1,22 @@
 export default {
+  // Intra-club derby anchoring (Art. 27 SVRZ)
+  derbyTitle: 'Intra-club derby dates (first games)',
+  derbyHint: 'When two KSCW teams share a league group, their head-to-head games must be the first game of the Vorrunde and of the Rückrunde (Art. 27). Fix the two dates here — opponents can then only book dates after them.',
+  derbyBoundaryHint: 'Vorrunde before {{date}}, Rückrunde from {{date}}.',
+  derbyEmpty: 'No two KSCW teams share a group this season. Nothing to fix.',
+  derbyHosts: '{{home}} host {{away}}',
+  derbyFeedRound: 'Currently filed as {{round}} in Volleymanager — must be moved to the front.',
+  derbyVorrunde: 'Vorrunde',
+  derbyRueckrunde: 'Rückrunde',
+  derbyConfirm: 'Confirm dates',
+  derbyUpdate: 'Update dates',
+  derbySaveDraftAction: 'Save without confirming',
+  derbyConfirmed: 'Derby dates confirmed.',
+  derbySavedDraft: 'Saved.',
+  derbyConfirmedBadge: 'Confirmed',
+  derbyBothDatesRequired: 'Set both dates before confirming.',
+  derbyOnePerHalf: 'One date must be in the Vorrunde and the other in the Rückrunde.',
+  awayBeforeDerby: 'This date is before the intra-club derby, which must be played first (Art. 27). Please pick a later date.',
   // Nav & page titles
   title: 'Game Scheduling',
   adminTitle: 'Game Scheduling (Admin)',

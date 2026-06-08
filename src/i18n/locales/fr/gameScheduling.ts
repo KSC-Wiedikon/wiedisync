@@ -1,4 +1,22 @@
 export default {
+  // Derby interne au club (art. 27 SVRZ)
+  derbyTitle: 'Dates du derby interne au club (premiers matchs)',
+  derbyHint: "Lorsque deux équipes du KSCW jouent dans le même groupe d'une ligue, leurs confrontations directes doivent être le premier match du tour aller et du tour retour (art. 27). Fixe ici les deux dates — les adversaires ne pourront ensuite réserver que des dates ultérieures.",
+  derbyBoundaryHint: 'Tour aller avant le {{date}}, tour retour à partir du {{date}}.',
+  derbyEmpty: "Aucune paire d'équipes du KSCW ne partage un groupe cette saison. Rien à fixer.",
+  derbyHosts: '{{home}} reçoit {{away}}',
+  derbyFeedRound: 'Actuellement programmé comme {{round}} dans Volleymanager — doit être avancé.',
+  derbyVorrunde: 'Tour aller',
+  derbyRueckrunde: 'Tour retour',
+  derbyConfirm: 'Confirmer les dates',
+  derbyUpdate: 'Mettre à jour les dates',
+  derbySaveDraftAction: 'Enregistrer sans confirmer',
+  derbyConfirmed: 'Dates du derby confirmées.',
+  derbySavedDraft: 'Enregistré.',
+  derbyConfirmedBadge: 'Confirmé',
+  derbyBothDatesRequired: 'Définis les deux dates avant de confirmer.',
+  derbyOnePerHalf: "Une date doit être au tour aller et l'autre au tour retour.",
+  awayBeforeDerby: 'Cette date est antérieure au derby interne au club, qui doit être joué en premier (art. 27). Merci de choisir une date ultérieure.',
   // Nav & page titles
   title: 'Planification des matchs',
   adminTitle: 'Planification des matchs (Admin)',

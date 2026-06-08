@@ -1,4 +1,22 @@
 export default {
+  // Vereinsinterns Derby (Art. 27 SVRZ)
+  derbyTitle: 'Vereinsinterni Derby-Date (erschti Spiil)',
+  derbyHint: 'Wenn zwöi KSCW-Teams i dr gliiche Gruppe vo ere Liga spiile, müend ihri direkte Begegnige s erschte Spiil vo dr Vor- bzw. Rückrundi sii (Art. 27). Leg da die zwöi Date fescht — Gägner chönd dnah nume spöteri Termin buche.',
+  derbyBoundaryHint: 'Vorrundi vor em {{date}}, Rückrundi ab em {{date}}.',
+  derbyEmpty: 'Die Saison spiiled kei zwöi KSCW-Teams i dr gliiche Gruppe. Nüt z tue.',
+  derbyHosts: '{{home}} empfangt {{away}}',
+  derbyFeedRound: 'Aktuell im Volleymanager als {{round}} aagsetzt — mues nach vorne gschobe wärde.',
+  derbyVorrunde: 'Vorrundi',
+  derbyRueckrunde: 'Rückrundi',
+  derbyConfirm: 'Date bestätige',
+  derbyUpdate: 'Date aktualisiere',
+  derbySaveDraftAction: 'Ohni Bestätigung spichere',
+  derbyConfirmed: 'Derby-Date bestätigt.',
+  derbySavedDraft: 'Gspicheret.',
+  derbyConfirmedBadge: 'Bestätigt',
+  derbyBothDatesRequired: 'Bitte beidi Date setze, bevor d bestätigsch.',
+  derbyOnePerHalf: 'Ei Datum mues i dr Vorrundi, s andere i dr Rückrundi sii.',
+  awayBeforeDerby: 'Das Datum lit vor em vereinsinterne Derby, wo zerscht gspilt wärde mues (Art. 27). Bitte es spöters Datum uswähle.',
   // Nav & page titles
   title: 'Terminplanig',
   adminTitle: 'Terminplanig (Admin)',
