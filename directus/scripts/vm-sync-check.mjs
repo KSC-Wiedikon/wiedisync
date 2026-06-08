@@ -26,6 +26,29 @@ if (!DIRECTUS_TOKEN && !DIRECTUS_PASSWORD) {
   process.exit(1);
 }
 
+// ─── Retry helper ────────────────────────────────────────────────────
+// Volleymanager intermittently returns 403/429/5xx (observed 2026-06-08: the
+// 04:00 cron + a manual re-run both 403'd on /indoorwriter/index, while the
+// account has full access and the page returned 200 minutes later). Retry
+// transient failures so one flaky window doesn't fail the whole nightly sync.
+async function retry(label, fn, { attempts = 4, baseDelayMs = 2500 } = {}) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      const msg = e?.message || '';
+      const transient = /HTTP (403|408|425|429|5\d\d)|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|network/i.test(msg);
+      if (i === attempts || !transient) throw e;
+      const delay = baseDelayMs * i;
+      console.warn(`  ⚠ ${label}: attempt ${i}/${attempts} failed (${msg.slice(0, 90)}); retry in ${delay}ms`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
 // ─── Generic paginated search ────────────────────────────────────────
 async function vmSearch(jar, csrf, wuid, resourcePath, properties, {
   batchSize = 200,
@@ -63,13 +86,15 @@ async function vmSearch(jar, csrf, wuid, resourcePath, properties, {
     properties.forEach((p, i) => params.set(`propertyRenderConfiguration[${i}]`, p));
     params.set('__csrfToken', csrf);
 
-    const r = await fetch(base, { method: 'POST', headers, body: params.toString() });
-    if (!r.ok) {
-      const text = await r.text();
-      const msg = text.match(/In path ([^:]+):/)?.[0] || `HTTP ${r.status}`;
-      throw new Error(`${resourcePath}: ${msg}`);
-    }
-    const json = await r.json();
+    const json = await retry(`${resourcePath} (offset ${offset})`, async () => {
+      const r = await fetch(base, { method: 'POST', headers, body: params.toString() });
+      if (!r.ok) {
+        const text = await r.text();
+        const msg = text.match(/In path ([^:]+):/)?.[0] || `HTTP ${r.status}`;
+        throw new Error(`${resourcePath}: ${msg}`);
+      }
+      return r.json();
+    });
     total = json.totalItemsCount ?? 0;
     const items = json.items ?? [];
     allItems.push(...items);
@@ -441,7 +466,12 @@ async function upsertToDirectus(rows) {
     .filter(([assocId]) => !currentIds.has(assocId))
     .map(([, directusId]) => directusId);
 
-  if (toDelete.length > 0) {
+  // Safety net: never let an empty/degenerate fetch wipe the whole table. If we
+  // somehow got zero rows (e.g. a 200-but-empty VM response that slipped past
+  // the per-call guards), skip the stale-delete entirely.
+  if (rows.length === 0 && existing.size > 0) {
+    console.warn(`  ⚠ 0 rows fetched but ${existing.size} exist — skipping stale-delete to avoid wiping sv_vm_check`);
+  } else if (toDelete.length > 0) {
     const res = await fetch(`${DIRECTUS_URL}/items/sv_vm_check`, {
       method: 'DELETE',
       headers,
@@ -760,42 +790,79 @@ async function syncToMembers(rows) {
 
 async function main() {
   const t0 = Date.now();
+  const failures = [];
 
-  const jar = await vmLogin({ username: VM_USERNAME, password: VM_PASSWORD });
-  const { csrf, wuid } = await csrfFromPage(jar, '/sportmanager.indoorvolleyball/indoorwriter/index');
+  // Login + CSRF bootstrap — retried. Volleymanager intermittently 403s here
+  // (observed 2026-06-08); a fresh session per attempt clears it. If login
+  // itself can't succeed there's nothing to sync, so this stays fatal.
+  const { jar, csrf, wuid } = await retry('login+csrf', async () => {
+    const jar = await vmLogin({ username: VM_USERNAME, password: VM_PASSWORD });
+    const { csrf, wuid } = await csrfFromPage(jar, '/sportmanager.indoorvolleyball/indoorwriter/index');
+    return { jar, csrf, wuid };
+  });
   console.log('✓ Logged in to Volleymanager\n');
 
-  // Fetch all datasets
-  const teams = await fetchTeams(jar, csrf, wuid);
-  const players = await fetchPlayers(jar, csrf, wuid);
-  const writers = await fetchWriters(jar, csrf, wuid);
-  const referees = await fetchReferees(jar, csrf, wuid);
-  const teamMembers = await fetchTeamMembers(jar, csrf, wuid);
+  // ── Group A: team metadata → `teams` (independent + non-destructive) ──
+  // Detached from person data so a player/writer/referee hiccup never blocks
+  // the source-of-truth team name/league sync (update-only, no deletes).
+  let teamSync = null, teamCount = 0;
+  try {
+    const teams = await fetchTeams(jar, csrf, wuid);
+    teamCount = teams.length;
+    teamSync = await syncToTeams(teams);
+  } catch (e) {
+    failures.push(`teams: ${e.message}`);
+    console.error(`✗ Team metadata sync failed (skipped): ${e.message}`);
+  }
 
-  // Build merged table
-  console.log('\nMerging...');
-  const rows = buildCheckTable(players, writers, referees, teamMembers, teams);
+  // ── Group B: person data → `sv_vm_check` + members (all-or-nothing) ──
+  // sv_vm_check rows are a MERGE of players+writers+referees+teamMembers, and
+  // upsertToDirectus deletes stale rows + overwrites flags. Partial data would
+  // therefore corrupt/delete, so all four must succeed before any write. All
+  // fetches complete before the first write, so a failure here aborts the group
+  // cleanly with nothing written (the watchdog re-runs in 30 min). teams is NOT
+  // an input to buildCheckTable, so Group A's outcome doesn't affect this.
+  let rows = null, memberSync = null;
+  try {
+    const players = await fetchPlayers(jar, csrf, wuid);
+    const writers = await fetchWriters(jar, csrf, wuid);
+    const referees = await fetchReferees(jar, csrf, wuid);
+    const teamMembers = await fetchTeamMembers(jar, csrf, wuid);
 
-  // Upsert to Directus
-  await upsertToDirectus(rows);
+    console.log('\nMerging...');
+    rows = buildCheckTable(players, writers, referees, teamMembers, []);
 
-  // Sync team metadata (name / full_name / league) to `teams`
-  const teamSync = await syncToTeams(teams);
-
-  // Sync VM data to members
-  const memberSync = await syncToMembers(rows);
+    await upsertToDirectus(rows);
+    memberSync = await syncToMembers(rows);
+  } catch (e) {
+    failures.push(`person-data: ${e.message}`);
+    console.error(`✗ Person/sv_vm_check sync failed (skipped — nothing written/deleted): ${e.message}`);
+  }
 
   // Summary
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`\n========== SUMMARY (${elapsed}s) ==========`);
-  console.log(`Teams (VM):     ${teams.length}`);
-  console.log(`  └ Synced:     updated=${teamSync.updated}, unchanged=${teamSync.unchanged}, no-match=${teamSync.unmatched}, errors=${teamSync.errors}`);
-  console.log(`Check rows:     ${rows.length}`);
-  console.log(`  ├ Writers:    ${rows.filter(r => r.is_writer).length}`);
-  console.log(`  ├ Referees:   ${rows.filter(r => r.is_referee).length}`);
-  console.log(`  └ With team:  ${rows.filter(r => r.team_names).length}`);
-  console.log(`Team members:   ${teamMembers.length} assignments`);
-  console.log(`Members synced: ${memberSync.matched} matched, ${memberSync.updated} updated, ${memberSync.errors} errors`);
+  if (teamSync) {
+    console.log(`Teams (VM):     ${teamCount}`);
+    console.log(`  └ Synced:     updated=${teamSync.updated}, unchanged=${teamSync.unchanged}, no-match=${teamSync.unmatched}, errors=${teamSync.errors}`);
+  } else {
+    console.log('Teams (VM):     SKIPPED (fetch failed)');
+  }
+  if (rows && memberSync) {
+    console.log(`Check rows:     ${rows.length}`);
+    console.log(`  ├ Writers:    ${rows.filter(r => r.is_writer).length}`);
+    console.log(`  ├ Referees:   ${rows.filter(r => r.is_referee).length}`);
+    console.log(`  └ With team:  ${rows.filter(r => r.team_names).length}`);
+    console.log(`Members synced: ${memberSync.matched} matched, ${memberSync.updated} updated, ${memberSync.errors} errors`);
+  } else {
+    console.log('Person data:    SKIPPED (fetch failed)');
+  }
+
+  // Non-zero exit if any group failed so the cron records `error` and the
+  // 30-min watchdog retries — while the group(s) that DID succeed stay applied.
+  if (failures.length) {
+    throw new Error(failures.join(' | '));
+  }
 }
 
 main().catch(e => { console.error('✗ Fatal:', e.message); process.exit(1); });

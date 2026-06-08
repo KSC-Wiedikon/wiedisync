@@ -2589,11 +2589,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Runs vm-sync-check.mjs: team metadata → `teams`, players/writers/referees
   // → `sv_vm_check` + members licence flags. Weekly (was monthly) so team
   // name/league corrections — heaviest around season rollover — propagate fast.
-  schedule('0 4 * * 1', async () => {
+  // Shared runner so both the weekly cron and the failure-watchdog (below) use
+  // the same spawn/log path. In-memory lock prevents overlapping runs (the
+  // watchdog could otherwise fire while a run is still in flight).
+  let vmSyncRunning = false
+  async function runVmSync(reason) {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
       log.warn('VM sync skipped: VM_USERNAME or VM_PASSWORD not set')
       return
     }
+    if (vmSyncRunning) {
+      log.info(`VM sync (${reason}) skipped: a run is already in progress`)
+      return
+    }
+    vmSyncRunning = true
     const startedAt = Date.now()
     try {
       const token = await getCronAccessToken(log, 'VM sync')
@@ -2624,12 +2633,36 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         })
         child.on('error', (err) => { clearTimeout(timer); reject(err) })
       })
-      log.info(`VM sync cron: ${output.split('\n').slice(-6).join(' | ')}`)
+      log.info(`VM sync cron (${reason}): ${output.split('\n').slice(-6).join(' | ')}`)
       await logCronRun(database, 'vm_sync', { status: 'ok', durationMs: Date.now() - startedAt })
     } catch (err) {
-      log.error({ msg: `VM sync cron: ${err.message}`, exitCode: err.status, event: 'cron.vm_sync' })
+      log.error({ msg: `VM sync cron (${reason}): ${err.message}`, exitCode: err.status, event: 'cron.vm_sync' })
       logCronError('vm_sync', new Error(err.message))
       await logCronRun(database, 'vm_sync', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: err.message })
+    } finally {
+      vmSyncRunning = false
+    }
+  }
+
+  schedule('0 4 * * 1', () => runVmSync('weekly'))
+
+  // ── 10b². Watchdog: retry VM sync every 30 min while it's failing ──
+  // VM intermittently 403s (2026-06-08). If the last vm_sync recorded `error`,
+  // re-run every 30 min until it succeeds (status flips to `ok` → the watchdog
+  // goes quiet on its own). Bounded: skip the <25min just-ran/in-progress
+  // window so it never races the weekly run, and give up after 12h so a
+  // genuinely-down VM isn't hammered until the next weekly cycle.
+  schedule('*/30 * * * *', async () => {
+    if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
+    try {
+      const row = await database('sync_runs').where({ source: 'vm_sync' }).first()
+      if (!row || row.status !== 'error' || !row.last_run_at) return
+      const ageMin = (Date.now() - new Date(row.last_run_at).getTime()) / 60000
+      if (ageMin < 25 || ageMin > 720) return
+      log.info(`VM sync watchdog: last run errored ~${Math.round(ageMin)}min ago — retrying`)
+      await runVmSync('watchdog-retry')
+    } catch (err) {
+      log.error({ msg: `VM sync watchdog: ${err.message}`, event: 'cron.vm_sync_watchdog' })
     }
   })
 
