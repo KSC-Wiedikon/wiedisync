@@ -7,6 +7,8 @@ export default {
   legendAwayProposed: 'Extérieur (proposé)',
   legendBlocked: 'Bloqué',
   legendOpen: 'Créneaux libres',
+  legendClosed: 'Salle fermée',
+  spielsamstag: 'Samedi de match',
   openCount: '{{count}} libres',
   // Derby interne au club (art. 27 SVRZ)
   derbyTitle: 'Dates du derby interne au club (premiers matchs)',

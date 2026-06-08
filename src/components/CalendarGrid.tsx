@@ -21,6 +21,10 @@ interface CalendarGridProps<T> {
   renderDayContent: (date: Date, items: T[]) => ReactNode
   closedDates?: Set<string>
   highlightedDates?: Set<string>
+  /** Tailwind classes for a highlighted day cell. Defaults to a soft amber. */
+  highlightClassName?: string
+  /** Short label rendered beside the day number on highlighted days (opt-in). */
+  highlightLabel?: string
   minMonth?: Date
   maxMonth?: Date
   /**
@@ -37,6 +41,8 @@ export default function CalendarGrid<T>({
   renderDayContent,
   closedDates,
   highlightedDates,
+  highlightClassName = 'bg-amber-50 dark:bg-amber-950',
+  highlightLabel,
   minMonth,
   maxMonth,
   onEmptyDayClick,
@@ -115,25 +121,35 @@ export default function CalendarGrid<T>({
               className={`group relative min-h-[3rem] border-b border-r border-gray-200 p-0.5 sm:min-h-[5rem] sm:p-1 lg:min-h-[6.5rem] lg:p-2 dark:border-gray-700 ${
                 isToday ? 'ring-2 ring-inset ring-gold-400 dark:ring-gold-500' : ''
               } ${
-                !inMonth ? 'bg-gray-50 dark:bg-gray-900' : isHighlighted ? 'bg-amber-50 dark:bg-amber-950' : 'bg-white dark:bg-gray-800'
+                !inMonth ? 'bg-gray-50 dark:bg-gray-900' : isHighlighted ? highlightClassName : 'bg-white dark:bg-gray-800'
               }`}
             >
-              {/* Closure overlay */}
+              {/* Closure overlay (red — visible in both light and dark mode) */}
               {isClosed && (
-                <div className="pointer-events-none absolute inset-0 bg-red-50 opacity-50" />
+                <div className="pointer-events-none absolute inset-0 bg-red-50 opacity-50 dark:bg-red-900 dark:opacity-40" />
               )}
 
-              {/* Day number */}
-              <div
-                className={`mb-0.5 text-xs font-medium sm:mb-1 sm:text-sm ${
-                  isToday
-                    ? 'font-bold text-gold-600 dark:text-gold-400'
-                    : !inMonth
-                      ? 'text-gray-300 dark:text-gray-600'
-                      : 'text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                {date.getDate()}
+              {/* Day number (+ optional highlight label, e.g. "Spielsamstag") */}
+              <div className="mb-0.5 flex items-center justify-between gap-1 sm:mb-1">
+                <span
+                  className={`text-xs font-medium sm:text-sm ${
+                    isToday
+                      ? 'font-bold text-gold-600 dark:text-gold-400'
+                      : !inMonth
+                        ? 'text-gray-300 dark:text-gray-600'
+                        : 'text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {date.getDate()}
+                </span>
+                {isHighlighted && inMonth && highlightLabel && (
+                  <span
+                    title={highlightLabel}
+                    className="min-w-0 truncate rounded bg-gold-400/25 px-1 text-[9px] font-semibold uppercase tracking-wide text-gold-700 dark:bg-gold-400/20 dark:text-gold-300"
+                  >
+                    {highlightLabel}
+                  </span>
+                )}
               </div>
 
               {/* Content */}

@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import CalendarGrid from '../../../components/CalendarGrid'
+import { fetchAllItems } from '../../../lib/api'
 import { toDateKey, getSeasonMonths, getSeasonYear, formatDate } from '../../../utils/dateUtils'
 import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
@@ -71,6 +72,33 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
     for (const s of slots) m.set(String(s.id), s)
     return m
   }, [slots])
+
+  // Hall closures (gcal + school holidays) for the season — block home games, so
+  // they render as a red day background. Fetched from this season's August on.
+  const [closures, setClosures] = useState<{ start_date: string; end_date: string }[]>([])
+  useEffect(() => {
+    fetchAllItems<{ start_date: string; end_date: string }>('hall_closures', {
+      fields: ['start_date', 'end_date'],
+      filter: { end_date: { _gte: `${startYear}-08-01` } },
+    })
+      .then(setClosures)
+      .catch(() => {})
+  }, [startYear])
+
+  const closedDates = useMemo(() => {
+    const s = new Set<string>()
+    for (const c of closures) {
+      const start = parseYmd(c.start_date)
+      const end = parseYmd(c.end_date)
+      if (!start || !end) continue
+      const cur = new Date(start)
+      for (let guard = 0; cur <= end && guard < 400; guard++) {
+        s.add(toDateKey(cur))
+        cur.setDate(cur.getDate() + 1)
+      }
+    }
+    return s
+  }, [closures])
 
   // slot id -> opponent label, from confirmed home bookings (so a booked slot
   // shows who it's against).
@@ -196,6 +224,14 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
           <span className="inline-block h-3 w-3 rounded bg-gray-100 ring-1 ring-gray-300 dark:bg-gray-700 dark:ring-gray-500" />
           {t('legendOpen')}
         </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-gold-200 dark:bg-gold-500/40" />
+          {t('spielsamstag')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-red-200 dark:bg-red-900" />
+          {t('legendClosed')}
+        </span>
       </div>
 
       {/* Season month quick navigation */}
@@ -222,7 +258,10 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
         month={month}
         onMonthChange={setMonth}
         itemsByDate={itemsByDate}
+        closedDates={closedDates}
         highlightedDates={highlightedDates}
+        highlightClassName="bg-gold-100 dark:bg-gold-500/20"
+        highlightLabel={t('spielsamstag')}
         renderDayContent={(date, items) => {
           const visible = items.slice(0, 3)
           const hidden = items.length - visible.length

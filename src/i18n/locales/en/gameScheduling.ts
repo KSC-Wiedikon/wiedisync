@@ -7,6 +7,8 @@ export default {
   legendAwayProposed: 'Away (proposed)',
   legendBlocked: 'Blocked',
   legendOpen: 'Open slots',
+  legendClosed: 'Hall closed',
+  spielsamstag: 'Game Saturday',
   openCount: '{{count}} open',
   // Intra-club derby anchoring (Art. 27 SVRZ)
   derbyTitle: 'Intra-club derby dates (first games)',

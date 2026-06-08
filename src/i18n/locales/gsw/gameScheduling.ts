@@ -7,6 +7,8 @@ export default {
   legendAwayProposed: 'Uswärts (vorgschlage)',
   legendBlocked: 'Blockiert',
   legendOpen: 'Freii Slots',
+  legendClosed: 'Halle zue',
+  spielsamstag: 'Spielsamschtig',
   openCount: '{{count}} frei',
   // Vereinsinterns Derby (Art. 27 SVRZ)
   derbyTitle: 'Vereinsinterni Derby-Date (erschti Spiil)',
