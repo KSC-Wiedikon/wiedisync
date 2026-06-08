@@ -2137,6 +2137,10 @@ export function registerGameScheduling(router, { database, logger, services, get
       // (e.g. "VBC Wetzikon — 8 games" when H1 plays them only twice). Scope to
       // games whose KSCW side IS this exact team — SVRZ names them
       // "KSC Wiedikon <team>", matching teams.name.
+      // SVRZ stores season_name as the start year ("2026" for 2026/27). Scope to
+      // it so stale `waitingForApproval` fixtures from old seasons (which never
+      // got approved) don't leak in and double the game count.
+      const svrzSeasonName = String(seasonRow.season || '').split('/')[0].trim()
       const leagueGames = await database('svrz_games')
         .whereIn('status', ['open', 'waitingForApproval'])
         .where(function () {
@@ -2147,6 +2151,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             this.where('league_short', kscwTeamRow.league).orWhere('league_name', 'like', `%${kscwTeamRow.league}%`)
           }
         })
+        .modify((q) => { if (svrzSeasonName) q.where('season_name', svrzSeasonName) })
         .orderBy('starting_date_time')
       const kscwSvrzName = `ksc wiedikon ${String(kscwTeamRow.name || '').trim()}`.toLowerCase()
       const kscwSideName = (g) =>
@@ -2167,6 +2172,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         const oppClubName = isHomeKscw ? g.away_club_name : g.home_club_name
         const oppTeamName = isHomeKscw ? g.away_team_name : g.home_team_name
         if (!oppClubId) continue
+        // Skip intra-club fixtures (e.g. H1 vs H3 — both share league "2L"): the
+        // opponent is KSCW itself, never an external invite.
+        if (String(oppClubId) === String(KSCW_SVRZ_CLUB_ID)) continue
         const key = `${oppClubId}::${oppTeamName || ''}`
         if (!byClub.has(key)) {
           byClub.set(key, { club_id: oppClubId, club_name: oppClubName, team_name: oppTeamName, games: [], contacts: new Map() })
