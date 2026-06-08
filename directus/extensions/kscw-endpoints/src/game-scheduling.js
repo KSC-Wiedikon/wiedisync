@@ -5,7 +5,7 @@
  */
 
 import crypto from 'crypto'
-import { FRONTEND_URL } from './email-template.js'
+import { FRONTEND_URL, buildEmailLayout, buildInfoCard, escHtml } from './email-template.js'
 import { VALID_LANGS, schedEmail } from './terminplanung-emails.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
@@ -14,8 +14,33 @@ const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 // so SES can send From it with DKIM-aligned DMARC. From + replies both land on
 // the dedicated Migadu mailbox volleyball@spielplanung.kscw.ch. (The kscw.ch
 // apex stays ClubDesk's — we never send from it.)
-const SCHEDULING_FROM = 'KSC Wiedikon Spielplanung <volleyball@spielplanung.kscw.ch>'
+//
+// This Directus MailService treats `from` as the ADDRESS only (the display name
+// comes from the global EMAIL_FROM_NAME). Passing a combined "Name <addr>"
+// string here collapses into an invalid address, so SCHEDULING_FROM must be the
+// bare mailbox.
+const SCHEDULING_FROM = 'volleyball@spielplanung.kscw.ch'
 const SCHEDULING_REPLY_TO = 'volleyball@spielplanung.kscw.ch'
+
+// Wrap a German admin-notify body (the internal spielplanung-mailbox emails) in
+// the shared branded layout. Dates must already be Swiss-formatted by the
+// caller. `infoRows` (optional) renders as an info card between the lead and any
+// trailing CTA paragraph.
+function adminNotifyHtml({ title, lead, infoRows, ctaText, ctaUrl, ctaLabel }) {
+  const para = (s) => `<p style="font-size:14px;color:#e2e8f0;line-height:1.6;margin:0 0 12px">${escHtml(s)}</p>`
+  let body = ''
+  if (lead) body += para(lead)
+  if (infoRows && infoRows.length) {
+    body += buildInfoCard(infoRows) + '<div style="height:12px;font-size:0;line-height:0">&nbsp;</div>'
+  }
+  if (ctaText) body += para(ctaText)
+  return buildEmailLayout(body, {
+    title,
+    sport: 'vb',
+    ctaUrl: ctaUrl || undefined,
+    ctaLabel: ctaUrl ? (ctaLabel || 'Dashboard öffnen') : undefined,
+  })
+}
 
 async function verifyTurnstile(token) {
   if (!TURNSTILE_SECRET) {
@@ -31,10 +56,23 @@ async function verifyTurnstile(token) {
 }
 
 // Format a stored date / naive datetime for emails as Swiss { date: dd.mm.yyyy,
-// time: HH:MM }. Values arrive as 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM…Z' (a naive
-// wall-clock stored with a Z suffix) — slice the parts out rather than
-// tz-converting, so the shown time matches what was picked.
+// time: HH:MM }. Values arrive either as ISO strings ('YYYY-MM-DD' or
+// 'YYYY-MM-DDTHH:MM…Z', a naive wall-clock stored with a Z suffix) OR — when the
+// pg driver hydrates a DATE/timestamp column from `select('*')` — as a JS Date
+// object. Both the date columns (UTC midnight) and the naive datetimes are
+// UTC-anchored, so read Date objects via their UTC parts; slice ISO strings.
+// Never fall through to String(Date), which leaks 'Fri Oct 23 2026 … GMT'.
 function fmtDateMail(val) {
+  if (val instanceof Date && !isNaN(val)) {
+    const dd = String(val.getUTCDate()).padStart(2, '0')
+    const mo = String(val.getUTCMonth() + 1).padStart(2, '0')
+    const yy = val.getUTCFullYear()
+    const h = val.getUTCHours(), mi = val.getUTCMinutes()
+    return {
+      date: `${dd}.${mo}.${yy}`,
+      time: (h || mi) ? `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}` : '',
+    }
+  }
   const m = String(val || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/)
   if (!m) return { date: String(val || ''), time: '' }
   return { date: `${m[3]}.${m[2]}.${m[1]}`, time: m[4] ? `${m[4]}:${m[5]}` : '' }
@@ -45,11 +83,11 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // Send a Terminplanung email from the dedicated spielplanung identity.
   // Best-effort: callers wrap in try/catch so a mail failure never blocks the action.
-  async function sendSchedulingMail(to, subject, text, cc = null) {
+  async function sendSchedulingMail(to, subject, text, cc = null, html = null) {
     const schema = await getSchema()
     const { MailService } = services
     const mail = new MailService({ schema, knex: database })
-    await mail.send({ to, cc: cc || undefined, from: SCHEDULING_FROM, replyTo: SCHEDULING_REPLY_TO, subject, text })
+    await mail.send({ to, cc: cc || undefined, from: SCHEDULING_FROM, replyTo: SCHEDULING_REPLY_TO, subject, text, html: html || undefined })
   }
 
   // Coach + team-responsible emails for a KSCW team (deduped, real addresses
@@ -95,18 +133,22 @@ export function registerGameScheduling(router, { database, logger, services, get
         token, kscw_team, status: 'active', expires_at: expiresAt, language: lang,
       })
 
-      // Send confirmation email
+      // Send confirmation email (branded HTML + plain-text fallback).
       try {
-        const schema = await getSchema()
-        const { MailService } = services
-        const mail = new MailService({ schema, knex: database })
-        await mail.send({
-          to: contact_email,
-          from: SCHEDULING_FROM,
-          replyTo: SCHEDULING_REPLY_TO,
-          subject: `KSC Wiedikon – Spielplanung`,
-          text: `Hallo ${contact_name},\n\nDein Zugangslink zur Spielplanung:\n${FRONTEND_URL}/terminplanung/${token}\n\nDieser Link ist 30 Tage gültig.\n\nKSC Wiedikon`,
-        })
+        const accessUrl = `${FRONTEND_URL}/terminplanung/${token}`
+        const text = `Hallo ${contact_name},\n\nDein Zugangslink zur Spielplanung:\n${accessUrl}\n\nDieser Link ist 30 Tage gültig.\n\nKSC Wiedikon`
+        const html = buildEmailLayout(
+          `<p style="font-size:14px;color:#e2e8f0;line-height:1.6;margin:0 0 12px">Dein Zugangslink zur Spielplanung ist bereit. Der Link ist 30 Tage gültig.</p>`,
+          {
+            title: 'Spielplanung',
+            sport: 'vb',
+            greeting: `Hallo ${contact_name},`,
+            ctaUrl: accessUrl,
+            ctaLabel: 'Zur Spielplanung',
+            footerExtra: 'Sportliche Grüsse, KSC Wiedikon',
+          },
+        )
+        await sendSchedulingMail(contact_email, 'KSC Wiedikon – Spielplanung', text, null, html)
       } catch (mailErr) {
         log.warn(`Scheduling email failed: ${mailErr.message}`)
       }
@@ -116,8 +158,18 @@ export function registerGameScheduling(router, { database, logger, services, get
       try {
         const team = await database('teams').where('id', kscw_team).first('name')
         const kscw = `KSCW ${team?.name || ''}`.trim()
-        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Neue Anmeldung Spielplanung – ${team_name} (${kscw})`,
-          `${team_name} (${contact_name}, ${contact_email}) hat sich für die Spielplanung gegen ${kscw} registriert.`)
+        const text = `${team_name} (${contact_name}, ${contact_email}) hat sich für die Spielplanung gegen ${kscw} registriert.`
+        const html = adminNotifyHtml({
+          title: 'Neue Anmeldung Spielplanung',
+          lead: `${team_name} hat sich für die Spielplanung gegen ${kscw} registriert.`,
+          infoRows: [
+            { label: 'Team', value: team_name },
+            { label: 'Kontakt', value: contact_name },
+            { label: 'E-Mail', value: contact_email },
+            { label: 'Gegner', value: kscw },
+          ],
+        })
+        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Neue Anmeldung Spielplanung – ${team_name} (${kscw})`, text, null, html)
       } catch (mailErr) {
         log.warn(`Scheduling group notice failed: ${mailErr.message}`)
       }
@@ -778,23 +830,32 @@ export function registerGameScheduling(router, { database, logger, services, get
         const opp = opponent.club_name || opponent.team_name || ''
         const slotsFull = await database('game_scheduling_slots').whereIn('id', ids).select('*')
         const byId = new Map(slotsFull.map((s) => [s.id, s]))
-        const lines = ids.map((id) => {
+        // Structured rows for HTML info cards + parallel plain-text lines.
+        const slotRowsMail = ids.map((id) => {
           const s = byId.get(id)
           if (!s) return null
           const { date } = fmtDateMail(s.date)
           const st = String(s.start_time).slice(0, 5)
           const et = String(s.end_time).slice(0, 5)
-          return `• ${date}, ${st}–${et}${hallNameById[s.hall] ? `, ${hallNameById[s.hall]}` : ''}`
+          const hall = hallNameById[s.hall] || ''
+          return { date, time: `${st}–${et}`, hall }
         }).filter(Boolean)
-        const list = lines.join('\n')
+        const list = slotRowsMail.map((r) => `• ${r.date}, ${r.time}${r.hall ? `, ${r.hall}` : ''}`).join('\n')
         if (opponent.contact_email) {
-          const { subject, text } = schedEmail(opponent.language, 'home_proposals_sent', {
-            contact: opponent.contact_name || '', kscw, opp, list,
+          const { subject, text, html } = schedEmail(opponent.language, 'home_proposals_sent', {
+            contact: opponent.contact_name || '', kscw, opp, list, slots: slotRowsMail,
           })
-          await sendSchedulingMail(opponent.contact_email, subject, text)
+          await sendSchedulingMail(opponent.contact_email, subject, text, null, html)
         }
-        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Heim-Slot-Vorschläge – ${opp} (${kscw})`,
-          `${opp} hat Heimspiel-Slots vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${FRONTEND_URL}/admin/terminplanung/dashboard`)
+        const adminText = `${opp} hat Heimspiel-Slots vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${FRONTEND_URL}/admin/terminplanung/dashboard`
+        const adminHtml = adminNotifyHtml({
+          title: 'Heim-Slot-Vorschläge',
+          lead: `${opp} hat Heimspiel-Slots vorgeschlagen (${kscw}):`,
+          infoRows: slotRowsMail.map((r, i) => ({ label: `Slot ${i + 1}`, value: `${r.date}, ${r.time}${r.hall ? `, ${r.hall}` : ''}` })),
+          ctaText: 'Bitte im Dashboard einen Slot bestätigen.',
+          ctaUrl: `${FRONTEND_URL}/admin/terminplanung/dashboard`,
+        })
+        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Heim-Slot-Vorschläge – ${opp} (${kscw})`, adminText, null, adminHtml)
       } catch (mailErr) {
         log.warn(`propose-home email failed: ${mailErr.message}`)
       }
@@ -891,13 +952,23 @@ export function registerGameScheduling(router, { database, logger, services, get
         const kscw = `KSCW ${team?.name || ''}`.trim()
         const opp = opponent.club_name || opponent.team_name || ''
         if (opponent.contact_email) {
-          const { subject, text } = schedEmail(opponent.language, 'home_booked', {
+          const { subject, text, html } = schedEmail(opponent.language, 'home_booked', {
             contact: opponent.contact_name || '', kscw, opp, date, time: timeRange, hall: hall?.name || '',
           })
-          await sendSchedulingMail(opponent.contact_email, subject, text)
+          await sendSchedulingMail(opponent.contact_email, subject, text, null, html)
         }
-        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Heimspiel bestätigt – ${opp} (${kscw})`,
-          `Heimspiel bestätigt:\n\n${kscw} (Heim) vs ${opp}\n${date}, ${timeRange} Uhr${hall?.name ? `, ${hall.name}` : ''}.`)
+        const adminText = `Heimspiel bestätigt:\n\n${kscw} (Heim) vs ${opp}\n${date}, ${timeRange} Uhr${hall?.name ? `, ${hall.name}` : ''}.`
+        const adminHtml = adminNotifyHtml({
+          title: 'Heimspiel bestätigt',
+          lead: `${kscw} (Heim) vs ${opp}`,
+          infoRows: [
+            { label: 'Spiel', value: `${kscw} (Heim) vs ${opp}` },
+            { label: 'Datum', value: date, halfWidth: true },
+            { label: 'Zeit', value: timeRange, halfWidth: true },
+            ...(hall?.name ? [{ label: 'Halle', value: hall.name }] : []),
+          ],
+        })
+        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Heimspiel bestätigt – ${opp} (${kscw})`, adminText, null, adminHtml)
       } catch (mailErr) {
         log.warn(`confirm-home email failed: ${mailErr.message}`)
       }
@@ -1071,22 +1142,31 @@ export function registerGameScheduling(router, { database, logger, services, get
         const team = await database('teams').where('id', opponent.kscw_team).first()
         const kscw = `KSCW ${team?.name || ''}`.trim()
         const opp = opponent.club_name || opponent.team_name || ''
-        const lines = []
+        // Structured rows for HTML info cards + parallel plain-text lines.
+        // Away proposals carry a datetime → render as dd.mm.yyyy HH:MM.
+        const slotRowsMail = []
         for (let i = 1; i <= 3; i++) {
           const dt = row[`proposed_datetime_${i}`]
           if (!dt) continue
           const { date, time } = fmtDateMail(dt)
-          lines.push(`• ${date}${time ? `, ${time}` : ''}`)
+          slotRowsMail.push({ date, time })
         }
-        const list = lines.join('\n')
+        const list = slotRowsMail.map((r) => `• ${r.date}${r.time ? `, ${r.time}` : ''}`).join('\n')
         if (opponent.contact_email) {
-          const { subject, text } = schedEmail(opponent.language, 'proposals_sent', {
-            contact: opponent.contact_name || '', kscw, opp, list,
+          const { subject, text, html } = schedEmail(opponent.language, 'proposals_sent', {
+            contact: opponent.contact_name || '', kscw, opp, list, slots: slotRowsMail,
           })
-          await sendSchedulingMail(opponent.contact_email, subject, text)
+          await sendSchedulingMail(opponent.contact_email, subject, text, null, html)
         }
-        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Auswärts-Terminvorschläge – ${opp} (${kscw})`,
-          `${opp} hat Auswärts-Termine vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${FRONTEND_URL}/admin/terminplanung/dashboard`)
+        const adminText = `${opp} hat Auswärts-Termine vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${FRONTEND_URL}/admin/terminplanung/dashboard`
+        const adminHtml = adminNotifyHtml({
+          title: 'Auswärts-Terminvorschläge',
+          lead: `${opp} hat Auswärts-Termine vorgeschlagen (${kscw}):`,
+          infoRows: slotRowsMail.map((r, i) => ({ label: `Termin ${i + 1}`, value: `${r.date}${r.time ? `, ${r.time}` : ''}` })),
+          ctaText: 'Bitte im Dashboard einen Termin bestätigen.',
+          ctaUrl: `${FRONTEND_URL}/admin/terminplanung/dashboard`,
+        })
+        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Auswärts-Terminvorschläge – ${opp} (${kscw})`, adminText, null, adminHtml)
       } catch (mailErr) {
         log.warn(`propose-away email failed: ${mailErr.message}`)
       }
@@ -1386,17 +1466,27 @@ export function registerGameScheduling(router, { database, logger, services, get
 
           // Opponent confirmation (their language).
           if (opponent.contact_email) {
-            const { subject, text } = schedEmail(opponent.language, 'game_confirmed', {
+            const { subject, text, html } = schedEmail(opponent.language, 'game_confirmed', {
               contact: opponent.contact_name || '', kscw, opp, date, time,
             })
-            await sendSchedulingMail(opponent.contact_email, subject, text)
+            await sendSchedulingMail(opponent.contact_email, subject, text, null, html)
           }
 
           // Per-leg notice → spielplanung mailbox only (auto-forwards to the VB
           // Spielplanung group). Coaches/TR are NOT notified here — they get a
           // single combined summary once the full schedule is confirmed.
-          await sendSchedulingMail(SCHEDULING_REPLY_TO, `Auswärtsspiel bestätigt – ${opp} (${kscw})`,
-            `Auswärtsspiel bestätigt:\n\n${kscw} (Auswärts) bei ${opp}\n${date}${time ? `, ${time} Uhr` : ''}${place ? `, ${place}` : ''}`)
+          const adminText = `Auswärtsspiel bestätigt:\n\n${kscw} (Auswärts) bei ${opp}\n${date}${time ? `, ${time} Uhr` : ''}${place ? `, ${place}` : ''}`
+          const adminHtml = adminNotifyHtml({
+            title: 'Auswärtsspiel bestätigt',
+            lead: `${kscw} (Auswärts) bei ${opp}`,
+            infoRows: [
+              { label: 'Spiel', value: `${kscw} (Auswärts) bei ${opp}` },
+              { label: 'Datum', value: date, halfWidth: !!time },
+              ...(time ? [{ label: 'Zeit', value: time, halfWidth: true }] : []),
+              ...(place ? [{ label: 'Ort', value: place }] : []),
+            ],
+          })
+          await sendSchedulingMail(SCHEDULING_REPLY_TO, `Auswärtsspiel bestätigt – ${opp} (${kscw})`, adminText, null, adminHtml)
         }
       } catch (mailErr) {
         log.warn(`Confirm-away email failed: ${mailErr.message}`)
@@ -1491,10 +1581,29 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (pending.length) parts.push('', `Noch offen (${pending.length}):`, ...pending)
       const text = parts.join('\n')
 
+      // Branded HTML — render each section as its own info card (strip the leading
+      // `• ` from the already Swiss-formatted lines). Dates are produced via
+      // fmtDateMail above, never raw Date strings.
+      const stripBullet = (s) => String(s).replace(/^•\s*/, '')
+      const sectionCard = (heading, lines, empty) => {
+        const para = `<p style="font-size:13px;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;font-weight:700;margin:0 0 8px">${escHtml(heading)}</p>`
+        const rows = (lines.length ? lines : [empty]).map((l, i) => ({ label: String(i + 1), value: stripBullet(l) }))
+        return para + buildInfoCard(rows) + '<div style="height:14px;font-size:0;line-height:0">&nbsp;</div>'
+      }
+      let finalizeBody = sectionCard(`Heimspiele (${homeLines.length})`, homeLines, '• keine')
+      finalizeBody += sectionCard(`Auswärtsspiele (${awayLines.length})`, awayLines, '• keine')
+      if (pending.length) finalizeBody += sectionCard(`Noch offen (${pending.length})`, pending, '')
+      const finalizeHtml = buildEmailLayout(finalizeBody, {
+        title: 'Spielplan',
+        subtitle: `${kscw}${seasonLabel ? ` – Saison ${seasonLabel}` : ''}`,
+        sport: 'vb',
+        footerExtra: 'Sportliche Grüsse, KSC Wiedikon',
+      })
+
       // To: the spielplanung mailbox (auto-forwards to the VB Spielplanung
       // group). Cc: the team's coaches + team-responsibles.
       const staff = await teamStaffEmails(teamId)
-      await sendSchedulingMail(SCHEDULING_REPLY_TO, `Spielplan ${kscw}${seasonLabel ? ` ${seasonLabel}` : ''}`, text, staff.length ? staff.join(',') : null)
+      await sendSchedulingMail(SCHEDULING_REPLY_TO, `Spielplan ${kscw}${seasonLabel ? ` ${seasonLabel}` : ''}`, text, staff.length ? staff.join(',') : null, finalizeHtml)
 
       res.json({ success: true, staff: staff.length, home: homeLines.length, away: awayLines.length, pending: pending.length })
     } catch (err) {
