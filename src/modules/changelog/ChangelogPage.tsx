@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.23.2'
+const APP_VERSION = '4.23.3'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.23.3',
+    date: '08.06.2026',
+    sections: [
+      {
+        title: 'Match scheduling fixes',
+        items: [
+          'Opening a scheduling invite link no longer occasionally showed "Invalid link" on the first try — it now opens reliably the first time.',
+          'In the scheduling dashboard, the "also proposed by another club" note now counts only other clubs that proposed the very same home slot, instead of mistakenly including the same club\'s own away date.',
+          'Scheduling emails now use the branded KSC Wiedikon layout and show Swiss dates (dd.mm.yyyy) instead of raw timestamps.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.23.2',
     date: '08.06.2026',
