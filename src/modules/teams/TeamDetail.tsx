@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom'
 import { Move, Check, X as XIcon, XCircle, User, ZoomIn, ZoomOut, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 import { logActivity } from '../../utils/logActivity'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
+import type { ExpandedMemberTeam } from '../../hooks/useTeamMembers'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { usePendingMembers } from '../../hooks/usePendingMembers'
@@ -20,7 +21,7 @@ import { coercePositions } from '../../utils/memberPositions'
 import { getCurrentSeason } from '../../utils/dateHelpers'
 import ImageLightbox from '../../components/ImageLightbox'
 import type { Team, Member, Sponsor } from '../../types'
-import { asObj } from '../../utils/relations'
+import { asObj, flattenMemberIds } from '../../utils/relations'
 import PollsSection from '../polls/PollsSection'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { messagingFeatureEnabled } from '../../utils/messagingFeatureFlag'
@@ -53,6 +54,9 @@ export default function TeamDetail() {
   const teamRequests = teamRequestsRaw ?? []
 
   const [teamSponsors, setTeamSponsors] = useState<Sponsor[]>([])
+  // Coaches attached only via teams_coaches (no member_teams row) — fetched
+  // separately so they still appear in the Coaches section.
+  const [extraCoaches, setExtraCoaches] = useState<ExpandedMemberTeam[]>([])
 
   useEffect(() => {
     if (!team?.id) return
@@ -60,6 +64,29 @@ export default function TeamDetail() {
       .then(setTeamSponsors)
       .catch(() => {})
   }, [team?.id])
+
+  // Fetch coach member records that have no member_teams row for this team, so
+  // the Coaches section is complete even for staff-only coaches.
+  useEffect(() => {
+    if (!team) { setExtraCoaches([]); return }
+    const presentIds = new Set(members.map((mt) => String(asObj<Member>(mt.member)?.id ?? mt.member)))
+    const missing = flattenMemberIds(team.coach).filter((id) => !presentIds.has(id))
+    if (missing.length === 0) { setExtraCoaches([]); return }
+    let cancelled = false
+    fetchAllItems<Member>('members', { filter: { id: { _in: missing } }, fields: ['*'] })
+      .then((rows) => {
+        if (cancelled) return
+        setExtraCoaches(rows.map((m) => ({
+          id: `coach-${m.id}`,
+          member: m,
+          team: String(team.id),
+          season: team.season,
+          guest_level: 0,
+        } as unknown as ExpandedMemberTeam)))
+      })
+      .catch(() => { if (!cancelled) setExtraCoaches([]) })
+    return () => { cancelled = true }
+  }, [team, members])
 
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -184,8 +211,27 @@ export default function TeamDetail() {
     return sorted
   }, [sortKey, sortDir, team])
 
-  const rosterMembers = useMemo(() => sortMembers(members.filter(mt => (Number(mt.guest_level) || 0) === 0)), [members, sortMembers])
-  const guestMembers = useMemo(() => sortMembers(members.filter(mt => (Number(mt.guest_level) || 0) > 0)), [members, sortMembers])
+  // A coach with no real playing position is non-playing staff and must NOT be
+  // listed among the players. Player-coaches (a coach who also has a playing
+  // position) stay in the roster, flagged by their coach role badge.
+  const coachIdSet = useMemo(() => new Set(flattenMemberIds(team?.coach)), [team])
+  const isPureCoach = useCallback((mt: ExpandedMemberTeam) => {
+    const member = asObj<Member>(mt.member)
+    if (!member) return false
+    if (!coachIdSet.has(String(member.id))) return false
+    return coercePositions(member.position).filter((p) => p !== 'other').length === 0
+  }, [coachIdSet])
+
+  const rosterMembers = useMemo(() => sortMembers(members.filter(mt => (Number(mt.guest_level) || 0) === 0 && !isPureCoach(mt))), [members, sortMembers, isPureCoach])
+  const guestMembers = useMemo(() => sortMembers(members.filter(mt => (Number(mt.guest_level) || 0) > 0 && !isPureCoach(mt))), [members, sortMembers, isPureCoach])
+  // Coaches section: non-playing coaches with a member_teams row + staff-only
+  // coaches fetched separately. Deduped by member id.
+  const coachMembers = useMemo(() => {
+    const fromRoster = members.filter(isPureCoach)
+    const seen = new Set(fromRoster.map((mt) => String(asObj<Member>(mt.member)?.id ?? mt.member)))
+    const extras = extraCoaches.filter((mt) => !seen.has(String(asObj<Member>(mt.member)?.id ?? mt.member)))
+    return sortMembers([...fromRoster, ...extras])
+  }, [members, extraCoaches, isPureCoach, sortMembers])
 
   // Busy guards — prevent mobile double-tap / re-render from firing twice.
   const inFlightApprove = useRef<Set<string>>(new Set())
@@ -554,6 +600,43 @@ export default function TeamDetail() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Coaches */}
+      {coachMembers.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('coaches')} ({coachMembers.length})</h2>
+          <div className="mt-4 overflow-x-auto rounded-lg border bg-white dark:bg-gray-800">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b bg-gray-50 dark:bg-gray-900 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <SortHeader label={t('playerCol')} sortKey="name" current={sortKey} dir={sortDir} onClick={handleSort} />
+                  <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={handleSort} />
+                  <SortHeader label={t('positionCol')} sortKey="position" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden sm:table-cell" />
+                  {canManage && <SortHeader label={t('emailCol')} sortKey="email" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
+                  {canManage && <SortHeader label={t('phoneCol')} sortKey="phone" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
+                  {canManage && <SortHeader label={t('birthdateCol')} sortKey="birthdate" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden lg:table-cell" />}
+                  <SortHeader label={t('roleCol')} sortKey="role" current={sortKey} dir={sortDir} onClick={handleSort} />
+                </tr>
+              </thead>
+              <tbody>
+                {coachMembers.map((mt) => (
+                  <MemberRow
+                    key={mt.id as string}
+                    memberTeam={mt}
+                    teamId={team.id}
+                    teamSlug={team.name}
+                    team={team}
+                    canEdit={canManage}
+                    isAdmin={effectiveIsAdmin && hasAdminAccessToTeam(team.id)}
+                    showContact={canManage}
+                    onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

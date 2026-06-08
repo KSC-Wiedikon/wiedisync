@@ -7,6 +7,7 @@ export default {
   sending: 'Invio…',
   failedToSend: 'Invio non riuscito. Riprova.',
   loading: 'Caricamento messaggi…',
+  notTeamMember: 'Non fai parte della chat di questa squadra.',
   loadEarlier: 'Carica messaggi precedenti',
   muted: 'Silenziato',
   mute: 'Silenzia',

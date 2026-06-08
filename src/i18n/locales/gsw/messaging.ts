@@ -7,6 +7,7 @@ export default {
   sending: 'Wird gesendet…',
   failedToSend: 'Nachricht konnte nicht gesendet werden. Erneut versuchen.',
   loading: 'Lädt Nachrichten…',
+  notTeamMember: 'Du bisch nöd Teil vo dem Team-Chat.',
   loadEarlier: 'Ältere Nachrichten laden',
   muted: 'Stummgeschaltet',
   mute: 'Stummschalten',

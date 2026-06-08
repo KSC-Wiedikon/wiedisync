@@ -11,7 +11,7 @@ type Props = { teamId: string }
 export default function TeamMessagesTab({ teamId }: Props) {
   const { t } = useTranslation('messaging')
   const { user } = useAuth()
-  const { conversations, markRead, toggleMute } = useConversations()
+  const { conversations, isLoading, markRead, toggleMute } = useConversations()
   const conv = useMemo(
     () => conversations.find(c => c.type === 'team' && String(c.team) === String(teamId)) ?? null,
     [conversations, teamId],
@@ -19,7 +19,16 @@ export default function TeamMessagesTab({ teamId }: Props) {
 
   const teamChatEnabled = user?.communications_team_chat_enabled === true
   if (!teamChatEnabled) return <div className="p-4"><MessagingDisabledBanner /></div>
-  if (!conv)            return <div className="p-4 text-sm text-muted-foreground">{t('loading')}</div>
+  // Distinguish "still loading" from "loaded but the caller isn't a participant
+  // of this team's chat" (e.g. an admin/coach viewing a team they're not on) —
+  // otherwise the latter sat on the spinner forever.
+  if (!conv) {
+    return (
+      <div className="p-4 text-sm text-muted-foreground">
+        {isLoading ? t('loading') : t('notTeamMember')}
+      </div>
+    )
+  }
 
   return (
     <>

@@ -7,6 +7,7 @@ export default {
   sending: 'Envoi…',
   failedToSend: "Échec de l'envoi. Réessayer.",
   loading: 'Chargement des messages…',
+  notTeamMember: "Vous ne faites pas partie de la discussion de cette équipe.",
   loadEarlier: 'Charger les messages précédents',
   muted: 'Muet',
   mute: 'Couper le son',

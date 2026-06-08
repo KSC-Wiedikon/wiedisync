@@ -10,6 +10,7 @@ export default {
   sending: 'Wird gesendet…',
   failedToSend: 'Nachricht konnte nicht gesendet werden. Erneut versuchen.',
   loading: 'Lädt Nachrichten…',
+  notTeamMember: 'Du bist nicht Teil dieses Team-Chats.',
   loadEarlier: 'Ältere Nachrichten laden',
   muted: 'Stummgeschaltet',
   mute: 'Stummschalten',

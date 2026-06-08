@@ -10,6 +10,7 @@ export default {
   sending: 'Sending…',
   failedToSend: 'Failed to send. Try again.',
   loading: 'Loading messages…',
+  notTeamMember: "You're not part of this team's chat.",
   loadEarlier: 'Load earlier messages',
   muted: 'Muted',
   mute: 'Mute',

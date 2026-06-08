@@ -29,6 +29,8 @@ export default {
 
   roleTeamResponsible: 'Teamverantwortliche/r',
 
+  coaches: 'Trainer',
+
   // Table headers
   playerCol: 'Spieler',
   guestCol: 'Gast',
