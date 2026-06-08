@@ -51,7 +51,7 @@ ORDER BY cv.nachname, cv.vorname;
 \echo
 \echo === VB-2. Directus VB-linked members NOT in CD volleyball ===
 SELECT DISTINCT m.id, m.first_name, m.last_name, m.email, m.license_nr,
-       m.licences, m.kscw_membership_active
+       m.licences::jsonb AS licences, m.kscw_membership_active
 FROM members m
 JOIN member_teams mt ON mt.member = m.id
 JOIN teams t        ON t.id = mt.team
@@ -110,7 +110,7 @@ ORDER BY cb.nachname, cb.vorname;
 \echo
 \echo === BB-2. Directus BB-linked members NOT in CD basketball ===
 SELECT DISTINCT m.id, m.first_name, m.last_name, m.email, m.license_nr,
-       m.licences, m.kscw_membership_active
+       m.licences::jsonb AS licences, m.kscw_membership_active
 FROM members m
 JOIN member_teams mt ON mt.member = m.id
 JOIN teams t        ON t.id = mt.team

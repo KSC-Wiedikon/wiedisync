@@ -59,3 +59,6 @@ docs/handbook/
 *.njsproj
 *.sln
 *.sw?
+
+# ClubDesk member exports (PII — never commit)
+clubdesk-export*.csv
