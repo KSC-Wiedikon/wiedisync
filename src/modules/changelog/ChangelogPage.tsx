@@ -18,7 +18,7 @@ const CHANGELOG: ChangelogEntry[] = [
       {
         title: 'Picture uploads fixed',
         items: [
-          'Uploading a team picture or a profile photo now actually saves — it used to show "Saved" without storing anything.',
+          'Uploading a team picture, a profile photo or a sponsor logo now actually saves — it used to show "Saved" without storing anything.',
           'Your new picture appears straight away, without reloading the page.',
         ],
       },

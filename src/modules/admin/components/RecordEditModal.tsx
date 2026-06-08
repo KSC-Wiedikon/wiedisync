@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { createRecord, updateRecord, deleteRecord } from '../../../lib/api'
+import { createRecord, updateRecord, deleteRecord, uploadFile } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
 import { formatDateTimeCompactZurich, toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso } from '../../../utils/dateHelpers'
 import Modal from '@/components/Modal'
@@ -96,61 +96,52 @@ export default function RecordEditModal({
     setLoading(true)
     setError(null)
     try {
-      // Check if we have file fields
-      const hasFiles = Object.values(fileFields).some((f) => f !== null)
-
-      if (hasFiles) {
-        const fd = new FormData()
-        for (const [key, value] of Object.entries(formData)) {
-          if (value !== undefined && value !== null) {
-            fd.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value))
-          }
-        }
-        for (const [key, file] of Object.entries(fileFields)) {
-          if (file) fd.append(key, file)
-        }
-        if (isEdit) {
-          await updateRecord(collection, record!.id as string | number, Object.fromEntries(fd.entries()))
-          logActivity('update', collection, record!.id as string, formData)
-        } else {
-          const rec = await createRecord<Record<string, unknown>>(collection, Object.fromEntries(fd.entries()))
-          logActivity('create', collection, String(rec.id), formData)
-        }
-      } else {
-        // Clean up data — convert empty strings to null for optional fields
-        const cleanData: Record<string, unknown> = {}
-        for (const [key, value] of Object.entries(formData)) {
-          const field = schema.find((f) => f.name === key)
-          if (field?.type === 'number' && value !== '' && value !== null) {
-            cleanData[key] = Number(value)
-          } else if (field?.type === 'bool') {
-            cleanData[key] = Boolean(value)
-          } else if (field?.type === 'json' && typeof value === 'string' && value) {
-            try {
-              cleanData[key] = JSON.parse(value)
-            } catch {
-              cleanData[key] = value
-            }
-          } else if (field?.type === 'relation') {
-            const maxSelect = (field.options?.maxSelect as number) || 1
-            if (maxSelect > 1) {
-              // Multi-relation: ensure array
-              cleanData[key] = Array.isArray(value) ? value : (value === '' || value == null) ? [] : [value]
-            } else {
-              // Single relation: empty string is fine (PB treats as null)
-              cleanData[key] = value === '' ? '' : value
-            }
-          } else {
+      // Clean up data — convert empty strings to null/typed values per field type.
+      const cleanData: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(formData)) {
+        const field = schema.find((f) => f.name === key)
+        if (field?.type === 'number' && value !== '' && value !== null) {
+          cleanData[key] = Number(value)
+        } else if (field?.type === 'bool') {
+          cleanData[key] = Boolean(value)
+        } else if (field?.type === 'json' && typeof value === 'string' && value) {
+          try {
+            cleanData[key] = JSON.parse(value)
+          } catch {
             cleanData[key] = value
           }
-        }
-        if (isEdit) {
-          await updateRecord(collection, record!.id as string | number, cleanData)
-          logActivity('update', collection, String(record!.id), cleanData)
+        } else if (field?.type === 'relation') {
+          const maxSelect = (field.options?.maxSelect as number) || 1
+          if (maxSelect > 1) {
+            // Multi-relation: ensure array
+            cleanData[key] = Array.isArray(value) ? value : (value === '' || value == null) ? [] : [value]
+          } else {
+            // Single relation: empty string is fine (PB treats as null)
+            cleanData[key] = value === '' ? '' : value
+          }
         } else {
-          const rec = await createRecord<Record<string, unknown>>(collection, cleanData)
-          logActivity('create', collection, String(rec.id), cleanData)
+          cleanData[key] = value
         }
+      }
+
+      // Upload any file fields to /files first (multipart), then reference each
+      // by id in the plain-JSON payload. Passing FormData straight to
+      // create/updateRecord is a silent no-op — the Directus SDK JSON.stringifies
+      // the body and both File and FormData serialize to '{}'. File fields must
+      // go through POST /files.
+      for (const [key, file] of Object.entries(fileFields)) {
+        if (file) {
+          const { id: fileId } = await uploadFile(file)
+          cleanData[key] = fileId
+        }
+      }
+
+      if (isEdit) {
+        await updateRecord(collection, record!.id as string | number, cleanData)
+        logActivity('update', collection, String(record!.id), cleanData)
+      } else {
+        const rec = await createRecord<Record<string, unknown>>(collection, cleanData)
+        logActivity('create', collection, String(rec.id), cleanData)
       }
       onSaved()
       onClose()

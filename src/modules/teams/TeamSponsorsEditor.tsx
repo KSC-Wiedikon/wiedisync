@@ -11,7 +11,7 @@ import { Label } from '../../components/ui/label'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import EmptyState from '../../components/EmptyState'
 import type { Team, Sponsor } from '../../types'
-import { createRecord, deleteRecord, fetchAllItems, updateRecord } from '../../lib/api'
+import { createRecord, deleteRecord, fetchAllItems, updateRecord, uploadFile } from '../../lib/api'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 
 export default function TeamSponsorsEditor({ team }: { team: Team }) {
@@ -69,23 +69,31 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
   const handleSubmit = async () => {
     if (!name.trim()) return
 
-    const formData = new FormData()
-    formData.append('name', name.trim())
-    formData.append('website_url', websiteUrl.trim())
-    formData.append('team_page_only', String(teamPageOnly))
-    formData.append('active', 'true')
-    if (logoFile) {
-      formData.append('logo', logoFile)
-    }
-
     try {
+      // Upload the logo to /files first (multipart), then reference it by id in
+      // the plain-JSON payload. Passing FormData straight to create/updateRecord
+      // is a silent no-op: the Directus SDK JSON.stringifies the body and
+      // JSON.stringify(FormData) === '{}'. File fields go through POST /files.
+      const payload: Record<string, unknown> = {
+        name: name.trim(),
+        website_url: websiteUrl.trim(),
+        team_page_only: teamPageOnly,
+        active: true,
+      }
+      if (logoFile) {
+        const { id: fileId } = await uploadFile(logoFile)
+        payload.logo = fileId
+      }
+
       if (editingId) {
-        await updateRecord('sponsors', editingId, formData as unknown as Record<string, unknown>)
+        await updateRecord('sponsors', editingId, payload)
         logActivity('update', 'sponsors', editingId, { name: name.trim(), website_url: websiteUrl.trim(), team_page_only: teamPageOnly })
       } else {
-        formData.append('teams', team.id)
-        formData.append('sort_order', String(sponsors.length))
-        const created = await createRecord<{id: string}>('sponsors', formData as unknown as Record<string, unknown>)
+        // M2M write uses junction-object format ({ teams_id }), not a flat id
+        // array — flat arrays trigger a junction-PK lookup that 403s non-admins.
+        payload.teams = [{ teams_id: team.id }]
+        payload.sort_order = sponsors.length
+        const created = await createRecord<{id: string}>('sponsors', payload)
         logActivity('create', 'sponsors', created.id, { name: name.trim(), website_url: websiteUrl.trim(), team_page_only: teamPageOnly })
       }
       toast.success(t('sponsorSaved'))
