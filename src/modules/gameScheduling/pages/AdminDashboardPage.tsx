@@ -10,6 +10,7 @@ import LoadingSpinner from '../../../components/LoadingSpinner'
 import AwayProposalReview from '../components/AwayProposalReview'
 import HomeProposalReview from '../components/HomeProposalReview'
 import ExcelExportButton from '../components/ExcelExportButton'
+import SchedulingCalendar from '../components/SchedulingCalendar'
 import { Badge } from '../../../components/ui/badge'
 import type { GameSchedulingOpponent, GameSchedulingSlot, InviteStatus, InviteSource } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
@@ -137,6 +138,9 @@ export default function AdminDashboardPage() {
         </div>
         <ExcelExportButton bookings={bookings} opponents={opponents} slots={slots} teams={volleyballTeams} />
       </div>
+
+      {/* Season overview calendar — all proposed/confirmed/blocked slots */}
+      <SchedulingCalendar slots={slots} bookings={bookings} teams={volleyballTeams} season={season} />
 
       {/* Team overview accordion */}
       <div className="space-y-3">

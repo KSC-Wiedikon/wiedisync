@@ -1,4 +1,13 @@
 export default {
+  // Saison-Übersicht (Kalender)
+  overviewTitle: 'Saison-Übersicht',
+  legendHomeConfirmed: 'Heim (bestätigt)',
+  legendAwayConfirmed: 'Auswärts (bestätigt)',
+  legendHomeProposed: 'Heim (vorgeschlagen)',
+  legendAwayProposed: 'Auswärts (vorgeschlagen)',
+  legendBlocked: 'Blockiert',
+  legendOpen: 'Freie Slots',
+  openCount: '{{count}} frei',
   // Vereinsinternes Derby (Art. 27 SVRZ)
   derbyTitle: 'Vereinsinterne Derby-Daten (erste Spiele)',
   derbyHint: 'Wenn zwei KSCW-Teams in derselben Gruppe einer Liga spielen, müssen ihre direkten Begegnungen das erste Spiel der Vor- bzw. Rückrunde sein (Art. 27). Lege hier die beiden Daten fest — Gegner können danach nur spätere Termine buchen.',

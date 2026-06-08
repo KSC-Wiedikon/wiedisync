@@ -1,4 +1,13 @@
 export default {
+  // Saison-Übersicht (Kalender)
+  overviewTitle: 'Saison-Übersicht',
+  legendHomeConfirmed: 'Heim (bestätigt)',
+  legendAwayConfirmed: 'Uswärts (bestätigt)',
+  legendHomeProposed: 'Heim (vorgschlage)',
+  legendAwayProposed: 'Uswärts (vorgschlage)',
+  legendBlocked: 'Blockiert',
+  legendOpen: 'Freii Slots',
+  openCount: '{{count}} frei',
   // Vereinsinterns Derby (Art. 27 SVRZ)
   derbyTitle: 'Vereinsinterni Derby-Date (erschti Spiil)',
   derbyHint: 'Wenn zwöi KSCW-Teams i dr gliiche Gruppe vo ere Liga spiile, müend ihri direkte Begegnige s erschte Spiil vo dr Vor- bzw. Rückrundi sii (Art. 27). Leg da die zwöi Date fescht — Gägner chönd dnah nume spöteri Termin buche.',

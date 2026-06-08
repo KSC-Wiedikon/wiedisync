@@ -1,4 +1,13 @@
 export default {
+  // Season overview calendar
+  overviewTitle: 'Season overview',
+  legendHomeConfirmed: 'Home (confirmed)',
+  legendAwayConfirmed: 'Away (confirmed)',
+  legendHomeProposed: 'Home (proposed)',
+  legendAwayProposed: 'Away (proposed)',
+  legendBlocked: 'Blocked',
+  legendOpen: 'Open slots',
+  openCount: '{{count}} open',
   // Intra-club derby anchoring (Art. 27 SVRZ)
   derbyTitle: 'Intra-club derby dates (first games)',
   derbyHint: 'When two KSCW teams share a league group, their head-to-head games must be the first game of the Vorrunde and of the Rückrunde (Art. 27). Fix the two dates here — opponents can then only book dates after them.',

@@ -1,4 +1,13 @@
 export default {
+  // Vue de la saison (calendrier)
+  overviewTitle: 'Vue de la saison',
+  legendHomeConfirmed: 'Domicile (confirmé)',
+  legendAwayConfirmed: 'Extérieur (confirmé)',
+  legendHomeProposed: 'Domicile (proposé)',
+  legendAwayProposed: 'Extérieur (proposé)',
+  legendBlocked: 'Bloqué',
+  legendOpen: 'Créneaux libres',
+  openCount: '{{count}} libres',
   // Derby interne au club (art. 27 SVRZ)
   derbyTitle: 'Dates du derby interne au club (premiers matchs)',
   derbyHint: "Lorsque deux équipes du KSCW jouent dans le même groupe d'une ligue, leurs confrontations directes doivent être le premier match du tour aller et du tour retour (art. 27). Fixe ici les deux dates — les adversaires ne pourront ensuite réserver que des dates ultérieures.",
