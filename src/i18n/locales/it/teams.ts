@@ -31,6 +31,7 @@ export default {
 
   // Table headers
   playerCol: 'Giocatore',
+  guestCol: 'Ospite',
   numberCol: '#',
   positionCol: 'Posizione',
   emailCol: 'Email',

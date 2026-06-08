@@ -22,6 +22,8 @@ interface MemberRowProps {
   canEdit?: boolean
   isAdmin?: boolean
   showContact?: boolean
+  /** Render a dedicated guest-level column (used by the Guests table) so the badge lines up. */
+  showGuestColumn?: boolean
   onTeamUpdate?: (updated: Partial<Team>) => void
   onExtendShell?: (memberId: string) => void
   isEditing?: boolean
@@ -50,7 +52,7 @@ export function getMemberRole(memberId: string | number, team?: Team | null): st
   return null
 }
 
-export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team, canEdit, isAdmin, showContact = true, onTeamUpdate, onExtendShell, isEditing }: MemberRowProps) {
+export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team, canEdit, isAdmin, showContact = true, showGuestColumn = false, onTeamUpdate, onExtendShell, isEditing }: MemberRowProps) {
   const { t } = useTranslation('teams')
   const member = asObj<Member>(memberTeam.member)
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -155,7 +157,7 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
           >
             {displayName}
           </Link>
-          {((memberTeam as MemberTeam).guest_level ?? 0) > 0 && (
+          {!showGuestColumn && ((memberTeam as MemberTeam).guest_level ?? 0) > 0 && (
             <span className={`ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium ${
               (memberTeam as MemberTeam).guest_level === 1 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
               : (memberTeam as MemberTeam).guest_level === 2 ? 'bg-orange-100/70 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400'
@@ -193,6 +195,21 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
           </div>
         )}
       </td>
+
+      {/* Guest level — own column so the badge lines up across rows (Guests table only) */}
+      {showGuestColumn && (
+        <td className="px-4 py-3">
+          {((memberTeam as MemberTeam).guest_level ?? 0) > 0 && (
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+              (memberTeam as MemberTeam).guest_level === 1 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+              : (memberTeam as MemberTeam).guest_level === 2 ? 'bg-orange-100/70 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400'
+              : 'bg-orange-100/50 text-orange-500 dark:bg-orange-900/10 dark:text-orange-500'
+            }`}>
+              G{(memberTeam as MemberTeam).guest_level}
+            </span>
+          )}
+        </td>
+      )}
 
       {/* Number — editable by coach, hidden for non-playing staff */}
       <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">

@@ -620,6 +620,7 @@ export default function TeamDetail() {
               <thead>
                 <tr className="border-b bg-gray-50 dark:bg-gray-900 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                   <SortHeader label={t('playerCol')} sortKey="name" current={sortKey} dir={sortDir} onClick={handleSort} />
+                  <th className="px-4 py-3">{t('guestCol')}</th>
                   <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={handleSort} />
                   <SortHeader label={t('positionCol')} sortKey="position" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden sm:table-cell" />
                   {canManage && <SortHeader label={t('emailCol')} sortKey="email" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
@@ -639,6 +640,7 @@ export default function TeamDetail() {
                     canEdit={canManage}
                     isAdmin={effectiveIsAdmin && hasAdminAccessToTeam(team.id)}
                     showContact={canManage}
+                    showGuestColumn
                     onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
                   />
                 ))}

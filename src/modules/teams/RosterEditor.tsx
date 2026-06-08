@@ -606,7 +606,7 @@ function SocialLinkRow({ label, hint, value, onChange, placeholder }: {
 }
 
 /* ── Collapsible accordion group ── */
-function SettingsGroup({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+function SettingsGroup({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-700">
@@ -735,7 +735,7 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
 
       <div className="mt-3 space-y-3">
         {/* Website */}
-        <SettingsGroup title={t('settingsWebsite')} defaultOpen>
+        <SettingsGroup title={t('settingsWebsite')}>
           <SettingRow label={t('featureOpenForPlayers')} hint={t('featureOpenForPlayersHint')}>
             <SwitchToggle checked={openForPlayers} onChange={toggleOpenForPlayers} />
           </SettingRow>
@@ -808,7 +808,7 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
         </SettingsGroup>
 
         {/* Features */}
-        <SettingsGroup title={t('settingsFeatures')} defaultOpen>
+        <SettingsGroup title={t('settingsFeatures')}>
           <SettingRow label={t('featureTasks')} hint={t('featureTasksHint')}>
             <SwitchToggle checked={settings.tasks === true} onChange={() => toggleBool('tasks')} />
           </SettingRow>
