@@ -8,8 +8,8 @@ interface Props {
   booking: GameSchedulingBooking
   slotsById: Map<string, GameSchedulingSlot>
   hallsById: Map<string, string | undefined>
-  /** Count of OTHER pending proposals within `windowDays` of this date (warn). */
-  warn: (ymd: string | undefined, windowDays: number) => number
+  /** Count of OTHER opponents (same KSCW team) that proposed this exact slot id. */
+  alsoProposedBy: (slotId: string | number | null | undefined) => number
   onConfirm: (bookingId: string, proposalNumber: number) => Promise<void>
 }
 
@@ -17,7 +17,7 @@ const hm = (s?: string) => String(s || '').slice(0, 5)
 
 // Admin review of an opponent's up-to-3 proposed home slots. Slots aren't held,
 // so each row warns if the slot is already taken or also proposed by others.
-export default function HomeProposalReview({ booking, slotsById, hallsById, warn, onConfirm }: Props) {
+export default function HomeProposalReview({ booking, slotsById, hallsById, alsoProposedBy, onConfirm }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [confirming, setConfirming] = useState(false)
 
@@ -65,9 +65,9 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, warn
       <BookingStatusBadge status={booking.status} />
       {proposals.map((p) => {
         const info = slotInfo(p.slotId)
-        // Choice 1 holds (reserved, exclusive) — no warn. Choices 2 & 3 warn on
-        // nearby contention: ±2 for choice 2, ±1 for choice 3.
-        const others = p.num === 1 ? 0 : warn(info?.ymd, p.num === 3 ? 1 : 2)
+        // Choice 1 holds (reserved, exclusive) — no warn. Choices 2 & 3 warn when
+        // another club proposed this exact same (unheld) slot.
+        const others = p.num === 1 ? 0 : alsoProposedBy(p.slotId)
         return (
           <div
             key={p.num}

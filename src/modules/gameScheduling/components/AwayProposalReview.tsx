@@ -5,8 +5,6 @@ import type { GameSchedulingBooking } from '../../../types'
 
 interface Props {
   booking: GameSchedulingBooking
-  /** Count of OTHER pending proposals within `windowDays` of this date (warn). */
-  warn: (ymd: string | undefined, windowDays: number) => number
   onConfirm: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
 }
 
@@ -21,7 +19,7 @@ function fmtProposal(iso: string | null | undefined): string {
   return hh ? `${d}.${mo}.${y} ${hh}:${mm}` : `${d}.${mo}.${y}`
 }
 
-export default function AwayProposalReview({ booking, warn, onConfirm }: Props) {
+export default function AwayProposalReview({ booking, onConfirm }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [confirming, setConfirming] = useState(false)
 
@@ -70,11 +68,6 @@ export default function AwayProposalReview({ booking, warn, onConfirm }: Props) 
             </span>
             <p className="text-sm text-gray-900 dark:text-gray-100">{fmtProposal(p.datetime)}</p>
             {p.place && <p className="text-xs text-gray-500 dark:text-gray-400">{p.place}</p>}
-            {(() => {
-              // Choice 1 holds (no warn); choices 2 & 3 warn on nearby contention (±2 / ±1).
-              const n = p.num === 1 ? 0 : warn(String(p.datetime || '').slice(0, 10), p.num === 3 ? 1 : 2)
-              return n > 0 ? <p className="text-xs text-orange-600 dark:text-orange-400">⚠ {t('slotAlsoProposed', { count: n })}</p> : null
-            })()}
           </div>
           {booking.status === 'pending' && (
             <button

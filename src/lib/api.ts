@@ -458,15 +458,25 @@ export function assetUrl(fileId: string | null | undefined, transforms?: string)
   return transforms ? `${API_URL}/assets/${fileId}?${transforms}` : `${API_URL}/assets/${fileId}`
 }
 
-/** Call a custom KSCW endpoint. */
+/**
+ * Call a custom KSCW endpoint.
+ *
+ * `anonymous: true` sends NO Authorization header even when a member is logged
+ * in. Use it for genuinely public endpoints (token-in-URL is the auth), e.g. the
+ * Terminplanung opponent flow: attaching a logged-in member's Bearer there only
+ * hurt — a stale/expired access token makes Directus' global auth middleware
+ * reject the request with 401 *before* the public endpoint runs, which surfaced
+ * as a spurious "Invalid link" on first load (WIEDISYNC first-load bug).
+ */
 export async function kscwApi<T = unknown>(
   path: string,
-  options?: { method?: string; body?: unknown; headers?: Record<string, string> },
+  options?: { method?: string; body?: unknown; headers?: Record<string, string>; anonymous?: boolean },
 ): Promise<T> {
   const method = options?.method || 'GET'
+  const anonymous = options?.anonymous === true
 
   const doFetch = async (): Promise<Response> => {
-    const token = getAccessToken()
+    const token = anonymous ? null : getAccessToken()
     return fetch(`${API_URL}/kscw${path}`, {
       method,
       headers: {
@@ -492,8 +502,10 @@ export async function kscwApi<T = unknown>(
     throw err
   }
 
-  // Token refresh race: retry once after refreshing if we got 401/403
-  if ((res.status === 401 || res.status === 403) && isAuthenticated()) {
+  // Token refresh race: retry once after refreshing if we got 401/403.
+  // Skipped for anonymous calls — there's no auth to refresh, and a public
+  // endpoint's own 401 ("Invalid or expired link") must surface unchanged.
+  if (!anonymous && (res.status === 401 || res.status === 403) && isAuthenticated()) {
     try {
       await refreshAuth()
       res = await doFetch()

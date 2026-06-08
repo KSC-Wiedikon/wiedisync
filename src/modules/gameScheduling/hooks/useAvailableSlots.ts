@@ -100,7 +100,7 @@ export function useAvailableSlots(token: string | undefined) {
     setIsLoading(true)
     setError(null)
     try {
-      const resp = await kscwApi(`/terminplanung/slots/${token}`, { method: 'GET' })
+      const resp = await kscwApi(`/terminplanung/slots/${token}`, { method: 'GET', anonymous: true })
       setData(resp as SlotsResponse)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -115,6 +115,7 @@ export function useAvailableSlots(token: string | undefined) {
     if (!token) throw new Error('No token')
     const resp = await kscwApi(`/terminplanung/propose-home/${token}`, {
       method: 'POST',
+      anonymous: true,
       body: { slot_ids: slotIds.map((x) => Number(x)), language: baseLang(i18n.resolvedLanguage || i18n.language) },
     })
     await fetchSlots()
@@ -125,6 +126,7 @@ export function useAvailableSlots(token: string | undefined) {
     if (!token) throw new Error('No token')
     const resp = await kscwApi(`/terminplanung/propose-away/${token}`, {
       method: 'POST',
+      anonymous: true,
       body: { proposals, language: baseLang(i18n.resolvedLanguage || i18n.language) },
     })
     await fetchSlots()
@@ -135,7 +137,7 @@ export function useAvailableSlots(token: string | undefined) {
   const setLanguage = useCallback(async (language: string) => {
     if (!token) return
     try {
-      await kscwApi(`/terminplanung/set-language/${token}`, { method: 'POST', body: { language } })
+      await kscwApi(`/terminplanung/set-language/${token}`, { method: 'POST', anonymous: true, body: { language } })
     } catch { /* best-effort — a failed language save must never disrupt the flow */ }
   }, [token])
 

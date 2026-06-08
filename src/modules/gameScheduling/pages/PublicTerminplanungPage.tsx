@@ -66,6 +66,7 @@ export default function PublicTerminplanungPage() {
     try {
       const resp = await kscwApi<{ token: string }>('/terminplanung/register', {
         method: 'POST',
+        anonymous: true,
         body: {
           kscw_team_id: selectedTeamId,
           club_name: clubName.trim(),
