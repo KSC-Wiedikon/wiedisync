@@ -51,5 +51,8 @@ export function buildInviteMailto({ invite, kscwTeam, season, frontendUrl }: Bui
     `Sportliche Grüsse`,
     `KSC Wiedikon`,
   ].join('\n')
-  return `mailto:${invite.contact_email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  // contact_email may be a comma-separated list (a club's several Spielplan
+  // contacts) — strip spaces so the mailto `to` stays a valid address list.
+  const to = invite.contact_email.replace(/\s+/g, '')
+  return `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }

@@ -100,7 +100,7 @@ export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onRei
         )}
       </td>
       <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">
-        <a href={`mailto:${invite.contact_email}`} className="hover:underline">
+        <a href={`mailto:${invite.contact_email.replace(/\s+/g, '')}`} className="hover:underline">
           {invite.contact_email}
         </a>
       </td>

@@ -130,6 +130,8 @@ export default {
   hideNonBlocking: 'Nöd-blockierendi Abweseheite uusblände',
   // Badge shown next to an absence whose blocking flag is off
   nonBlocking: 'Nöd blockierend',
+  dayCount_one: '{{count}} Tag',
+  dayCount_other: '{{count}} Täg',
   // Calendar closure label (generic "Halle geschlossen" closures)
   hallClosed: 'Halle gschlosse',
   // Team blocking (migration 085) — coach/TR scheduling blackouts

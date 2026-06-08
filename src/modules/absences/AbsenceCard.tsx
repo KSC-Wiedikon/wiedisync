@@ -5,6 +5,19 @@ import { TableCell, TableRow } from '../../components/ui/table'
 import { asObj } from '../../utils/relations'
 import type { Absence, Member } from '../../types'
 
+/**
+ * Inclusive day count between two ISO date strings (YYYY-MM-DD).
+ * Same start/end → 1. Parsed as UTC midnight so DST/local offsets never shift it.
+ * Returns null if either date is missing/unparseable.
+ */
+function inclusiveDays(start?: string | null, end?: string | null): number | null {
+  if (!start || !end) return null
+  const s = Date.parse(`${String(start).slice(0, 10)}T00:00:00Z`)
+  const e = Date.parse(`${String(end).slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(s) || Number.isNaN(e)) return null
+  return Math.round((e - s) / 86_400_000) + 1
+}
+
 interface AbsenceCardProps {
   absence: Absence
   onEdit?: (absence: Absence) => void
@@ -35,6 +48,13 @@ export default function AbsenceCard({ absence, onEdit, onDelete, memberName, can
       ? `${formatDate(absence.start_date)} – ${formatDate(absence.end_date)}`
       : formatDate(absence.start_date)
 
+  // Inclusive day span (same start/end = 1 day). Skipped for weekly
+  // unavailabilities (recurring, not a contiguous span) and indefinite absences.
+  const dayCount =
+    absence.type !== 'weekly' && !absence.indefinite
+      ? inclusiveDays(absence.start_date, absence.end_date)
+      : null
+
   return (
     <TableRow className="align-top">
       {memberName !== undefined && (
@@ -53,7 +73,10 @@ export default function AbsenceCard({ absence, onEdit, onDelete, memberName, can
               {t('nonBlocking')}
             </span>
           )}
-          <span className="sm:hidden text-sm text-gray-600 dark:text-gray-400">{dateRange}</span>
+          <span className="sm:hidden text-sm text-gray-600 dark:text-gray-400">
+            {dateRange}
+            {dayCount != null && <span className="text-gray-400 dark:text-gray-500"> · {t('dayCount', { count: dayCount })}</span>}
+          </span>
         </div>
         {absence.reason_detail && (
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{absence.reason_detail}</p>
@@ -84,6 +107,9 @@ export default function AbsenceCard({ absence, onEdit, onDelete, memberName, can
       </TableCell>
       <TableCell className="hidden md:table-cell whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
         {dateRange}
+        {dayCount != null && (
+          <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">· {t('dayCount', { count: dayCount })}</span>
+        )}
       </TableCell>
       <TableCell className="hidden sm:table-cell whitespace-normal">
         {absence.affects && absence.affects.length > 0 && (

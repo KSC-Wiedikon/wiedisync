@@ -130,6 +130,8 @@ export default {
   hideNonBlocking: 'Nascondi assenze non bloccanti',
   // Badge shown next to an absence whose blocking flag is off
   nonBlocking: 'Non bloccante',
+  dayCount_one: '{{count}} giorno',
+  dayCount_other: '{{count}} giorni',
   // Calendar closure label (generic "Halle geschlossen" closures)
   hallClosed: 'Palestra chiusa',
   // Team blocking (migration 085) — coach/TR scheduling blackouts

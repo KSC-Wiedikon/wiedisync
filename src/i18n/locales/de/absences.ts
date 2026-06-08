@@ -143,6 +143,8 @@ export default {
   hideNonBlocking: 'Nicht-blockierende Abwesenheiten ausblenden',
   // Badge shown next to an absence whose blocking flag is off
   nonBlocking: 'Nicht blockierend',
+  dayCount_one: '{{count}} Tag',
+  dayCount_other: '{{count}} Tage',
   // Calendar closure label (generic "Halle geschlossen" closures)
   hallClosed: 'Halle geschlossen',
   // Team blocking (migration 085) — coach/TR scheduling blackouts

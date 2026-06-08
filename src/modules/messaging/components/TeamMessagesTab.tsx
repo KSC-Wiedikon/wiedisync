@@ -1,27 +1,24 @@
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAuth } from '../../../hooks/useAuth'
-import { useConversations } from '../hooks/useConversations'
+import type { ConversationSummary } from '../api/types'
 import ThreadView from './ThreadView'
 import MessagingDisabledBanner from './MessagingDisabledBanner'
 import ConsentModal from './ConsentModal'
 
-type Props = { teamId: string }
+type Props = {
+  conv: ConversationSummary | null
+  teamChatEnabled: boolean
+  isLoading: boolean
+  onMarkRead: (id: string) => void
+  onToggleMute: (id: string) => void
+}
 
-export default function TeamMessagesTab({ teamId }: Props) {
+export default function TeamMessagesTab({ conv, teamChatEnabled, isLoading, onMarkRead, onToggleMute }: Props) {
   const { t } = useTranslation('messaging')
-  const { user } = useAuth()
-  const { conversations, isLoading, markRead, toggleMute } = useConversations()
-  const conv = useMemo(
-    () => conversations.find(c => c.type === 'team' && String(c.team) === String(teamId)) ?? null,
-    [conversations, teamId],
-  )
 
-  const teamChatEnabled = user?.communications_team_chat_enabled === true
   if (!teamChatEnabled) return <div className="p-4"><MessagingDisabledBanner /></div>
-  // Distinguish "still loading" from "loaded but the caller isn't a participant
-  // of this team's chat" (e.g. an admin/coach viewing a team they're not on) —
-  // otherwise the latter sat on the spinner forever.
+  // Participation is gated by the parent section (TeamMessagesSection hides the
+  // whole section for non-participants), so this only renders while the
+  // conversation list is still loading.
   if (!conv) {
     return (
       <div className="p-4 text-sm text-muted-foreground">
@@ -32,7 +29,7 @@ export default function TeamMessagesTab({ teamId }: Props) {
 
   return (
     <>
-      <ThreadView conversation={conv} onMarkRead={markRead} onToggleMute={toggleMute} />
+      <ThreadView conversation={conv} onMarkRead={onMarkRead} onToggleMute={onToggleMute} />
       <ConsentModal />
     </>
   )

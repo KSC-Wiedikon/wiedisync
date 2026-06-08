@@ -26,6 +26,7 @@ import PollsSection from '../polls/PollsSection'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { messagingFeatureEnabled } from '../../utils/messagingFeatureFlag'
 import TeamMessagesTab from '../messaging/components/TeamMessagesTab'
+import { useConversations } from '../messaging/hooks/useConversations'
 import { createRecord, fetchAllItems, fetchItems, updateRecord } from '../../lib/api'
 
 type SortKey = 'name' | 'number' | 'position' | 'email' | 'phone' | 'birthdate' | 'role'
@@ -799,7 +800,21 @@ function SortHeader({ label, sortKey: key, current, dir, onClick, className = ''
 
 function TeamMessagesSection({ teamId }: { teamId: string }) {
   const { t } = useTranslation('messaging')
+  const { user } = useAuth()
+  const { conversations, isLoading, markRead, toggleMute } = useConversations()
   const [open, setOpen] = useState(true)
+  const conv = useMemo(
+    () => conversations.find(c => c.type === 'team' && String(c.team) === String(teamId)) ?? null,
+    [conversations, teamId],
+  )
+  const teamChatEnabled = user?.communications_team_chat_enabled === true
+
+  // Hide the whole section for non-participants: team chat is on but, once the
+  // conversation list has loaded, the caller has no conversation for this team
+  // (i.e. they aren't a member of it). Members who turned team chat off still
+  // see the section so the "enable team chat" banner can prompt them.
+  if (teamChatEnabled && !isLoading && !conv) return null
+
   return (
     <section className="mt-6 rounded-lg border border-border bg-card">
       <button
@@ -814,7 +829,17 @@ function TeamMessagesSection({ teamId }: { teamId: string }) {
         </span>
         {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </button>
-      {open && <div className="border-t border-border"><TeamMessagesTab teamId={teamId} /></div>}
+      {open && (
+        <div className="border-t border-border">
+          <TeamMessagesTab
+            conv={conv}
+            teamChatEnabled={teamChatEnabled}
+            isLoading={isLoading}
+            onMarkRead={markRead}
+            onToggleMute={toggleMute}
+          />
+        </div>
+      )}
     </section>
   )
 }

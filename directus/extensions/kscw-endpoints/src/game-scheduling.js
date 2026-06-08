@@ -81,13 +81,23 @@ function fmtDateMail(val) {
 export function registerGameScheduling(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'game-scheduling' })
 
+  // An opponent's contact_email may hold SEVERAL addresses (a club often lists
+  // multiple Spielplanverantwortliche) joined by comma/semicolon. Split into a
+  // clean array so every contact receives the invite + all scheduling mail.
+  // Directus MailService accepts a string[] for `to`/`cc`.
+  function parseRecipients(v) {
+    if (Array.isArray(v)) return v.map((s) => String(s).trim()).filter(Boolean)
+    const parts = String(v || '').split(/[,;]+/).map((s) => s.trim()).filter(Boolean)
+    return parts.length > 1 ? parts : (parts[0] || '')
+  }
+
   // Send a Terminplanung email from the dedicated spielplanung identity.
   // Best-effort: callers wrap in try/catch so a mail failure never blocks the action.
   async function sendSchedulingMail(to, subject, text, cc = null, html = null) {
     const schema = await getSchema()
     const { MailService } = services
     const mail = new MailService({ schema, knex: database })
-    await mail.send({ to, cc: cc || undefined, from: SCHEDULING_FROM, replyTo: SCHEDULING_REPLY_TO, subject, text, html: html || undefined })
+    await mail.send({ to: parseRecipients(to), cc: cc ? parseRecipients(cc) : undefined, from: SCHEDULING_FROM, replyTo: SCHEDULING_REPLY_TO, subject, text, html: html || undefined })
   }
 
   // Coach + team-responsible emails for a KSCW team (deduped, real addresses
@@ -2120,8 +2130,14 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!kscwTeamRow) return res.status(404).json({ error: 'kscw_team not found' })
       const seasonUuid = seasonRow.svrz_season_uuid || process.env.SVRZ_SEASON_UUID || ''
 
-      // 1. Pull schedulable KSCW games in this team's league
-      const games = await database('svrz_games')
+      // 1. Pull schedulable KSCW games, then scope to THIS team. Filtering by
+      // league_short alone is ambiguous — several KSCW teams share a code (H1,
+      // H3 and D1 are all "2L" this season), so a club-level group previously
+      // lumped every KSCW-vs-club game together and inflated the game count
+      // (e.g. "VBC Wetzikon — 8 games" when H1 plays them only twice). Scope to
+      // games whose KSCW side IS this exact team — SVRZ names them
+      // "KSC Wiedikon <team>", matching teams.name.
+      const leagueGames = await database('svrz_games')
         .whereIn('status', ['open', 'waitingForApproval'])
         .where(function () {
           this.where('home_club_id', KSCW_SVRZ_CLUB_ID).orWhere('away_club_id', KSCW_SVRZ_CLUB_ID)
@@ -2132,19 +2148,30 @@ export function registerGameScheduling(router, { database, logger, services, get
           }
         })
         .orderBy('starting_date_time')
+      const kscwSvrzName = `ksc wiedikon ${String(kscwTeamRow.name || '').trim()}`.toLowerCase()
+      const kscwSideName = (g) =>
+        (String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID) ? g.home_team_name : g.away_team_name) || ''
+      const scoped = leagueGames.filter((g) => kscwSideName(g).trim().toLowerCase() === kscwSvrzName)
+      // Fallback: if the SVRZ name doesn't follow the "KSC Wiedikon <team>"
+      // convention (naming drift), keep the league-filtered set rather than show
+      // no opponents at all.
+      const games = scoped.length ? scoped : leagueGames
 
-      // 2. Group by opponent club
+      // 2. Group by opponent TEAM (club id + team name). Grouping by club alone
+      // merged a club's several teams into one row; keying on the opposing team
+      // gives each opponent team its own invite + correct game count.
       const byClub = new Map()
       for (const g of games) {
-        const isHomeKscw = g.home_club_id === KSCW_SVRZ_CLUB_ID
+        const isHomeKscw = String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID)
         const oppClubId = isHomeKscw ? g.away_club_id : g.home_club_id
         const oppClubName = isHomeKscw ? g.away_club_name : g.home_club_name
         const oppTeamName = isHomeKscw ? g.away_team_name : g.home_team_name
         if (!oppClubId) continue
-        if (!byClub.has(oppClubId)) {
-          byClub.set(oppClubId, { club_id: oppClubId, club_name: oppClubName, team_name: oppTeamName, games: [], contacts: new Map() })
+        const key = `${oppClubId}::${oppTeamName || ''}`
+        if (!byClub.has(key)) {
+          byClub.set(key, { club_id: oppClubId, club_name: oppClubName, team_name: oppTeamName, games: [], contacts: new Map() })
         }
-        byClub.get(oppClubId).games.push({ id: g.svrz_persistence_id, display_name: g.display_name, starting_date_time: g.starting_date_time, is_home_kscw: isHomeKscw })
+        byClub.get(key).games.push({ id: g.svrz_persistence_id, display_name: g.display_name, starting_date_time: g.starting_date_time, is_home_kscw: isHomeKscw })
       }
 
       // 3. Per-game contact lookup (primary). Fall back to bulk feed if empty.

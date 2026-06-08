@@ -63,35 +63,20 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
     setImporting(true)
     try {
       const preview = await api.importFromSvrz()
-      const imported: DraftRow[] = []
-      for (const opp of preview.opponents) {
-        if (opp.contacts.length === 0) {
-          imported.push({
-            id: uid(),
-            team_name: opp.team_name || opp.club_name,
-            contact_email: '',
-            contact_name: '',
-            source: 'svrz',
-            selected: false,
-            imported: true,
-            warning: t('noContactWarning'),
-            game_count: opp.game_count,
-          })
-          continue
-        }
-        for (const c of opp.contacts) {
-          imported.push({
-            id: uid(),
-            team_name: opp.team_name || opp.club_name,
-            contact_email: c.email,
-            contact_name: c.name,
-            source: 'svrz',
-            selected: true,
-            imported: true,
-            game_count: opp.game_count,
-          })
-        }
-      }
+      // One row per opponent TEAM — a club often lists several Spielplan
+      // contacts; the invite is a single tokenized link sent to ALL of them, so
+      // join the addresses (comma-separated) rather than emit a row per contact.
+      const imported: DraftRow[] = preview.opponents.map((opp) => ({
+        id: uid(),
+        team_name: opp.team_name || opp.club_name,
+        contact_email: opp.contacts.map((c) => c.email).filter(Boolean).join(', '),
+        contact_name: opp.contacts.map((c) => c.name).filter(Boolean).join(', '),
+        source: 'svrz' as InviteSource,
+        selected: opp.contacts.length > 0,
+        imported: true,
+        warning: opp.contacts.length === 0 ? t('noContactWarning') : undefined,
+        game_count: opp.game_count,
+      }))
       setDrafts((prev) => [...imported, ...prev])
       if (imported.length === 0) toast.info(t('svrzImportEmpty'))
     } catch (err) {
@@ -282,6 +267,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                           onChange={(e) => updateDraft(d.id, { contact_email: e.target.value })}
                           className="h-8 text-sm"
                           type="email"
+                          multiple
                         />
                         {d.warning && (
                           <div className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-400">⚠ {d.warning}</div>

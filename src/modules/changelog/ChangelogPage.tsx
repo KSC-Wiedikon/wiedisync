@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.24.0'
+const APP_VERSION = '4.24.1'
 
 interface ChangelogEntry {
   version: string
@@ -12,14 +12,14 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '4.24.0',
+    version: '4.24.1',
     date: '08.06.2026',
     sections: [
       {
         title: 'Coaches on the team page',
         items: [
           'Coaches now have their own section on the team page, separate from the players. A coach who does not also play is no longer listed among the players.',
-          'Team chat no longer stays stuck on "Loading messages" when you open a team you are not part of — it shows a short note instead.',
+          'Team chat now only appears on team pages you are actually part of — it no longer shows up (or gets stuck on "Loading messages") for teams you do not belong to.',
         ],
       },
     ],
