@@ -2518,7 +2518,14 @@ export function registerGameScheduling(router, { database, logger, services, get
         const key = pairKey(a.id, b.id)
         if (!pairs.has(key)) pairs.set(key, { team_a: a, team_b: b, legs: [] })
         const raw = g.raw && typeof g.raw === 'object' ? g.raw : null
-        const round = raw?.group?.phase?.name || raw?.group?.name || null
+        // Only surface a value that actually denotes a round/matchday ("Runde N"),
+        // not the league/phase label ("Männer 2. Liga" / "Vor- & Rückrunde"). The
+        // numeric matchday VM shows in its own UI isn't in our stored feed, so this
+        // is null for most league games and the panel simply hides the line then.
+        const groupName = raw?.group?.name || ''
+        const phaseName = raw?.group?.phase?.name || ''
+        const round = /runde/i.test(groupName) ? groupName
+          : /runde/i.test(phaseName) ? phaseName : null
         pairs.get(key).legs.push({
           svrz_id: g.svrz_persistence_id,
           display_name: g.display_name,
