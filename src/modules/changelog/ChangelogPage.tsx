@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.25.0'
+const APP_VERSION = '4.26.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.26.0',
+    date: '08.06.2026',
+    sections: [
+      {
+        title: 'Game scheduling improvements',
+        items: [
+          'When an opponent’s proposed home slots are no longer available — taken by another game, a hall closure, or too close to another match — the scheduling dashboard now flags them, and lets you email the opponent to pick three new slots in one click.',
+          'The season overview calendar now shows game-Saturdays in gold and hall closures with a red background.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.25.0',
     date: '08.06.2026',
