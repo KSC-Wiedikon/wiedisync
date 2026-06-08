@@ -29,6 +29,12 @@ const T = {
       `Wir haben deine Slot-Vorschläge für das Heimspiel ${v.kscw} – ${v.opp} (in unserer Halle) erhalten:\n${v.list}\n\n` +
       `Hinweis: Diese Slots sind noch nicht reserviert – wir bestätigen einen davon und melden uns. Ein vorgeschlagener Slot kann zwischenzeitlich anderweitig vergeben werden.\n\n` +
       `Sportliche Grüsse\nKSC Wiedikon`,
+    reproposalSubject: 'Neue Heimspiel-Slots benötigt – KSC Wiedikon',
+    reproposal: (v) =>
+      `Hallo ${v.contact},\n\n` +
+      `Leider sind deine vorgeschlagenen Slots für das Heimspiel ${v.kscw} – ${v.opp} (in unserer Halle) nicht mehr verfügbar.\n\n` +
+      `Bitte wähle über deinen Link drei neue Slots aus:\n${v.url}\n\n` +
+      `Vielen Dank und sportliche Grüsse\nKSC Wiedikon`,
     propSubject: 'Terminvorschläge erhalten – KSC Wiedikon',
     prop: (v) =>
       `Hallo ${v.contact},\n\n` +
@@ -55,6 +61,12 @@ const T = {
       `We've received your slot proposals for the home game ${v.kscw} – ${v.opp} (in our hall):\n${v.list}\n\n` +
       `Note: these slots are not reserved yet — we'll confirm one and get back to you. A proposed slot may be taken by someone else in the meantime.\n\n` +
       `Best regards\nKSC Wiedikon`,
+    reproposalSubject: 'New home-game slots needed – KSC Wiedikon',
+    reproposal: (v) =>
+      `Hello ${v.contact},\n\n` +
+      `Unfortunately the slots you proposed for the home game ${v.kscw} – ${v.opp} (in our hall) are no longer available.\n\n` +
+      `Please pick three new slots via your link:\n${v.url}\n\n` +
+      `Thank you and best regards\nKSC Wiedikon`,
     propSubject: 'Date proposals received – KSC Wiedikon',
     prop: (v) =>
       `Hello ${v.contact},\n\n` +
@@ -81,6 +93,12 @@ const T = {
       `Nous avons bien reçu vos propositions de créneaux pour le match à domicile ${v.kscw} – ${v.opp} (dans notre salle) :\n${v.list}\n\n` +
       `Remarque : ces créneaux ne sont pas encore réservés — nous en confirmerons un et reviendrons vers vous. Un créneau proposé peut entre-temps être attribué à quelqu'un d'autre.\n\n` +
       `Cordiales salutations sportives\nKSC Wiedikon`,
+    reproposalSubject: 'Nouveaux créneaux à domicile nécessaires – KSC Wiedikon',
+    reproposal: (v) =>
+      `Bonjour ${v.contact},\n\n` +
+      `Malheureusement, les créneaux que vous avez proposés pour le match à domicile ${v.kscw} – ${v.opp} (dans notre salle) ne sont plus disponibles.\n\n` +
+      `Merci de choisir trois nouveaux créneaux via votre lien :\n${v.url}\n\n` +
+      `Merci et cordiales salutations sportives\nKSC Wiedikon`,
     propSubject: 'Propositions de dates reçues – KSC Wiedikon',
     prop: (v) =>
       `Bonjour ${v.contact},\n\n` +
@@ -107,6 +125,12 @@ const T = {
       `Abbiamo ricevuto le tue proposte di slot per la partita in casa ${v.kscw} – ${v.opp} (nella nostra palestra):\n${v.list}\n\n` +
       `Nota: questi slot non sono ancora riservati — ne confermeremo uno e ti faremo sapere. Uno slot proposto potrebbe nel frattempo essere assegnato ad altri.\n\n` +
       `Cordiali saluti sportivi\nKSC Wiedikon`,
+    reproposalSubject: 'Nuovi slot per la partita in casa necessari – KSC Wiedikon',
+    reproposal: (v) =>
+      `Ciao ${v.contact},\n\n` +
+      `Purtroppo gli slot che hai proposto per la partita in casa ${v.kscw} – ${v.opp} (nella nostra palestra) non sono più disponibili.\n\n` +
+      `Scegli tre nuovi slot tramite il tuo link:\n${v.url}\n\n` +
+      `Grazie e cordiali saluti sportivi\nKSC Wiedikon`,
     propSubject: 'Proposte di date ricevute – KSC Wiedikon',
     prop: (v) =>
       `Ciao ${v.contact},\n\n` +
@@ -141,6 +165,9 @@ const H = {
     homePropIntro: (v) => `Wir haben deine Slot-Vorschläge für das Heimspiel ${v.kscw} – ${v.opp} (in unserer Halle) erhalten:`,
     homePropAlertTitle: 'Noch nicht reserviert',
     homePropAlert: 'Diese Slots sind noch nicht reserviert – wir bestätigen einen davon und melden uns. Ein vorgeschlagener Slot kann zwischenzeitlich anderweitig vergeben werden.',
+    reproposalTitle: 'Neue Heimspiel-Slots benötigt',
+    reproposalIntro: (v) => `Leider sind deine vorgeschlagenen Slots für das Heimspiel ${v.kscw} – ${v.opp} (in unserer Halle) nicht mehr verfügbar. Bitte wähle drei neue Slots aus.`,
+    reproposalCta: 'Drei neue Slots wählen',
     propTitle: 'Terminvorschläge erhalten',
     propIntro: (v) => `Wir haben deine Terminvorschläge für das Auswärtsspiel ${v.opp} – ${v.kscw} erhalten:`,
     propOutro: 'Wir bestätigen einen Termin in Kürze und melden uns wieder.',
@@ -159,6 +186,9 @@ const H = {
     homePropIntro: (v) => `We've received your slot proposals for the home game ${v.kscw} – ${v.opp} (in our hall):`,
     homePropAlertTitle: 'Not reserved yet',
     homePropAlert: "These slots are not reserved yet — we'll confirm one and get back to you. A proposed slot may be taken by someone else in the meantime.",
+    reproposalTitle: 'New home-game slots needed',
+    reproposalIntro: (v) => `Unfortunately the slots you proposed for the home game ${v.kscw} – ${v.opp} (in our hall) are no longer available. Please pick three new slots.`,
+    reproposalCta: 'Pick three new slots',
     propTitle: 'Date proposals received',
     propIntro: (v) => `We've received your proposed dates for the away game ${v.opp} – ${v.kscw}:`,
     propOutro: "We'll confirm one shortly and get back to you.",
@@ -177,6 +207,9 @@ const H = {
     homePropIntro: (v) => `Nous avons bien reçu vos propositions de créneaux pour le match à domicile ${v.kscw} – ${v.opp} (dans notre salle) :`,
     homePropAlertTitle: 'Pas encore réservés',
     homePropAlert: "Ces créneaux ne sont pas encore réservés — nous en confirmerons un et reviendrons vers vous. Un créneau proposé peut entre-temps être attribué à quelqu'un d'autre.",
+    reproposalTitle: 'Nouveaux créneaux à domicile nécessaires',
+    reproposalIntro: (v) => `Malheureusement, les créneaux que vous avez proposés pour le match à domicile ${v.kscw} – ${v.opp} (dans notre salle) ne sont plus disponibles. Merci de choisir trois nouveaux créneaux.`,
+    reproposalCta: 'Choisir trois nouveaux créneaux',
     propTitle: 'Propositions de dates reçues',
     propIntro: (v) => `Nous avons bien reçu vos propositions de dates pour le match à l'extérieur ${v.opp} – ${v.kscw} :`,
     propOutro: 'Nous en confirmerons une prochainement et reviendrons vers vous.',
@@ -195,6 +228,9 @@ const H = {
     homePropIntro: (v) => `Abbiamo ricevuto le tue proposte di slot per la partita in casa ${v.kscw} – ${v.opp} (nella nostra palestra):`,
     homePropAlertTitle: 'Non ancora riservati',
     homePropAlert: 'Questi slot non sono ancora riservati — ne confermeremo uno e ti faremo sapere. Uno slot proposto potrebbe nel frattempo essere assegnato ad altri.',
+    reproposalTitle: 'Nuovi slot per la partita in casa necessari',
+    reproposalIntro: (v) => `Purtroppo gli slot che hai proposto per la partita in casa ${v.kscw} – ${v.opp} (nella nostra palestra) non sono più disponibili. Scegli tre nuovi slot.`,
+    reproposalCta: 'Scegli tre nuovi slot',
     propTitle: 'Proposte di date ricevute',
     propIntro: (v) => `Abbiamo ricevuto le tue proposte di date per la partita in trasferta ${v.opp} – ${v.kscw}:`,
     propOutro: 'Ne confermeremo una a breve e ti faremo sapere.',
@@ -226,6 +262,8 @@ function buildHtml(lang, kind, vars) {
   const greeting = h.greeting(vars.contact || '')
   let title = ''
   let body = ''
+  let ctaUrl = null
+  let ctaLabel = null
 
   if (kind === 'home_booked') {
     title = h.homeTitle
@@ -245,6 +283,11 @@ function buildHtml(lang, kind, vars) {
     title = h.propTitle
     body = para(h.propIntro(vars)) + slotsCard(h, vars.slots) +
       '<div style="height:12px;font-size:0;line-height:0">&nbsp;</div>' + para(h.propOutro)
+  } else if (kind === 'home_reproposal_request') {
+    title = h.reproposalTitle
+    body = para(h.reproposalIntro(vars))
+    ctaUrl = vars.url || null
+    ctaLabel = h.reproposalCta
   } else {
     // game_confirmed
     title = h.confTitle
@@ -259,14 +302,15 @@ function buildHtml(lang, kind, vars) {
     sport: 'vb',
     greeting,
     footerExtra: h.signoff,
+    ...(ctaUrl && ctaLabel ? { ctaUrl, ctaLabel } : {}),
   })
 }
 
 /**
  * Build a transactional email for the opponent flow.
  * @param {string} lang  opponent language (de/gsw/en/fr/it), falls back to de
- * @param {'home_booked'|'home_proposals_sent'|'proposals_sent'|'game_confirmed'} kind
- * @param {object} vars  { contact, kscw, opp, date, time, hall, list, slots }
+ * @param {'home_booked'|'home_proposals_sent'|'proposals_sent'|'home_reproposal_request'|'game_confirmed'} kind
+ * @param {object} vars  { contact, kscw, opp, date, time, hall, list, slots, url }
  *   - `list`  plain-text `• …` block for the text fallback
  *   - `slots` structured rows [{ date, time, hall }] for the HTML info card
  * @returns {{ subject: string, text: string, html: string }}
@@ -277,6 +321,7 @@ export function schedEmail(lang, kind, vars) {
   if (kind === 'home_booked') { subject = t.homeSubject; text = t.home(vars) }
   else if (kind === 'home_proposals_sent') { subject = t.homePropSubject; text = t.homeProp(vars) }
   else if (kind === 'proposals_sent') { subject = t.propSubject; text = t.prop(vars) }
+  else if (kind === 'home_reproposal_request') { subject = t.reproposalSubject; text = t.reproposal(vars) }
   else { subject = t.confSubject; text = t.conf(vars) }
   const html = buildHtml(lang, kind, vars)
   return { subject, text, html }

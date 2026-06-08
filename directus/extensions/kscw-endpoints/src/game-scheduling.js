@@ -518,6 +518,138 @@ export function registerGameScheduling(router, { database, logger, services, get
     return set
   }
 
+  // ── Item 3: home-proposal health (revalidation) ──────────────────────────
+  // A pending home_slot_pick proposal can silently rot after it was made: the
+  // slot gets booked by another opponent, blocked, hit by a hall closure, lands
+  // too close to a newly-confirmed game, or falls before a confirmed derby. This
+  // re-validates every pending home proposal against the LIVE state (read-only),
+  // mirroring the confirm-home guards that bite day to day: taken / team event /
+  // team block / hall closure / gap (too close) / derby / Döltschi cap + date.
+  // The rarer Saturday-cap and cross-team races stay enforced HARD at confirm
+  // time, so a stale "valid" here can never become a bad booking. `reason` is a
+  // short code the admin UI maps to a localised label.
+  async function homeProposalHealth(seasonId) {
+    const bookings = await database('game_scheduling_bookings as b')
+      .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
+      .where('b.season', seasonId)
+      .where('b.type', 'home_slot_pick')
+      .where('b.status', 'pending')
+      .select(
+        'b.id as booking_id', 'b.opponent as opponent_id',
+        'b.proposed_slot_1', 'b.proposed_slot_2', 'b.proposed_slot_3',
+        'o.kscw_team', 'o.club_name', 'o.team_name',
+      )
+    if (!bookings.length) return []
+
+    const seasonRow = await database('game_scheduling_seasons').where('id', seasonId).first()
+    const gaps = await seasonGaps(seasonId)
+    const boundary = rueckrundeStart(seasonRow)
+    const doltschiHallIds = await database('halls')
+      .whereRaw("LOWER(name) LIKE '%döltschi%' OR LOWER(name) LIKE '%doltschi%'").pluck('id')
+
+    // Every slot referenced by any proposal (one fetch).
+    const slotIds = [...new Set(bookings.flatMap((b) =>
+      [b.proposed_slot_1, b.proposed_slot_2, b.proposed_slot_3]).filter(Boolean))]
+    const slotRows = slotIds.length
+      ? await database('game_scheduling_slots').whereIn('id', slotIds).select('*')
+      : []
+    const slotById = new Map(slotRows.map((s) => [s.id, s]))
+
+    // Closures (whole table; checked per slot in JS against hall + date range).
+    const closureRows = await database('hall_closures')
+      .select('hall', database.raw('start_date::text as s'), database.raw('end_date::text as e'))
+
+    // Döltschi: club-wide booked DATES (one game per date) + the season count.
+    let doltschiCount = 0
+    const doltschiDates = new Set()
+    if (doltschiHallIds.length) {
+      const bookedD = await database('game_scheduling_slots')
+        .where('season', seasonId).where('status', 'booked')
+        .whereIn('hall', doltschiHallIds).select(database.raw('date::text as d'))
+      doltschiCount = bookedD.length
+      for (const r of bookedD) doltschiDates.add(String(r.d).slice(0, 10))
+    }
+
+    const expandDays = (s, e) => {
+      const out = []
+      if (!s) return out
+      const start = new Date(`${String(s).slice(0, 10)}T00:00:00Z`)
+      const end = e ? new Date(`${String(e).slice(0, 10)}T00:00:00Z`) : start
+      for (let d = new Date(start), g = 0; d <= end && g < 400; d.setUTCDate(d.getUTCDate() + 1), g++) {
+        out.push(d.toISOString().slice(0, 10))
+      }
+      return out
+    }
+
+    // Per-team caches (a season has few teams; many opponents reuse them).
+    const teamCache = new Map()
+    const getTeamCtx = async (teamId) => {
+      if (teamCache.has(teamId)) return teamCache.get(teamId)
+      const committedHome = await committedGameDates(teamId, gaps.home)
+      const committedProposal3 = await committedGameDates(teamId, gaps.proposal3)
+      const derbyAnchors = await confirmedDerbyAnchors(teamId, seasonId, boundary)
+      const eventRows = await database('events as e')
+        .join('events_teams as et', 'et.events_id', 'e.id')
+        .where('et.teams_id', teamId)
+        .select(
+          database.raw("(e.start_date AT TIME ZONE 'Europe/Zurich')::date::text as s"),
+          database.raw("(COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date::text as e"),
+        )
+      const eventDates = new Set(eventRows.flatMap((r) => expandDays(r.s, r.e)))
+      const blockRows = await database('scheduling_blocks')
+        .where('team', teamId)
+        .select(database.raw('start_date::text as s'), database.raw('end_date::text as e'))
+      const blockDates = new Set(blockRows.flatMap((r) => expandDays(r.s, r.e)))
+      const ctx = { committedHome, committedProposal3, derbyAnchors, eventDates, blockDates }
+      teamCache.set(teamId, ctx)
+      return ctx
+    }
+
+    const validate = (ctx, slotId, n) => {
+      const slot = slotById.get(slotId)
+      if (!slot) return { valid: false, reason: 'taken' }
+      if (slot.status !== 'available') return { valid: false, reason: 'taken' }
+      const day = ymdOf(slot.date)
+      if (ctx.eventDates.has(day)) return { valid: false, reason: 'team_event' }
+      if (ctx.blockDates.has(day)) return { valid: false, reason: 'team_block' }
+      if (closureRows.some((c) => c.hall === slot.hall
+        && day >= String(c.s).slice(0, 10) && day <= String(c.e).slice(0, 10))) {
+        return { valid: false, reason: 'hall_closed' }
+      }
+      if (derbyDateBlocked(day, ctx.derbyAnchors, boundary)) return { valid: false, reason: 'derby' }
+      const gapSet = n < 3 ? ctx.committedHome : ctx.committedProposal3
+      if (gapSet.has(day)) return { valid: false, reason: 'too_close' }
+      if (doltschiHallIds.includes(slot.hall)) {
+        if (doltschiCount >= 10) return { valid: false, reason: 'doltschi_cap' }
+        if (doltschiDates.has(day)) return { valid: false, reason: 'doltschi_taken' }
+      }
+      return { valid: true, reason: null }
+    }
+
+    const out = []
+    for (const b of bookings) {
+      const ctx = await getTeamCtx(b.kscw_team)
+      const proposals = []
+      for (const n of [1, 2, 3]) {
+        const sid = b[`proposed_slot_${n}`]
+        if (sid == null) continue
+        const v = validate(ctx, sid, n)
+        proposals.push({ num: n, slot_id: sid, valid: v.valid, reason: v.reason })
+      }
+      const aliveCount = proposals.filter((p) => p.valid).length
+      out.push({
+        booking_id: b.booking_id,
+        opponent_id: b.opponent_id,
+        opponent_label: b.team_name || b.club_name || '',
+        kscw_team: b.kscw_team,
+        proposals,
+        alive_count: aliveCount,
+        all_dead: proposals.length > 0 && aliveCount === 0,
+      })
+    }
+    return out
+  }
+
   // GET /kscw/terminplanung/slots/:token — view available slots
   router.get('/terminplanung/slots/:token', async (req, res) => {
     try {
@@ -567,27 +699,27 @@ export function registerGameScheduling(router, { database, logger, services, get
       const derbyBlocked = buildDerbyBlockedSet(derbyAnchors, rueckStart, seasonRow)
 
       // Döltschi rules: the club may schedule at most DOLTSCHI_SEASON_CAP games in
-      // Döltschi per season (club-wide), and never two simultaneous games there —
-      // Döltschi 1 + 2 count as ONE venue for games, so only one game per
-      // date+time. Computed club-wide (all teams) from booked Döltschi slots.
+      // Döltschi per season (club-wide), and a Döltschi DATE counts as ONE slot —
+      // irrespective of the time (19:00 / 20:30) or which hall (Döltschi 1 or 2).
+      // So only one Döltschi game per date, club-wide. From booked Döltschi slots.
       const DOLTSCHI_SEASON_CAP = 10
       const doltschiHallIds = await database('halls')
         .whereRaw("LOWER(name) LIKE '%döltschi%' OR LOWER(name) LIKE '%doltschi%'").pluck('id')
       const isDoltschiHall = (h) => h != null && doltschiHallIds.includes(h)
       let doltschiFull = false
-      const doltschiTakenTimes = new Set() // 'YYYY-MM-DD|HH:MM' already booked in Döltschi
+      const doltschiTakenDates = new Set() // 'YYYY-MM-DD' already booked in Döltschi (any time/hall)
       if (doltschiHallIds.length) {
         const bookedDoltschi = await database('game_scheduling_slots')
           .where('season', opponent.season).where('status', 'booked')
           .whereIn('hall', doltschiHallIds)
-          .select(database.raw('date::text as d'), 'start_time')
+          .select(database.raw('date::text as d'))
         doltschiFull = bookedDoltschi.length >= DOLTSCHI_SEASON_CAP
         for (const r of bookedDoltschi) {
-          doltschiTakenTimes.add(`${String(r.d).slice(0, 10)}|${String(r.start_time).slice(0, 5)}`)
+          doltschiTakenDates.add(String(r.d).slice(0, 10))
         }
       }
-      // Dedupe offered Döltschi slots to one per date+time (1+2 = one venue).
-      const offeredDoltschiTimes = new Set()
+      // Offer at most one Döltschi slot per DATE (time + hall 1/2 irrelevant).
+      const offeredDoltschiDates = new Set()
 
       // Exclude slots whose date falls within any event linked to this team
       // (single-day or multi-day) — e.g. tournament weekend, team trip. Filter
@@ -666,11 +798,11 @@ export function registerGameScheduling(router, { database, logger, services, get
           if (derbyBlocked.has(date)) return null  // before the derby in this half (Art. 27)
           const startHM = String(s.start_time).slice(0, 5)
           if (isDoltschiHall(s.hall)) {
-            // Döltschi: drop if the season cap is reached, the date+time is already
-            // booked in Döltschi, or we've already offered this date+time (1+2=one).
-            const key = `${date}|${startHM}`
-            if (doltschiFull || doltschiTakenTimes.has(key) || offeredDoltschiTimes.has(key)) return null
-            offeredDoltschiTimes.add(key)
+            // Döltschi: drop if the season cap is reached, this date is already
+            // booked in Döltschi, or we've already offered this date — one Döltschi
+            // game per date (time + hall 1/2 irrelevant).
+            if (doltschiFull || doltschiTakenDates.has(date) || offeredDoltschiDates.has(date)) return null
+            offeredDoltschiDates.add(date)
           }
           return {
             id: s.id,
@@ -973,6 +1105,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where('id', opponent.id)
         .whereIn('status', ['invited', 'viewed'])
         .update({ status: 'booked' })
+      // Fresh proposals clear any pending "pick new slots" re-request flag.
+      await database('game_scheduling_opponents')
+        .where('id', opponent.id).update({ new_slots_requested_at: null })
 
       // Receipt to the opponent (their language) + KSCW notify. Best-effort.
       try {
@@ -1079,23 +1214,24 @@ export function registerGameScheduling(router, { database, logger, services, get
         const committed = await committedGameDates(opponent.kscw_team, gap)
         if (committed.has(slotYmd)) throw Object.assign(new Error('Too close to another game for this team'), { httpStatus: 400 })
 
-        // Döltschi: club-wide season cap (10) + no two simultaneous games there
-        // (Döltschi 1 + 2 = one venue). Checked across all teams. (Admin confirms
-        // are sequential in practice; the per-team advisory lock above doesn't
-        // serialise cross-team, but a stray race is caught on the next confirm.)
+        // Döltschi: club-wide season cap (10) + one game per DATE there — a Döltschi
+        // date is ONE slot regardless of the time (19:00 / 20:30) or hall (1 or 2).
+        // Checked across all teams. (Admin confirms are sequential in practice; the
+        // per-team advisory lock above doesn't serialise cross-team, but a stray
+        // race is caught on the next confirm.)
         const doltschiHallIds = await trx('halls')
           .whereRaw("LOWER(name) LIKE '%döltschi%' OR LOWER(name) LIKE '%doltschi%'").pluck('id')
         if (doltschiHallIds.includes(slot.hall)) {
           const bookedD = await trx('game_scheduling_slots')
             .where('season', opponent.season).where('status', 'booked')
             .whereIn('hall', doltschiHallIds)
-            .select(trx.raw('date::text as d'), 'start_time')
+            .select(trx.raw('date::text as d'))
           if (bookedD.length >= 10) {
             throw Object.assign(new Error('Döltschi season limit (10 games) reached'), { httpStatus: 400 })
           }
-          const slotHM = String(slot.start_time).slice(0, 5)
-          if (bookedD.some((r) => `${String(r.d).slice(0, 10)}|${String(r.start_time).slice(0, 5)}` === `${slotYmd}|${slotHM}`)) {
-            throw Object.assign(new Error('Another game is already booked in Döltschi at this time'), { httpStatus: 400 })
+          // One Döltschi game per date (time + hall 1/2 irrelevant).
+          if (bookedD.some((r) => String(r.d).slice(0, 10) === slotYmd)) {
+            throw Object.assign(new Error('Another game is already booked in Döltschi that day'), { httpStatus: 400 })
           }
         }
 
@@ -2709,6 +2845,76 @@ export function registerGameScheduling(router, { database, logger, services, get
       res.json({ success: true, confirmed: wantConfirm })
     } catch (err) {
       log.error({ msg: `derbies POST: ${err.message}`, endpoint: 'admin/terminplanung/derbies', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // GET /kscw/admin/terminplanung/proposal-health?season_id= — live validity of
+  // every pending home proposal, so the dashboard can flag rotten slots and
+  // surface opponents whose all-three picks are gone (Item 3).
+  router.get('/admin/terminplanung/proposal-health', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const seasonId = req.query.season_id
+      if (!seasonId) return res.status(400).json({ error: 'season_id required' })
+      const health = await homeProposalHealth(seasonId)
+      res.json({ health })
+    } catch (err) {
+      log.error({ msg: `proposal-health: ${err.message}`, endpoint: 'admin/terminplanung/proposal-health', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/admin/terminplanung/request-new-slots — semi-automatic: the admin
+  // confirms in the dashboard that an opponent's home proposals are all gone, and
+  // this emails them (their language) to pick 3 new slots via their existing link,
+  // clearing the dead pending proposal so they re-propose into a clean slate.
+  // Body: { opponent_id }. Refuses if any proposal is still valid (race guard).
+  router.post('/admin/terminplanung/request-new-slots', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const opponentId = Number(req.body?.opponent_id)
+      if (!opponentId) return res.status(400).json({ error: 'opponent_id required' })
+      const opponent = await database('game_scheduling_opponents').where('id', opponentId).first()
+      if (!opponent) return res.status(404).json({ error: 'Opponent not found' })
+      if (!opponent.contact_email) return res.status(400).json({ error: 'no_contact_email' })
+
+      // Race guard: only re-request if this opponent's pending home proposal is
+      // genuinely all-dead right now (a slot may have freed up since page load).
+      const health = await homeProposalHealth(opponent.season)
+      const mine = health.find((h) => h.opponent_id === opponentId)
+      if (mine && !mine.all_dead) {
+        return res.status(409).json({ error: 'proposals_still_valid' })
+      }
+
+      // Clear the dead pending home proposal (so chips/contention clear) and stamp
+      // the re-request; reset a booked/viewed/invited opponent to 'viewed' so their
+      // link still serves the propose-home flow.
+      await database('game_scheduling_bookings')
+        .where({ opponent: opponentId, type: 'home_slot_pick', status: 'pending' }).del()
+      await database('game_scheduling_opponents').where('id', opponentId).update({
+        status: ['invited', 'viewed', 'booked'].includes(opponent.status) ? 'viewed' : opponent.status,
+        new_slots_requested_at: new Date().toISOString(),
+      })
+
+      try {
+        const team = await database('teams').where('id', opponent.kscw_team).first()
+        const kscw = `KSCW ${team?.name || ''}`.trim()
+        const opp = opponent.club_name || opponent.team_name || ''
+        const url = `${FRONTEND_URL}/terminplanung/${opponent.token}`
+        const { subject, text, html } = schedEmail(opponent.language, 'home_reproposal_request', {
+          contact: opponent.contact_name || '', kscw, opp, url,
+        })
+        await sendSchedulingMail(opponent.contact_email, subject, text, null, html)
+        const adminText = `Neue Heimspiel-Slots angefragt bei ${opp} (${kscw}) – alle bisherigen Vorschläge sind nicht mehr verfügbar.`
+        await sendSchedulingMail(SCHEDULING_REPLY_TO, `Neue Slots angefragt – ${opp} (${kscw})`, adminText)
+      } catch (mailErr) {
+        log.warn(`request-new-slots email failed: ${mailErr.message}`)
+      }
+
+      res.json({ success: true })
+    } catch (err) {
+      log.error({ msg: `request-new-slots: ${err.message}`, endpoint: 'admin/terminplanung/request-new-slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

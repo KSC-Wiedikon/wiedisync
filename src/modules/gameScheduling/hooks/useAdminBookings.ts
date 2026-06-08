@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { GameSchedulingBooking, GameSchedulingOpponent, GameSchedulingSlot } from '../../../types'
+import type { GameSchedulingBooking, GameSchedulingOpponent, GameSchedulingSlot, ProposalHealthEntry } from '../../../types'
 import { fetchAllItems, kscwApi } from '../../../lib/api'
 
 // Note: the base `GameSchedulingBooking.{opponent,slot}: string` intersects the
@@ -16,6 +16,7 @@ export function useAdminBookings(seasonId: string | undefined) {
   const [bookings, setBookings] = useState<ExpandedBooking[]>([])
   const [opponents, setOpponents] = useState<GameSchedulingOpponent[]>([])
   const [slots, setSlots] = useState<GameSchedulingSlot[]>([])
+  const [proposalHealth, setProposalHealth] = useState<ProposalHealthEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   // True once the first fetch completes. Lets the page keep showing the loaded
   // dashboard while a confirm/refetch runs in the background, instead of blanking
@@ -44,6 +45,14 @@ export function useAdminBookings(seasonId: string | undefined) {
       setBookings(bks)
       setOpponents(opps)
       setSlots(sls)
+      // Live validity of every pending home proposal (best-effort — never blocks
+      // the dashboard if the endpoint hiccups).
+      try {
+        const resp = await kscwApi(`/admin/terminplanung/proposal-health?season_id=${seasonId}`) as { health?: ProposalHealthEntry[] }
+        setProposalHealth(Array.isArray(resp?.health) ? resp.health : [])
+      } catch {
+        setProposalHealth([])
+      }
     } catch (err) {
       console.error('Failed to fetch admin bookings:', err)
     } finally {
@@ -66,6 +75,16 @@ export function useAdminBookings(seasonId: string | undefined) {
     await kscwApi('/terminplanung/admin/confirm-home', {
       method: 'POST',
       body: { booking_id: bookingId, proposal_number: proposalNumber, admin_notes: adminNotes || '' },
+    })
+    await fetchAll()
+  }, [fetchAll])
+
+  // Semi-automatic: the admin has confirmed in the dashboard that an opponent's
+  // home proposals are all gone — email them (their language) to pick 3 new slots.
+  const requestNewSlots = useCallback(async (opponentId: string | number) => {
+    await kscwApi('/admin/terminplanung/request-new-slots', {
+      method: 'POST',
+      body: { opponent_id: Number(opponentId) },
     })
     await fetchAll()
   }, [fetchAll])
@@ -101,10 +120,12 @@ export function useAdminBookings(seasonId: string | undefined) {
     bookings,
     opponents,
     slots,
+    proposalHealth,
     isLoading,
     hasLoaded,
     confirmAwayProposal,
     confirmHomeProposal,
+    requestNewSlots,
     blockSlot,
     generateSlots,
     finalizeNotify,

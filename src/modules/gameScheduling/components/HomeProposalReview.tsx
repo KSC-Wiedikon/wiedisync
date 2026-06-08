@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BookingStatusBadge from './BookingStatusBadge'
 import { formatDateCompactZurich } from '../../../utils/dateHelpers'
-import type { GameSchedulingBooking, GameSchedulingSlot } from '../../../types'
+import type { GameSchedulingBooking, GameSchedulingSlot, ProposalHealthEntry } from '../../../types'
 
 interface Props {
   booking: GameSchedulingBooking
@@ -10,16 +10,36 @@ interface Props {
   hallsById: Map<string, string | undefined>
   /** Count of OTHER opponents (same KSCW team) that proposed this exact slot id. */
   alsoProposedBy: (slotId: string | number | null | undefined) => number
+  /** Authoritative live validity for this booking's proposals (Item 3). */
+  health?: ProposalHealthEntry
   onConfirm: (bookingId: string, proposalNumber: number) => Promise<void>
+  /** Semi-automatic re-request: email the opponent to pick 3 new slots. */
+  onRequestNewSlots?: () => Promise<void>
 }
 
 const hm = (s?: string) => String(s || '').slice(0, 5)
 
+// Map a server reason code → a localised label key.
+const REASON_KEY: Record<string, string> = {
+  taken: 'reasonTaken',
+  team_event: 'reasonTeamEvent',
+  team_block: 'reasonTeamBlock',
+  hall_closed: 'reasonHallClosed',
+  too_close: 'reasonTooClose',
+  derby: 'reasonDerby',
+  doltschi_cap: 'reasonDoltschiCap',
+  doltschi_taken: 'reasonDoltschiTaken',
+}
+
 // Admin review of an opponent's up-to-3 proposed home slots. Slots aren't held,
-// so each row warns if the slot is already taken or also proposed by others.
-export default function HomeProposalReview({ booking, slotsById, hallsById, alsoProposedBy, onConfirm }: Props) {
+// so each row shows its LIVE validity (taken / too close / hall closed / …) from
+// the proposal-health check; when all proposals are gone the admin can email the
+// opponent to pick 3 new ones (semi-automatic — confirmed here in the page).
+export default function HomeProposalReview({ booking, slotsById, hallsById, alsoProposedBy, health, onConfirm, onRequestNewSlots }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [confirming, setConfirming] = useState(false)
+  const [askRequest, setAskRequest] = useState(false)
+  const [requesting, setRequesting] = useState(false)
 
   // Accepts a slot id (proposals) OR an already-expanded slot object (the
   // confirmed booking's `slot` comes back expanded from the admin fetch).
@@ -44,6 +64,17 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
     }
   }
 
+  const handleRequest = async () => {
+    if (!onRequestNewSlots) return
+    setRequesting(true)
+    try {
+      await onRequestNewSlots()
+    } finally {
+      setRequesting(false)
+      setAskRequest(false)
+    }
+  }
+
   if (booking.status === 'confirmed') {
     const info = slotInfo(booking.slot)
     return (
@@ -54,19 +85,64 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
     )
   }
 
+  // Per-proposal live validity from the health check (falls back to slot.status).
+  const healthByNum = new Map((health?.proposals || []).map((p) => [p.num, p]))
+
   const proposals = [
     { num: 1, slotId: booking.proposed_slot_1 },
     { num: 2, slotId: booking.proposed_slot_2 },
     { num: 3, slotId: booking.proposed_slot_3 },
   ].filter((p) => p.slotId != null)
 
+  const allDead = health?.all_dead ?? false
+
   return (
     <div className="space-y-2">
       <BookingStatusBadge status={booking.status} />
+
+      {allDead && (
+        <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs dark:border-red-800 dark:bg-red-900/30">
+          <p className="font-medium text-red-700 dark:text-red-300">{t('allProposalsDead')}</p>
+          {onRequestNewSlots && (
+            askRequest ? (
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="text-red-700 dark:text-red-300">{t('requestNewSlotsConfirm')}</span>
+                <button
+                  onClick={handleRequest}
+                  disabled={requesting}
+                  className="rounded bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {requesting ? t('requestingNewSlots') : t('requestNewSlotsYes')}
+                </button>
+                <button
+                  onClick={() => setAskRequest(false)}
+                  disabled={requesting}
+                  className="rounded px-2 py-1 text-red-700 hover:bg-red-100 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-900/50"
+                >
+                  {t('cancel')}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAskRequest(true)}
+                className="mt-1.5 rounded bg-red-600 px-2.5 py-1 font-medium text-white hover:bg-red-700"
+              >
+                {t('requestNewSlots')}
+              </button>
+            )
+          )}
+        </div>
+      )}
+
       {proposals.map((p) => {
         const info = slotInfo(p.slotId)
-        // Choice 1 holds (reserved, exclusive) — no warn. Choices 2 & 3 warn when
-        // another club proposed this exact same (unheld) slot.
+        const hp = healthByNum.get(p.num)
+        // Authoritative validity if the health check ran; else fall back to the
+        // raw slot status (available?).
+        const valid = hp ? hp.valid : info?.available ?? true
+        const reasonKey = hp?.reason ? (REASON_KEY[hp.reason] || 'slotMaybeTaken') : 'slotMaybeTaken'
+        // Choice 1 holds (reserved, exclusive) — no contention warn. Choices 2 & 3
+        // warn when another club proposed this exact same (unheld) slot.
         const others = p.num === 1 ? 0 : alsoProposedBy(p.slotId)
         return (
           <div
@@ -76,20 +152,23 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
             <div className="min-w-0">
               <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                 {t('proposalNumber', { number: p.num })}
-                {p.num === 1 && <span className="ml-1 text-green-700 dark:text-green-300">· {t('slotReserved')}</span>}
+                {p.num === 1 && valid && <span className="ml-1 text-green-700 dark:text-green-300">· {t('slotReserved')}</span>}
               </span>
-              <p className="text-sm text-gray-900 dark:text-gray-100">{info ? info.label : t('slotMaybeTaken')}</p>
-              {info && !info.available && (
-                <p className="text-xs text-red-600 dark:text-red-400">⚠ {t('slotMaybeTaken')}</p>
+              <p className={`text-sm ${valid ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 line-through dark:text-gray-500'}`}>
+                {info ? info.label : t('slotMaybeTaken')}
+              </p>
+              {!valid && (
+                <p className="text-xs text-red-600 dark:text-red-400">⚠ {t(reasonKey)}</p>
               )}
-              {info && info.available && others > 0 && (
+              {valid && others > 0 && (
                 <p className="text-xs text-orange-600 dark:text-orange-400">⚠ {t('slotAlsoProposed', { count: others })}</p>
               )}
             </div>
             <button
               onClick={() => handleConfirm(p.num)}
-              disabled={confirming}
-              className="shrink-0 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              disabled={confirming || !valid}
+              title={!valid ? t(reasonKey) : undefined}
+              className="shrink-0 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {t('confirmProposal')}
             </button>

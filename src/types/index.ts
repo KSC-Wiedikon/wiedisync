@@ -667,6 +667,27 @@ export interface GameSchedulingOpponent extends BaseRecord {
   created_by_admin?: boolean
   first_viewed_at?: string | null
   expires_at?: string | null
+  /** When the opponent was last asked to pick 3 new home slots (all prior proposals invalidated). */
+  new_slots_requested_at?: string | null
+}
+
+/** Live validity of one proposed home slot (GET /admin/terminplanung/proposal-health). */
+export interface ProposalHealthProposal {
+  num: number
+  slot_id: number
+  valid: boolean
+  /** Short reason code when invalid: taken | team_event | team_block | hall_closed | too_close | derby | doltschi_cap | doltschi_taken */
+  reason: string | null
+}
+
+export interface ProposalHealthEntry {
+  booking_id: number
+  opponent_id: number
+  opponent_label: string
+  kscw_team: number
+  proposals: ProposalHealthProposal[]
+  alive_count: number
+  all_dead: boolean
 }
 
 export interface OpponentInvite {

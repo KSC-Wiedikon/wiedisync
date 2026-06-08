@@ -12,9 +12,10 @@ import HomeProposalReview from '../components/HomeProposalReview'
 import ExcelExportButton from '../components/ExcelExportButton'
 import SchedulingCalendar from '../components/SchedulingCalendar'
 import { Badge } from '../../../components/ui/badge'
-import type { GameSchedulingOpponent, GameSchedulingSlot, InviteStatus, InviteSource } from '../../../types'
+import type { GameSchedulingOpponent, GameSchedulingSlot, InviteStatus, InviteSource, ProposalHealthEntry } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import { formatSeasonShort } from '../utils/formatSeason'
+import { formatDateCompactZurich } from '../../../utils/dateHelpers'
 import { useHalls } from '../../../hooks/useData'
 import { isSchedulableTeam } from '../utils/schedulableTeams'
 
@@ -48,7 +49,7 @@ export default function AdminDashboardPage() {
   const { t } = useTranslation('gameScheduling')
   const { hasAdminAccessToSport, is_spielplaner } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
-  const { bookings, opponents, slots, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, blockSlot, finalizeNotify } = useAdminBookings(season?.id)
+  const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, blockSlot, finalizeNotify } = useAdminBookings(season?.id)
   const { data: teams } = useTeams()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
@@ -219,8 +220,10 @@ export default function AdminDashboardPage() {
                     opponents={getTeamOpponents(team.id)}
                     bookings={bookings}
                     slots={getTeamSlots(team.id)}
+                    proposalHealth={proposalHealth}
                     onConfirmAway={confirmAwayProposal}
                     onConfirmHome={confirmHomeProposal}
+                    onRequestNewSlots={requestNewSlots}
                     onBlockSlot={blockSlot}
                   />
                 </div>
@@ -237,14 +240,18 @@ function TeamBookingsContent({
   opponents: teamOpponents,
   bookings: allBookings,
   slots: teamSlots,
+  proposalHealth,
   onConfirmAway,
   onConfirmHome,
+  onRequestNewSlots,
 }: {
   opponents: GameSchedulingOpponent[]
   bookings: ExpandedBooking[]
   slots: GameSchedulingSlot[]
+  proposalHealth: ProposalHealthEntry[]
   onConfirmAway: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   onConfirmHome: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
+  onRequestNewSlots: (opponentId: string | number) => Promise<void>
   onBlockSlot: (slotId: string, action: 'block' | 'unblock') => Promise<void>
 }) {
   const { t } = useTranslation('gameScheduling')
@@ -279,6 +286,10 @@ function TeamBookingsContent({
     for (const oid of set) if (oid !== opponentId) n++
     return n
   }
+
+  // Live proposal validity, keyed by booking id (Item 3).
+  const healthByBooking = new Map<string, ProposalHealthEntry>()
+  for (const h of proposalHealth) healthByBooking.set(String(h.booking_id), h)
 
   if (teamOpponents.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t('noBookingsYet')}</p>
@@ -346,8 +357,14 @@ function TeamBookingsContent({
                     slotsById={slotsById}
                     hallsById={hallsById}
                     alsoProposedBy={(slotId) => homeAlsoProposedBy(slotId, oppIdOf(homeBooking))}
+                    health={healthByBooking.get(String(homeBooking.id))}
                     onConfirm={onConfirmHome}
+                    onRequestNewSlots={() => onRequestNewSlots(opp.id)}
                   />
+                ) : opp.new_slots_requested_at ? (
+                  <span className="text-sm text-amber-600 dark:text-amber-400">
+                    {t('awaitingNewProposals', { date: formatDateCompactZurich(opp.new_slots_requested_at) })}
+                  </span>
                 ) : (
                   <span className="text-sm text-gray-400">{t('pending')}</span>
                 )}

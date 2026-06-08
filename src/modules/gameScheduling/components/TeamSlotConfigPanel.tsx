@@ -56,7 +56,8 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
   // juniors (Under teams) ALWAYS get the shared volleyball Döltschi pool (even
   // when it's not their own slot) PLUS the Spielhalle pool (both); non-juniors
   // take the Döltschi pool only if assigned, else fall back to Spielhalle.
-  // Döltschi 1 + 2 count as one venue for games → dedupe the pool by day+time.
+  // A Döltschi date is ONE slot (time + hall 1/2 irrelevant) → dedupe the pool to
+  // one entry per day-of-week.
   const resolveStandard = (team: { id: string | number; name: string }) => {
     const mine = slotsByTeam.get(String(team.id)) || []
     const kwiOwn = mine.filter((s) => hm(s.end_time) === '21:30' && isKwi(s.hall?.name || ''))
@@ -69,7 +70,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
       pool = hallSlots
         .filter((s) => s.sport === 'volleyball' && isDoltschi(s.hall?.name || ''))
         .filter((s) => {
-          const k = `${s.day_of_week}|${hm(s.start_time)}` // 1+2 = one venue
+          const k = String(s.day_of_week) // one Döltschi slot per day (time + hall 1/2 irrelevant)
           if (seen.has(k)) return false
           seen.add(k)
           return true
