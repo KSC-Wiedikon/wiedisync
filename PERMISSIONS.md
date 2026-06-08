@@ -165,6 +165,9 @@ Inherits everything from Member. Adds:
 | game_scheduling_* | read | none | |
 | fines | CRUD | scoped via teams.coach / team_responsible | **069** |
 | fine_rules | CRUD | scoped via teams.coach / team_responsible | **069** |
+| sponsors | create | none (UI attaches the team; CREATE can't be relationally filtered) | **2026-06-08** |
+| sponsors | update / delete | scoped via `teams_sponsors → teams.coach / team_responsible` (`SPONSORS_LEADER_SCOPE`); read stays inherited-unfiltered to avoid the M2M-deep-filter gotcha vs the editor's `teams.teams_id` fetch | **2026-06-08** |
+| teams_sponsors | CRUD | none (junction for the sponsor M2M write) | **2026-06-08** |
 | directus_files | create | none | |
 
 ---

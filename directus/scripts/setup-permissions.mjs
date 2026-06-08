@@ -962,6 +962,30 @@ async function main() {
   await setPerm(LEADER_POLICY, 'forms_teams', 'delete')
   await setPermRead(LEADER_POLICY, 'form_submissions', { form: FORMS_LEADER_SCOPE })
 
+  // Sponsors — coach/TR manage sponsors of teams they coach/TR (the sponsor
+  // editor lives inside the roster editor, gated by isCoachOf). update/delete
+  // scoped via the teams_sponsors M2M; create is unfiltered (Directus can't
+  // enforce a relational filter on CREATE — see the setPerm note — and the UI
+  // attaches the team). READ stays UNFILTERED on purpose: the editor's
+  // fetchSponsors already filters by `teams.teams_id`, and a policy read filter
+  // walking the same M2M would AND two expressions through one junction →
+  // silent empty for non-admins (the M2M-deep-filter gotcha). Sponsors are
+  // club-readable anyway (MEMBER_READ_ALL).
+  const SPONSORS_LEADER_SCOPE = {
+    _or: [
+      { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
+      { teams: { teams_id: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
+    ],
+  }
+  await setPermRead(LEADER_POLICY, 'sponsors')
+  await setPerm(LEADER_POLICY, 'sponsors', 'create')
+  await setPerm(LEADER_POLICY, 'sponsors', 'update', SPONSORS_LEADER_SCOPE)
+  await setPerm(LEADER_POLICY, 'sponsors', 'delete', SPONSORS_LEADER_SCOPE)
+  await setPermRead(LEADER_POLICY, 'teams_sponsors')
+  await setPerm(LEADER_POLICY, 'teams_sponsors', 'create')
+  await setPerm(LEADER_POLICY, 'teams_sponsors', 'update')
+  await setPerm(LEADER_POLICY, 'teams_sponsors', 'delete')
+
   // Participations — read + update scoped to members on teams I coach/TR
   // (plus own row). 2026-05-12 audit: was unfiltered full-club RSVP dump.
   // Filter walks: participation.member → member.member_teams.team.{coach|TR}.
