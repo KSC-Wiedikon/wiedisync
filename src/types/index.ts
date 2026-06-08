@@ -669,6 +669,10 @@ export interface GameSchedulingOpponent extends BaseRecord {
   expires_at?: string | null
   /** When the opponent was last asked to pick 3 new home slots (all prior proposals invalidated). */
   new_slots_requested_at?: string | null
+  /** Free-text note from KSCW shown to the opponent on their proposal page (editable in the dashboard). */
+  kscw_note?: string | null
+  /** Free-text remark written by the opponent (read-only for KSCW, shown in the dashboard). */
+  opponent_note?: string | null
 }
 
 /** Live validity of one proposed home slot (GET /admin/terminplanung/proposal-health). */

@@ -43,6 +43,10 @@ export interface OpponentData {
   status: 'invited' | 'viewed' | 'booked' | 'revoked' | 'expired' | 'active'
   /** Opponent's remembered UI language (de/gsw/en/fr/it), or null if not chosen yet. */
   language: string | null
+  /** Note from KSCW shown to the opponent (read-only here). */
+  kscw_note?: string
+  /** The opponent's own remark to KSCW (editable here). */
+  opponent_note?: string
 }
 
 export interface InviteGame {
@@ -133,6 +137,13 @@ export function useAvailableSlots(token: string | undefined) {
     return resp
   }, [token, fetchSlots, i18n])
 
+  // Save the opponent's free-text remark to KSCW.
+  const saveNote = useCallback(async (note: string) => {
+    if (!token) throw new Error('No token')
+    await kscwApi(`/terminplanung/note/${token}`, { method: 'POST', anonymous: true, body: { note } })
+    await fetchSlots()
+  }, [token, fetchSlots])
+
   // Persist the opponent's chosen language (best-effort) so emails use it.
   const setLanguage = useCallback(async (language: string) => {
     if (!token) return
@@ -153,6 +164,7 @@ export function useAvailableSlots(token: string | undefined) {
     error,
     proposeHome,
     proposeAway,
+    saveNote,
     setLanguage,
     refetch: fetchSlots,
   }

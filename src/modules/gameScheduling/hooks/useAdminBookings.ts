@@ -89,6 +89,15 @@ export function useAdminBookings(seasonId: string | undefined) {
     await fetchAll()
   }, [fetchAll])
 
+  // Save the note KSCW shows to an opponent on their proposal page.
+  const saveOpponentNote = useCallback(async (opponentId: string | number, kscwNote: string) => {
+    await kscwApi('/admin/terminplanung/opponent-note', {
+      method: 'POST',
+      body: { opponent_id: Number(opponentId), kscw_note: kscwNote },
+    })
+    await fetchAll()
+  }, [fetchAll])
+
   const blockSlot = useCallback(async (slotId: string, action: 'block' | 'unblock') => {
     await kscwApi('/terminplanung/admin/block-slot', {
       method: 'POST',
@@ -126,6 +135,7 @@ export function useAdminBookings(seasonId: string | undefined) {
     confirmAwayProposal,
     confirmHomeProposal,
     requestNewSlots,
+    saveOpponentNote,
     blockSlot,
     generateSlots,
     finalizeNotify,

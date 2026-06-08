@@ -33,10 +33,30 @@ type LegStatus = 'open' | 'proposed' | 'confirmed'
 export default function OpponentFlowPage() {
   const { token } = useParams<{ token: string }>()
   const { t, i18n } = useTranslation('gameScheduling')
-  const { opponent, slots, bookings, blockedStrict, blockedLoose, seasonWindow, isLoading, error, proposeHome, proposeAway, setLanguage } =
+  const { opponent, slots, bookings, blockedStrict, blockedLoose, seasonWindow, isLoading, error, proposeHome, proposeAway, saveNote, setLanguage } =
     useAvailableSlots(token)
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
+  // Opponent remark box. Seed from the loaded record once, then it's user-owned.
+  const [remark, setRemark] = useState('')
+  const [remarkSaving, setRemarkSaving] = useState(false)
+  const [remarkSaved, setRemarkSaved] = useState(false)
+  const didInitRemark = useRef(false)
+  useEffect(() => {
+    if (didInitRemark.current || !opponent) return
+    didInitRemark.current = true
+    setRemark(opponent.opponent_note || '')
+  }, [opponent])
+
+  const handleSaveRemark = async () => {
+    setRemarkSaving(true)
+    setRemarkSaved(false)
+    try {
+      await saveNote(remark.trim())
+      setRemarkSaved(true)
+    } catch { /* surfaced inline below */ }
+    finally { setRemarkSaving(false) }
+  }
 
   // Language memory: restore the opponent's saved language once their record
   // loads, then persist whenever they flip the switcher so emails match.
@@ -180,6 +200,14 @@ export default function OpponentFlowPage() {
           </div>
         )}
 
+        {/* Note from KSCW (set by the spielplaner) — shown to the opponent. */}
+        {opponent.kscw_note && (
+          <div className="mb-6 rounded-xl border border-gold-300 bg-gold-50 p-4 dark:border-gold-700 dark:bg-gold-900/20">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gold-700 dark:text-gold-300">{t('noteFromKscw')}</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">{opponent.kscw_note}</p>
+          </div>
+        )}
+
         {bookingError && (
           <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">{bookingError}</div>
         )}
@@ -250,6 +278,34 @@ export default function OpponentFlowPage() {
                 onSubmit={handleProposeAway}
               />
             )}
+          </div>
+        </div>
+
+        {/* Opponent's remark to KSCW (free text, independent of proposing). */}
+        <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+          <label htmlFor="opp-remark" className="block text-base font-semibold text-gray-900 dark:text-gray-100">
+            {t('yourRemarks')}
+          </label>
+          <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">{t('yourRemarksHint')}</p>
+          <textarea
+            id="opp-remark"
+            value={remark}
+            onChange={(e) => { setRemark(e.target.value); setRemarkSaved(false) }}
+            rows={3}
+            maxLength={2000}
+            placeholder={t('yourRemarksPlaceholder')}
+            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+          />
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSaveRemark}
+              disabled={remarkSaving}
+              className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {remarkSaving ? t('saving') : t('saveRemarks')}
+            </button>
+            {remarkSaved && <span className="text-sm text-green-600 dark:text-green-400">{t('remarksSaved')}</span>}
           </div>
         </div>
       </div>

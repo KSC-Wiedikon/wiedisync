@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.26.0'
+const APP_VERSION = '4.27.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.27.0',
+    date: '09.06.2026',
+    sections: [
+      {
+        title: 'Scheduling remarks',
+        items: [
+          'You can now leave a note for an opponent that shows on their scheduling page — and opponents can write a remark back to you. Both appear in the scheduling dashboard.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.26.0',
     date: '08.06.2026',

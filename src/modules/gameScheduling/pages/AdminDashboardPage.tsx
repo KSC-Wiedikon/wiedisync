@@ -9,6 +9,7 @@ import { useTeams } from '../../../hooks/useTeams'
 import LoadingSpinner from '../../../components/LoadingSpinner'
 import AwayProposalReview from '../components/AwayProposalReview'
 import HomeProposalReview from '../components/HomeProposalReview'
+import OpponentNotes from '../components/OpponentNotes'
 import ExcelExportButton from '../components/ExcelExportButton'
 import SchedulingCalendar from '../components/SchedulingCalendar'
 import { Badge } from '../../../components/ui/badge'
@@ -49,7 +50,7 @@ export default function AdminDashboardPage() {
   const { t } = useTranslation('gameScheduling')
   const { hasAdminAccessToSport, is_spielplaner } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
-  const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, blockSlot, finalizeNotify } = useAdminBookings(season?.id)
+  const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, blockSlot, finalizeNotify } = useAdminBookings(season?.id)
   const { data: teams } = useTeams()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
@@ -224,6 +225,7 @@ export default function AdminDashboardPage() {
                     onConfirmAway={confirmAwayProposal}
                     onConfirmHome={confirmHomeProposal}
                     onRequestNewSlots={requestNewSlots}
+                    onSaveOpponentNote={saveOpponentNote}
                     onBlockSlot={blockSlot}
                   />
                 </div>
@@ -244,6 +246,7 @@ function TeamBookingsContent({
   onConfirmAway,
   onConfirmHome,
   onRequestNewSlots,
+  onSaveOpponentNote,
 }: {
   opponents: GameSchedulingOpponent[]
   bookings: ExpandedBooking[]
@@ -252,6 +255,7 @@ function TeamBookingsContent({
   onConfirmAway: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   onConfirmHome: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   onRequestNewSlots: (opponentId: string | number) => Promise<void>
+  onSaveOpponentNote: (opponentId: string | number, kscwNote: string) => Promise<void>
   onBlockSlot: (slotId: string, action: 'block' | 'unblock') => Promise<void>
 }) {
   const { t } = useTranslation('gameScheduling')
@@ -383,6 +387,12 @@ function TeamBookingsContent({
                 )}
               </div>
             </div>
+
+            <OpponentNotes
+              opponentNote={opp.opponent_note}
+              kscwNote={opp.kscw_note}
+              onSave={(note) => onSaveOpponentNote(opp.id, note)}
+            />
           </div>
         )
       })}

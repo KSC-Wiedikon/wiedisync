@@ -989,6 +989,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           source: opponent.source || 'self_registration',
           status: opponent.status || 'active',
           language: opponent.language || null,
+          kscw_note: opponent.kscw_note || '',
+          opponent_note: opponent.opponent_note || '',
         },
         games: svrzGames,
         slots: slotsOut,
@@ -1523,6 +1525,44 @@ export function registerGameScheduling(router, { database, logger, services, get
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `terminplanung/set-language: ${err.message}`, endpoint: 'terminplanung/set-language', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/terminplanung/note/:token — the opponent saves/updates their free
+  // -text remark to KSCW (shown to the spielplaner in the dashboard). Token-gated,
+  // independent of proposing so they can leave a note even with no workable slot.
+  router.post('/terminplanung/note/:token', async (req, res) => {
+    try {
+      if (!rateLimit(writeAttempts, req, 20, 15 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many requests. Try again later.' })
+      }
+      const note = String(req.body?.note ?? '').slice(0, 2000)
+      const updated = await database('game_scheduling_opponents')
+        .where('token', req.params.token)
+        .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
+        .update({ opponent_note: note })
+      if (!updated) return res.status(404).json({ error: 'Invalid link' })
+      res.json({ success: true })
+    } catch (err) {
+      log.error({ msg: `terminplanung/note: ${err.message}`, endpoint: 'terminplanung/note', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/admin/terminplanung/opponent-note — the spielplaner saves the note
+  // shown to an opponent on their proposal page. Body: { opponent_id, kscw_note }.
+  router.post('/admin/terminplanung/opponent-note', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const opponentId = Number(req.body?.opponent_id)
+      if (!opponentId) return res.status(400).json({ error: 'opponent_id required' })
+      const note = String(req.body?.kscw_note ?? '').slice(0, 2000)
+      const updated = await database('game_scheduling_opponents').where('id', opponentId).update({ kscw_note: note })
+      if (!updated) return res.status(404).json({ error: 'Opponent not found' })
+      res.json({ success: true })
+    } catch (err) {
+      log.error({ msg: `admin/terminplanung/opponent-note: ${err.message}`, endpoint: 'admin/terminplanung/opponent-note', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
