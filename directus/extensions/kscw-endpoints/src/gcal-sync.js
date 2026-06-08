@@ -1,11 +1,26 @@
 /**
  * Google Calendar Sync — ported from gcal_sync_lib.js
  * POST /kscw/admin/gcal-sync — manual trigger (admin only)
- * Also registered as cron in hooks extension
+ * Also registered as cron in hooks extension (04:00 UTC daily).
+ *
+ * The KSCW public calendar (embedded at kscw.ch/weiteres/kalender) is a
+ * closures-only calendar — every entry means the hall is unavailable that day
+ * ("Halle geschlossen", school holidays, tournaments occupying the gym, etc.).
+ * So EVERY event is treated as a hall closure:
+ *   • hall_closures (source='gcal') — the functional block. One row per KWI hall
+ *     (A/B/C — the school gym the calendar refers to), written via ItemsService
+ *     so the `hall_closures.items.create/delete` auto-cancel hook fires and
+ *     overlapping trainings get cancelled / reversed. This is what makes the
+ *     closure actually take effect.
+ *   • hall_events (source='gcal') — the display row the Hallenplan / iCal feed
+ *     render. Kept for continuity (upserted by uid).
+ * Both are reconciled against the live feed each run (insert new, delete stale)
+ * so nothing churns for unchanged entries.
  */
 
 const GCAL_IDS = [
-  // Add Google Calendar IDs here as needed
+  // KSCW public calendar (kscw.ch/weiteres/kalender → embedded Google Calendar).
+  '145bqacb4v5qfkr97u2fdchi5o@group.calendar.google.com',
 ]
 
 function parseIcsDatetime(str) {
@@ -28,6 +43,14 @@ function parseIcsDatetime(str) {
   const d = dt.toISOString().slice(0, 10)
   const t = dt.toISOString().slice(11, 16)
   return { date: d, time: t, allDay: false }
+}
+
+// ICS all-day DTEND is EXCLUSIVE (a single 04.12 all-day event is
+// DTSTART 20261204 / DTEND 20261205). Convert to an inclusive end date.
+function minusOneDay(isoDate) {
+  const d = new Date(`${isoDate}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - 1)
+  return d.toISOString().slice(0, 10)
 }
 
 function parseIcs(text) {
@@ -59,14 +82,21 @@ function resolveHall(title, location, hallLookup) {
   return null
 }
 
-export function registerGCalSync(router, { database, logger }) {
+export function registerGCalSync(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'gcal-sync' })
 
-  async function runSync(db) {
+  async function runSync(db, schema) {
+    const { ItemsService } = services
     const halls = await db('halls').select('id', 'name')
     const hallLookup = Object.fromEntries(halls.map(h => [h.name, h.id]))
+    // Halls a calendar closure applies to: the KWI school gym (A/B/C). These are
+    // the halls the public calendar's "Halle geschlossen" entries refer to and
+    // the set the previous gcal sync used. Döltschi / external halls follow their
+    // own availability and are not closed by this calendar.
+    const kwiHallIds = halls.filter(h => /^kwi/i.test(h.name)).map(h => h.id)
 
-    let created = 0, updated = 0, deleted = 0
+    let eventsCreated = 0, eventsUpdated = 0, eventsDeleted = 0
+    let closuresCreated = 0, closuresDeleted = 0
 
     for (const calId of GCAL_IDS) {
       const url = `https://calendar.google.com/calendar/ical/${encodeURIComponent(calId)}/public/basic.ics`
@@ -75,18 +105,39 @@ export function registerGCalSync(router, { database, logger }) {
       const icsText = await resp.text()
       const events = parseIcs(icsText)
 
-      // Season start (Sept 1 of current or previous year)
+      // Season start (Sept 1 of current or previous year). We only manage
+      // closures from here forward so past (frozen) data is never churned.
       const now = new Date()
       const seasonStart = new Date(now.getMonth() < 8 ? now.getFullYear() - 1 : now.getFullYear(), 8, 1)
         .toISOString().split('T')[0]
 
+      // Zurich school holidays are the curated source of truth and take
+      // PRIORITY: never create a gcal closure where a school_holidays closure
+      // already covers that hall+date (no duplicates; the holiday record stands,
+      // and we don't churn/reverse it). Mirrors schulferien-sync's own
+      // skip-if-overlapping rule.
+      const shRows = await db('hall_closures')
+        .where('source', 'school_holidays').andWhere('end_date', '>=', seasonStart)
+        .select('hall', db.raw('start_date::text as s'), db.raw('end_date::text as e'))
+      const shByHall = new Map()
+      for (const r of shRows) {
+        const list = shByHall.get(r.hall) || []
+        list.push([(r.s || '').slice(0, 10), (r.e || '').slice(0, 10)])
+        shByHall.set(r.hall, list)
+      }
+      const coveredBySchoolHoliday = (hall, start, end) =>
+        (shByHall.get(hall) || []).some(([s, e]) => start <= e && end >= s)
+
       const seenUids = new Set()
+      // Desired hall_closures for this feed, keyed hall|start|end (no reason in
+      // the key, so re-titling an entry doesn't force a delete+recreate).
+      const desiredClosures = new Map()
 
       for (const ev of events) {
         if (!ev.start || ev.start.date < seasonStart) continue
-        if (ev.title?.startsWith('VB ')) continue // skip VB-prefixed events
         seenUids.add(ev.uid)
 
+        // ── hall_events (display) — upsert by uid (raw knex; no hook needed) ──
         const hallId = resolveHall(ev.title || '', ev.location || '', hallLookup)
         const record = {
           title: ev.title || '', date: ev.start.date,
@@ -95,35 +146,72 @@ export function registerGCalSync(router, { database, logger }) {
           source: 'gcal', uid: ev.uid,
         }
         if (hallId) record.hall = hallId
-
         const existing = await db('hall_events').where('uid', ev.uid).first()
         if (existing) {
           await db('hall_events').where('id', existing.id).update({ ...record, date_updated: new Date() })
-          updated++
+          eventsUpdated++
         } else {
           await db('hall_events').insert({ ...record, date_created: new Date(), date_updated: new Date() })
-          created++
+          eventsCreated++
+        }
+
+        // ── hall_closures (block) — EVERY event closes the KWI halls for its span ──
+        const startD = ev.start.date
+        let endD = startD
+        if (ev.end?.date) endD = ev.end.allDay ? minusOneDay(ev.end.date) : ev.end.date
+        if (endD < startD) endD = startD
+        const reason = (ev.title || 'Halle geschlossen').slice(0, 255)
+        for (const h of kwiHallIds) {
+          if (coveredBySchoolHoliday(h, startD, endD)) continue // Zurich holiday wins
+          desiredClosures.set(`${h}|${startD}|${endD}`, { hall: h, start_date: startD, end_date: endD, reason })
         }
       }
 
-      // Delete stale gcal events no longer in feed
-      const existingGcal = await db('hall_events').where('source', 'gcal').select('id', 'uid')
-      for (const row of existingGcal) {
-        if (!seenUids.has(row.uid)) {
-          await db('hall_events').where('id', row.id).delete()
-          deleted++
+      // Delete hall_events no longer in the feed (raw knex).
+      const existingEvents = await db('hall_events').where('source', 'gcal').select('id', 'uid')
+      for (const row of existingEvents) {
+        if (!seenUids.has(row.uid)) { await db('hall_events').where('id', row.id).delete(); eventsDeleted++ }
+      }
+
+      // Reconcile hall_closures (source='gcal') via ItemsService so the training
+      // auto-cancel hook fires on create and reverses on delete. Scoped to
+      // end_date >= seasonStart so past closures (and their frozen training
+      // cancellations) are never touched.
+      const closures = new ItemsService('hall_closures', { schema, knex: db })
+      const existingClos = await db('hall_closures')
+        .where('source', 'gcal').andWhere('end_date', '>=', seasonStart)
+        .select('id', 'hall', db.raw('start_date::text as start_date'), db.raw('end_date::text as end_date'))
+      const existKeys = new Map()
+      for (const c of existingClos) {
+        existKeys.set(`${c.hall}|${(c.start_date || '').slice(0, 10)}|${(c.end_date || '').slice(0, 10)}`, c.id)
+      }
+      // Delete stale closures (no longer in the feed). Never delete a gcal
+      // closure that now sits under a Zurich school holiday — leave it as a
+      // harmless duplicate rather than risk reversing a training cancellation.
+      for (const [k, id] of existKeys) {
+        if (desiredClosures.has(k)) continue
+        const [h, s, e] = k.split('|')
+        if (coveredBySchoolHoliday(parseInt(h, 10), s, e)) continue
+        await closures.deleteOne(id); closuresDeleted++
+      }
+      // Insert newly-appeared closures.
+      for (const [k, c] of desiredClosures) {
+        if (!existKeys.has(k)) {
+          await closures.createOne({ hall: c.hall, start_date: c.start_date, end_date: c.end_date, reason: c.reason, source: 'gcal' })
+          closuresCreated++
         }
       }
     }
 
-    return { created, updated, deleted }
+    return { eventsCreated, eventsUpdated, eventsDeleted, closuresCreated, closuresDeleted }
   }
 
   router.post('/admin/gcal-sync', async (req, res) => {
     if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin access required' })
     try {
       log.info('Manual GCal sync triggered')
-      const result = await runSync(database)
+      const schema = await getSchema()
+      const result = await runSync(database, schema)
       res.json({ status: 'ok', ...result })
     } catch (err) {
       log.error({ msg: `gcal-sync: ${err.message}`, endpoint: 'gcal-sync', userId: req?.accountability?.user || null, method: req?.method, stack: err.stack })
