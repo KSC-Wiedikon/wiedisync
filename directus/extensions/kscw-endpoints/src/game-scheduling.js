@@ -616,6 +616,17 @@ export function registerGameScheduling(router, { database, logger, services, get
             .whereRaw('sb.team = ?', [opponent.kscw_team])
             .whereRaw('game_scheduling_slots.date BETWEEN sb.start_date AND sb.end_date')
         })
+        // Hall closures (e.g. gcal-synced Hallen-geschlossen / external hall use)
+        // block HOME slots whose own hall is closed that day — you can't host
+        // there. HOME-ONLY on purpose: away games are at the opponent's hall, so
+        // a KWI closure must NOT block away proposals (the away sets below never
+        // read hall_closures).
+        .whereNotExists(function () {
+          this.select(database.raw('1'))
+            .from('hall_closures as hc')
+            .whereRaw('hc.hall = game_scheduling_slots.hall')
+            .whereRaw('game_scheduling_slots.date BETWEEN hc.start_date AND hc.end_date')
+        })
         // Games / booked slots / confirmed proposals are filtered in JS below via
         // the committed sets. Per-slot absent-player count is kept as a COLUMN
         // (not a hard filter) so the tiering below can offer absence-laden slots
@@ -1055,6 +1066,13 @@ export function registerGameScheduling(router, { database, logger, services, get
           .whereRaw('?::date BETWEEN start_date AND end_date', [slot.date])
           .first()
         if (blockCover) throw Object.assign(new Error('Slot falls on a team block'), { httpStatus: 400 })
+
+        // Home-only: can't host in a hall that's closed that day (gcal closures etc).
+        const closureCover = await trx('hall_closures')
+          .where('hall', slot.hall)
+          .whereRaw('?::date BETWEEN start_date AND end_date', [slot.date])
+          .first()
+        if (closureCover) throw Object.assign(new Error('Slot falls on a hall closure'), { httpStatus: 400 })
 
         const gaps = await seasonGaps(opponent.season)
         const gap = n < 3 ? gaps.home : gaps.proposal3
