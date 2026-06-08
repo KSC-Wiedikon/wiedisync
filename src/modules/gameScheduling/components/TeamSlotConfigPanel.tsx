@@ -52,23 +52,36 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
     return m
   }, [hallSlots])
 
-  // Mirrors the backend: own latest KWI block (ends 21:30); teams that use
-  // Döltschi get the shared volleyball Döltschi pool; else the club Spielhalle.
-  const resolveStandard = (teamId: string | number) => {
-    const mine = slotsByTeam.get(String(teamId)) || []
+  // Mirrors the backend generate-slots: own latest KWI block (ends 21:30);
+  // juniors (Under teams) ALWAYS get the shared volleyball Döltschi pool (even
+  // when it's not their own slot) PLUS the Spielhalle pool (both); non-juniors
+  // take the Döltschi pool only if assigned, else fall back to Spielhalle.
+  // Döltschi 1 + 2 count as one venue for games → dedupe the pool by day+time.
+  const resolveStandard = (team: { id: string | number; name: string }) => {
+    const mine = slotsByTeam.get(String(team.id)) || []
     const kwiOwn = mine.filter((s) => hm(s.end_time) === '21:30' && isKwi(s.hall?.name || ''))
     const usesDoltschi = mine.some((s) => s.sport === 'volleyball' && isDoltschi(s.hall?.name || ''))
-    const pool = usesDoltschi
-      ? hallSlots.filter((s) => s.sport === 'volleyball' && isDoltschi(s.hall?.name || ''))
-      : []
+    const isJr = /u\d/i.test(team.name || '')
     const fmt = (s: HallSlotLite) => `${DAY[s.day_of_week]} ${hm(s.start_time)}–${hm(s.end_time)} · ${s.hall?.name}`
-    const parts = [...kwiOwn, ...pool]
-    if (parts.length) {
-      return { labels: [...new Set(parts.map(fmt))], fallback: false }
+    let pool: HallSlotLite[] = []
+    if (usesDoltschi || isJr) {
+      const seen = new Set<string>()
+      pool = hallSlots
+        .filter((s) => s.sport === 'volleyball' && isDoltschi(s.hall?.name || ''))
+        .filter((s) => {
+          const k = `${s.day_of_week}|${hm(s.start_time)}` // 1+2 = one venue
+          if (seen.has(k)) return false
+          seen.add(k)
+          return true
+        })
     }
     const sh = hallSlots.filter((s) => (s.label || '').toLowerCase() === 'spielhalle')
-    if (sh.length) {
-      return { labels: [...new Set(sh.map((s) => `Spielhalle · ${fmt(s)}`))], fallback: true }
+    const labels = [...kwiOwn, ...pool].map(fmt)
+    // Juniors also get Spielhalle (both); others only as a fallback when empty.
+    if (isJr) labels.push(...sh.map((s) => `Spielhalle · ${fmt(s)}`))
+    else if (labels.length === 0) labels.push(...sh.map((s) => `Spielhalle · ${fmt(s)}`))
+    if (labels.length) {
+      return { labels: [...new Set(labels)], fallback: kwiOwn.length === 0 && pool.length === 0 }
     }
     return { labels: ['—'], fallback: true }
   }
@@ -101,7 +114,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {teams.map((team) => {
           const active = resolveSources(config[team.id])
-          const std = resolveStandard(team.id)
+          const std = resolveStandard(team)
           const standardOn = active.has('hall_slot')
           return (
             <div

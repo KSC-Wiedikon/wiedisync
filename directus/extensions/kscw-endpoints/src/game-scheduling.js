@@ -1444,8 +1444,13 @@ export function registerGameScheduling(router, { database, logger, services, get
         .whereRaw("LOWER(name) LIKE '%kwi%'").orderBy('name').select('id')
       const SUNDAY_TIMES = ['11:00', '13:00', '15:00']
 
+      // Teams excluded from Terminplanung entirely (no league fixtures to
+      // schedule) — mirrors SCHEDULING_EXCLUDED_TEAM_NAMES in the frontend
+      // (src/modules/gameScheduling/utils/schedulableTeams.ts). No slots generated.
+      const SCHEDULING_EXCLUDED_TEAM_NAMES = ['MiniVB', 'DU20']
       const teams = await database('teams')
-        .where('sport', 'volleyball').where('active', true).select('id', 'name')
+        .where('sport', 'volleyball').where('active', true)
+        .whereNotIn('name', SCHEDULING_EXCLUDED_TEAM_NAMES).select('id', 'name')
 
       // B1/B2 — Friday gym split with basketball. Until the October vacation
       // (Herbstferien) volleyball uses both halls every Friday. After it, Fridays
