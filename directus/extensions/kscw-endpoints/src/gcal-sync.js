@@ -82,6 +82,20 @@ function resolveHall(title, location, hallLookup) {
   return null
 }
 
+// The KSCW public calendar is the club's FULL calendar — it carries the club's
+// own VB/BB games, trainings and "darf trainieren" permissions alongside the
+// genuine hall closures. Only the latter may become hall_closures: closing the
+// hall for the club's own game/training would self-cancel it, and a "darf
+// trainieren" entry is the opposite of a closure. So a closure is an entry that
+// names a closure / external occupation and is NOT a club game or training.
+// ("VB "-prefixed games are dropped before this is called.)
+function isClosureEvent(title) {
+  const t = String(title || '').toLowerCase()
+  if (/training|trainieren/.test(t)) return false          // trainings + "darf trainieren"
+  if (/^bb\s|\bbb\b|basketplan|probasket|basketball/.test(t)) return false // club basketball
+  return /geschlossen|gesperrt|sperr|reserv|turnier|tournament|volleynight|volleyball.?nacht|volleyball-night|pfadi|asvz|handball|extern|fremd|belegt/.test(t)
+}
+
 export function registerGCalSync(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'gcal-sync' })
 
@@ -135,6 +149,7 @@ export function registerGCalSync(router, { database, logger, services, getSchema
 
       for (const ev of events) {
         if (!ev.start || ev.start.date < seasonStart) continue
+        if (ev.title?.startsWith('VB ')) continue // club VB games — app-managed, never a closure
         seenUids.add(ev.uid)
 
         // ── hall_events (display) — upsert by uid (raw knex; no hook needed) ──
@@ -155,15 +170,18 @@ export function registerGCalSync(router, { database, logger, services, getSchema
           eventsCreated++
         }
 
-        // ── hall_closures (block) — EVERY event closes the KWI halls for its span ──
-        const startD = ev.start.date
-        let endD = startD
-        if (ev.end?.date) endD = ev.end.allDay ? minusOneDay(ev.end.date) : ev.end.date
-        if (endD < startD) endD = startD
-        const reason = (ev.title || 'Halle geschlossen').slice(0, 255)
-        for (const h of kwiHallIds) {
-          if (coveredBySchoolHoliday(h, startD, endD)) continue // Zurich holiday wins
-          desiredClosures.set(`${h}|${startD}|${endD}`, { hall: h, start_date: startD, end_date: endD, reason })
+        // ── hall_closures (block) — only genuine closure / external-occupation
+        // entries close the KWI halls for their span (not club games/trainings). ──
+        if (isClosureEvent(ev.title)) {
+          const startD = ev.start.date
+          let endD = startD
+          if (ev.end?.date) endD = ev.end.allDay ? minusOneDay(ev.end.date) : ev.end.date
+          if (endD < startD) endD = startD
+          const reason = (ev.title || 'Halle geschlossen').slice(0, 255)
+          for (const h of kwiHallIds) {
+            if (coveredBySchoolHoliday(h, startD, endD)) continue // Zurich holiday wins
+            desiredClosures.set(`${h}|${startD}|${endD}`, { hall: h, start_date: startD, end_date: endD, reason })
+          }
         }
       }
 
