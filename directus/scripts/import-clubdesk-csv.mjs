@@ -34,9 +34,17 @@ const ENVS = {
   prod: { container: 'supabase-db-vek42jyj0owoutoouq29aisq', database: 'postgres',          user: 'supabase_admin' },
 }
 
-const [envName, csvPath] = process.argv.slice(2)
+const rawArgs = process.argv.slice(2)
+// --local (or CLUBDESK_IMPORT_LOCAL=1): run `docker exec` directly instead of
+// hopping through `ssh hetzner` — used when this runs ON the VPS (e.g. cron).
+const LOCAL = process.env.CLUBDESK_IMPORT_LOCAL === '1' || rawArgs.includes('--local')
+// --emit-sql: print the psql script to stdout instead of running it, so a caller
+// that can't reach the DB (e.g. the scrape running in a container) can pipe it
+// into the pg container itself. Progress logs go to stderr to keep stdout clean.
+const EMIT_SQL = rawArgs.includes('--emit-sql')
+const [envName, csvPath] = rawArgs.filter((a) => !a.startsWith('--'))
 if (!envName || !ENVS[envName] || !csvPath) {
-  console.error('Usage: import-clubdesk-csv.mjs <dev|prod> <csv-path>')
+  console.error('Usage: import-clubdesk-csv.mjs <dev|prod> <csv-path> [--local]')
   process.exit(1)
 }
 const env = ENVS[envName]
@@ -173,15 +181,23 @@ const psqlInput =
   'COMMIT;\n' +
   "SELECT 'rows', (SELECT COUNT(*) FROM clubdesk_export), 'volleyball', (SELECT COUNT(*) FROM clubdesk_volleyball), 'last_import', (SELECT last_import_at FROM clubdesk_export_meta WHERE id=1);\n"
 
-console.log(`→ ${envName}/${env.database}: importing ${csvPath} (${dataRows.length} data rows, ${TARGET_COLS.length} target cols)...`)
-const cmd = ['ssh', 'hetzner', 'sudo', 'docker', 'exec', '-i', env.container,
-  'psql', '-U', env.user, '-d', env.database,
-  '-X', '-v', 'ON_ERROR_STOP=1']
-const r = spawnSync(cmd[0], cmd.slice(1), { input: psqlInput, encoding: 'utf-8' })
-if (r.status !== 0) {
-  console.error('psql failed:')
-  console.error(r.stderr || r.stdout)
-  process.exit(1)
+if (EMIT_SQL) {
+  // Flush fully before exiting: process.exit() right after writing a large
+  // payload to a pipe/file truncates it (the write is async). Exit only once
+  // the buffer has drained via the write callback.
+  process.stdout.write(psqlInput, () => process.exit(0))
+} else {
+  console.error(`→ ${envName}/${env.database}: importing ${csvPath} (${dataRows.length} data rows, ${TARGET_COLS.length} target cols)...`)
+  const dockerExec = ['sudo', 'docker', 'exec', '-i', env.container,
+    'psql', '-U', env.user, '-d', env.database,
+    '-X', '-v', 'ON_ERROR_STOP=1']
+  const cmd = LOCAL ? dockerExec : ['ssh', 'hetzner', ...dockerExec]
+  const r = spawnSync(cmd[0], cmd.slice(1), { input: psqlInput, encoding: 'utf-8' })
+  if (r.status !== 0) {
+    console.error('psql failed:')
+    console.error(r.stderr || r.stdout)
+    process.exit(1)
+  }
+  process.stdout.write(r.stdout)
+  console.log('✓ import complete')
 }
-process.stdout.write(r.stdout)
-console.log('✓ import complete')
