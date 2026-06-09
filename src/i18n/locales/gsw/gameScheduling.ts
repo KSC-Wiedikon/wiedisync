@@ -362,7 +362,7 @@ export default {
 
   // Manuelli Erfassig — scho abgmachti Begegnig direkt iitrage.
   manualEnterAgreed: 'Abgmachts Spiel vo Hand erfasse',
-  manualHint: 'S Datum scho per E-Mail oder Telefon abgmacht? Da erfasse – es wird kei E-Mail an Gegner gschickt.',
+  manualBookingHint: 'S Datum scho per E-Mail oder Telefon abgmacht? Da erfasse – es wird kei E-Mail an Gegner gschickt.',
   manualHomeGame: 'Heimspiel',
   manualAwayGame: 'Uswärtsspiel',
   manualOverwrite: 'überschribt s aktuelle',

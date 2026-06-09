@@ -8,7 +8,6 @@ interface HallOption {
 }
 
 interface Props {
-  opponentId: string | number
   /** Halls offered for the home leg (KSCW halls). */
   halls: HallOption[]
   /** Whether a confirmed home leg already exists (changes the toggle label). */
@@ -32,7 +31,7 @@ function plus90(hhmm: string): string {
 // Manually record an already-agreed matchup (date settled by email/phone outside
 // the tool), skipping the opponent's propose/choose flow. Collapsed by default;
 // the admin fills the home leg, the away leg, or both.
-export default function ManualBookingForm({ opponentId, halls, hasHome, hasAway, onSave }: Props) {
+export default function ManualBookingForm({ halls, hasHome, hasAway, onSave }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -94,7 +93,7 @@ export default function ManualBookingForm({ opponentId, halls, hasHome, hasAway,
 
   return (
     <div className="mt-3 space-y-3 border-t border-gray-200/70 pt-3 dark:border-gray-700/70">
-      <p className="text-xs text-gray-500 dark:text-gray-400">{t('manualHint')}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400">{t('manualBookingHint')}</p>
 
       {/* Home leg */}
       <div className="rounded-md border border-gray-200 p-2 dark:border-gray-700">

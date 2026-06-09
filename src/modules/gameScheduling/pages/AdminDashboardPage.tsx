@@ -492,7 +492,6 @@ function TeamBookingsContent({
             />
 
             <ManualBookingForm
-              opponentId={opp.id}
               halls={hallOptions}
               hasHome={homeConfirmed}
               hasAway={awayConfirmed}

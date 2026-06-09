@@ -370,7 +370,7 @@ export default {
 
   // Manuelle Erfassung — bereits vereinbarte Begegnung direkt eintragen.
   manualEnterAgreed: 'Vereinbartes Spiel manuell erfassen',
-  manualHint: 'Datum bereits per E-Mail oder Telefon vereinbart? Hier erfassen – es wird keine E-Mail an den Gegner gesendet.',
+  manualBookingHint: 'Datum bereits per E-Mail oder Telefon vereinbart? Hier erfassen – es wird keine E-Mail an den Gegner gesendet.',
   manualHomeGame: 'Heimspiel',
   manualAwayGame: 'Auswärtsspiel',
   manualOverwrite: 'überschreibt das aktuelle',

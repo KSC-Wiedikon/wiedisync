@@ -362,7 +362,7 @@ export default {
 
   // Inserimento manuale — registrare direttamente una partita già concordata.
   manualEnterAgreed: 'Inserisci manualmente una partita concordata',
-  manualHint: 'Data già concordata via e-mail o telefono? Registrala qui – non viene inviata alcuna e-mail all’avversario.',
+  manualBookingHint: 'Data già concordata via e-mail o telefono? Registrala qui – non viene inviata alcuna e-mail all’avversario.',
   manualHomeGame: 'Partita in casa',
   manualAwayGame: 'Partita in trasferta',
   manualOverwrite: 'sostituisce quella attuale',

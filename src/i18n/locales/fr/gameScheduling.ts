@@ -361,7 +361,7 @@ export default {
 
   // Saisie manuelle — enregistrer directement un match déjà convenu.
   manualEnterAgreed: 'Saisir un match convenu manuellement',
-  manualHint: 'Date déjà convenue par e-mail ou téléphone ? Enregistrez-la ici – aucun e-mail n’est envoyé à l’adversaire.',
+  manualBookingHint: 'Date déjà convenue par e-mail ou téléphone ? Enregistrez-la ici – aucun e-mail n’est envoyé à l’adversaire.',
   manualHomeGame: 'Match à domicile',
   manualAwayGame: 'Match à l’extérieur',
   manualOverwrite: 'remplace l’actuel',

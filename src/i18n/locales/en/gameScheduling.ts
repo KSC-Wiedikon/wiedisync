@@ -370,7 +370,7 @@ export default {
 
   // Manual booking — record an already-agreed matchup directly.
   manualEnterAgreed: 'Enter an agreed game manually',
-  manualHint: 'Already settled the date by email or phone? Record it here — no email is sent to the opponent.',
+  manualBookingHint: 'Already settled the date by email or phone? Record it here — no email is sent to the opponent.',
   manualHomeGame: 'Home game',
   manualAwayGame: 'Away game',
   manualOverwrite: 'overwrites the current one',
