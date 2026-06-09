@@ -325,7 +325,7 @@ function TeamBookingsContent({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       {teamOpponents.map(opp => {
         const oppBookings = allBookings.filter(b => {
           const oid = typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent
