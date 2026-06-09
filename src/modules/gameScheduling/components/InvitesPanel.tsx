@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '../../../components/ui/button'
@@ -40,6 +40,22 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
     [api.invites],
   )
   const frontendUrl = typeof window !== 'undefined' ? window.location.origin : 'https://wiedisync.kscw.ch'
+
+  // Auto-create invite links for synced opponents the first time a team is shown,
+  // so the list populates itself. Runs once per team+season (ref-guarded); the
+  // backend dedupes by opponent name, so it's safe regardless of load order.
+  const ensuredRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!selectedTeamId || !seasonId) return
+    const key = `${selectedTeamId}:${seasonId}`
+    if (ensuredRef.current.has(key)) return
+    ensuredRef.current.add(key)
+    api
+      .ensureFromSvrz()
+      .then((r) => { if (r && r.created > 0) toast.success(t('invitesAutoCreated', { count: r.created })) })
+      .catch(() => { /* best-effort — admin can still add manually */ })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTeamId, seasonId])
 
   const fetchSvrz = useCallback(async () => {
     try {

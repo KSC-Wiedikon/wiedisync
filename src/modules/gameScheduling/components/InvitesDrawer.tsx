@@ -116,7 +116,14 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
     setLoadingClubs(true)
     try {
       const resp = await api.listSvrzClubs()
-      const rows: DraftRow[] = resp.clubs.map((c) => {
+      // Opponents that already have an invite are auto-created at the panel level
+      // and shown in the invite table — don't restage them as drafts here. What
+      // remains is mostly opponents still missing a contact (skipped by
+      // auto-create), which the admin completes by hand.
+      const invitedNames = new Set(api.invites.map((i) => i.team_name.trim().toLowerCase()))
+      const rows: DraftRow[] = resp.clubs
+        .filter((c) => !invitedNames.has((c.team_name || c.club_name).trim().toLowerCase()))
+        .map((c) => {
         const emails = c.suggested_contacts.map((x) => x.email).filter(Boolean)
         const names = c.suggested_contacts.map((x) => x.name).filter(Boolean)
         return {

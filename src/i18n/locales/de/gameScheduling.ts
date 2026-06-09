@@ -261,6 +261,7 @@ export default {
   opponentContacts: 'Gegner-Kontakte',
   reloadSynced: 'Synchronisierte laden',
   refreshFromSvrzLive: 'Von SVRZ aktualisieren (live)',
+  invitesAutoCreated: '{{count}} Einladungen automatisch hinzugefügt',
   autoFillHint: 'Kontakte werden beim Öffnen automatisch aus der letzten SVRZ-Synchronisierung gefüllt. „Von SVRZ aktualisieren (live)" nur für die aktuellsten Kontakte direkt von SVRZ.',
   statusInvited: 'Eingeladen',
   statusViewed: 'Angesehen',

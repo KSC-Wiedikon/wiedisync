@@ -261,6 +261,7 @@ export default {
   opponentContacts: 'Opponent contacts',
   reloadSynced: 'Reload synced',
   refreshFromSvrzLive: 'Refresh from SVRZ (live)',
+  invitesAutoCreated: '{{count}} invites added automatically',
   autoFillHint: 'Contacts auto-fill from the latest SVRZ sync when you open this. Use "Refresh from SVRZ (live)" only to pull the freshest contacts directly.',
   statusInvited: 'Invited',
   statusViewed: 'Viewed',

@@ -286,6 +286,7 @@ export default {
   opponentContacts: 'Gägner-Kontäkt',
   reloadSynced: 'Synchronisierti lade',
   refreshFromSvrzLive: 'Vo SVRZ aktualisiere (live)',
+  invitesAutoCreated: '{{count}} Iladige automatisch dezuegfüegt',
   autoFillHint: 'D Kontäkt wärded bim Uufmache automatisch us de letzte SVRZ-Synchronisierig gfüllt. „Vo SVRZ aktualisiere (live)" nur für di aktuellste Kontäkt diräkt vo SVRZ.',
   statusInvited: 'Iglade',
   statusViewed: 'Aagluegt',

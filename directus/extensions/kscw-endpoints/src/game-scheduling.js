@@ -2812,6 +2812,71 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // Resolve a KSCW team's external opponents for a season from ALREADY-SYNCED
+  // SVRZ data (svrz_games + bulk svrz_spielplaner_contacts) — no live login.
+  // Shared by svrz-clubs (auto-fill drafts) and ensure-from-svrz (auto-create
+  // invites). Returns [{ club_id, club_name, team_name, game_count, games[],
+  // suggested_contacts[] }] sorted by club name.
+  async function resolveSyncedOpponents(seasonRow, kscwTeamRow) {
+    // All KSCW schedulable games this season, then keep the ones for THIS team
+    // by matching the KSCW-side team name. SVRZ labels our teams "KSC Wiedikon
+    // H3" etc., so the name reliably identifies the team. League-string matching
+    // is unreliable (verbose teams.league vs SVRZ "3L" codes) and would conflate
+    // same-league teams (e.g. D2 & D3 are both 3L). Naming caveat: teams whose
+    // SVRZ label differs from teams.name (e.g. U23 → "KSC Wiedikon 1") won't match.
+    const games = await database('svrz_games')
+      .whereIn('status', ['open', 'waitingForApproval'])
+      .where(function () {
+        this.where('home_club_id', KSCW_SVRZ_CLUB_ID).orWhere('away_club_id', KSCW_SVRZ_CLUB_ID)
+      })
+      .orderBy('starting_date_time')
+
+    const wantName = `ksc wiedikon ${String(kscwTeamRow.name || '').trim().toLowerCase()}`
+    const byClub = new Map()
+    for (const g of games) {
+      const isHomeKscw = g.home_club_id === KSCW_SVRZ_CLUB_ID
+      const kscwSideName = String((isHomeKscw ? g.home_team_name : g.away_team_name) || '').trim().toLowerCase()
+      if (kscwSideName !== wantName) continue
+      const clubId = isHomeKscw ? g.away_club_id : g.home_club_id
+      const clubName = isHomeKscw ? g.away_club_name : g.home_club_name
+      const teamName = isHomeKscw ? g.away_team_name : g.home_team_name
+      if (!clubId) continue
+      // Skip intra-club fixtures (e.g. H1 vs H3, both "2L") — the opponent is
+      // KSCW itself, never an external invite.
+      if (String(clubId) === String(KSCW_SVRZ_CLUB_ID)) continue
+      if (!byClub.has(clubId)) byClub.set(clubId, { club_id: clubId, club_name: clubName, team_name: teamName, game_count: 0, games: [] })
+      const entry = byClub.get(clubId)
+      entry.game_count++
+      entry.games.push({ date: g.starting_date_time || null, display_name: g.display_name || null, is_home_kscw: isHomeKscw })
+    }
+
+    // Contact suggestions from the bulk feed only — no live per-game fetch.
+    // Match by season START YEAR ("2026%"), NOT season_uuid: SVRZ issues several
+    // uuids for the same season and the bulk feed often syncs under a different
+    // uuid than game_scheduling_seasons.svrz_season_uuid, so a uuid match silently
+    // returns ~nothing (prod: 1/27 opponents vs 26/27 by name). Mirrors the
+    // start-year LIKE that import-from-svrz already uses.
+    const svrzSeasonName = String(seasonRow.season || '').split('/')[0].trim()
+    const clubIds = [...byClub.keys()]
+    const contactsByClub = new Map()
+    if (svrzSeasonName && clubIds.length) {
+      const bulk = await database('svrz_spielplaner_contacts')
+        .whereIn('club_id', clubIds)
+        .where('season_name', 'like', `${svrzSeasonName}%`)
+      for (const c of bulk) {
+        const email = (c.contact_email || '').toLowerCase().trim()
+        if (!email) continue
+        if (!contactsByClub.has(c.club_id)) contactsByClub.set(c.club_id, new Map())
+        const m = contactsByClub.get(c.club_id)
+        if (!m.has(email)) m.set(email, { name: c.contact_name || '', email, phone: c.contact_phone || '' })
+      }
+    }
+
+    return [...byClub.values()]
+      .map((c) => ({ ...c, suggested_contacts: [...(contactsByClub.get(c.club_id)?.values() || [])] }))
+      .sort((a, b) => (a.club_name || '').localeCompare(b.club_name || ''))
+  }
+
   // GET /admin/terminplanung/invites/svrz-clubs?kscw_team=&season= — fast list of
   // the clubs in this team's league for the semi-manual invite flow. Unlike
   // import-from-svrz this does NO live SVRZ login: the club list comes straight
@@ -2830,64 +2895,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!kscwTeamRow) return res.status(404).json({ error: 'kscw_team not found' })
       const seasonUuid = seasonRow.svrz_season_uuid || process.env.SVRZ_SEASON_UUID || ''
 
-      // All KSCW schedulable games this season, then keep the ones for THIS team
-      // by matching the KSCW-side team name. SVRZ labels our teams "KSC Wiedikon
-      // H3" etc., so the name reliably identifies the team. League-string matching
-      // is unreliable (verbose teams.league vs SVRZ "3L" codes) and would conflate
-      // same-league teams (e.g. D2 & D3 are both 3L). Naming caveat: teams whose
-      // SVRZ label differs from teams.name (e.g. U23 → "KSC Wiedikon 1") won't match.
-      const games = await database('svrz_games')
-        .whereIn('status', ['open', 'waitingForApproval'])
-        .where(function () {
-          this.where('home_club_id', KSCW_SVRZ_CLUB_ID).orWhere('away_club_id', KSCW_SVRZ_CLUB_ID)
-        })
-        .orderBy('starting_date_time')
-
-      const wantName = `ksc wiedikon ${String(kscwTeamRow.name || '').trim().toLowerCase()}`
-      const byClub = new Map()
-      for (const g of games) {
-        const isHomeKscw = g.home_club_id === KSCW_SVRZ_CLUB_ID
-        const kscwSideName = String((isHomeKscw ? g.home_team_name : g.away_team_name) || '').trim().toLowerCase()
-        if (kscwSideName !== wantName) continue
-        const clubId = isHomeKscw ? g.away_club_id : g.home_club_id
-        const clubName = isHomeKscw ? g.away_club_name : g.home_club_name
-        const teamName = isHomeKscw ? g.away_team_name : g.home_team_name
-        if (!clubId) continue
-        // Skip intra-club fixtures (e.g. H1 vs H3, both "2L") — the opponent is
-        // KSCW itself, never an external invite. (import-from-svrz already does
-        // this; svrz-clubs must too now that auto-fill builds drafts from it.)
-        if (String(clubId) === String(KSCW_SVRZ_CLUB_ID)) continue
-        if (!byClub.has(clubId)) byClub.set(clubId, { club_id: clubId, club_name: clubName, team_name: teamName, game_count: 0, games: [] })
-        const entry = byClub.get(clubId)
-        entry.game_count++
-        entry.games.push({ date: g.starting_date_time || null, display_name: g.display_name || null, is_home_kscw: isHomeKscw })
-      }
-
-      // Contact suggestions from the bulk feed only — no live per-game fetch.
-      // Match by season START YEAR ("2026%"), NOT season_uuid: SVRZ issues
-      // several uuids for the same season and the bulk feed often syncs under a
-      // different uuid than game_scheduling_seasons.svrz_season_uuid, so a uuid
-      // match silently returns ~nothing (prod: 1/27 opponents vs 26/27 by name).
-      // Mirrors the start-year LIKE that import-from-svrz already uses.
-      const svrzSeasonName = String(seasonRow.season || '').split('/')[0].trim()
-      const clubIds = [...byClub.keys()]
-      const contactsByClub = new Map()
-      if (svrzSeasonName && clubIds.length) {
-        const bulk = await database('svrz_spielplaner_contacts')
-          .whereIn('club_id', clubIds)
-          .where('season_name', 'like', `${svrzSeasonName}%`)
-        for (const c of bulk) {
-          const email = (c.contact_email || '').toLowerCase().trim()
-          if (!email) continue
-          if (!contactsByClub.has(c.club_id)) contactsByClub.set(c.club_id, new Map())
-          const m = contactsByClub.get(c.club_id)
-          if (!m.has(email)) m.set(email, { name: c.contact_name || '', email, phone: c.contact_phone || '' })
-        }
-      }
-
-      const clubs = [...byClub.values()]
-        .map((c) => ({ ...c, suggested_contacts: [...(contactsByClub.get(c.club_id)?.values() || [])] }))
-        .sort((a, b) => (a.club_name || '').localeCompare(b.club_name || ''))
+      const clubs = await resolveSyncedOpponents(seasonRow, kscwTeamRow)
 
       res.json({
         season: seasonRow.season,
@@ -2897,6 +2905,59 @@ export function registerGameScheduling(router, { database, logger, services, get
       })
     } catch (err) {
       log.error({ msg: `svrz-clubs: ${err.message}`, endpoint: 'admin/terminplanung/invites/svrz-clubs', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /admin/terminplanung/invites/ensure-from-svrz — auto-create invite links
+  // for every synced opponent that has a contact email and isn't already invited,
+  // so the panel's invite list populates itself once the SVRZ contacts are there.
+  // Idempotent: deduped by normalised opponent team name, so re-running only adds
+  // newly-appeared opponents. Opponents with NO contact are skipped (nothing to
+  // email). Does NOT send anything — emailing stays a separate explicit action.
+  router.post('/admin/terminplanung/invites/ensure-from-svrz', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const { kscw_team, season } = req.body || {}
+      if (!kscw_team || !season) return res.status(400).json({ error: 'kscw_team, season required' })
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
+      if (!seasonRow) return res.status(404).json({ error: 'season not found' })
+      const kscwTeamRow = await database('teams').where('id', kscw_team).first()
+      if (!kscwTeamRow) return res.status(404).json({ error: 'kscw_team not found' })
+
+      const opponents = await resolveSyncedOpponents(seasonRow, kscwTeamRow)
+
+      // Dedupe against existing invites by normalised opponent team name so we
+      // never mint a second link for the same opponent.
+      const existing = await database('game_scheduling_opponents')
+        .where({ kscw_team, season })
+        .whereIn('status', ACTIVE_INVITE_STATUSES)
+      const norm = (s) => String(s || '').trim().toLowerCase()
+      const haveNames = new Set(existing.map((e) => norm(e.team_name)))
+
+      let created = 0
+      for (const opp of opponents) {
+        const emails = opp.suggested_contacts.map((c) => c.email).filter(Boolean)
+        if (!emails.length) continue
+        const teamName = opp.team_name || opp.club_name
+        if (haveNames.has(norm(teamName))) continue
+        const names = opp.suggested_contacts.map((c) => c.name).filter(Boolean)
+        await database('game_scheduling_opponents').insert({
+          kscw_team, season, team_name: teamName,
+          contact_email: emails.join(', '), contact_name: names.join(', '),
+          token: crypto.randomBytes(16).toString('hex'), status: 'invited',
+          source: 'svrz', created_by_admin: true, expires_at: newInviteExpiry(),
+        })
+        haveNames.add(norm(teamName))
+        created++
+      }
+
+      const invites = await database('game_scheduling_opponents')
+        .where('kscw_team', kscw_team).where('season', season)
+        .orderBy('date_created', 'desc')
+      res.json({ created, invites })
+    } catch (err) {
+      log.error({ msg: `invites ensure-from-svrz: ${err.message}`, endpoint: 'admin/terminplanung/invites/ensure-from-svrz', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

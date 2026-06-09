@@ -151,6 +151,18 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
     return resp
   }, [fetchInvites])
 
+  // Auto-create invite links for every synced opponent with a contact, so the
+  // panel list populates itself. Idempotent (deduped by team name server-side).
+  const ensureFromSvrz = useCallback(async () => {
+    if (!kscwTeamId || !seasonId) return { created: 0 }
+    const resp = await kscwApi<{ created: number; invites: OpponentInvite[] }>(
+      '/admin/terminplanung/invites/ensure-from-svrz',
+      { method: 'POST', body: { kscw_team: kscwTeamId, season: seasonId } },
+    )
+    await fetchInvites()
+    return resp
+  }, [kscwTeamId, seasonId, fetchInvites])
+
   const importFromSvrz = useCallback(async () => {
     if (!kscwTeamId || !seasonId) throw new Error('kscw_team and season required')
     const qs = new URLSearchParams({ kscw_team: String(kscwTeamId), season: String(seasonId) })
@@ -191,6 +203,7 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
     revoke,
     importFromSvrz,
     listSvrzClubs,
+    ensureFromSvrz,
     sendInvites,
     refetch: fetchInvites,
   }
