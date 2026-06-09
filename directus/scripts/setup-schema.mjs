@@ -580,8 +580,11 @@ const COLLECTIONS = [
     fields: [
       string('season'),
       string('club_name'),
-      string('contact_name'),
-      string('contact_email'),
+      // contact_name + contact_email hold ALL of a club's Spielplan contacts
+      // (comma-joined) for a single shared invite link — text, not varchar(255),
+      // so clubs with many contacts don't overflow. See migration 093.
+      text('contact_name'),
+      text('contact_email'),
       // kscw_team is m2o relation
       string('token'),
       // home_game, away_game are m2o relations
