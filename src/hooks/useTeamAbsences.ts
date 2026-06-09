@@ -1,14 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchAllItems, fetchItem } from '../lib/api'
 import { useRealtime } from './useRealtime'
-import type { Absence, Member, MemberTeam } from '../types'
-import { asObj, flattenMemberIds } from '../utils/relations'
+import type { Absence, Member, MemberTeam, Team } from '../types'
+import { asObj, relId, flattenMemberIds } from '../utils/relations'
 
 export type AbsenceWithMember = Absence & { member: Member | string }
+
+/** A team (within the viewed scope) a member belongs to — used to label/group
+ *  absences by team when more than one team is in view. */
+export type MemberTeamRef = { id: string; name: string; sport?: 'volleyball' | 'basketball' }
 
 export function useTeamAbsences(teamIds: string[], startDate: string, endDate: string) {
   const [absences, setAbsences] = useState<AbsenceWithMember[]>([])
   const [memberMap, setMemberMap] = useState<Record<string, Member>>({})
+  // member id → teams (within the viewed scope) the member belongs to. Lets the
+  // calendar day modal group/label absences by team when several teams are in view.
+  const [memberTeams, setMemberTeams] = useState<Record<string, MemberTeamRef[]>>({})
   // Derived loading: compare requested key to the one we've loaded. Prevents
   // the flash where isLoading stays false after teamIds flip but before the
   // refetch effect runs setIsLoading(true).
@@ -31,6 +38,7 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
       latestKeyRef.current = null
       setAbsences([])
       setMemberMap({})
+      setMemberTeams({})
       setLoadedKey(null)
       return
     }
@@ -39,11 +47,29 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
     latestKeyRef.current = key
     setError(null)
     try {
-      // Get players from member_teams for all teams
-      const memberTeams = await fetchAllItems<MemberTeam>('member_teams', {
+      // Get players from member_teams for all teams. Expand team name/sport so
+      // we can label/group absences by team in multi-team views.
+      const memberTeamRows = await fetchAllItems<MemberTeam>('member_teams', {
         filter: { team: { _in: teamIds } },
+        fields: ['member', 'team.id', 'team.name', 'team.sport'],
       })
-      const memberIdSet = new Set(memberTeams.map((mt) => mt.member))
+      const memberIdSet = new Set(memberTeamRows.map((mt) => mt.member))
+
+      // member id → its teams within scope (deduped by team id).
+      const teamsByMember: Record<string, MemberTeamRef[]> = {}
+      const addTeamRef = (memberId: string, ref: MemberTeamRef) => {
+        if (!memberId || !ref.id) return
+        const arr = (teamsByMember[memberId] ??= [])
+        if (!arr.some((x) => x.id === ref.id)) arr.push(ref)
+      }
+      for (const mt of memberTeamRows) {
+        const teamObj = asObj<Team>(mt.team)
+        addTeamRef(String(relId(mt.member)), {
+          id: String(relId(mt.team)),
+          name: teamObj?.name ?? '',
+          sport: teamObj?.sport,
+        })
+      }
 
       // Also include coaches and team_responsibles (they may not have member_teams records).
       // CRITICAL: must request `coach.members_id` + `team_responsible.members_id` — without
@@ -54,12 +80,20 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
       for (const teamId of validTeamIds) {
         try {
           const team = await fetchItem<Record<string, unknown>>('teams', teamId, {
-            fields: ['coach.members_id', 'team_responsible.members_id'],
+            fields: ['name', 'sport', 'coach.members_id', 'team_responsible.members_id'],
           })
+          const teamRef: MemberTeamRef = {
+            id: String(teamId),
+            name: (team.name as string) ?? '',
+            sport: team.sport as MemberTeamRef['sport'],
+          }
           const coachIds = flattenMemberIds(team.coach)
           const trIds = flattenMemberIds(team.team_responsible)
           for (const id of [...coachIds, ...trIds]) {
-            if (id) memberIdSet.add(id)
+            if (id) {
+              memberIdSet.add(id)
+              addTeamRef(String(id), teamRef)
+            }
           }
         } catch {
           // team fetch failed — continue
@@ -72,6 +106,7 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
         if (latestKeyRef.current === key) {
           setAbsences([])
           setMemberMap({})
+          setMemberTeams({})
         }
         return
       }
@@ -121,6 +156,7 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
       if (latestKeyRef.current !== key) return
       setAbsences(relevant)
       setMemberMap(mMap)
+      setMemberTeams(teamsByMember)
     } catch (err) {
       if (latestKeyRef.current === key) {
         setError(err instanceof Error ? err : new Error(String(err)))
@@ -142,5 +178,5 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
   // the save actually persisted.
   useRealtime('absences', fetch)
 
-  return { absences, memberMap, isLoading, error, refetch: fetch }
+  return { absences, memberMap, memberTeams, isLoading, error, refetch: fetch }
 }

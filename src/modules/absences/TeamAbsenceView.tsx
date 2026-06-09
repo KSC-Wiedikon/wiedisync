@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CalendarDays, List, CheckCircle, CalendarOff, Star, CircleX, Ban, Plus, Trash2 } from 'lucide-react'
-import { useTeamAbsences } from '../../hooks/useTeamAbsences'
+import { useTeamAbsences, type MemberTeamRef } from '../../hooks/useTeamAbsences'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import EmptyState from '../../components/EmptyState'
@@ -134,7 +134,10 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
   const [hideUnavailabilities, setHideUnavailabilities] = useState(false)
   const [hideNonBlocking, setHideNonBlocking] = useState(false)
 
-  const { absences, memberMap, isLoading, refetch } = useTeamAbsences(teamIds, startDate, endDate)
+  const { absences, memberMap, memberTeams, isLoading, refetch } = useTeamAbsences(teamIds, startDate, endDate)
+  // When the view spans more than one team, the day modal labels + groups each
+  // person by team (a member on several in-scope teams shows under each).
+  const multiTeam = teamIds.length > 1
 
   // Team blockings (migration 085) for the viewed teams — rendered as a red
   // overlay on the calendar and managed in the section below (coach/TR only).
@@ -356,10 +359,11 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
   // row; absence overrides unavailability so the merged row opens the one-off entry).
   // Events/closures (which can land here too via MonthGrid's overflow) render as their
   // own rows with a type-appropriate icon — never mislabelled as an absence.
-  const dayOverflowGroups = useMemo<{ id: string; name: string; detail: string; kind: 'absence' | 'event' | 'closure' | 'other'; entry: CalendarEntry }[]>(() => {
+  type OverflowRow = { id: string; name: string; detail: string; kind: 'absence' | 'event' | 'closure' | 'other'; entry: CalendarEntry; teams: MemberTeamRef[] }
+  const dayOverflowGroups = useMemo<OverflowRow[]>(() => {
     if (!dayOverflow) return []
     const byMember = new Map<string, { id: string; name: string; hasAbsence: boolean; hasWeekly: boolean; entry: CalendarEntry }>()
-    const others: { id: string; name: string; detail: string; kind: 'event' | 'closure' | 'other'; entry: CalendarEntry }[] = []
+    const others: OverflowRow[] = []
     for (const entry of dayOverflow.entries) {
       if (entry.type === 'absence') {
         const src = entry.source as Absence
@@ -380,18 +384,79 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
           detail: entry.location ?? '',
           kind: entry.type === 'event' ? 'event' : entry.type === 'closure' ? 'closure' : 'other',
           entry,
+          teams: [],
         })
       }
     }
-    const absenceRows = [...byMember.values()].map((g) => ({
+    const absenceRows: OverflowRow[] = [...byMember.values()].map((g) => ({
       id: g.id,
       name: g.name,
       detail: g.hasAbsence && g.hasWeekly ? t('absentUnavailable') : g.hasWeekly ? t('unavailable') : t('absent'),
       kind: 'absence' as const,
       entry: g.entry,
+      teams: memberTeams[g.id] ?? [],
     }))
     return [...absenceRows, ...others]
-  }, [dayOverflow, t])
+  }, [dayOverflow, t, memberTeams])
+
+  // Multi-team view: group the day's rows by team (a member on several in-scope
+  // teams appears under each). Rows with no resolved team (events/closures, or a
+  // member whose teams haven't loaded) fall into a trailing header-less group.
+  // Single-team view returns null → the modal renders one flat list.
+  const dayOverflowSections = useMemo(() => {
+    if (!multiTeam) return null
+    const byTeam = new Map<string, { teamId: string; teamName: string; sport?: MemberTeamRef['sport']; rows: OverflowRow[] }>()
+    const noTeam: OverflowRow[] = []
+    for (const row of dayOverflowGroups) {
+      if (row.teams.length === 0) { noTeam.push(row); continue }
+      for (const tm of row.teams) {
+        let g = byTeam.get(tm.id)
+        if (!g) { g = { teamId: tm.id, teamName: tm.name, sport: tm.sport, rows: [] }; byTeam.set(tm.id, g) }
+        g.rows.push(row)
+      }
+    }
+    const sections = [...byTeam.values()].sort((a, b) => a.teamName.localeCompare(b.teamName))
+    return { sections, noTeam }
+  }, [multiTeam, dayOverflowGroups])
+
+  // A single day-modal row (member absence / event / closure). `keyPrefix`
+  // disambiguates the key when a multi-team member is repeated across groups.
+  const renderOverflowRow = (g: OverflowRow, keyPrefix: string) => {
+    const Icon = g.kind === 'event' ? Star : g.kind === 'closure' ? CircleX : CalendarOff
+    const iconClass = g.kind === 'event'
+      ? 'text-blue-500'
+      : g.kind === 'closure'
+        ? 'text-red-500'
+        : 'text-gray-700 dark:text-gray-300'
+    return (
+      <button
+        key={`${keyPrefix}:${g.id}`}
+        type="button"
+        onClick={() => {
+          setDayOverflow(null)
+          setSelectedEntry(g.entry)
+        }}
+        className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700 dark:active:bg-gray-600"
+      >
+        <Icon className={`h-4 w-4 shrink-0 ${iconClass}`} strokeWidth={2.5} {...(g.kind === 'event' ? { fill: 'currentColor' } : {})} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+              {g.name || t('common:unknown')}
+            </p>
+            {g.kind === 'absence'
+              && (g.entry.source as Absence).type !== 'weekly'
+              && (g.entry.source as Absence).blocking === false && (
+              <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-300">
+                {t('nonBlocking')}
+              </span>
+            )}
+          </div>
+          {g.detail && <p className="truncate text-xs text-gray-500 dark:text-gray-400">{g.detail}</p>}
+        </div>
+      </button>
+    )
+  }
 
   if (isLoading) {
     return <div className="py-8 text-center text-gray-500 dark:text-gray-400">{t('common:loading')}</div>
@@ -563,44 +628,29 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
             size="sm"
           >
             {dayOverflow && (
-              <div className="space-y-2">
-                {dayOverflowGroups.map((g) => {
-                  const Icon = g.kind === 'event' ? Star : g.kind === 'closure' ? CircleX : CalendarOff
-                  const iconClass = g.kind === 'event'
-                    ? 'text-blue-500'
-                    : g.kind === 'closure'
-                      ? 'text-red-500'
-                      : 'text-gray-700 dark:text-gray-300'
-                  return (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() => {
-                        setDayOverflow(null)
-                        setSelectedEntry(g.entry)
-                      }}
-                      className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700 dark:active:bg-gray-600"
-                    >
-                      <Icon className={`h-4 w-4 shrink-0 ${iconClass}`} strokeWidth={2.5} {...(g.kind === 'event' ? { fill: 'currentColor' } : {})} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {g.name || t('common:unknown')}
-                          </p>
-                          {g.kind === 'absence'
-                            && (g.entry.source as Absence).type !== 'weekly'
-                            && (g.entry.source as Absence).blocking === false && (
-                            <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-300">
-                              {t('nonBlocking')}
-                            </span>
-                          )}
-                        </div>
-                        {g.detail && <p className="truncate text-xs text-gray-500 dark:text-gray-400">{g.detail}</p>}
+              dayOverflowSections ? (
+                /* Multi-team: group rows under a team header */
+                <div className="space-y-3">
+                  {dayOverflowSections.sections.map((sec) => (
+                    <div key={sec.teamId} className="space-y-1">
+                      <div className="px-1">
+                        <TeamChip team={teamNameToColorKey(sec.teamName, sec.sport ?? 'volleyball')} label={sec.teamName} size="xs" />
                       </div>
-                    </button>
-                  )
-                })}
-              </div>
+                      {sec.rows.map((g) => renderOverflowRow(g, sec.teamId))}
+                    </div>
+                  ))}
+                  {dayOverflowSections.noTeam.length > 0 && (
+                    <div className="space-y-1">
+                      {dayOverflowSections.noTeam.map((g) => renderOverflowRow(g, 'none'))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Single team: one flat list */
+                <div className="space-y-2">
+                  {dayOverflowGroups.map((g) => renderOverflowRow(g, 'all'))}
+                </div>
+              )
             )}
           </Modal>
         </>
