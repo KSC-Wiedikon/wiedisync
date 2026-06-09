@@ -180,6 +180,75 @@ export function contactToSvrzRow(c, seasonUuid, seasonName = '') {
   };
 }
 
+// KSCW's numeric club identifier (the `identifier` on svrz_games rows, NOT the
+// UUID). Used to tell our side from the opponent's.
+export const KSCW_CLUB_NUMERIC = process.env.KSCW_SVRZ_CLUB_ID || '912530';
+
+/**
+ * Per-game contact info (live). The /search bulk feed only exposes
+ * Spielplanverantwortliche; this per-game endpoint additionally exposes the
+ * "Teamverantwortlicher", which we use as a fallback for clubs that never
+ * registered a Spielplan contact. Returns { teamHome:[...], teamAway:[...] }
+ * or null. Needs the game-module session context (gamesCtx).
+ */
+export async function fetchGameContacts(jar, ctx, gameUuid) {
+  const url = `${VM_BASE}/api/sportmanager.indoorvolleyball/api%5cgame/getTeamContactInfosByGame?game=${gameUuid}`;
+  const headers = {
+    'User-Agent': UA, Accept: '*/*', Cookie: jar.header(),
+    Referer: `${VM_BASE}/sportmanager.indoorvolleyball/game/index`,
+  };
+  if (ctx?.wuid) headers['Window-Unique-Id'] = ctx.wuid;
+  try {
+    const r = await fetch(url, { headers });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * For KSCW opponents with NO Spielplaner contact in the bulk feed, recover a
+ * TEAM responsible from the per-game contact info and return rows shaped like
+ * svrz_spielplaner_contacts (synthetic persistence id `tr:<club>:<email>` so
+ * re-runs upsert cleanly and they never collide with real bulk rows). One game
+ * per opponent club. This lets the fast auto-create path (which reads the bulk
+ * table) find a contact without a live login.
+ */
+export async function fetchTeamResponsibleFallbacks(jar, ctx, { gameRows = [], contactRows = [], seasonUuid, seasonName = '', getContacts = fetchGameContacts } = {}) {
+  const haveContact = new Set(contactRows.filter(r => r.contact_email).map(r => String(r.club_id)));
+  const oppGame = new Map(); // club_id -> { gameUuid, isHomeKscw, clubName }
+  for (const g of gameRows) {
+    if (g.status !== 'open' && g.status !== 'waitingForApproval') continue;
+    const isHomeKscw = String(g.home_club_id || '') === KSCW_CLUB_NUMERIC;
+    const opp = isHomeKscw ? String(g.away_club_id || '') : String(g.home_club_id || '');
+    if (!opp || opp === KSCW_CLUB_NUMERIC || haveContact.has(opp) || oppGame.has(opp)) continue;
+    oppGame.set(opp, { gameUuid: g.svrz_persistence_id, isHomeKscw, clubName: isHomeKscw ? g.away_club_name : g.home_club_name });
+  }
+  const rows = [];
+  for (const [clubId, info] of oppGame) {
+    const resp = await getContacts(jar, ctx, info.gameUuid);
+    if (!resp) continue;
+    const pool = info.isHomeKscw ? (resp.teamAway || []) : (resp.teamHome || []);
+    for (const c of pool) {
+      if (!/spielplan|teamverantwort/i.test(c.addressOrganisationMemberFunctionTitle || '')) continue;
+      const email = (c.primaryEmailAddress || '').toLowerCase().trim();
+      if (!email) continue;
+      rows.push({
+        svrz_persistence_id: `tr:${clubId}:${email}`,
+        season_uuid: seasonUuid, season_name: seasonName,
+        club_id: String(clubId), club_name: info.clubName || '',
+        person_first_name: c.firstName || '', person_last_name: c.lastName || '',
+        contact_name: `${c.firstName || ''} ${c.lastName || ''}`.trim(),
+        contact_email: email, contact_phone: c.primaryPhoneNumber || '',
+        club_league_categories: [], club_team_genders: [],
+        raw: { source: 'team_responsible', title: c.addressOrganisationMemberFunctionTitle || '' },
+      });
+    }
+  }
+  return rows;
+}
+
 /**
  * Filter games down to those that are schedulable — i.e. status is "open" or
  * "waitingForApproval", AND either has no start date yet or starts on/after cutoff.
@@ -311,11 +380,12 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
   // Still wrapped in try/catch so any future contacts breakage stays isolated
   // and never blocks the games sync.
   let contactsResult;
+  let contactRows = [];
   try {
     console.log('[svrz-sync] Fetching contacts...');
     const contactsCtx = await csrf(jar, '/sportmanager.indoorvolleyball/playingscheduleresponsibleaddressviewer/index');
     const contacts = await getContacts(jar, contactsCtx, seasonUuid);
-    const contactRows = contacts.items.map(c => contactToSvrzRow(c, seasonUuid, seasonName));
+    contactRows = contacts.items.map(c => contactToSvrzRow(c, seasonUuid, seasonName));
     console.log(`[svrz-sync]   → ${contactRows.length}/${contacts.total} contacts`);
     const upserted = await upsert('svrz_spielplaner_contacts', contactRows);
     console.log(`[svrz-sync]   contacts upsert: created=${upserted.created} updated=${upserted.updated}`);
@@ -325,9 +395,29 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
     contactsResult = { skipped: true, error: err.message, created: 0, updated: 0, total_fetched: 0 };
   }
 
+  // Third pass — team-responsible fallback for opponent clubs that have no
+  // Spielplaner contact (so the fast bulk auto-create still finds a contact).
+  // Isolated so any breakage never blocks games/contacts.
+  let teamResponsibleResult = { created: 0, updated: 0, total_fetched: 0 };
+  try {
+    console.log('[svrz-sync] Team-responsible fallback...');
+    const trRows = await fetchTeamResponsibleFallbacks(jar, gamesCtx, { gameRows, contactRows, seasonUuid, seasonName });
+    if (trRows.length) {
+      const up = await upsert('svrz_spielplaner_contacts', trRows);
+      console.log(`[svrz-sync]   team-responsible: ${trRows.length} found, created=${up.created} updated=${up.updated}`);
+      teamResponsibleResult = { ...up, total_fetched: trRows.length };
+    } else {
+      console.log('[svrz-sync]   team-responsible: none needed');
+    }
+  } catch (err) {
+    console.warn(`[svrz-sync] ⚠ team-responsible fallback skipped: ${err.message}`);
+    teamResponsibleResult = { skipped: true, error: err.message, created: 0, updated: 0, total_fetched: 0 };
+  }
+
   return {
     games: { ...gamesResult, total_fetched: games.items.length },
     contacts: contactsResult,
+    teamResponsibles: teamResponsibleResult,
   };
 }
 
