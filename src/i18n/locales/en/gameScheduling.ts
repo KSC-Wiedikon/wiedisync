@@ -386,4 +386,5 @@ export default {
   manualHomeIncomplete: 'Home game needs a date, start time and hall.',
   manualAwayIncomplete: 'Away game needs a date.',
   manualNothingToSave: 'Tick the home and/or away game first.',
+  spielsamstageSaved: 'Game Saturdays saved',
 }

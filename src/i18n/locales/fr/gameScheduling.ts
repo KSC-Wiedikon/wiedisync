@@ -377,4 +377,5 @@ export default {
   manualHomeIncomplete: 'Le match à domicile nécessite une date, une heure de début et une salle.',
   manualAwayIncomplete: 'Le match à l’extérieur nécessite une date.',
   manualNothingToSave: 'Cochez d’abord le match à domicile et/ou à l’extérieur.',
+  spielsamstageSaved: 'Samedis de match enregistrés',
 }

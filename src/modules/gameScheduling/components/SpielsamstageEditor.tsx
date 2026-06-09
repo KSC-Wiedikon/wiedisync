@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { parseISO, isSaturday, addDays } from 'date-fns'
 import { de } from 'date-fns/locale/de'
 import { enUS } from 'date-fns/locale'
@@ -113,6 +114,9 @@ export default function SpielsamstageEditor({ spielsamstage, onUpdate, season }:
           ),
         }))
       await onUpdate(payload)
+      toast.success(t('spielsamstageSaved'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
     } finally {
       setSaving(false)
     }

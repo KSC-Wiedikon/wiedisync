@@ -143,32 +143,18 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
               {t('noInvitesYet')}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 text-left text-xs font-semibold text-gray-600 dark:border-gray-700 dark:text-gray-400">
-                    <th className="py-2 pr-3">{t('inviteTeam')}</th>
-                    <th className="py-2 pr-3">{t('inviteEmail')}</th>
-                    <th className="py-2 pr-3">{t('inviteStatus')}</th>
-                    <th className="py-2 pr-3">{t('inviteSource')}</th>
-                    <th className="py-2 pr-3">{t('inviteCreated')}</th>
-                    <th className="py-2">{t('inviteActions')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {api.invites.map((inv) => (
-                    <InviteRow
-                      key={inv.id}
-                      invite={inv}
-                      kscwTeam={{ name: selectedTeam?.name ?? '', league: selectedTeam?.league ?? '' }}
-                      season={{ name: seasonName }}
-                      frontendUrl={frontendUrl}
-                      onReissue={api.reissue}
-                      onRevoke={api.revoke}
-                    />
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+              {api.invites.map((inv) => (
+                <InviteRow
+                  key={inv.id}
+                  invite={inv}
+                  kscwTeam={{ name: selectedTeam?.name ?? '', league: selectedTeam?.league ?? '' }}
+                  season={{ name: seasonName }}
+                  frontendUrl={frontendUrl}
+                  onReissue={api.reissue}
+                  onRevoke={api.revoke}
+                />
+              ))}
             </div>
           )}
         </CardContent>

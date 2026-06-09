@@ -378,4 +378,5 @@ export default {
   manualHomeIncomplete: 'La partita in casa richiede data, ora di inizio e palestra.',
   manualAwayIncomplete: 'La partita in trasferta richiede una data.',
   manualNothingToSave: 'Seleziona prima la partita in casa e/o in trasferta.',
+  spielsamstageSaved: 'Sabati di gara salvati',
 }

@@ -386,4 +386,5 @@ export default {
   manualHomeIncomplete: 'Heimspiel braucht Datum, Beginn und Halle.',
   manualAwayIncomplete: 'Auswärtsspiel braucht ein Datum.',
   manualNothingToSave: 'Zuerst Heim- und/oder Auswärtsspiel anwählen.',
+  spielsamstageSaved: 'Spieltage gespeichert',
 }

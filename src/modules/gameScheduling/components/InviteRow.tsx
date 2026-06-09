@@ -92,45 +92,49 @@ export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onRei
   const createdDate = invite.date_created ? new Date(invite.date_created).toLocaleDateString('de-CH') : ''
 
   return (
-    <tr className="border-b border-gray-200 text-sm dark:border-gray-800">
-      <td className="py-2 pr-3">
-        <div className="font-medium text-gray-900 dark:text-gray-100">{invite.team_name}</div>
-        {invite.contact_name && (
-          <div className="text-xs text-gray-500 dark:text-gray-400">{invite.contact_name}</div>
-        )}
-      </td>
-      <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">
-        <a href={`mailto:${invite.contact_email.replace(/\s+/g, '')}`} className="hover:underline">
-          {invite.contact_email}
-        </a>
-      </td>
-      <td className="py-2 pr-3">
-        <Badge variant={STATUS_VARIANT[invite.status] ?? 'outline'}>{t(statusKey(invite.status))}</Badge>
-      </td>
-      <td className="py-2 pr-3 text-xs text-gray-500 dark:text-gray-400">{t(sourceKey(invite.source))}</td>
-      <td className="py-2 pr-3 text-xs text-gray-500 dark:text-gray-400">{createdDate}</td>
-      <td className="py-2">
-        <div className="flex flex-wrap gap-1">
-          <Button size="sm" variant="outline" onClick={handleCopy} disabled={busy}>
-            {t('copyLink')}
-          </Button>
-          <Button size="sm" variant="outline" onClick={handleDraft} disabled={busy}>
-            {t('draftEmail')}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={handleReissue} disabled={busy || invite.status === 'revoked'}>
-            {t('reissueInvite')}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleRevoke}
-            disabled={busy || invite.status === 'revoked'}
-            className="text-red-600 hover:text-red-700 dark:text-red-400"
+    <div className="rounded-md border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800/60">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-gray-900 dark:text-gray-100">{invite.team_name}</span>
+            <Badge variant={STATUS_VARIANT[invite.status] ?? 'outline'}>{t(statusKey(invite.status))}</Badge>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{t(sourceKey(invite.source))}</span>
+          </div>
+          {invite.contact_name && (
+            <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{invite.contact_name}</div>
+          )}
+          <a
+            href={`mailto:${invite.contact_email.replace(/\s+/g, '')}`}
+            className="mt-0.5 block break-all text-sm text-gray-700 hover:underline dark:text-gray-300"
           >
-            {t('revokeInvite')}
-          </Button>
+            {invite.contact_email}
+          </a>
         </div>
-      </td>
-    </tr>
+        {createdDate && (
+          <span className="whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">{createdDate}</span>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1">
+        <Button size="sm" variant="outline" onClick={handleCopy} disabled={busy}>
+          {t('copyLink')}
+        </Button>
+        <Button size="sm" variant="outline" onClick={handleDraft} disabled={busy}>
+          {t('draftEmail')}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={handleReissue} disabled={busy || invite.status === 'revoked'}>
+          {t('reissueInvite')}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleRevoke}
+          disabled={busy || invite.status === 'revoked'}
+          className="text-red-600 hover:text-red-700 dark:text-red-400"
+        >
+          {t('revokeInvite')}
+        </Button>
+      </div>
+    </div>
   )
 }
