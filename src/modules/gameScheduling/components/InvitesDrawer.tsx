@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -59,6 +59,14 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
     setDrafts([])
     setCsvText('')
   }
+
+  // Drafts are team-scoped: the drawer stays mounted while the panel switches
+  // teams, so clear any staged contacts when the selected team changes —
+  // otherwise D1's imported contacts bleed into D2's drawer until a fresh import.
+  useEffect(() => {
+    setDrafts([])
+    setCsvText('')
+  }, [kscwTeam?.id])
 
   const runImport = async () => {
     if (!kscwTeam) return
