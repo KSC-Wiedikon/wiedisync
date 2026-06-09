@@ -79,7 +79,7 @@ export default {
   gapProposal3Hint: 'Letzter Ausweich-Vorschlag — darf kleiner sein.',
   gapSaved: 'Spielabstand gespeichert',
   // Heimspiel-Vorschläge (Gegner schlägt 3 Slots vor; Spielplaner bestätigt einen)
-  homeProposalDesc: 'Schlage 3 Slots in unserer Halle vor — der Spielplaner bestätigt einen. Slots 1 & 2 sind Standard; Slot 3 darf flexibler sein.',
+  homeProposalDesc: 'Wähle 3 Slots in unserer Halle — der Spielplaner bestätigt einen. Slots 1 & 2 sind Standard; Slot 3 darf flexibler sein.',
   homeSlotsNotReserved: 'Hinweis: Ein Vorschlag reserviert den Slot nicht. Wir bestätigen einen deiner drei; ein Slot kann vorher von einem anderen Verein belegt werden.',
   homeProposalsSubmitted: 'Heim-Slot-Vorschläge gesendet!',
   homeProposalsPending: 'Deine vorgeschlagenen Heim-Slots (warten auf Bestätigung):',
@@ -177,7 +177,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'Heimspiel KSCW',
-  homeGameDesc: 'Schlage 3 Slots für das Spiel in unserer Halle vor — wir bestätigen einen.',
+  homeGameDesc: 'Wähle 3 Slots für das Spiel in unserer Halle — wir bestätigen einen.',
   pickSlot: 'Termin wählen',
   confirmSlot: 'Termin bestätigen',
   slotBooked: 'Termin gebucht!',
@@ -348,7 +348,7 @@ export default {
   // Invite-scoped opponent flow (welcome + SVRZ game context)
   inviteGreeting: 'Hallo {{name}}',
   inviteGreetingNoName: 'Hallo',
-  inviteWelcome: 'Der KSCW hat dich eingeladen, die Spiele gegen {{team}} zu planen.',
+  inviteWelcome: 'Bitte nutze das Spielplanungs-Tool, um die Spiele zwischen {{club}} und KSC Wiedikon {{team}} zu planen.',
   inviteContactHint: 'Diese Einladung wurde an {{email}} geschickt. Falsche Person? Schreib an',
   inviteGamesHeader_one: 'Wir haben {{count}} Spiel zusammen in dieser Saison',
   inviteGamesHeader_other: 'Wir haben {{count}} Spiele zusammen in dieser Saison',

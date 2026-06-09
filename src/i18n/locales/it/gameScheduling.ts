@@ -82,7 +82,7 @@ export default {
   gapProposal3Hint: 'Ultima proposta di riserva — può essere più piccola.',
   gapSaved: 'Distanza tra partite salvata',
   // Proposte partita in casa (l'avversario propone 3 slot; lo spielplaner ne conferma uno)
-  homeProposalDesc: 'Proponi 3 slot nella nostra palestra — lo spielplaner ne conferma uno. Gli slot 1 e 2 sono standard; lo slot 3 può essere più flessibile.',
+  homeProposalDesc: 'Scegli 3 slot nella nostra palestra — lo spielplaner ne conferma uno. Gli slot 1 e 2 sono standard; lo slot 3 può essere più flessibile.',
   homeSlotsNotReserved: 'Nota: proporre non riserva lo slot. Ne confermiamo uno dei tuoi tre; uno slot potrebbe nel frattempo essere preso da un altro club.',
   homeProposalsSubmitted: 'Proposte di slot in casa inviate!',
   homeProposalsPending: 'I tuoi slot in casa proposti (in attesa di conferma):',
@@ -171,7 +171,7 @@ export default {
   updateProposals: 'Aggiorna le proposte',
   inviteGreeting: 'Ciao {{name}}',
   inviteGreetingNoName: 'Ciao',
-  inviteWelcome: 'Il KSCW ti ha invitato a pianificare le partite contro {{team}}.',
+  inviteWelcome: 'Usa lo strumento Spielplanung per pianificare le partite tra {{club}} e KSC Wiedikon {{team}}.',
   inviteContactHint: 'Questo invito è stato inviato a {{email}}. Persona sbagliata? Scrivi a',
   publicSubtitle: 'Pianifica le tue partite con il KSCW',
   selectGender: 'Genere',
@@ -187,7 +187,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'Partita in casa KSCW',
-  homeGameDesc: 'Proponi 3 slot per la partita nella nostra palestra — ne confermiamo uno.',
+  homeGameDesc: 'Scegli 3 slot per la partita nella nostra palestra — ne confermiamo uno.',
   pickSlot: 'Scegli fascia',
   confirmSlot: 'Conferma fascia',
   slotBooked: 'Fascia prenotata!',

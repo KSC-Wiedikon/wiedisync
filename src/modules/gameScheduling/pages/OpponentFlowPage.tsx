@@ -64,9 +64,10 @@ export default function OpponentFlowPage() {
   useEffect(() => {
     if (didInitLang.current || !opponent) return
     didInitLang.current = true
-    if (opponent.language && opponent.language !== i18n.language) {
-      i18n.changeLanguage(opponent.language)
-    }
+    // The opponent page defaults to German (recipients are Swiss clubs); a
+    // previously-saved language choice still wins.
+    const lang = opponent.language || 'de'
+    if (lang !== i18n.language) i18n.changeLanguage(lang)
   }, [opponent, i18n])
   useEffect(() => {
     if (!didInitLang.current) return
@@ -98,9 +99,9 @@ export default function OpponentFlowPage() {
   const homeBooking = bookings.find((b) => b.type === 'home_slot_pick')
   const awayBooking = bookings.find((b) => b.type === 'away_proposal')
   const isInvited = opponent.source !== 'self_registration'
-  const greeting = opponent.contact_name
-    ? t('inviteGreeting', { name: opponent.contact_name })
-    : t('inviteGreetingNoName')
+  // Always a generic greeting — an invite's contact_name may list several club
+  // contacts, so addressing one (or all) by name reads wrong.
+  const greeting = t('inviteGreetingNoName')
 
   const oppName = opponent.club_name || opponent.team_name || ''
   const kscwName = `KSCW ${opponent.kscw_team_name}`
@@ -189,7 +190,7 @@ export default function OpponentFlowPage() {
         {isInvited && (
           <div className="mb-6 rounded-xl border border-brand-200 bg-brand-50 p-5 dark:border-brand-900 dark:bg-brand-900/20">
             <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{greeting}</p>
-            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{t('inviteWelcome', { team: opponent.kscw_team_name })}</p>
+            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{t('inviteWelcome', { club: oppName, team: opponent.kscw_team_name })}</p>
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
               {t('inviteContactHint', { email: opponent.contact_email })}{' '}
               <a href={`mailto:${SUPPORT_EMAIL}`} className="underline hover:text-gray-700 dark:hover:text-gray-200">

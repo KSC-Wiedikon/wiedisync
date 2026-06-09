@@ -79,7 +79,7 @@ export default {
   gapProposal3Hint: 'Last fallback proposal — can be smaller.',
   gapSaved: 'Game spacing saved',
   // Home-game proposals (opponent proposes 3 slots; spielplaner confirms one)
-  homeProposalDesc: 'Propose 3 slots in our hall — the spielplaner confirms one. Slots 1 & 2 are standard; slot 3 can be more flexible.',
+  homeProposalDesc: 'Choose 3 slots in our hall — the spielplaner confirms one. Slots 1 & 2 are standard; slot 3 can be more flexible.',
   homeSlotsNotReserved: "Heads up: proposing doesn't reserve a slot. We confirm one of your three; a slot may be taken by another club before then.",
   homeProposalsSubmitted: 'Home-slot proposals submitted!',
   homeProposalsPending: 'Your proposed home slots (awaiting confirmation):',
@@ -177,7 +177,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'KSCW Home Game',
-  homeGameDesc: 'Propose 3 slots for the game in our hall — we confirm one.',
+  homeGameDesc: 'Choose 3 slots for the game in our hall — we confirm one.',
   pickSlot: 'Pick Slot',
   confirmSlot: 'Confirm Slot',
   slotBooked: 'Slot booked!',
@@ -348,7 +348,7 @@ export default {
   // Invite-scoped opponent flow (welcome + SVRZ game context)
   inviteGreeting: 'Hi {{name}}',
   inviteGreetingNoName: 'Hello',
-  inviteWelcome: "You've been invited by KSCW to schedule your games against {{team}}.",
+  inviteWelcome: 'Please use the Spielplanung tool to schedule the games between {{club}} and KSC Wiedikon {{team}}.',
   inviteContactHint: 'This invite was sent to {{email}}. Not the right person? Write to',
   inviteGamesHeader_one: 'We have {{count}} game together this season',
   inviteGamesHeader_other: 'We have {{count}} games together this season',

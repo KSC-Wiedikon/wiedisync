@@ -82,7 +82,7 @@ export default {
   gapProposal3Hint: 'Dernière proposition de repli — peut être plus petite.',
   gapSaved: 'Espacement des matchs enregistré',
   // Propositions de match à domicile (l'adversaire propose 3 créneaux ; le spielplaner en confirme un)
-  homeProposalDesc: 'Proposez 3 créneaux dans notre salle — le spielplaner en confirme un. Les créneaux 1 et 2 sont standard ; le créneau 3 peut être plus flexible.',
+  homeProposalDesc: 'Choisissez 3 créneaux dans notre salle — le spielplaner en confirme un. Les créneaux 1 et 2 sont standard ; le créneau 3 peut être plus flexible.',
   homeSlotsNotReserved: "À noter : proposer ne réserve pas le créneau. Nous en confirmons un sur vos trois ; un créneau peut entre-temps être pris par un autre club.",
   homeProposalsSubmitted: 'Propositions de créneaux à domicile envoyées !',
   homeProposalsPending: 'Vos créneaux à domicile proposés (en attente de confirmation) :',
@@ -171,7 +171,7 @@ export default {
   updateProposals: 'Mettre à jour les propositions',
   inviteGreeting: 'Bonjour {{name}}',
   inviteGreetingNoName: 'Bonjour',
-  inviteWelcome: 'Le KSCW vous a invité à planifier les matchs contre {{team}}.',
+  inviteWelcome: 'Veuillez utiliser l\'outil Spielplanung pour planifier les matchs entre {{club}} et KSC Wiedikon {{team}}.',
   inviteContactHint: 'Cette invitation a été envoyée à {{email}}. Pas la bonne personne ? Écrivez à',
   publicSubtitle: 'Planifiez vos matchs avec le KSCW',
   selectGender: 'Genre',
@@ -187,7 +187,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'Match a domicile KSCW',
-  homeGameDesc: 'Proposez 3 créneaux pour le match dans notre salle — nous en confirmons un.',
+  homeGameDesc: 'Choisissez 3 créneaux pour le match dans notre salle — nous en confirmons un.',
   pickSlot: 'Choisir un creneau',
   confirmSlot: 'Confirmer le creneau',
   slotBooked: 'Creneau reserve !',

@@ -82,7 +82,7 @@ export default {
   gapProposal3Hint: 'Letschte Uswiich-Vorschlag — darf chliner si.',
   gapSaved: 'Spielabstand gspeicheret',
   // Heimspiel-Vorschläg (Gegner schlaat 3 Slots vor; Spielplaner bestätigt eine)
-  homeProposalDesc: 'Schlag 3 Slots i eusere Halle vor — de Spielplaner bestätigt eine. Slot 1 & 2 sind Standard; Slot 3 darf flexibler si.',
+  homeProposalDesc: 'Wähl 3 Slots i eusere Halle — de Spielplaner bestätigt eine. Slot 1 & 2 sind Standard; Slot 3 darf flexibler si.',
   homeSlotsNotReserved: 'Hiwiis: E Vorschlag reserviert de Slot nöd. Mir bestätiged eine vo dine drü; en Slot cha vorher vomne andere Verein bsetzt werde.',
   homeProposalsSubmitted: 'Heim-Slot-Vorschläg gschickt!',
   homeProposalsPending: 'Dini vorgschlagne Heim-Slots (warted uf Bestätigung):',
@@ -171,7 +171,7 @@ export default {
   updateProposals: 'Vorschläg aktualisiere',
   inviteGreeting: 'Hoi {{name}}',
   inviteGreetingNoName: 'Hoi',
-  inviteWelcome: 'De KSCW het di iglade, d Spiel gäge {{team}} z plane.',
+  inviteWelcome: 'Bitte bruuch s Spielplanungs-Tool, zum d Spiel zwüsche {{club}} und KSC Wiedikon {{team}} plane.',
   inviteContactHint: 'Die Iladig isch a {{email}} gschickt worde. Falschi Person? Schriib a',
   publicSubtitle: 'Vereinbar d Spieltermin mit em KSCW',
   selectGender: 'Gschlächt',
@@ -187,7 +187,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'Heimspiel KSCW',
-  homeGameDesc: 'Schlag 3 Slots für s Spiel i eusere Halle vor — mir bestätiged eine.',
+  homeGameDesc: 'Wähl 3 Slots für s Spiel i eusere Halle — mir bestätiged eine.',
   pickSlot: 'Termin wähle',
   confirmSlot: 'Termin bestätige',
   slotBooked: 'Termin gbuecht!',
