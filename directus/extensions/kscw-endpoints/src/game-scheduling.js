@@ -2963,8 +2963,8 @@ export function registerGameScheduling(router, { database, logger, services, get
     // uuids for the same season and the bulk feed often syncs under a different
     // uuid than game_scheduling_seasons.svrz_season_uuid, so a uuid match silently
     // returns ~nothing (prod: 1/27 opponents vs 26/27 by name). Mirrors the
-    // start-year LIKE that import-from-svrz already uses.
-    const svrzSeasonName = String(seasonRow.season || '').split('/')[0].trim()
+    // start-year LIKE that import-from-svrz already uses. (svrzSeasonName is
+    // already computed above for the games filter.)
     const clubIds = [...byClub.keys()]
     const contactsByClub = new Map()
     if (svrzSeasonName && clubIds.length) {
