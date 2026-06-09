@@ -174,11 +174,38 @@ async function findOrCreatePolicy(name, opts = {}) {
 
 async function attachPolicyToRole(roleId, policyId) {
   try {
+    // Idempotent: directus_access has no unique (role,policy) constraint, so a
+    // bare POST every run accreted duplicate role-access rows. Skip if present.
+    const existing = await api('GET', `/access?filter[role][_eq]=${roleId}&filter[policy][_eq]=${policyId}&filter[user][_null]=true&fields=id&limit=1`)
+    if (existing && existing.length > 0) return
     await api('POST', '/access', { role: roleId, policy: policyId })
   } catch (e) {
     if (!e.message.includes('RECORD_NOT_UNIQUE')) {
       console.warn(`  ⚠ attach policy: ${e.message.slice(0, 80)}`)
     }
+  }
+}
+
+/**
+ * Fully remove a legacy/orphan policy by name: detach it from every role/user
+ * (directus_access), delete its permission rows, then delete the policy.
+ * Idempotent — a no-op once the policy is gone. Used to retire the old
+ * "KSCW Coach" policy after folding its unique grants into Team Responsible.
+ */
+async function deleteLegacyPolicy(name) {
+  const policies = await api('GET', '/policies?limit=-1')
+  const matches = (policies || []).filter(p => p.name === name)
+  if (matches.length === 0) {
+    console.log(`  (legacy policy "${name}" already absent — nothing to delete)`)
+    return
+  }
+  for (const p of matches) {
+    const access = await api('GET', `/access?filter[policy][_eq]=${p.id}&fields=id&limit=-1`)
+    for (const a of (access || [])) await api('DELETE', `/access/${a.id}`)
+    const perms = await api('GET', `/permissions?filter[policy][_eq]=${p.id}&fields=id&limit=-1`)
+    for (const perm of (perms || [])) await api('DELETE', `/permissions/${perm.id}`)
+    await api('DELETE', `/policies/${p.id}`)
+    console.log(`  ✓ Deleted legacy policy "${name}" (${p.id}): ${(access || []).length} access row(s) + ${(perms || []).length} permission(s)`)
   }
 }
 
@@ -1172,6 +1199,58 @@ async function main() {
   await setPerm(LEADER_POLICY, 'scheduling_blocks', 'update', COACH_OR_TR_OF_ACTIVE_BLOCK)
   await setPerm(LEADER_POLICY, 'scheduling_blocks', 'delete', COACH_OR_TR_OF_ACTIVE_BLOCK)
 
+  // ── Consolidation 2026-06-09: folded the legacy "KSCW Coach" policy in here ──
+  // The old un-managed "KSCW Coach" policy (from SQL migrations 026/034/036/042,
+  // before permissions moved into this script) stayed attached to the Team
+  // Responsible role and ADDITIVELY shadowed every scoped rule above — silently
+  // re-granting the un-gated/looser writes this policy tightens. These are the
+  // grants it held that the Member policy (which coaches also hold) does NOT
+  // already cover, ported here so the legacy policy can be deleted
+  // (deleteLegacyPolicy('KSCW Coach') below). Filters are preserved verbatim
+  // except participations.delete, which was fully open and is now scoped like
+  // participations.update. The overlapping looser rules (teams/games/trainings/
+  // fines updates) are simply dropped with the legacy policy, so this policy's
+  // active-gated versions finally take effect.
+  const EVENT_SESSIONS_LEADER_SCOPE = {
+    _or: [
+      { event: { created_by: { user: { _eq: '$CURRENT_USER' } } } },
+      { event: { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+    ],
+  }
+  const EVENTS_MEMBERS_LEADER_SCOPE = {
+    _or: [
+      { events_id: { created_by: { user: { _eq: '$CURRENT_USER' } } } },
+      { events_id: { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+    ],
+  }
+  const COACH_OF_TEAM_FK = { team: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } }
+  const COACH_OF_SLOT_CLAIM = { claimed_by_team: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } }
+  await setPerm(LEADER_POLICY, 'event_sessions', 'delete', EVENT_SESSIONS_LEADER_SCOPE)
+  await setPerm(LEADER_POLICY, 'events_members', 'create', EVENTS_MEMBERS_LEADER_SCOPE)
+  await setPerm(LEADER_POLICY, 'events_members', 'update', EVENTS_MEMBERS_LEADER_SCOPE)
+  await setPerm(LEADER_POLICY, 'events_members', 'delete', EVENTS_MEMBERS_LEADER_SCOPE)
+  await setPerm(LEADER_POLICY, 'participations', 'delete', COACH_OR_TR_OF_PARTICIPATION)
+  await setPerm(LEADER_POLICY, 'referee_expenses', 'delete', COACH_OF_TEAM_FK)
+  await setPerm(LEADER_POLICY, 'scorer_delegations', 'delete', OWN_DELEGATION_FROM)
+  await setPerm(LEADER_POLICY, 'slot_claims', 'create', COACH_OF_SLOT_CLAIM)
+  await setPerm(LEADER_POLICY, 'slot_claims', 'delete', COACH_OF_SLOT_CLAIM)
+  await setPerm(LEADER_POLICY, 'task_templates', 'delete', COACH_OF_TEAM_FK)
+  // Junction + hall-plan CRUD — unfiltered, mirroring the sibling teams_sponsors
+  // / events_teams junctions above (Directus can't relationally filter junction
+  // writes; the roster/hallenplan editors + kscw-hooks gate them). carpools.delete
+  // is kept open exactly as the legacy policy had it (lowest-stakes; flagged for a
+  // later tightening pass with the remaining open junction writes).
+  await setPerm(LEADER_POLICY, 'hall_slots_teams', 'create')
+  await setPerm(LEADER_POLICY, 'hall_slots_teams', 'update')
+  await setPerm(LEADER_POLICY, 'hall_slots_teams', 'delete')
+  await setPerm(LEADER_POLICY, 'teams_coaches', 'create')
+  await setPerm(LEADER_POLICY, 'teams_coaches', 'update')
+  await setPerm(LEADER_POLICY, 'teams_coaches', 'delete')
+  await setPerm(LEADER_POLICY, 'teams_responsibles', 'create')
+  await setPerm(LEADER_POLICY, 'teams_responsibles', 'update')
+  await setPerm(LEADER_POLICY, 'teams_responsibles', 'delete')
+  await setPerm(LEADER_POLICY, 'carpools', 'delete')
+
   // Files — create (upload team photos)
   await setPerm(LEADER_POLICY, 'directus_files', 'create')
 
@@ -1346,6 +1425,14 @@ async function main() {
     }
   }
   if (stale.length > 0) console.log(`  ✓ Revoked LEADER policy from ${stale.length} ex-coach/TR user(s)`)
+
+  // ── 10b. Retire the legacy "KSCW Coach" policy ────────────────
+  // Its unique grants were folded into Team Responsible above; the LEADER
+  // backfill (10) guarantees every coach/TR now holds the TR policy directly,
+  // so removing the legacy one loses no access — it only removes the
+  // additive shadow + its fully-open writes. Idempotent.
+  console.log('\n10b. Retiring legacy "KSCW Coach" policy...')
+  await deleteLegacyPolicy('KSCW Coach')
 
   // ── 12. Backfill user-level TERMINPLANUNG access for is_spielplaner ───
   //
