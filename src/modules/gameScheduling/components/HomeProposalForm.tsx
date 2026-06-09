@@ -60,12 +60,24 @@ export default function HomeProposalForm({ slots, existing, onSubmit }: Props) {
     return m
   }, [existing])
 
-  // Pool for the active row: rows 0 & 1 require strict slots; row 2 allows any
-  // offered slot. Exclude slots already chosen in the other rows.
+  // Pool for the active row, gated by priority via the 3 picks. Excludes slots
+  // already chosen in the other rows.
+  //  - Picks 1 & 2: strict pool only — the own slot / Spielsamstag / Döltschi
+  //    (Sundays are non-strict for juniors, so they can't land here).
+  //  - Pick 3 (lenient): Sundays stay last-resort. Offer non-Sunday slots first;
+  //    only when none remain, Spielsamstag-weekend Sundays; only when none of
+  //    those remain, other Sundays. So a Sunday is only ever offered when no
+  //    Saturday/other slot is available — and only as the 3rd pick.
   const poolSlots = useMemo(() => {
     if (activeRow == null) return []
     const otherPicks = new Set(picks.filter((p, i) => p && i !== activeRow) as string[])
-    return slots.filter((s) => (activeRow < 2 ? s.strict : true) && !otherPicks.has(s.id))
+    const avail = slots.filter((s) => !otherPicks.has(s.id))
+    if (activeRow < 2) return avail.filter((s) => s.strict)
+    const isSun = (s: SlotData) => new Date(`${s.date}T00:00:00Z`).getUTCDay() === 0
+    const nonSun = avail.filter((s) => !isSun(s))
+    if (nonSun.length) return nonSun
+    const prefSun = avail.filter((s) => isSun(s) && s.preferred)
+    return prefSun.length ? prefSun : avail.filter(isSun)
   }, [slots, activeRow, picks])
 
   // date -> time options, merging same date+time across halls (strict if any).
