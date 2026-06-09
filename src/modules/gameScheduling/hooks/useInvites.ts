@@ -45,6 +45,7 @@ export interface SvrzClub {
   club_name: string
   team_name: string
   game_count: number
+  games?: SvrzGamePreview[]
   suggested_contacts: SvrzClubContact[]
 }
 

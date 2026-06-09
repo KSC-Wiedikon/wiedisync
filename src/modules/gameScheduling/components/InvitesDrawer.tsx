@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -106,43 +106,52 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
     }
   }
 
-  // Semi-manual: list every club in the team's league (from synced SVRZ games),
-  // prefill the club/team name + game count, and auto-fill a contact only when
-  // exactly one is known. The admin fills in the rest by hand.
-  const loadLeagueClubs = async () => {
+  // Load every opponent in the team's league from the ALREADY-SYNCED SVRZ data
+  // (svrz_games + the bulk svrz_spielplaner_contacts feed) — instant, no live
+  // login. All of a club's known contacts are joined into one shared-invite row
+  // (parseRecipients splits them when sending). This is what auto-fills the
+  // drawer on open; the live "Refresh" below re-fetches the freshest contacts.
+  const loadLeagueClubs = async (opts?: { silent?: boolean }) => {
     if (!kscwTeam) return
     setLoadingClubs(true)
     try {
       const resp = await api.listSvrzClubs()
       const rows: DraftRow[] = resp.clubs.map((c) => {
-        const only = c.suggested_contacts.length === 1 ? c.suggested_contacts[0] : null
+        const emails = c.suggested_contacts.map((x) => x.email).filter(Boolean)
+        const names = c.suggested_contacts.map((x) => x.name).filter(Boolean)
         return {
           id: uid(),
           team_name: c.team_name || c.club_name,
-          contact_email: only?.email ?? '',
-          contact_name: only?.name ?? '',
+          contact_email: emails.join(', '),
+          contact_name: names.join(', '),
           source: 'svrz',
-          // Pre-selected so a typed email is included immediately; rows without
-          // an email are skipped at submit anyway.
-          selected: true,
+          selected: emails.length > 0,
           imported: true,
           game_count: c.game_count,
-          warning:
-            c.suggested_contacts.length > 1
-              ? t('multipleContactsHint')
-              : c.suggested_contacts.length === 0
-                ? t('noContactWarning')
-                : undefined,
+          games: c.games,
+          warning: emails.length === 0 ? t('noContactWarning') : undefined,
         }
       })
       setDrafts((prev) => [...rows, ...prev])
-      if (rows.length === 0) toast.info(t('noClubsFound'))
+      if (rows.length === 0 && !opts?.silent) toast.info(t('noClubsFound'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      if (!opts?.silent) toast.error(err instanceof Error ? err.message : String(err))
     } finally {
       setLoadingClubs(false)
     }
   }
+
+  // Auto-fill from synced data the first time the drawer opens for a team, so the
+  // admin sees the opponents + contacts without importing every time. Runs once
+  // per team (guarded by ref); the team-switch effect above clears stale drafts.
+  const autoFilledTeam = useRef<string | number | null>(null)
+  useEffect(() => {
+    if (!open || !kscwTeam) return
+    if (autoFilledTeam.current === kscwTeam.id) return
+    autoFilledTeam.current = kscwTeam.id
+    loadLeagueClubs({ silent: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, kscwTeam?.id])
 
   const parseCsv = () => {
     const rows = parseInviteCsv(csvText)
@@ -215,26 +224,22 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
         </DrawerHeader>
 
         <div className="space-y-5 overflow-y-auto px-6 pb-4">
-          {/* SVRZ import — full auto: fetches opponents AND their contacts live */}
+          {/* Opponent contacts — auto-fill from the last SVRZ sync on open. The
+              two buttons are optional: re-pull the synced data, or do a slow live
+              re-fetch for the freshest contacts. */}
           <div>
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('importFromSvrz')}</h3>
-              <Button size="sm" onClick={runImport} disabled={importing || !kscwTeam}>
-                {importing ? t('svrzImportLoading') : t('importFromSvrz')}
-              </Button>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('opponentContacts')}</h3>
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" onClick={() => loadLeagueClubs()} disabled={loadingClubs || !kscwTeam}>
+                  {loadingClubs ? t('loadingClubs') : t('reloadSynced')}
+                </Button>
+                <Button size="sm" variant="outline" onClick={runImport} disabled={importing || !kscwTeam}>
+                  {importing ? t('svrzImportLoading') : t('refreshFromSvrzLive')}
+                </Button>
+              </div>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t('importFromSvrzHint')}</p>
-          </div>
-
-          {/* Add from league — semi-manual: lists league clubs, admin fills contacts */}
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('addFromLeague')}</h3>
-              <Button size="sm" variant="secondary" onClick={loadLeagueClubs} disabled={loadingClubs || !kscwTeam}>
-                {loadingClubs ? t('loadingClubs') : t('addFromLeague')}
-              </Button>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t('addFromLeagueHint')}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('autoFillHint')}</p>
           </div>
 
           {/* Manual CSV paste */}
