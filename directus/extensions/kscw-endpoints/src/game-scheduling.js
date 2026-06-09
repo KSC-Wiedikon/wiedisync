@@ -2926,11 +2926,17 @@ export function registerGameScheduling(router, { database, logger, services, get
     // is unreliable (verbose teams.league vs SVRZ "3L" codes) and would conflate
     // same-league teams (e.g. D2 & D3 are both 3L). Naming caveat: teams whose
     // SVRZ label differs from teams.name (e.g. U23 → "KSC Wiedikon 1") won't match.
+    // CRITICAL: scope to the CURRENT season (start year, e.g. "2026"). svrz_games
+    // keeps fixtures going back years, and old seasons can still sit at
+    // 'waitingForApproval' — without this filter a team's opponents balloon
+    // (e.g. H1 = 8 this season + a stale 2020 batch = 17). Mirrors import-from-svrz.
+    const svrzSeasonName = String(seasonRow.season || '').split('/')[0].trim()
     const games = await database('svrz_games')
       .whereIn('status', ['open', 'waitingForApproval'])
       .where(function () {
         this.where('home_club_id', KSCW_SVRZ_CLUB_ID).orWhere('away_club_id', KSCW_SVRZ_CLUB_ID)
       })
+      .modify((q) => { if (svrzSeasonName) q.where('season_name', svrzSeasonName) })
       .orderBy('starting_date_time')
 
     const wantName = `ksc wiedikon ${String(kscwTeamRow.name || '').trim().toLowerCase()}`
