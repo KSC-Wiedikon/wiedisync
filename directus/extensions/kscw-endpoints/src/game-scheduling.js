@@ -2435,6 +2435,34 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // GET /admin/terminplanung/svrz-status?season_name= — at-a-glance summary of the
+  // synced SVRZ feed for a season: last sync time + game counts (total / KSCW home
+  // / KSCW away). Shown next to "Sync SVRZ now".
+  router.get('/admin/terminplanung/svrz-status', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const seasonName = String(req.query.season_name || '').split('/')[0].trim()
+      const row = await database('svrz_games')
+        .modify((q) => { if (seasonName) q.where('season_name', seasonName) })
+        .select(
+          database.raw('count(*)::int as total'),
+          database.raw('count(*) FILTER (WHERE home_club_id = ?)::int as home', [KSCW_SVRZ_CLUB_ID]),
+          database.raw('count(*) FILTER (WHERE away_club_id = ?)::int as away', [KSCW_SVRZ_CLUB_ID]),
+          database.raw('max(last_synced_at) as last_synced_at'),
+        )
+        .first()
+      res.json({
+        total: Number(row?.total) || 0,
+        home: Number(row?.home) || 0,
+        away: Number(row?.away) || 0,
+        last_synced_at: row?.last_synced_at || null,
+      })
+    } catch (err) {
+      log.error({ msg: `svrz-status: ${err.message}`, endpoint: 'admin/terminplanung/svrz-status', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // POST /admin/terminplanung/invites — create tokenized invites
   router.post('/admin/terminplanung/invites', async (req, res) => {
     if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })

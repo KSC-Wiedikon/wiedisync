@@ -1,10 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 import { kscwApi } from '../../../lib/api'
+import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import type { Team } from '../../../types'
+
+interface SvrzStatus {
+  total: number
+  home: number
+  away: number
+  last_synced_at: string | null
+}
 import { useInvites } from '../hooks/useInvites'
 import InviteRow from './InviteRow'
 import InvitesDrawer from './InvitesDrawer'
@@ -20,9 +28,18 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
   const [selectedTeamId, setSelectedTeamId] = useState<string | number | null>(teams[0]?.id ?? null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [svrz, setSvrz] = useState<SvrzStatus | null>(null)
   const selectedTeam = useMemo(() => teams.find((t) => String(t.id) === String(selectedTeamId)) ?? null, [teams, selectedTeamId])
   const api = useInvites(selectedTeamId, seasonId)
   const frontendUrl = typeof window !== 'undefined' ? window.location.origin : 'https://wiedisync.kscw.ch'
+
+  const fetchSvrz = useCallback(async () => {
+    try {
+      const r = await kscwApi(`/admin/terminplanung/svrz-status?season_name=${encodeURIComponent(seasonName)}`) as SvrzStatus
+      setSvrz(r)
+    } catch { /* non-blocking summary */ }
+  }, [seasonName])
+  useEffect(() => { fetchSvrz() }, [fetchSvrz])
 
   const handleSyncNow = async () => {
     setSyncing(true)
@@ -32,6 +49,8 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
         body: { season_name: seasonName },
       })
       toast.success(t('svrzSyncStarted'))
+      // The sync runs in the background; refresh the summary once it's likely done.
+      setTimeout(fetchSvrz, 8000)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
     } finally {
@@ -49,6 +68,18 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* SVRZ sync summary */}
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {svrz && svrz.total > 0 && svrz.last_synced_at
+              ? t('svrzSynced', {
+                  date: formatDateTimeCompact(svrz.last_synced_at),
+                  total: svrz.total,
+                  home: svrz.home,
+                  away: svrz.away,
+                })
+              : t('svrzNotSynced')}
+          </p>
+
           {/* Team selector */}
           <div className="flex flex-wrap gap-1">
             {teams.map((tm) => (

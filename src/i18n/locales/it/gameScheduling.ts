@@ -285,6 +285,8 @@ export default {
   gameCount: '{{count}} partite',
   syncSvrzNow: 'Sincronizza SVRZ ora',
   svrzSyncStarted: 'Sincronizzazione SVRZ avviata',
+  svrzSynced: 'SVRZ sincronizzato {{date}} · {{total}} partite ({{home}} casa / {{away}} trasferta)',
+  svrzNotSynced: 'SVRZ non ancora sincronizzato',
   inviteLinkExpires: 'Valido fino al {{date}}',
   selectToInvite: 'Seleziona avversario',
   importedFromSvrz: 'Importato da SVRZ',
