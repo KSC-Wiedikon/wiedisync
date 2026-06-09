@@ -97,33 +97,43 @@ export default function TeamSlotConfigPanel({ teams, config, spielsamstage, onUp
   // juniors (Under teams) ALWAYS get the shared volleyball Döltschi pool (even
   // when it's not their own slot) PLUS the Spielhalle pool (both); non-juniors
   // take the Döltschi pool only if assigned, else fall back to Spielhalle.
-  // A Döltschi date is ONE slot (time + hall 1/2 irrelevant) → dedupe the pool to
-  // one entry per day-of-week.
+  // A Döltschi date is ONE slot (time + hall 1/2 irrelevant) → all of a day's
+  // Döltschi slots merge into a single "Döltschi" entry (union time window).
   const resolveStandard = (team: { id: string | number; name: string }) => {
     const mine = slotsByTeam.get(String(team.id)) || []
     const kwiOwn = mine.filter((s) => hm(s.end_time) === '21:30' && isKwi(s.hall?.name || ''))
     const usesDoltschi = mine.some((s) => s.sport === 'volleyball' && isDoltschi(s.hall?.name || ''))
     const isJr = /u\d/i.test(team.name || '')
     const fmt = (s: HallSlotLite) => `${DAY[s.day_of_week]} ${hm(s.start_time)}–${hm(s.end_time)} · ${s.hall?.name}`
-    let pool: HallSlotLite[] = []
+
+    // One merged "Döltschi" entry per day: a Döltschi date is a single slot
+    // regardless of time (19:00 / 20:30) or hall (Döltschi 1 or 2). Show the
+    // union window (earliest start – latest end) of that day's Döltschi slots.
+    const doltschiLabels: string[] = []
     if (usesDoltschi || isJr) {
-      const seen = new Set<string>()
-      pool = hallSlots
-        .filter((s) => s.sport === 'volleyball' && isDoltschi(s.hall?.name || ''))
-        .filter((s) => {
-          const k = String(s.day_of_week) // one Döltschi slot per day (time + hall 1/2 irrelevant)
-          if (seen.has(k)) return false
-          seen.add(k)
-          return true
-        })
+      const byDay = new Map<number, HallSlotLite[]>()
+      for (const s of hallSlots) {
+        if (s.sport !== 'volleyball' || !isDoltschi(s.hall?.name || '')) continue
+        const arr = byDay.get(s.day_of_week) || []
+        arr.push(s)
+        byDay.set(s.day_of_week, arr)
+      }
+      for (const day of [...byDay.keys()].sort((a, b) => a - b)) {
+        const slots = byDay.get(day)!
+        const start = slots.map((s) => hm(s.start_time)).sort()[0]
+        const end = slots.map((s) => hm(s.end_time)).sort().slice(-1)[0]
+        doltschiLabels.push(`${DAY[day]} ${start}–${end} · Döltschi`)
+      }
     }
+    const hasPool = doltschiLabels.length > 0
+
     const sh = hallSlots.filter((s) => (s.label || '').toLowerCase() === 'spielhalle')
-    const labels = [...kwiOwn, ...pool].map(fmt)
+    const labels = [...kwiOwn.map(fmt), ...doltschiLabels]
     // Juniors also get Spielhalle (both); others only as a fallback when empty.
     if (isJr) labels.push(...sh.map((s) => `Spielhalle · ${fmt(s)}`))
     else if (labels.length === 0) labels.push(...sh.map((s) => `Spielhalle · ${fmt(s)}`))
     if (labels.length) {
-      return { labels: [...new Set(labels)], fallback: kwiOwn.length === 0 && pool.length === 0 }
+      return { labels: [...new Set(labels)], fallback: kwiOwn.length === 0 && !hasPool }
     }
     return { labels: ['—'], fallback: true }
   }
@@ -199,25 +209,27 @@ export default function TeamSlotConfigPanel({ teams, config, spielsamstage, onUp
                 )}
               </div>
 
-              <div className="mt-2.5 flex items-center gap-1">
-                {(['hall_slot', 'spielsamstag'] as const).map((source) => {
-                  const selected = active.has(source)
-                  return (
-                    <Button
-                      key={source}
-                      type="button"
-                      size="sm"
-                      variant={selected ? 'default' : 'outline'}
-                      onClick={() => handleToggle(team.id, source)}
-                      aria-pressed={selected}
-                      className="h-7 px-2.5 text-xs"
-                    >
-                      {source === 'hall_slot' ? t('latestSlot') : t('spielsamstagMode')}
-                    </Button>
-                  )
-                })}
+              <div className="mt-2.5">
+                <div className="grid max-w-[14rem] grid-cols-2 gap-1">
+                  {(['hall_slot', 'spielsamstag'] as const).map((source) => {
+                    const selected = active.has(source)
+                    return (
+                      <Button
+                        key={source}
+                        type="button"
+                        size="sm"
+                        variant={selected ? 'default' : 'outline'}
+                        onClick={() => handleToggle(team.id, source)}
+                        aria-pressed={selected}
+                        className="h-7 w-full px-2.5 text-xs"
+                      >
+                        {source === 'hall_slot' ? t('latestSlot') : t('spielsamstagMode')}
+                      </Button>
+                    )
+                  })}
+                </div>
                 {active.size === 0 && (
-                  <span className="ml-1 text-xs italic text-gray-400 dark:text-gray-500">{t('sourceManual')}</span>
+                  <span className="mt-1 block text-xs italic text-gray-400 dark:text-gray-500">{t('sourceManual')}</span>
                 )}
               </div>
             </div>
