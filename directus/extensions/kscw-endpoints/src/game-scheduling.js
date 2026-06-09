@@ -1743,10 +1743,14 @@ export function registerGameScheduling(router, { database, logger, services, get
       // Smart alternating: VB shares post-vacation Fridays 50/50 with basketball
       // (the gym is VB or BB on a given Friday, club-wide — can't differ per team).
       // Of the two every-other-Friday parities, pick the one that leaves the
-      // WORST-AFFECTED Friday team (juniors + teams without their own KWI evening
-      // slot) with the fewest absence-hit VB Fridays — i.e. protect the team that
-      // has the most absences on its Friday slots (minimax), rather than the club
-      // total. Strict alternation is preserved; only the offset is chosen.
+      // WORST-AFFECTED Friday team with the fewest absence-hit VB Fridays — i.e.
+      // protect the team that has the most absences on its Friday slots (minimax),
+      // tie → fewest overall. Only NON-junior teams without their own KWI evening
+      // slot count here: those genuinely depend on the Friday Spielhalle as a home
+      // option. Juniors are excluded — Friday Spielhalle is a low-priority fallback
+      // for them (their priority is own slot / Spielsamstag / Döltschi / Sunday),
+      // so their Friday absences shouldn't drive the offset. Strict alternation is
+      // preserved; only the offset is chosen.
       let vbFridaySet = null
       if (eveningWindow && herbstStart && firstPostHerbstFriday) {
         const teamsWithOwnSlot = new Set(
@@ -1759,7 +1763,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             .pluck('hall_slots_teams.teams_id'),
         )
         const fridayTeamIds = teams
-          .filter((tm) => isJuniorTeam(tm.name) || !teamsWithOwnSlot.has(tm.id))
+          .filter((tm) => !isJuniorTeam(tm.name) && !teamsWithOwnSlot.has(tm.id))
           .map((tm) => tm.id)
         const absRows = fridayTeamIds.length
           ? await database('absences as a')
