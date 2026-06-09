@@ -54,6 +54,7 @@ export default {
 
   // Spielsamstage
   spielsamstage: 'Spielsamschtig',
+  plusJuniorSundays: '+ alli Sunntig (Junioren)',
   addSpielssamstag: 'Spielsamschtig dezuetuä',
   removeSpielssamstag: 'Entferne',
   timeSlot: 'Zitfänschter',

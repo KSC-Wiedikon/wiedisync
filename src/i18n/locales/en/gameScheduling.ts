@@ -47,6 +47,7 @@ export default {
 
   // Spielsamstage
   spielsamstage: 'Game Saturdays',
+  plusJuniorSundays: '+ all Sundays (juniors)',
   addSpielssamstag: 'Add Game Saturday',
   removeSpielssamstag: 'Remove',
   timeSlot: 'Time Slot',

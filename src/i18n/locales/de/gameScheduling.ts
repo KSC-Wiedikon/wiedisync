@@ -47,6 +47,7 @@ export default {
 
   // Spielsamstage
   spielsamstage: 'Spielsamstage',
+  plusJuniorSundays: '+ alle Sonntage (Junioren)',
   addSpielssamstag: 'Spielsamstag hinzufügen',
   removeSpielssamstag: 'Entfernen',
   timeSlot: 'Zeitfenster',

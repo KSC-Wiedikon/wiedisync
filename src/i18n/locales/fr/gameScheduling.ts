@@ -54,6 +54,7 @@ export default {
 
   // Spielsamstage
   spielsamstage: 'Samedis de match',
+  plusJuniorSundays: '+ tous les dimanches (juniors)',
   addSpielssamstag: 'Ajouter un samedi de match',
   removeSpielssamstag: 'Supprimer',
   timeSlot: 'Creneau horaire',

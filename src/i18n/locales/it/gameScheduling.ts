@@ -54,6 +54,7 @@ export default {
 
   // Spielsamstage
   spielsamstage: 'Sabati di gioco',
+  plusJuniorSundays: '+ tutte le domeniche (juniores)',
   addSpielssamstag: 'Aggiungi sabato di gioco',
   removeSpielssamstag: 'Rimuovi',
   timeSlot: 'Fascia oraria',
