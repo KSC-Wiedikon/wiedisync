@@ -386,18 +386,29 @@ export function registerGameScheduling(router, { database, logger, services, get
     return 2
   }
 
-  // Other team ids that share ≥1 real player (guest_level 0/null) with this team.
-  // Drives the cross-team same-day rule (a junior on two teams must not play twice
-  // in a day).
+  // Other team ids that share ≥1 person with this team — counting any role: a
+  // real player (member_teams, guest_level 0/null), a coach (teams_coaches), or a
+  // team-responsible (teams_responsibles). A person can't be in two places on the
+  // same day, so e.g. someone who PLAYS for D1 and COACHES D2 makes D1 & D2
+  // mutually exclusive that day. Drives the cross-team same-day rule.
   async function sharedPlayerTeams(teamId, db = database) {
-    const rows = await db('member_teams as mt1')
-      .join('member_teams as mt2', 'mt2.member', 'mt1.member')
-      .where('mt1.team', teamId)
-      .whereRaw('mt2.team <> ?', [teamId])
-      .where(function () { this.where('mt1.guest_level', 0).orWhereNull('mt1.guest_level') })
-      .where(function () { this.where('mt2.guest_level', 0).orWhereNull('mt2.guest_level') })
-      .distinct('mt2.team as team')
-    return rows.map((r) => r.team)
+    // Everyone linked to THIS team, by any role.
+    const memberIds = new Set()
+    ;(await db('member_teams').where('team', teamId)
+      .where(function () { this.where('guest_level', 0).orWhereNull('guest_level') })
+      .pluck('member')).forEach((m) => memberIds.add(m))
+    ;(await db('teams_coaches').where('teams_id', teamId).pluck('members_id')).forEach((m) => memberIds.add(m))
+    ;(await db('teams_responsibles').where('teams_id', teamId).pluck('members_id')).forEach((m) => memberIds.add(m))
+    if (memberIds.size === 0) return []
+    const ids = [...memberIds]
+    // Other teams those people are linked to, by any role.
+    const out = new Set()
+    ;(await db('member_teams').whereIn('member', ids).whereNot('team', teamId)
+      .where(function () { this.where('guest_level', 0).orWhereNull('guest_level') })
+      .pluck('team')).forEach((t) => out.add(t))
+    ;(await db('teams_coaches').whereIn('members_id', ids).whereNot('teams_id', teamId).pluck('teams_id')).forEach((t) => out.add(t))
+    ;(await db('teams_responsibles').whereIn('members_id', ids).whereNot('teams_id', teamId).pluck('teams_id')).forEach((t) => out.add(t))
+    return [...out]
   }
 
   // Which of the given teams have a committed game (real game, booked home slot,
@@ -600,7 +611,30 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where('team', teamId)
         .select(database.raw('start_date::text as s'), database.raw('end_date::text as e'))
       const blockDates = new Set(blockRows.flatMap((r) => expandDays(r.s, r.e)))
-      const ctx = { committedHome, committedProposal3, derbyAnchors, eventDates, blockDates }
+
+      // Saturday cap (A1/A4) — how many Saturday home games this team may have and
+      // which Saturdays it already uses.
+      const teamRow = await database('teams').where('id', teamId).first('id', 'name')
+      const satCap = await teamSaturdayCap(teamRow)
+      const satDates = await committedSaturdayDates(teamId)
+
+      // Cross-team (C1): exact dates any team sharing a person with this one is
+      // already committed to — those days are blocked for this team too.
+      const sharedTeams = await sharedPlayerTeams(teamId)
+      const sharedCommitted = new Set()
+      if (sharedTeams.length) {
+        ;(await database('games').whereIn('kscw_team', sharedTeams).whereNotNull('date')
+          .select(database.raw('date::text as d'))).forEach((r) => sharedCommitted.add(String(r.d).slice(0, 10)))
+        ;(await database('game_scheduling_slots').whereIn('kscw_team', sharedTeams).where('status', 'booked')
+          .select(database.raw('date::text as d'))).forEach((r) => sharedCommitted.add(String(r.d).slice(0, 10)))
+        ;(await database('game_scheduling_bookings as bk')
+          .join('game_scheduling_opponents as o', 'o.id', 'bk.opponent')
+          .whereIn('o.kscw_team', sharedTeams).where('bk.type', 'away_proposal').where('bk.status', 'confirmed')
+          .select('bk.confirmed_proposal as n', 'bk.proposed_datetime_1 as d1', 'bk.proposed_datetime_2 as d2', 'bk.proposed_datetime_3 as d3'))
+          .forEach((r) => { const d = r[`d${r.n}`]; if (d) sharedCommitted.add(String(d).slice(0, 10)) })
+      }
+
+      const ctx = { committedHome, committedProposal3, derbyAnchors, eventDates, blockDates, satCap, satDates, sharedCommitted }
       teamCache.set(teamId, ctx)
       return ctx
     }
@@ -617,8 +651,12 @@ export function registerGameScheduling(router, { database, logger, services, get
         return { valid: false, reason: 'hall_closed' }
       }
       if (derbyDateBlocked(day, ctx.derbyAnchors, boundary)) return { valid: false, reason: 'derby' }
+      if (ctx.sharedCommitted.has(day)) return { valid: false, reason: 'cross_team' }
       const gapSet = n < 3 ? ctx.committedHome : ctx.committedProposal3
       if (gapSet.has(day)) return { valid: false, reason: 'too_close' }
+      if (isSaturday(day) && !ctx.satDates.has(day) && ctx.satDates.size >= ctx.satCap) {
+        return { valid: false, reason: 'saturday_cap' }
+      }
       if (doltschiHallIds.includes(slot.hall)) {
         if (doltschiCount >= 10) return { valid: false, reason: 'doltschi_cap' }
         if (doltschiDates.has(day)) return { valid: false, reason: 'doltschi_taken' }

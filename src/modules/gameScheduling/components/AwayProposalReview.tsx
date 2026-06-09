@@ -33,6 +33,8 @@ export default function AwayProposalReview({ booking, onConfirm }: Props) {
     setConfirming(true)
     try {
       await onConfirm(booking.id, num)
+    } catch {
+      /* error surfaced via toast by the dashboard handler */
     } finally {
       setConfirming(false)
     }

@@ -29,6 +29,8 @@ const REASON_KEY: Record<string, string> = {
   derby: 'reasonDerby',
   doltschi_cap: 'reasonDoltschiCap',
   doltschi_taken: 'reasonDoltschiTaken',
+  saturday_cap: 'reasonSaturdayCap',
+  cross_team: 'reasonCrossTeam',
 }
 
 // Admin review of an opponent's up-to-3 proposed home slots. Slots aren't held,
@@ -59,6 +61,8 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
     setConfirming(true)
     try {
       await onConfirm(booking.id, num)
+    } catch {
+      /* error surfaced via toast by the dashboard handler */
     } finally {
       setConfirming(false)
     }

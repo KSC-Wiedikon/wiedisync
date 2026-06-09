@@ -123,6 +123,8 @@ export default {
   reasonDerby: 'Before the derby (must be first)',
   reasonDoltschiCap: 'Döltschi season limit reached',
   reasonDoltschiTaken: 'Döltschi already booked that day',
+  reasonSaturdayCap: 'Saturday limit reached for this team',
+  reasonCrossTeam: 'A team sharing a player/coach already plays that day',
   rejectProposal: 'Reject',
   proposal: 'Proposal',
   proposalNumber: 'Proposal {{number}}',

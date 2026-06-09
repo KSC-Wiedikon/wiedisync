@@ -23,6 +23,7 @@ interface SchedEntry {
   kind: EntryKind
   label: string
   title: string
+  teamId: string
 }
 
 interface Props {
@@ -113,6 +114,9 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
     return m
   }, [bookings])
 
+  // Team filter — empty Set = all teams shown.
+  const [teamFilter, setTeamFilter] = useState<Set<string>>(new Set())
+
   const entries = useMemo<SchedEntry[]>(() => {
     const out: SchedEntry[] = []
     const oppLabel = (b: ExpandedBooking) => {
@@ -125,6 +129,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
       const d = parseYmd(s.date)
       if (!d) continue
       const team = teamName(s.kscw_team)
+      const tid = String(s.kscw_team ?? '')
       if (s.status === 'booked') {
         const opp = oppBySlot.get(String(s.id))
         out.push({
@@ -132,26 +137,28 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
           date: d,
           kind: 'home_confirmed',
           label: team,
+          teamId: tid,
           title: `${t('legendHomeConfirmed')}: ${team}${opp ? ` vs ${opp}` : ''} · ${String(s.start_time).slice(0, 5)}`,
         })
       } else if (s.status === 'blocked') {
-        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: team, title: `${t('legendBlocked')}: ${team}` })
+        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: team, teamId: tid, title: `${t('legendBlocked')}: ${team}` })
       }
     }
 
     // Bookings: away confirmed + home/away proposals (pending).
     for (const b of bookings) {
       const opp = oppLabel(b)
+      const tid = typeof b.opponent === 'object' ? String((b.opponent as GameSchedulingOpponent).kscw_team ?? '') : ''
       const team = typeof b.opponent === 'object' ? teamName((b.opponent as GameSchedulingOpponent).kscw_team) : '—'
       if (b.type === 'away_proposal' && b.status === 'confirmed' && b.confirmed_proposal) {
         const dt = (b as Record<string, unknown>)[`proposed_datetime_${b.confirmed_proposal}`] as string | undefined
         const d = parseYmd(dt)
-        if (d) out.push({ id: `awc-${b.id}`, date: d, kind: 'away_confirmed', label: `@${team}`, title: `${t('legendAwayConfirmed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
+        if (d) out.push({ id: `awc-${b.id}`, date: d, kind: 'away_confirmed', label: `@${team}`, teamId: tid, title: `${t('legendAwayConfirmed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
       } else if (b.type === 'away_proposal' && b.status === 'pending') {
         for (const n of [1, 2, 3]) {
           const dt = (b as Record<string, unknown>)[`proposed_datetime_${n}`] as string | undefined
           const d = parseYmd(dt)
-          if (d) out.push({ id: `awp-${b.id}-${n}`, date: d, kind: 'away_proposed', label: `@${team}`, title: `${t('legendAwayProposed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
+          if (d) out.push({ id: `awp-${b.id}-${n}`, date: d, kind: 'away_proposed', label: `@${team}`, teamId: tid, title: `${t('legendAwayProposed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
         }
       } else if (b.type === 'home_slot_pick' && b.status === 'pending') {
         for (const n of [1, 2, 3]) {
@@ -159,36 +166,44 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
           if (sid == null) continue
           const sl = slotsById.get(String(sid))
           const d = parseYmd(sl?.date)
-          if (d) out.push({ id: `hmp-${b.id}-${n}`, date: d, kind: 'home_proposed', label: team, title: `${t('legendHomeProposed')}: ${team}${opp ? ` vs ${opp}` : ''}` })
+          if (d) out.push({ id: `hmp-${b.id}-${n}`, date: d, kind: 'home_proposed', label: team, teamId: tid, title: `${t('legendHomeProposed')}: ${team}${opp ? ` vs ${opp}` : ''}` })
         }
       }
     }
     return out
   }, [slots, bookings, slotsById, oppBySlot, teamName, t])
 
+  // Teams that actually appear in the calendar, for the filter chips.
+  const filterableTeams = useMemo(() => {
+    const ids = new Set(entries.map((e) => e.teamId).filter(Boolean))
+    return teams.filter((tm) => ids.has(String(tm.id))).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  }, [entries, teams])
+
   // Remaining open home slots per day (de-emphasised count, not chips).
   const openByDate = useMemo(() => {
     const m = new Map<string, number>()
     for (const s of slots) {
       if (s.status !== 'available') continue
+      if (!(teamFilter.size === 0 || teamFilter.has(String(s.kscw_team)))) continue
       const d = parseYmd(s.date)
       if (!d) continue
       const k = toDateKey(d)
       m.set(k, (m.get(k) || 0) + 1)
     }
     return m
-  }, [slots])
+  }, [slots, teamFilter])
 
   const itemsByDate = useMemo(() => {
     const map = new Map<string, SchedEntry[]>()
     for (const e of entries) {
+      if (!(teamFilter.size === 0 || teamFilter.has(e.teamId))) continue
       const k = toDateKey(e.date)
       const arr = map.get(k) ?? []
       arr.push(e)
       map.set(k, arr)
     }
     return map
-  }, [entries])
+  }, [entries, teamFilter])
 
   // Highlight configured game-Saturdays (Spielsamstage) like the other calendars.
   const highlightedDates = useMemo(() => {
@@ -233,6 +248,46 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
           {t('legendClosed')}
         </span>
       </div>
+
+      {/* Team filter (multi-select; none selected = all shown) */}
+      {filterableTeams.length > 1 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => setTeamFilter(new Set())}
+            className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+              teamFilter.size === 0
+                ? 'bg-gold-400 text-brand-900'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+            }`}
+          >
+            {t('allTeams')}
+          </button>
+          {filterableTeams.map((tm) => {
+            const on = teamFilter.has(String(tm.id))
+            return (
+              <button
+                key={tm.id}
+                onClick={() =>
+                  setTeamFilter((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(String(tm.id))) next.delete(String(tm.id))
+                    else next.add(String(tm.id))
+                    return next
+                  })
+                }
+                aria-pressed={on}
+                className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                  on
+                    ? 'bg-gold-400 text-brand-900'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                {tm.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Season month quick navigation */}
       <div className="mb-3 flex flex-wrap gap-1">

@@ -123,6 +123,8 @@ export default {
   reasonDerby: 'Vor dem Derby (muss zuerst sein)',
   reasonDoltschiCap: 'Döltschi-Saisonlimit erreicht',
   reasonDoltschiTaken: 'Döltschi an dem Tag schon belegt',
+  reasonSaturdayCap: 'Samstag-Limit für dieses Team erreicht',
+  reasonCrossTeam: 'Ein Team mit gemeinsamem Spieler/Coach spielt an dem Tag',
   rejectProposal: 'Ablehnen',
   proposal: 'Vorschlag',
   proposalNumber: 'Vorschlag {{number}}',

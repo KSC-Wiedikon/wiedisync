@@ -55,6 +55,31 @@ export default function AdminDashboardPage() {
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
 
+  // Wrap confirm so a rejected booking (Saturday cap, cross-team, gap, Döltschi,
+  // slot taken, hall closure…) surfaces its reason instead of failing silently.
+  const confirmErrMsg = (err: unknown) => {
+    const body = (err as { body?: { error?: string } })?.body
+    return body?.error || (err instanceof Error ? err.message : String(err))
+  }
+  const handleConfirmHome = async (bookingId: string, n: number, notes?: string) => {
+    try {
+      await confirmHomeProposal(bookingId, n, notes)
+      toast.success(t('confirmed'))
+    } catch (err) {
+      toast.error(confirmErrMsg(err))
+      throw err
+    }
+  }
+  const handleConfirmAway = async (bookingId: string, n: number, notes?: string) => {
+    try {
+      await confirmAwayProposal(bookingId, n, notes)
+      toast.success(t('confirmed'))
+    } catch (err) {
+      toast.error(confirmErrMsg(err))
+      throw err
+    }
+  }
+
   const handleFinalizeNotify = async (teamId: string, pendingCount: number) => {
     if (!season) return
     if (pendingCount > 0 && !window.confirm(t('finalizeNotifyConfirmPending', { count: pendingCount }))) return
@@ -222,8 +247,8 @@ export default function AdminDashboardPage() {
                     bookings={bookings}
                     slots={getTeamSlots(team.id)}
                     proposalHealth={proposalHealth}
-                    onConfirmAway={confirmAwayProposal}
-                    onConfirmHome={confirmHomeProposal}
+                    onConfirmAway={handleConfirmAway}
+                    onConfirmHome={handleConfirmHome}
                     onRequestNewSlots={requestNewSlots}
                     onSaveOpponentNote={saveOpponentNote}
                     onBlockSlot={blockSlot}
