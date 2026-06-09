@@ -2864,12 +2864,18 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
 
       // Contact suggestions from the bulk feed only — no live per-game fetch.
+      // Match by season START YEAR ("2026%"), NOT season_uuid: SVRZ issues
+      // several uuids for the same season and the bulk feed often syncs under a
+      // different uuid than game_scheduling_seasons.svrz_season_uuid, so a uuid
+      // match silently returns ~nothing (prod: 1/27 opponents vs 26/27 by name).
+      // Mirrors the start-year LIKE that import-from-svrz already uses.
+      const svrzSeasonName = String(seasonRow.season || '').split('/')[0].trim()
       const clubIds = [...byClub.keys()]
       const contactsByClub = new Map()
-      if (seasonUuid && clubIds.length) {
+      if (svrzSeasonName && clubIds.length) {
         const bulk = await database('svrz_spielplaner_contacts')
           .whereIn('club_id', clubIds)
-          .where('season_uuid', seasonUuid)
+          .where('season_name', 'like', `${svrzSeasonName}%`)
         for (const c of bulk) {
           const email = (c.contact_email || '').toLowerCase().trim()
           if (!email) continue
