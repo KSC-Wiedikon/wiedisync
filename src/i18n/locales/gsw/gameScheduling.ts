@@ -172,7 +172,7 @@ export default {
   inviteGreeting: 'Hoi {{name}}',
   inviteGreetingNoName: 'Hoi',
   inviteWelcome: 'Bitte bruuch s Spielplanungs-Tool, zum d Spiel zwüsche {{club}} und KSC Wiedikon {{team}} plane.',
-  inviteContactHint: 'Die Iladig isch a {{email}} gschickt worde. Falschi Person? Schriib a',
+  inviteContactHint: 'Die Iladig isch a {{email}} gschickt worde. Falschi Person? Bitte leit sie a di zueständigi Person für d Spielplanig i dim Verein wiiter, oder schriib a',
   publicSubtitle: 'Vereinbar d Spieltermin mit em KSCW',
   selectGender: 'Gschlächt',
   genderMen: 'Herre',

@@ -349,7 +349,7 @@ export default {
   inviteGreeting: 'Hallo {{name}}',
   inviteGreetingNoName: 'Hallo',
   inviteWelcome: 'Bitte nutze das Spielplanungs-Tool, um die Spiele zwischen {{club}} und KSC Wiedikon {{team}} zu planen.',
-  inviteContactHint: 'Diese Einladung wurde an {{email}} geschickt. Falsche Person? Schreib an',
+  inviteContactHint: 'Diese Einladung wurde an {{email}} geschickt. Falsche Person? Bitte leite sie an die für die Spielplanung zuständige Person in deinem Verein weiter, oder schreib an',
   inviteGamesHeader_one: 'Wir haben {{count}} Spiel zusammen in dieser Saison',
   inviteGamesHeader_other: 'Wir haben {{count}} Spiele zusammen in dieser Saison',
   inviteGameHome: 'Heim (KSCW)',

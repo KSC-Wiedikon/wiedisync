@@ -172,7 +172,7 @@ export default {
   inviteGreeting: 'Ciao {{name}}',
   inviteGreetingNoName: 'Ciao',
   inviteWelcome: 'Usa lo strumento Spielplanung per pianificare le partite tra {{club}} e KSC Wiedikon {{team}}.',
-  inviteContactHint: 'Questo invito è stato inviato a {{email}}. Persona sbagliata? Scrivi a',
+  inviteContactHint: 'Questo invito è stato inviato a {{email}}. Persona sbagliata? Inoltralo alla persona responsabile della pianificazione nel tuo club, oppure scrivi a',
   publicSubtitle: 'Pianifica le tue partite con il KSCW',
   selectGender: 'Genere',
   genderMen: 'Uomini',
