@@ -9,14 +9,21 @@ export interface SvrzContactPreview {
   source: 'per_game' | 'club_fallback'
 }
 
+export interface SvrzGamePreview {
+  date: string | null
+  display_name: string | null
+  is_home_kscw: boolean
+}
+
 export interface SvrzOpponentPreview {
   club_id: string
   club_name: string
   team_name: string
   game_count: number
+  games?: SvrzGamePreview[]
   contacts: SvrzContactPreview[]
   warning?: 'no_contact'
-  source: 'per_game' | 'club_fallback' | 'none'
+  source: 'per_game' | 'club_league' | 'club_fallback' | 'none'
 }
 
 export interface SvrzImportPreview {

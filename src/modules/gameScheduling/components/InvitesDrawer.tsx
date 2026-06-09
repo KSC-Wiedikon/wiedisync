@@ -15,6 +15,7 @@ import { Checkbox } from '../../../components/ui/checkbox'
 import { Input } from '../../../components/ui/input'
 import { Textarea } from '../../../components/ui/textarea'
 import { parseInviteCsv } from '../utils/parseInviteCsv'
+import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import type { useInvites } from '../hooks/useInvites'
 import type { InviteSource } from '../../../types'
 
@@ -30,6 +31,7 @@ interface DraftRow {
   imported?: boolean
   warning?: string
   game_count?: number
+  games?: { date: string | null; display_name: string | null; is_home_kscw: boolean }[]
 }
 
 interface Props {
@@ -76,6 +78,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
         imported: true,
         warning: opp.contacts.length === 0 ? t('noContactWarning') : undefined,
         game_count: opp.game_count,
+        games: opp.games,
       }))
       setDrafts((prev) => [...imported, ...prev])
       if (imported.length === 0) toast.info(t('svrzImportEmpty'))
@@ -247,7 +250,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                 </thead>
                 <tbody>
                   {drafts.map((d) => (
-                    <tr key={d.id} className="border-b border-gray-200 last:border-0 dark:border-gray-800">
+                    <tr key={d.id} className="border-b border-gray-200 last:border-0 dark:border-gray-800 [&>td]:align-top">
                       <td className="py-1.5 pl-3">
                         <Checkbox checked={d.selected} onCheckedChange={(v) => updateDraft(d.id, { selected: !!v })} />
                       </td>
@@ -258,7 +261,18 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                           className="h-8 text-sm"
                         />
                         {d.game_count != null && (
-                          <div className="mt-0.5 text-[10px] text-gray-500">{t('gameCount', { count: d.game_count })}</div>
+                          <div
+                            className={`mt-0.5 text-[10px] text-gray-500 ${d.games && d.games.length ? 'cursor-help underline decoration-dotted' : ''}`}
+                            title={
+                              d.games && d.games.length
+                                ? d.games
+                                    .map((g) => `${g.date ? formatDateTimeCompact(g.date) : '—'} · ${g.is_home_kscw ? `KSCW ${kscwTeam?.name ?? ''} vs ${d.team_name}` : `${d.team_name} vs KSCW ${kscwTeam?.name ?? ''}`}`)
+                                    .join('\n')
+                                : undefined
+                            }
+                          >
+                            {t('gameCount', { count: d.game_count })}
+                          </div>
                         )}
                       </td>
                       <td className="py-1.5 pr-2">
