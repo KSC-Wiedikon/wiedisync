@@ -23,7 +23,7 @@ export interface SvrzOpponentPreview {
   games?: SvrzGamePreview[]
   contacts: SvrzContactPreview[]
   warning?: 'no_contact'
-  source: 'per_game' | 'club_league' | 'club_fallback' | 'none'
+  source: 'club_league' | 'club_fallback' | 'team_responsible' | 'none'
 }
 
 export interface SvrzImportPreview {

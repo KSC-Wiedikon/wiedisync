@@ -2672,55 +2672,61 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
 
       for (const group of byClub.values()) {
-        // Primary: per-game contacts, union across games for this opponent
-        for (const g of group.games) {
-          const resp = await getGameContacts(g.id)
-          if (!resp) continue
-          const pool = g.is_home_kscw ? (resp.teamAway || []) : (resp.teamHome || [])
-          for (const c of pool) {
-            if (c.addressOrganisationMemberFunctionTitle !== 'Spielplanverantwortlicher') continue
-            const email = (c.primaryEmailAddress || '').toLowerCase().trim()
-            if (!email || group.contacts.has(email)) continue
-            group.contacts.set(email, {
-              name: `${c.firstName || ''} ${c.lastName || ''}`.trim(),
-              email,
-              phone: c.primaryPhoneNumber || '',
-              source: 'per_game',
-            })
-          }
+        // Primary: the synced club feed — the scheduling responsible
+        // (Spielplanverantwortlicher). Match by club_id + current season START
+        // YEAR ("2026"); season_uuid is NOT a reliable season key (one uuid spans
+        // several seasons) and season_name varies ("2026/27" vs "2026/2027").
+        // Then prefer the contact(s) responsible for THIS team's league —
+        // club_league_categories is a JSON array of league codes like
+        // ["2L","5L","U23"]; if none match, use ALL the club's contacts. Every
+        // match is returned — the invite is one link emailed to all of them.
+        const synced = await database('svrz_spielplaner_contacts')
+          .where('club_id', String(group.club_id))
+          .modify((q) => { if (svrzSeasonName) q.where('season_name', 'like', `${svrzSeasonName}%`) })
+          .whereNotNull('contact_email')
+        const league = String(kscwTeamRow.league || '').toLowerCase().replace(/\s+/g, '')
+        const inLeague = (c) => {
+          let cats = c.club_league_categories
+          if (typeof cats === 'string') { try { cats = JSON.parse(cats) } catch { cats = [] } }
+          if (!Array.isArray(cats)) return false
+          return cats.some((x) => String(x).toLowerCase().replace(/\s+/g, '') === league)
         }
-        // Fallback: club-level synced feed. Match by club_id + current season
-        // NAME — season_uuid is NOT a reliable season key (one uuid spans several
-        // seasons in the feed). Then prefer the contact(s) responsible for THIS
-        // team's league — club_league_categories is a JSON array of league codes
-        // like ["2L","5L","U23"]; if none match, fall back to ALL the club's
-        // contacts. Every matched contact is returned — the invite is one link
-        // emailed to all of them.
+        const leagueMatched = league ? synced.filter(inLeague) : []
+        for (const c of (leagueMatched.length ? leagueMatched : synced)) {
+          const email = (c.contact_email || '').toLowerCase().trim()
+          if (!email || group.contacts.has(email)) continue
+          group.contacts.set(email, {
+            name: c.contact_name || '',
+            email,
+            phone: c.contact_phone || '',
+            source: leagueMatched.length ? 'club_league' : 'club_fallback',
+          })
+        }
+
+        // Fallback: no synced scheduling contact for this club (e.g. clubs that
+        // never registered a Spielplanverantwortlicher) → take the TEAM
+        // responsible(s) from the game contact info (live VolleyManager). The
+        // per-game feed exposes "Teamverantwortlicher" (and sometimes
+        // "Spielplanverantwortlicher") — accept either. One game's contacts are
+        // enough (same team across its fixtures).
         if (group.contacts.size === 0) {
-          // Match the season by START YEAR ("2026"), not the exact label — the
-          // feed's season_name varies ("2026/27" vs "2026/2027").
-          const all = await database('svrz_spielplaner_contacts')
-            .where('club_id', String(group.club_id))
-            .modify((q) => { if (svrzSeasonName) q.where('season_name', 'like', `${svrzSeasonName}%`) })
-            .whereNotNull('contact_email')
-          const league = String(kscwTeamRow.league || '').toLowerCase().replace(/\s+/g, '')
-          const inLeague = (c) => {
-            let cats = c.club_league_categories
-            if (typeof cats === 'string') { try { cats = JSON.parse(cats) } catch { cats = [] } }
-            if (!Array.isArray(cats)) return false
-            return cats.some((x) => String(x).toLowerCase().replace(/\s+/g, '') === league)
-          }
-          const leagueMatched = league ? all.filter(inLeague) : []
-          const chosen = leagueMatched.length ? leagueMatched : all
-          for (const c of chosen) {
-            const email = (c.contact_email || '').toLowerCase().trim()
-            if (!email || group.contacts.has(email)) continue
-            group.contacts.set(email, {
-              name: c.contact_name || '',
-              email,
-              phone: c.contact_phone || '',
-              source: leagueMatched.length ? 'club_league' : 'club_fallback',
-            })
+          for (const g of group.games) {
+            const resp = await getGameContacts(g.id)
+            if (!resp) continue
+            const pool = g.is_home_kscw ? (resp.teamAway || []) : (resp.teamHome || [])
+            for (const c of pool) {
+              const title = c.addressOrganisationMemberFunctionTitle || ''
+              if (!/spielplan|teamverantwort/i.test(title)) continue
+              const email = (c.primaryEmailAddress || '').toLowerCase().trim()
+              if (!email || group.contacts.has(email)) continue
+              group.contacts.set(email, {
+                name: `${c.firstName || ''} ${c.lastName || ''}`.trim(),
+                email,
+                phone: c.primaryPhoneNumber || '',
+                source: 'team_responsible',
+              })
+            }
+            if (group.contacts.size) break
           }
         }
       }
