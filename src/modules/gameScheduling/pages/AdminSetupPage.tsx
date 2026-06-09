@@ -182,7 +182,6 @@ export default function AdminSetupPage() {
           <TeamSlotConfigPanel
             teams={volleyballTeams}
             config={season.team_slot_config || {}}
-            spielsamstage={season.spielsamstage || []}
             onUpdate={handleUpdateTeamConfig}
           />
 
