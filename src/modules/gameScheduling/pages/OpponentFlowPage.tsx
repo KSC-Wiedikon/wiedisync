@@ -37,26 +37,19 @@ export default function OpponentFlowPage() {
     useAvailableSlots(token)
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
+  const [submittingAll, setSubmittingAll] = useState(false)
+  // Current proposals reported by the two forms (null while incomplete) —
+  // submitted together by the single "Confirm slots" button below.
+  const [homePicks, setHomePicks] = useState<string[] | null>(null)
+  const [awayProposals, setAwayProposals] = useState<Array<{ date: string; start_time: string; location: string }> | null>(null)
   // Opponent remark box. Seed from the loaded record once, then it's user-owned.
   const [remark, setRemark] = useState('')
-  const [remarkSaving, setRemarkSaving] = useState(false)
-  const [remarkSaved, setRemarkSaved] = useState(false)
   const didInitRemark = useRef(false)
   useEffect(() => {
     if (didInitRemark.current || !opponent) return
     didInitRemark.current = true
     setRemark(opponent.opponent_note || '')
   }, [opponent])
-
-  const handleSaveRemark = async () => {
-    setRemarkSaving(true)
-    setRemarkSaved(false)
-    try {
-      await saveNote(remark.trim())
-      setRemarkSaved(true)
-    } catch { /* surfaced inline below */ }
-    finally { setRemarkSaving(false) }
-  }
 
   // Language memory: restore the opponent's saved language once their record
   // loads, then persist whenever they flip the switcher so emails match.
@@ -146,25 +139,30 @@ export default function OpponentFlowPage() {
     }
   }
 
-  const handleProposeHome = async (slotIds: string[]) => {
-    setBookingError('')
-    setBookingSuccess('')
-    try {
-      await proposeHome(slotIds)
-      setBookingSuccess(t('homeProposalsSubmitted'))
-    } catch (err: unknown) {
-      setBookingError(schedErrorMessage(err))
-    }
-  }
+  // One combined submit: home picks + away proposals + the remark. A leg that's
+  // already confirmed isn't shown and isn't required; an unconfirmed (shown) leg
+  // must have a complete proposal before the button enables.
+  const homeShown = homeBooking?.status !== 'confirmed'
+  const awayShown = awayBooking?.status !== 'confirmed'
+  const remarkChanged = remark.trim() !== (opponent.opponent_note || '').trim()
+  const canConfirm =
+    (!homeShown || !!homePicks) &&
+    (!awayShown || !!awayProposals) &&
+    (homeShown || awayShown || remarkChanged)
 
-  const handleProposeAway = async (proposals: Array<{ date: string; start_time: string; location: string }>) => {
+  const handleConfirmAll = async () => {
     setBookingError('')
     setBookingSuccess('')
+    setSubmittingAll(true)
     try {
-      await proposeAway(proposals)
+      if (homeShown && homePicks) await proposeHome(homePicks)
+      if (awayShown && awayProposals) await proposeAway(awayProposals)
+      if (remarkChanged) await saveNote(remark.trim())
       setBookingSuccess(t('proposalsSubmitted'))
     } catch (err: unknown) {
       setBookingError(schedErrorMessage(err))
+    } finally {
+      setSubmittingAll(false)
     }
   }
 
@@ -247,7 +245,8 @@ export default function OpponentFlowPage() {
                 <HomeProposalForm
                   slots={slots}
                   existing={homeBooking?.status === 'pending' ? homeBooking : undefined}
-                  onSubmit={handleProposeHome}
+                  onChange={setHomePicks}
+                  hideSubmit
                 />
               </>
             )}
@@ -272,7 +271,8 @@ export default function OpponentFlowPage() {
                 blockedStrict={blockedStrict}
                 blockedLoose={blockedLoose}
                 seasonWindow={seasonWindow}
-                onSubmit={handleProposeAway}
+                onChange={setAwayProposals}
+                hideSubmit
               />
             )}
           </div>
@@ -287,24 +287,23 @@ export default function OpponentFlowPage() {
           <textarea
             id="opp-remark"
             value={remark}
-            onChange={(e) => { setRemark(e.target.value); setRemarkSaved(false) }}
+            onChange={(e) => setRemark(e.target.value)}
             rows={3}
             maxLength={2000}
             placeholder={t('yourRemarksPlaceholder')}
             className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
           />
-          <div className="mt-2 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleSaveRemark}
-              disabled={remarkSaving}
-              className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              {remarkSaving ? t('saving') : t('saveRemarks')}
-            </button>
-            {remarkSaved && <span className="text-sm text-green-600 dark:text-green-400">{t('remarksSaved')}</span>}
-          </div>
         </div>
+
+        {/* Single combined submit: both legs + the remark in one action. */}
+        <button
+          type="button"
+          onClick={handleConfirmAll}
+          disabled={!canConfirm || submittingAll}
+          className="mt-6 w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {submittingAll ? t('submitting') : t('confirmSlots')}
+        </button>
 
         {/* Help line — for anything else, the club's scheduling mailbox. */}
         <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">

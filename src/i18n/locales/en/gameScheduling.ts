@@ -189,6 +189,7 @@ export default {
   proposalDate: 'Date & Time',
   proposalPlace: 'Hall / Address',
   submitProposals: 'Submit Proposals',
+  confirmSlots: 'Confirm slots',
   submitting: 'Submitting...',
   proposalsSubmitted: 'Proposals submitted!',
   awaitingConfirmation: 'Awaiting confirmation',

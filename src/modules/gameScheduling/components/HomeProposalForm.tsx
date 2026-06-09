@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
 import { Calendar } from '@/components/ui/calendar'
@@ -10,7 +10,12 @@ import { toDateKey, formatDateLocale } from '@/utils/dateUtils'
 interface Props {
   slots: SlotData[]
   existing?: BookingData
-  onSubmit: (slotIds: string[]) => Promise<void>
+  onSubmit?: (slotIds: string[]) => Promise<void>
+  /** Report the current picks (3 distinct ids) or null while incomplete, so a
+   *  parent can drive a single combined submit. */
+  onChange?: (slotIds: string[] | null) => void
+  /** Hide the form's own submit button (parent owns submission). */
+  hideSubmit?: boolean
 }
 
 interface TimeOption {
@@ -39,7 +44,7 @@ function mergeHalls(names: string[]): string {
 // 1 & 2 come from the strict pool (home gap + full squad), slot 3 may also use
 // the lenient pool (proposal-3 gap, a couple of absences) — mirrors the away
 // proposal form's strict/loose split. Slots are NOT reserved on submit.
-export default function HomeProposalForm({ slots, existing, onSubmit }: Props) {
+export default function HomeProposalForm({ slots, existing, onSubmit, onChange, hideSubmit }: Props) {
   const { t, i18n } = useTranslation('gameScheduling')
   const [picks, setPicks] = useState<(string | null)[]>(() => [
     existing?.proposed_slot_1 != null ? String(existing.proposed_slot_1) : null,
@@ -143,11 +148,16 @@ export default function HomeProposalForm({ slots, existing, onSubmit }: Props) {
 
   const allFilled = picks.every(Boolean) && new Set(picks).size === 3
 
+  // Report the current picks upward (for a parent-owned combined submit).
+  useEffect(() => {
+    onChange?.(allFilled ? (picks as string[]) : null)
+  }, [picks, allFilled, onChange])
+
   const handleSubmit = async () => {
     if (!allFilled) return
     setSubmitting(true)
     try {
-      await onSubmit(picks as string[])
+      await onSubmit?.(picks as string[])
     } finally {
       setSubmitting(false)
     }
@@ -311,14 +321,16 @@ export default function HomeProposalForm({ slots, existing, onSubmit }: Props) {
         <p className="text-xs text-yellow-600 dark:text-yellow-400">{t('awaitingConfirmation')}</p>
       )}
 
-      <button
-        type="button"
-        disabled={!allFilled || submitting}
-        onClick={handleSubmit}
-        className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-      >
-        {submitting ? t('submitting') : existing ? t('updateProposals') : t('submitProposals')}
-      </button>
+      {!hideSubmit && (
+        <button
+          type="button"
+          disabled={!allFilled || submitting}
+          onClick={handleSubmit}
+          className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {submitting ? t('submitting') : existing ? t('updateProposals') : t('submitProposals')}
+        </button>
+      )}
     </div>
   )
 }

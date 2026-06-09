@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parseISO, isBefore, isAfter, startOfDay } from 'date-fns'
 import { Calendar as CalendarIcon } from 'lucide-react'
@@ -21,10 +21,15 @@ interface Props {
   blockedLoose: string[]
   /** Selectable window (Sep 1 → Mar 31), or null for no bound. */
   seasonWindow: { start: string; end: string } | null
-  onSubmit: (proposals: Array<{ date: string; start_time: string; location: string }>) => Promise<void>
+  onSubmit?: (proposals: Array<{ date: string; start_time: string; location: string }>) => Promise<void>
+  /** Report the current proposals (3 filled) or null while incomplete, so a
+   *  parent can drive a single combined submit. */
+  onChange?: (proposals: Array<{ date: string; start_time: string; location: string }> | null) => void
+  /** Hide the form's own submit button (parent owns submission). */
+  hideSubmit?: boolean
 }
 
-export default function AwayProposalForm({ existingProposal, blockedStrict, blockedLoose, seasonWindow, onSubmit }: Props) {
+export default function AwayProposalForm({ existingProposal, blockedStrict, blockedLoose, seasonWindow, onSubmit, onChange, hideSubmit }: Props) {
   const { t, i18n } = useTranslation('gameScheduling')
   const [submitting, setSubmitting] = useState(false)
   const [openIdx, setOpenIdx] = useState<number | null>(null)
@@ -64,12 +69,20 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
 
   const allFilled = slots.every((s) => s.date && s.time)
 
+  // Report the current proposals upward (for a parent-owned combined submit).
+  useEffect(() => {
+    onChange?.(
+      allFilled ? slots.map((s) => ({ date: toDateKey(s.date as Date), start_time: s.time, location: '' })) : null,
+    )
+  }, [slots, allFilled, onChange])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (hideSubmit) return
     setSubmitting(true)
     try {
       const proposals = slots.map((s) => ({ date: toDateKey(s.date as Date), start_time: s.time, location: '' }))
-      await onSubmit(proposals)
+      await onSubmit?.(proposals)
     } finally {
       setSubmitting(false)
     }
@@ -125,13 +138,15 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
         <p className="text-xs text-yellow-600 dark:text-yellow-400">{t('awaitingConfirmation')}</p>
       )}
 
-      <button
-        type="submit"
-        disabled={submitting || !allFilled}
-        className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-      >
-        {submitting ? t('submitting') : existingProposal ? t('updateProposals') : t('submitProposals')}
-      </button>
+      {!hideSubmit && (
+        <button
+          type="submit"
+          disabled={submitting || !allFilled}
+          className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {submitting ? t('submitting') : existingProposal ? t('updateProposals') : t('submitProposals')}
+        </button>
+      )}
     </form>
   )
 }

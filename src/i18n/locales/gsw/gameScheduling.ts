@@ -200,6 +200,7 @@ export default {
   proposalDate: 'Datum & Zit',
   proposalPlace: 'Halle / Adrässe',
   submitProposals: 'Vorschläg iireichne',
+  confirmSlots: 'Slots bestätige',
   submitting: 'Wird iigreichne...',
   proposalsSubmitted: 'Vorschläg iigrichnet!',
   awaitingConfirmation: 'Wartet uf Bestätigung',

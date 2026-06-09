@@ -200,6 +200,7 @@ export default {
   proposalDate: 'Data e ora',
   proposalPlace: 'Palestra / Indirizzo',
   submitProposals: 'Invia proposte',
+  confirmSlots: 'Conferma gli slot',
   submitting: 'Invio in corso...',
   proposalsSubmitted: 'Proposte inviate!',
   awaitingConfirmation: 'In attesa di conferma',

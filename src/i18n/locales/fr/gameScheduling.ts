@@ -200,6 +200,7 @@ export default {
   proposalDate: 'Date et heure',
   proposalPlace: 'Salle / Adresse',
   submitProposals: 'Soumettre les propositions',
+  confirmSlots: 'Confirmer les créneaux',
   submitting: 'Envoi...',
   proposalsSubmitted: 'Propositions soumises !',
   awaitingConfirmation: 'En attente de confirmation',
