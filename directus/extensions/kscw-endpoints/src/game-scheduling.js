@@ -1742,11 +1742,11 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
       // Smart alternating: VB shares post-vacation Fridays 50/50 with basketball
       // (the gym is VB or BB on a given Friday, club-wide — can't differ per team).
-      // Of the two every-other-Friday parities, pick the one whose VB Fridays
-      // carry the FEWEST game-affecting player absences among the teams that
-      // actually play home on a Friday (juniors + teams without their own KWI
-      // evening slot) — so VB lands on the weeks with the most players available.
-      // Strict alternation is preserved; only the offset is chosen.
+      // Of the two every-other-Friday parities, pick the one that leaves the
+      // WORST-AFFECTED Friday team (juniors + teams without their own KWI evening
+      // slot) with the fewest absence-hit VB Fridays — i.e. protect the team that
+      // has the most absences on its Friday slots (minimax), rather than the club
+      // total. Strict alternation is preserved; only the offset is chosen.
       let vbFridaySet = null
       if (eveningWindow && herbstStart && firstPostHerbstFriday) {
         const teamsWithOwnSlot = new Set(
@@ -1771,16 +1771,39 @@ export function registerGameScheduling(router, { database, logger, services, get
               .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
               .where('a.end_date', '>=', eveningWindow.start)
               .where('a.start_date', '<=', eveningWindow.end)
-              .select(database.raw('a.start_date::date::text as s'), database.raw('a.end_date::date::text as e'))
+              .select(database.raw('mt.team as team'), database.raw('a.start_date::date::text as s'), database.raw('a.end_date::date::text as e'))
           : []
         const fridays = []
         for (const d = new Date(firstPostHerbstFriday); d <= eveningWindow.end; d.setUTCDate(d.getUTCDate() + 7)) {
           fridays.push(d.toISOString().slice(0, 10))
         }
-        const scoreFor = (ymd) => { let n = 0; for (const r of absRows) if (r.s <= ymd && ymd <= r.e) n++; return n }
-        let p0 = 0, p1 = 0
-        fridays.forEach((f, i) => { const sc = scoreFor(f); if (i % 2 === 0) p0 += sc; else p1 += sc })
-        const vbParity = p1 < p0 ? 1 : 0 // tie → 0 (keeps the documented default: first post-Herbst Friday is VB)
+        // Which teams have a game-affecting absence on each Friday.
+        const teamsAbsentOn = new Map()
+        for (const r of absRows) {
+          for (const f of fridays) {
+            if (r.s <= f && f <= r.e) {
+              if (!teamsAbsentOn.has(f)) teamsAbsentOn.set(f, new Set())
+              teamsAbsentOn.get(f).add(r.team)
+            }
+          }
+        }
+        // For an offset: worst = the most absence-hit VB Fridays any single team
+        // would carry; total = the same summed over all teams. Pick the offset
+        // that minimises the WORST team first, then the total as a tiebreaker.
+        const burdenStats = (parity) => {
+          const cnt = new Map()
+          fridays.forEach((f, i) => {
+            if (i % 2 !== parity) return
+            for (const team of teamsAbsentOn.get(f) || []) cnt.set(team, (cnt.get(team) || 0) + 1)
+          })
+          const vals = [...cnt.values()]
+          return { worst: vals.length ? Math.max(...vals) : 0, total: vals.reduce((a, b) => a + b, 0) }
+        }
+        const b0 = burdenStats(0)
+        const b1 = burdenStats(1)
+        const vbParity = b1.worst !== b0.worst
+          ? (b1.worst < b0.worst ? 1 : 0)
+          : (b1.total < b0.total ? 1 : 0) // worst-team tie → fewer absences overall; full tie → 0 (default)
         vbFridaySet = new Set(fridays.filter((_, i) => i % 2 === vbParity))
       }
       // Should a Friday `spielhalle` slot be generated for volleyball on `date`?
