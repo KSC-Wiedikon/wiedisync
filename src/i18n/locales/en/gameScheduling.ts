@@ -8,6 +8,7 @@ export default {
   legendBlocked: 'Blocked',
   legendOpen: 'Open slots',
   legendClosed: 'Hall closed',
+  hallClosure: 'Hall closure',
   spielsamstag: 'Game Saturday',
   openCount: '{{count}} open',
   // Intra-club derby anchoring (Art. 27 SVRZ)

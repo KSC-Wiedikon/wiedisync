@@ -8,6 +8,7 @@ export default {
   legendBlocked: 'Blockiert',
   legendOpen: 'Freii Slots',
   legendClosed: 'Halle zue',
+  hallClosure: 'Halle gschlosse',
   spielsamstag: 'Spielsamschtig',
   openCount: '{{count}} frei',
   // Vereinsinterns Derby (Art. 27 SVRZ)

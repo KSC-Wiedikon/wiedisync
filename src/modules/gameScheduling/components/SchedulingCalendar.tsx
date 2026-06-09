@@ -76,10 +76,10 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
 
   // Hall closures (gcal + school holidays) for the season — block home games, so
   // they render as a red day background. Fetched from this season's August on.
-  const [closures, setClosures] = useState<{ start_date: string; end_date: string }[]>([])
+  const [closures, setClosures] = useState<{ start_date: string; end_date: string; reason?: string }[]>([])
   useEffect(() => {
-    fetchAllItems<{ start_date: string; end_date: string }>('hall_closures', {
-      fields: ['start_date', 'end_date'],
+    fetchAllItems<{ start_date: string; end_date: string; reason?: string }>('hall_closures', {
+      fields: ['start_date', 'end_date', 'reason'],
       filter: { end_date: { _gte: `${startYear}-08-01` } },
     })
       .then(setClosures)
@@ -99,6 +99,25 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
       }
     }
     return s
+  }, [closures])
+
+  // date key -> closure reason (first one wins on overlapping closures).
+  const closureReasons = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const c of closures) {
+      const reason = (c.reason || '').trim()
+      if (!reason) continue
+      const start = parseYmd(c.start_date)
+      const end = parseYmd(c.end_date)
+      if (!start || !end) continue
+      const cur = new Date(start)
+      for (let guard = 0; cur <= end && guard < 400; guard++) {
+        const key = toDateKey(cur)
+        if (!m.has(key)) m.set(key, reason)
+        cur.setDate(cur.getDate() + 1)
+      }
+    }
+    return m
   }, [closures])
 
   // slot id -> opponent label, from confirmed home bookings (so a booked slot
@@ -314,6 +333,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
         onMonthChange={setMonth}
         itemsByDate={itemsByDate}
         closedDates={closedDates}
+        closedLabel={t('hallClosure')}
+        closureReasons={closureReasons}
         highlightedDates={highlightedDates}
         highlightClassName="bg-gold-100 dark:bg-gold-500/20"
         highlightLabel={t('spielsamstag')}

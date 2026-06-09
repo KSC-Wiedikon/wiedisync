@@ -20,6 +20,10 @@ interface CalendarGridProps<T> {
   itemsByDate: Map<string, T[]>
   renderDayContent: (date: Date, items: T[]) => ReactNode
   closedDates?: Set<string>
+  /** Short label shown on closed days (e.g. "Hall closure"). Opt-in. */
+  closedLabel?: string
+  /** date key -> closure reason, shown in small text under the closed label. */
+  closureReasons?: Map<string, string>
   highlightedDates?: Set<string>
   /** Tailwind classes for a highlighted day cell. Defaults to a soft amber. */
   highlightClassName?: string
@@ -40,6 +44,8 @@ export default function CalendarGrid<T>({
   itemsByDate,
   renderDayContent,
   closedDates,
+  closedLabel,
+  closureReasons,
   highlightedDates,
   highlightClassName = 'bg-amber-50 dark:bg-amber-950',
   highlightLabel,
@@ -151,6 +157,20 @@ export default function CalendarGrid<T>({
                   </span>
                 )}
               </div>
+
+              {/* Closure label + reason (small) */}
+              {isClosed && inMonth && closedLabel && (
+                <div className="relative mb-0.5 leading-tight">
+                  <div className="truncate text-[9px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">
+                    {closedLabel}
+                  </div>
+                  {closureReasons?.get(key) && (
+                    <div className="truncate text-[9px] text-red-600/80 dark:text-red-300/70" title={closureReasons.get(key)}>
+                      {closureReasons.get(key)}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Content */}
               {inMonth && (

@@ -8,6 +8,7 @@ export default {
   legendBlocked: 'Bloccato',
   legendOpen: 'Slot liberi',
   legendClosed: 'Palestra chiusa',
+  hallClosure: 'Chiusura palestra',
   spielsamstag: 'Sabato di gara',
   openCount: '{{count}} liberi',
   // Derby interno al club (art. 27 SVRZ)
