@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { kscwApi } from '../../../lib/api'
 import type { InviteSource, OpponentInvite } from '../../../types'
 
@@ -99,19 +99,33 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchInvites = useCallback(async () => {
-    if (!kscwTeamId) return
-    setIsLoading(true)
+  // The team+season the panel is currently showing. Every fetch captures the key
+  // it was issued for and only applies its result if that's still the selected
+  // team — otherwise a slow response for the previous team can clobber the new
+  // one (flicker / wrong list) when switching quickly.
+  const activeKey = kscwTeamId ? `${kscwTeamId}:${seasonId ?? ''}` : ''
+  const activeKeyRef = useRef(activeKey)
+  activeKeyRef.current = activeKey
+
+  // `silent` skips the loading spinner — used by background refetches (ensure,
+  // reissue, revoke, mark-sent) so they update the list in place instead of
+  // flashing the spinner a second time after a team switch.
+  const fetchInvites = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!kscwTeamId) { setInvites([]); return }
+    const myKey = `${kscwTeamId}:${seasonId ?? ''}`
+    if (!opts?.silent) setIsLoading(true)
     setError(null)
     try {
       const qs = new URLSearchParams({ kscw_team: String(kscwTeamId) })
       if (seasonId) qs.set('season', String(seasonId))
       const resp = await kscwApi<InvitesListResponse>(`/admin/terminplanung/invites?${qs}`)
+      if (activeKeyRef.current !== myKey) return // superseded by a newer team
       setInvites(resp.data ?? [])
     } catch (err) {
+      if (activeKeyRef.current !== myKey) return
       setError(err instanceof Error ? err.message : String(err))
     } finally {
-      setIsLoading(false)
+      if (activeKeyRef.current === myKey && !opts?.silent) setIsLoading(false)
     }
   }, [kscwTeamId, seasonId])
 
@@ -130,7 +144,7 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
           rows: rows.map((r) => ({ ...r, source })),
         },
       })
-      await fetchInvites()
+      await fetchInvites({ silent: true })
       return resp
     },
     [kscwTeamId, seasonId, fetchInvites],
@@ -141,13 +155,13 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
       `/admin/terminplanung/invites/${id}/reissue`,
       { method: 'POST' },
     )
-    await fetchInvites()
+    await fetchInvites({ silent: true })
     return resp
   }, [fetchInvites])
 
   const revoke = useCallback(async (id: string | number) => {
     const resp = await kscwApi(`/admin/terminplanung/invites/${id}/revoke`, { method: 'POST' })
-    await fetchInvites()
+    await fetchInvites({ silent: true })
     return resp
   }, [fetchInvites])
 
@@ -155,7 +169,7 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
   // app can't observe). Flips the badge from "Not sent" to "Invited".
   const markSent = useCallback(async (id: string | number) => {
     const resp = await kscwApi(`/admin/terminplanung/invites/${id}/mark-sent`, { method: 'POST' })
-    await fetchInvites()
+    await fetchInvites({ silent: true })
     return resp
   }, [fetchInvites])
 
@@ -167,7 +181,9 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
       '/admin/terminplanung/invites/ensure-from-svrz',
       { method: 'POST', body: { kscw_team: kscwTeamId, season: seasonId } },
     )
-    await fetchInvites()
+    // Silent: the team-switch effect already runs the loud fetch (spinner). This
+    // background populate just updates the list in place — no second spinner.
+    await fetchInvites({ silent: true })
     return resp
   }, [kscwTeamId, seasonId, fetchInvites])
 
