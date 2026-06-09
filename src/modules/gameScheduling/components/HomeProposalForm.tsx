@@ -73,11 +73,15 @@ export default function HomeProposalForm({ slots, existing, onSubmit }: Props) {
     const otherPicks = new Set(picks.filter((p, i) => p && i !== activeRow) as string[])
     const avail = slots.filter((s) => !otherPicks.has(s.id))
     if (activeRow < 2) return avail.filter((s) => s.strict)
+    // Pick 3: offer only the highest-priority tier still available, so each lower
+    // tier is used only when nothing better is left. Priority (juniors):
+    //   1 own slot / Spielsamstag / Döltschi  →  2 Friday Spielhalle
+    //   →  3 Spielsamstag-weekend Sundays  →  4 other Sundays
     const isSun = (s: SlotData) => new Date(`${s.date}T00:00:00Z`).getUTCDay() === 0
-    const nonSun = avail.filter((s) => !isSun(s))
-    if (nonSun.length) return nonSun
-    const prefSun = avail.filter((s) => isSun(s) && s.preferred)
-    return prefSun.length ? prefSun : avail.filter(isSun)
+    const tier = (s: SlotData) =>
+      isSun(s) ? (s.preferred ? 3 : 4) : s.source === 'spielhalle' ? 2 : 1
+    const best = avail.reduce((m, s) => Math.min(m, tier(s)), 5)
+    return avail.filter((s) => tier(s) === best)
   }, [slots, activeRow, picks])
 
   // date -> time options, merging same date+time across halls (strict if any).

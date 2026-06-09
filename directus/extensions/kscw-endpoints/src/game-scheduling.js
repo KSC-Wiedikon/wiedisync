@@ -866,10 +866,11 @@ export function registerGameScheduling(router, { database, logger, services, get
             source: s.source,
             hall_id: s.hall,
             hall_name: hallNameById[s.hall] || '',
-            // Juniors: Sundays are last-resort — never strict, so they can only
-            // be the 3rd (lenient) home pick, never picks 1 & 2 (which take the
-            // own slot / Spielsamstag / Döltschi).
-            strict: !committedHome.has(date) && absCount === 0 && !(isJr && isSunday(date)),
+            // Juniors: the Friday Spielhalle pool AND Sundays are last-resort —
+            // never strict, so they can only be the 3rd (lenient) home pick.
+            // Picks 1 & 2 take the own slot / Spielsamstag / Döltschi; pick 3
+            // then prefers Friday Spielhalle, then Sundays (front-end tiering).
+            strict: !committedHome.has(date) && absCount === 0 && !(isJr && (isSunday(date) || s.source === 'spielhalle')),
           }
         })
         .filter(Boolean)
@@ -1117,9 +1118,10 @@ export function registerGameScheduling(router, { database, logger, services, get
           return res.status(400).json({ error: `Slot ${i + 1} is no longer available — please pick another.` })
         }
         const day = toYmd(slot.date)
-        // Juniors: Sundays are last-resort — only allowed as the 3rd pick.
-        if (homeIsJr && i < 2 && isSunday(day)) {
-          return res.status(400).json({ error: `Slot ${i + 1} can't be a Sunday — Sundays are only allowed as your 3rd choice.` })
+        // Juniors: the Friday Spielhalle pool and Sundays are last-resort — only
+        // allowed as the 3rd pick (picks 1 & 2 = own slot / Spielsamstag / Döltschi).
+        if (homeIsJr && i < 2 && (isSunday(day) || slot.source === 'spielhalle')) {
+          return res.status(400).json({ error: `Slot ${i + 1} must be the own slot, Spielsamstag or Döltschi — Friday Spielhalle and Sundays are only allowed as your 3rd choice.` })
         }
         const eventCover = await database('events as e')
           .join('events_teams as et', 'et.events_id', 'e.id')
