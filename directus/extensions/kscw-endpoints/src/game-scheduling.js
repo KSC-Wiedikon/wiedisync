@@ -1740,13 +1740,56 @@ export function registerGameScheduling(router, { database, logger, services, get
         while (d.getUTCDay() !== 5) d.setUTCDate(d.getUTCDate() + 1)
         firstPostHerbstFriday = d
       }
+      // Smart alternating: VB shares post-vacation Fridays 50/50 with basketball
+      // (the gym is VB or BB on a given Friday, club-wide — can't differ per team).
+      // Of the two every-other-Friday parities, pick the one whose VB Fridays
+      // carry the FEWEST game-affecting player absences among the teams that
+      // actually play home on a Friday (juniors + teams without their own KWI
+      // evening slot) — so VB lands on the weeks with the most players available.
+      // Strict alternation is preserved; only the offset is chosen.
+      let vbFridaySet = null
+      if (eveningWindow && herbstStart && firstPostHerbstFriday) {
+        const teamsWithOwnSlot = new Set(
+          await database('hall_slots')
+            .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
+            .join('halls', 'hall_slots.hall', 'halls.id')
+            .whereRaw("hall_slots.end_time::text LIKE '21:30%'")
+            .whereRaw("LOWER(halls.name) LIKE '%kwi%'")
+            .distinct('hall_slots_teams.teams_id')
+            .pluck('hall_slots_teams.teams_id'),
+        )
+        const fridayTeamIds = teams
+          .filter((tm) => isJuniorTeam(tm.name) || !teamsWithOwnSlot.has(tm.id))
+          .map((tm) => tm.id)
+        const absRows = fridayTeamIds.length
+          ? await database('absences as a')
+              .join('member_teams as mt', 'mt.member', 'a.member')
+              .whereIn('mt.team', fridayTeamIds)
+              .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
+              .whereRaw("a.type IS DISTINCT FROM 'weekly'")
+              .whereRaw('a.blocking IS NOT FALSE')
+              .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
+              .where('a.end_date', '>=', eveningWindow.start)
+              .where('a.start_date', '<=', eveningWindow.end)
+              .select(database.raw('a.start_date::date::text as s'), database.raw('a.end_date::date::text as e'))
+          : []
+        const fridays = []
+        for (const d = new Date(firstPostHerbstFriday); d <= eveningWindow.end; d.setUTCDate(d.getUTCDate() + 7)) {
+          fridays.push(d.toISOString().slice(0, 10))
+        }
+        const scoreFor = (ymd) => { let n = 0; for (const r of absRows) if (r.s <= ymd && ymd <= r.e) n++; return n }
+        let p0 = 0, p1 = 0
+        fridays.forEach((f, i) => { const sc = scoreFor(f); if (i % 2 === 0) p0 += sc; else p1 += sc })
+        const vbParity = p1 < p0 ? 1 : 0 // tie → 0 (keeps the documented default: first post-Herbst Friday is VB)
+        vbFridaySet = new Set(fridays.filter((_, i) => i % 2 === vbParity))
+      }
       // Should a Friday `spielhalle` slot be generated for volleyball on `date`?
       const fridayIsVolleyball = (date) => {
         if (!herbstStart || !firstPostHerbstFriday) return true // no Herbst data → all Fridays
         if (date < herbstStart) return true                    // before vacation → every Friday
         if (date < firstPostHerbstFriday) return false         // inside vacation / pre-first-VB-Friday
-        const weeks = Math.round((date - firstPostHerbstFriday) / (7 * 86400000))
-        return weeks % 2 === 0                                 // alternate; first post-Herbst Friday is VB
+        if (!vbFridaySet) return true
+        return vbFridaySet.has(date instanceof Date ? date.toISOString().slice(0, 10) : String(date).slice(0, 10))
       }
 
       let total_created = 0
