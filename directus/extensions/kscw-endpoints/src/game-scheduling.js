@@ -2620,7 +2620,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         previews.push({ id: row.id, to: row.contact_email, team_name: row.team_name, subject, html, text })
         if (!dry_run) {
           try {
-            await sendSchedulingMail(row.contact_email, subject, text, null, html)
+            // CC the club's scheduling mailbox so the spielplaner has a copy of
+            // every invite that went out.
+            await sendSchedulingMail(row.contact_email, subject, text, SCHEDULING_REPLY_TO, html)
             sent++
           } catch (e) {
             failed.push({ id: row.id, error: e.message })
