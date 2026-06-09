@@ -63,6 +63,8 @@ export default {
   // Slot generation
   generateSlots: 'Genera fasce di gioco',
   generatingSlots: 'Generazione fasce di gioco...',
+  regenerateSlots: 'Rigenera le fasce di gioco',
+  regenerateConfirm: 'Rigenerare le fasce di gioco? Sostituisce tutti gli slot non ancora prenotati; quelli confermati e bloccati vengono mantenuti.',
   slotsGenerated: '{{count}} fasce di gioco generate',
   slotSource: 'Origine',
   sourceHallSlot: 'Piano palestra',

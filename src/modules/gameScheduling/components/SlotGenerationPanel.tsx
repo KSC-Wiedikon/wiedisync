@@ -4,10 +4,12 @@ interface Props {
   seasonStatus: 'setup' | 'open' | 'closed'
   generating: boolean
   genResult: { total_created: number } | null
+  /** True once slots already exist for the season → button becomes a yellow "Regenerate". */
+  hasSlots: boolean
   onGenerate: () => Promise<void>
 }
 
-export default function SlotGenerationPanel({ seasonStatus, generating, genResult, onGenerate }: Props) {
+export default function SlotGenerationPanel({ seasonStatus, generating, genResult, hasSlots, onGenerate }: Props) {
   const { t } = useTranslation('gameScheduling')
 
   return (
@@ -19,9 +21,13 @@ export default function SlotGenerationPanel({ seasonStatus, generating, genResul
       <button
         onClick={onGenerate}
         disabled={generating || seasonStatus === 'closed'}
-        className="rounded-md bg-green-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+        className={`rounded-md px-6 py-2.5 text-sm font-medium disabled:opacity-50 ${
+          hasSlots
+            ? 'bg-gold-400 text-brand-900 hover:bg-gold-500'
+            : 'bg-green-600 text-white hover:bg-green-700'
+        }`}
       >
-        {generating ? t('generatingSlots') : t('generateSlots')}
+        {generating ? t('generatingSlots') : hasSlots ? t('regenerateSlots') : t('generateSlots')}
       </button>
 
       {genResult && (

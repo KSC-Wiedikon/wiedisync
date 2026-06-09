@@ -63,6 +63,8 @@ export default {
   // Slot generation
   generateSlots: 'Spieltermin generiere',
   generatingSlots: 'Generiere Spieltermin...',
+  regenerateSlots: 'Spieltermin neu generiere',
+  regenerateConfirm: 'Spieltermin neu generiere? Ersetzt alli no nöd buechte Slots; bestätigti und blockierti bliibed.',
   slotsGenerated: '{{count}} Spieltermin generiert',
   slotSource: 'Quelle',
   sourceHallSlot: 'Halleplan',

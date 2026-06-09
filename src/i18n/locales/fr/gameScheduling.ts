@@ -63,6 +63,8 @@ export default {
   // Slot generation
   generateSlots: 'Generer les creneaux de match',
   generatingSlots: 'Generation des creneaux de match...',
+  regenerateSlots: 'Régénérer les créneaux',
+  regenerateConfirm: 'Régénérer les créneaux ? Remplace tous les créneaux pas encore réservés ; les créneaux confirmés et bloqués sont conservés.',
   slotsGenerated: '{{count}} creneaux de match generes',
   slotSource: 'Source',
   sourceHallSlot: 'Plan de salle',

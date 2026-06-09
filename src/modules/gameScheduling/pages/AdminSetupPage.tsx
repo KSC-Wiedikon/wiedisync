@@ -32,7 +32,7 @@ export default function AdminSetupPage() {
   const { t } = useTranslation('gameScheduling')
   const { hasAdminAccessToSport, isGlobalAdmin, is_spielplaner } = useAuth()
   const { season, allSeasons, isLoading, createSeason, updateSeason, setSeason, refetch: refetchSeasons } = useGameSchedulingSeason()
-  const { generateSlots } = useAdminBookings(season?.id)
+  const { generateSlots, slots } = useAdminBookings(season?.id)
   const { data: teams, refetch: refetchTeams } = useTeams()
   const [generating, setGenerating] = useState(false)
   const [genResult, setGenResult] = useState<{ total_created: number } | null>(null)
@@ -117,6 +117,9 @@ export default function AdminSetupPage() {
 
   const handleGenerate = async () => {
     if (!season) return
+    // Regenerating overwrites not-yet-booked slots (booked + blocked survive) —
+    // confirm once slots already exist.
+    if (slots.length > 0 && !window.confirm(t('regenerateConfirm'))) return
     setGenerating(true)
     setGenResult(null)
     try {
@@ -200,6 +203,7 @@ export default function AdminSetupPage() {
             seasonStatus={season.status}
             generating={generating}
             genResult={genResult}
+            hasSlots={slots.length > 0}
             onGenerate={handleGenerate}
           />
 
