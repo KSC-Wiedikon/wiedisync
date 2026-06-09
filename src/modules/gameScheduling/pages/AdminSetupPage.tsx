@@ -157,59 +157,67 @@ export default function AdminSetupPage() {
         </Link>
       </div>
 
-      {/* Season Config */}
-      <SeasonConfig
-        season={season}
-        allSeasons={allSeasons}
-        onCreateSeason={handleCreateSeason}
-        onSelectSeason={setSeason}
-        onStatusChange={handleStatusChange}
-        onUpdateSeason={async (patch) => {
-          if (season) await updateSeason(season.id, patch)
-        }}
-        onAfterArchive={refetchSeasons}
-        canRollover={canRollover}
-        onRollover={handleRollover}
-      />
+      {/* Row 1: Season + Game Saturdays — two cards per row on desktop */}
+      <div className={season ? 'grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start' : ''}>
+        {/* Season Config */}
+        <SeasonConfig
+          season={season}
+          allSeasons={allSeasons}
+          onCreateSeason={handleCreateSeason}
+          onSelectSeason={setSeason}
+          onStatusChange={handleStatusChange}
+          onUpdateSeason={async (patch) => {
+            if (season) await updateSeason(season.id, patch)
+          }}
+          onAfterArchive={refetchSeasons}
+          canRollover={canRollover}
+          onRollover={handleRollover}
+        />
 
-      {season && (
-        <>
-          {/* Spielsamstage Editor */}
+        {/* Spielsamstage Editor */}
+        {season && (
           <SpielsamstageEditor
             spielsamstage={season.spielsamstage || []}
             onUpdate={handleUpdateSpielsamstage}
             season={season.season}
           />
+        )}
+      </div>
 
-          {/* Team Slot Configuration */}
+      {season && (
+        <>
+          {/* Team Slot Configuration (full width — has its own team grid) */}
           <TeamSlotConfigPanel
             teams={volleyballTeams}
             config={season.team_slot_config || {}}
             onUpdate={handleUpdateTeamConfig}
           />
 
-          {/* Game-spacing gaps (home / proposals / lenient 3rd proposal) */}
-          <GapConfigPanel gapConfig={season.gap_config} onUpdate={handleUpdateGapConfig} />
+          {/* Config panels — two cards per row on desktop */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+            {/* Game-spacing gaps (home / proposals / lenient 3rd proposal) */}
+            <GapConfigPanel gapConfig={season.gap_config} onUpdate={handleUpdateGapConfig} />
 
-          {/* Intra-club derby dates (Art. 27) — fix first, then opponents slot in
-              behind them. Needs the SVRZ feed, which syncs when the season opens. */}
-          {season.status === 'open' && <DerbyPanel seasonId={season.id} />}
+            {/* Intra-club derby dates (Art. 27) — fix first, then opponents slot in
+                behind them. Needs the SVRZ feed, which syncs when the season opens. */}
+            {season.status === 'open' && <DerbyPanel seasonId={season.id} />}
 
-          {/* Excel Import */}
-          <ExcelImportPanel />
+            {/* Excel Import */}
+            <ExcelImportPanel />
 
-          {/* Slot Generation */}
-          <SlotGenerationPanel
-            seasonStatus={season.status}
-            generating={generating}
-            genResult={genResult}
-            hasSlots={slots.length > 0}
-            slots={slots}
-            teams={volleyballTeams}
-            onGenerate={handleGenerate}
-          />
+            {/* Slot Generation */}
+            <SlotGenerationPanel
+              seasonStatus={season.status}
+              generating={generating}
+              genResult={genResult}
+              hasSlots={slots.length > 0}
+              slots={slots}
+              teams={volleyballTeams}
+              onGenerate={handleGenerate}
+            />
+          </div>
 
-          {/* Invites (admin-issued per-verein links) */}
+          {/* Invites (admin-issued per-verein links — full width) */}
           {season.status === 'open' && (
             <InvitesPanel
               teams={volleyballTeams}
