@@ -2148,6 +2148,23 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
       if (!season.season) return res.status(400).json({ error: 'season has no name — cannot match teams' })
 
+      // Guard against the rollover double-activation trap: if a NEWER season
+      // already has active volleyball teams, this season was rolled forward and
+      // reactivating it would leave two active teams per logical team — the
+      // exact dual-active state migration 075 had to clean up (broken calendar
+      // name/sport resolution, duplicate rosters). 'YYYY/YY' sorts correctly as
+      // a string within this century. Caller can force past it knowingly.
+      const newerActive = await database('teams')
+        .where('sport', 'volleyball')
+        .where('active', true)
+        .where('season', '>', season.season)
+        .first()
+      if (newerActive && req.body?.force !== true) {
+        return res.status(409).json({
+          error: 'A newer active season exists — this season was rolled over. Restoring would create duplicate active teams. Re-send with { "force": true } to override.',
+        })
+      }
+
       const teamsRestored = await database('teams')
         .where('sport', 'volleyball')
         .where('season', season.season)
@@ -2155,6 +2172,15 @@ export function registerGameScheduling(router, { database, logger, services, get
         .update({ active: true })
 
       await database('game_scheduling_seasons').where('id', seasonId).update({ status: 'closed' })
+
+      // Un-archive the restored teams' chats (inverse of archive-season below).
+      await database.raw(
+        `UPDATE conversation_members cm SET archived = false
+         FROM conversations c
+         WHERE cm.conversation = c.id AND c.type = 'team'
+           AND c.team IN (SELECT id FROM teams WHERE sport = 'volleyball' AND season = ? AND active = true)`,
+        [season.season],
+      )
 
       log.info({
         msg: `restore-season id=${seasonId} (${season.season})`,
@@ -2276,12 +2302,22 @@ export function registerGameScheduling(router, { database, logger, services, get
             }
             row.season = toSeason
             row.active = true
+            // Stamp audit timestamps — raw knex inserts bypass Directus' date
+            // managers, so before this every rolled-over team/roster row landed
+            // with a NULL date_created.
+            row.date_created = now
+            row.date_updated = now
             // Stale per-team dashboard window — let the new season recompute its default
             row.dashboard_range_from = null
             row.dashboard_range_to = null
-            // json column: pg won't accept a parsed object in a parameterised insert
+            // json/jsonb columns: pg won't accept a parsed object in a
+            // parameterised insert — stringify both (recruiting_positions is
+            // jsonb and would otherwise throw and abort the whole rollover).
             if (row.features_enabled != null && typeof row.features_enabled === 'object') {
               row.features_enabled = JSON.stringify(row.features_enabled)
+            }
+            if (row.recruiting_positions != null && typeof row.recruiting_positions === 'object') {
+              row.recruiting_positions = JSON.stringify(row.recruiting_positions)
             }
             const inserted = await trx('teams').insert(row).returning('id')
             const newId = typeof inserted[0] === 'object' ? inserted[0].id : inserted[0]
@@ -2306,6 +2342,41 @@ export function registerGameScheduling(router, { database, logger, services, get
           const coaches = await cloneJunction('teams_coaches', ['members_id'])
           const responsibles = await cloneJunction('teams_responsibles', ['members_id'])
           const sponsors = await cloneJunction('teams_sponsors', ['sponsors_id'])
+
+          // Clone a team-owned config table (FK column `fkCol`) old->new team.
+          // Copies every column except id / audit fields / the FK, repoints the
+          // FK, and JSON-stringifies object columns (jsonb like fine_rules.tiers)
+          // while leaving Date columns (pg `date`) as Date objects. `restrict`
+          // optionally narrows which source rows clone.
+          const cloneTeamTable = async (table, fkCol, restrict) => {
+            const OMIT_ROW = new Set(['id', 'date_created', 'date_updated', 'user_created', 'user_updated', fkCol])
+            let n = 0
+            for (const [oldId, newId] of Object.entries(map)) {
+              let q = trx(table).where(fkCol, oldId)
+              if (restrict) q = restrict(q)
+              const rows = await q
+              for (const r of rows) {
+                const ins = { [fkCol]: Number(newId) }
+                for (const [k, v] of Object.entries(r)) {
+                  if (OMIT_ROW.has(k)) continue
+                  ins[k] = (v != null && typeof v === 'object' && !(v instanceof Date)) ? JSON.stringify(v) : v
+                }
+                await trx(table).insert(ins)
+                n++
+              }
+            }
+            return n
+          }
+          // Fine catalog + per-team game-scheduling blackouts + spielplaner
+          // assignments are team CONFIG, not history — they must follow the
+          // active team or the new season silently starts with an empty fine
+          // catalog (auto-fine engine returns null), no blackout dates, and a
+          // per-team Spielplaner who loses sandbox edit access. scheduling_blocks
+          // only carry forward blocks that still end in the future.
+          const startIsoRoll = now.toISOString().slice(0, 10)
+          const fineRules = await cloneTeamTable('fine_rules', 'team')
+          const spielplanerAssignments = await cloneTeamTable('spielplaner_assignments', 'kscw_team')
+          const schedulingBlocks = await cloneTeamTable('scheduling_blocks', 'team', (q) => q.where('end_date', '>=', startIsoRoll))
 
           // Hall-plan links MOVE to the new team (re-point), they do NOT
           // duplicate. The recurring hall_slots are shared club infrastructure
@@ -2335,7 +2406,7 @@ export function registerGameScheduling(router, { database, logger, services, get
               .whereIn('team', clonedOldIds)
             const inserts = mtRows
               .filter((r) => map[r.team])
-              .map((r) => ({ member: r.member, team: map[r.team], season: toSeason, guest_level: r.guest_level }))
+              .map((r) => ({ member: r.member, team: map[r.team], season: toSeason, guest_level: r.guest_level, date_created: now }))
             if (inserts.length > 0) {
               await trx('member_teams').insert(inserts)
               memberTeams = inserts.length
@@ -2375,9 +2446,11 @@ export function registerGameScheduling(router, { database, logger, services, get
           // existing RSVPs/absence-declines survive and the cron's
           // hall_slot+date dedup never double-generates. Suppress
           // trg_trainings_notify (GUC, txn-local) so the bulk move is silent.
-          // Games are intentionally NOT re-pointed: future games re-sync from
-          // Swiss Volley onto the active team daily, and their notify trigger
-          // has no suppression hook.
+          // SYNCED games are intentionally NOT re-pointed: future fixtures
+          // re-sync from Swiss Volley / Basketplan onto the active team daily
+          // (kscw_team is now in their COMPARE_FIELDS so an unchanged fixture
+          // re-points on the next sync). MANUAL (sandbox) games never re-sync,
+          // so they ARE re-pointed below.
           let trainingsRelinked = 0
           {
             const startIso = now.toISOString().slice(0, 10)
@@ -2391,6 +2464,47 @@ export function registerGameScheduling(router, { database, logger, services, get
             }
           }
 
+          // Carry UPCOMING manual games onto the new-season teams. Unlike synced
+          // games these never re-sync, so without this they strand on the
+          // archived team and vanish from the team-scoped games/home/calendar
+          // views. Suppress trg_games_notify (GUC, txn-local — added in
+          // migration 095) so the bulk move doesn't fan out "game updated" pushes.
+          let manualGamesRelinked = 0
+          {
+            const startIso = now.toISOString().slice(0, 10)
+            await trx.raw("SELECT set_config('kscw.skip_games_notify', 'on', true)")
+            for (const [oldId, newId] of Object.entries(map)) {
+              const moved = await trx('games')
+                .where('kscw_team', oldId)
+                .andWhere('source', 'manual')
+                .andWhere('date', '>=', startIso)
+                .update({ kscw_team: newId })
+              manualGamesRelinked += moved
+            }
+          }
+
+          // Expire pending join requests to the now-archived source teams — they
+          // can't be approved into an archived team, and the member should
+          // re-request the new-season team (a different id).
+          const sourceTeamIds = sourceTeams.map((t) => t.id)
+          const requestsExpired = await trx('team_requests')
+            .whereIn('team', sourceTeamIds)
+            .where('status', 'pending')
+            .update({ status: 'expired' })
+
+          // Archive the dead season's team chats. The clone INSERT already fired
+          // the messaging trigger to auto-create a fresh team conversation for
+          // each new team (roster auto-joined), so without this every member
+          // would carry both the old (dead) and new team chat in their inbox,
+          // accreting one stale chat per season. restore-season un-archives them.
+          await trx.raw(
+            `UPDATE conversation_members cm SET archived = true
+             FROM conversations c
+             WHERE cm.conversation = c.id AND c.type = 'team'
+               AND c.team IN (SELECT id FROM teams WHERE season = ? AND active = false)`,
+            [fromSeason],
+          )
+
           counts = {
             from_season: fromSeason,
             to_season: toSeason,
@@ -2401,9 +2515,14 @@ export function registerGameScheduling(router, { database, logger, services, get
             sponsors,
             hall_slots: hallSlots,
             member_teams: memberTeams,
+            fine_rules: fineRules,
+            spielplaner_assignments: spielplanerAssignments,
+            scheduling_blocks: schedulingBlocks,
             teams_archived: teamsArchived,
             events_relinked: eventsRelinked,
             trainings_relinked: trainingsRelinked,
+            manual_games_relinked: manualGamesRelinked,
+            team_requests_expired: requestsExpired,
           }
 
           if (dryRun) {
@@ -2840,6 +2959,10 @@ export function registerGameScheduling(router, { database, logger, services, get
           .where('club_id', String(group.club_id))
           .modify((q) => { if (svrzSeasonName) q.where('season_name', 'like', `${svrzSeasonName}%`) })
           .whereNotNull('contact_email')
+        // Spielplaner contacts WIN; team-responsible rows (`tr:` persistence id)
+        // are a FALLBACK only — used only when the club has no Spielplaner.
+        const spielSynced = synced.filter((c) => !String(c.svrz_persistence_id || '').startsWith('tr:'))
+        const base = spielSynced.length ? spielSynced : synced
         const league = String(kscwTeamRow.league || '').toLowerCase().replace(/\s+/g, '')
         const inLeague = (c) => {
           let cats = c.club_league_categories
@@ -2847,8 +2970,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           if (!Array.isArray(cats)) return false
           return cats.some((x) => String(x).toLowerCase().replace(/\s+/g, '') === league)
         }
-        const leagueMatched = league ? synced.filter(inLeague) : []
-        for (const c of (leagueMatched.length ? leagueMatched : synced)) {
+        const leagueMatched = league ? base.filter(inLeague) : []
+        for (const c of (leagueMatched.length ? leagueMatched : base)) {
           const email = (c.contact_email || '').toLowerCase().trim()
           if (!email || group.contacts.has(email)) continue
           group.contacts.set(email, {
@@ -2971,12 +3094,24 @@ export function registerGameScheduling(router, { database, logger, services, get
       const bulk = await database('svrz_spielplaner_contacts')
         .whereIn('club_id', clubIds)
         .where('season_name', 'like', `${svrzSeasonName}%`)
+      // Spielplaner contacts WIN; the team-responsible rows (synthetic
+      // svrz_persistence_id `tr:…`) are a FALLBACK only — used only for a club
+      // that has no Spielplanverantwortlicher at all. So bucket per club and
+      // pick the Spielplaner set when present, else the team-responsible set.
+      const spiel = new Map() // club_id -> Map(email -> contact)
+      const team = new Map()
       for (const c of bulk) {
         const email = (c.contact_email || '').toLowerCase().trim()
         if (!email) continue
-        if (!contactsByClub.has(c.club_id)) contactsByClub.set(c.club_id, new Map())
-        const m = contactsByClub.get(c.club_id)
+        const isTeamResp = String(c.svrz_persistence_id || '').startsWith('tr:')
+        const bucket = isTeamResp ? team : spiel
+        if (!bucket.has(c.club_id)) bucket.set(c.club_id, new Map())
+        const m = bucket.get(c.club_id)
         if (!m.has(email)) m.set(email, { name: c.contact_name || '', email, phone: c.contact_phone || '' })
+      }
+      for (const cid of clubIds) {
+        const chosen = (spiel.get(cid)?.size ? spiel.get(cid) : team.get(cid))
+        if (chosen?.size) contactsByClub.set(cid, chosen)
       }
     }
 
