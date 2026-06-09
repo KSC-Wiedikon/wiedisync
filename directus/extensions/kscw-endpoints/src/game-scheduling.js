@@ -824,6 +824,22 @@ export function registerGameScheduling(router, { database, logger, services, get
         const d = new Date(v)
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       }
+      const team = await database('teams').where('id', opponent.kscw_team).first()
+      const isJr = isJuniorTeam(team?.name)
+      // Junior Sunday priority: a Sunday on a Spielsamstag weekend ranks above a
+      // standalone Sunday. seasonRow (fetched above for the derby clamp) holds the
+      // Spielsamstag dates that tell them apart.
+      const spielsamstagDates = new Set(
+        (Array.isArray(seasonRow?.spielsamstage)
+          ? seasonRow.spielsamstage
+          : (() => { try { return JSON.parse(seasonRow?.spielsamstage || '[]') } catch { return [] } })())
+          .map((x) => String(x?.date || '').slice(0, 10)).filter(Boolean),
+      )
+      const isSpielsamstagWeekendSunday = (date) => {
+        const sat = new Date(`${date}T00:00:00Z`)
+        sat.setUTCDate(sat.getUTCDate() - 1)
+        return spielsamstagDates.has(sat.toISOString().slice(0, 10))
+      }
       // Two-tier home slots: a slot is OFFERED if it clears the LOOSE bar
       // (proposal-3 gap + <3 absences). `strict` marks the stricter bar (home
       // gap + 0 absences) required for home picks 1 & 2; pick 3 may use any
@@ -850,7 +866,10 @@ export function registerGameScheduling(router, { database, logger, services, get
             source: s.source,
             hall_id: s.hall,
             hall_name: hallNameById[s.hall] || '',
-            strict: !committedHome.has(date) && absCount === 0,
+            // Juniors: Sundays are last-resort — never strict, so they can only
+            // be the 3rd (lenient) home pick, never picks 1 & 2 (which take the
+            // own slot / Spielsamstag / Döltschi).
+            strict: !committedHome.has(date) && absCount === 0 && !(isJr && isSunday(date)),
           }
         })
         .filter(Boolean)
@@ -891,8 +910,6 @@ export function registerGameScheduling(router, { database, logger, services, get
           })
         }
       }
-
-      const team = await database('teams').where('id', opponent.kscw_team).first()
 
       // Blocked away-proposal dates for this team — team events, games (±1 day)
       // and one-off PLAYER absences (guests + weekly unavailabilities don't
@@ -994,11 +1011,13 @@ export function registerGameScheduling(router, { database, logger, services, get
         season_window = { start: `${y1}-09-01`, end: `${y2}-03-31` }
       }
 
-      // Soft clustering (A2): for a junior team, flag Sunday slots that land on a
-      // Sunday another junior team already plays a HOME game on, so the opponent
-      // is steered to a shared Sunday. No hard block — every Sunday stays bookable.
+      // Junior Sunday steer: a Sunday slot is "preferred" when it lands on a
+      // Spielsamstag weekend (rule: Spielsamstag-weekend Sundays before other
+      // Sundays) OR on a Sunday another junior team already plays a HOME game on
+      // (cluster juniors onto shared Sundays). No hard block — Sundays stay
+      // bookable, but only as the 3rd home pick (strict=false above).
       let slotsOut = slots
-      if (isJuniorTeam(team?.name)) {
+      if (isJr) {
         const juniorIds = await database('teams')
           .where('sport', 'volleyball').where('active', true)
           .whereRaw("name ~* 'u[0-9]'").whereNot('id', opponent.kscw_team).pluck('id')
@@ -1010,7 +1029,10 @@ export function registerGameScheduling(router, { database, logger, services, get
             .whereRaw("LOWER(home_team) LIKE 'ksc wiedikon%'").select(database.raw('date::text as d'))
           ;[...bk, ...hg].forEach((r) => { const d = String(r.d).slice(0, 10); if (isSunday(d)) usedJuniorSundays.add(d) })
         }
-        slotsOut = slots.map((s) => ({ ...s, preferred: s.source === 'spielsonntag' && usedJuniorSundays.has(s.date) }))
+        slotsOut = slots.map((s) => ({
+          ...s,
+          preferred: s.source === 'spielsonntag' && (isSpielsamstagWeekendSunday(s.date) || usedJuniorSundays.has(s.date)),
+        }))
       }
 
       res.json({
@@ -1083,6 +1105,8 @@ export function registerGameScheduling(router, { database, logger, services, get
       const committedHome = await committedGameDates(opponent.kscw_team, gaps.home, held)
       const committedProposal3 = await committedGameDates(opponent.kscw_team, gaps.proposal3, held)
       const toYmd = (v) => (typeof v === 'string' ? v.slice(0, 10) : new Date(v).toISOString().slice(0, 10))
+      const homeTeam = await database('teams').where('id', opponent.kscw_team).first()
+      const homeIsJr = isJuniorTeam(homeTeam?.name)
 
       for (let i = 0; i < 3; i++) {
         const slot = await database('game_scheduling_slots').where('id', ids[i]).first()
@@ -1093,6 +1117,10 @@ export function registerGameScheduling(router, { database, logger, services, get
           return res.status(400).json({ error: `Slot ${i + 1} is no longer available — please pick another.` })
         }
         const day = toYmd(slot.date)
+        // Juniors: Sundays are last-resort — only allowed as the 3rd pick.
+        if (homeIsJr && i < 2 && isSunday(day)) {
+          return res.status(400).json({ error: `Slot ${i + 1} can't be a Sunday — Sundays are only allowed as your 3rd choice.` })
+        }
         const eventCover = await database('events as e')
           .join('events_teams as et', 'et.events_id', 'e.id')
           .where('et.teams_id', opponent.kscw_team)
