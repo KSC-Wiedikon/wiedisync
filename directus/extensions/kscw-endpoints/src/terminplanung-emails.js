@@ -342,19 +342,21 @@ export function schedEmail(lang, kind, vars) {
  * @returns {{ subject: string, text: string, html: string }}
  */
 export function inviteEmail(vars) {
-  const { contact = '', kscw = '', league = '', season = '', url = '', expires = '' } = vars || {}
+  const { kscw = '', league = '', season = '', url = '', expires = '' } = vars || {}
   const team = league ? `${kscw} (${league})` : kscw
   const subject = `KSC Wiedikon – Spielplanung / Game scheduling ${season}`.trim()
 
+  // Generic greeting (no name): contact_email may list several club contacts,
+  // so a single recipient name would be wrong for the rest.
   const text =
-    `Hallo ${contact},\n\n` +
+    `Hallo,\n\n` +
     `KSC Wiedikon lädt euch zur Spielplanung der Saison ${season} ein – gegen unser Team ${team}.\n\n` +
     `Unter folgendem Link könnt ihr eure Heim- und Auswärtsspieltermine auswählen:\n${url}\n\n` +
     (expires ? `Der Link ist bis ${expires} gültig.\n` : '') +
     `Bei Fragen antwortet einfach auf diese E-Mail.\n\n` +
     `Sportliche Grüsse\nKSC Wiedikon\n\n` +
     `— — — — —\n\n` +
-    `Hello ${contact},\n\n` +
+    `Hello,\n\n` +
     `KSC Wiedikon invites you to schedule your home and away matches for the ${season} season against our team ${team}.\n\n` +
     `Open the link below to pick your slots:\n${url}\n\n` +
     (expires ? `This link is valid until ${expires}.\n` : '') +
@@ -371,7 +373,7 @@ export function inviteEmail(vars) {
   const html = buildEmailLayout(body, {
     title: 'Spielplanung / Game scheduling',
     sport: 'vb',
-    greeting: contact ? `Hallo ${contact} / Hello ${contact},` : 'Hallo / Hello,',
+    greeting: 'Hallo / Hello,',
     footerExtra: 'Sportliche Grüsse / Best regards · KSC Wiedikon',
     ctaUrl: url,
     ctaLabel: 'Termine auswählen / Pick slots',

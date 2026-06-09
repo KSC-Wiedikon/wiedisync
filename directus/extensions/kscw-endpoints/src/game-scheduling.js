@@ -2412,12 +2412,14 @@ export function registerGameScheduling(router, { database, logger, services, get
   // Admin invites (per-verein tokenized links, auto-populated from SVRZ)
   // ─────────────────────────────────────────────────────────────────────────
 
-  const INVITE_TTL_DAYS = 90
+  // Invite links stay valid until the season's scheduling deadline (30.06.2026),
+  // not a rolling TTL — every opponent works to the same VolleyManager cutoff.
+  const INVITE_EXPIRY_ISO = '2026-06-30T23:59:59.000Z'
   const ACTIVE_INVITE_STATUSES = ['invited', 'viewed', 'booked', 'active']
   const KSCW_SVRZ_CLUB_ID = process.env.KSCW_SVRZ_CLUB_ID || '912530'
 
   function newInviteExpiry() {
-    return new Date(Date.now() + INVITE_TTL_DAYS * 86400000).toISOString()
+    return INVITE_EXPIRY_ISO
   }
 
   // GET /admin/terminplanung/svrz-available-seasons — list seasons seen in synced data

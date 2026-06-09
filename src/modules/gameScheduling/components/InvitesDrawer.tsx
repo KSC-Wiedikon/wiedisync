@@ -9,11 +9,19 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '../../../components/ui/drawer'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog'
 import { Button } from '../../../components/ui/button'
 import { Badge } from '../../../components/ui/badge'
 import { Checkbox } from '../../../components/ui/checkbox'
 import { Input } from '../../../components/ui/input'
 import { Textarea } from '../../../components/ui/textarea'
+import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/table'
 import { parseInviteCsv } from '../utils/parseInviteCsv'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import type { useInvites } from '../hooks/useInvites'
@@ -52,6 +60,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
   const [importing, setImporting] = useState(false)
   const [loadingClubs, setLoadingClubs] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [gamesFor, setGamesFor] = useState<DraftRow | null>(null)
 
   const selectedCount = useMemo(() => drafts.filter((d) => d.selected).length, [drafts])
 
@@ -195,6 +204,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
   }
 
   return (
+    <>
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="max-h-[92vh]">
         <DrawerHeader>
@@ -268,20 +278,20 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                           onChange={(e) => updateDraft(d.id, { team_name: e.target.value })}
                           className="h-8 text-sm"
                         />
-                        {d.game_count != null && (
-                          <div
-                            className={`mt-0.5 text-[10px] text-gray-500 ${d.games && d.games.length ? 'cursor-help underline decoration-dotted' : ''}`}
-                            title={
-                              d.games && d.games.length
-                                ? d.games
-                                    .map((g) => `${g.date ? formatDateTimeCompact(g.date) : '—'} · ${g.is_home_kscw ? `KSCW ${kscwTeam?.name ?? ''} vs ${d.team_name}` : `${d.team_name} vs KSCW ${kscwTeam?.name ?? ''}`}`)
-                                    .join('\n')
-                                : undefined
-                            }
-                          >
-                            {t('gameCount', { count: d.game_count })}
-                          </div>
-                        )}
+                        {d.game_count != null &&
+                          (d.games && d.games.length ? (
+                            <button
+                              type="button"
+                              onClick={() => setGamesFor(d)}
+                              className="mt-0.5 text-[10px] text-blue-600 underline decoration-dotted hover:text-blue-700 dark:text-blue-400"
+                            >
+                              {t('gameCount', { count: d.game_count })}
+                            </button>
+                          ) : (
+                            <div className="mt-0.5 text-[10px] text-gray-500">
+                              {t('gameCount', { count: d.game_count })}
+                            </div>
+                          ))}
                       </td>
                       <td className="py-1.5 pr-2">
                         <Input
@@ -342,5 +352,36 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
         </DrawerFooter>
       </DrawerContent>
     </Drawer>
+
+    {/* Games for one opponent draft row */}
+    <Dialog open={!!gamesFor} onOpenChange={(o) => { if (!o) setGamesFor(null) }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{gamesFor?.team_name}</DialogTitle>
+          <DialogDescription>
+            {t('gameCount', { count: gamesFor?.game_count ?? gamesFor?.games?.length ?? 0 })}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto">
+          <Table>
+            <TableBody>
+              {(gamesFor?.games ?? []).map((g, i) => (
+                <TableRow key={i}>
+                  <TableCell className="whitespace-nowrap font-medium">
+                    {g.date ? formatDateTimeCompact(g.date) : '—'}
+                  </TableCell>
+                  <TableCell className="text-gray-600 dark:text-gray-400">
+                    {g.is_home_kscw
+                      ? `KSCW ${kscwTeam?.name ?? ''} vs ${gamesFor?.team_name ?? ''}`
+                      : `${gamesFor?.team_name ?? ''} vs KSCW ${kscwTeam?.name ?? ''}`}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
