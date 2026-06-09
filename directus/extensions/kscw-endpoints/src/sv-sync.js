@@ -101,6 +101,10 @@ export async function syncSvGames(db, log) {
     'date', 'time', 'status', 'home_score', 'away_score',
     'home_team', 'away_team', 'hall', 'away_hall_json',
     'league', 'round', 'sets_json', 'referees_json',
+    // kscw_team: so an unchanged fixture re-points to the active team after a
+    // season rollover (the team lookup is active-only) instead of staying
+    // pinned to the now-archived team and vanishing from team-scoped views.
+    'kscw_team',
   ]
 
   let created = 0, updated = 0, skipped = 0, errors = 0

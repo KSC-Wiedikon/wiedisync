@@ -207,6 +207,9 @@ export async function syncBpGames(db, log) {
   const COMPARE_FIELDS = [
     'date', 'time', 'status', 'home_score', 'away_score',
     'home_team', 'away_team', 'hall', 'away_hall_json', 'league',
+    // kscw_team: re-point an unchanged fixture to the active team after a season
+    // rollover (lookup is active-only) instead of leaving it on the archived team.
+    'kscw_team',
   ]
 
   let created = 0, updated = 0, skipped = 0, errors = 0

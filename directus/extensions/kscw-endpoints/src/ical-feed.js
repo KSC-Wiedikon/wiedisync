@@ -50,7 +50,7 @@ export function registerICalFeed(router, { database, logger }) {
 
       // Sport filter
       if (sportFilter) {
-        const sportTeams = await database('teams').where('sport', sportFilter).select('id')
+        const sportTeams = await database('teams').where('sport', sportFilter).where('active', true).select('id')
         const sportIds = new Set(sportTeams.map(t => String(t.id)))
         teamIds = teamIds.length ? teamIds.filter(id => sportIds.has(id)) : [...sportIds]
       }

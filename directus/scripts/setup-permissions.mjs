@@ -864,7 +864,11 @@ async function main() {
 
   // Teams — update scoped (migration 043). Coach ↔ team via teams.coach M2M;
   // Team Responsible ↔ team via teams.team_responsible M2M.
+  // active=true: a coach/TR keeps READ access to an archived team (history) but
+  // cannot mutate it. Coach/TR junctions are cloned (not moved) on rollover, so
+  // without this gate a coach retains write access to every past season's team.
   await setPerm(LEADER_POLICY, 'teams', 'update', {
+    active: { _eq: true },
     _or: [
       { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
       { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
@@ -877,6 +881,7 @@ async function main() {
   // for teams they had no relationship to.
   await setPerm(LEADER_POLICY, 'games', 'update', {
     kscw_team: {
+      active: { _eq: true },
       _or: [
         { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
         { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
@@ -895,12 +900,21 @@ async function main() {
       { team: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } },
     ],
   }
+  // Writes additionally require the team to be active. Reads stay unscoped so a
+  // coach can still see an archived team's past trainings as history, but can't
+  // mutate them (their coach/TR junction lingers on the archived team post-rollover).
+  const COACH_OR_TR_OF_ACTIVE_TEAM = {
+    _or: [
+      { team: { active: { _eq: true }, coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } },
+      { team: { active: { _eq: true }, team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } },
+    ],
+  }
   await setPermRead(LEADER_POLICY, 'trainings', COACH_OR_TR_OF_TEAM)
   await setPerm(LEADER_POLICY, 'trainings', 'create')
   // 2026-05-12 audit: update was unfiltered; scope to coach/TR of the
-  // training's team like read/delete already are.
-  await setPerm(LEADER_POLICY, 'trainings', 'update', COACH_OR_TR_OF_TEAM)
-  await setPerm(LEADER_POLICY, 'trainings', 'delete', COACH_OR_TR_OF_TEAM)
+  // training's team like read/delete already are. 2026-06-09: active-gated.
+  await setPerm(LEADER_POLICY, 'trainings', 'update', COACH_OR_TR_OF_ACTIVE_TEAM)
+  await setPerm(LEADER_POLICY, 'trainings', 'delete', COACH_OR_TR_OF_ACTIVE_TEAM)
 
   // Events — coach can read/CRU/delete events of teams they coach or TR,
   // plus club-wide events, plus events they created, plus events they were
@@ -1110,14 +1124,24 @@ async function main() {
       ],
     },
   }
+  // Active-gated variant for writes — keep reads on the full (history) scope.
+  const COACH_OR_TR_OF_ACTIVE_FINE = {
+    team: {
+      active: { _eq: true },
+      _or: [
+        { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+      ],
+    },
+  }
   await setPermRead(LEADER_POLICY, 'fines', COACH_OR_TR_OF_FINE)
   await setPerm(LEADER_POLICY, 'fines', 'create')
-  await setPerm(LEADER_POLICY, 'fines', 'update', COACH_OR_TR_OF_FINE)
-  await setPerm(LEADER_POLICY, 'fines', 'delete', COACH_OR_TR_OF_FINE)
+  await setPerm(LEADER_POLICY, 'fines', 'update', COACH_OR_TR_OF_ACTIVE_FINE)
+  await setPerm(LEADER_POLICY, 'fines', 'delete', COACH_OR_TR_OF_ACTIVE_FINE)
   await setPermRead(LEADER_POLICY, 'fine_rules', COACH_OR_TR_OF_FINE)
   await setPerm(LEADER_POLICY, 'fine_rules', 'create')
-  await setPerm(LEADER_POLICY, 'fine_rules', 'update', COACH_OR_TR_OF_FINE)
-  await setPerm(LEADER_POLICY, 'fine_rules', 'delete', COACH_OR_TR_OF_FINE)
+  await setPerm(LEADER_POLICY, 'fine_rules', 'update', COACH_OR_TR_OF_ACTIVE_FINE)
+  await setPerm(LEADER_POLICY, 'fine_rules', 'delete', COACH_OR_TR_OF_ACTIVE_FINE)
 
   // Scheduling blocks (migration 085) — team-level game-scheduling blackouts.
   // Same team-scoping shape as fines (direct `team` FK → coach/TR walk). Create
@@ -1133,10 +1157,20 @@ async function main() {
       ],
     },
   }
+  // Active-gated variant for writes — reads stay on the full scope.
+  const COACH_OR_TR_OF_ACTIVE_BLOCK = {
+    team: {
+      active: { _eq: true },
+      _or: [
+        { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+      ],
+    },
+  }
   await setPermRead(LEADER_POLICY, 'scheduling_blocks', COACH_OR_TR_OF_BLOCK)
   await setPerm(LEADER_POLICY, 'scheduling_blocks', 'create')
-  await setPerm(LEADER_POLICY, 'scheduling_blocks', 'update', COACH_OR_TR_OF_BLOCK)
-  await setPerm(LEADER_POLICY, 'scheduling_blocks', 'delete', COACH_OR_TR_OF_BLOCK)
+  await setPerm(LEADER_POLICY, 'scheduling_blocks', 'update', COACH_OR_TR_OF_ACTIVE_BLOCK)
+  await setPerm(LEADER_POLICY, 'scheduling_blocks', 'delete', COACH_OR_TR_OF_ACTIVE_BLOCK)
 
   // Files — create (upload team photos)
   await setPerm(LEADER_POLICY, 'directus_files', 'create')

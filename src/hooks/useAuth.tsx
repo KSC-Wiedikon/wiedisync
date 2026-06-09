@@ -139,12 +139,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const captainTeamIdsRaw = captainTeams.map(t => t.id).filter((id): id is number => id != null)
       const coachIdSet = new Set([...coachTeamIdsRaw.map(String), ...trTeamIdsRaw.map(String)])
 
-      setCoachTeamIds([...coachIdSet])
-      setCoachTeamNames([...coachIdSet].map(id => teamMap.get(id)?.name).filter((n): n is string => !!n))
-      setTeamResponsibleIds(trTeamIdsRaw.map(String))
+      // Intersect coach/TR/spielplaner ids with the ACTIVE team map. The
+      // member_teams + captain queries already scope to current season / active,
+      // but teams_coaches / teams_responsibles / spielplaner_assignments have no
+      // season column and are CLONED (not moved) on rollover — so after an
+      // archive/rollover these junctions still point at the archived team.
+      // teamMap holds only active teams; dropping ids not in it keeps these
+      // lists consistent with captain/member handling and stops stale archived
+      // ids leaking into every coach-scoped view (TrainingsPage auto-select,
+      // GamesPage dashboard, HomePage filters).
+      const activeCoachIds = [...coachIdSet].filter(id => teamMap.has(id))
+      setCoachTeamIds(activeCoachIds)
+      setCoachTeamNames(activeCoachIds.map(id => teamMap.get(id)?.name).filter((n): n is string => !!n))
+      setTeamResponsibleIds(trTeamIdsRaw.map(String).filter(id => teamMap.has(id)))
       setCaptainTeamIds(captainTeamIdsRaw.map(String))
       setSpielplanerTeamIds(
-        spielplanerRows.map(r => r.kscw_team).filter((id): id is number => id != null).map(String),
+        spielplanerRows.map(r => r.kscw_team).filter((id): id is number => id != null).map(String).filter(id => teamMap.has(id)),
       )
       setMemberTeamIds(memberTeamIdsRaw.map(String))
       setMemberTeamNames(memberTeamIdsRaw.map(id => teamMap.get(String(id))?.name).filter((n): n is string => !!n))

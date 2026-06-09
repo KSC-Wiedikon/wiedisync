@@ -2224,6 +2224,16 @@ export function registerGameScheduling(router, { database, logger, services, get
         .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
         .update({ status: 'expired' })
 
+      // 2b. Archive the archived teams' chats so they drop off members' inboxes
+      // (restore-season un-archives them). Mirrors the rollover archive step.
+      await database.raw(
+        `UPDATE conversation_members cm SET archived = true
+         FROM conversations c
+         WHERE cm.conversation = c.id AND c.type = 'team'
+           AND c.team IN (SELECT id FROM teams WHERE sport = 'volleyball' AND season = ? AND active = false)`,
+        [season.season],
+      )
+
       // 3. Flip season to 'archived'
       await database('game_scheduling_seasons').where('id', seasonId).update({ status: 'archived' })
 
@@ -2345,9 +2355,12 @@ export function registerGameScheduling(router, { database, logger, services, get
 
           // Clone a team-owned config table (FK column `fkCol`) old->new team.
           // Copies every column except id / audit fields / the FK, repoints the
-          // FK, and JSON-stringifies object columns (jsonb like fine_rules.tiers)
-          // while leaving Date columns (pg `date`) as Date objects. `restrict`
-          // optionally narrows which source rows clone.
+          // FK, JSON-stringifies object columns (jsonb like fine_rules.tiers),
+          // and renders pg `date` columns (returned by pg-node as a Date at
+          // LOCAL midnight) back to a YYYY-MM-DD string via the local calendar
+          // parts — avoids the documented pg-node date TZ-shift gotcha.
+          // `restrict` optionally narrows which source rows clone.
+          const pad2 = (x) => String(x).padStart(2, '0')
           const cloneTeamTable = async (table, fkCol, restrict) => {
             const OMIT_ROW = new Set(['id', 'date_created', 'date_updated', 'user_created', 'user_updated', fkCol])
             let n = 0
@@ -2359,7 +2372,13 @@ export function registerGameScheduling(router, { database, logger, services, get
                 const ins = { [fkCol]: Number(newId) }
                 for (const [k, v] of Object.entries(r)) {
                   if (OMIT_ROW.has(k)) continue
-                  ins[k] = (v != null && typeof v === 'object' && !(v instanceof Date)) ? JSON.stringify(v) : v
+                  if (v instanceof Date) {
+                    ins[k] = `${v.getFullYear()}-${pad2(v.getMonth() + 1)}-${pad2(v.getDate())}`
+                  } else if (v != null && typeof v === 'object') {
+                    ins[k] = JSON.stringify(v)
+                  } else {
+                    ins[k] = v
+                  }
                 }
                 await trx(table).insert(ins)
                 n++

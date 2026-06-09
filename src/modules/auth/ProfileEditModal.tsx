@@ -11,6 +11,7 @@ import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions, getPositionI18nKey, getSelectablePositions } from '../../utils/memberPositions'
 import { backendLangToI18n } from '../../utils/languageMap'
 import { asObj, relId, memberName } from '../../utils/relations'
+import { getCurrentSeason } from '../../utils/dateHelpers'
 import { LANGUAGES, type BackendLanguage } from '../../i18n/languageConfig'
 import deFlag from '../../assets/flags/de.svg'
 import gbFlag from '../../assets/flags/gb.svg'
@@ -165,7 +166,9 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       // Check for duplicate number in the same team(s)
       if (number > 0 && number !== user.number) {
         const myTeams = await fetchAllItems('member_teams', {
-          filter: { member: { _eq: user.id } },
+          // Current season only — otherwise an archived prior-season membership
+          // would raise a false "number taken" against a last-season teammate.
+          filter: { member: { _eq: user.id }, season: { _eq: getCurrentSeason() } },
         })
         const teamIds = myTeams.map((mt) => relId(mt.team))
         if (teamIds.length > 0) {

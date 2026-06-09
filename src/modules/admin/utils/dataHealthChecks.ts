@@ -1,4 +1,5 @@
 import { fetchAllItems, updateRecord, deleteRecord } from '../../../lib/api'
+import { getCurrentSeason } from '../../../utils/dateHelpers'
 
 export type IssueSeverity = 'error' | 'warning'
 
@@ -125,9 +126,10 @@ async function checkMembers(): Promise<CollectionHealth> {
   // Pass members who have ANY team responsibility: player (current season),
   // coach (teams_coaches), or team-responsible (teams_responsibles). The
   // junctions have no season column — current-state is the truth.
-  const now = new Date()
-  const seasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1
-  const season = `${seasonYear}/${(seasonYear + 1).toString().slice(2)}`
+  // Use the shared June-1 cutover helper — a local Sept cutover here would, for
+  // Jun–Aug, query last season's string and false-flag the whole roster as
+  // "no team assignment" once teams exist only in the new (rolled-over) season.
+  const season = getCurrentSeason()
 
   const [memberTeams, teamCoaches, teamResponsibles] = await Promise.all([
     fetchAllItems<{ member: string | number }>('member_teams', {

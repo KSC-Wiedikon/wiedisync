@@ -73,7 +73,10 @@ export default function GamesPage() {
   const INITIAL_LIMIT = 20
 
   // Fetch all KSCW teams to map name → id
-  const { data: allTeamsRaw } = useCollection<Team>('teams', { sort: ['name'], all: true, fields: ['id', 'name'] })
+  // Active teams only: after a rollover both the archived and the new team
+  // share a name, and an arbitrary tie-break could resolve name→archived id,
+  // making the games filter return nothing (games re-sync onto the active team).
+  const { data: allTeamsRaw } = useCollection<Team>('teams', { sort: ['name'], all: true, fields: ['id', 'name'], filter: { active: { _eq: true } } })
   const allTeams = allTeamsRaw ?? []
   const teamNameToId = useMemo(() => {
     const map = new Map<string, string>()
