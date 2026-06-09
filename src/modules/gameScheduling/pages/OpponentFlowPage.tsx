@@ -192,11 +192,7 @@ export default function OpponentFlowPage() {
             <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{greeting}</p>
             <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{t('inviteWelcome', { club: oppName, team: opponent.kscw_team_name })}</p>
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              {t('inviteContactHint', { email: opponent.contact_email })}{' '}
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="underline hover:text-gray-700 dark:hover:text-gray-200">
-                {SUPPORT_EMAIL}
-              </a>
-              .
+              {t('inviteContactHint', { email: opponent.contact_email })}
             </p>
           </div>
         )}
@@ -309,6 +305,15 @@ export default function OpponentFlowPage() {
             {remarkSaved && <span className="text-sm text-green-600 dark:text-green-400">{t('remarksSaved')}</span>}
           </div>
         </div>
+
+        {/* Help line — for anything else, the club's scheduling mailbox. */}
+        <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
+          {t('inviteHelpHint')}{' '}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline hover:text-gray-600 dark:hover:text-gray-300">
+            {SUPPORT_EMAIL}
+          </a>
+          .
+        </p>
       </div>
     </div>
   )
