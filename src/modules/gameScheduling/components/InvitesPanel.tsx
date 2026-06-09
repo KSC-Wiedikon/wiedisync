@@ -16,6 +16,7 @@ interface SvrzStatus {
 import { useInvites } from '../hooks/useInvites'
 import InviteRow from './InviteRow'
 import InvitesDrawer from './InvitesDrawer'
+import SendInvitesModal from './SendInvitesModal'
 
 interface Props {
   teams: Team[]
@@ -27,10 +28,17 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [selectedTeamId, setSelectedTeamId] = useState<string | number | null>(teams[0]?.id ?? null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [sendOpen, setSendOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [svrz, setSvrz] = useState<SvrzStatus | null>(null)
   const selectedTeam = useMemo(() => teams.find((t) => String(t.id) === String(selectedTeamId)) ?? null, [teams, selectedTeamId])
   const api = useInvites(selectedTeamId, seasonId)
+  // Invites that can still receive an email (not revoked/expired); booked/viewed
+  // can be re-emailed as a reminder.
+  const sendableIds = useMemo(
+    () => api.invites.filter((i) => i.status !== 'revoked' && i.status !== 'expired').map((i) => i.id),
+    [api.invites],
+  )
   const frontendUrl = typeof window !== 'undefined' ? window.location.origin : 'https://wiedisync.kscw.ch'
 
   const fetchSvrz = useCallback(async () => {
@@ -98,9 +106,18 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
             <span className="text-sm text-gray-600 dark:text-gray-400">
               {selectedTeam ? `${selectedTeam.name} (${selectedTeam.league || '—'})` : '—'} · {api.invites.length} {t('invites')}
             </span>
-            <Button onClick={() => setDrawerOpen(true)} disabled={!selectedTeam}>
-              {t('manageInvites')}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setSendOpen(true)}
+                disabled={!selectedTeam || sendableIds.length === 0}
+              >
+                {t('emailInvites')}
+              </Button>
+              <Button onClick={() => setDrawerOpen(true)} disabled={!selectedTeam}>
+                {t('manageInvites')}
+              </Button>
+            </div>
           </div>
 
           {api.isLoading ? (
@@ -147,6 +164,16 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
         kscwTeam={selectedTeam ? { id: selectedTeam.id, name: selectedTeam.name, league: selectedTeam.league || '' } : null}
         api={api}
       />
+
+      {selectedTeam && (
+        <SendInvitesModal
+          open={sendOpen}
+          onOpenChange={setSendOpen}
+          ids={sendableIds}
+          ctx={{ seasonName, kscwTeamName: selectedTeam.name, kscwLeague: selectedTeam.league || '' }}
+          api={api}
+        />
+      )}
     </>
   )
 }

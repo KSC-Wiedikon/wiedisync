@@ -6,7 +6,7 @@
 
 import crypto from 'crypto'
 import { FRONTEND_URL, buildEmailLayout, buildInfoCard, escHtml } from './email-template.js'
-import { VALID_LANGS, schedEmail } from './terminplanung-emails.js'
+import { VALID_LANGS, schedEmail, inviteEmail } from './terminplanung-emails.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -2548,6 +2548,58 @@ export function registerGameScheduling(router, { database, logger, services, get
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `invites revoke: ${err.message}`, endpoint: 'admin/terminplanung/invites/:id/revoke', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /admin/terminplanung/invites/send — bulk-send (or preview) invite emails
+  // for a team. Body: { ids:number[], dry_run?:bool, season_name, kscw_team_name,
+  // kscw_league }. dry_run=true renders the emails WITHOUT sending, so the admin's
+  // preview is byte-identical to what goes out. Emails are bilingual DE+EN (the
+  // club hasn't picked a language yet) and go from the spielplanung identity;
+  // contact_email may hold several addresses (parseRecipients splits them). The
+  // invite link base is the env-aware FRONTEND_URL, not a client value.
+  router.post('/admin/terminplanung/invites/send', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const { ids, dry_run, season_name = '', kscw_team_name = '', kscw_league = '' } = req.body || {}
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids[] required' })
+      const rows = await database('game_scheduling_opponents')
+        .whereIn('id', ids)
+        .whereNotIn('status', ['revoked', 'expired'])
+      const fmtDate = (ts) => {
+        if (!ts) return ''
+        const d = new Date(ts)
+        if (isNaN(d.getTime())) return ''
+        const p = (n) => String(n).padStart(2, '0')
+        return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`
+      }
+      const previews = []
+      const failed = []
+      let sent = 0
+      for (const row of rows) {
+        const url = `${FRONTEND_URL}/terminplanung/${row.token}`
+        const { subject, text, html } = inviteEmail({
+          contact: row.contact_name || '',
+          kscw: kscw_team_name,
+          league: kscw_league,
+          season: season_name,
+          url,
+          expires: fmtDate(row.expires_at),
+        })
+        previews.push({ id: row.id, to: row.contact_email, team_name: row.team_name, subject, html, text })
+        if (!dry_run) {
+          try {
+            await sendSchedulingMail(row.contact_email, subject, text, null, html)
+            sent++
+          } catch (e) {
+            failed.push({ id: row.id, error: e.message })
+          }
+        }
+      }
+      res.json({ previews, sent, failed, dry_run: !!dry_run })
+    } catch (err) {
+      log.error({ msg: `invites send: ${err.message}`, endpoint: 'admin/terminplanung/invites/send', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

@@ -71,6 +71,28 @@ interface CreateInvitesResponse {
   rows: Array<{ id: string | number; token: string; email: string; team_name: string }>
 }
 
+export interface InvitePreview {
+  id: string | number
+  to: string
+  team_name: string
+  subject: string
+  html: string
+  text: string
+}
+
+export interface SendInvitesResponse {
+  previews: InvitePreview[]
+  sent: number
+  failed: Array<{ id: string | number; error: string }>
+  dry_run: boolean
+}
+
+export interface SendInvitesContext {
+  seasonName: string
+  kscwTeamName: string
+  kscwLeague: string
+}
+
 export function useInvites(kscwTeamId: string | number | null | undefined, seasonId: string | number | null | undefined) {
   const [invites, setInvites] = useState<OpponentInvite[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -134,6 +156,24 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
     return kscwApi<SvrzImportPreview>(`/admin/terminplanung/invites/import-from-svrz?${qs}`)
   }, [kscwTeamId, seasonId])
 
+  // Bulk-send invite emails per team. dryRun=true returns rendered previews
+  // (byte-identical to what's sent) so the confirm modal can show each email.
+  const sendInvites = useCallback(
+    async (ids: Array<string | number>, opts: { dryRun: boolean } & SendInvitesContext) => {
+      return kscwApi<SendInvitesResponse>('/admin/terminplanung/invites/send', {
+        method: 'POST',
+        body: {
+          ids,
+          dry_run: opts.dryRun,
+          season_name: opts.seasonName,
+          kscw_team_name: opts.kscwTeamName,
+          kscw_league: opts.kscwLeague,
+        },
+      })
+    },
+    [],
+  )
+
   // Semi-manual: fast league club list (no live SVRZ login) for prefilling drafts.
   const listSvrzClubs = useCallback(async () => {
     if (!kscwTeamId || !seasonId) throw new Error('kscw_team and season required')
@@ -150,6 +190,7 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
     revoke,
     importFromSvrz,
     listSvrzClubs,
+    sendInvites,
     refetch: fetchInvites,
   }
 }

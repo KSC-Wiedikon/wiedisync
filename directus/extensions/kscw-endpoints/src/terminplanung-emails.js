@@ -326,3 +326,56 @@ export function schedEmail(lang, kind, vars) {
   const html = buildHtml(lang, kind, vars)
   return { subject, text, html }
 }
+
+/**
+ * Build the opponent INVITE email — the first contact, sent before the club has
+ * picked a language. Unlike schedEmail it is BILINGUAL (German + English) since
+ * the recipient is a Swiss volleyball club whose language we don't know yet.
+ * Mirrors the in-app mailto draft wording (inviteEmailTemplate.ts).
+ *
+ * @param {object} vars { contact, kscw, league, season, url, expires }
+ *   - contact  recipient name(s) for the greeting (may be a comma-joined list)
+ *   - kscw     KSCW team name, league  the KSCW team this club plays
+ *   - season   season label (e.g. "2026/27")
+ *   - url      tokenized invite link
+ *   - expires  pre-formatted dd.mm.yyyy expiry (optional)
+ * @returns {{ subject: string, text: string, html: string }}
+ */
+export function inviteEmail(vars) {
+  const { contact = '', kscw = '', league = '', season = '', url = '', expires = '' } = vars || {}
+  const team = league ? `${kscw} (${league})` : kscw
+  const subject = `KSC Wiedikon – Spielplanung / Game scheduling ${season}`.trim()
+
+  const text =
+    `Hallo ${contact},\n\n` +
+    `KSC Wiedikon lädt euch zur Spielplanung der Saison ${season} ein – gegen unser Team ${team}.\n\n` +
+    `Unter folgendem Link könnt ihr eure Heim- und Auswärtsspieltermine auswählen:\n${url}\n\n` +
+    (expires ? `Der Link ist bis ${expires} gültig.\n` : '') +
+    `Bei Fragen antwortet einfach auf diese E-Mail.\n\n` +
+    `Sportliche Grüsse\nKSC Wiedikon\n\n` +
+    `— — — — —\n\n` +
+    `Hello ${contact},\n\n` +
+    `KSC Wiedikon invites you to schedule your home and away matches for the ${season} season against our team ${team}.\n\n` +
+    `Open the link below to pick your slots:\n${url}\n\n` +
+    (expires ? `This link is valid until ${expires}.\n` : '') +
+    `If you have any questions, just reply to this email.\n\n` +
+    `Best regards\nKSC Wiedikon`
+
+  const body =
+    para(`KSC Wiedikon lädt euch zur Spielplanung der Saison ${season} ein – gegen unser Team ${team}. Über den Link unten wählt ihr eure Heim- und Auswärtsspieltermine.`) +
+    (expires ? para(`Der Link ist bis ${expires} gültig. Bei Fragen antwortet einfach auf diese E-Mail.`) : para('Bei Fragen antwortet einfach auf diese E-Mail.')) +
+    '<div style="height:10px;font-size:0;line-height:0">&nbsp;</div>' +
+    para(`KSC Wiedikon invites you to schedule your home and away matches for the ${season} season against our team ${team}. Use the link below to pick your slots.`) +
+    (expires ? para(`This link is valid until ${expires}. If you have any questions, just reply to this email.`) : para('If you have any questions, just reply to this email.'))
+
+  const html = buildEmailLayout(body, {
+    title: 'Spielplanung / Game scheduling',
+    sport: 'vb',
+    greeting: contact ? `Hallo ${contact} / Hello ${contact},` : 'Hallo / Hello,',
+    footerExtra: 'Sportliche Grüsse / Best regards · KSC Wiedikon',
+    ctaUrl: url,
+    ctaLabel: 'Termine auswählen / Pick slots',
+  })
+
+  return { subject, text, html }
+}
