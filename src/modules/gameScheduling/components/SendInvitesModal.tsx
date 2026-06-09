@@ -70,6 +70,7 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
       const resp = await api.sendInvites(ids, { dryRun: false, ...ctx })
       toast.success(t('invitesEmailSent', { count: resp.sent }))
       if (resp.failed.length > 0) toast.error(t('invitesEmailFailed', { count: resp.failed.length }))
+      await api.refetch() // refresh badges → "Invited" now that the email went out
       onOpenChange(false)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))

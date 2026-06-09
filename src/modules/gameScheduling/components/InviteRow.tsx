@@ -13,6 +13,8 @@ interface Props {
   frontendUrl: string
   onReissue: (id: string | number) => Promise<{ token: string } | unknown>
   onRevoke: (id: string | number) => Promise<unknown>
+  /** Flag the invite as sent after the admin opens the "Draft email" mailto. */
+  onSent?: (id: string | number) => Promise<unknown>
 }
 
 const STATUS_VARIANT: Record<InviteStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -34,10 +36,16 @@ function sourceKey(source: InviteSource): string {
   return 'sourceManual'
 }
 
-export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onReissue, onRevoke }: Props) {
+export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onReissue, onRevoke, onSent }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [busy, setBusy] = useState(false)
   const link = `${frontendUrl}/terminplanung/${invite.token}`
+
+  // Auto-created invites sit at status 'invited' before any email goes out — show
+  // them as "Not sent" until the invite is actually emailed (email_sent_at set).
+  const notSent = invite.status === 'invited' && !invite.email_sent_at
+  const displayStatusKey = notSent ? 'statusNotSent' : statusKey(invite.status)
+  const displayVariant = notSent ? 'outline' : STATUS_VARIANT[invite.status] ?? 'outline'
 
   const handleCopy = async () => {
     try {
@@ -61,6 +69,10 @@ export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onRei
       season,
       frontendUrl,
     })
+    // Opening the mail client counts as sending the invite (the app can't see the
+    // actual send) — flip the badge to "Invited". Fire-and-forget; the mailto
+    // opens regardless.
+    if (notSent && onSent) void onSent(invite.id)
     window.location.href = mailto
   }
 
@@ -97,7 +109,7 @@ export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onRei
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-gray-900 dark:text-gray-100">{invite.team_name}</span>
-            <Badge variant={STATUS_VARIANT[invite.status] ?? 'outline'}>{t(statusKey(invite.status))}</Badge>
+            <Badge variant={displayVariant}>{t(displayStatusKey)}</Badge>
             <span className="text-xs text-gray-500 dark:text-gray-400">{t(sourceKey(invite.source))}</span>
           </div>
           {invite.contact_name && (

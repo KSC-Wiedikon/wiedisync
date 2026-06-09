@@ -153,6 +153,7 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
                   frontendUrl={frontendUrl}
                   onReissue={api.reissue}
                   onRevoke={api.revoke}
+                  onSent={api.markSent}
                 />
               ))}
             </div>

@@ -266,6 +266,7 @@ export default {
   invitesAutoCreated: '{{count}} Einladungen automatisch hinzugefügt',
   autoFillHint: 'Kontakte werden beim Öffnen automatisch aus der letzten SVRZ-Synchronisierung gefüllt. „Von SVRZ aktualisieren (live)" nur für die aktuellsten Kontakte direkt von SVRZ.',
   statusInvited: 'Eingeladen',
+  statusNotSent: 'Nicht gesendet',
   statusViewed: 'Angesehen',
   statusBooked: 'Gebucht',
   statusRevoked: 'Widerrufen',

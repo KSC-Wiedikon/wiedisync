@@ -291,6 +291,7 @@ export default {
   invitesAutoCreated: '{{count}} invitations ajoutées automatiquement',
   autoFillHint: "Les contacts se remplissent automatiquement depuis la dernière synchronisation SVRZ à l'ouverture. Utilisez « Actualiser depuis SVRZ (en direct) » uniquement pour récupérer les contacts les plus récents.",
   statusInvited: 'Invité',
+  statusNotSent: 'Non envoyé',
   statusViewed: 'Consulté',
   statusBooked: 'Réservé',
   statusRevoked: 'Révoqué',

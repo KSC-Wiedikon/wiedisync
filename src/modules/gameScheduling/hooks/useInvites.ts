@@ -151,6 +151,14 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
     return resp
   }, [fetchInvites])
 
+  // Flag an invite as sent (used by the per-card "Draft email" mailto, which the
+  // app can't observe). Flips the badge from "Not sent" to "Invited".
+  const markSent = useCallback(async (id: string | number) => {
+    const resp = await kscwApi(`/admin/terminplanung/invites/${id}/mark-sent`, { method: 'POST' })
+    await fetchInvites()
+    return resp
+  }, [fetchInvites])
+
   // Auto-create invite links for every synced opponent with a contact, so the
   // panel list populates itself. Idempotent (deduped by team name server-side).
   const ensureFromSvrz = useCallback(async () => {
@@ -201,6 +209,7 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
     createInvites,
     reissue,
     revoke,
+    markSent,
     importFromSvrz,
     listSvrzClubs,
     ensureFromSvrz,

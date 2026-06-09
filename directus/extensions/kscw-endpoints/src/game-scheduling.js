@@ -2900,6 +2900,26 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // POST /admin/terminplanung/invites/:id/mark-sent — flag that the invite email
+  // was sent outside the bulk flow (the per-card "Draft email" mailto opens the
+  // admin's mail client, which the app can't observe). Stamps email_sent_at so
+  // the list flips from "Not sent" to "Invited". Idempotent; never touches the
+  // lifecycle status.
+  router.post('/admin/terminplanung/invites/:id/mark-sent', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const id = parseInt(req.params.id, 10)
+      if (!id) return res.status(400).json({ error: 'invalid id' })
+      const updated = await database('game_scheduling_opponents')
+        .where('id', id).update({ email_sent_at: new Date().toISOString() })
+      if (!updated) return res.status(404).json({ error: 'not found' })
+      res.json({ success: true })
+    } catch (err) {
+      log.error({ msg: `invites mark-sent: ${err.message}`, endpoint: 'admin/terminplanung/invites/:id/mark-sent', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // POST /admin/terminplanung/invites/send — bulk-send (or preview) invite emails
   // for a team. Body: { ids:number[], dry_run?:bool, season_name, kscw_team_name,
   // kscw_league }. dry_run=true renders the emails WITHOUT sending, so the admin's
@@ -2941,6 +2961,12 @@ export function registerGameScheduling(router, { database, logger, services, get
             // CC the club's scheduling mailbox so the spielplaner has a copy of
             // every invite that went out.
             await sendSchedulingMail(row.contact_email, subject, text, SCHEDULING_REPLY_TO, html)
+            // Stamp the send so the list shows "Invited" (vs "Not sent") — never
+            // touches the lifecycle status (a reminder to a viewed/booked row
+            // keeps that status).
+            await database('game_scheduling_opponents')
+              .where('id', row.id)
+              .update({ email_sent_at: new Date().toISOString() })
             sent++
           } catch (e) {
             failed.push({ id: row.id, error: e.message })
@@ -3297,11 +3323,14 @@ export function registerGameScheduling(router, { database, logger, services, get
 
       const opponents = await resolveSyncedOpponents(seasonRow, kscwTeamRow)
 
-      // Dedupe against existing invites by normalised opponent team name so we
-      // never mint a second link for the same opponent.
+      // Dedupe against ALL existing rows for this team+season (any status) by
+      // normalised opponent team name, so re-running never mints a second link
+      // for an opponent that already has one — and a deliberately *revoked* or
+      // expired invite is never silently resurrected with a fresh token. To
+      // bring a revoked opponent back, the admin uses Reissue (same row, new
+      // token), not auto-populate.
       const existing = await database('game_scheduling_opponents')
         .where({ kscw_team, season })
-        .whereIn('status', ACTIVE_INVITE_STATUSES)
       const norm = (s) => String(s || '').trim().toLowerCase()
       const haveNames = new Set(existing.map((e) => norm(e.team_name)))
 

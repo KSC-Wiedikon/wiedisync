@@ -292,6 +292,7 @@ export default {
   invitesAutoCreated: '{{count}} Iladige automatisch dezuegfüegt',
   autoFillHint: 'D Kontäkt wärded bim Uufmache automatisch us de letzte SVRZ-Synchronisierig gfüllt. „Vo SVRZ aktualisiere (live)" nur für di aktuellste Kontäkt diräkt vo SVRZ.',
   statusInvited: 'Iglade',
+  statusNotSent: 'Nöd gschickt',
   statusViewed: 'Aagluegt',
   statusBooked: 'Gbuecht',
   statusRevoked: 'Widerruefe',

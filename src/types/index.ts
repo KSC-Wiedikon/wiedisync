@@ -706,6 +706,7 @@ export interface OpponentInvite {
   source: InviteSource
   created_by_admin: boolean
   first_viewed_at: string | null
+  email_sent_at?: string | null
   expires_at: string
   date_created: string
 }

@@ -266,6 +266,7 @@ export default {
   invitesAutoCreated: '{{count}} invites added automatically',
   autoFillHint: 'Contacts auto-fill from the latest SVRZ sync when you open this. Use "Refresh from SVRZ (live)" only to pull the freshest contacts directly.',
   statusInvited: 'Invited',
+  statusNotSent: 'Not sent',
   statusViewed: 'Viewed',
   statusBooked: 'Booked',
   statusRevoked: 'Revoked',
