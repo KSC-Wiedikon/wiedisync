@@ -359,4 +359,23 @@ export default {
   inviteGamesHeader_other: 'Mir hend {{count}} Spiel zäme die Saison',
   inviteGameHome: 'Heim (KSCW)',
   inviteGameAway: 'Auswärts (ihr sind Heim)',
+
+  // Manuelli Erfassig — scho abgmachti Begegnig direkt iitrage.
+  manualEnterAgreed: 'Abgmachts Spiel vo Hand erfasse',
+  manualHint: 'S Datum scho per E-Mail oder Telefon abgmacht? Da erfasse – es wird kei E-Mail an Gegner gschickt.',
+  manualHomeGame: 'Heimspiel',
+  manualAwayGame: 'Uswärtsspiel',
+  manualOverwrite: 'überschribt s aktuelle',
+  manualDate: 'Datum',
+  manualStart: 'Aafang',
+  manualEnd: 'Ändi',
+  manualHall: 'Halle',
+  manualSelectHall: 'Halle uswähle',
+  manualPlace: 'Ort',
+  manualPlacePlaceholder: 'z. B. Name vo de gegnerische Halle',
+  manualSave: 'Abgmachti Spiel speichere',
+  manualSaved: 'Gspeicheret',
+  manualHomeIncomplete: 'Heimspiel bruucht Datum, Aafang und Halle.',
+  manualAwayIncomplete: 'Uswärtsspiel bruucht es Datum.',
+  manualNothingToSave: 'Zerscht Heim- und/oder Uswärtsspiel awähle.',
 }

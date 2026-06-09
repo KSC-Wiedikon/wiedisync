@@ -367,4 +367,23 @@ export default {
   finalizeNotifyPending_other: '{{count}} Begegnungen haben noch kein bestätigtes Spiel.',
   finalizeNotifyConfirmPending_one: '{{count}} Begegnung ist noch nicht vollständig bestätigt. Spielplan trotzdem senden?',
   finalizeNotifyConfirmPending_other: '{{count}} Begegnungen sind noch nicht vollständig bestätigt. Spielplan trotzdem senden?',
+
+  // Manuelle Erfassung — bereits vereinbarte Begegnung direkt eintragen.
+  manualEnterAgreed: 'Vereinbartes Spiel manuell erfassen',
+  manualHint: 'Datum bereits per E-Mail oder Telefon vereinbart? Hier erfassen – es wird keine E-Mail an den Gegner gesendet.',
+  manualHomeGame: 'Heimspiel',
+  manualAwayGame: 'Auswärtsspiel',
+  manualOverwrite: 'überschreibt das aktuelle',
+  manualDate: 'Datum',
+  manualStart: 'Beginn',
+  manualEnd: 'Ende',
+  manualHall: 'Halle',
+  manualSelectHall: 'Halle wählen',
+  manualPlace: 'Ort',
+  manualPlacePlaceholder: 'z. B. Name der gegnerischen Halle',
+  manualSave: 'Vereinbarte Spiele speichern',
+  manualSaved: 'Gespeichert',
+  manualHomeIncomplete: 'Heimspiel braucht Datum, Beginn und Halle.',
+  manualAwayIncomplete: 'Auswärtsspiel braucht ein Datum.',
+  manualNothingToSave: 'Zuerst Heim- und/oder Auswärtsspiel anwählen.',
 }

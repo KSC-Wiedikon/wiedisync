@@ -358,4 +358,23 @@ export default {
   inviteGamesHeader_other: 'Nous avons {{count}} matchs ensemble cette saison',
   inviteGameHome: 'Domicile (KSCW)',
   inviteGameAway: 'Extérieur (vous recevez)',
+
+  // Saisie manuelle — enregistrer directement un match déjà convenu.
+  manualEnterAgreed: 'Saisir un match convenu manuellement',
+  manualHint: 'Date déjà convenue par e-mail ou téléphone ? Enregistrez-la ici – aucun e-mail n’est envoyé à l’adversaire.',
+  manualHomeGame: 'Match à domicile',
+  manualAwayGame: 'Match à l’extérieur',
+  manualOverwrite: 'remplace l’actuel',
+  manualDate: 'Date',
+  manualStart: 'Début',
+  manualEnd: 'Fin',
+  manualHall: 'Salle',
+  manualSelectHall: 'Choisir une salle',
+  manualPlace: 'Lieu',
+  manualPlacePlaceholder: 'p. ex. nom de la salle adverse',
+  manualSave: 'Enregistrer les matchs convenus',
+  manualSaved: 'Enregistré',
+  manualHomeIncomplete: 'Le match à domicile nécessite une date, une heure de début et une salle.',
+  manualAwayIncomplete: 'Le match à l’extérieur nécessite une date.',
+  manualNothingToSave: 'Cochez d’abord le match à domicile et/ou à l’extérieur.',
 }

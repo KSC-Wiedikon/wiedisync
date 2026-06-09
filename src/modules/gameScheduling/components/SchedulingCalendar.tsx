@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import CalendarGrid from '../../../components/CalendarGrid'
 import { fetchAllItems } from '../../../lib/api'
-import { toDateKey, getSeasonMonths, getSeasonYear, formatDate } from '../../../utils/dateUtils'
+import { toDateKey, getSeasonYear, formatDate } from '../../../utils/dateUtils'
 import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 
@@ -66,7 +66,18 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
   }, [season.season])
 
   const [month, setMonth] = useState(() => new Date(startYear, 8, 1)) // September
-  const seasonMonths = useMemo(() => getSeasonMonths(startYear), [startYear])
+  // Terminplanung runs Sep → Mar only — games are scheduled within that window,
+  // so drop Apr/May and clamp navigation to the two boundary months.
+  const firstMonth = useMemo(() => new Date(startYear, 8, 1), [startYear]) // September
+  const lastMonth = useMemo(() => new Date(startYear + 1, 2, 1), [startYear]) // March
+  const seasonMonths = useMemo(() => {
+    const out: Date[] = []
+    for (let m = 8; m <= 11; m++) out.push(new Date(startYear, m, 1)) // Sep–Dec
+    for (let m = 0; m <= 2; m++) out.push(new Date(startYear + 1, m, 1)) // Jan–Mar
+    return out
+  }, [startYear])
+  // Clamp so the prev/next arrows (and pill clicks) can't leave the Sep–Mar range.
+  const goMonth = (d: Date) => setMonth(d < firstMonth ? firstMonth : d > lastMonth ? lastMonth : d)
 
   const slotsById = useMemo(() => {
     const m = new Map<string, GameSchedulingSlot>()
@@ -315,7 +326,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
           return (
             <button
               key={m.toISOString()}
-              onClick={() => setMonth(m)}
+              onClick={() => goMonth(m)}
               className={`rounded px-2.5 py-1.5 text-sm font-medium transition-colors sm:px-2 sm:py-1 sm:text-xs ${
                 isActive
                   ? 'bg-gold-400 text-brand-900'
@@ -330,7 +341,9 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
 
       <CalendarGrid
         month={month}
-        onMonthChange={setMonth}
+        onMonthChange={goMonth}
+        minMonth={firstMonth}
+        maxMonth={lastMonth}
         itemsByDate={itemsByDate}
         closedDates={closedDates}
         closedLabel={t('hallClosure')}

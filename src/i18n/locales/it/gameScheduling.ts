@@ -359,4 +359,23 @@ export default {
   inviteGamesHeader_other: 'Abbiamo {{count}} partite insieme questa stagione',
   inviteGameHome: 'Casa (KSCW)',
   inviteGameAway: 'Trasferta (ospiti voi)',
+
+  // Inserimento manuale — registrare direttamente una partita già concordata.
+  manualEnterAgreed: 'Inserisci manualmente una partita concordata',
+  manualHint: 'Data già concordata via e-mail o telefono? Registrala qui – non viene inviata alcuna e-mail all’avversario.',
+  manualHomeGame: 'Partita in casa',
+  manualAwayGame: 'Partita in trasferta',
+  manualOverwrite: 'sostituisce quella attuale',
+  manualDate: 'Data',
+  manualStart: 'Inizio',
+  manualEnd: 'Fine',
+  manualHall: 'Palestra',
+  manualSelectHall: 'Seleziona una palestra',
+  manualPlace: 'Luogo',
+  manualPlacePlaceholder: 'es. nome della palestra avversaria',
+  manualSave: 'Salva le partite concordate',
+  manualSaved: 'Salvato',
+  manualHomeIncomplete: 'La partita in casa richiede data, ora di inizio e palestra.',
+  manualAwayIncomplete: 'La partita in trasferta richiede una data.',
+  manualNothingToSave: 'Seleziona prima la partita in casa e/o in trasferta.',
 }

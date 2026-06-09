@@ -98,6 +98,23 @@ export function useAdminBookings(seasonId: string | undefined) {
     await fetchAll()
   }, [fetchAll])
 
+  // Record an already-agreed matchup directly (the spielplaner settled the
+  // date(s) by email/phone) — skips the opponent propose/choose flow. Either leg
+  // may be supplied; no emails are sent.
+  const manualBooking = useCallback(async (
+    opponentId: string | number,
+    legs: {
+      home?: { date: string; start_time: string; end_time?: string; hall: number | string }
+      away?: { date: string; start_time?: string; place?: string }
+    },
+  ) => {
+    await kscwApi('/terminplanung/admin/manual-booking', {
+      method: 'POST',
+      body: { opponent_id: Number(opponentId), ...legs },
+    })
+    await fetchAll()
+  }, [fetchAll])
+
   const blockSlot = useCallback(async (slotId: string, action: 'block' | 'unblock') => {
     await kscwApi('/terminplanung/admin/block-slot', {
       method: 'POST',
@@ -136,6 +153,7 @@ export function useAdminBookings(seasonId: string | undefined) {
     confirmHomeProposal,
     requestNewSlots,
     saveOpponentNote,
+    manualBooking,
     blockSlot,
     generateSlots,
     finalizeNotify,

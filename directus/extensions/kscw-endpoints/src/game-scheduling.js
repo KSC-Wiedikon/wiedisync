@@ -2018,6 +2018,114 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // POST /kscw/terminplanung/admin/manual-booking — record an already-agreed
+  // matchup directly, skipping the opponent's propose/choose flow. Used when the
+  // spielplaner has settled the date(s) by email/phone outside the tool. Body:
+  //   { opponent_id, home?: { date, start_time, end_time?, hall }, away?: { date, start_time?, place? } }
+  // Either leg (or both) may be supplied. The home leg books a real slot (reusing
+  // an existing open slot at that date/time/hall if one exists, else creating a
+  // manual one) so it shows on the season calendar and feeds the cross-team /
+  // Döltschi checks going forward. No emails are sent — the agreement already
+  // happened; coaches get the combined summary via finalize-notify. Deliberately
+  // permissive (no Saturday-cap / gap / cross-team rejection): the admin is
+  // overriding on purpose. The one hard guard is "don't steal a slot another
+  // opponent already booked".
+  router.post('/terminplanung/admin/manual-booking', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const { opponent_id, home, away } = req.body || {}
+      if (!opponent_id) return res.status(400).json({ error: 'opponent_id required' })
+      if (!home && !away) return res.status(400).json({ error: 'Provide a home and/or away game' })
+      const opponent = await database('game_scheduling_opponents').where('id', opponent_id).first()
+      if (!opponent) return res.status(404).json({ error: 'Opponent not found' })
+      const seasonId = String(opponent.season)
+
+      const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+      const TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/
+
+      if (home) {
+        if (!DATE_RE.test(String(home.date || ''))) return res.status(400).json({ error: 'home.date must be YYYY-MM-DD' })
+        if (!home.start_time || !TIME_RE.test(String(home.start_time))) return res.status(400).json({ error: 'home.start_time must be HH:MM' })
+        if (home.end_time && !TIME_RE.test(String(home.end_time))) return res.status(400).json({ error: 'home.end_time must be HH:MM' })
+        if (!home.hall) return res.status(400).json({ error: 'home.hall required' })
+
+        await database.transaction(async (trx) => {
+          await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [GSCH_BOOK_LOCK_CLASS, opponent.kscw_team])
+          // Releasing-on-overwrite: if this opponent already had a confirmed home
+          // slot, free it (set back to available) so a re-entry doesn't orphan a
+          // booked slot on the calendar. Captured before we delete the booking.
+          const prior = await trx('game_scheduling_bookings')
+            .where({ opponent: opponent.id, type: 'home_slot_pick', status: 'confirmed' })
+            .whereNotNull('slot').first()
+          const priorSlotId = prior ? prior.slot : null
+
+          // Reuse an existing slot at this exact key so the calendar doesn't end up
+          // with a duplicate (one available, one booked). Else mint a manual slot.
+          const existing = await trx('game_scheduling_slots')
+            .where({ kscw_team: opponent.kscw_team, date: home.date, start_time: home.start_time })
+            .where('hall', home.hall)
+            .forUpdate().first()
+          let slotId
+          if (existing) {
+            // Booked by a DIFFERENT opponent → real conflict. Booked by this same
+            // opponent (re-confirming the identical slot) → fine, just re-book it.
+            if (existing.status === 'booked' && String(existing.id) !== String(priorSlotId)) {
+              throw Object.assign(new Error('A game is already booked in that slot'), { httpStatus: 400 })
+            }
+            await trx('game_scheduling_slots').where('id', existing.id)
+              .update({ status: 'booked', end_time: home.end_time || existing.end_time || null })
+            slotId = existing.id
+          } else {
+            const inserted = await trx('game_scheduling_slots').insert({
+              season: seasonId, kscw_team: opponent.kscw_team, date: home.date,
+              start_time: home.start_time, end_time: home.end_time || null, hall: home.hall,
+              source: 'manual', status: 'booked',
+            }).returning('id')
+            slotId = typeof inserted[0] === 'object' ? inserted[0].id : inserted[0]
+          }
+          await trx('game_scheduling_bookings')
+            .where({ opponent: opponent.id, type: 'home_slot_pick' }).del()
+          // Free the previously-booked slot (now detached) unless it's the one we
+          // just re-booked. A 'manual' source slot left empty is just deleted.
+          if (priorSlotId && String(priorSlotId) !== String(slotId)) {
+            const priorSlot = await trx('game_scheduling_slots').where('id', priorSlotId).first()
+            if (priorSlot && priorSlot.source === 'manual') {
+              await trx('game_scheduling_slots').where('id', priorSlotId).del()
+            } else if (priorSlot) {
+              await trx('game_scheduling_slots').where('id', priorSlotId).update({ status: 'available' })
+            }
+          }
+          await trx('game_scheduling_bookings').insert({
+            opponent: opponent.id, season: seasonId, type: 'home_slot_pick',
+            status: 'confirmed', confirmed_proposal: 1, proposed_slot_1: slotId, slot: slotId,
+            admin_notes: 'Manuell erfasst',
+          })
+        })
+      }
+
+      if (away) {
+        if (!DATE_RE.test(String(away.date || ''))) return res.status(400).json({ error: 'away.date must be YYYY-MM-DD' })
+        if (away.start_time && !TIME_RE.test(String(away.start_time))) return res.status(400).json({ error: 'away.start_time must be HH:MM' })
+        const dt = away.start_time ? `${away.date}T${away.start_time}` : away.date
+        await database('game_scheduling_bookings')
+          .where({ opponent: opponent.id, type: 'away_proposal' }).del()
+        await database('game_scheduling_bookings').insert({
+          opponent: opponent.id, season: seasonId, type: 'away_proposal',
+          status: 'confirmed', confirmed_proposal: 1,
+          proposed_datetime_1: dt, proposed_place_1: String(away.place || '').slice(0, 200),
+          admin_notes: 'Manuell erfasst',
+        })
+      }
+
+      await database('game_scheduling_opponents').where('id', opponent.id).update({ status: 'booked' })
+      res.json({ success: true })
+    } catch (err) {
+      if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.message })
+      log.error({ msg: `manual-booking: ${err.message}`, endpoint: 'terminplanung/admin/manual-booking', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // POST /kscw/terminplanung/admin/finalize-notify — send the finalized schedule
   // (all confirmed home + away games) for one team+season to the team's coaches
   // + team-responsibles AND the spielplanung mailbox (which auto-forwards to the

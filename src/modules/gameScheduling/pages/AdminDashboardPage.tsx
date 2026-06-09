@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Link, Navigate } from 'react-router-dom'
@@ -10,15 +10,35 @@ import LoadingSpinner from '../../../components/LoadingSpinner'
 import AwayProposalReview from '../components/AwayProposalReview'
 import HomeProposalReview from '../components/HomeProposalReview'
 import OpponentNotes from '../components/OpponentNotes'
+import ManualBookingForm from '../components/ManualBookingForm'
 import ExcelExportButton from '../components/ExcelExportButton'
 import SchedulingCalendar from '../components/SchedulingCalendar'
 import { Badge } from '../../../components/ui/badge'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
+import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/table'
 import type { GameSchedulingOpponent, GameSchedulingSlot, InviteStatus, InviteSource, ProposalHealthEntry } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import { formatSeasonShort } from '../utils/formatSeason'
-import { formatDateCompactZurich } from '../../../utils/dateHelpers'
+import { formatDateCompactZurich, formatDateTimeCompact } from '../../../utils/dateHelpers'
+import { kscwApi } from '../../../lib/api'
 import { useHalls } from '../../../hooks/useData'
 import { isSchedulableTeam } from '../utils/schedulableTeams'
+
+/** One SVRZ fixture for an opponent (from the svrz-clubs endpoint). */
+interface OpponentGame {
+  date: string | null
+  display_name: string | null
+  is_home_kscw: boolean
+}
+interface SvrzClub {
+  club_id: number
+  club_name: string
+  team_name: string
+  game_count: number
+  games: OpponentGame[]
+}
+
+const normName = (s: string | null | undefined) => String(s || '').trim().toLowerCase()
 
 const INVITE_STATUS_VARIANT: Record<InviteStatus, 'info' | 'warning' | 'success' | 'danger' | 'neutral' | 'secondary'> = {
   invited: 'info',
@@ -50,7 +70,7 @@ export default function AdminDashboardPage() {
   const { t } = useTranslation('gameScheduling')
   const { hasAdminAccessToSport, is_spielplaner } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
-  const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, blockSlot, finalizeNotify } = useAdminBookings(season?.id)
+  const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, manualBooking, blockSlot, finalizeNotify } = useAdminBookings(season?.id)
   const { data: teams } = useTeams()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
@@ -243,6 +263,9 @@ export default function AdminDashboardPage() {
                     </button>
                   </div>
                   <TeamBookingsContent
+                    kscwTeamId={team.id}
+                    kscwTeamName={team.name}
+                    seasonId={season.id}
                     opponents={getTeamOpponents(team.id)}
                     bookings={bookings}
                     slots={getTeamSlots(team.id)}
@@ -251,6 +274,7 @@ export default function AdminDashboardPage() {
                     onConfirmHome={handleConfirmHome}
                     onRequestNewSlots={requestNewSlots}
                     onSaveOpponentNote={saveOpponentNote}
+                    onManualBooking={manualBooking}
                     onBlockSlot={blockSlot}
                   />
                 </div>
@@ -264,6 +288,9 @@ export default function AdminDashboardPage() {
 }
 
 function TeamBookingsContent({
+  kscwTeamId,
+  kscwTeamName,
+  seasonId,
   opponents: teamOpponents,
   bookings: allBookings,
   slots: teamSlots,
@@ -272,7 +299,11 @@ function TeamBookingsContent({
   onConfirmHome,
   onRequestNewSlots,
   onSaveOpponentNote,
+  onManualBooking,
 }: {
+  kscwTeamId: string
+  kscwTeamName: string
+  seasonId: string
   opponents: GameSchedulingOpponent[]
   bookings: ExpandedBooking[]
   slots: GameSchedulingSlot[]
@@ -281,11 +312,41 @@ function TeamBookingsContent({
   onConfirmHome: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   onRequestNewSlots: (opponentId: string | number) => Promise<void>
   onSaveOpponentNote: (opponentId: string | number, kscwNote: string) => Promise<void>
+  onManualBooking: (
+    opponentId: string | number,
+    legs: {
+      home?: { date: string; start_time: string; end_time?: string; hall: number | string }
+      away?: { date: string; start_time?: string; place?: string }
+    },
+  ) => Promise<void>
   onBlockSlot: (slotId: string, action: 'block' | 'unblock') => Promise<void>
 }) {
   const { t } = useTranslation('gameScheduling')
   const { data: halls } = useHalls()
   const hallsById = new Map((halls || []).map((h) => [String(h.id), h.name]))
+
+  // SVRZ fixtures per opponent (the games still to schedule) — loaded lazily when
+  // this team's accordion expands. Matched to opponent rows by normalised team
+  // name. Best-effort: a hiccup just hides the "N games" buttons.
+  const [gamesByName, setGamesByName] = useState<Map<string, OpponentGame[]>>(new Map())
+  const [gamesFor, setGamesFor] = useState<{ label: string; games: OpponentGame[] } | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const resp = await kscwApi(`/admin/terminplanung/invites/svrz-clubs?kscw_team=${kscwTeamId}&season=${seasonId}`) as { clubs?: SvrzClub[] }
+        if (cancelled) return
+        const map = new Map<string, OpponentGame[]>()
+        for (const c of resp?.clubs || []) {
+          if (c.team_name) map.set(normName(c.team_name), c.games || [])
+          if (c.club_name) map.set(normName(c.club_name), c.games || [])
+        }
+        setGamesByName(map)
+      } catch { /* games disclosure just won't show */ }
+    })()
+    return () => { cancelled = true }
+  }, [kscwTeamId, seasonId])
+  const hallOptions = (halls || []).map((h) => ({ id: h.id, name: h.name }))
   const slotsById = new Map(teamSlots.map((s) => [String(s.id), s]))
   // Home slots are KSCW-hall, shared across this team's opponents and NOT held
   // until confirmed — so the real contention is "another club proposed this same
@@ -325,6 +386,7 @@ function TeamBookingsContent({
   }
 
   return (
+    <>
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       {teamOpponents.map(opp => {
         const oppBookings = allBookings.filter(b => {
@@ -335,6 +397,7 @@ function TeamBookingsContent({
         const awayBooking = oppBookings.find(b => b.type === 'away_proposal')
         const inviteStatus = (opp.status as InviteStatus) || 'active'
         const source = (opp.source as InviteSource) || 'self_registration'
+        const oppGames = gamesByName.get(normName(opp.team_name)) || gamesByName.get(normName(opp.club_name)) || []
 
         // Colour the card by how far this matchup's scheduling has got:
         // both legs confirmed → green, one leg → yellow, neither → red. Subtle tints.
@@ -363,6 +426,15 @@ function TeamBookingsContent({
                   <Badge variant={SOURCE_VARIANT[source]} size="sm">
                     {t(sourceKey(source))}
                   </Badge>
+                  {oppGames.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setGamesFor({ label: opp.team_name || opp.club_name, games: oppGames })}
+                      className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                    >
+                      {t('gameCount', { count: oppGames.length })}
+                    </button>
+                  )}
                 </div>
                 <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {opp.contact_name && <span>{opp.contact_name} </span>}
@@ -418,9 +490,48 @@ function TeamBookingsContent({
               kscwNote={opp.kscw_note}
               onSave={(note) => onSaveOpponentNote(opp.id, note)}
             />
+
+            <ManualBookingForm
+              opponentId={opp.id}
+              halls={hallOptions}
+              hasHome={homeConfirmed}
+              hasAway={awayConfirmed}
+              onSave={(legs) => onManualBooking(opp.id, legs)}
+            />
           </div>
         )
       })}
     </div>
+
+    {/* SVRZ fixtures for one opponent (the games still to schedule). */}
+    <Dialog open={!!gamesFor} onOpenChange={(o) => { if (!o) setGamesFor(null) }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{gamesFor?.label}</DialogTitle>
+          <DialogDescription>
+            {t('gameCount', { count: gamesFor?.games.length ?? 0 })}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto">
+          <Table>
+            <TableBody>
+              {(gamesFor?.games ?? []).map((g, i) => (
+                <TableRow key={i}>
+                  <TableCell className="whitespace-nowrap font-medium">
+                    {g.date ? formatDateTimeCompact(g.date) : '—'}
+                  </TableCell>
+                  <TableCell className="text-gray-600 dark:text-gray-400">
+                    {g.is_home_kscw
+                      ? `KSCW ${kscwTeamName} vs ${gamesFor?.label ?? ''}`
+                      : `${gamesFor?.label ?? ''} vs KSCW ${kscwTeamName}`}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

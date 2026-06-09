@@ -367,4 +367,23 @@ export default {
   finalizeNotifyPending_other: '{{count}} matchups still missing a confirmed game.',
   finalizeNotifyConfirmPending_one: '{{count}} matchup is not fully confirmed yet. Send the schedule anyway?',
   finalizeNotifyConfirmPending_other: '{{count}} matchups are not fully confirmed yet. Send the schedule anyway?',
+
+  // Manual booking — record an already-agreed matchup directly.
+  manualEnterAgreed: 'Enter an agreed game manually',
+  manualHint: 'Already settled the date by email or phone? Record it here — no email is sent to the opponent.',
+  manualHomeGame: 'Home game',
+  manualAwayGame: 'Away game',
+  manualOverwrite: 'overwrites the current one',
+  manualDate: 'Date',
+  manualStart: 'Start',
+  manualEnd: 'End',
+  manualHall: 'Hall',
+  manualSelectHall: 'Select a hall',
+  manualPlace: 'Location',
+  manualPlacePlaceholder: 'e.g. opponent hall name',
+  manualSave: 'Save agreed games',
+  manualSaved: 'Saved',
+  manualHomeIncomplete: 'Home game needs a date, start time and hall.',
+  manualAwayIncomplete: 'Away game needs a date.',
+  manualNothingToSave: 'Tick the home and/or away game first.',
 }
