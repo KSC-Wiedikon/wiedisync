@@ -2853,6 +2853,10 @@ export function registerGameScheduling(router, { database, logger, services, get
         const clubName = isHomeKscw ? g.away_club_name : g.home_club_name
         const teamName = isHomeKscw ? g.away_team_name : g.home_team_name
         if (!clubId) continue
+        // Skip intra-club fixtures (e.g. H1 vs H3, both "2L") — the opponent is
+        // KSCW itself, never an external invite. (import-from-svrz already does
+        // this; svrz-clubs must too now that auto-fill builds drafts from it.)
+        if (String(clubId) === String(KSCW_SVRZ_CLUB_ID)) continue
         if (!byClub.has(clubId)) byClub.set(clubId, { club_id: clubId, club_name: clubName, team_name: teamName, game_count: 0, games: [] })
         const entry = byClub.get(clubId)
         entry.game_count++
