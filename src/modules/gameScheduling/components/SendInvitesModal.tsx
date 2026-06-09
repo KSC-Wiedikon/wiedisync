@@ -104,18 +104,26 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
                 onChange={(e) => setSelected(Number(e.target.value))}
                 className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               >
-                {previews.map((p, i) => (
-                  <option key={p.id} value={i}>
-                    {p.team_name} — {p.to}
-                  </option>
-                ))}
+                {previews.map((p, i) => {
+                  // Native <option> can't wrap — truncate the (often multi-)email
+                  // list so a long recipient string doesn't overflow the dropdown.
+                  // The full list is shown in the preview header below.
+                  const to = p.to || ''
+                  const count = to.split(',').filter((e) => e.trim()).length
+                  const shortTo = to.length > 46 ? `${to.slice(0, 46).trimEnd()}…` : to
+                  return (
+                    <option key={p.id} value={i}>
+                      {p.team_name} — {shortTo}{count > 1 ? ` (${count})` : ''}
+                    </option>
+                  )
+                })}
               </select>
             </label>
 
             {current && (
               <div className="min-h-0 overflow-y-auto rounded border border-gray-200 dark:border-gray-700">
                 <div className="space-y-0.5 border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-700 dark:bg-gray-800/60">
-                  <div className="text-gray-500 dark:text-gray-400">
+                  <div className="break-words text-gray-500 dark:text-gray-400">
                     <span className="font-medium">{t('previewToLabel')}:</span> {current.to}
                   </div>
                   <div className="text-gray-500 dark:text-gray-400">
