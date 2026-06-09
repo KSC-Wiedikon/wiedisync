@@ -204,6 +204,8 @@ export default function AdminSetupPage() {
             generating={generating}
             genResult={genResult}
             hasSlots={slots.length > 0}
+            slots={slots}
+            teams={volleyballTeams}
             onGenerate={handleGenerate}
           />
 

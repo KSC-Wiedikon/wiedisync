@@ -66,6 +66,7 @@ export default {
   regenerateSlots: 'Rigenera le fasce di gioco',
   regenerateConfirm: 'Rigenerare le fasce di gioco? Sostituisce tutti gli slot non ancora prenotati; quelli confermati e bloccati vengono mantenuti.',
   slotsGenerated: '{{count}} fasce di gioco generate',
+  slotsTotal: '{{count}} slot',
   slotSource: 'Origine',
   sourceHallSlot: 'Piano palestra',
   sourceSpielsamstag: 'Sabato di gioco',

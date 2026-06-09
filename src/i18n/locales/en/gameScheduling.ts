@@ -63,6 +63,7 @@ export default {
   regenerateSlots: 'Regenerate game slots',
   regenerateConfirm: 'Regenerate game slots? This replaces all slots that are not yet booked; confirmed and blocked slots are kept.',
   slotsGenerated: '{{count}} game slots generated',
+  slotsTotal: '{{count}} slots',
   slotSource: 'Source',
   sourceHallSlot: 'Hall Plan',
   sourceSpielsamstag: 'Game Saturday',

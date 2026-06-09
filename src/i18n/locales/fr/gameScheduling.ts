@@ -66,6 +66,7 @@ export default {
   regenerateSlots: 'Régénérer les créneaux',
   regenerateConfirm: 'Régénérer les créneaux ? Remplace tous les créneaux pas encore réservés ; les créneaux confirmés et bloqués sont conservés.',
   slotsGenerated: '{{count}} creneaux de match generes',
+  slotsTotal: '{{count}} créneaux',
   slotSource: 'Source',
   sourceHallSlot: 'Plan de salle',
   sourceSpielsamstag: 'Samedi de match',

@@ -63,6 +63,7 @@ export default {
   regenerateSlots: 'Spieltermine neu generieren',
   regenerateConfirm: 'Spieltermine neu generieren? Ersetzt alle noch nicht gebuchten Slots; bestätigte und blockierte bleiben erhalten.',
   slotsGenerated: '{{count}} Spieltermine generiert',
+  slotsTotal: '{{count}} Slots',
   slotSource: 'Quelle',
   sourceHallSlot: 'Hallenplan',
   sourceSpielsamstag: 'Spielsamstag',
