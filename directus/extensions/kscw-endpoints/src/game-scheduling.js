@@ -2601,7 +2601,18 @@ export function registerGameScheduling(router, { database, logger, services, get
       const teamId = normTeamId(kscwTeamRow.name)
       const kscwSideName = (g) =>
         (String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID) ? g.home_team_name : g.away_team_name) || ''
-      const games = allGames.filter((g) => normTeamId(kscwSideName(g)) === teamId)
+      // The SVRZ feed sometimes lists a fixture TWICE (two persistence ids, same
+      // matchup + datetime) — dedupe by matchup+datetime so the game count is the
+      // real one (e.g. 2 home+away, not a doubled 4).
+      const seenGame = new Set()
+      const games = allGames
+        .filter((g) => normTeamId(kscwSideName(g)) === teamId)
+        .filter((g) => {
+          const k = `${g.home_team_name}|${g.away_team_name}|${g.starting_date_time || ''}`
+          if (seenGame.has(k)) return false
+          seenGame.add(k)
+          return true
+        })
 
       // 2. Group by opponent TEAM (club id + team name). Grouping by club alone
       // merged a club's several teams into one row; keying on the opposing team
@@ -2678,18 +2689,37 @@ export function registerGameScheduling(router, { database, logger, services, get
             })
           }
         }
-        // Fallback: club-level bulk feed
-        if (group.contacts.size === 0 && seasonUuid) {
-          const bulk = await database('svrz_spielplaner_contacts')
-            .where({ club_id: group.club_id, season_uuid: seasonUuid })
-          for (const c of bulk) {
+        // Fallback: club-level synced feed. Match by club_id + current season
+        // NAME — season_uuid is NOT a reliable season key (one uuid spans several
+        // seasons in the feed). Then prefer the contact(s) responsible for THIS
+        // team's league — club_league_categories is a JSON array of league codes
+        // like ["2L","5L","U23"]; if none match, fall back to ALL the club's
+        // contacts. Every matched contact is returned — the invite is one link
+        // emailed to all of them.
+        if (group.contacts.size === 0) {
+          // Match the season by START YEAR ("2026"), not the exact label — the
+          // feed's season_name varies ("2026/27" vs "2026/2027").
+          const all = await database('svrz_spielplaner_contacts')
+            .where('club_id', String(group.club_id))
+            .modify((q) => { if (svrzSeasonName) q.where('season_name', 'like', `${svrzSeasonName}%`) })
+            .whereNotNull('contact_email')
+          const league = String(kscwTeamRow.league || '').toLowerCase().replace(/\s+/g, '')
+          const inLeague = (c) => {
+            let cats = c.club_league_categories
+            if (typeof cats === 'string') { try { cats = JSON.parse(cats) } catch { cats = [] } }
+            if (!Array.isArray(cats)) return false
+            return cats.some((x) => String(x).toLowerCase().replace(/\s+/g, '') === league)
+          }
+          const leagueMatched = league ? all.filter(inLeague) : []
+          const chosen = leagueMatched.length ? leagueMatched : all
+          for (const c of chosen) {
             const email = (c.contact_email || '').toLowerCase().trim()
             if (!email || group.contacts.has(email)) continue
             group.contacts.set(email, {
               name: c.contact_name || '',
               email,
               phone: c.contact_phone || '',
-              source: 'club_fallback',
+              source: leagueMatched.length ? 'club_league' : 'club_fallback',
             })
           }
         }
@@ -2702,6 +2732,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           club_name: g.club_name,
           team_name: g.team_name,
           game_count: g.games.length,
+          games: g.games.map((x) => ({ date: x.starting_date_time, display_name: x.display_name, is_home_kscw: x.is_home_kscw })),
           contacts,
           warning: contacts.length === 0 ? 'no_contact' : undefined,
           source: contacts.length === 0 ? 'none' : contacts[0].source,
