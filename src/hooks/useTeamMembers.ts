@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchItem, fetchAllItems, updateRecord } from '../lib/api'
 import { coercePositions, normalizePositionsForSport } from '../utils/memberPositions'
 import type { Member, MemberTeam, Team } from '../types'
@@ -15,6 +15,9 @@ export function useTeamMembers(teamId: string | undefined, season?: string) {
   // firing setIsLoading(true).
   const [loadedKey, setLoadedKey] = useState<string | null | undefined>(undefined)
   const [error, setError] = useState<Error | null>(null)
+  // Discards out-of-order responses: a slow stale fetch resolving after a newer
+  // teamId/season selection must not overwrite loadedKey and re-trigger loading.
+  const latestKeyRef = useRef<string | null>(null)
 
   const safeTeamId = teamId ? relId(teamId) : ''
   const requestedKey = safeTeamId ? `${safeTeamId}:${season ?? ''}` : null
@@ -22,6 +25,7 @@ export function useTeamMembers(teamId: string | undefined, season?: string) {
 
   const fetch = useCallback(async () => {
     if (!safeTeamId) {
+      latestKeyRef.current = null
       setMembers([])
       setLoadedKey(null)
       return
@@ -29,6 +33,7 @@ export function useTeamMembers(teamId: string | undefined, season?: string) {
 
     setError(null)
     const key = `${safeTeamId}:${season ?? ''}`
+    latestKeyRef.current = key
     try {
       const team = await fetchItem<Team>('teams', safeTeamId, { fields: ['id', 'sport'] })
       const filter: Record<string, unknown> = { team: { _eq: safeTeamId } }
@@ -53,14 +58,17 @@ export function useTeamMembers(teamId: string | undefined, season?: string) {
         }
         return mt
       })
+      if (latestKeyRef.current !== key) return
       setMembers(normalized)
       if (updates.length > 0) {
         void Promise.allSettled(updates)
       }
     } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)))
+      if (latestKeyRef.current === key) {
+        setError(err instanceof Error ? err : new Error(String(err)))
+      }
     } finally {
-      setLoadedKey(key)
+      if (latestKeyRef.current === key) setLoadedKey(key)
     }
   }, [safeTeamId, season])
 
@@ -76,6 +84,9 @@ export function useMultiTeamMembers(teamIds: string[]) {
   const [members, setMembers] = useState<ExpandedMemberTeam[]>([])
   const [loadedKey, setLoadedKey] = useState<string | null | undefined>(undefined)
   const [error, setError] = useState<Error | null>(null)
+  // Discards out-of-order responses: a slow stale fetch resolving after a newer
+  // team selection must not overwrite loadedKey and re-trigger loading.
+  const latestKeyRef = useRef<string | null>(null)
   // Defensive: ensure all IDs are scalars
   const safeIds = teamIds.map(id => relId(id)).filter(Boolean)
   const key = safeIds.slice().sort().join(',')
@@ -84,10 +95,13 @@ export function useMultiTeamMembers(teamIds: string[]) {
 
   const fetch = useCallback(async () => {
     if (safeIds.length === 0) {
+      latestKeyRef.current = null
       setMembers([])
       setLoadedKey(null)
       return
     }
+
+    latestKeyRef.current = key
 
     // Single team — delegate to simpler path
     if (safeIds.length === 1) {
@@ -98,11 +112,14 @@ export function useMultiTeamMembers(teamIds: string[]) {
           fields: ['*', 'member.*'],
           sort: ['member'],
         })
+        if (latestKeyRef.current !== key) return
         setMembers(result)
       } catch (err) {
-        setError(err instanceof Error ? err : new Error(String(err)))
+        if (latestKeyRef.current === key) {
+          setError(err instanceof Error ? err : new Error(String(err)))
+        }
       } finally {
-        setLoadedKey(key)
+        if (latestKeyRef.current === key) setLoadedKey(key)
       }
       return
     }
@@ -122,11 +139,14 @@ export function useMultiTeamMembers(teamIds: string[]) {
         seen.add(memberId)
         return true
       })
+      if (latestKeyRef.current !== key) return
       setMembers(deduped)
     } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)))
+      if (latestKeyRef.current === key) {
+        setError(err instanceof Error ? err : new Error(String(err)))
+      }
     } finally {
-      setLoadedKey(key)
+      if (latestKeyRef.current === key) setLoadedKey(key)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])

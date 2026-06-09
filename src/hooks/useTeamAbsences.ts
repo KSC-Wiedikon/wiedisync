@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchAllItems, fetchItem } from '../lib/api'
 import { useRealtime } from './useRealtime'
 import type { Absence, Member, MemberTeam } from '../types'
@@ -14,6 +14,12 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
   // refetch effect runs setIsLoading(true).
   const [loadedKey, setLoadedKey] = useState<string | null | undefined>(undefined)
   const [error, setError] = useState<Error | null>(null)
+  // Tracks the most recently requested key so out-of-order responses can be
+  // discarded. Without this, switching from "all teams" (slow, large query) to
+  // a single team (fast) leaves the page stuck on "Loading…": the stale
+  // all-teams fetch resolves last and overwrites loadedKey with its own key, so
+  // loadedKey !== requestedKey stays true forever and no new fetch ever fires.
+  const latestKeyRef = useRef<string | null>(null)
 
   // Stable key for dependency tracking
   const teamIdsKey = teamIds.join(',')
@@ -22,6 +28,7 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
 
   const fetch = useCallback(async () => {
     if (teamIds.length === 0) {
+      latestKeyRef.current = null
       setAbsences([])
       setMemberMap({})
       setLoadedKey(null)
@@ -29,6 +36,7 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
     }
 
     const key = `${teamIdsKey}|${startDate}|${endDate}`
+    latestKeyRef.current = key
     setError(null)
     try {
       // Get players from member_teams for all teams
@@ -61,9 +69,10 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
       const memberIds = [...memberIdSet]
 
       if (memberIds.length === 0) {
-        setAbsences([])
-        setMemberMap({})
-        setLoadedKey(key)
+        if (latestKeyRef.current === key) {
+          setAbsences([])
+          setMemberMap({})
+        }
         return
       }
 
@@ -108,12 +117,18 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
         }
       }
 
+      // Discard this response if a newer team/date selection has superseded it.
+      if (latestKeyRef.current !== key) return
       setAbsences(relevant)
       setMemberMap(mMap)
     } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)))
+      if (latestKeyRef.current === key) {
+        setError(err instanceof Error ? err : new Error(String(err)))
+      }
     } finally {
-      setLoadedKey(key)
+      // Only the latest in-flight request may mark itself as loaded, so a slow
+      // stale fetch can't reopen "Loading…" after the current one finished.
+      if (latestKeyRef.current === key) setLoadedKey(key)
     }
   }, [teamIdsKey, startDate, endDate]) // eslint-disable-line react-hooks/exhaustive-deps
 

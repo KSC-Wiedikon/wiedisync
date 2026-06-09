@@ -367,7 +367,7 @@ export default function MonthGrid({
                             if (ci !== bar.startCol) return null
                             const c = barColors[paintKey(bar.entry)]
                             return (
-                              <div key={bar.entry.id} className={`truncate text-center text-[10px] font-semibold leading-tight lg:text-xs ${c.text} ${c.darkText}`}>
+                              <div key={bar.entry.id} title={bar.entry.title} className={`break-words text-center text-[10px] font-semibold leading-tight lg:text-xs ${c.text} ${c.darkText}`}>
                                 {bar.entry.title}
                               </div>
                             )
