@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-05T19:58:49.339Z
+-- Generated:   2026-06-09T15:41:32.677Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -1262,6 +1262,12 @@ DECLARE
   v_type text; v_title text; v_body text; v_team_id int; v_game_id int;
   v_hall text; v_rec record;
 BEGIN
+  -- Silencer for bulk re-point during season rollover. Second arg `true` =
+  -- return empty string if unset instead of raising.
+  IF current_setting('kscw.skip_games_notify', true) = 'on' THEN
+    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+  END IF;
+
   -- Pick the right row for field access
   IF TG_OP = 'DELETE' THEN v_rec := OLD; ELSE v_rec := NEW; END IF;
   v_team_id := v_rec.kscw_team; v_game_id := v_rec.id;
@@ -3015,6 +3021,78 @@ ALTER SEQUENCE public.game_scheduling_bookings_id_seq OWNED BY public.game_sched
 
 
 --
+-- Name: game_scheduling_derbies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.game_scheduling_derbies (
+    id integer NOT NULL,
+    season integer NOT NULL,
+    team_a integer NOT NULL,
+    team_b integer NOT NULL,
+    leg1_svrz_id character varying(255),
+    leg1_home_team integer,
+    leg1_date date,
+    leg2_svrz_id character varying(255),
+    leg2_home_team integer,
+    leg2_date date,
+    confirmed boolean DEFAULT false NOT NULL,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    user_updated uuid,
+    CONSTRAINT game_scheduling_derbies_team_order_check CHECK ((team_a < team_b))
+);
+
+
+--
+-- Name: TABLE game_scheduling_derbies; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.game_scheduling_derbies IS 'Intra-club derby anchors (Art. 27 SVRZ). One row per season + KSCW team pair sharing a league group. The spielplaner sets the two head-to-head game dates (one Vorrunde leg, one Rückrunde leg); once confirmed, the opponent home-slot + away-date flow for both teams is clamped to after the relevant derby date per half. Managed only via the kscw game-scheduling endpoints (knex, admin/spielplaner-gated).';
+
+
+--
+-- Name: COLUMN game_scheduling_derbies.leg1_svrz_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_derbies.leg1_svrz_id IS 'svrz_games.svrz_persistence_id of the first head-to-head fixture this anchor maps to.';
+
+
+--
+-- Name: COLUMN game_scheduling_derbies.leg1_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_derbies.leg1_date IS 'Date the spielplaner fixed for leg 1. Its Vor-/Rückrunde half is derived from this date vs the 01.01 boundary at read time.';
+
+
+--
+-- Name: COLUMN game_scheduling_derbies.confirmed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_derbies.confirmed IS 'true once both leg dates are set + the spielplaner confirms. Only confirmed rows clamp the external slot flow.';
+
+
+--
+-- Name: game_scheduling_derbies_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.game_scheduling_derbies_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: game_scheduling_derbies_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.game_scheduling_derbies_id_seq OWNED BY public.game_scheduling_derbies.id;
+
+
+--
 -- Name: game_scheduling_opponents; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3022,8 +3100,8 @@ CREATE TABLE public.game_scheduling_opponents (
     id integer NOT NULL,
     season integer,
     club_name character varying(255) DEFAULT NULL::character varying,
-    contact_name character varying(255) DEFAULT NULL::character varying,
-    contact_email character varying(255) DEFAULT NULL::character varying,
+    contact_name text DEFAULT NULL::character varying,
+    contact_email text DEFAULT NULL::character varying,
     token character varying(255) DEFAULT NULL::character varying,
     kscw_team integer,
     home_game integer,
@@ -3036,7 +3114,10 @@ CREATE TABLE public.game_scheduling_opponents (
     first_viewed_at timestamp with time zone,
     expires_at timestamp with time zone,
     team_name character varying(255) DEFAULT NULL::character varying,
-    language character varying(5)
+    language character varying(5),
+    new_slots_requested_at timestamp with time zone,
+    kscw_note text,
+    opponent_note text
 );
 
 
@@ -5726,6 +5807,13 @@ ALTER TABLE ONLY public.game_scheduling_bookings ALTER COLUMN id SET DEFAULT nex
 
 
 --
+-- Name: game_scheduling_derbies id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_scheduling_derbies ALTER COLUMN id SET DEFAULT nextval('public.game_scheduling_derbies_id_seq'::regclass);
+
+
+--
 -- Name: game_scheduling_opponents id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -6265,6 +6353,22 @@ ALTER TABLE ONLY public.forms_teams
 
 ALTER TABLE ONLY public.game_scheduling_bookings
     ADD CONSTRAINT game_scheduling_bookings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: game_scheduling_derbies game_scheduling_derbies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_scheduling_derbies
+    ADD CONSTRAINT game_scheduling_derbies_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: game_scheduling_derbies game_scheduling_derbies_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_scheduling_derbies
+    ADD CONSTRAINT game_scheduling_derbies_unique UNIQUE (season, team_a, team_b);
 
 
 --
@@ -6949,6 +7053,27 @@ CREATE INDEX game_scheduling_bookings_opponent_index ON public.game_scheduling_b
 --
 
 CREATE INDEX game_scheduling_bookings_slot_index ON public.game_scheduling_bookings USING btree (slot);
+
+
+--
+-- Name: game_scheduling_derbies_season_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX game_scheduling_derbies_season_idx ON public.game_scheduling_derbies USING btree (season);
+
+
+--
+-- Name: game_scheduling_derbies_team_a_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX game_scheduling_derbies_team_a_idx ON public.game_scheduling_derbies USING btree (team_a) WHERE confirmed;
+
+
+--
+-- Name: game_scheduling_derbies_team_b_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX game_scheduling_derbies_team_b_idx ON public.game_scheduling_derbies USING btree (team_b) WHERE confirmed;
 
 
 --
@@ -8288,6 +8413,46 @@ ALTER TABLE ONLY public.forms_teams
 
 
 --
+-- Name: game_scheduling_derbies game_scheduling_derbies_leg1_home_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_scheduling_derbies
+    ADD CONSTRAINT game_scheduling_derbies_leg1_home_team_fkey FOREIGN KEY (leg1_home_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: game_scheduling_derbies game_scheduling_derbies_leg2_home_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_scheduling_derbies
+    ADD CONSTRAINT game_scheduling_derbies_leg2_home_team_fkey FOREIGN KEY (leg2_home_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: game_scheduling_derbies game_scheduling_derbies_season_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_scheduling_derbies
+    ADD CONSTRAINT game_scheduling_derbies_season_fkey FOREIGN KEY (season) REFERENCES public.game_scheduling_seasons(id) ON DELETE CASCADE;
+
+
+--
+-- Name: game_scheduling_derbies game_scheduling_derbies_team_a_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_scheduling_derbies
+    ADD CONSTRAINT game_scheduling_derbies_team_a_fkey FOREIGN KEY (team_a) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: game_scheduling_derbies game_scheduling_derbies_team_b_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_scheduling_derbies
+    ADD CONSTRAINT game_scheduling_derbies_team_b_fkey FOREIGN KEY (team_b) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
 -- Name: game_scheduling_opponents game_scheduling_opponents_season_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8560,14 +8725,6 @@ ALTER TABLE ONLY public.slot_claims
 
 
 --
--- Name: spielplaner_assignments spielplaner_assignments_kscw_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.spielplaner_assignments
-    ADD CONSTRAINT spielplaner_assignments_kscw_team_fkey FOREIGN KEY (kscw_team) REFERENCES public.teams(id) ON DELETE CASCADE;
-
-
---
 -- Name: spielplaner_assignments spielplaner_assignments_kscw_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8576,19 +8733,19 @@ ALTER TABLE ONLY public.spielplaner_assignments
 
 
 --
--- Name: spielplaner_assignments spielplaner_assignments_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.spielplaner_assignments
-    ADD CONSTRAINT spielplaner_assignments_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
 -- Name: spielplaner_assignments spielplaner_assignments_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.spielplaner_assignments
     ADD CONSTRAINT spielplaner_assignments_member_foreign FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: spielplaner_assignments spielplaner_assignments_user_created_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.spielplaner_assignments
+    ADD CONSTRAINT spielplaner_assignments_user_created_foreign FOREIGN KEY (user_created) REFERENCES public.directus_users(id) ON DELETE SET NULL;
 
 
 --
@@ -8604,7 +8761,7 @@ ALTER TABLE ONLY public.team_requests
 --
 
 ALTER TABLE ONLY public.team_requests
-    ADD CONSTRAINT team_requests_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id);
+    ADD CONSTRAINT team_requests_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
 
 
 --

@@ -1235,21 +1235,34 @@ async function main() {
   await setPerm(LEADER_POLICY, 'slot_claims', 'create', COACH_OF_SLOT_CLAIM)
   await setPerm(LEADER_POLICY, 'slot_claims', 'delete', COACH_OF_SLOT_CLAIM)
   await setPerm(LEADER_POLICY, 'task_templates', 'delete', COACH_OF_TEAM_FK)
-  // Junction + hall-plan CRUD — unfiltered, mirroring the sibling teams_sponsors
-  // / events_teams junctions above (Directus can't relationally filter junction
-  // writes; the roster/hallenplan editors + kscw-hooks gate them). carpools.delete
-  // is kept open exactly as the legacy policy had it (lowest-stakes; flagged for a
-  // later tightening pass with the remaining open junction writes).
+  // hall_slots_teams CRUD — unfiltered, mirroring the sibling teams_sponsors /
+  // events_teams junctions (Directus can't relationally filter junction writes;
+  // the hallenplan editor + kscw-hooks gate them).
   await setPerm(LEADER_POLICY, 'hall_slots_teams', 'create')
   await setPerm(LEADER_POLICY, 'hall_slots_teams', 'update')
   await setPerm(LEADER_POLICY, 'hall_slots_teams', 'delete')
+  // teams_coaches / teams_responsibles — the legacy policy granted these fully
+  // open (any leader could edit any team's coach/TR list). Tightened: update +
+  // delete scoped to junctions whose team the caller coaches / is TR for; create
+  // stays unfiltered (Directus can't relationally filter a not-yet-existing row —
+  // same constraint as teams_sponsors; the roster editor + role-sync hook gate it).
+  const JUNCTION_OF_TEAM_I_LEAD = {
+    teams_id: {
+      _or: [
+        { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+      ],
+    },
+  }
   await setPerm(LEADER_POLICY, 'teams_coaches', 'create')
-  await setPerm(LEADER_POLICY, 'teams_coaches', 'update')
-  await setPerm(LEADER_POLICY, 'teams_coaches', 'delete')
+  await setPerm(LEADER_POLICY, 'teams_coaches', 'update', JUNCTION_OF_TEAM_I_LEAD)
+  await setPerm(LEADER_POLICY, 'teams_coaches', 'delete', JUNCTION_OF_TEAM_I_LEAD)
   await setPerm(LEADER_POLICY, 'teams_responsibles', 'create')
-  await setPerm(LEADER_POLICY, 'teams_responsibles', 'update')
-  await setPerm(LEADER_POLICY, 'teams_responsibles', 'delete')
-  await setPerm(LEADER_POLICY, 'carpools', 'delete')
+  await setPerm(LEADER_POLICY, 'teams_responsibles', 'update', JUNCTION_OF_TEAM_I_LEAD)
+  await setPerm(LEADER_POLICY, 'teams_responsibles', 'delete', JUNCTION_OF_TEAM_I_LEAD)
+  // carpools.delete — was fully open; scope to the driver's own carpool, matching
+  // how the Member policy already scopes carpools create/update (OWN_DRIVER).
+  await setPerm(LEADER_POLICY, 'carpools', 'delete', OWN_DRIVER)
 
   // Files — create (upload team photos)
   await setPerm(LEADER_POLICY, 'directus_files', 'create')
