@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.27.0'
+const APP_VERSION = '4.28.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.28.0',
+    date: '10.06.2026',
+    sections: [
+      {
+        title: 'Confirmed home games sync to VolleyManager',
+        items: [
+          'When you confirm a home game, its date, time and hall are now written straight into VolleyManager — no more editing each game by hand there.',
+          'Each confirmed home game shows its VolleyManager status (in VM / sending / failed) with a "Push to VM" button to retry.',
+          'When two home games match the same opponent, you choose which VolleyManager fixture to update.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.27.0',
     date: '09.06.2026',
