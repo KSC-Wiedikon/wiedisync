@@ -243,7 +243,12 @@ async function main() {
   if (!g) return finish('failed', { error: `VM game ${svrzId} not found among home fixtures (finalized?)`, vmGameId: svrzId });
   if (g.status !== 'open') return finish('failed', { error: `VM game status is "${g.status}", not open`, vmGameId: svrzId });
 
-  const startingDateTime = zurichToUtcIso(slot.date, String(slot.start_time).slice(0, 5));
+  // Weekday (Mon-Fri) home games always start at 20:00 — the slot is just the
+  // hall window (e.g. 19:30-21:30), the game itself is at 20:00. Weekend slots
+  // (Spielsamstag / junior Sunday) keep their actual start time.
+  const slotDow = new Date(`${String(slot.date).slice(0, 10)}T00:00:00Z`).getUTCDay(); // 0=Sun..6=Sat
+  const gameStart = slotDow >= 1 && slotDow <= 5 ? '20:00' : String(slot.start_time).slice(0, 5);
+  const startingDateTime = zurichToUtcIso(slot.date, gameStart);
   const pairs = gameToPairs(g, startingDateTime, vmHallId);
 
   // DRY_RUN: prove match + payload + datetime + hall + validate WITHOUT writing.
