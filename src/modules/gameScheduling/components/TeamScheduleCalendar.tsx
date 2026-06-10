@@ -18,7 +18,9 @@ interface TeamCalendarResponse {
 // token / admin notes), so any logged-in member can see it without granting
 // broad reads on the scheduling collections. Renders nothing for non-schedulable
 // teams (non-volleyball, MiniVB/DU20) or until the season has at least one entry.
-export default function TeamScheduleCalendar({ team }: { team: Team }) {
+// Pass hideWhenEmpty={false} (e.g. the calendar page's Schedule view) to render
+// the empty month grid even when the team has no slots/bookings yet.
+export default function TeamScheduleCalendar({ team, hideWhenEmpty = true }: { team: Team; hideWhenEmpty?: boolean }) {
   const { t } = useTranslation('gameScheduling')
   const [data, setData] = useState<TeamCalendarResponse | null>(null)
 
@@ -37,7 +39,7 @@ export default function TeamScheduleCalendar({ team }: { team: Team }) {
   }, [team.id, schedulable])
 
   if (!schedulable || !data?.season) return null
-  if (data.slots.length === 0 && data.bookings.length === 0) return null
+  if (hideWhenEmpty && data.slots.length === 0 && data.bookings.length === 0) return null
 
   return (
     <div className="mt-8">

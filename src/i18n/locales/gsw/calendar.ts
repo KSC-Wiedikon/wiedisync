@@ -5,12 +5,14 @@ export default {
   viewHall: 'Halle',
   viewWeek: 'Wuche',
   viewMonth: 'Kaländer',
+  viewSchedule: 'Spielplan',
   viewList: 'Lischtä',
 
   // Subtitles
   subtitleHall: 'Hallebelegungsplan',
   subtitleWeek: 'Wucheübersicht vo allne Termin',
   subtitleMonth: 'Monetsübersicht vo allne Termin',
+  subtitleSchedule: 'Plante & bestätigti Spiel vo dine Teams',
   subtitleList: 'Alli Termin in chronologischer Reihefolg',
 
   // Filter modal

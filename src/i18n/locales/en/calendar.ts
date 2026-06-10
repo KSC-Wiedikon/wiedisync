@@ -5,12 +5,14 @@ export default {
   viewHall: 'Hall',
   viewWeek: 'Week',
   viewMonth: 'Calendar',
+  viewSchedule: 'Schedule',
   viewList: 'List',
 
   // Subtitles
   subtitleHall: 'Hall occupancy plan',
   subtitleWeek: 'Weekly overview of all events',
   subtitleMonth: 'Monthly overview of all events',
+  subtitleSchedule: 'Proposed & confirmed games for your teams',
   subtitleList: 'All events in chronological order',
 
   // Filter modal

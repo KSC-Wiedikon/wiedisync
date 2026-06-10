@@ -5,12 +5,14 @@ export default {
   viewHall: 'Palestra',
   viewWeek: 'Settimana',
   viewMonth: 'Calendario',
+  viewSchedule: 'Partite',
   viewList: 'Lista',
 
   // Subtitles
   subtitleHall: 'Piano di occupazione della palestra',
   subtitleWeek: 'Panoramica settimanale di tutti gli eventi',
   subtitleMonth: 'Panoramica mensile di tutti gli eventi',
+  subtitleSchedule: 'Partite proposte e confermate delle tue squadre',
   subtitleList: 'Tutti gli eventi in ordine cronologico',
 
   // Filter modal

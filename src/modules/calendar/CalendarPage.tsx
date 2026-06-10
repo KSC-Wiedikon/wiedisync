@@ -27,7 +27,10 @@ import LoadingSpinner from '../../components/LoadingSpinner'
 import BasketballIcon from '../../components/BasketballIcon'
 import VolleyballIcon from '../../components/VolleyballIcon'
 import type { CalendarViewMode, CalendarFilterState, SourceFilter, CalendarEntry } from '../../types/calendar'
-import type { Game } from '../../types'
+import type { Game, Team } from '../../types'
+import { useCollection } from '../../lib/query'
+import { isSchedulableTeam } from '../gameScheduling/utils/schedulableTeams'
+import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalendar'
 
 /** Inline type icon for the overflow modal */
 const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'volleyball' | 'basketball'; className?: string }) => {
@@ -103,6 +106,19 @@ export default function CalendarPage() {
     const set = new Set([...memberTeamIds, ...coachTeamIds])
     return [...set]
   }, [memberTeamIds, coachTeamIds])
+
+  // The user's schedulable (volleyball, non-excluded) teams — drives the
+  // optional "Schedule" view that shows their proposed + confirmed games.
+  const { data: userTeamsRaw } = useCollection<Team>('teams', {
+    enabled: !!user && userTeamIds.length > 0,
+    filter: userTeamIds.length > 0 ? { id: { _in: userTeamIds } } : { id: { _eq: -1 } },
+    fields: ['id', 'name', 'sport', 'active'],
+    all: true,
+  })
+  const scheduleTeams = useMemo(
+    () => (userTeamsRaw ?? []).filter(isSchedulableTeam),
+    [userTeamsRaw],
+  )
 
   const [filters, setFilters] = useState<CalendarFilterState>(() => ({
     sources: [...allSources],
@@ -192,6 +208,7 @@ export default function CalendarPage() {
     hallenplan: t('subtitleHall'),
     month: t('subtitleMonth'),
     week: t('subtitleWeek'),
+    schedule: t('subtitleSchedule'),
   }
 
   return (
@@ -243,6 +260,7 @@ export default function CalendarPage() {
             options={[
               { value: 'hallenplan', label: t('viewHall') },
               { value: 'month', label: t('viewMonth') },
+              ...(scheduleTeams.length > 0 ? [{ value: 'schedule', label: t('viewSchedule') }] : []),
             ]}
             value={viewMode}
             onChange={handleViewChange}
@@ -265,6 +283,15 @@ export default function CalendarPage() {
 
       {/* Views */}
       {viewMode === 'hallenplan' && <HallenplanView />}
+
+      {/* Schedule view — per-team proposed + confirmed game calendars */}
+      {viewMode === 'schedule' && (
+        <div className="flex flex-1 flex-col gap-6">
+          {scheduleTeams.map((team) => (
+            <TeamScheduleCalendar key={team.id} team={team} hideWhenEmpty={false} />
+          ))}
+        </div>
+      )}
 
       {needsData && showSpinner && <LoadingSpinner />}
 
