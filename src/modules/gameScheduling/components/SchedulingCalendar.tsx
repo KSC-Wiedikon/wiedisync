@@ -31,6 +31,9 @@ interface Props {
   bookings: ExpandedBooking[]
   teams: Team[]
   season: GameSchedulingSeason
+  // Heading text — defaults to the season-wide overview title. Pass a
+  // team-scoped title when rendering this inside a single team's panel.
+  title?: string
 }
 
 // Parse a 'YYYY-MM-DD' (or ISO) string into a LOCAL Date (no TZ shift) so the
@@ -50,7 +53,7 @@ const CHIP: Record<EntryKind, string> = {
   blocked: 'bg-gray-300 text-gray-600 line-through dark:bg-gray-600 dark:text-gray-300',
 }
 
-export default function SchedulingCalendar({ slots, bookings, teams, season }: Props) {
+export default function SchedulingCalendar({ slots, bookings, teams, season, title }: Props) {
   const { t } = useTranslation('gameScheduling')
 
   const teamName = useMemo(() => {
@@ -255,7 +258,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season }: P
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{t('overviewTitle')}</h2>
+      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{title ?? t('overviewTitle')}</h2>
 
       {/* Legend */}
       <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-gray-600 dark:text-gray-300">

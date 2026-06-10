@@ -1,6 +1,7 @@
 export default {
   // Season overview calendar
   overviewTitle: 'Season overview',
+  teamCalendarTitle: 'Team calendar',
   legendHomeConfirmed: 'Home (confirmed)',
   legendAwayConfirmed: 'Away (confirmed)',
   legendHomeProposed: 'Home (proposed)',

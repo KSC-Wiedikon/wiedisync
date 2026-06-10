@@ -138,6 +138,14 @@ export default function AdminDashboardPage() {
   const getTeamSlots = (teamId: string) =>
     slots.filter(s => String(s.kscw_team) === String(teamId))
 
+  // Bookings belonging to this team — both legs reference the opponent, whose
+  // kscw_team is the team. Scopes the per-team calendar to its own games.
+  const getTeamBookings = (teamId: string) =>
+    bookings.filter(b => {
+      const opp = typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent) : null
+      return opp ? String(opp.kscw_team) === String(teamId) : false
+    })
+
   // Opponents (excluding revoked/expired) still missing a confirmed home or away
   // leg — mirrors the backend's "Noch offen" count for the finalize warning.
   const teamPending = (teamId: string) =>
@@ -273,6 +281,17 @@ export default function AdminDashboardPage() {
                     >
                       {notifyingTeam === team.id ? t('finalizeNotifySending') : t('finalizeNotify')}
                     </button>
+                  </div>
+                  {/* This team's own calendar — proposed + confirmed home/away
+                      games, blocked + open slots, scoped to the team. */}
+                  <div className="mb-4">
+                    <SchedulingCalendar
+                      slots={getTeamSlots(team.id)}
+                      bookings={getTeamBookings(team.id)}
+                      teams={[team]}
+                      season={season}
+                      title={t('teamCalendarTitle')}
+                    />
                   </div>
                   <TeamBookingsContent
                     kscwTeamId={team.id}

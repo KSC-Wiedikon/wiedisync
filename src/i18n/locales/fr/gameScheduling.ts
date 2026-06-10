@@ -1,6 +1,7 @@
 export default {
   // Vue de la saison (calendrier)
   overviewTitle: 'Vue de la saison',
+  teamCalendarTitle: "Calendrier de l'équipe",
   legendHomeConfirmed: 'Domicile (confirmé)',
   legendAwayConfirmed: 'Extérieur (confirmé)',
   legendHomeProposed: 'Domicile (proposé)',

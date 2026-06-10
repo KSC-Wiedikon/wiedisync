@@ -1,6 +1,7 @@
 export default {
   // Panoramica stagione (calendario)
   overviewTitle: 'Panoramica stagione',
+  teamCalendarTitle: 'Calendario squadra',
   legendHomeConfirmed: 'Casa (confermata)',
   legendAwayConfirmed: 'Trasferta (confermata)',
   legendHomeProposed: 'Casa (proposta)',
