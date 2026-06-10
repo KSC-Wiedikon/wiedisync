@@ -28,6 +28,7 @@ const FORCE_SVRZ_ID = process.env.FORCE_SVRZ_ID || null;
 
 const log = (...a) => console.log(new Date().toISOString(), '[vm-push]', ...a);
 const idOf = (x) => (x && typeof x === 'object' ? (x.__identity || x.persistenceObjectIdentifier || '') : '');
+const normName = (s) => String(s || '').trim().toLowerCase();
 if (!BOOKING_ID) { console.error('[vm-push] BOOKING_ID required'); process.exit(1); }
 
 // ─── Directus REST ───────────────────────────────────────────────────
