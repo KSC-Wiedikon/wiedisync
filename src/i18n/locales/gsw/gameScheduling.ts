@@ -294,6 +294,7 @@ export default {
   statusInvited: 'Iglade',
   statusNotSent: 'Nöd gschickt',
   statusViewed: 'Aagluegt',
+  statusToConfirm: 'Zum Bestätige',
   statusBooked: 'Gbuecht',
   statusRevoked: 'Widerruefe',
   statusActive: 'Aktiv',

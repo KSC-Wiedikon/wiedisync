@@ -268,6 +268,7 @@ export default {
   statusInvited: 'Eingeladen',
   statusNotSent: 'Nicht gesendet',
   statusViewed: 'Angesehen',
+  statusToConfirm: 'Zu bestätigen',
   statusBooked: 'Gebucht',
   statusRevoked: 'Widerrufen',
   statusActive: 'Aktiv',

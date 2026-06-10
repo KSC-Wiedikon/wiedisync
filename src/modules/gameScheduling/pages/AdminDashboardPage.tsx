@@ -164,8 +164,20 @@ export default function AdminDashboardPage() {
       const s = (o.status as InviteStatus) || 'active'
       if (s in byStatus) byStatus[s]++
     }
+    // Actions awaiting the spielplaner: opponent proposals (home slot pick /
+    // away proposal) still `pending` — each is one slot left to confirm.
+    const activeOppIds = new Set(
+      opps
+        .filter(o => !['revoked', 'expired'].includes(String(o.status)))
+        .map(o => String(o.id))
+    )
+    const toConfirm = bookings.filter(b => {
+      if (b.status !== 'pending') return false
+      const oid = typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent
+      return activeOppIds.has(String(oid))
+    }).length
     return {
-      booked, total: teamSlots.length, opponents: opps.length, byStatus,
+      booked, total: teamSlots.length, opponents: opps.length, byStatus, toConfirm,
     }
   }
 
@@ -229,9 +241,9 @@ export default function AdminDashboardPage() {
                         {stats.byStatus.invited}
                       </Badge>
                     )}
-                    {stats.byStatus.viewed > 0 && (
-                      <Badge variant="warning" size="sm" title={t('statusViewed')}>
-                        {stats.byStatus.viewed}
+                    {stats.toConfirm > 0 && (
+                      <Badge variant="warning" size="sm" title={t('statusToConfirm')}>
+                        {stats.toConfirm}
                       </Badge>
                     )}
                     {stats.byStatus.booked > 0 && (

@@ -294,6 +294,7 @@ export default {
   statusInvited: 'Invitato',
   statusNotSent: 'Non inviato',
   statusViewed: 'Visualizzato',
+  statusToConfirm: 'Da confermare',
   statusBooked: 'Prenotato',
   statusRevoked: 'Revocato',
   statusActive: 'Attivo',
