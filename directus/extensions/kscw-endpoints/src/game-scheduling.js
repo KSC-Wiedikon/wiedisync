@@ -81,6 +81,46 @@ function fmtDateMail(val) {
 export function registerGameScheduling(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'game-scheduling' })
 
+  // Fire-and-forget push of a confirmed HOME booking's date/time/hall into
+  // VolleyManager (volleymanager.volleyball.ch) via scripts/vm-push-game.mjs.
+  // The child self-authenticates (sync admin + VM creds) and writes the push
+  // result back onto the booking (vm_push_status/…). Never blocks the request;
+  // a VM failure is recorded on the booking, not surfaced as an HTTP error.
+  async function spawnVmPush(bookingId, { svrzId = null } = {}) {
+    try {
+      if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
+        log.warn('VM push skipped: VM_USERNAME/VM_PASSWORD not set')
+        return
+      }
+      if (!process.env.DIRECTUS_SYNC_EMAIL || !process.env.DIRECTUS_SYNC_PASSWORD) {
+        log.warn('VM push skipped: DIRECTUS_SYNC_EMAIL/PASSWORD not set')
+        return
+      }
+      const { spawn } = await import('node:child_process')
+      const { openSync } = await import('node:fs')
+      let logOut, logErr
+      try { logOut = openSync('/directus/logs/vm-push.log', 'a'); logErr = logOut } catch { logOut = 'ignore'; logErr = 'ignore' }
+      // Scoped env — forward only what the child needs (no process.env spread).
+      const env = {
+        HOME: process.env.HOME,
+        PATH: process.env.PATH,
+        VM_USERNAME: process.env.VM_USERNAME,
+        VM_PASSWORD: process.env.VM_PASSWORD,
+        VM_CLUB_UUID: process.env.VM_CLUB_UUID || '',
+        KSCW_SVRZ_CLUB_ID: process.env.KSCW_SVRZ_CLUB_ID || '',
+        DIRECTUS_URL: 'http://127.0.0.1:8055',
+        DIRECTUS_SYNC_EMAIL: process.env.DIRECTUS_SYNC_EMAIL,
+        DIRECTUS_SYNC_PASSWORD: process.env.DIRECTUS_SYNC_PASSWORD,
+        BOOKING_ID: String(bookingId),
+        ...(svrzId ? { FORCE_SVRZ_ID: String(svrzId) } : {}),
+      }
+      const child = spawn('node', ['/directus/scripts/vm-push-game.mjs'], { env, detached: true, stdio: ['ignore', logOut, logErr] })
+      child.unref()
+    } catch (e) {
+      log.warn(`spawnVmPush failed: ${e.message}`)
+    }
+  }
+
   // An opponent's contact_email may hold SEVERAL addresses (a club often lists
   // multiple Spielplanverantwortliche) joined by comma/semicolon. Split into a
   // clean array so every contact receives the invite + all scheduling mail.
@@ -1498,6 +1538,14 @@ export function registerGameScheduling(router, { database, logger, services, get
         log.warn(`confirm-home email failed: ${mailErr.message}`)
       }
 
+      // Push the confirmed date/time/hall into VolleyManager (best-effort).
+      try {
+        await database('game_scheduling_bookings').where('id', booking_id).update({ vm_push_status: 'queued', vm_push_error: null })
+        await spawnVmPush(booking_id)
+      } catch (pushErr) {
+        log.warn(`confirm-home VM push enqueue failed: ${pushErr.message}`)
+      }
+
       res.json({ success: true, confirmed_proposal: n })
     } catch (err) {
       if (err && err.httpStatus) {
@@ -2277,6 +2325,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!opponent) return res.status(404).json({ error: 'Opponent not found' })
       if (!(await spielplanerCanManageTeam(req, opponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
       const seasonId = String(opponent.season)
+      let homeBookingId = null
 
       const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
       const TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/
@@ -2337,12 +2386,20 @@ export function registerGameScheduling(router, { database, logger, services, get
               await trx('game_scheduling_slots').where('id', priorSlotId).update({ status: 'available' })
             }
           }
-          await trx('game_scheduling_bookings').insert({
+          const insHome = await trx('game_scheduling_bookings').insert({
             opponent: opponent.id, season: seasonId, type: 'home_slot_pick',
             status: 'confirmed', confirmed_proposal: 1, proposed_slot_1: slotId, slot: slotId,
             admin_notes: 'Manuell erfasst',
-          })
+          }).returning('id')
+          homeBookingId = typeof insHome[0] === 'object' ? insHome[0].id : insHome[0]
         })
+        // Push the manually-booked date/time/hall into VolleyManager (best-effort).
+        if (homeBookingId) {
+          try {
+            await database('game_scheduling_bookings').where('id', homeBookingId).update({ vm_push_status: 'queued', vm_push_error: null })
+            await spawnVmPush(homeBookingId)
+          } catch (pushErr) { log.warn(`manual-booking VM push enqueue failed: ${pushErr.message}`) }
+        }
       }
 
       if (away) {
@@ -2364,6 +2421,30 @@ export function registerGameScheduling(router, { database, logger, services, get
     } catch (err) {
       if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.message })
       log.error({ msg: `manual-booking: ${err.message}`, endpoint: 'terminplanung/admin/manual-booking', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/admin/terminplanung/vm-push — (re)push a confirmed HOME booking's
+  // date/time/hall into VolleyManager. Used for manual retry of a failed push and
+  // for resolving an ambiguous match: pass svrz_persistence_id to pick the exact
+  // fixture when the booking is in 'needs_pick'. Fire-and-forget; the child writes
+  // the result back onto the booking (vm_push_status/…).
+  router.post('/admin/terminplanung/vm-push', async (req, res) => {
+    try {
+      if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+      const { booking_id, svrz_persistence_id } = req.body || {}
+      if (!booking_id) return res.status(400).json({ error: 'booking_id required' })
+      const booking = await database('game_scheduling_bookings').where('id', booking_id).first()
+      if (!booking || booking.type !== 'home_slot_pick') return res.status(400).json({ error: 'Not a home booking' })
+      if (booking.status !== 'confirmed') return res.status(400).json({ error: 'Booking is not confirmed' })
+      const opponent = await database('game_scheduling_opponents').where('id', booking.opponent).first()
+      if (!opponent || !(await spielplanerCanManageTeam(req, opponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      await database('game_scheduling_bookings').where('id', booking_id).update({ vm_push_status: 'queued', vm_push_error: null })
+      await spawnVmPush(booking_id, { svrzId: svrz_persistence_id || null })
+      res.json({ queued: true })
+    } catch (err) {
+      log.error({ msg: `vm-push: ${err.message}`, endpoint: 'admin/terminplanung/vm-push', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
