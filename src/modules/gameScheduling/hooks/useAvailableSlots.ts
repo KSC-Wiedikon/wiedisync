@@ -62,6 +62,8 @@ export interface BookingData {
   id: string
   type: 'home_slot_pick' | 'away_proposal'
   status: 'pending' | 'confirmed' | 'rejected'
+  /** SVRZ fixture this booking schedules (multi-game pairings); null = legacy, owned by the first fixture of its side. */
+  svrz_game_id?: string | null
   slot: string
   proposed_datetime_1: string
   proposed_place_1: string
@@ -115,23 +117,33 @@ export function useAvailableSlots(token: string | undefined) {
 
   useEffect(() => { fetchSlots() }, [fetchSlots])
 
-  const proposeHome = useCallback(async (slotIds: Array<string | number>) => {
+  // svrzGameId targets one fixture of a multi-game pairing; null/undefined =
+  // the first fixture of the side (legacy single-game behaviour).
+  const proposeHome = useCallback(async (slotIds: Array<string | number>, svrzGameId?: string | null) => {
     if (!token) throw new Error('No token')
     const resp = await kscwApi(`/terminplanung/propose-home/${token}`, {
       method: 'POST',
       anonymous: true,
-      body: { slot_ids: slotIds.map((x) => Number(x)), language: baseLang(i18n.resolvedLanguage || i18n.language) },
+      body: {
+        slot_ids: slotIds.map((x) => Number(x)),
+        language: baseLang(i18n.resolvedLanguage || i18n.language),
+        ...(svrzGameId ? { svrz_game_id: svrzGameId } : {}),
+      },
     })
     await fetchSlots()
     return resp
   }, [token, fetchSlots, i18n])
 
-  const proposeAway = useCallback(async (proposals: Array<{ date: string; start_time: string; location: string }>) => {
+  const proposeAway = useCallback(async (proposals: Array<{ date: string; start_time: string; location: string }>, svrzGameId?: string | null) => {
     if (!token) throw new Error('No token')
     const resp = await kscwApi(`/terminplanung/propose-away/${token}`, {
       method: 'POST',
       anonymous: true,
-      body: { proposals, language: baseLang(i18n.resolvedLanguage || i18n.language) },
+      body: {
+        proposals,
+        language: baseLang(i18n.resolvedLanguage || i18n.language),
+        ...(svrzGameId ? { svrz_game_id: svrzGameId } : {}),
+      },
     })
     await fetchSlots()
     return resp

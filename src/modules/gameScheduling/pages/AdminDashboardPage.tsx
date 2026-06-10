@@ -30,6 +30,8 @@ import { isSchedulableTeam } from '../utils/schedulableTeams'
 
 /** One SVRZ fixture for an opponent (from the svrz-clubs endpoint). */
 interface OpponentGame {
+  /** svrz_games.svrz_persistence_id — the key bookings attach to (multi-game pairings). */
+  svrz_game_id?: string | null
   date: string | null
   display_name: string | null
   is_home_kscw: boolean
@@ -40,6 +42,43 @@ interface SvrzClub {
   team_name: string
   game_count: number
   games: OpponentGame[]
+}
+
+/** One schedulable game of a pairing in the admin card — a pairing can be
+ *  played 2-3× per season, so each side may carry several fixtures. */
+interface FixtureLeg {
+  key: string
+  svrzGameId: string | null
+  seq: number
+  sideCount: number
+  booking?: ExpandedBooking
+}
+
+// Legs for one side of an opponent card: one per fixture (a NULL-keyed legacy
+// booking belongs to the FIRST fixture — mirrors the backend keying), plus
+// bookings whose fixture is no longer in the feed so a confirmed game never
+// vanishes. No fixtures and no bookings → a single empty leg (awaiting
+// proposals — the pre-multi-game layout).
+function buildFixtureLegs(oppGames: OpponentGame[], oppBookings: ExpandedBooking[], isHome: boolean): FixtureLeg[] {
+  const side = oppGames.filter((g) => g.is_home_kscw === isHome)
+  const sideBookings = oppBookings.filter((b) => b.type === (isHome ? 'home_slot_pick' : 'away_proposal'))
+  const used = new Set<string>()
+  const legs: FixtureLeg[] = side.map((g, i) => {
+    let bk = g.svrz_game_id
+      ? sideBookings.find((b) => String(b.svrz_game_id || '') === String(g.svrz_game_id))
+      : undefined
+    if (!bk && i === 0) bk = sideBookings.find((b) => b.svrz_game_id == null && !used.has(String(b.id)))
+    if (bk) used.add(String(bk.id))
+    return { key: String(g.svrz_game_id ?? `fixture-${i}`), svrzGameId: g.svrz_game_id ?? null, seq: i + 1, sideCount: side.length, booking: bk }
+  })
+  for (const b of sideBookings) {
+    if (used.has(String(b.id))) continue
+    legs.push({ key: `bk-${b.id}`, svrzGameId: b.svrz_game_id ?? null, seq: legs.length + 1, sideCount: side.length, booking: b })
+  }
+  if (legs.length === 0) {
+    legs.push({ key: isHome ? 'legacy-home' : 'legacy-away', svrzGameId: null, seq: 1, sideCount: 1 })
+  }
+  return legs.map((l) => ({ ...l, sideCount: legs.length }))
 }
 
 const normName = (s: string | null | undefined) => String(s || '').trim().toLowerCase()
@@ -473,13 +512,13 @@ function TeamBookingsContent({
   onConfirmAway: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   onConfirmHome: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   onVmPush: (bookingId: string, svrzPersistenceId?: string) => Promise<void>
-  onRequestNewSlots: (opponentId: string | number) => Promise<void>
+  onRequestNewSlots: (opponentId: string | number, bookingId?: string | number) => Promise<void>
   onSaveOpponentNote: (opponentId: string | number, kscwNote: string) => Promise<void>
   onManualBooking: (
     opponentId: string | number,
     legs: {
-      home?: { date: string; start_time: string; end_time?: string; hall: number | string }
-      away?: { date: string; start_time?: string; place?: string }
+      home?: { date: string; start_time: string; end_time?: string; hall: number | string; svrz_game_id?: string }
+      away?: { date: string; start_time?: string; place?: string; svrz_game_id?: string }
     },
   ) => Promise<void>
   onBlockSlot: (slotId: string, action: 'block' | 'unblock') => Promise<void>
@@ -559,21 +598,23 @@ function TeamBookingsContent({
           const oid = typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent
           return String(oid) === String(opp.id)
         })
-        const homeBooking = oppBookings.find(b => b.type === 'home_slot_pick')
-        const awayBooking = oppBookings.find(b => b.type === 'away_proposal')
         const inviteStatus = (opp.status as InviteStatus) || 'active'
         const source = (opp.source as InviteSource) || 'self_registration'
         const oppGames = gamesByName.get(normName(opp.team_name)) || gamesByName.get(normName(opp.club_name)) || []
 
-        // Colour the card by how far this matchup's scheduling has got:
-        // both legs confirmed → green, one leg → yellow, neither → red. Subtle tints.
-        const homeConfirmed = homeBooking?.status === 'confirmed'
-        const awayConfirmed = awayBooking?.status === 'confirmed'
-        const confirmedCount = (homeConfirmed ? 1 : 0) + (awayConfirmed ? 1 : 0)
+        // One leg per fixture — a pairing can be played 2-3× (junior triple
+        // round-robin), so each side may carry several games to schedule.
+        const homeLegs = buildFixtureLegs(oppGames, oppBookings, true)
+        const awayLegs = buildFixtureLegs(oppGames, oppBookings, false)
+
+        // Colour the card by how far this matchup's scheduling has got: ALL
+        // games confirmed → green, some → yellow, none → red. Subtle tints.
+        const allLegs = [...homeLegs, ...awayLegs]
+        const confirmedCount = allLegs.filter(l => l.booking?.status === 'confirmed').length
         const cardClass =
-          confirmedCount === 2
+          confirmedCount === allLegs.length
             ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20'
-            : confirmedCount === 1
+            : confirmedCount >= 1
               ? 'border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-900/20'
               : 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-900/20'
 
@@ -626,40 +667,62 @@ function TeamBookingsContent({
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {/* Home game booking */}
+              {/* Home game bookings — one block per fixture */}
               <div>
                 <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('homeBookings')}</h4>
-                {homeBooking ? (
-                  <HomeProposalReview
-                    booking={homeBooking}
-                    slotsById={slotsById}
-                    hallsById={hallsById}
-                    alsoProposedBy={(slotId) => homeAlsoProposedBy(slotId, oppIdOf(homeBooking))}
-                    health={healthByBooking.get(String(homeBooking.id))}
-                    onConfirm={onConfirmHome}
-                    onVmPush={onVmPush}
-                    onRequestNewSlots={() => onRequestNewSlots(opp.id)}
-                  />
-                ) : opp.new_slots_requested_at ? (
-                  <span className="text-sm text-amber-600 dark:text-amber-400">
-                    {t('awaitingNewProposals', { date: formatDateCompactZurich(opp.new_slots_requested_at) })}
-                  </span>
-                ) : (
-                  <span className="text-sm text-gray-400">{t('pending')}</span>
-                )}
+                <div className="space-y-3">
+                  {homeLegs.map((leg) => (
+                    <div key={leg.key}>
+                      {leg.sideCount > 1 && (
+                        <p className="mb-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                          {t('gameN', { number: leg.seq })}
+                        </p>
+                      )}
+                      {leg.booking ? (
+                        <HomeProposalReview
+                          booking={leg.booking}
+                          slotsById={slotsById}
+                          hallsById={hallsById}
+                          alsoProposedBy={(slotId) => homeAlsoProposedBy(slotId, oppIdOf(leg.booking!))}
+                          health={healthByBooking.get(String(leg.booking.id))}
+                          onConfirm={onConfirmHome}
+                          onVmPush={onVmPush}
+                          onRequestNewSlots={() => onRequestNewSlots(opp.id, leg.booking!.id)}
+                        />
+                      ) : opp.new_slots_requested_at ? (
+                        <span className="text-sm text-amber-600 dark:text-amber-400">
+                          {t('awaitingNewProposals', { date: formatDateCompactZurich(opp.new_slots_requested_at) })}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-400">{t('pending')}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Away game proposals */}
+              {/* Away game proposals — one block per fixture */}
               <div>
                 <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('awayProposals')}</h4>
-                {awayBooking ? (
-                  <AwayProposalReview
-                    booking={awayBooking}
-                    onConfirm={onConfirmAway}
-                  />
-                ) : (
-                  <span className="text-sm text-gray-400">{t('pending')}</span>
-                )}
+                <div className="space-y-3">
+                  {awayLegs.map((leg) => (
+                    <div key={leg.key}>
+                      {leg.sideCount > 1 && (
+                        <p className="mb-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                          {t('gameN', { number: leg.seq })}
+                        </p>
+                      )}
+                      {leg.booking ? (
+                        <AwayProposalReview
+                          booking={leg.booking}
+                          onConfirm={onConfirmAway}
+                        />
+                      ) : (
+                        <span className="text-sm text-gray-400">{t('pending')}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -671,8 +734,16 @@ function TeamBookingsContent({
 
             <ManualBookingForm
               halls={hallOptions}
-              hasHome={homeConfirmed}
-              hasAway={awayConfirmed}
+              homeFixtures={homeLegs.map((leg) => ({
+                id: leg.svrzGameId,
+                label: leg.sideCount > 1 ? t('gameN', { number: leg.seq }) : t('manualHomeGame'),
+                booked: leg.booking?.status === 'confirmed',
+              }))}
+              awayFixtures={awayLegs.map((leg) => ({
+                id: leg.svrzGameId,
+                label: leg.sideCount > 1 ? t('gameN', { number: leg.seq }) : t('manualAwayGame'),
+                booked: leg.booking?.status === 'confirmed',
+              }))}
               onSave={(legs) => onManualBooking(opp.id, legs)}
             />
           </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
+import type { BookingData, InviteGame } from '../hooks/useAvailableSlots'
 import HomeProposalForm from '../components/HomeProposalForm'
 import AwayProposalForm from '../components/AwayProposalForm'
 import LoadingSpinner from '../../../components/LoadingSpinner'
@@ -30,18 +31,76 @@ function fmtDate(ymd: string | undefined): string {
 
 type LegStatus = 'open' | 'proposed' | 'confirmed'
 
+/** One schedulable game = one card. A pairing can be played 2-3× per season
+ *  (junior triple round-robin), so each side (home/away) may carry several
+ *  fixtures; bookings are matched per fixture via booking.svrz_game_id. */
+interface LegCard {
+  key: string
+  isHome: boolean
+  /** Fixture to pass to propose-* (null = legacy/non-SVRZ single-game flow). */
+  svrzGameId: string | null
+  /** 1-based position within its side, and how many games that side has. */
+  seq: number
+  sideCount: number
+  booking?: BookingData
+}
+
+// Cards for one side: one per fixture (a NULL-keyed legacy booking belongs to
+// the FIRST fixture — mirrors the backend), plus bookings whose fixture is no
+// longer in the feed (re-synced/finalized) so a confirmed game never vanishes.
+// No fixtures and no bookings → the single legacy card (pre-multi-game flow).
+function buildLegCards(games: InviteGame[], bookings: BookingData[], isHome: boolean): LegCard[] {
+  const side = games.filter((g) => g.is_home_kscw === isHome)
+  const sideBookings = bookings.filter((b) => b.type === (isHome ? 'home_slot_pick' : 'away_proposal'))
+  const used = new Set<string>()
+  const cards: LegCard[] = side.map((g, i) => {
+    let bk = sideBookings.find((b) => String(b.svrz_game_id || '') === String(g.id))
+    if (!bk && i === 0) bk = sideBookings.find((b) => b.svrz_game_id == null && !used.has(b.id))
+    if (bk) used.add(bk.id)
+    return { key: String(g.id), isHome, svrzGameId: g.id, seq: i + 1, sideCount: side.length, booking: bk }
+  })
+  for (const b of sideBookings) {
+    if (used.has(b.id)) continue
+    cards.push({ key: `bk-${b.id}`, isHome, svrzGameId: b.svrz_game_id ?? null, seq: cards.length + 1, sideCount: side.length, booking: b })
+  }
+  if (cards.length === 0) {
+    cards.push({ key: isHome ? 'legacy-home' : 'legacy-away', isHome, svrzGameId: null, seq: 1, sideCount: 1 })
+  }
+  // sideCount drives the "Game N" suffix — recompute after orphans were added.
+  return cards.map((c) => ({ ...c, sideCount: cards.length }))
+}
+
 export default function OpponentFlowPage() {
   const { token } = useParams<{ token: string }>()
   const { t, i18n } = useTranslation('gameScheduling')
-  const { opponent, slots, bookings, blockedStrict, blockedLoose, seasonWindow, isLoading, error, proposeHome, proposeAway, saveNote, setLanguage } =
+  const { opponent, games, slots, bookings, blockedStrict, blockedLoose, seasonWindow, isLoading, error, proposeHome, proposeAway, saveNote, setLanguage } =
     useAvailableSlots(token)
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
   const [submittingAll, setSubmittingAll] = useState(false)
-  // Current proposals reported by the two forms (null while incomplete) —
-  // submitted together by the single "Confirm slots" button below.
-  const [homePicks, setHomePicks] = useState<string[] | null>(null)
-  const [awayProposals, setAwayProposals] = useState<Array<{ date: string; start_time: string; location: string }> | null>(null)
+  // Current proposals reported by each card's form, keyed by card key (null
+  // while incomplete) — submitted together by the single button below. The
+  // per-card onChange handlers are memoised in refs: the forms' report-upward
+  // effects depend on the callback identity, so a fresh inline closure per
+  // render would re-fire them every render (set-state loop).
+  const [homePicksByCard, setHomePicksByCard] = useState<Record<string, string[] | null>>({})
+  const [awayProposalsByCard, setAwayProposalsByCard] = useState<Record<string, Array<{ date: string; start_time: string; location: string }> | null>>({})
+  const homeChangeHandlers = useRef<Record<string, (picks: string[] | null) => void>>({})
+  const homeChangeFor = (key: string) => {
+    if (!homeChangeHandlers.current[key]) {
+      homeChangeHandlers.current[key] = (picks) =>
+        setHomePicksByCard((prev) => (prev[key] === picks ? prev : { ...prev, [key]: picks }))
+    }
+    return homeChangeHandlers.current[key]
+  }
+  const awayChangeHandlers = useRef<Record<string, (proposals: Array<{ date: string; start_time: string; location: string }> | null) => void>>({})
+  const awayChangeFor = (key: string) => {
+    if (!awayChangeHandlers.current[key]) {
+      awayChangeHandlers.current[key] = (proposals) =>
+        setAwayProposalsByCard((prev) => ({ ...prev, [key]: proposals }))
+    }
+    return awayChangeHandlers.current[key]
+  }
   // Opponent remark box. Seed from the loaded record once, then it's user-owned.
   const [remark, setRemark] = useState('')
   const didInitRemark = useRef(false)
@@ -89,8 +148,11 @@ export default function OpponentFlowPage() {
     )
   }
 
-  const homeBooking = bookings.find((b) => b.type === 'home_slot_pick')
-  const awayBooking = bookings.find((b) => b.type === 'away_proposal')
+  // One card per game — home fixtures first, then away (multi-game pairings).
+  const homeCards = buildLegCards(games, bookings, true)
+  const awayCards = buildLegCards(games, bookings, false)
+  const allCards = [...homeCards, ...awayCards]
+
   const isInvited = opponent.source !== 'self_registration'
   // Always a generic greeting — an invite's contact_name may list several club
   // contacts, so addressing one (or all) by name reads wrong.
@@ -98,11 +160,14 @@ export default function OpponentFlowPage() {
 
   const oppName = opponent.club_name || opponent.team_name || ''
   const kscwName = `KSCW ${opponent.kscw_team_name}`
-  const homeMatch = `${kscwName} – ${oppName}` // KSCW hosts
-  const awayMatch = `${oppName} – ${kscwName}` // opponent hosts
 
-  const homeStatus: LegStatus = !homeBooking ? 'open' : homeBooking.status === 'confirmed' ? 'confirmed' : 'proposed'
-  const awayStatus: LegStatus = !awayBooking ? 'open' : awayBooking.status === 'confirmed' ? 'confirmed' : 'proposed'
+  const cardTitle = (card: LegCard) => {
+    const match = card.isHome ? `${kscwName} – ${oppName}` : `${oppName} – ${kscwName}`
+    return card.sideCount > 1 ? `${match} · ${t('gameN', { number: card.seq })}` : match
+  }
+
+  const legStatus = (card: LegCard): LegStatus =>
+    !card.booking ? 'open' : card.booking.status === 'confirmed' ? 'confirmed' : 'proposed'
 
   const statusBadge = (s: LegStatus) => {
     const map: Record<LegStatus, { v: 'neutral' | 'warning' | 'success'; l: string }> = {
@@ -139,24 +204,38 @@ export default function OpponentFlowPage() {
     }
   }
 
-  // One combined submit: home picks + away proposals + the remark. A leg that's
-  // already confirmed isn't shown and isn't required; an unconfirmed (shown) leg
-  // must have a complete proposal before the button enables.
-  const homeShown = homeBooking?.status !== 'confirmed'
-  const awayShown = awayBooking?.status !== 'confirmed'
+  // One combined submit: every open card's proposals + the remark. A confirmed
+  // card isn't shown and isn't required; every shown card must have a complete
+  // proposal before the button enables.
+  const isShown = (card: LegCard) => card.booking?.status !== 'confirmed'
+  const shownHome = homeCards.filter(isShown)
+  const shownAway = awayCards.filter(isShown)
   const remarkChanged = remark.trim() !== (opponent.opponent_note || '').trim()
   const canConfirm =
-    (!homeShown || !!homePicks) &&
-    (!awayShown || !!awayProposals) &&
-    (homeShown || awayShown || remarkChanged)
+    shownHome.every((c) => !!homePicksByCard[c.key]) &&
+    shownAway.every((c) => !!awayProposalsByCard[c.key]) &&
+    (shownHome.length > 0 || shownAway.length > 0 || remarkChanged)
 
   const handleConfirmAll = async () => {
     setBookingError('')
     setBookingSuccess('')
+    // Each game needs its own 3 slots — catch cross-card duplicates before
+    // submitting (the backend rejects them too, but mid-loop is messier).
+    const allHomePicks = shownHome.flatMap((c) => homePicksByCard[c.key] || [])
+    if (new Set(allHomePicks).size !== allHomePicks.length) {
+      setBookingError(t('duplicateSlotAcrossGames'))
+      return
+    }
     setSubmittingAll(true)
     try {
-      if (homeShown && homePicks) await proposeHome(homePicks)
-      if (awayShown && awayProposals) await proposeAway(awayProposals)
+      for (const c of shownHome) {
+        const picks = homePicksByCard[c.key]
+        if (picks) await proposeHome(picks, c.svrzGameId)
+      }
+      for (const c of shownAway) {
+        const proposals = awayProposalsByCard[c.key]
+        if (proposals) await proposeAway(proposals, c.svrzGameId)
+      }
       if (remarkChanged) await saveNote(remark.trim())
       setBookingSuccess(t('proposalsSubmitted'))
     } catch (err: unknown) {
@@ -166,9 +245,10 @@ export default function OpponentFlowPage() {
     }
   }
 
-  const decidedAway = awayBooking?.confirmed_proposal
-    ? (awayBooking[`proposed_datetime_${awayBooking.confirmed_proposal}` as keyof typeof awayBooking] as string)
-    : ''
+  const decidedAway = (booking: BookingData) =>
+    booking.confirmed_proposal
+      ? (booking[`proposed_datetime_${booking.confirmed_proposal}` as keyof BookingData] as string)
+      : ''
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-900">
@@ -211,71 +291,65 @@ export default function OpponentFlowPage() {
         )}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Home leg — KSCW hosts; opponent picks a slot in our hall */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-            <div className="mb-1 flex items-start justify-between gap-2">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{homeMatch}</h2>
-              {statusBadge(homeStatus)}
-            </div>
-            <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">{t('homeGameDesc')}</p>
-
-            {homeBooking?.status === 'confirmed' ? (
-              <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
-                <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('slotBooked')}</p>
-                <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                  {fmtDate(homeBooking.slot_date)} · {homeBooking.slot_start}–{homeBooking.slot_end}
-                  {homeBooking.slot_hall_name ? ` · ${homeBooking.slot_hall_name}` : ''}
-                </p>
+          {allCards.map((card) => (
+            <div key={card.key} className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+              <div className="mb-1 flex items-start justify-between gap-2">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{cardTitle(card)}</h2>
+                {statusBadge(legStatus(card))}
               </div>
-            ) : (
-              <>
-                {homeBooking?.status === 'pending' && homeBooking.proposed_slots && (
-                  <div className="mb-4 rounded-md bg-yellow-50 p-3 dark:bg-yellow-900/20">
-                    <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">{t('homeProposalsPending')}</p>
-                    <ul className="mt-1 space-y-0.5">
-                      {homeBooking.proposed_slots.map((p, idx) => (
-                        <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
-                          {p.date ? `${fmtDate(p.date)} · ${p.start}–${p.end}${p.hall_name ? ` · ${p.hall_name}` : ''}` : t('slotN', { number: idx + 1 })}
-                          {!p.available && <span className="ml-2 text-xs text-red-600 dark:text-red-400">⚠ {t('slotMaybeTaken')}</span>}
-                        </li>
-                      ))}
-                    </ul>
+              <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+                {card.isHome ? t('homeGameDesc') : t('awayGameDesc')}
+              </p>
+
+              {card.isHome ? (
+                card.booking?.status === 'confirmed' ? (
+                  <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
+                    <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('slotBooked')}</p>
+                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                      {fmtDate(card.booking.slot_date)} · {card.booking.slot_start}–{card.booking.slot_end}
+                      {card.booking.slot_hall_name ? ` · ${card.booking.slot_hall_name}` : ''}
+                    </p>
                   </div>
-                )}
-                <HomeProposalForm
-                  slots={slots}
-                  existing={homeBooking?.status === 'pending' ? homeBooking : undefined}
-                  onChange={setHomePicks}
+                ) : (
+                  <>
+                    {card.booking?.status === 'pending' && card.booking.proposed_slots && (
+                      <div className="mb-4 rounded-md bg-yellow-50 p-3 dark:bg-yellow-900/20">
+                        <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">{t('homeProposalsPending')}</p>
+                        <ul className="mt-1 space-y-0.5">
+                          {card.booking.proposed_slots.map((p, idx) => (
+                            <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
+                              {p.date ? `${fmtDate(p.date)} · ${p.start}–${p.end}${p.hall_name ? ` · ${p.hall_name}` : ''}` : t('slotN', { number: idx + 1 })}
+                              {!p.available && <span className="ml-2 text-xs text-red-600 dark:text-red-400">⚠ {t('slotMaybeTaken')}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <HomeProposalForm
+                      slots={slots}
+                      existing={card.booking?.status === 'pending' ? card.booking : undefined}
+                      onChange={homeChangeFor(card.key)}
+                      hideSubmit
+                    />
+                  </>
+                )
+              ) : card.booking?.status === 'confirmed' ? (
+                <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
+                  <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('confirmed')}</p>
+                  <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{fmtDateTime(decidedAway(card.booking))}</p>
+                </div>
+              ) : (
+                <AwayProposalForm
+                  existingProposal={card.booking || undefined}
+                  blockedStrict={blockedStrict}
+                  blockedLoose={blockedLoose}
+                  seasonWindow={seasonWindow}
+                  onChange={awayChangeFor(card.key)}
                   hideSubmit
                 />
-              </>
-            )}
-          </div>
-
-          {/* Away leg — opponent hosts; opponent proposes 3 dates in their hall */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-            <div className="mb-1 flex items-start justify-between gap-2">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{awayMatch}</h2>
-              {statusBadge(awayStatus)}
+              )}
             </div>
-            <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">{t('awayGameDesc')}</p>
-
-            {awayBooking?.status === 'confirmed' ? (
-              <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
-                <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('confirmed')}</p>
-                <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{fmtDateTime(decidedAway)}</p>
-              </div>
-            ) : (
-              <AwayProposalForm
-                existingProposal={awayBooking || undefined}
-                blockedStrict={blockedStrict}
-                blockedLoose={blockedLoose}
-                seasonWindow={seasonWindow}
-                onChange={setAwayProposals}
-                hideSubmit
-              />
-            )}
-          </div>
+          ))}
         </div>
 
         {/* Opponent's remark to KSCW (free text, independent of proposing). */}
@@ -295,7 +369,7 @@ export default function OpponentFlowPage() {
           />
         </div>
 
-        {/* Single combined submit: both legs + the remark in one action. */}
+        {/* Single combined submit: all open games + the remark in one action. */}
         <button
           type="button"
           onClick={handleConfirmAll}

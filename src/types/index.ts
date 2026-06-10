@@ -687,6 +687,8 @@ export interface ProposalHealthProposal {
 export interface ProposalHealthEntry {
   booking_id: number
   opponent_id: number
+  /** SVRZ fixture this booking schedules (multi-game pairings); null = legacy/non-SVRZ. */
+  svrz_game_id?: string | null
   opponent_label: string
   kscw_team: number
   proposals: ProposalHealthProposal[]
@@ -716,6 +718,10 @@ export interface GameSchedulingBooking extends BaseRecord {
   opponent: string
   type: 'home_slot_pick' | 'away_proposal'
   game: string
+  /** SVRZ fixture (svrz_games.svrz_persistence_id) this booking schedules — a
+   *  pairing can be played 2-3× per season. NULL = legacy/non-SVRZ booking,
+   *  owned by the first fixture of its side. */
+  svrz_game_id?: string | null
   slot: string
   proposed_datetime_1: string
   proposed_place_1: string

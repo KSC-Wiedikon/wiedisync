@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -7,16 +7,24 @@ interface HallOption {
   name: string
 }
 
+/** One selectable game of a multi-game pairing (id null = legacy single-game). */
+export interface ManualFixtureOption {
+  id: string | null
+  label: string
+  /** A confirmed booking already exists for this game (saving overwrites it). */
+  booked: boolean
+}
+
 interface Props {
   /** Halls offered for the home leg (KSCW halls). */
   halls: HallOption[]
-  /** Whether a confirmed home leg already exists (changes the toggle label). */
-  hasHome?: boolean
-  /** Whether a confirmed away leg already exists. */
-  hasAway?: boolean
+  /** Selectable games per leg — a pairing can be played 2-3× per season. A
+   *  single entry hides the picker; its `booked` flag drives the overwrite hint. */
+  homeFixtures: ManualFixtureOption[]
+  awayFixtures: ManualFixtureOption[]
   onSave: (legs: {
-    home?: { date: string; start_time: string; end_time?: string; hall: number | string }
-    away?: { date: string; start_time?: string; place?: string }
+    home?: { date: string; start_time: string; end_time?: string; hall: number | string; svrz_game_id?: string }
+    away?: { date: string; start_time?: string; place?: string; svrz_game_id?: string }
   }) => Promise<void>
 }
 
@@ -28,21 +36,28 @@ function plus90(hhmm: string): string {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }
 
+// First game without a confirmed booking, else the first game — the default
+// pick for a leg's fixture select.
+const defaultFixture = (opts: ManualFixtureOption[]): string =>
+  String((opts.find((o) => !o.booked) ?? opts[0])?.id ?? '')
+
 // Manually record an already-agreed matchup (date settled by email/phone outside
 // the tool), skipping the opponent's propose/choose flow. Collapsed by default;
 // the admin fills the home leg, the away leg, or both.
-export default function ManualBookingForm({ halls, hasHome, hasAway, onSave }: Props) {
+export default function ManualBookingForm({ halls, homeFixtures, awayFixtures, onSave }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [homeOn, setHomeOn] = useState(false)
+  const [homeFixtureId, setHomeFixtureId] = useState(() => defaultFixture(homeFixtures))
   const [homeDate, setHomeDate] = useState('')
   const [homeStart, setHomeStart] = useState('')
   const [homeEnd, setHomeEnd] = useState('')
   const [homeHall, setHomeHall] = useState<string>('')
 
   const [awayOn, setAwayOn] = useState(false)
+  const [awayFixtureId, setAwayFixtureId] = useState(() => defaultFixture(awayFixtures))
   const [awayDate, setAwayDate] = useState('')
   const [awayStart, setAwayStart] = useState('')
   const [awayPlace, setAwayPlace] = useState('')
@@ -50,17 +65,37 @@ export default function ManualBookingForm({ halls, hasHome, hasAway, onSave }: P
   const reset = () => {
     setHomeOn(false); setHomeDate(''); setHomeStart(''); setHomeEnd(''); setHomeHall('')
     setAwayOn(false); setAwayDate(''); setAwayStart(''); setAwayPlace('')
+    setHomeFixtureId(defaultFixture(homeFixtures))
+    setAwayFixtureId(defaultFixture(awayFixtures))
   }
+
+  // The fixture options load lazily (per-team SVRZ fetch) and can arrive after
+  // mount — re-pick the default whenever the current selection isn't offered.
+  useEffect(() => {
+    if (!homeFixtures.some((o) => String(o.id ?? '') === homeFixtureId)) setHomeFixtureId(defaultFixture(homeFixtures))
+  }, [homeFixtures, homeFixtureId])
+  useEffect(() => {
+    if (!awayFixtures.some((o) => String(o.id ?? '') === awayFixtureId)) setAwayFixtureId(defaultFixture(awayFixtures))
+  }, [awayFixtures, awayFixtureId])
+
+  const selectedHome = homeFixtures.find((o) => String(o.id ?? '') === homeFixtureId)
+  const selectedAway = awayFixtures.find((o) => String(o.id ?? '') === awayFixtureId)
 
   const handleSave = async () => {
     const legs: Parameters<typeof onSave>[0] = {}
     if (homeOn) {
       if (!homeDate || !homeStart || !homeHall) { toast.error(t('manualHomeIncomplete')); return }
-      legs.home = { date: homeDate, start_time: homeStart, end_time: homeEnd || plus90(homeStart), hall: homeHall }
+      legs.home = {
+        date: homeDate, start_time: homeStart, end_time: homeEnd || plus90(homeStart), hall: homeHall,
+        ...(homeFixtureId ? { svrz_game_id: homeFixtureId } : {}),
+      }
     }
     if (awayOn) {
       if (!awayDate) { toast.error(t('manualAwayIncomplete')); return }
-      legs.away = { date: awayDate, start_time: awayStart || undefined, place: awayPlace || undefined }
+      legs.away = {
+        date: awayDate, start_time: awayStart || undefined, place: awayPlace || undefined,
+        ...(awayFixtureId ? { svrz_game_id: awayFixtureId } : {}),
+      }
     }
     if (!legs.home && !legs.away) { toast.error(t('manualNothingToSave')); return }
     setSaving(true)
@@ -99,8 +134,20 @@ export default function ManualBookingForm({ halls, hasHome, hasAway, onSave }: P
       <div className="rounded-md border border-gray-200 p-2 dark:border-gray-700">
         <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
           <input type="checkbox" checked={homeOn} onChange={(e) => setHomeOn(e.target.checked)} />
-          {t('manualHomeGame')}{hasHome ? ` (${t('manualOverwrite')})` : ''}
+          {t('manualHomeGame')}{selectedHome?.booked ? ` (${t('manualOverwrite')})` : ''}
         </label>
+        {homeOn && homeFixtures.length > 1 && (
+          <label className="mt-2 block">
+            <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualWhichGame')}</span>
+            <select value={homeFixtureId} onChange={(e) => setHomeFixtureId(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+              {homeFixtures.map((o) => (
+                <option key={String(o.id ?? '')} value={String(o.id ?? '')}>
+                  {o.label}{o.booked ? ` (${t('manualOverwrite')})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {homeOn && (
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <label className="col-span-2 sm:col-span-1">
@@ -134,8 +181,20 @@ export default function ManualBookingForm({ halls, hasHome, hasAway, onSave }: P
       <div className="rounded-md border border-gray-200 p-2 dark:border-gray-700">
         <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
           <input type="checkbox" checked={awayOn} onChange={(e) => setAwayOn(e.target.checked)} />
-          {t('manualAwayGame')}{hasAway ? ` (${t('manualOverwrite')})` : ''}
+          {t('manualAwayGame')}{selectedAway?.booked ? ` (${t('manualOverwrite')})` : ''}
         </label>
+        {awayOn && awayFixtures.length > 1 && (
+          <label className="mt-2 block">
+            <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualWhichGame')}</span>
+            <select value={awayFixtureId} onChange={(e) => setAwayFixtureId(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+              {awayFixtures.map((o) => (
+                <option key={String(o.id ?? '')} value={String(o.id ?? '')}>
+                  {o.label}{o.booked ? ` (${t('manualOverwrite')})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {awayOn && (
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <label className="col-span-2 sm:col-span-1">

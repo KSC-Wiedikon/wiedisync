@@ -101,10 +101,12 @@ export function useAdminBookings(seasonId: string | undefined) {
 
   // Semi-automatic: the admin has confirmed in the dashboard that an opponent's
   // home proposals are all gone — email them (their language) to pick 3 new slots.
-  const requestNewSlots = useCallback(async (opponentId: string | number) => {
+  // bookingId scopes the cleanup to ONE fixture's dead proposal (multi-game
+  // pairings keep their other proposals/bookings).
+  const requestNewSlots = useCallback(async (opponentId: string | number, bookingId?: string | number) => {
     await kscwApi('/admin/terminplanung/request-new-slots', {
       method: 'POST',
-      body: { opponent_id: Number(opponentId) },
+      body: { opponent_id: Number(opponentId), ...(bookingId ? { booking_id: Number(bookingId) } : {}) },
     })
     await fetchAll()
   }, [fetchAll])
@@ -124,8 +126,8 @@ export function useAdminBookings(seasonId: string | undefined) {
   const manualBooking = useCallback(async (
     opponentId: string | number,
     legs: {
-      home?: { date: string; start_time: string; end_time?: string; hall: number | string }
-      away?: { date: string; start_time?: string; place?: string }
+      home?: { date: string; start_time: string; end_time?: string; hall: number | string; svrz_game_id?: string }
+      away?: { date: string; start_time?: string; place?: string; svrz_game_id?: string }
     },
   ) => {
     await kscwApi('/terminplanung/admin/manual-booking', {

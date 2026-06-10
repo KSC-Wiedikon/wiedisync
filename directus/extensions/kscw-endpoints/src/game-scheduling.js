@@ -616,7 +616,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       .where('b.type', 'home_slot_pick')
       .where('b.status', 'pending')
       .select(
-        'b.id as booking_id', 'b.opponent as opponent_id',
+        'b.id as booking_id', 'b.opponent as opponent_id', 'b.svrz_game_id',
         'b.proposed_slot_1', 'b.proposed_slot_2', 'b.proposed_slot_3',
         'o.kscw_team', 'o.club_name', 'o.team_name',
       )
@@ -748,6 +748,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       out.push({
         booking_id: b.booking_id,
         opponent_id: b.opponent_id,
+        svrz_game_id: b.svrz_game_id || null,
         opponent_label: b.team_name || b.club_name || '',
         kscw_team: b.kscw_team,
         proposals,
@@ -1110,31 +1111,10 @@ export function registerGameScheduling(router, { database, logger, services, get
       const blocked_away_strict = [...strictSet].sort()
       const blocked_away_loose = [...looseSet].sort()
 
-      // SVRZ fixtures between this KSCW team and this opponent
-      // Matched by opponent.team_name on home_team_name or away_team_name, filtered to games involving KSCW.
-      let svrzGames = []
-      if (opponent.team_name) {
-        const rows = await database('svrz_games')
-          .select('svrz_persistence_id', 'display_name', 'starting_date_time',
-                  'home_club_id', 'home_team_name', 'away_club_id', 'away_team_name',
-                  'league_short', 'status')
-          .where(function () {
-            this.where(function () {
-              this.where('home_club_id', KSCW_SVRZ_CLUB_ID).where('away_team_name', opponent.team_name)
-            }).orWhere(function () {
-              this.where('away_club_id', KSCW_SVRZ_CLUB_ID).where('home_team_name', opponent.team_name)
-            })
-          })
-          .orderBy('starting_date_time')
-        svrzGames = rows.map((g) => ({
-          id: g.svrz_persistence_id,
-          display_name: g.display_name,
-          starting_date_time: g.starting_date_time,
-          is_home_kscw: g.home_club_id === KSCW_SVRZ_CLUB_ID,
-          league: g.league_short,
-          status: g.status,
-        }))
-      }
+      // SVRZ fixtures between this KSCW team and this opponent — one card per
+      // fixture on the page (multi-game pairings get 2-3). Season-scoped +
+      // our-side-checked, in the deterministic order bookings are keyed by.
+      const svrzGames = await opponentSvrzFixtures(opponent)
 
       // Season window (Sep 1 → Mar 31) so the away calendar can bound itself.
       // (seasonRow already fetched above for the derby clamp.)
@@ -1236,6 +1216,29 @@ export function registerGameScheduling(router, { database, logger, services, get
         return res.status(400).json({ error: 'slot_ids must be distinct' })
       }
 
+      // Multi-game: which fixture of this pairing the picks are for. Absent
+      // svrz_game_id targets the first home fixture (legacy clients).
+      const fixtures = await opponentSvrzFixtures(opponent)
+      const target = resolveTargetFixture(fixtures, true, req.body?.svrz_game_id || null)
+      if (!target) return res.status(400).json({ error: 'Invalid game for this opponent' })
+      // The same opponent's OTHER home games: their picks must not collide —
+      // each fixture needs its own 3 distinct slots — and a fixture that's
+      // already booked can't be re-proposed (the unique index would trip too).
+      const allHome = await database('game_scheduling_bookings')
+        .where({ opponent: opponent.id, type: 'home_slot_pick' })
+        .orderBy('id').select('*')
+      if (allHome.some((b) => bookingMatchesFixture(b, target) && b.status === 'confirmed')) {
+        return res.status(400).json({ error: 'This game is already booked' })
+      }
+      const siblingSlotIds = new Set(
+        allHome.filter((b) => !bookingMatchesFixture(b, target))
+          .flatMap((b) => [b.proposed_slot_1, b.proposed_slot_2, b.proposed_slot_3, b.slot])
+          .filter((v) => v != null).map((v) => Number(v)),
+      )
+      if (ids.some((x) => siblingSlotIds.has(x))) {
+        return res.status(400).json({ error: 'A chosen slot is already proposed for another of your games — each game needs its own slots.' })
+      }
+
       // Validate each proposed slot against its tier (picks 1-2 strict: home gap
       // + 0 absences; pick 3 lenient: proposal-3 gap + <3 absences), mirroring the
       // read-time list. Slots are not held.
@@ -1304,16 +1307,19 @@ export function registerGameScheduling(router, { database, logger, services, get
         }
       }
 
-      // Replace any prior PENDING home proposal IN PLACE so the booking id stays
-      // stable across re-proposals — a delete+insert mints a new id, and an admin
-      // dashboard still holding the old id then 400s with "Invalid booking" on
-      // confirm. A confirmed proposal stays intact.
-      const priorHome = await database('game_scheduling_bookings')
-        .where({ opponent: opponent.id, type: 'home_slot_pick', status: 'pending' })
-        .orderBy('id').pluck('id')
+      // Replace any prior PENDING home proposal FOR THIS FIXTURE in place so the
+      // booking id stays stable across re-proposals — a delete+insert mints a new
+      // id, and an admin dashboard still holding the old id then 400s with
+      // "Invalid booking" on confirm. Confirmed proposals + other fixtures'
+      // bookings stay intact. The update also stamps svrz_game_id, upgrading a
+      // legacy NULL row to its fixture.
+      const priorHome = allHome
+        .filter((b) => bookingMatchesFixture(b, target) && b.status === 'pending')
+        .map((b) => b.id)
       if (priorHome.length > 0) {
         await database('game_scheduling_bookings').where('id', priorHome[0]).update({
           season: opponent.season,
+          svrz_game_id: target.fixtureId,
           proposed_slot_1: ids[0],
           proposed_slot_2: ids[1],
           proposed_slot_3: ids[2],
@@ -1329,6 +1335,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           season: opponent.season,
           type: 'home_slot_pick',
           status: 'pending',
+          svrz_game_id: target.fixtureId,
           proposed_slot_1: ids[0],
           proposed_slot_2: ids[1],
           proposed_slot_3: ids[2],
@@ -1538,10 +1545,12 @@ export function registerGameScheduling(router, { database, logger, services, get
         log.warn(`confirm-home email failed: ${mailErr.message}`)
       }
 
-      // Push the confirmed date/time/hall into VolleyManager (best-effort).
+      // Push the confirmed date/time/hall into VolleyManager (best-effort). A
+      // fixture-keyed booking pushes to exactly that VM game — no needs_pick
+      // ambiguity when the pairing has several home fixtures.
       try {
         await database('game_scheduling_bookings').where('id', booking_id).update({ vm_push_status: 'queued', vm_push_error: null })
-        await spawnVmPush(booking_id)
+        await spawnVmPush(booking_id, { svrzId: booking.svrz_game_id || null })
       } catch (pushErr) {
         log.warn(`confirm-home VM push enqueue failed: ${pushErr.message}`)
       }
@@ -1585,6 +1594,18 @@ export function registerGameScheduling(router, { database, logger, services, get
         return res.status(400).json({ error: '1-3 proposals required' })
       }
 
+      // Multi-game: which away fixture of this pairing the proposals are for.
+      // Absent svrz_game_id targets the first away fixture (legacy clients).
+      const fixtures = await opponentSvrzFixtures(opponent)
+      const target = resolveTargetFixture(fixtures, false, req.body?.svrz_game_id || null)
+      if (!target) return res.status(400).json({ error: 'Invalid game for this opponent' })
+      const allAway = await database('game_scheduling_bookings')
+        .where({ opponent: opponent.id, type: 'away_proposal' })
+        .orderBy('id').select('*')
+      if (allAway.some((b) => bookingMatchesFixture(b, target) && b.status === 'confirmed')) {
+        return res.status(400).json({ error: 'This game is already confirmed' })
+      }
+
       // Schema stores up to 3 proposals as parallel columns on a single booking row
       const row = {
         opponent: opponent.id,
@@ -1595,6 +1616,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         season: opponent.season,
         type: 'away_proposal',
         status: 'pending',
+        svrz_game_id: target.fixtureId,
       }
       // 2026-05-12 audit #22: validate date/time/location before storing or
       // later emailing. Token-flow rate-limit + auth are intact, but garbage
@@ -1708,12 +1730,14 @@ export function registerGameScheduling(router, { database, logger, services, get
         row[`proposed_place_${i + 1}`] = rawPlace
       }
       // "Update proposals" re-submits via the same endpoint — replace any prior
-      // pending away_proposal IN PLACE so the booking id stays stable (a
-      // delete+insert mints a new id and the admin dashboard's stale id then 400s
-      // "Invalid booking" on confirm). A confirmed one is left intact.
-      const priorAway = await database('game_scheduling_bookings')
-        .where({ opponent: opponent.id, type: 'away_proposal', status: 'pending' })
-        .orderBy('id').pluck('id')
+      // pending away_proposal FOR THIS FIXTURE in place so the booking id stays
+      // stable (a delete+insert mints a new id and the admin dashboard's stale id
+      // then 400s "Invalid booking" on confirm). Confirmed bookings and other
+      // fixtures' proposals are left intact; `row` stamps svrz_game_id, upgrading
+      // a legacy NULL row to its fixture.
+      const priorAway = allAway
+        .filter((b) => bookingMatchesFixture(b, target) && b.status === 'pending')
+        .map((b) => b.id)
       if (priorAway.length > 0) {
         await database('game_scheduling_bookings').where('id', priorAway[0]).update({
           // Clear all proposal columns first so a shorter re-proposal doesn't
@@ -2330,6 +2354,13 @@ export function registerGameScheduling(router, { database, logger, services, get
       const seasonId = String(opponent.season)
       let homeBookingId = null
 
+      // Multi-game: each leg may name its fixture; absent → first of its side.
+      const fixtures = await opponentSvrzFixtures(opponent)
+      const homeTarget = home ? resolveTargetFixture(fixtures, true, home.svrz_game_id || null) : null
+      if (home && !homeTarget) return res.status(400).json({ error: 'Invalid home game for this opponent' })
+      const awayTarget = away ? resolveTargetFixture(fixtures, false, away.svrz_game_id || null) : null
+      if (away && !awayTarget) return res.status(400).json({ error: 'Invalid away game for this opponent' })
+
       const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
       const TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/
 
@@ -2342,11 +2373,14 @@ export function registerGameScheduling(router, { database, logger, services, get
         await database.transaction(async (trx) => {
           await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [GSCH_BOOK_LOCK_CLASS, opponent.kscw_team])
           // Releasing-on-overwrite: if this opponent already had a confirmed home
-          // slot, free it (set back to available) so a re-entry doesn't orphan a
-          // booked slot on the calendar. Captured before we delete the booking.
-          const prior = await trx('game_scheduling_bookings')
-            .where({ opponent: opponent.id, type: 'home_slot_pick', status: 'confirmed' })
-            .whereNotNull('slot').first()
+          // slot FOR THIS FIXTURE, free it (set back to available) so a re-entry
+          // doesn't orphan a booked slot on the calendar. Captured before we
+          // delete the booking. Other fixtures' bookings stay untouched.
+          const prior = await scopeToFixture(
+            trx('game_scheduling_bookings')
+              .where({ opponent: opponent.id, type: 'home_slot_pick', status: 'confirmed' }),
+            homeTarget,
+          ).whereNotNull('slot').first()
           const priorSlotId = prior ? prior.slot : null
 
           // Reuse an existing slot at this exact key so the calendar doesn't end up
@@ -2377,8 +2411,10 @@ export function registerGameScheduling(router, { database, logger, services, get
             }).returning('id')
             slotId = typeof inserted[0] === 'object' ? inserted[0].id : inserted[0]
           }
-          await trx('game_scheduling_bookings')
-            .where({ opponent: opponent.id, type: 'home_slot_pick' }).del()
+          await scopeToFixture(
+            trx('game_scheduling_bookings').where({ opponent: opponent.id, type: 'home_slot_pick' }),
+            homeTarget,
+          ).del()
           // Free the previously-booked slot (now detached) unless it's the one we
           // just re-booked. A 'manual' source slot left empty is just deleted.
           if (priorSlotId && String(priorSlotId) !== String(slotId)) {
@@ -2392,6 +2428,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           const insHome = await trx('game_scheduling_bookings').insert({
             opponent: opponent.id, season: seasonId, type: 'home_slot_pick',
             status: 'confirmed', confirmed_proposal: 1, proposed_slot_1: slotId, slot: slotId,
+            svrz_game_id: homeTarget.fixtureId,
             admin_notes: 'Manuell erfasst',
           }).returning('id')
           homeBookingId = typeof insHome[0] === 'object' ? insHome[0].id : insHome[0]
@@ -2400,7 +2437,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         if (homeBookingId) {
           try {
             await database('game_scheduling_bookings').where('id', homeBookingId).update({ vm_push_status: 'queued', vm_push_error: null })
-            await spawnVmPush(homeBookingId)
+            await spawnVmPush(homeBookingId, { svrzId: homeTarget.fixtureId || null })
           } catch (pushErr) { log.warn(`manual-booking VM push enqueue failed: ${pushErr.message}`) }
         }
       }
@@ -2409,11 +2446,14 @@ export function registerGameScheduling(router, { database, logger, services, get
         if (!DATE_RE.test(String(away.date || ''))) return res.status(400).json({ error: 'away.date must be YYYY-MM-DD' })
         if (away.start_time && !TIME_RE.test(String(away.start_time))) return res.status(400).json({ error: 'away.start_time must be HH:MM' })
         const dt = away.start_time ? `${away.date}T${away.start_time}` : away.date
-        await database('game_scheduling_bookings')
-          .where({ opponent: opponent.id, type: 'away_proposal' }).del()
+        await scopeToFixture(
+          database('game_scheduling_bookings').where({ opponent: opponent.id, type: 'away_proposal' }),
+          awayTarget,
+        ).del()
         await database('game_scheduling_bookings').insert({
           opponent: opponent.id, season: seasonId, type: 'away_proposal',
           status: 'confirmed', confirmed_proposal: 1,
+          svrz_game_id: awayTarget.fixtureId,
           proposed_datetime_1: dt, proposed_place_1: String(away.place || '').slice(0, 200),
           admin_notes: 'Manuell erfasst',
         })
@@ -2498,8 +2538,10 @@ export function registerGameScheduling(router, { database, logger, services, get
         ])
       }
 
-      const homeByOpp = new Map(homeRows.map((r) => [r.opponent, r]))
-      const awayByOpp = new Map(awayRows.map((r) => [r.opponent, r]))
+      const homeCountByOpp = new Map()
+      homeRows.forEach((r) => homeCountByOpp.set(r.opponent, (homeCountByOpp.get(r.opponent) || 0) + 1))
+      const awayCountByOpp = new Map()
+      awayRows.forEach((r) => awayCountByOpp.set(r.opponent, (awayCountByOpp.get(r.opponent) || 0) + 1))
 
       // Home game lines, sorted by date.
       const homeLines = homeRows.map((r) => {
@@ -2518,15 +2560,22 @@ export function registerGameScheduling(router, { database, logger, services, get
         return { sort: String(dt || ''), text: `• ${date}${time ? `, ${time} Uhr` : ''}${place ? `, ${place}` : ''} – bei ${oppName(oppById.get(r.opponent))}` }
       }).sort((a, b) => a.sort.localeCompare(b.sort)).map((x) => x.text)
 
-      // Opponents still missing a confirmed leg — surfaced so coaches see gaps.
-      const pending = opponents
-        .filter((o) => !homeByOpp.has(o.id) || !awayByOpp.has(o.id))
-        .map((o) => {
-          const miss = []
-          if (!homeByOpp.has(o.id)) miss.push('Heimspiel')
-          if (!awayByOpp.has(o.id)) miss.push('Auswärtsspiel')
-          return `• ${oppName(o)}: ${miss.join(' + ')} offen`
-        })
+      // Opponents still missing a confirmed game — per FIXTURE: a pairing can
+      // be played 2-3× (junior triple round-robin), so compare confirmed
+      // bookings per side against the synced fixture count (1+1 fallback when
+      // the opponent has no synced fixtures).
+      const pending = []
+      for (const o of opponents) {
+        const fixtures = await opponentSvrzFixtures({ ...o, kscw_team: teamId, season: seasonId })
+        const homeTotal = fixtures.length ? fixtures.filter((f) => f.is_home_kscw).length : 1
+        const awayTotal = fixtures.length ? fixtures.filter((f) => !f.is_home_kscw).length : 1
+        const homeMiss = homeTotal - (homeCountByOpp.get(o.id) || 0)
+        const awayMiss = awayTotal - (awayCountByOpp.get(o.id) || 0)
+        const miss = []
+        if (homeMiss > 0) miss.push(homeMiss > 1 ? `${homeMiss} Heimspiele` : 'Heimspiel')
+        if (awayMiss > 0) miss.push(awayMiss > 1 ? `${awayMiss} Auswärtsspiele` : 'Auswärtsspiel')
+        if (miss.length) pending.push(`• ${oppName(o)}: ${miss.join(' + ')} offen`)
+      }
 
       const parts = [`Spielplan ${kscw}${seasonLabel ? ` – Saison ${seasonLabel}` : ''}`, '']
       parts.push(`Heimspiele (${homeLines.length}):`, ...(homeLines.length ? homeLines : ['• keine']), '')
@@ -3139,6 +3188,92 @@ export function registerGameScheduling(router, { database, logger, services, get
   const kscwSideStaticId = (g) =>
     sideStaticId(g, String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID) ? 'home' : 'away')
 
+  // ── Multi-game per opponent: bookings are keyed per SVRZ fixture ──────────
+  // A pairing can be played 2-3× per season (junior triple round-robin), so a
+  // booking carries `svrz_game_id` (= svrz_games.svrz_persistence_id). This
+  // resolves an opponent row to its season fixtures: KSCW club one side + the
+  // opponent's team_name the other, scoped to the season's start year +
+  // open/waitingForApproval, and the KSCW side must be THIS kscw_team
+  // (static-id match, name fallback) — otherwise a club facing two KSCW teams
+  // in one group (H1 & H3 in 2L) would leak the other team's fixtures into
+  // this opponent's page. Deterministic order (starting_date_time, then id):
+  // the FIRST fixture of a side also "owns" legacy bookings whose
+  // svrz_game_id is NULL (pre-migration-105 rows / non-SVRZ opponents).
+  async function opponentSvrzFixtures(opponent) {
+    if (!opponent || !opponent.team_name) return []
+    const seasonRow = opponent.season
+      ? await database('game_scheduling_seasons').where('id', opponent.season).first('season')
+      : null
+    const svrzSeasonName = String(seasonRow?.season || '').split('/')[0].trim()
+    const team = await database('teams').where('id', opponent.kscw_team).first('id', 'name', 'team_id')
+    const ourStaticId = staticIdFromTeamId(team?.team_id)
+    const wantName = `ksc wiedikon ${String(team?.name || '').trim().toLowerCase()}`
+    const rows = await database('svrz_games')
+      .whereIn('status', ['open', 'waitingForApproval'])
+      .modify((q) => { if (svrzSeasonName) q.where('season_name', svrzSeasonName) })
+      .where(function () {
+        this.where(function () {
+          this.where('home_club_id', KSCW_SVRZ_CLUB_ID).where('away_team_name', opponent.team_name)
+        }).orWhere(function () {
+          this.where('away_club_id', KSCW_SVRZ_CLUB_ID).where('home_team_name', opponent.team_name)
+        })
+      })
+      .orderBy([
+        { column: 'starting_date_time', order: 'asc' },
+        { column: 'svrz_persistence_id', order: 'asc' },
+      ])
+    return rows
+      .filter((g) => {
+        const sid = kscwSideStaticId(g)
+        if (sid != null && ourStaticId != null) return sid === ourStaticId
+        const isHomeKscw = String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID)
+        return String((isHomeKscw ? g.home_team_name : g.away_team_name) || '').trim().toLowerCase() === wantName
+      })
+      .map((g) => ({
+        id: g.svrz_persistence_id,
+        display_name: g.display_name,
+        starting_date_time: g.starting_date_time,
+        is_home_kscw: String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID),
+        league: g.league_short,
+        status: g.status,
+      }))
+  }
+
+  // Resolve + validate the fixture a proposal/booking targets on one side
+  // (home/away). `requestedId` comes from the request body; absent → the first
+  // fixture of that side (matches the legacy single-game clients). Returns
+  // { fixtureId, isFirst } — fixtureId null when the opponent has no synced
+  // fixtures at all (non-SVRZ flow: bookings keep svrz_game_id NULL) — or null
+  // when the requested id isn't one of this opponent's fixtures on that side.
+  const resolveTargetFixture = (fixtures, isHome, requestedId) => {
+    const side = fixtures.filter((f) => f.is_home_kscw === isHome)
+    if (side.length === 0) return requestedId ? null : { fixtureId: null, isFirst: true }
+    if (!requestedId) return { fixtureId: side[0].id, isFirst: true }
+    const idx = side.findIndex((f) => String(f.id) === String(requestedId))
+    if (idx === -1) return null
+    return { fixtureId: side[idx].id, isFirst: idx === 0 }
+  }
+
+  // Does a booking row belong to the target fixture? Exact svrz_game_id match;
+  // a NULL (legacy) row belongs to the FIRST fixture of its side.
+  const bookingMatchesFixture = (b, target) => {
+    if (!target) return false
+    if (target.fixtureId == null) return b.svrz_game_id == null
+    if (String(b.svrz_game_id || '') === String(target.fixtureId)) return true
+    return target.isFirst && b.svrz_game_id == null
+  }
+
+  // SQL flavour of bookingMatchesFixture for scoped UPDATE/DELETE.
+  const scopeToFixture = (q, target) => {
+    if (target.fixtureId == null) return q.whereNull('svrz_game_id')
+    if (target.isFirst) {
+      return q.where(function () {
+        this.where('svrz_game_id', String(target.fixtureId)).orWhereNull('svrz_game_id')
+      })
+    }
+    return q.where('svrz_game_id', String(target.fixtureId))
+  }
+
   // Expiry = 30.06 of the season's END year, parsed from a "YYYY/YY" season
   // string (e.g. "2026/27" → 2027-06-30T23:59:59Z; end year = start + 1). If the
   // season string is missing/unparseable, fall back to now + 1 year so a link is
@@ -3624,7 +3759,13 @@ export function registerGameScheduling(router, { database, logger, services, get
         this.where('home_club_id', KSCW_SVRZ_CLUB_ID).orWhere('away_club_id', KSCW_SVRZ_CLUB_ID)
       })
       .modify((q) => { if (svrzSeasonName) q.where('season_name', svrzSeasonName) })
-      .orderBy('starting_date_time')
+      // Same deterministic order as opponentSvrzFixtures — the placeholder
+      // starting_date_time is identical across unscheduled fixtures, so the id
+      // tiebreak keeps "first fixture of a side" consistent everywhere.
+      .orderBy([
+        { column: 'starting_date_time', order: 'asc' },
+        { column: 'svrz_persistence_id', order: 'asc' },
+      ])
 
     const wantName = `ksc wiedikon ${String(kscwTeamRow.name || '').trim().toLowerCase()}`
     const ourStaticId = staticIdFromTeamId(kscwTeamRow.team_id)
@@ -3652,7 +3793,12 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!byClub.has(key)) byClub.set(key, { club_id: clubId, club_name: clubName, team_name: teamName, game_count: 0, games: [] })
       const entry = byClub.get(key)
       entry.game_count++
-      entry.games.push({ date: g.starting_date_time || null, display_name: g.display_name || null, is_home_kscw: isHomeKscw })
+      entry.games.push({
+        svrz_game_id: g.svrz_persistence_id || null,
+        date: g.starting_date_time || null,
+        display_name: g.display_name || null,
+        is_home_kscw: isHomeKscw,
+      })
     }
 
     // Contact suggestions from the bulk feed only — no live per-game fetch.
@@ -3975,19 +4121,24 @@ export function registerGameScheduling(router, { database, logger, services, get
   router.post('/admin/terminplanung/request-new-slots', async (req, res) => {
     try {
       const opponentId = Number(req.body?.opponent_id)
+      // Multi-game: booking_id scopes the re-request to ONE fixture's dead
+      // proposal — the opponent's other games keep their proposals/bookings.
+      const bookingId = Number(req.body?.booking_id) || null
       if (!opponentId) return res.status(400).json({ error: 'opponent_id required' })
       const opponent = await database('game_scheduling_opponents').where('id', opponentId).first()
       if (!opponent) return res.status(404).json({ error: 'Opponent not found' })
       if (!(await spielplanerCanManageTeam(req, opponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
       if (!opponent.contact_email) return res.status(400).json({ error: 'no_contact_email' })
 
-      // Race guard: only re-request if this opponent's pending home proposal is
-      // genuinely all-dead right now (a slot may have freed up since page load).
-      // Also refuse when there's no pending health row at all (`mine` undefined,
+      // Race guard: only re-request if this pending home proposal is genuinely
+      // all-dead right now (a slot may have freed up since page load). Also
+      // refuse when there's no pending health row at all (`mine` undefined,
       // e.g. the opponent just got confirmed) — re-requesting would wrongly
       // downgrade a booked opponent back to 'viewed'.
       const health = await homeProposalHealth(opponent.season)
-      const mine = health.find((h) => h.opponent_id === opponentId)
+      const mine = bookingId
+        ? health.find((h) => Number(h.booking_id) === bookingId && h.opponent_id === opponentId)
+        : health.find((h) => h.opponent_id === opponentId)
       if (!mine || !mine.all_dead) {
         return res.status(409).json({ error: 'proposals_still_valid' })
       }
@@ -3996,7 +4147,9 @@ export function registerGameScheduling(router, { database, logger, services, get
       // the re-request; reset a booked/viewed/invited opponent to 'viewed' so their
       // link still serves the propose-home flow.
       await database('game_scheduling_bookings')
-        .where({ opponent: opponentId, type: 'home_slot_pick', status: 'pending' }).del()
+        .where({ opponent: opponentId, type: 'home_slot_pick', status: 'pending' })
+        .modify((q) => { if (bookingId) q.where('id', bookingId) })
+        .del()
       await database('game_scheduling_opponents').where('id', opponentId).update({
         status: ['invited', 'viewed', 'booked'].includes(opponent.status) ? 'viewed' : opponent.status,
         new_slots_requested_at: new Date().toISOString(),
