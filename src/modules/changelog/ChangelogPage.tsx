@@ -23,6 +23,22 @@ const CHANGELOG: ChangelogEntry[] = [
           'When two home games match the same opponent, you choose which VolleyManager fixture to update.',
         ],
       },
+      {
+        title: 'Scheduling mailbox',
+        items: [
+          'Opponent replies to scheduling emails now appear right inside the Terminplanung dashboard — the club mailbox syncs in automatically, so you can read and answer without leaving the app.',
+        ],
+      },
+      {
+        title: 'Fixes & polish',
+        items: [
+          'Broadcasts now reach the right people — the "waitlisted" and "not yet replied" audiences were quietly matching nobody.',
+          'Game dates no longer show as "Invalid Date" on iPhone in the scorer view.',
+          '"Coach present" now appears correctly on the trainings, games and calendar pages.',
+          'Dates always display in Swiss format (dd.mm.yyyy), whatever your phone\'s language.',
+          'A broad security and reliability hardening pass across scheduling, permissions and notifications.',
+        ],
+      },
     ],
   },
   {
