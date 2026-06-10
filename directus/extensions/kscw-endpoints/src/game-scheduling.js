@@ -78,6 +78,15 @@ function fmtDateMail(val) {
   return { date: `${m[3]}.${m[2]}.${m[1]}`, time: m[4] ? `${m[4]}:${m[5]}` : '' }
 }
 
+// Weekday (Mon-Fri) home games are always at 20:00 — the slot is just the hall
+// window (e.g. 19:30-21:30). Weekend slots (Spielsamstag / junior Sunday) keep
+// their start time. Used in confirm + finalize emails so they match the calendar
+// / export / VM push. Returns 'HH:MM'.
+function weekdayHomeTime(dateYmd, startTime) {
+  const dow = new Date(`${String(dateYmd || '').slice(0, 10)}T00:00:00Z`).getUTCDay() // 0=Sun..6=Sat
+  return dow >= 1 && dow <= 5 ? '20:00' : String(startTime || '').slice(0, 5)
+}
+
 export function registerGameScheduling(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'game-scheduling' })
 
@@ -1364,10 +1373,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           const s = byId.get(id)
           if (!s) return null
           const { date } = fmtDateMail(s.date)
-          const st = String(s.start_time).slice(0, 5)
-          const et = String(s.end_time).slice(0, 5)
           const hall = hallNameById[s.hall] || ''
-          return { date, time: `${st}–${et}`, hall }
+          return { date, time: weekdayHomeTime(s.date, s.start_time), hall }
         }).filter(Boolean)
         const list = slotRowsMail.map((r) => `• ${r.date}, ${r.time}${r.hall ? `, ${r.hall}` : ''}`).join('\n')
         if (opponent.contact_email) {
@@ -1518,9 +1525,8 @@ export function registerGameScheduling(router, { database, logger, services, get
         const slot = await database('game_scheduling_slots').where('id', slotId).first()
         const team = await database('teams').where('id', opponent.kscw_team).first()
         const hall = slot?.hall ? await database('halls').where('id', slot.hall).first() : null
-        const { date, time } = fmtDateMail(slot?.date)
-        const endTime = slot ? String(slot.end_time).slice(0, 5) : ''
-        const timeRange = time ? `${time}${endTime ? `–${endTime}` : ''}` : ''
+        const { date } = fmtDateMail(slot?.date)
+        const timeRange = weekdayHomeTime(slot?.date, slot?.start_time)
         const kscw = `KSCW ${team?.name || ''}`.trim()
         const opp = opponent.club_name || opponent.team_name || ''
         if (opponent.contact_email) {

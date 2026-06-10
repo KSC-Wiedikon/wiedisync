@@ -29,6 +29,13 @@ function fmtDate(ymd: string | undefined): string {
   return d.toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+// Weekday (Mon-Fri) home games are at 20:00 — the slot is just the hall window
+// (e.g. 19:30-21:30). Weekend slots keep their window. Matches calendar/email/VM.
+function homeSlotTime(ymd: string | null | undefined, start: string | null | undefined, end: string | null | undefined): string {
+  const dow = ymd ? new Date(`${String(ymd).slice(0, 10)}T00:00:00Z`).getUTCDay() : -1
+  return dow >= 1 && dow <= 5 ? '20:00' : `${start ?? ''}–${end ?? ''}`
+}
+
 type LegStatus = 'open' | 'proposed' | 'confirmed'
 
 /** One schedulable game = one card. A pairing can be played 2-3× per season
@@ -306,7 +313,7 @@ export default function OpponentFlowPage() {
                   <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
                     <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('slotBooked')}</p>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                      {fmtDate(card.booking.slot_date)} · {card.booking.slot_start}–{card.booking.slot_end}
+                      {fmtDate(card.booking.slot_date)} · {homeSlotTime(card.booking.slot_date, card.booking.slot_start, card.booking.slot_end)}
                       {card.booking.slot_hall_name ? ` · ${card.booking.slot_hall_name}` : ''}
                     </p>
                   </div>
@@ -318,7 +325,7 @@ export default function OpponentFlowPage() {
                         <ul className="mt-1 space-y-0.5">
                           {card.booking.proposed_slots.map((p, idx) => (
                             <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
-                              {p.date ? `${fmtDate(p.date)} · ${p.start}–${p.end}${p.hall_name ? ` · ${p.hall_name}` : ''}` : t('slotN', { number: idx + 1 })}
+                              {p.date ? `${fmtDate(p.date)} · ${homeSlotTime(p.date, p.start, p.end)}${p.hall_name ? ` · ${p.hall_name}` : ''}` : t('slotN', { number: idx + 1 })}
                               {!p.available && <span className="ml-2 text-xs text-red-600 dark:text-red-400">⚠ {t('slotMaybeTaken')}</span>}
                             </li>
                           ))}
