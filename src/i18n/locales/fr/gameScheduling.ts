@@ -175,6 +175,7 @@ export default {
   preview: 'Apercu',
   importSuccess: '{{count}} matchs importes',
   downloadExcel: 'Telecharger Excel',
+  downloadPdf: 'Telecharger PDF',
   downloadTemplate: 'Telecharger le modele',
   importColumnsHint: 'Colonnes: Datum, Heimteam, Gastteam, Liga, Runde',
 

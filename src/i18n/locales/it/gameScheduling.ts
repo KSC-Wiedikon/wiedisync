@@ -175,6 +175,7 @@ export default {
   preview: 'Anteprima',
   importSuccess: '{{count}} partite importate',
   downloadExcel: 'Scarica Excel',
+  downloadPdf: 'Scarica PDF',
   downloadTemplate: 'Scarica modello',
   importColumnsHint: 'Colonne: Datum, Heimteam, Gastteam, Liga, Runde',
 
