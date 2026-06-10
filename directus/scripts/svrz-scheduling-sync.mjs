@@ -331,6 +331,44 @@ export async function upsertByPersistenceId(collection, rows) {
   return { created: toCreate.length, updated: toUpdate.length, seen_count: seenIds.size };
 }
 
+/**
+ * Prune svrz_games rows VM no longer lists. When VM renumbers a fixture it gets a
+ * fresh persistence id, so the old row is never matched on upsert and lingers as a
+ * stale duplicate (same matchup+datetime, old last_synced_at) — which then shows up
+ * twice in the fixture picker. This removes those orphans, but ONLY within the
+ * season(s) THIS run actually covered, and ONLY when a sane fraction is affected, so
+ * a partial/failed scrape can never wipe the live schedule. Genuine multi-round
+ * duplicates (HU/DU teams play an opponent 2-3×) are all present in VM → "seen" →
+ * never pruned.
+ */
+export async function pruneOrphanedGames(gameRows) {
+  const seenIds = new Set(gameRows.map((r) => r.svrz_persistence_id).filter(Boolean));
+  const seasonNames = [...new Set(gameRows.map((r) => r.season_name).filter(Boolean))];
+  if (seenIds.size === 0 || seasonNames.length === 0) return { pruned: 0, skipped: 'nothing_seen' };
+
+  const orphanIds = [];
+  let inScope = 0;
+  for (let page = 1; ; page++) {
+    const filter = encodeURIComponent(JSON.stringify({ season_name: { _in: seasonNames } }));
+    const resp = await directusFetch(`/items/svrz_games?fields=id,svrz_persistence_id&filter=${filter}&limit=200&page=${page}`);
+    const data = resp?.data || [];
+    if (data.length === 0) break;
+    for (const r of data) { inScope++; if (!seenIds.has(r.svrz_persistence_id)) orphanIds.push(r.id); }
+    if (data.length < 200) break;
+  }
+  // Safety: never delete a large slice (>25%) — that signals a scope/fetch mismatch,
+  // not genuine orphans (renumbered duplicates are always a handful). Log + skip.
+  if (inScope > 0 && orphanIds.length / inScope > 0.25) {
+    console.warn(`[svrz-sync]   prune: REFUSED — ${orphanIds.length}/${inScope} (>25%) flagged; skipping for safety`);
+    return { pruned: 0, skipped: 'over_threshold', candidates: orphanIds.length, in_scope: inScope };
+  }
+  for (let i = 0; i < orphanIds.length; i += 50) {
+    await directusFetch('/items/svrz_games', { method: 'DELETE', body: JSON.stringify(orphanIds.slice(i, i + 50)) });
+  }
+  if (orphanIds.length) console.log(`[svrz-sync]   prune: removed ${orphanIds.length} orphaned game(s) in season(s) [${seasonNames.join(', ')}]`);
+  return { pruned: orphanIds.length, in_scope: inScope };
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────
 
 /**
@@ -347,6 +385,7 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
     getGames = fetchAllGames,
     getContacts = fetchAllContacts,
     upsert = upsertByPersistenceId,
+    prune = pruneOrphanedGames,
   } = io;
 
   const username = process.env.VM_USERNAME;
@@ -365,6 +404,16 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
   console.log(`[svrz-sync]   → ${gameRows.length}/${games.total} games`);
   const gamesResult = await upsert('svrz_games', gameRows);
   console.log(`[svrz-sync]   games upsert: created=${gamesResult.created} updated=${gamesResult.updated}`);
+
+  // Remove fixtures VM no longer lists (renumbered/cancelled) — ONLY on a
+  // COMPLETE fetch, so a partial scrape never deletes live schedule rows.
+  let pruneResult = { pruned: 0, skipped: 'incomplete_fetch' };
+  if (gameRows.length > 0 && gameRows.length === games.total) {
+    pruneResult = await prune(gameRows);
+    if (pruneResult.skipped) console.warn(`[svrz-sync]   prune: ${pruneResult.skipped}`);
+  } else {
+    console.warn(`[svrz-sync]   prune: skipped — incomplete fetch (${gameRows.length}/${games.total})`);
+  }
 
   // Contacts second — an independent dataset (Spielplaner responsible
   // addresses). The /search endpoint requires the session to have *entered*
@@ -416,6 +465,7 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
 
   return {
     games: { ...gamesResult, total_fetched: games.items.length },
+    prune: pruneResult,
     contacts: contactsResult,
     teamResponsibles: teamResponsibleResult,
   };
