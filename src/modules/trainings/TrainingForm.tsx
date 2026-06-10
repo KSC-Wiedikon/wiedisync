@@ -295,10 +295,10 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
     if (!date || respondByDefaultDays === null || respondByDefaultDays <= 0) return
     // Only set if respondBy hasn't been manually set yet
     if (respondBy) return
-    const d = new Date(date)
+    const d = new Date(date + 'T00:00:00')
     d.setDate(d.getDate() - respondByDefaultDays)
     setRespondBy(d.toISOString().slice(0, 10))
-  }, [date, respondByDefaultDays]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [date, respondByDefaultDays, respondBy]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

@@ -5,6 +5,7 @@ import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
 import type { OpponentInvite, InviteSource, InviteStatus } from '../../../types'
 import { buildInviteMailto } from './inviteEmailTemplate'
+import { buildMailtoHref } from '../../../utils/sanitizeUrl'
 
 interface Props {
   invite: OpponentInvite
@@ -116,7 +117,7 @@ export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onRei
             <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{invite.contact_name}</div>
           )}
           <a
-            href={`mailto:${invite.contact_email.replace(/\s+/g, '')}`}
+            href={buildMailtoHref(invite.contact_email)}
             className="mt-0.5 block break-all text-sm text-gray-700 hover:underline dark:text-gray-300"
           >
             {invite.contact_email}

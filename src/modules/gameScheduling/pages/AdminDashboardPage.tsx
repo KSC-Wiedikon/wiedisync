@@ -13,13 +13,17 @@ import OpponentNotes from '../components/OpponentNotes'
 import ManualBookingForm from '../components/ManualBookingForm'
 import ExcelExportButton from '../components/ExcelExportButton'
 import SchedulingCalendar from '../components/SchedulingCalendar'
+import MailboxPanel from '../components/MailboxPanel'
+import { useMailbox, messagesForOpponent } from '../hooks/useMailbox'
 import { Badge } from '../../../components/ui/badge'
+import { Button } from '../../../components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/table'
 import type { GameSchedulingOpponent, GameSchedulingSlot, InviteStatus, InviteSource, ProposalHealthEntry } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import { formatSeasonShort } from '../utils/formatSeason'
 import { formatDateCompactZurich, formatDateTimeCompact } from '../../../utils/dateHelpers'
+import { buildMailtoHref } from '../../../utils/sanitizeUrl'
 import { kscwApi } from '../../../lib/api'
 import { useHalls } from '../../../hooks/useData'
 import { isSchedulableTeam } from '../utils/schedulableTeams'
@@ -74,6 +78,8 @@ export default function AdminDashboardPage() {
   const { data: teams } = useTeams()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
+  const mailbox = useMailbox(hasAdminAccessToSport('volleyball') || is_spielplaner)
+  const [mailboxFocus, setMailboxFocus] = useState<GameSchedulingOpponent | null>(null)
 
   // Wrap confirm so a rejected booking (Saturday cap, cross-team, gap, Döltschi,
   // slot taken, hall closure…) surfaces its reason instead of failing silently.
@@ -101,6 +107,26 @@ export default function AdminDashboardPage() {
       toast.error(confirmErrMsg(err))
       void refetch()
       throw err
+    }
+  }
+
+  // One-click refresh: SVRZ fixtures/contacts + VM team names/leagues (e.g. a
+  // junior team's Stärkeklasse rename DU23-1 → DU23-2). VM call is admin-only +
+  // best-effort — a non-admin spielplaner gets 403 there, swallowed, so the SVRZ
+  // sync still starts. Same behaviour as the Invites panel "Sync now" button.
+  const [syncing, setSyncing] = useState(false)
+  const handleSyncNow = async () => {
+    setSyncing(true)
+    try {
+      await kscwApi('/admin/terminplanung/svrz-sync', { method: 'POST', body: { season_name: season?.season } })
+      try {
+        await kscwApi('/admin/vm-sync', { method: 'POST', body: {} })
+      } catch { /* non-admin or VM busy — SVRZ already started */ }
+      toast.success(t('svrzSyncStarted'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -188,6 +214,24 @@ export default function AdminDashboardPage() {
       const oid = typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent
       return activeOppIds.has(String(oid))
     }).length
+    // Traffic light: blue = opponents who haven't proposed yet (ball in their
+    // court), yellow = proposals awaiting confirmation (toConfirm), green =
+    // confirmed games.
+    const oppWithBooking = new Set(
+      bookings.map(b => String(typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent))
+    )
+    const notProposed = [...activeOppIds].filter(id => !oppWithBooking.has(id)).length
+    const confirmedLeg = (type: 'home_slot_pick' | 'away_proposal') =>
+      bookings.filter(b => {
+        if (b.type !== type || b.status !== 'confirmed') return false
+        const oid = typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent
+        return activeOppIds.has(String(oid))
+      }).length
+    const homeConfirmed = confirmedLeg('home_slot_pick')
+    const awayConfirmed = confirmedLeg('away_proposal')
+    const confirmed = homeConfirmed + awayConfirmed
+    // Each active opponent = one home leg + one away leg to schedule.
+    const gamesTotal = activeOppIds.size
     // Saturday game counters: confirmed HOME games are booked slots on a
     // Saturday; confirmed AWAY games are confirmed away_proposals whose chosen
     // datetime is a Saturday. Total = home + away.
@@ -204,9 +248,21 @@ export default function AdminDashboardPage() {
     }).length
     return {
       booked, total: teamSlots.length, opponents: opps.length, byStatus, toConfirm,
+      notProposed, confirmed, homeConfirmed, awayConfirmed, gamesTotal,
       homeSat, satTotal: homeSat + awaySat,
     }
   }
+
+  // Season-wide rollup across all schedulable teams — drives the top summary.
+  const summary = volleyballTeams.reduce((acc, team) => {
+    const s = teamStats(team.id)
+    acc.homeConfirmed += s.homeConfirmed
+    acc.awayConfirmed += s.awayConfirmed
+    acc.gamesTotal += s.gamesTotal
+    acc.toConfirm += s.toConfirm
+    acc.notProposed += s.notProposed
+    return acc
+  }, { homeConfirmed: 0, awayConfirmed: 0, gamesTotal: 0, toConfirm: 0, notProposed: 0 })
 
   return (
     <div className="space-y-6">
@@ -222,11 +278,48 @@ export default function AdminDashboardPage() {
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('dashboardTitle')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{formatSeasonShort(season.season)}</p>
         </div>
-        <ExcelExportButton bookings={bookings} opponents={opponents} slots={slots} teams={volleyballTeams} />
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={handleSyncNow} disabled={syncing}>
+            {t('syncSvrzNow')}
+          </Button>
+          <ExcelExportButton bookings={bookings} opponents={opponents} slots={slots} teams={volleyballTeams} />
+        </div>
+      </div>
+
+      {/* Season summary — confirmed home/away vs total, plus what's outstanding */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('summaryHome')}</p>
+          <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400 tabular-nums">
+            {summary.homeConfirmed}<span className="text-base font-medium text-gray-400 dark:text-gray-500">/{summary.gamesTotal}</span>
+          </p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('summaryAway')}</p>
+          <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400 tabular-nums">
+            {summary.awayConfirmed}<span className="text-base font-medium text-gray-400 dark:text-gray-500">/{summary.gamesTotal}</span>
+          </p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('summaryToConfirm')}</p>
+          <p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">{summary.toConfirm}</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('summaryAwaiting')}</p>
+          <p className="mt-1 text-2xl font-bold text-blue-600 dark:text-blue-400 tabular-nums">{summary.notProposed}</p>
+        </div>
       </div>
 
       {/* Season overview calendar — all proposed/confirmed/blocked slots */}
       <SchedulingCalendar slots={slots} bookings={bookings} teams={volleyballTeams} season={season} showAbsences />
+
+      {/* Spielplanung mailbox — synced volleyball@spielplanung.kscw.ch */}
+      <MailboxPanel
+        mailbox={mailbox}
+        opponents={opponents}
+        focusOpponent={mailboxFocus}
+        onClearFocus={() => setMailboxFocus(null)}
+      />
 
       {/* Team overview accordion */}
       <div className="space-y-3">
@@ -257,6 +350,11 @@ export default function AdminDashboardPage() {
                   )}
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-3 text-xs text-gray-600 sm:text-sm dark:text-gray-400">
+                  {stats.gamesTotal > 0 && (
+                    <span className="hidden whitespace-nowrap sm:inline" title={t('homeAwayCounterHint')}>
+                      {t('homeAwayCounter', { hc: stats.homeConfirmed, ac: stats.awayConfirmed, total: stats.gamesTotal })}
+                    </span>
+                  )}
                   {stats.satTotal > 0 && (
                     <span className="whitespace-nowrap" title={t('saturdayCounterHint')}>
                       {t('saturdayCounter', { home: stats.homeSat, total: stats.satTotal })}
@@ -268,9 +366,9 @@ export default function AdminDashboardPage() {
                     </span>
                   )}
                   <div className="flex items-center gap-1">
-                    {stats.byStatus.invited > 0 && (
-                      <Badge variant="info" size="sm" title={t('statusInvited')}>
-                        {stats.byStatus.invited}
+                    {stats.notProposed > 0 && (
+                      <Badge variant="info" size="sm" title={t('statusNotProposed')}>
+                        {stats.notProposed}
                       </Badge>
                     )}
                     {stats.toConfirm > 0 && (
@@ -278,9 +376,9 @@ export default function AdminDashboardPage() {
                         {stats.toConfirm}
                       </Badge>
                     )}
-                    {stats.byStatus.booked > 0 && (
-                      <Badge variant="success" size="sm" title={t('statusBooked')}>
-                        {stats.byStatus.booked}
+                    {stats.confirmed > 0 && (
+                      <Badge variant="success" size="sm" title={t('statusConfirmed')}>
+                        {stats.confirmed}
                       </Badge>
                     )}
                   </div>
@@ -332,6 +430,9 @@ export default function AdminDashboardPage() {
                     onSaveOpponentNote={saveOpponentNote}
                     onManualBooking={manualBooking}
                     onBlockSlot={blockSlot}
+                    mailboxConfigured={mailbox.configured === true}
+                    emailCountFor={(opp) => messagesForOpponent(mailbox.messages, opp).length}
+                    onOpenMailbox={setMailboxFocus}
                   />
                 </div>
               )}
@@ -356,6 +457,9 @@ function TeamBookingsContent({
   onRequestNewSlots,
   onSaveOpponentNote,
   onManualBooking,
+  mailboxConfigured,
+  emailCountFor,
+  onOpenMailbox,
 }: {
   kscwTeamId: string
   kscwTeamName: string
@@ -376,6 +480,9 @@ function TeamBookingsContent({
     },
   ) => Promise<void>
   onBlockSlot: (slotId: string, action: 'block' | 'unblock') => Promise<void>
+  mailboxConfigured: boolean
+  emailCountFor: (opp: GameSchedulingOpponent) => number
+  onOpenMailbox: (opp: GameSchedulingOpponent) => void
 }) {
   const { t } = useTranslation('gameScheduling')
   const { data: halls } = useHalls()
@@ -491,10 +598,21 @@ function TeamBookingsContent({
                       {t('gameCount', { count: oppGames.length })}
                     </button>
                   )}
+                  {mailboxConfigured && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenMailbox(opp)}
+                      className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                    >
+                      {emailCountFor(opp) > 0
+                        ? t('opponentEmails', { count: emailCountFor(opp) })
+                        : t('mailboxCompose')}
+                    </button>
+                  )}
                 </div>
                 <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {opp.contact_name && <span>{opp.contact_name} </span>}
-                  <a href={`mailto:${opp.contact_email}`} className="hover:underline">
+                  <a href={buildMailtoHref(opp.contact_email)} className="hover:underline">
                     ({opp.contact_email})
                   </a>
                 </div>

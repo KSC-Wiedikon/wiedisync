@@ -24,9 +24,8 @@ export default {
     confirmed: 'Bestätigt',
     tentative: 'Vielleicht',
     declined: 'Abgelehnt',
-    waitlist: 'Warteliste',
-    interested: 'Interessiert',
-    invited: 'Eingeladen',
+    waitlisted: 'Warteliste',
+    unanswered: 'Keine Antwort',
     includeExternals: 'Externe Anmeldungen einbeziehen',
   },
   preview: {

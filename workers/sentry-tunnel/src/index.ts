@@ -36,6 +36,28 @@ export default {
       return new Response('Not found', { status: 404 })
     }
 
+    // Per-caller rate limit (defence-in-depth — this endpoint is unauthenticated).
+    // In-isolate token bucket keyed on CF's trusted client-IP header; best-effort
+    // only (state is per-isolate, reset on cold start). Mirrors the push worker.
+    const callerIp = request.headers.get('CF-Connecting-IP') || 'unknown'
+    if (!rateLimitOk(callerIp)) {
+      return new Response('Rate limited', {
+        status: 429,
+        headers: corsHeaders(origin, env.ALLOWED_ORIGIN),
+      })
+    }
+
+    // Reject oversized envelopes before reading the body — without a cap an
+    // unbounded payload is a memory/egress-amplification primitive. Trust the
+    // Content-Length hint first (cheap), then re-check actual bytes below.
+    const declaredLen = Number(request.headers.get('Content-Length') || '0')
+    if (Number.isFinite(declaredLen) && declaredLen > MAX_ENVELOPE_BYTES) {
+      return new Response('Payload too large', {
+        status: 413,
+        headers: corsHeaders(origin, env.ALLOWED_ORIGIN),
+      })
+    }
+
     // Each failure path returns a distinct `Bad envelope: <reason>` so
     // `wrangler tail` shows exactly which branch killed a request.
     //
@@ -49,6 +71,17 @@ export default {
     try {
       const contentEncoding = request.headers.get('Content-Encoding') || ''
       let bytes = new Uint8Array(await request.arrayBuffer())
+
+      // Enforce the cap on the actual bytes too — Content-Length can be absent
+      // or understated. (Checked pre-decompression: the gzip branch below would
+      // otherwise let a small compressed body expand past the limit, but the
+      // raw transfer is what we bound here.)
+      if (bytes.length > MAX_ENVELOPE_BYTES) {
+        return new Response('Payload too large', {
+          status: 413,
+          headers: corsHeaders(origin, env.ALLOWED_ORIGIN),
+        })
+      }
 
       // If the whole request was gzipped by the client, decompress to raw bytes.
       // (The browser SDK does NOT do this — per-item replay compression lives
@@ -121,6 +154,38 @@ export default {
       return new Response(`Bad envelope: unexpected (${reason})`, { status: 400 })
     }
   },
+}
+
+// Reject envelopes larger than this before processing. Session-replay
+// envelopes are the biggest legitimate payloads and sit well under 5 MB;
+// anything bigger is malformed or abusive.
+const MAX_ENVELOPE_BYTES = 5 * 1024 * 1024 // 5 MB
+
+// In-isolate per-IP rate limit: sliding window of timestamps. Best-effort only
+// (state is per-isolate, reset on cold start) — a durable cap belongs in a
+// Cloudflare Rate Limiting rule, but this blunts a single hot caller hammering
+// one isolate. Mirrors the push worker's bucket.
+const RATE_LIMIT_MAX = 60 // requests
+const RATE_LIMIT_WINDOW_MS = 60_000 // per 60s
+const rateLimitHits = new Map<string, number[]>()
+
+function rateLimitOk(key: string): boolean {
+  const now = Date.now()
+  const cutoff = now - RATE_LIMIT_WINDOW_MS
+  const recent = (rateLimitHits.get(key) || []).filter((t) => t > cutoff)
+  if (recent.length >= RATE_LIMIT_MAX) {
+    rateLimitHits.set(key, recent)
+    return false
+  }
+  recent.push(now)
+  rateLimitHits.set(key, recent)
+  // Opportunistic cleanup to bound memory across many distinct IPs.
+  if (rateLimitHits.size > 10_000) {
+    for (const [k, ts] of rateLimitHits) {
+      if (ts.every((t) => t <= cutoff)) rateLimitHits.delete(k)
+    }
+  }
+  return true
 }
 
 function corsHeaders(origin: string, allowed: string): Record<string, string> {

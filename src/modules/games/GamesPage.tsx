@@ -186,7 +186,7 @@ export default function GamesPage() {
     filter: gameQuery?.filter,
     sort: gameQuery?.sort.split(','),
     limit: perPage,
-    fields: ['*', 'kscw_team.*', 'hall.*'],
+    fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     enabled: !!gameQuery && !teamsLoading,
   })
   const games = combined?.items ?? []

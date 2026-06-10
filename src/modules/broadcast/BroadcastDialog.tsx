@@ -39,13 +39,15 @@ export interface BroadcastDialogProps {
   senderMemberId?: number | string | null
 }
 
+// Must match the backend VALID_AUDIENCE_STATUSES in broadcast-helpers.js.
+// The first four are real participations.status values; `unanswered` is the
+// roster MINUS anyone who has already responded (resolved server-side).
 const ALL_STATUSES: ParticipationStatus[] = [
   'confirmed',
   'tentative',
   'declined',
-  'waitlist',
-  'interested',
-  'invited',
+  'waitlisted',
+  'unanswered',
 ]
 const DEFAULT_STATUSES: ParticipationStatus[] = ['confirmed', 'tentative']
 

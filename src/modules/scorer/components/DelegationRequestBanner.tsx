@@ -48,7 +48,7 @@ export default function DelegationRequestBanner({
         const game = games.find((g) => g.id === d.game)
         const fromName = getMemberName(d.from_member)
         const roleKey = ROLE_LABEL_KEYS[d.role] ?? d.role
-        const dateStr = game?.date ? dateFormatter.format(new Date(game.date)) : ''
+        const dateStr = game?.date ? dateFormatter.format(new Date(game.date + 'T00:00:00')) : ''
         const gameLabel = game ? `${game.home_team} – ${game.away_team}` : ''
 
         return (

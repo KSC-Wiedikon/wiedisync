@@ -11,6 +11,10 @@ export function useNotifications() {
   const [isLoading, setIsLoading] = useState(true)
   const userIdRef = useRef(user?.id)
   userIdRef.current = user?.id
+  // Captured per-fetch (not per-render) so an out-of-order response from a
+  // previous user — e.g. logout→login or a token refresh firing two fetches —
+  // can't commit the wrong user's notifications.
+  const latestUserRef = useRef<string | undefined>(user?.id)
 
   const fetchNotifications = useCallback(async () => {
     if (authLoading || !user?.id) {
@@ -19,18 +23,21 @@ export function useNotifications() {
       setIsLoading(false)
       return
     }
+    const uid = user.id
+    latestUserRef.current = uid
     try {
       const result = await fetchItems<Notification>('notifications', {
         filter: { member: { _eq: user.id } },
         sort: ['-date_created'],
         limit: 30,
       })
+      if (latestUserRef.current !== uid) return
       setNotifications(result)
       setUnreadCount(result.filter((n: Notification) => !n.read).length)
     } catch {
       // silently fail
     } finally {
-      setIsLoading(false)
+      if (latestUserRef.current === uid) setIsLoading(false)
     }
   }, [authLoading, user?.id])
 

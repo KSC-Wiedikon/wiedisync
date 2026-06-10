@@ -1,6 +1,8 @@
 # Permissions reference — KSCW Directus
 
-Canonical role × collection × action map. Reflects the live state through migration 069 (2026-05-31). Updated by reviewers as part of every permission change.
+Canonical role × collection × action map. Reflects the live state through migration 103 (2026-06-10). Updated by reviewers as part of every permission change.
+
+> **2026-06-10 — Deep-audit remediation (Public `events` row-scope + doc-drift corrections).** Public `events` read was field-restricted but **NOT row-restricted** (filter `null`), so anon could read every event's title via `/items/events` — including team-internal events. Scoped to club-wide types `{ event_type: { _in: ['verein', 'tournament'] } }`, mirroring the Member `EVENTS_VISIBLE` club-wide branch (the `/kscw/public/events` endpoint still additionally excludes any team-/member-scoped event). Also corrected several rows where this doc had drifted from the authoritative `setup-permissions.mjs` (the script is canonical; the doc lied): `sv_vm_check` Member direct read is **REVOKED** (access via `/kscw/sv-licence/me`, not `OWN_MEMBER`); public `directus_files` read is `folder _null` (the `PUBLIC_FILES_FOLDER` env approach was dropped, no env/fallback); `member_teams` Member read returns `*` incl. `guest_level` (not the claimed `id, member, team, season`); `event_sessions` Member read is unfiltered cross-club (in `MEMBER_READ_ALL`, not `EVENTS_VISIBLE`-scoped); LEADER `absences` read is the coach/TR-team scope (not "none"); LEADER `user_logs` read is **REVOKED** (not granted). Three schema-only migrations shipped alongside (no perm rows): **100** pins `search_path = public` on `members_prevent_email_blanking` / `trg_form_submissions_guard` / `trg_form_submissions_update_guard` (regressed the 071 hardening); **101** guards the implicit `varchar→int` cast in `trg_participations_guest_block` (a non-numeric `activity_id` silently skipped the guest block); **102** un-confirms a derby (`game_scheduling_derbies`) whose host team is deleted (the FK's `ON DELETE SET NULL` would otherwise leave `confirmed=true` with a null host, breaking Art. 27 clamping). See SECURITY.md "2026-06-10" block.
 
 > **2026-05-31 — Security audit hardening (self-scoped Member creates + public read scoping).** Member `create` on `participations`, `absences`, `poll_votes`, `scorer_delegations`, `push_subscriptions`, `team_requests`, `carpools`, `carpool_passengers` was unfiltered — any member could write a row attributed to another member (mark a teammate absent, vote/RSVP as them, file a join request for them; an absence write even cascaded all the victim's confirmed RSVPs to declined via migration 038). All now carry the same self-scope filter their `update` already used (`OWN_MEMBER` / `OWN_DRIVER` / `OWN_PASSENGER` / `from_member = $CURRENT_USER` for delegations). Public `members` read scoped to `website_visible = true` (was ignoring the privacy opt-out and exposing the whole roster). Public `directus_files` read scoped to the public-assets folder via `PUBLIC_FILES_FOLDER` env (feedback screenshots / profile photos no longer anonymously enumerable); falls back to the legacy blanket read with a warning if the env is unset. See SECURITY.md "2026-05-31" block. **Untested in this branch — `npm run db:setup-perms:dev` + `db:smoke:dev` MUST pass before prod, and `PUBLIC_FILES_FOLDER` MUST be set on dev + prod for the files fix to take effect.**
 
@@ -55,7 +57,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | rankings | read | none | |
 | sponsors | read | `active = true` | |
 | scorer_courses | read | `active = true` | Scorer-course sign-up sessions (kscw-website) |
-| events | read | none | Limited fields (`PUBLIC_EVENT_FIELDS`) — kscw-website homepage + calendar. Event record only; RSVP junctions stay private |
+| events | read | `event_type _in {verein, tournament}` | Limited fields (`PUBLIC_EVENT_FIELDS`) — kscw-website homepage + calendar. Row-scoped to club-wide event types (2026-06-10 audit — was unscoped, leaking team-internal event titles to anon); mirrors Member `EVENTS_VISIBLE` club-wide branch. Event record only; RSVP junctions stay private. The `/kscw/public/events` endpoint additionally excludes any team-/member-scoped event |
 | news | read | `published_at` set & `≤ $NOW` | Limited fields (`PUBLIC_NEWS_FIELDS`) — published posts only; kscw-website homepage + /news |
 | teams_sponsors | read | none | Junction for kscw-website |
 | teams_coaches | read | none | Junction for kscw-website |
@@ -66,7 +68,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | halls | read | none | |
 | feedback | create | none | Fields whitelisted; Turnstile + filter hook gate |
 | mixed_tournament_signups | create | none | Same |
-| directus_files | read | `folder = PUBLIC_FILES_FOLDER` (env) | Public-assets folder only; feedback screenshots / profile photos excluded (2026-05-31 audit). Falls back to unscoped read + warning if env unset |
+| directus_files | read | `folder _null` (folder-less only) | Root/folder-less public assets only; sensitive uploads (feedback screenshots) live in a private folder and are excluded (2026-05-31 audit). NB: the earlier `PUBLIC_FILES_FOLDER` env approach was **dropped** — the live script uses `{ folder: { _null: true } }`, no env, no fallback |
 | directus_files | create | none | Public uploads (feedback screenshots, website) — land in a NON-public folder |
 
 **Explicit non-public (don't re-grant!):** `trainings` (032), `slot_claims` / `events_teams` / `participations` (035), `event_signups` (anon/authenticated revoked at PG level — 035). Note: the `events` *record* is public (field-scoped, granted above for the kscw-website calendar) — only its RSVP junctions (`events_teams` / `participations`) stay private.
@@ -83,14 +85,14 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | members | `OWN_USER` | `MEMBER_OWN_READABLE` (incl. PII + 029 messaging fields + 030 + 042 + read-only `is_spielplaner` so the frontend nav can gate the Spielplanung/Terminplanung links on it) | 029, 030, 042 |
 | trainings | `MY_TEAMS` | `*` | 032 |
 | events | `EVENTS_VISIBLE` | `*` | 033 |
-| event_sessions | events `EVENTS_VISIBLE` | `*` | 036 |
+| event_sessions | none (unfiltered, cross-club) | `*` | 036 — in `MEMBER_READ_ALL`, NOT `EVENTS_VISIBLE`-scoped (drift fixed in doc 2026-06-10). Session rows carry no PII; the parent `events` read IS `EVENTS_VISIBLE`-scoped |
 | events_members | events `EVENTS_VISIBLE` | `*` | 036 |
 | participations | `SAME_TEAM_AS_ME` | `*` | 033 |
 | absences | `SAME_TEAM_AS_ME` | `*` | 033 |
-| sv_vm_check | `OWN_MEMBER` | `VM_CHECK_FIELDS` (11 fields, no PII) | **043** |
+| sv_vm_check | **REVOKED** (no direct Member read) | — | Direct read removed (closes the 2026-05-06 Critical). Members get their own licence via `GET /kscw/sv-licence/me` (joins by `license_nr`, returns 11 safe fields). The absence is intentional — a row filter would trip Directus 11's `CASE WHEN 1` SQL bug. Sport Admin+ retain full CRUD |
 | tasks | own `assigned_to` / `claimed_by` | `*` | **043** |
 | feedback | `email = $CURRENT_USER.email` | `*` | **043** |
-| member_teams | none (read); `OWN_MEMBER` (delete) | `id, member, team, season` (no `guest_level`) | **043**; delete added 2026-05-26 (self-service leave-team) |
+| member_teams | none (read); `OWN_MEMBER` (delete) | `*` (incl. `guest_level`) | **043**; delete added 2026-05-26 (self-service leave-team). Doc drift fixed 2026-06-10 — the live script grants an unfiltered, all-fields read (`setPermRead(MEMBER_POLICY, 'member_teams')`), NOT the restricted `id, member, team, season` set; `guest_level` IS returned (the whole-club roster relies on it) |
 | blocks | `blocker.user = $CURRENT_USER` | `*` | 042 |
 | spielplaner_assignments | `OWN_MEMBER` | `*` | 034, 042 |
 | user_logs | `OWN_DU` (note traversal!) | `*` | 4.4.8 fix |
@@ -158,10 +160,10 @@ Inherits everything from Member. Adds:
 | task_templates | read / create / update | scoped via teams.coach | 026 |
 | polls | create / update / delete | scoped via teams.coach | 026 |
 | team_requests | read / update | none | |
-| absences | read | none (team-wide visibility for coaches) | |
+| absences | read | own + members on teams I coach/TR | Doc drift fixed 2026-06-10 — read is NOT unfiltered. Scoped to the coach/TR-of-the-target-team filter (`member.member_teams.team.{coach,team_responsible}.members_id.user = $CURRENT_USER`, plus own), same scope as the CUD rows (2026-05-12 audit closed the full-club absence-notes dump) |
 | notifications | create | none | |
 | announcements | read | published + non-expired only (no draft access) | F6 audit |
-| user_logs | read | none | |
+| user_logs | read | **REVOKED** (removed from LEADER 2026-05-12) | Audit access goes through `/kscw/admin/audit` (admin-only). Doc drift fixed 2026-06-10 — LEADER has NO `user_logs.read`; the smoke test asserts a coach token 403s here |
 | game_scheduling_* | read | none | |
 | fines | CRUD | scoped via teams.coach / team_responsible | **069** |
 | fine_rules | CRUD | scoped via teams.coach / team_responsible | **069** |

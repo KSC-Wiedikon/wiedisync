@@ -89,7 +89,7 @@ export default function TrainingsPage() {
     filter: effectiveFilter,
     sort: ['date'],
     limit: 50,
-    fields: ['*', 'team.*', 'hall.*', 'coach.*'],
+    fields: ['*', 'team.*', 'team.coach.members_id', 'team.team_responsible.members_id', 'hall.*', 'coach.*'],
     enabled: !teamsLoading,
   })
   const trainings = combined?.items ?? []

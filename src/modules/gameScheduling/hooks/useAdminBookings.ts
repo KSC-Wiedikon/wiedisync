@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { GameSchedulingBooking, GameSchedulingOpponent, GameSchedulingSlot, ProposalHealthEntry } from '../../../types'
 import { fetchAllItems, kscwApi } from '../../../lib/api'
 
@@ -22,12 +22,24 @@ export function useAdminBookings(seasonId: string | undefined) {
   // dashboard while a confirm/refetch runs in the background, instead of blanking
   // back to a full-page spinner (which reads as a page reload).
   const [hasLoaded, setHasLoaded] = useState(false)
+  // Set when one of the three core fetches rejected — the dashboard rendered
+  // with partial/empty data and the UI can offer a retry instead of silently
+  // showing empty tables.
+  const [loadError, setLoadError] = useState(false)
+  // Guards against a stale-season response clobbering state: a season re-resolve
+  // or re-mount can leave an older fetch in flight whose results arrive last.
+  // Mirrors the `latestKeyRef` pattern in useTeamAbsences/useTeamMembers.
+  const latestKeyRef = useRef<string | undefined>(undefined)
 
   const fetchAll = useCallback(async () => {
     if (!seasonId) return
+    const key = seasonId
+    latestKeyRef.current = key
     setIsLoading(true)
     try {
-      const [bks, opps, sls] = await Promise.all([
+      // allSettled so one failed collection doesn't blank the other two — set
+      // each result that fulfilled and flag a degraded load if any rejected.
+      const [bksR, oppsR, slsR] = await Promise.allSettled([
         fetchAllItems<ExpandedBooking>('game_scheduling_bookings', {
           filter: { season: { _eq: seasonId } },
           fields: ['*', 'opponent.*', 'slot.*'],
@@ -42,22 +54,30 @@ export function useAdminBookings(seasonId: string | undefined) {
           sort: ['date'],
         }),
       ])
-      setBookings(bks)
-      setOpponents(opps)
-      setSlots(sls)
+      // A newer season fetch superseded this one — drop its results entirely.
+      if (latestKeyRef.current !== key) return
+      let degraded = false
+      if (bksR.status === 'fulfilled') setBookings(bksR.value)
+      else { degraded = true; console.error('Failed to fetch admin bookings:', bksR.reason) }
+      if (oppsR.status === 'fulfilled') setOpponents(oppsR.value)
+      else { degraded = true; console.error('Failed to fetch scheduling opponents:', oppsR.reason) }
+      if (slsR.status === 'fulfilled') setSlots(slsR.value)
+      else { degraded = true; console.error('Failed to fetch scheduling slots:', slsR.reason) }
+      setLoadError(degraded)
       // Live validity of every pending home proposal (best-effort — never blocks
       // the dashboard if the endpoint hiccups).
       try {
         const resp = await kscwApi(`/admin/terminplanung/proposal-health?season_id=${seasonId}`) as { health?: ProposalHealthEntry[] }
+        if (latestKeyRef.current !== key) return
         setProposalHealth(Array.isArray(resp?.health) ? resp.health : [])
       } catch {
-        setProposalHealth([])
+        if (latestKeyRef.current === key) setProposalHealth([])
       }
-    } catch (err) {
-      console.error('Failed to fetch admin bookings:', err)
     } finally {
-      setIsLoading(false)
-      setHasLoaded(true)
+      if (latestKeyRef.current === key) {
+        setIsLoading(false)
+        setHasLoaded(true)
+      }
     }
   }, [seasonId])
 
@@ -149,6 +169,7 @@ export function useAdminBookings(seasonId: string | undefined) {
     proposalHealth,
     isLoading,
     hasLoaded,
+    loadError,
     confirmAwayProposal,
     confirmHomeProposal,
     requestNewSlots,

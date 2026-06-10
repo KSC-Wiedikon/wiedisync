@@ -403,6 +403,24 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return payload
   })
 
+  // Same guard on CREATE. Directus does NOT enforce field-level permission
+  // filters on create payloads, so without this a non-admin members.create
+  // could smuggle `role:["superuser"]` — which the action('members.items.create')
+  // → syncMemberRole path would then escalate to a Directus Superuser role.
+  // System context (no accountability.user — cron/hook/registration backend)
+  // and admins keep their role write; everyone else gets `role` stripped.
+  filter('members.items.create', async (payload, _meta, context) => {
+    if (!payload || !('role' in payload)) return payload
+    const userId = context?.accountability?.user
+    if (!userId) return payload // system-context create (cron/hook) — trust
+    const m = await database('members').where('user', userId).select('role').first()
+    const roles = Array.isArray(m?.role) ? m.role : []
+    if (roles.includes('admin') || roles.includes('superuser')) return payload
+    delete payload.role
+    log.warn({ msg: '[role-sync] non-admin attempted members.role on create — stripped', userId })
+    return payload
+  })
+
   // Sync when members.role array changes
   action('members.items.update', async ({ keys, payload }) => {
     if (payload && 'role' in payload) {
@@ -611,6 +629,42 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // the member already has a participation record (so manual overrides stick).
   // Also handles weekly absences (day-of-week matching).
 
+  // Sentinel stamped on rows the auto-decline INSERT *created* (vs rows that
+  // pre-existed and were overridden by the UPDATE branch). `waitlisted_at` is
+  // never legitimately set on a `declined` row and isn't surfaced for declined
+  // rows in the UI, and the migration-038 BEFORE-UPDATE trigger only touches
+  // `auto_declined_by`, so it survives as a marker. On unwind we DELETE the
+  // created rows and REVERT the overridden ones (instead of deleting the
+  // member's original confirmed RSVP). 1970-01-01Z = "auto-decline created".
+  const AUTO_DECLINE_CREATED_SENTINEL = '1970-01-01 00:00:00+00'
+
+  /**
+   * Reverse the effect of an absence's auto-declines. Created rows (sentinel
+   * set) are deleted; overridden rows (a pre-existing confirmed/tentative/
+   * waitlisted RSVP the absence flipped to declined) are reverted to
+   * 'confirmed' with the marker + sentinel cleared, so the member's original
+   * attendance is restored rather than silently destroyed. Manual overrides
+   * are already detached by the trigger (auto_declined_by → NULL on a user
+   * status edit) and so match neither branch — they're left untouched.
+   * Returns { deleted, reverted } counts.
+   */
+  async function unwindAbsenceAutoDeclines(absenceId) {
+    const del = await database.raw(
+      `DELETE FROM participations
+       WHERE auto_declined_by = ?::integer
+         AND waitlisted_at = ?::timestamptz`,
+      [absenceId, AUTO_DECLINE_CREATED_SENTINEL],
+    )
+    const rev = await database.raw(
+      `UPDATE participations
+       SET status = 'confirmed', auto_declined_by = NULL, note = ''
+       WHERE auto_declined_by = ?::integer
+         AND (waitlisted_at IS NULL OR waitlisted_at <> ?::timestamptz)`,
+      [absenceId, AUTO_DECLINE_CREATED_SENTINEL],
+    )
+    return { deleted: del?.rowCount || 0, reverted: rev?.rowCount || 0 }
+  }
+
   /**
    * Auto-decline future activities that overlap with the given absence.
    * Uses a single INSERT...SELECT per activity type (no per-row loop).
@@ -668,12 +722,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
       // Unwind: reverse any auto-declines this absence previously created
       // that no longer match the (possibly shortened / re-scoped) window.
-      // Manual overrides survive — the BEFORE UPDATE trigger on participations
-      // detaches `auto_declined_by` the moment a user flips `status`.
-      await database.raw(
-        `DELETE FROM participations WHERE auto_declined_by = ?::integer`,
-        [absenceId],
-      )
+      // Created rows are deleted; rows that pre-existed and were overridden are
+      // reverted to 'confirmed' (restoring the member's original RSVP rather
+      // than destroying it — see unwindAbsenceAutoDeclines). Tentative/
+      // waitlisted prior statuses revert to confirmed (no column to stash the
+      // exact prior status without a migration; attendance is preserved, which
+      // is the point). Still-covered rows are immediately re-applied by the
+      // UPDATE/INSERT below. Manual overrides survive — the BEFORE UPDATE
+      // trigger detaches `auto_declined_by` the moment a user flips `status`.
+      await unwindAbsenceAutoDeclines(absenceId)
 
       let declined = 0
 
@@ -702,8 +759,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         declined += upd?.rowCount || 0
 
         const ins = await database.raw(`
-          INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by)
-          SELECT ?::integer, 'training', t.id::text, 'declined', ?, 0, false, ?::integer
+          INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
+          SELECT ?::integer, 'training', t.id::text, 'declined', ?, 0, false, ?::integer, '1970-01-01 00:00:00+00'::timestamptz
           FROM trainings t
           WHERE t.date >= ?::date AND t.date <= ?::date
             AND t.cancelled = false
@@ -734,8 +791,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         declined += upd?.rowCount || 0
 
         const ins = await database.raw(`
-          INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by)
-          SELECT ?::integer, 'game', g.id::text, 'declined', ?, 0, false, ?::integer
+          INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
+          SELECT ?::integer, 'game', g.id::text, 'declined', ?, 0, false, ?::integer, '1970-01-01 00:00:00+00'::timestamptz
           FROM games g
           WHERE g.date >= ?::date AND g.date <= ?::date
             AND g.kscw_team IS NOT NULL
@@ -752,6 +809,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
       // Events
       if (allTypes || affects.includes('events')) {
+        // events.start_date is timestamptz → localize to Zurich for the
+        // calendar-date window/DOW match (UTC would shift a 00:00–02:00 Zurich
+        // event to the previous day and mismatch the absence window).
+        const eventDateZ = "(e.start_date AT TIME ZONE 'Europe/Zurich')::date"
         const upd = await database.raw(`
           UPDATE participations p
           SET status = 'declined', note = ?, auto_declined_by = ?::integer
@@ -759,18 +820,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           WHERE p.activity_type = 'event' AND p.activity_id = e.id::text
             AND p.member = ?::integer
             AND p.status IN ('confirmed', 'tentative', 'waitlisted')
-            AND e.start_date::date >= ?::date AND e.start_date::date <= ?::date
-            ${pgDowClause.replace(/d\.date/g, 'e.start_date::date')}
+            AND ${eventDateZ} >= ?::date AND ${eventDateZ} <= ?::date
+            ${pgDowClause.replace(/d\.date/g, eventDateZ)}
         `, [absence.reason || '', absenceId, memberId, effectiveStart, endDate])
         declined += upd?.rowCount || 0
 
         const ins = await database.raw(`
-          INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by)
-          SELECT ?::integer, 'event', e.id::text, 'declined', ?, 0, false, ?::integer
+          INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
+          SELECT DISTINCT ON (e.id) ?::integer, 'event', e.id::text, 'declined', ?, 0, false, ?::integer, '1970-01-01 00:00:00+00'::timestamptz
           FROM events e
           JOIN events_teams et ON et.events_id = e.id
-          WHERE e.start_date::date >= ?::date AND e.start_date::date <= ?::date
-            ${pgDowClause.replace(/d\.date/g, 'e.start_date::date')}
+          WHERE ${eventDateZ} >= ?::date AND ${eventDateZ} <= ?::date
+            ${pgDowClause.replace(/d\.date/g, eventDateZ)}
             AND EXISTS (SELECT 1 FROM member_teams mt WHERE mt.team = et.teams_id AND mt.member = ?::integer)
             AND NOT EXISTS (
               SELECT 1 FROM participations p
@@ -896,8 +957,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // Web push fanout — same dispatch path as upcoming_activity /
       // deadline_reminder. The dd.mm.yyyy formatter mirrors the front-end
       // (Swiss / dot-day-first) so the push body matches the in-app row.
-      const startFmt = row.start_date
-        ? String(row.start_date).slice(0, 10).split('-').reverse().join('.')
+      // safeDateStr() normalizes first: knex hands back `date` columns as JS
+      // Date objects, and `String(Date).slice(0,10)` yields "Wed Aug 27" (not
+      // an ISO date), which then split/reverse mangles. absences.start_date is
+      // a pg `date` (no TZ skew), so no AT TIME ZONE needed — just ISO it.
+      const startIso = safeDateStr(row.start_date)
+      const startFmt = startIso
+        ? startIso.split('-').reverse().join('.')
         : ''
       const keyBase = isWeekly
         ? (op === 'create' ? 'absence.weekly.created' : 'absence.weekly.updated')
@@ -926,15 +992,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
   action('absences.items.delete', async ({ keys }) => {
-    // Reverse any auto-declines this absence had created. Manual overrides are
-    // protected by the clear-marker trigger.
+    // Reverse any auto-declines this absence had created: delete the rows it
+    // created, revert the pre-existing RSVPs it overrode back to 'confirmed'
+    // (don't destroy them). Manual overrides are protected by the clear-marker
+    // trigger (they match neither branch).
     try {
       for (const k of keys) {
-        const res = await database.raw(
-          `DELETE FROM participations WHERE auto_declined_by = ?::integer`,
-          [k],
-        )
-        if (res?.rowCount > 0) log.info(`[absence-auto-decline] Absence ${k} deleted: ${res.rowCount} auto-declines reversed`)
+        const { deleted, reverted } = await unwindAbsenceAutoDeclines(k)
+        if (deleted > 0 || reverted > 0) log.info(`[absence-auto-decline] Absence ${k} deleted: ${deleted} reversed, ${reverted} RSVPs restored`)
       }
     } catch (err) {
       log.error({ msg: `[absence-auto-decline] delete: ${err.message}`, event: 'absence_auto_decline_delete', stack: err.stack })
@@ -1085,16 +1150,29 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   }
 
   async function resolveAnnouncementAudience(ann) {
-    if (ann.audience_type === 'sport' && ann.audience_sport) {
-      // Sport-scoped: reach EVERY member on a team of that sport, regardless
-      // of wiedisync_active. Club-wide sport comms (tournaments, discounts,
-      // federation news) should hit the whole sport, not just app opt-ins.
-      // Per-channel opt-out still applies inside the send loop (email requires
-      // non-null address; push requires an active subscription).
+    if (ann.audience_type !== 'all') {
+      // Sport-scoped fanout REQUIRES an explicit sport. A null audience_sport
+      // must NOT fall through to the all-members blast (the
+      // validateAnnouncementAudience filter rejects this for non-admins, but a
+      // system-context / future-scheduled row could still reach here) — return
+      // an empty audience so the post is marked fanned-out without club-wide mail.
+      if (!ann.audience_sport) {
+        log.warn({ msg: `[announcements] audience_type=${ann.audience_type} but audience_sport is null — skipping fanout`, annId: ann.id })
+        return []
+      }
+      // Sport-scoped: reach EVERY member on an ACTIVE team of that sport in the
+      // current season, regardless of wiedisync_active. Club-wide sport comms
+      // (tournaments, discounts, federation news) should hit the whole sport,
+      // not just app opt-ins — but NOT ex-members or archived-season rosters
+      // (member_teams/teams have no season guard otherwise). Per-channel opt-out
+      // still applies inside the send loop (email requires a non-null address;
+      // push requires an active subscription).
       const rows = await database('member_teams as mt')
         .join('teams as t', 't.id', 'mt.team')
         .join('members as m', 'm.id', 'mt.member')
         .where('t.sport', ann.audience_sport)
+        .where('t.active', true)
+        .where('m.kscw_membership_active', true)
         .distinct('m.id')
         .select('m.id')
       return rows.map(r => r.id).filter(Boolean)
@@ -1125,6 +1203,21 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const memberIds = await resolveAnnouncementAudience(ann)
       if (memberIds.length === 0) {
         await database('announcements').where('id', annId).update({ fanout_sent_at: new Date().toISOString() })
+        return
+      }
+
+      // Re-entrancy lock: stamp fanout_sent_at BEFORE the send loop, not after.
+      // The check above (fanout_sent_at null) and the write were previously
+      // separated by the whole per-recipient loop, so an edit / cron tick that
+      // re-entered mid-send would pass the null check and double-mail the club.
+      // Conditional update (whereNull) makes the stamp a claim: only the call
+      // that flips it from null actually sends. Lost races no-op here.
+      const claimed = await database('announcements')
+        .where('id', annId)
+        .whereNull('fanout_sent_at')
+        .update({ fanout_sent_at: new Date().toISOString() })
+      if (!claimed) {
+        log.info(`[announcements] Fanout for #${annId} already claimed by a concurrent run — skipping`)
         return
       }
 
@@ -1220,8 +1313,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         }
       }
 
-      // Mark as fanned out
-      await database('announcements').where('id', annId).update({ fanout_sent_at: new Date().toISOString() })
+      // fanout_sent_at was already stamped before the send loop (re-entrancy
+      // lock above), so no second write is needed here.
       log.info(`[announcements] Fanout complete for #${annId} → ${memberIds.length} recipients (push=${!!ann.notify_push}, email=${!!ann.notify_email})`)
     } catch (err) {
       log.error({ msg: `[announcements] ${err.message}`, event: 'announcement_fanout', annId, stack: err.stack })
@@ -1540,8 +1633,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const dateStr = safeDateStr(training.date)
       if (!dateStr) return
       const res = await database.raw(`
-        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by)
-        SELECT mt.member, 'training', ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
+        SELECT mt.member, 'training', ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM member_teams mt
         JOIN absences a ON a.member = mt.member
         WHERE mt.team = ?::integer
@@ -1575,8 +1668,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const dateStr = safeDateStr(game.date)
       if (!dateStr) return
       const res = await database.raw(`
-        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by)
-        SELECT mt.member, 'game', ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
+        SELECT mt.member, 'game', ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM member_teams mt
         JOIN absences a ON a.member = mt.member
         WHERE mt.team = ?::integer
@@ -1605,11 +1698,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     try {
       const event = await database('events').where('id', key).first()
       if (!event || !event.start_date) return
-      const dateStr = safeDateStr(event.start_date)
+      // events.start_date is timestamptz; absence window/DOW matching is by
+      // calendar date → derive the date in Zurich, not UTC (a 01:00 Zurich
+      // event is the previous day in UTC and would match the wrong day).
+      const ds = await database.raw(
+        `SELECT to_char((? ::timestamptz AT TIME ZONE 'Europe/Zurich')::date, 'YYYY-MM-DD') AS d`,
+        [event.start_date],
+      )
+      const dateStr = ds?.rows?.[0]?.d
       if (!dateStr) return
       const res = await database.raw(`
-        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by)
-        SELECT DISTINCT ON (mt.member) mt.member, 'event', ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
+        SELECT DISTINCT ON (mt.member) mt.member, 'event', ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM events_teams et
         JOIN member_teams mt ON mt.team = et.teams_id
         JOIN absences a ON a.member = mt.member
@@ -1658,9 +1758,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         )
     `, [activityType, String(activityId), dateStr, dateStr, `"${activityType}s"`, dateStr])
     // 2. Insert fresh auto-declines for the new date (NOT EXISTS skips manual overrides)
+    //    Sentinel waitlisted_at marks these as auto-decline-created so the
+    //    absence unwind DELETEs them rather than reverting to 'confirmed'.
     await database.raw(`
-      INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by)
-      SELECT mt.member, ?, ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id
+      INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
+      SELECT mt.member, ?, ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
       FROM member_teams mt
       JOIN absences a ON a.member = mt.member
       WHERE ${teamFilterSql}
@@ -2040,8 +2142,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       for (const k of keys) {
         const e = await database('events').where('id', k).first()
         if (!e || !e.start_date) continue
-        const dateStr = e.start_date.toISOString?.().split('T')[0]
-          || String(e.start_date).split('T')[0]
+        // events.start_date is timestamptz; absence window/DOW matching is by
+        // calendar date, so derive the date in Zurich (not UTC). An event at
+        // 01:00 Zurich is the previous day in UTC, which would match the wrong
+        // absence day. safeDateStr() on the raw value would keep the UTC date.
+        const ds = await database.raw(
+          `SELECT to_char((? ::timestamptz AT TIME ZONE 'Europe/Zurich')::date, 'YYYY-MM-DD') AS d`,
+          [e.start_date],
+        )
+        const dateStr = ds?.rows?.[0]?.d
+        if (!dateStr) continue
         await reEvalActivityAutoDeclines(
           'event',
           k,
@@ -2125,9 +2235,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       let total = 0
 
       // Trainings: decline for absent members who have no participation yet
+      // (waitlisted_at sentinel marks these auto-decline-created → unwind DELETEs)
       const t1 = await database.raw(`
-        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by)
-        SELECT mt.member, 'training', t.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
+        SELECT mt.member, 'training', t.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM trainings t
         JOIN member_teams mt ON mt.team = t.team
         JOIN absences a ON a.member = mt.member
@@ -2144,8 +2255,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
       // Games
       const t2 = await database.raw(`
-        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by)
-        SELECT mt.member, 'game', g.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
+        SELECT mt.member, 'game', g.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM games g
         JOIN member_teams mt ON mt.team = g.kscw_team
         JOIN absences a ON a.member = mt.member
@@ -2161,18 +2272,21 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       `)
       total += t2?.rowCount || 0
 
-      // Events — note DISTINCT ON so multi-team events produce one row per member
+      // Events — note DISTINCT ON so multi-team events produce one row per member.
+      // events.start_date is timestamptz → localize to Zurich for the calendar-
+      // date window/DOW match (a 01:00 Zurich event is the prior day in UTC).
+      // Sentinel waitlisted_at marks these auto-decline-created → unwind DELETEs.
       const t3 = await database.raw(`
-        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by)
-        SELECT DISTINCT ON (mt.member, e.id) mt.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
+        SELECT DISTINCT ON (mt.member, e.id) mt.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM events e
         JOIN events_teams et ON et.events_id = e.id
         JOIN member_teams mt ON mt.team = et.teams_id
         JOIN absences a ON a.member = mt.member
-        WHERE e.start_date::date >= CURRENT_DATE
-          AND a.start_date::date <= e.start_date::date AND a.end_date::date >= e.start_date::date
+        WHERE (e.start_date AT TIME ZONE 'Europe/Zurich')::date >= CURRENT_DATE
+          AND a.start_date::date <= (e.start_date AT TIME ZONE 'Europe/Zurich')::date AND a.end_date::date >= (e.start_date AT TIME ZONE 'Europe/Zurich')::date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
-          AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb(((EXTRACT(DOW FROM e.start_date::date)::int + 6) % 7))))
+          AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb(((EXTRACT(DOW FROM (e.start_date AT TIME ZONE 'Europe/Zurich')::date)::int + 6) % 7))))
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = mt.member
@@ -2305,7 +2419,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       tomorrow.setDate(tomorrow.getDate() + 1)
       const tomorrowStr = tomorrow.toISOString().split('T')[0]
 
-      // Games with respond_by = tomorrow
+      // Games with respond_by = tomorrow. Skip cancelled/postponed/completed
+      // games (mirror the upcoming-games query) and guests — guests are hard-
+      // blocked from game RSVPs (trg_participations_guest_block), so a reminder
+      // they can't answer is just noise. COALESCE so NULL status/guest_level
+      // rows aren't dropped.
       const gamesInserted = await database.raw(`
         INSERT INTO notifications (member, type, title, body, activity_type, activity_id, team, read)
         SELECT mt.member, 'deadline_reminder',
@@ -2316,6 +2434,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         JOIN member_teams mt ON mt.team = g.kscw_team
         WHERE g.respond_by::date = ?::date
           AND g.kscw_team IS NOT NULL
+          AND COALESCE(g.status, '') NOT IN ('completed', 'postponed', 'cancelled')
+          AND COALESCE(mt.guest_level, 0) = 0
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = mt.member
@@ -2338,6 +2458,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         WHERE t.respond_by::date = ?::date
           AND t.team IS NOT NULL
           AND t.cancelled = false
+          AND (t.excluded_guest_levels IS NULL
+               OR NOT (t.excluded_guest_levels::jsonb @> to_jsonb(mt.guest_level)))
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = mt.member
@@ -2449,15 +2571,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         WHERE t.date = ?::date AND t.team IS NOT NULL AND t.cancelled = false
       `, [tomorrowStr])
 
-      // Events tomorrow
+      // Events tomorrow — events.start_date is timestamptz, so localize to
+      // Zurich for both the displayed date/time and the day filter (UTC would
+      // show 17:00 for a 19:00 Zurich game and bucket a 00:00–02:00 Zurich
+      // event onto the wrong calendar day).
       await database.raw(`
         INSERT INTO notifications (member, type, title, body, activity_type, activity_id, team, read)
         SELECT DISTINCT mt.member, 'upcoming_activity',
                'upcoming_event',
                json_build_object(
                  'title', COALESCE(e.title, 'Event'),
-                 'date', COALESCE(to_char(e.start_date, 'DD.MM.YY'), ''),
-                 'time', COALESCE(to_char(e.start_date, 'HH24:MI'), ''),
+                 'date', COALESCE(to_char(e.start_date AT TIME ZONE 'Europe/Zurich', 'DD.MM.YY'), ''),
+                 'time', COALESCE(to_char(e.start_date AT TIME ZONE 'Europe/Zurich', 'HH24:MI'), ''),
                  'location', COALESCE(NULLIF(h.name, ''), e.location, '')
                )::text,
                'event', e.id::text, et.teams_id, false
@@ -2465,7 +2590,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         JOIN events_teams et ON et.events_id = e.id
         JOIN member_teams mt ON mt.team = et.teams_id
         LEFT JOIN halls h ON h.id = e.hall
-        WHERE e.start_date::date = ?::date
+        WHERE (e.start_date AT TIME ZONE 'Europe/Zurich')::date = ?::date
       `, [tomorrowStr])
 
       log.info('Daily notification reminders sent')
@@ -2748,6 +2873,33 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // ── 10e². Cron: Spielplanung mailbox sync (every 10 min) ──
+  // Pulls the Migadu mailbox volleyball@spielplanung.kscw.ch (INBOX + Sent)
+  // into scheduling_emails via the kscw-endpoints IMAP sync, so opponent
+  // replies surface in the Terminplanung dashboard. Dormant until
+  // SCHEDULING_IMAP_PASSWORD is set on the container.
+  schedule('*/10 * * * *', async () => {
+    if (!process.env.SCHEDULING_IMAP_PASSWORD) return
+    const startedAt = Date.now()
+    try {
+      const token = await getCronAccessToken(log, 'Mailbox sync')
+      if (!token) return
+      const res = await fetch('http://localhost:8055/kscw/admin/terminplanung/mailbox/sync', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const body = await res.text()
+      if (!res.ok) throw new Error(`${res.status} ${body}`)
+      const result = JSON.parse(body)
+      if (result.processed > 0) log.info(`Mailbox sync cron: ${result.processed} new messages`)
+      await logCronRun(database, 'mailbox_sync', { status: 'ok', durationMs: Date.now() - startedAt, rowsChanged: result.processed || 0 })
+    } catch (err) {
+      log.error({ msg: `Mailbox sync cron: ${err.message}`, event: 'cron.mailbox_sync', stack: err.stack })
+      logCronError('mailbox_sync', err)
+      await logCronRun(database, 'mailbox_sync', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: err.message })
+    }
+  })
+
   // ── 10f. Cron: Schulferien sync (monthly, 1st @ 04:30 UTC) ──
   // Imports the City of Zürich school-holiday calendar into hall_closures
   // (source='school_holidays') so the halls show as closed during the holidays
@@ -3021,11 +3173,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   function regT(locale) { return REG_T[locale] || REG_T.de }
 
   // ── Helper: season string (e.g. "2025/26") ─────────────────────
+  // Season cutover is JUNE 1 (m=5), matching the canonical reader in
+  // src/utils/dateHelpers.ts. Before June → previous autumn's season; June
+  // onwards → this autumn's. (Was Sept/m<8, which disagreed with the frontend
+  // and mis-stamped seasons for June–August writes.)
   function getCurrentSeason() {
     const now = new Date()
     const y = now.getFullYear()
-    const m = now.getMonth()
-    return m < 8 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
+    const m = now.getMonth() // 0-based, season starts June (m=5)
+    return m < 5 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
   }
 
   // ── Normalize registration geschlecht to member sex (m/f) ───
@@ -3636,6 +3792,34 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     })
   }
 
+  // member_teams delete scope — the policy grants the row-level delete filter,
+  // but Directus delete filters key on the junction id, and a coach's delete
+  // perm is NOT team-scoped here, so without this a coach could delete ANY
+  // team's roster rows (cross-team roster tampering). A non-admin may delete a
+  // member_teams row only when (a) it's their own membership, or (b) they
+  // coach / are responsible for that row's team. System + admin pass.
+  filter('member_teams.items.delete', async (keys, _meta, { database: db, accountability }) => {
+    if (!accountability?.user) return keys   // system context (cron/hook/cascade)
+    if (accountability.admin) return keys     // admins bypass
+    const ids = Array.isArray(keys) ? keys : (keys != null ? [keys] : [])
+    if (ids.length === 0) return keys
+    const editor = await db('members').where('user', accountability.user).select('id').first()
+    if (!editor) throw kscwScopeError('You cannot delete these team memberships', 403, 'NOT_OWNER')
+    const rows = await db('member_teams').whereIn('id', ids).select('id', 'member', 'team')
+    for (const row of rows) {
+      if (Number(row.member) === Number(editor.id)) continue   // own membership
+      if (row.team == null) {
+        throw kscwScopeError('You cannot delete these team memberships', 403, 'NOT_OWNER')
+      }
+      const isCoach = await db('teams_coaches').where({ teams_id: row.team, members_id: editor.id }).first('id')
+      const isTR = isCoach || await db('teams_responsibles').where({ teams_id: row.team, members_id: editor.id }).first('id')
+      if (!isCoach && !isTR) {
+        throw kscwScopeError('You can only remove members from teams you coach or are responsible for', 403, 'NOT_OWNER')
+      }
+    }
+    return keys
+  })
+
   // ── Hall-slot → trainings cascade ──────────────────────────────
   // Snapshot pre-state in a filter hook (Directus has already merged the
   // payload into `payload` here, but we need the BEFORE values to detect
@@ -3760,12 +3944,35 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return `${currency} ${n.toFixed(2)}`
   }
 
+  // Team-scope guard for fine writes — Directus enforces the team-scoped
+  // update/delete filters but NOT create (no existing row to filter), so a
+  // coach could otherwise POST a fine for ANY team. Passes for system context
+  // + admins; a normal caller must coach / be responsible for `team`. Mirrors
+  // scheduling_blocks.items.create. Throws the project scope-error on failure.
+  async function assertFineTeamScope(accountability, db, teamId) {
+    if (!accountability?.user) return   // system context (cron/hook)
+    if (accountability.admin) return    // admins bypass
+    if (teamId == null) {
+      throw kscwScopeError('Fine requires a team', 400, 'INVALID_PAYLOAD')
+    }
+    const member = await db('members').where('user', accountability.user).first('id')
+    if (!member) return // not a member — let Directus deny via its own policy
+    const isCoach = await db('teams_coaches').where({ teams_id: teamId, members_id: member.id }).first('id')
+    const isTR = isCoach || await db('teams_responsibles').where({ teams_id: teamId, members_id: member.id }).first('id')
+    if (!isCoach && !isTR) {
+      throw kscwScopeError('You can only manage fines for teams you coach or are responsible for', 403, 'FORBIDDEN')
+    }
+  }
+
   filter('fines.items.create', async (payload, _meta, { accountability, database: db }) => {
     try {
       if (!payload) return payload
       if (!payload.member || !payload.team || !payload.category) {
         throw kscwScopeError('fines.create requires member, team, category', 400, 'INVALID_PAYLOAD')
       }
+
+      // 0. Team-scope gate — caller must coach / be TR of payload.team.
+      await assertFineTeamScope(accountability, db, payload.team)
 
       // 1. Resolve leader's member id from accountability (skip for system/admin).
       let issuerId = payload.issued_by ?? null
@@ -3808,10 +4015,22 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       filled.auto_issued = false // hard rule: no silent server-issued path exists yet
       return filled
     } catch (err) {
-      if (err?.code === 'INVALID_PAYLOAD' || err?.code === 'FINE_NO_RULE') throw err
+      // Security gates (scope + payload validation) must fail closed — never
+      // swallow them and create the fine anyway.
+      if (err?.code === 'INVALID_PAYLOAD' || err?.code === 'FINE_NO_RULE' || err?.code === 'FORBIDDEN') throw err
       log.error({ msg: `[fines] create filter: ${err.message}`, event: 'fines_create_filter_failed', stack: err.stack })
       return payload
     }
+  })
+
+  // Fine-rule creation is team-scoped the same way: a coach/TR may only
+  // configure a fine_rule for a team they lead. The fine_rules update/delete
+  // policy filters are team-scoped, but create isn't enforced by Directus —
+  // this is the real gate.
+  filter('fine_rules.items.create', async (payload, _meta, { accountability, database: db }) => {
+    if (!payload) return payload
+    await assertFineTeamScope(accountability, db, payload.team)
+    return payload
   })
 
   filter('fines.items.update', async (payload, _meta, { accountability }) => {

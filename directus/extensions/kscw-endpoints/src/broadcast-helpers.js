@@ -41,8 +41,16 @@ export function sendBroadcastError(res, logger, err) {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const VALID_ACTIVITY_TYPES = new Set(['event', 'game', 'training'])
+// Audience keys offered to the caller. The first four map directly to the real
+// `participations.status` enum (confirmed | declined | tentative | waitlisted);
+// `unanswered` is a synthetic audience = the activity's eligible roster MINUS
+// anyone who already has a participation row (non-responders have NO row at all,
+// so they can never be matched by a status). Frontend ALL_STATUSES must match.
 const VALID_AUDIENCE_STATUSES = new Set([
-  'confirmed', 'tentative', 'declined', 'waitlist', 'interested', 'invited',
+  'confirmed', 'tentative', 'declined', 'waitlisted', 'unanswered',
+])
+const REAL_PARTICIPATION_STATUSES = new Set([
+  'confirmed', 'tentative', 'declined', 'waitlisted',
 ])
 
 // ─── 1. Sender resolution ────────────────────────────────────────────────────
@@ -314,16 +322,34 @@ export async function resolveAudience(database, activityType, activityId, audien
     }
   }
 
-  const memberRows = await database('participations as p')
-    .join('members as m', 'm.id', 'p.member')
-    .where('p.activity_type', activityType)
-    .andWhere('p.activity_id', String(activityId))
-    .whereIn('p.status', statuses)
-    .andWhere('m.wiedisync_active', true)
-    .distinct('m.id')
-    .select('m.id')
+  const memberIdSet = new Set()
 
-  const memberIds = memberRows.map(r => Number(r.id)).filter(Number.isFinite)
+  // 1. Real participation statuses → direct status match on the rows that exist.
+  const realStatuses = statuses.filter(s => REAL_PARTICIPATION_STATUSES.has(s))
+  if (realStatuses.length > 0) {
+    const memberRows = await database('participations as p')
+      .join('members as m', 'm.id', 'p.member')
+      .where('p.activity_type', activityType)
+      .andWhere('p.activity_id', String(activityId))
+      .whereIn('p.status', realStatuses)
+      .andWhere('m.wiedisync_active', true)
+      .distinct('m.id')
+      .select('m.id')
+    for (const r of memberRows) {
+      const id = Number(r.id)
+      if (Number.isFinite(id)) memberIdSet.add(id)
+    }
+  }
+
+  // 2. Synthetic "unanswered" audience → eligible roster MINUS anyone who
+  //    already has a participation row for this activity (any status). These
+  //    members have no row at all, so a status match can never surface them.
+  if (statuses.includes('unanswered')) {
+    const unansweredIds = await resolveUnansweredMembers(database, activityType, activityId)
+    for (const id of unansweredIds) memberIdSet.add(id)
+  }
+
+  const memberIds = [...memberIdSet]
 
   let externals = []
   if (activityType === 'event' && audienceFilter?.includeExternals === true) {
@@ -343,6 +369,103 @@ export async function resolveAudience(database, activityType, activityId, audien
   }
 
   return { memberIds, externals }
+}
+
+/**
+ * Resolve the "unanswered / no reply" audience for an activity: the eligible
+ * roster MINUS every member who already has a participation row (any status).
+ *
+ * Eligibility mirrors the auto-confirm seeding in kscw-hooks so the broadcast
+ * audience lines up with who the RSVP system considers in-scope:
+ *   training — members of the team (`member_teams.team = trainings.team`),
+ *              excluding guest levels in `excluded_guest_levels`.
+ *   game     — members of the team (`member_teams.team = games.kscw_team`),
+ *              guest_level = 0 only (guests can't RSVP to games).
+ *   event    — club-wide events (no team & no member junction) → all active
+ *              members; otherwise `events_teams ∪ events_members`.
+ *
+ * `wiedisync_active = true` is enforced throughout. Returns a number[] of
+ * member ids.
+ */
+export async function resolveUnansweredMembers(database, activityType, activityId) {
+  const idText = String(activityId)
+  let rows = []
+
+  if (activityType === 'training') {
+    rows = await database.raw(`
+      SELECT m.id
+      FROM trainings t
+      JOIN member_teams mt ON mt.team = t.team
+      JOIN members m ON m.id = mt.member
+      WHERE t.id = ?::integer
+        AND m.wiedisync_active = true
+        AND (t.excluded_guest_levels IS NULL
+             OR NOT (t.excluded_guest_levels::jsonb @> to_jsonb(mt.guest_level)))
+        AND NOT EXISTS (
+          SELECT 1 FROM participations p
+          WHERE p.activity_type = 'training' AND p.activity_id = ?::text AND p.member = m.id
+        )
+    `, [activityId, idText])
+  } else if (activityType === 'game') {
+    rows = await database.raw(`
+      SELECT m.id
+      FROM games g
+      JOIN member_teams mt ON mt.team = g.kscw_team
+      JOIN members m ON m.id = mt.member
+      WHERE g.id = ?::integer
+        AND m.wiedisync_active = true
+        AND mt.guest_level = 0
+        AND NOT EXISTS (
+          SELECT 1 FROM participations p
+          WHERE p.activity_type = 'game' AND p.activity_id = ?::text AND p.member = m.id
+        )
+    `, [activityId, idText])
+  } else {
+    // event — determine club-wide vs scoped, then subtract responders.
+    const [teamCount, memberCount] = await Promise.all([
+      database('events_teams').where('events_id', activityId).count('* as c').first(),
+      database('events_members').where('events_id', activityId).count('* as c').first(),
+    ])
+    const isClubWide = Number(teamCount?.c || 0) === 0 && Number(memberCount?.c || 0) === 0
+    if (isClubWide) {
+      rows = await database.raw(`
+        SELECT m.id
+        FROM members m
+        WHERE m.wiedisync_active = true
+          AND NOT EXISTS (
+            SELECT 1 FROM participations p
+            WHERE p.activity_type = 'event' AND p.activity_id = ?::text AND p.member = m.id
+          )
+      `, [idText])
+    } else {
+      rows = await database.raw(`
+        SELECT DISTINCT e.member AS id
+        FROM (
+          SELECT mt.member FROM events_teams et
+            JOIN member_teams mt ON mt.team = et.teams_id
+            WHERE et.events_id = ?::integer
+          UNION
+          SELECT em.members_id AS member FROM events_members em
+            WHERE em.events_id = ?::integer
+        ) e
+        JOIN members m ON m.id = e.member
+        WHERE m.wiedisync_active = true
+          AND NOT EXISTS (
+            SELECT 1 FROM participations p
+            WHERE p.activity_type = 'event' AND p.activity_id = ?::text AND p.member = e.member
+          )
+      `, [activityId, activityId, idText])
+    }
+  }
+
+  // database.raw returns { rows } on pg.
+  const list = Array.isArray(rows) ? rows : (rows?.rows ?? [])
+  const out = []
+  for (const r of list) {
+    const id = Number(r.id)
+    if (Number.isFinite(id)) out.push(id)
+  }
+  return out
 }
 
 // ─── 5. Rate limit check ─────────────────────────────────────────────────────
@@ -421,8 +544,8 @@ export async function checkRateLimit(database, activityType, activityId, senderM
  *   message:  string, 1-2000 chars
  *   audience: {
  *     statuses: string[]   — non-empty subset of:
- *                            { confirmed | tentative | declined | waitlist
- *                            | interested | invited }
+ *                            { confirmed | tentative | declined | waitlisted
+ *                            | unanswered }
  *     includeExternals?: bool
  *   }
  *

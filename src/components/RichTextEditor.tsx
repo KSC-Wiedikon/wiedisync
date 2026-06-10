@@ -3,6 +3,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Bold, Italic, List, ListOrdered, Quote, Link as LinkIcon, Heading2, Heading3 } from 'lucide-react'
 import { useEffect, useCallback } from 'react'
+import { isSafeAppLink } from '../utils/sanitizeUrl'
 
 interface Props {
   value: string
@@ -60,7 +61,10 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
       editor.chain().focus().extendMarkRange('link').unsetLink().run()
       return
     }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+    // Reject anything that isn't an https URL or a same-origin "/path" — keeps
+    // `javascript:`/`data:` out of the stored HTML at rest.
+    if (!isSafeAppLink(url.trim())) return
+    editor.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run()
   }, [editor])
 
   if (!editor) return null

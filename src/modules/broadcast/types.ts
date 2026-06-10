@@ -25,13 +25,15 @@ export interface BroadcastChannels {
   inApp?: boolean
 }
 
+// Broadcast audience keys — must match the backend VALID_AUDIENCE_STATUSES in
+// broadcast-helpers.js. The first four are real participations.status values;
+// `unanswered` is a synthetic audience (roster minus everyone who responded).
 export type ParticipationStatus =
   | 'confirmed'
   | 'tentative'
   | 'declined'
-  | 'waitlist'
-  | 'interested'
-  | 'invited'
+  | 'waitlisted'
+  | 'unanswered'
 
 export interface BroadcastAudience {
   statuses: ParticipationStatus[]

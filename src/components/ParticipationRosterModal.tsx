@@ -71,7 +71,7 @@ function byFirstThenLastName<T extends { first_name?: string | null; last_name?:
 function formatSessionLabel(session: EventSession): string {
   const dateStr = session.date?.split(' ')[0] ?? ''
   const d = new Date(dateStr + 'T00:00:00')
-  const datePart = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+  const datePart = d.toLocaleDateString('de-CH', { weekday: 'short', day: 'numeric', month: 'short' })
   if (session.label) return session.label
   if (session.start_time) return `${datePart} ${session.start_time}${session.end_time ? '–' + session.end_time : ''}`
   return datePart

@@ -2,11 +2,9 @@ import { buildEmailLayout, buildInfoCard, formatDateCH, weekday, FRONTEND_URL, e
 
 /** Get current season in Wiedisync short form, e.g. '2025/26' (matches teams.season, member_teams.season) */
 function getCurrentSeason() {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = now.getMonth() // 0-based; Aug+ counts as new season
-  const startYear = m >= 7 ? y : y - 1
-  return `${startYear}/${(startYear + 1).toString().slice(-2)}`
+  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth()
+  // Season starts in June (m=5); Jan–May (m<5) is still the previous season. Matches src/utils/dateHelpers.ts.
+  return m < 5 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
 }
 
 /**

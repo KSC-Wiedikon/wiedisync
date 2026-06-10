@@ -11,6 +11,12 @@ import { useTheme } from "@/hooks/useTheme"
 
 import { cn } from "@/lib/utils"
 
+// Escape HTML metacharacters so the Shiki-failure fallback can't inject markup
+// when it builds a raw <pre> via dangerouslySetInnerHTML. (& must go first.)
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+}
+
 interface CodeComparisonProps {
   beforeCode: string
   afterCode: string
@@ -77,8 +83,8 @@ export function CodeComparison({
         setHighlightedAfter(after)
       } catch (error) {
         console.error("Error highlighting code:", error)
-        setHighlightedBefore(`<pre>${beforeCode}</pre>`)
-        setHighlightedAfter(`<pre>${afterCode}</pre>`)
+        setHighlightedBefore(`<pre><code>${esc(beforeCode)}</code></pre>`)
+        setHighlightedAfter(`<pre><code>${esc(afterCode)}</code></pre>`)
       }
     }
     highlightCode()

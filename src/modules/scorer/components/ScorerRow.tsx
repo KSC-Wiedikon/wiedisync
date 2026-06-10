@@ -112,7 +112,7 @@ function handleExportICal(game: ExpandedGame, title: string) {
     id: `duty-${game.id}`,
     type: 'game',
     title,
-    date: new Date(game.date),
+    date: new Date(game.date + 'T00:00:00'),
     startTime: game.time ? formatTime(game.time) : null,
     endTime: null,
     allDay: false,
@@ -151,7 +151,7 @@ export default function ScorerRow({
   const kscwTeamObj = asObj<Team>(expanded.kscw_team)
   const kscwTeam = kscwTeamObj?.name ?? ''
   const hall = asObj<Hall>(expanded.hall)
-  const dateStr = game.date ? getDateFormatter(i18n.language).format(new Date(game.date)) : ''
+  const dateStr = game.date ? getDateFormatter(i18n.language).format(new Date(game.date + 'T00:00:00')) : ''
   const gameNumber = game.game_id?.replace(/^(vb_|bb_)/, '') ?? ''
 
   const vbSeparate = isVbSeparateMode(game)

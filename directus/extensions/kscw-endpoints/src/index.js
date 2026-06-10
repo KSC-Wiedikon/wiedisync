@@ -19,6 +19,7 @@ import { registerGCalSync } from './gcal-sync.js'
 import { registerSchulferienSync } from './schulferien-sync.js'
 import { registerScorerReminders } from './scorer-reminders.js'
 import { registerGameScheduling } from './game-scheduling.js'
+import { registerSchedulingMailbox } from './scheduling-mailbox.js'
 import { registerContactForm } from './contact-form.js'
 import { registerWebPush, sendPushToMember, sendPushToMembers } from './web-push.js'
 import { FRONTEND_URL } from './email-template.js'
@@ -69,10 +70,9 @@ async function verifyTurnstile(token) {
 }
 
 function getCurrentSeason() {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = now.getMonth()
-  return m < 8 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
+  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth()
+  // Season starts in June (m=5); Jan–May (m<5) is still the previous season. Matches src/utils/dateHelpers.ts.
+  return m < 5 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
 }
 
 function randomToken(len = 32) {
@@ -1992,6 +1992,7 @@ export default {
     registerSchulferienSync(router, ctx)
     registerScorerReminders(router, ctx)
     registerGameScheduling(router, ctx)
+    registerSchedulingMailbox(router, ctx)
     registerContactForm(router, ctx)
     registerWebPush(router, ctx)
     registerStats(router, ctx)

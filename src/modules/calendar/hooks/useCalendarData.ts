@@ -270,7 +270,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       filters.selectedTeamIds,
       'kscw_team',
     ),
-    fields: ['*', 'kscw_team.*', 'hall.*'],
+    fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     sort: ['date', 'time'],
     all: true,
   })
@@ -283,7 +283,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       filters.selectedTeamIds,
       'team',
     ),
-    fields: ['*', 'team.*', 'hall.*'],
+    fields: ['*', 'team.*', 'team.coach.members_id', 'team.team_responsible.members_id', 'hall.*'],
     sort: ['date', 'start_time'],
     all: true,
   })

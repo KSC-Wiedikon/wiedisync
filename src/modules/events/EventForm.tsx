@@ -53,7 +53,7 @@ function getDateRange(start: string, end: string): string[] {
 
 function formatDateShort(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+  return d.toLocaleDateString('de-CH', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 export default function EventForm({ open, event, onSave, onCancel }: EventFormProps) {

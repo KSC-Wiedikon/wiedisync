@@ -7,5 +7,9 @@
     "path": "src/index.js",
     "source": "src/index.js",
     "host": "^11.0.0"
+  },
+  "dependencies": {
+    "imapflow": "^1.4.0",
+    "mailparser": "^3.9.9"
   }
 }

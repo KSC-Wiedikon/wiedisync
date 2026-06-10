@@ -98,5 +98,61 @@ export function sanitizeAnnouncementHtml(input) {
     return `<${lower}>`
   })
 
+  // ── Final safety pass (defense-in-depth) ───────────────────────────────
+  // The strip passes above use `[^>]*` for the open-tag class, which breaks on
+  // a literal `>` inside an attribute value (`<script data-x=">">…`), and a
+  // lazy same-tag match leaves a residual opener on nested duplicates
+  // (`<script>x<script>y</script>` → stray `<script>`). This pass scrubs
+  // whatever survived, fully case-insensitively, even when unclosed/malformed.
+
+  // 1. Remove any remaining dangerous opener (with or without a closing `>`).
+  //    `<script`, `<style data-x=">`, `<iframe` … all collapse to nothing.
+  s = s.replace(/<\s*\/?\s*(script|style|iframe|svg|object|embed|form)\b[^>]*>?/gi, '')
+
+  // 2. Strip any leftover event-handler attribute (`onerror=...`, `ONLOAD = ...`).
+  //    Covers quoted, single-quoted, and bare values.
+  s = s.replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+  s = s.replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+  s = s.replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+
+  // 3. Neutralize dangerous URL schemes in any surviving attribute. Allow
+  //    `data:image/` (inline images are harmless); kill bare `data:` and
+  //    `javascript:` / `vbscript:` (tolerating whitespace/entities like
+  //    `java\tscript:` is out of scope for a regex sanitizer — the opener
+  //    strip + the <a> href allowlist below are the real guards).
+  s = s.replace(/(href|src)\s*=\s*("|')\s*javascript:[^"']*\2/gi, '$1=$2#$2')
+  s = s.replace(/(href|src)\s*=\s*("|')\s*vbscript:[^"']*\2/gi, '$1=$2#$2')
+  s = s.replace(/(href|src)\s*=\s*("|')\s*data:(?!image\/)[^"']*\2/gi, '$1=$2#$2')
+
+  // 4. Reject/neutralize any <a href> whose value isn't https or same-origin.
+  //    The allowed-tag pass above already rewrites <a> safely, but a residual
+  //    or re-introduced anchor (e.g. produced by the strips above) is caught
+  //    here as a backstop.
+  s = s.replace(/<a\b([^>]*)>/gi, (m, attrs) => {
+    const hrefDouble = attrs.match(/\bhref\s*=\s*"([^"]*)"/i)
+    const hrefSingle = attrs.match(/\bhref\s*=\s*'([^']*)'/i)
+    const href = hrefDouble?.[1] ?? hrefSingle?.[1] ?? null
+    if (href && isSafeHref(href)) {
+      const safe = href
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+      return `<a href="${safe}" target="_blank" rel="noopener noreferrer">`
+    }
+    return '<a>'
+  })
+
+  // 5. Fail closed: if any dangerous opener, event handler, or javascript:
+  //    URL still survived all of the above, throw rather than email the
+  //    payload to the whole club. A thrown error aborts the announcement
+  //    fanout for that recipient (logged + counted as a failure) — a safe
+  //    default vs. silently shipping an XSS/phishing vector.
+  if (/<\s*\/?\s*(script|style|iframe|svg|object|embed|form)\b/i.test(s)
+      || /\son\w+\s*=/i.test(s)
+      || /javascript:/i.test(s)) {
+    throw new Error('sanitizeAnnouncementHtml: residual unsafe content after sanitization')
+  }
+
   return s
 }

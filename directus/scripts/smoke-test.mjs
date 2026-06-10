@@ -125,6 +125,11 @@ async function main() {
   // If any of these returns 4xx for a Member role, the silent Promise.all
   // failure pattern is back.
   await check('member_teams (own)', () => api('GET', `/items/member_teams?filter[member][_eq]=${memberId}&fields=team.id,team.name,guest_level`))
+  // loadTeamContext fans these two junctions out in the SAME Promise.all as
+  // member_teams — a lost read row on either silently empties the entire team
+  // context (coach/TR scoping) without any loud surface error (4.4.4 class).
+  await check('teams_coaches (own)', () => api('GET', `/items/teams_coaches?filter[members_id][_eq]=${memberId}&fields=teams_id&limit=10`))
+  await check('teams_responsibles (own)', () => api('GET', `/items/teams_responsibles?filter[members_id][_eq]=${memberId}&fields=teams_id&limit=10`))
   await check('teams (active)', () => api('GET', '/items/teams?filter[active][_eq]=true&limit=10'))
   await check('games (10)', () => api('GET', '/items/games?limit=10&fields=id,date,kscw_team'))
   await check('trainings (my-teams)', () => api('GET', '/items/trainings?limit=10&fields=id,date,team'))
@@ -134,6 +139,18 @@ async function main() {
   await check('notifications (own)', () => api('GET', `/items/notifications?filter[member][_eq]=${memberId}&limit=10`))
   await check('blocks (own)', () => api('GET', `/items/blocks?filter[blocker][user][_eq]=${me.json.data.id}&limit=10`))
   await check('spielplaner_assignments (own)', () => api('GET', `/items/spielplaner_assignments?filter[member][_eq]=${memberId}&limit=10`))
+  // HomePage / Layout reads. A lost read row on any of these silently empties a
+  // home surface (the same class as the 2026-06-07 fine_rules incident, where a
+  // bad fine_rules.read filter `Invalid query`'d every member's home + roster
+  // editor with no console error). Each must not 4xx/5xx for a Member.
+  await check('rankings', () => api('GET', '/items/rankings?limit=10'))
+  await check('fine_rules (visible)', () => api('GET', '/items/fine_rules?limit=10'))
+  await check('forms (open)', () => api('GET', `/items/forms?filter[status][_eq]=open&limit=10&fields=id,title,status`))
+  // Conversations back the inbox unread badge (Layout) + the inbox list, but the
+  // app reads them via the /kscw/messaging/conversations custom endpoint — there
+  // is deliberately NO Member direct /items/conversations read grant — so probe
+  // the real path (mirrors the sv_vm_check endpoint check above).
+  await check('kscw/messaging/conversations', () => api('GET', '/kscw/messaging/conversations'))
   // Direct sv_vm_check.read REVOKED for KSCW Member; access goes through
   // the /kscw/sv-licence/me custom endpoint instead. Confirm direct read
   // 403s AND the endpoint responds.

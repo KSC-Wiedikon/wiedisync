@@ -225,7 +225,7 @@ function scoreTeam(
   }
 
   // Weekend no-training bonus: +5
-  const gameDay = new Date(game.date).getDay()
+  const gameDay = new Date(game.date + 'T00:00:00').getDay()
   if ((gameDay === 0 || gameDay === 6) && !trainingDates.has(`${teamId}|${game.date}`)) {
     score += 5
     reasons.push({ key: 'reason_weekendFree', params: { points: 5 } })

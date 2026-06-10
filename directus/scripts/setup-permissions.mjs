@@ -477,7 +477,18 @@ async function main() {
     // "no news"). Re-added field-scoped, non-PII only. RSVP junctions
     // (participations / events_teams) stay NON-public — see calendar note below.
     // News is limited to published posts (published_at set, not future-dated).
-    await setPermRead(PUBLIC_POLICY, 'events', null, PUBLIC_EVENT_FIELDS)
+    //
+    // ROW-SCOPE (2026-06-10 audit): the public read was field-restricted but NOT
+    // row-restricted (filter was `null`), so anon could read EVERY event's title
+    // — including team-internal events (a tournament scoped to one team) — by
+    // hitting /items/events directly. The /kscw/public/events endpoint already
+    // excludes team-/member-scoped events server-side, but the raw collection
+    // read had no such guard. Scope to the club-wide event types, mirroring the
+    // Member EVENTS_VISIBLE club-wide branch (`event_type ∈ {verein, tournament}`).
+    // (Note: a club-wide-TYPE event that is ALSO team-scoped via events_teams is
+    // still filtered out by the /public/events endpoint, which the website uses;
+    // this row filter closes the direct-collection-read leak for the type axis.)
+    await setPermRead(PUBLIC_POLICY, 'events', { event_type: { _in: ['verein', 'tournament'] } }, PUBLIC_EVENT_FIELDS)
     await setPermRead(
       PUBLIC_POLICY, 'news',
       { _and: [{ published_at: { _nnull: true } }, { published_at: { _lte: '$NOW' } }] },

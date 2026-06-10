@@ -17,6 +17,27 @@ export function sanitizeUrl(url: string): string {
   return ''
 }
 
+const EMAIL_RE = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/
+
+/**
+ * Build a safe `mailto:` href from a (possibly comma/semicolon-joined) contact
+ * string. SVRZ-scraped contacts can bundle several addresses and arrive
+ * unvalidated — strip CR/LF + angle brackets (header-injection vectors), keep
+ * only well-formed addresses, and URL-encode each. Returns '' when nothing
+ * valid remains (callers can treat that as "no link"). Does not touch the
+ * visible text — only the href.
+ */
+export function buildMailtoHref(raw: string | null | undefined): string {
+  if (!raw) return ''
+  const valid = raw
+    .split(/[,;]/)
+    .map((part) => part.replace(/[\r\n<>]/g, '').trim())
+    .filter((part) => EMAIL_RE.test(part))
+    .map((part) => encodeURIComponent(part))
+  if (valid.length === 0) return ''
+  return `mailto:${valid.join(',')}`
+}
+
 /**
  * Allow https absolute URLs and same-origin relative paths starting with "/".
  * Rejects http:, javascript:, data:, vbscript:, mailto:, etc.

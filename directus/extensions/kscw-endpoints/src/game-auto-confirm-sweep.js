@@ -27,7 +27,7 @@ export async function sweepGameAutoConfirm(db, log) {
       JOIN member_teams mt ON mt.team = g.kscw_team
       JOIN members m ON m.id = mt.member
       WHERE g.date::date >= CURRENT_DATE
-        AND g.status NOT IN ('completed', 'postponed', 'cancelled')
+        AND COALESCE(g.status, '') NOT IN ('completed', 'postponed', 'cancelled')
         AND mt.guest_level = 0
         AND (
           COALESCE(g.auto_confirm_rsvp,

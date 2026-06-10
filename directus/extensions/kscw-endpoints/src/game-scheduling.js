@@ -85,19 +85,32 @@ export function registerGameScheduling(router, { database, logger, services, get
   // multiple Spielplanverantwortliche) joined by comma/semicolon. Split into a
   // clean array so every contact receives the invite + all scheduling mail.
   // Directus MailService accepts a string[] for `to`/`cc`.
+  // Scraped SVRZ contacts feed straight into the SMTP recipient list, so harden
+  // each part: strip CR/LF (header-injection defence) and drop anything that
+  // isn't a plausible bare address. Returns '' when nothing valid survives — the
+  // send path skips + logs rather than handing garbage to the mailer.
+  const EMAIL_RE = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/
   function parseRecipients(v) {
-    if (Array.isArray(v)) return v.map((s) => String(s).trim()).filter(Boolean)
-    const parts = String(v || '').split(/[,;]+/).map((s) => s.trim()).filter(Boolean)
+    const clean = (s) => String(s).replace(/[\r\n]+/g, '').trim()
+    const raw = Array.isArray(v) ? v.map(clean) : clean(v).split(/[,;]+/).map((s) => s.trim())
+    const parts = raw.filter((s) => s && EMAIL_RE.test(s))
     return parts.length > 1 ? parts : (parts[0] || '')
   }
 
   // Send a Terminplanung email from the dedicated spielplanung identity.
   // Best-effort: callers wrap in try/catch so a mail failure never blocks the action.
   async function sendSchedulingMail(to, subject, text, cc = null, html = null) {
+    const recipients = parseRecipients(to)
+    // No valid address survived sanitisation — skip the send (don't throw).
+    if (!recipients || (Array.isArray(recipients) && recipients.length === 0)) {
+      log.warn(`Scheduling email skipped: no valid recipient (subject: ${subject})`)
+      return
+    }
+    const ccRecipients = cc ? parseRecipients(cc) : undefined
     const schema = await getSchema()
     const { MailService } = services
     const mail = new MailService({ schema, knex: database })
-    await mail.send({ to: parseRecipients(to), cc: cc ? parseRecipients(cc) : undefined, from: SCHEDULING_FROM, replyTo: SCHEDULING_REPLY_TO, subject, text, html: html || undefined })
+    await mail.send({ to: recipients, cc: (ccRecipients && ccRecipients.length) ? ccRecipients : undefined, from: SCHEDULING_FROM, replyTo: SCHEDULING_REPLY_TO, subject, text, html: html || undefined })
   }
 
   // Coach + team-responsible emails for a KSCW team (deduped, real addresses
@@ -236,6 +249,23 @@ export function registerGameScheduling(router, { database, logger, services, get
     return member?.is_spielplaner === true
   }
 
+  // Per-team scheduler authorisation (migration 031 design): a caller may manage a
+  // given team's scheduling if they are (a) a full admin, (b) a per-team scheduler
+  // (`spielplaner_assignments` row for that team), or (c) a CLUB-WIDE Spielplaner
+  // (`members.is_spielplaner = true`) with NO assignment rows — the documented
+  // unrestricted role. A scoped scheduler (≥1 assignment) is limited to their
+  // assigned teams; a club-wide scheduler keeps full access (never locked out).
+  async function spielplanerCanManageTeam(req, teamId) {
+    if (req.accountability?.admin) return true
+    const userId = req.accountability?.user
+    if (!userId) return false
+    const member = await database('members').where('user', userId).select('id', 'is_spielplaner').first()
+    if (!member) return false
+    const assigns = await database('spielplaner_assignments').where('member', member.id).pluck('kscw_team')
+    if (assigns.length > 0) return assigns.map(Number).includes(Number(teamId)) // scoped scheduler
+    return member.is_spielplaner === true // club-wide (documented design) — unrestricted
+  }
+
   // Default game-spacing gaps (days) when a season has no gap_config. ±N means
   // the team never plays two games closer than N days apart (date ± N → a
   // (2N+1)-day exclusion span per game). Per-season overrides live in
@@ -309,8 +339,8 @@ export function registerGameScheduling(router, { database, logger, services, get
       .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
       .where('o.kscw_team', kscwTeamId)
       .where('b.type', 'away_proposal').where('b.status', 'confirmed')
-      .select('b.confirmed_proposal as n', 'b.proposed_datetime_1 as d1',
-              'b.proposed_datetime_2 as d2', 'b.proposed_datetime_3 as d3')
+      .select('b.confirmed_proposal as n', database.raw('b.proposed_datetime_1::text as d1'),
+              database.raw('b.proposed_datetime_2::text as d2'), database.raw('b.proposed_datetime_3::text as d3'))
     confirmed.forEach((b) => addWindow(b[`d${b.n}`]))
     // Confirmed intra-club derby legs are real games — block their gap window
     // too (Art. 27). A team is team_a or team_b of the pair.
@@ -338,7 +368,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       // Away: pending proposed_datetime_1.
       const heldAway = await heldBase()
         .where('b.type', 'away_proposal').whereNotNull('b.proposed_datetime_1')
-        .select('b.proposed_datetime_1 as d')
+        .select(database.raw('b.proposed_datetime_1::text as d'))
       heldAway.forEach((r) => addWindow(r.d, HOLD_WINDOW_DAYS))
     }
     return set
@@ -429,7 +459,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       .whereIn('o.kscw_team', teamIds)
       .where('b.type', 'away_proposal').where('b.status', 'confirmed')
       .select('o.kscw_team as t', 'b.confirmed_proposal as n',
-              'b.proposed_datetime_1 as d1', 'b.proposed_datetime_2 as d2', 'b.proposed_datetime_3 as d3')
+              database.raw('b.proposed_datetime_1::text as d1'), database.raw('b.proposed_datetime_2::text as d2'), database.raw('b.proposed_datetime_3::text as d3'))
     confirmed.forEach((b) => { if (String(b[`d${b.n}`] || '').slice(0, 10) === day) out.add(b.t) })
     return [...out]
   }
@@ -630,7 +660,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         ;(await database('game_scheduling_bookings as bk')
           .join('game_scheduling_opponents as o', 'o.id', 'bk.opponent')
           .whereIn('o.kscw_team', sharedTeams).where('bk.type', 'away_proposal').where('bk.status', 'confirmed')
-          .select('bk.confirmed_proposal as n', 'bk.proposed_datetime_1 as d1', 'bk.proposed_datetime_2 as d2', 'bk.proposed_datetime_3 as d3'))
+          .select('bk.confirmed_proposal as n', database.raw('bk.proposed_datetime_1::text as d1'), database.raw('bk.proposed_datetime_2::text as d2'), database.raw('bk.proposed_datetime_3::text as d3')))
           .forEach((r) => { const d = r[`d${r.n}`]; if (d) sharedCommitted.add(String(d).slice(0, 10)) })
       }
 
@@ -764,7 +794,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
         .first()
       if (!opponent) return res.status(404).json({ error: 'Invalid or expired link' })
-      if (opponent.expires_at && new Date() > new Date(opponent.expires_at)) {
+      // A booked opponent may always VIEW their confirmed schedule past expiry;
+      // only block fresh proposals (the propose endpoints re-check expiry below).
+      if (opponent.status !== 'booked' && opponent.expires_at && new Date() > new Date(opponent.expires_at)) {
         return res.status(400).json({ error: 'Link expired' })
       }
 
@@ -1145,6 +1177,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
         .first()
       if (!opponent) return res.status(404).json({ error: 'Invalid link' })
+      if (opponent.expires_at && new Date() > new Date(opponent.expires_at)) {
+        return res.status(400).json({ error: 'Link expired' })
+      }
 
       // Remember the language the opponent is acting in (for emails).
       const lang = VALID_LANGS.includes(String(req.body?.language || '').toLowerCase()) ? String(req.body.language).toLowerCase() : null
@@ -1171,6 +1206,11 @@ export function registerGameScheduling(router, { database, logger, services, get
       const toYmd = (v) => (typeof v === 'string' ? v.slice(0, 10) : new Date(v).toISOString().slice(0, 10))
       const homeTeam = await database('teams').where('id', opponent.kscw_team).first()
       const homeIsJr = isJuniorTeam(homeTeam?.name)
+      // Intra-club derby clamp (Art. 27): a stale page must not submit a slot
+      // before this team's confirmed derby date within its half.
+      const homeSeasonRow = await database('game_scheduling_seasons').where('id', opponent.season).first()
+      const homeRueckStart = rueckrundeStart(homeSeasonRow)
+      const homeDerbyAnchors = await confirmedDerbyAnchors(opponent.kscw_team, opponent.season, homeRueckStart)
 
       for (let i = 0; i < 3; i++) {
         const slot = await database('game_scheduling_slots').where('id', ids[i]).first()
@@ -1198,6 +1238,10 @@ export function registerGameScheduling(router, { database, logger, services, get
           .whereRaw('?::date BETWEEN start_date AND end_date', [day])
           .first()
         if (blockCover) return res.status(400).json({ error: `Slot ${i + 1} falls on a team block — please pick another.` })
+
+        if (derbyDateBlocked(day, homeDerbyAnchors, homeRueckStart)) {
+          return res.status(400).json({ error: `Slot ${i + 1} falls before the intra-club derby for this half — please pick another.` })
+        }
 
         const absRow = await database('absences as a')
           .join('member_teams as mt', 'mt.member', 'a.member')
@@ -1312,7 +1356,6 @@ export function registerGameScheduling(router, { database, logger, services, get
   // Saturday cap + cross-team), marks the chosen slot booked and copies it into
   // `slot`. Pick 3 (n===3) uses the lenient gap, mirroring how it was proposed.
   router.post('/terminplanung/admin/confirm-home', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { booking_id, proposal_number, admin_notes } = req.body || {}
       const n = Number(proposal_number)
@@ -1323,10 +1366,17 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!booking || booking.type !== 'home_slot_pick') {
         return res.status(400).json({ error: 'Invalid booking' })
       }
+      // Only a pending proposal may be confirmed. Re-confirming a second proposal
+      // of an already-confirmed booking would book a new slot while orphaning the
+      // first one as `booked` forever — reject instead.
+      if (booking.status !== 'pending') {
+        return res.status(400).json({ error: 'This proposal is already confirmed' })
+      }
       const slotId = booking[`proposed_slot_${n}`]
       if (!slotId) return res.status(400).json({ error: `Proposal ${n} is empty` })
       const opponent = await database('game_scheduling_opponents').where('id', booking.opponent).first()
       if (!opponent) return res.status(400).json({ error: 'Opponent not found' })
+      if (!(await spielplanerCanManageTeam(req, opponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
 
       await database.transaction(async (trx) => {
         await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [GSCH_BOOK_LOCK_CLASS, opponent.kscw_team])
@@ -1358,6 +1408,15 @@ export function registerGameScheduling(router, { database, logger, services, get
           .whereRaw('?::date BETWEEN start_date AND end_date', [slot.date])
           .first()
         if (closureCover) throw Object.assign(new Error('Slot falls on a hall closure'), { httpStatus: 400 })
+
+        // Intra-club derby clamp (Art. 27): nothing may be booked before this
+        // team's confirmed derby date within its half. Mirrors offer-time + health.
+        const derbySeasonRow = await trx('game_scheduling_seasons').where('id', opponent.season).first()
+        const derbyRueckStart = rueckrundeStart(derbySeasonRow)
+        const derbyAnchors = await confirmedDerbyAnchors(opponent.kscw_team, opponent.season, derbyRueckStart)
+        if (derbyDateBlocked(slotYmd, derbyAnchors, derbyRueckStart)) {
+          throw Object.assign(new Error('Slot falls before the intra-club derby for this half'), { httpStatus: 400 })
+        }
 
         const gaps = await seasonGaps(opponent.season)
         const gap = n < 3 ? gaps.home : gaps.proposal3
@@ -1462,6 +1521,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
         .first()
       if (!opponent) return res.status(404).json({ error: 'Invalid link' })
+      if (opponent.expires_at && new Date() > new Date(opponent.expires_at)) {
+        return res.status(400).json({ error: 'Link expired' })
+      }
 
       // Remember the language the opponent is acting in (for emails).
       const lang = VALID_LANGS.includes(String(req.body?.language || '').toLowerCase()) ? String(req.body.language).toLowerCase() : null
@@ -1717,13 +1779,14 @@ export function registerGameScheduling(router, { database, logger, services, get
   // POST /kscw/admin/terminplanung/opponent-note — the spielplaner saves the note
   // shown to an opponent on their proposal page. Body: { opponent_id, kscw_note }.
   router.post('/admin/terminplanung/opponent-note', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const opponentId = Number(req.body?.opponent_id)
       if (!opponentId) return res.status(400).json({ error: 'opponent_id required' })
+      const opp = await database('game_scheduling_opponents').where('id', opponentId).first()
+      if (!opp) return res.status(404).json({ error: 'Opponent not found' })
+      if (!(await spielplanerCanManageTeam(req, opp.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
       const note = String(req.body?.kscw_note ?? '').slice(0, 2000)
-      const updated = await database('game_scheduling_opponents').where('id', opponentId).update({ kscw_note: note })
-      if (!updated) return res.status(404).json({ error: 'Opponent not found' })
+      await database('game_scheduling_opponents').where('id', opponentId).update({ kscw_note: note })
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `admin/terminplanung/opponent-note: ${err.message}`, endpoint: 'admin/terminplanung/opponent-note', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
@@ -2046,7 +2109,34 @@ export function registerGameScheduling(router, { database, logger, services, get
         }
       }
 
-      res.json({ success: true, total_created })
+      // Auto-cleanup: drop any PENDING home proposal left orphaned — none of its
+      // proposed_slot_1/2/3 reference a slot that still exists. The held-slot
+      // exclusion above keeps live proposals intact, so this only removes ones
+      // whose slots were already gone (otherwise confirm would 400 forever with
+      // "Slot is no longer available").
+      const pendingHome = await database('game_scheduling_bookings')
+        .where('season', seasonKey).where('type', 'home_slot_pick').where('status', 'pending')
+        .select('id', 'proposed_slot_1', 'proposed_slot_2', 'proposed_slot_3')
+      let orphans_deleted = 0
+      if (pendingHome.length) {
+        const refIds = [...new Set(
+          pendingHome.flatMap((b) => [b.proposed_slot_1, b.proposed_slot_2, b.proposed_slot_3]).filter((v) => v != null),
+        )]
+        const liveIds = new Set(
+          refIds.length
+            ? (await database('game_scheduling_slots').whereIn('id', refIds).pluck('id')).map((v) => String(v))
+            : [],
+        )
+        const deadBookingIds = pendingHome
+          .filter((b) => ![b.proposed_slot_1, b.proposed_slot_2, b.proposed_slot_3].some((s) => s != null && liveIds.has(String(s))))
+          .map((b) => b.id)
+        if (deadBookingIds.length) {
+          await database('game_scheduling_bookings').whereIn('id', deadBookingIds).del()
+          orphans_deleted = deadBookingIds.length
+        }
+      }
+
+      res.json({ success: true, total_created, orphans_deleted })
     } catch (err) {
       log.error({ msg: `generate-slots: ${err.message}`, endpoint: 'terminplanung/admin/generate-slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
@@ -2058,7 +2148,6 @@ export function registerGameScheduling(router, { database, logger, services, get
   // Away proposals live on a single booking row (type 'away_proposal', status
   // 'pending') with up to 3 proposed_datetime_N / proposed_place_N columns.
   router.post('/terminplanung/admin/confirm-away', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { booking_id, proposal_number, admin_notes } = req.body || {}
       const n = Number(proposal_number)
@@ -2072,6 +2161,48 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
       const chosenDateTime = booking[`proposed_datetime_${n}`]
       if (!chosenDateTime) return res.status(400).json({ error: `Proposal ${n} is empty` })
+
+      const awayOpponent = await database('game_scheduling_opponents').where('id', booking.opponent).first()
+      if (!awayOpponent) return res.status(400).json({ error: 'Opponent not found' })
+      if (!(await spielplanerCanManageTeam(req, awayOpponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+
+      // Re-validate the chosen proposal against the same offer-time guards (state
+      // may have changed since the opponent proposed): derby clamp (Art. 27), team
+      // event, game-spacing gap and cross-team same-day. Mirrors propose-away.
+      {
+        const chosenDay = String(chosenDateTime).slice(0, 10)
+        const awaySeasonRow = await database('game_scheduling_seasons').where('id', awayOpponent.season).first()
+        const awayRueckStart = rueckrundeStart(awaySeasonRow)
+        const awayDerbyAnchors = await confirmedDerbyAnchors(awayOpponent.kscw_team, awayOpponent.season, awayRueckStart)
+        if (derbyDateBlocked(chosenDay, awayDerbyAnchors, awayRueckStart)) {
+          return res.status(400).json({ error: 'away_before_derby' })
+        }
+        const eventCover = await database('events as e')
+          .join('events_teams as et', 'et.events_id', 'e.id')
+          .where('et.teams_id', awayOpponent.kscw_team)
+          .whereRaw(
+            "?::date BETWEEN (e.start_date AT TIME ZONE 'Europe/Zurich')::date " +
+            "AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date",
+            [chosenDay],
+          )
+          .first('e.title')
+        if (eventCover) {
+          return res.status(400).json({ error: `${chosenDay} falls on a team event${eventCover.title ? ` (${eventCover.title})` : ''} — please pick another date.` })
+        }
+        // Gap: the chosen proposal slot decides strict vs lenient (1-2 strict, 3 loose).
+        const awayGaps = await seasonGaps(awayOpponent.season)
+        const held = { includeHeld: true, excludeOpponent: awayOpponent.id }
+        const committedGap = await committedGameDates(awayOpponent.kscw_team, n < 3 ? awayGaps.proposal : awayGaps.proposal3, held)
+        if (committedGap.has(chosenDay)) {
+          return res.status(400).json({ error: `${chosenDay} is too close to an existing game — please pick another date.` })
+        }
+        const sharedTeams = await sharedPlayerTeams(awayOpponent.kscw_team)
+        const xTeams = await teamsCommittedOnDate(sharedTeams, chosenDay, database)
+        if (xTeams.length) {
+          const names = await database('teams').whereIn('id', xTeams).pluck('name')
+          return res.status(400).json({ error: 'conflict_cross_team', teams: names.join(', ') })
+        }
+      }
 
       await database('game_scheduling_bookings').where('id', booking_id).update({
         status: 'confirmed',
@@ -2138,13 +2269,13 @@ export function registerGameScheduling(router, { database, logger, services, get
   // overriding on purpose. The one hard guard is "don't steal a slot another
   // opponent already booked".
   router.post('/terminplanung/admin/manual-booking', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { opponent_id, home, away } = req.body || {}
       if (!opponent_id) return res.status(400).json({ error: 'opponent_id required' })
       if (!home && !away) return res.status(400).json({ error: 'Provide a home and/or away game' })
       const opponent = await database('game_scheduling_opponents').where('id', opponent_id).first()
       if (!opponent) return res.status(404).json({ error: 'Opponent not found' })
+      if (!(await spielplanerCanManageTeam(req, opponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
       const seasonId = String(opponent.season)
 
       const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -2178,6 +2309,10 @@ export function registerGameScheduling(router, { database, logger, services, get
             // opponent (re-confirming the identical slot) → fine, just re-book it.
             if (existing.status === 'booked' && String(existing.id) !== String(priorSlotId)) {
               throw Object.assign(new Error('A game is already booked in that slot'), { httpStatus: 400 })
+            }
+            // Never silently promote a deliberately blocked slot to booked.
+            if (existing.status === 'blocked') {
+              throw Object.assign(new Error('That slot is blocked — unblock it first'), { httpStatus: 400 })
             }
             await trx('game_scheduling_slots').where('id', existing.id)
               .update({ status: 'booked', end_time: home.end_time || existing.end_time || null })
@@ -2241,11 +2376,11 @@ export function registerGameScheduling(router, { database, logger, services, get
   // confirmations, and a team-wide summary would leak other clubs' games.
   // Body: { team_id, season_id }.
   router.post('/terminplanung/admin/finalize-notify', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const teamId = Number(req.body?.team_id)
       const seasonId = Number(req.body?.season_id)
       if (!teamId || !seasonId) return res.status(400).json({ error: 'team_id and season_id required' })
+      if (!(await spielplanerCanManageTeam(req, teamId))) return res.status(403).json({ error: 'Not authorized for this team' })
 
       const [team, season] = await Promise.all([
         database('teams').where('id', teamId).first('id', 'name'),
@@ -2668,6 +2803,20 @@ export function registerGameScheduling(router, { database, logger, services, get
             eventsRelinked += updated
           }
 
+          // Same for OPEN team-scoped forms — re-point their forms_teams links from
+          // each cloned old team to its new id so the form still reaches the
+          // rolled-over roster. Draft/closed forms stay on the archived team.
+          // Skip forms already linked to the new team (avoids a dup junction).
+          let formsRelinked = 0
+          for (const [oldId, newId] of Object.entries(map)) {
+            const updated = await trx('forms_teams')
+              .where('teams_id', oldId)
+              .whereIn('forms_id', trx('forms').select('id').where('status', 'open'))
+              .whereNotIn('forms_id', trx('forms_teams').select('forms_id').where('teams_id', newId))
+              .update({ teams_id: newId })
+            formsRelinked += updated
+          }
+
           // Carry UPCOMING trainings onto the new-season teams. The recurring
           // hall_slots already moved to the new team above, and the nightly
           // slot-cascade generates fresh trainings against whichever team owns
@@ -2754,6 +2903,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             scheduling_blocks: schedulingBlocks,
             teams_archived: teamsArchived,
             events_relinked: eventsRelinked,
+            forms_relinked: formsRelinked,
             trainings_relinked: trainingsRelinked,
             manual_games_relinked: manualGamesRelinked,
             team_requests_expired: requestsExpired,
@@ -2788,10 +2938,16 @@ export function registerGameScheduling(router, { database, logger, services, get
   // POST /kscw/terminplanung/admin/block-slot — block/unblock a slot.
   // Body: { slot_id, action: 'block' | 'unblock' }.
   router.post('/terminplanung/admin/block-slot', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { slot_id, action } = req.body || {}
       if (!slot_id) return res.status(400).json({ error: 'slot_id required' })
+      const slot = await database('game_scheduling_slots').where('id', slot_id).first()
+      if (!slot) return res.status(404).json({ error: 'Slot not found' })
+      if (!(await spielplanerCanManageTeam(req, slot.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      // Only available ⇄ blocked transitions — never overwrite a booked slot.
+      if (slot.status !== 'available' && slot.status !== 'blocked') {
+        return res.status(400).json({ error: 'Slot is booked — free it before blocking' })
+      }
       await database('game_scheduling_slots').where('id', slot_id)
         .update({ status: action === 'block' ? 'blocked' : 'available' })
       res.json({ success: true })
@@ -2865,9 +3021,9 @@ export function registerGameScheduling(router, { database, logger, services, get
   // Admin invites (per-verein tokenized links, auto-populated from SVRZ)
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Invite links stay valid until the season's scheduling deadline (30.06.2026),
-  // not a rolling TTL — every opponent works to the same VolleyManager cutoff.
-  const INVITE_EXPIRY_ISO = '2026-06-30T23:59:59.000Z'
+  // Invite links stay valid until the season's scheduling deadline (30.06 of the
+  // season's END year), not a rolling TTL — every opponent works to the same
+  // VolleyManager cutoff, derived per-season so links never mint born-expired.
   const ACTIVE_INVITE_STATUSES = ['invited', 'viewed', 'booked', 'active']
   const KSCW_SVRZ_CLUB_ID = process.env.KSCW_SVRZ_CLUB_ID || '912530'
 
@@ -2899,8 +3055,19 @@ export function registerGameScheduling(router, { database, logger, services, get
   const kscwSideStaticId = (g) =>
     sideStaticId(g, String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID) ? 'home' : 'away')
 
-  function newInviteExpiry() {
-    return INVITE_EXPIRY_ISO
+  // Expiry = 30.06 of the season's END year, parsed from a "YYYY/YY" season
+  // string (e.g. "2026/27" → 2027-06-30T23:59:59Z; end year = start + 1). If the
+  // season string is missing/unparseable, fall back to now + 1 year so a link is
+  // never born already expired.
+  function newInviteExpiry(seasonStr) {
+    const m = String(seasonStr || '').match(/(\d{4})/)
+    if (m) {
+      const endYear = Number(m[1]) + 1
+      return new Date(`${endYear}-06-30T23:59:59.000Z`).toISOString()
+    }
+    const d = new Date()
+    d.setUTCFullYear(d.getUTCFullYear() + 1)
+    return d.toISOString()
   }
 
   // GET /admin/terminplanung/svrz-available-seasons — list seasons seen in synced data
@@ -2948,12 +3115,13 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // POST /admin/terminplanung/invites — create tokenized invites
   router.post('/admin/terminplanung/invites', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { kscw_team, season, rows } = req.body || {}
       if (!kscw_team || !season || !Array.isArray(rows)) {
         return res.status(400).json({ error: 'kscw_team, season, rows[] required' })
       }
+      if (!(await spielplanerCanManageTeam(req, kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
       const created = []
       const existing = []
       for (const r of rows) {
@@ -2968,7 +3136,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           continue
         }
         const token = crypto.randomBytes(16).toString('hex')
-        const expiresAt = newInviteExpiry()
+        const expiresAt = newInviteExpiry(seasonRow?.season)
         const inserted = await database('game_scheduling_opponents').insert({
           kscw_team, season, team_name: r.team_name, contact_email: email,
           contact_name: r.contact_name || '', token, status: 'invited',
@@ -2986,10 +3154,10 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // GET /admin/terminplanung/invites?kscw_team=&season= — list invites
   router.get('/admin/terminplanung/invites', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { kscw_team, season } = req.query
       if (!kscw_team) return res.status(400).json({ error: 'kscw_team required' })
+      if (!(await spielplanerCanManageTeam(req, kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
       const q = database('game_scheduling_opponents').where('kscw_team', kscw_team)
       if (season) q.where('season', season)
       const invites = await q.orderBy('date_created', 'desc')
@@ -3002,17 +3170,19 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // POST /admin/terminplanung/invites/:id/reissue — new token + reset lifecycle
   router.post('/admin/terminplanung/invites/:id/reissue', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const id = parseInt(req.params.id, 10)
       if (!id) return res.status(400).json({ error: 'invalid id' })
+      const opp = await database('game_scheduling_opponents').where('id', id).first()
+      if (!opp) return res.status(404).json({ error: 'not found' })
+      if (!(await spielplanerCanManageTeam(req, opp.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      const seasonRow = opp.season ? await database('game_scheduling_seasons').where('id', opp.season).first() : null
       const token = crypto.randomBytes(16).toString('hex')
-      const expiresAt = newInviteExpiry()
-      const updated = await database('game_scheduling_opponents')
+      const expiresAt = newInviteExpiry(seasonRow?.season)
+      await database('game_scheduling_opponents')
         .where('id', id)
         .update({ token, status: 'invited', first_viewed_at: null, expires_at: expiresAt })
-      if (!updated) return res.status(404).json({ error: 'not found' })
-      res.json({ success: true, token, expires_at: expiresAt })
+      res.json({ success: true, expires_at: expiresAt })
     } catch (err) {
       log.error({ msg: `invites reissue: ${err.message}`, endpoint: 'admin/terminplanung/invites/:id/reissue', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
@@ -3021,13 +3191,14 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // POST /admin/terminplanung/invites/:id/revoke — disable token
   router.post('/admin/terminplanung/invites/:id/revoke', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const id = parseInt(req.params.id, 10)
       if (!id) return res.status(400).json({ error: 'invalid id' })
-      const updated = await database('game_scheduling_opponents')
+      const opp = await database('game_scheduling_opponents').where('id', id).first()
+      if (!opp) return res.status(404).json({ error: 'not found' })
+      if (!(await spielplanerCanManageTeam(req, opp.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      await database('game_scheduling_opponents')
         .where('id', id).update({ status: 'revoked' })
-      if (!updated) return res.status(404).json({ error: 'not found' })
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `invites revoke: ${err.message}`, endpoint: 'admin/terminplanung/invites/:id/revoke', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
@@ -3041,13 +3212,14 @@ export function registerGameScheduling(router, { database, logger, services, get
   // the list flips from "Not sent" to "Invited". Idempotent; never touches the
   // lifecycle status.
   router.post('/admin/terminplanung/invites/:id/mark-sent', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const id = parseInt(req.params.id, 10)
       if (!id) return res.status(400).json({ error: 'invalid id' })
-      const updated = await database('game_scheduling_opponents')
+      const opp = await database('game_scheduling_opponents').where('id', id).first()
+      if (!opp) return res.status(404).json({ error: 'not found' })
+      if (!(await spielplanerCanManageTeam(req, opp.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      await database('game_scheduling_opponents')
         .where('id', id).update({ email_sent_at: new Date().toISOString() })
-      if (!updated) return res.status(404).json({ error: 'not found' })
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `invites mark-sent: ${err.message}`, endpoint: 'admin/terminplanung/invites/:id/mark-sent', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
@@ -3063,13 +3235,18 @@ export function registerGameScheduling(router, { database, logger, services, get
   // contact_email may hold several addresses (parseRecipients splits them). The
   // invite link base is the env-aware FRONTEND_URL, not a client value.
   router.post('/admin/terminplanung/invites/send', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { ids, dry_run, season_name = '', kscw_team_name = '', kscw_league = '' } = req.body || {}
       if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids[] required' })
       const rows = await database('game_scheduling_opponents')
         .whereIn('id', ids)
         .whereNotIn('status', ['revoked', 'expired'])
+      // Authorise against every distinct team the selected invites belong to —
+      // a scoped scheduler may only send for their own team(s).
+      const sendTeamIds = [...new Set(rows.map((r) => r.kscw_team))]
+      for (const tId of sendTeamIds) {
+        if (!(await spielplanerCanManageTeam(req, tId))) return res.status(403).json({ error: 'Not authorized for this team' })
+      }
       const fmtDate = (ts) => {
         if (!ts) return ''
         const d = new Date(ts)
@@ -3092,6 +3269,13 @@ export function registerGameScheduling(router, { database, logger, services, get
         })
         previews.push({ id: row.id, to: row.contact_email, team_name: row.team_name, subject, html, text })
         if (!dry_run) {
+          // Skip rows with no valid (sanitised) recipient — count as failed, don't
+          // stamp them as sent.
+          const recipients = parseRecipients(row.contact_email)
+          if (!recipients || (Array.isArray(recipients) && recipients.length === 0)) {
+            failed.push({ id: row.id, error: 'no valid recipient' })
+            continue
+          }
           try {
             // CC the club's scheduling mailbox so the spielplaner has a copy of
             // every invite that went out.
@@ -3119,10 +3303,10 @@ export function registerGameScheduling(router, { database, logger, services, get
   // Lists opponent clubs from synced svrz_games plus per-game Spielplanverantwortlicher
   // contacts, with fallback to the bulk svrz_spielplaner_contacts feed.
   router.get('/admin/terminplanung/invites/import-from-svrz', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { kscw_team, season } = req.query
       if (!kscw_team || !season) return res.status(400).json({ error: 'kscw_team, season required' })
+      if (!(await spielplanerCanManageTeam(req, kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
 
       const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
       if (!seasonRow) return res.status(404).json({ error: 'season not found' })
@@ -3377,8 +3561,12 @@ export function registerGameScheduling(router, { database, logger, services, get
       // Skip intra-club fixtures (e.g. H1 vs H3, both "2L") — the opponent is
       // KSCW itself, never an external invite.
       if (String(clubId) === String(KSCW_SVRZ_CLUB_ID)) continue
-      if (!byClub.has(clubId)) byClub.set(clubId, { club_id: clubId, club_name: clubName, team_name: teamName, game_count: 0, games: [] })
-      const entry = byClub.get(clubId)
+      // Key by club id + opponent TEAM name so a club's two teams in our group get
+      // their own invite each (keying by club alone merged them). Contacts are
+      // still looked up per club_id (kept on the entry). Mirrors import-from-svrz.
+      const key = `${clubId}::${teamName || ''}`
+      if (!byClub.has(key)) byClub.set(key, { club_id: clubId, club_name: clubName, team_name: teamName, game_count: 0, games: [] })
+      const entry = byClub.get(key)
       entry.game_count++
       entry.games.push({ date: g.starting_date_time || null, display_name: g.display_name || null, is_home_kscw: isHomeKscw })
     }
@@ -3390,7 +3578,7 @@ export function registerGameScheduling(router, { database, logger, services, get
     // returns ~nothing (prod: 1/27 opponents vs 26/27 by name). Mirrors the
     // start-year LIKE that import-from-svrz already uses. (svrzSeasonName is
     // already computed above for the games filter.)
-    const clubIds = [...byClub.keys()]
+    const clubIds = [...new Set([...byClub.values()].map((c) => c.club_id))]
     const contactsByClub = new Map()
     if (svrzSeasonName && clubIds.length) {
       const bulk = await database('svrz_spielplaner_contacts')
@@ -3429,10 +3617,10 @@ export function registerGameScheduling(router, { database, logger, services, get
   // that's every other club) and contacts are only *suggestions* from the bulk
   // svrz_spielplaner_contacts feed. The admin fills in / confirms each contact.
   router.get('/admin/terminplanung/invites/svrz-clubs', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { kscw_team, season } = req.query
       if (!kscw_team || !season) return res.status(400).json({ error: 'kscw_team, season required' })
+      if (!(await spielplanerCanManageTeam(req, kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
 
       const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
       if (!seasonRow) return res.status(404).json({ error: 'season not found' })
@@ -3461,10 +3649,10 @@ export function registerGameScheduling(router, { database, logger, services, get
   // newly-appeared opponents. Opponents with NO contact are skipped (nothing to
   // email). Does NOT send anything — emailing stays a separate explicit action.
   router.post('/admin/terminplanung/invites/ensure-from-svrz', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { kscw_team, season } = req.body || {}
       if (!kscw_team || !season) return res.status(400).json({ error: 'kscw_team, season required' })
+      if (!(await spielplanerCanManageTeam(req, kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
       const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
       if (!seasonRow) return res.status(404).json({ error: 'season not found' })
       const kscwTeamRow = await database('teams').where('id', kscw_team).first()
@@ -3494,7 +3682,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           kscw_team, season, team_name: teamName,
           contact_email: emails.join(', '), contact_name: names.join(', '),
           token: crypto.randomBytes(16).toString('hex'), status: 'invited',
-          source: 'svrz', created_by_admin: true, expires_at: newInviteExpiry(),
+          source: 'svrz', created_by_admin: true, expires_at: newInviteExpiry(seasonRow.season),
         })
         haveNames.add(norm(teamName))
         created++
@@ -3701,19 +3889,22 @@ export function registerGameScheduling(router, { database, logger, services, get
   // clearing the dead pending proposal so they re-propose into a clean slate.
   // Body: { opponent_id }. Refuses if any proposal is still valid (race guard).
   router.post('/admin/terminplanung/request-new-slots', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const opponentId = Number(req.body?.opponent_id)
       if (!opponentId) return res.status(400).json({ error: 'opponent_id required' })
       const opponent = await database('game_scheduling_opponents').where('id', opponentId).first()
       if (!opponent) return res.status(404).json({ error: 'Opponent not found' })
+      if (!(await spielplanerCanManageTeam(req, opponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
       if (!opponent.contact_email) return res.status(400).json({ error: 'no_contact_email' })
 
       // Race guard: only re-request if this opponent's pending home proposal is
       // genuinely all-dead right now (a slot may have freed up since page load).
+      // Also refuse when there's no pending health row at all (`mine` undefined,
+      // e.g. the opponent just got confirmed) — re-requesting would wrongly
+      // downgrade a booked opponent back to 'viewed'.
       const health = await homeProposalHealth(opponent.season)
       const mine = health.find((h) => h.opponent_id === opponentId)
-      if (mine && !mine.all_dead) {
+      if (!mine || !mine.all_dead) {
         return res.status(409).json({ error: 'proposals_still_valid' })
       }
 
