@@ -76,6 +76,14 @@ const dtTime = (s: string | null | undefined): string => {
   const m = String(s ?? '').match(/[T ](\d{2}:\d{2})/)
   return m ? m[1] : ''
 }
+// Weekday (Mon-Fri) game slots show 20:00 — the slot is just the hall window
+// (e.g. 19:30-21:30), the weekday game is at 20:00. Weekend slots (Spielsamstag
+// / junior Sunday) keep their actual start time. d is a local-midnight Date.
+const slotTime = (d: Date | null | undefined, startTime: string | null | undefined): string => {
+  if (!d) return hhmm(startTime)
+  const dow = d.getDay() // 0=Sun..6=Sat
+  return dow >= 1 && dow <= 5 ? '20:00' : hhmm(startTime)
+}
 
 const CHIP: Record<EntryKind, string> = {
   home_confirmed: 'bg-green-600 text-white',
@@ -282,13 +290,13 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
           kind: 'home_confirmed',
           label: team,
           teamId: tid,
-          time: hhmm(s.start_time),
+          time: slotTime(d, s.start_time),
           opponent: opp,
           hallName: hallName(s.hall),
-          title: `${t('legendHomeConfirmed')}: ${team}${opp ? ` vs ${opp}` : ''} · ${hhmm(s.start_time)}`,
+          title: `${t('legendHomeConfirmed')}: ${team}${opp ? ` vs ${opp}` : ''} · ${slotTime(d, s.start_time)}`,
         })
       } else if (s.status === 'blocked') {
-        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: team, teamId: tid, time: hhmm(s.start_time), hallName: hallName(s.hall), title: `${t('legendBlocked')}: ${team}` })
+        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: team, teamId: tid, time: slotTime(d, s.start_time), hallName: hallName(s.hall), title: `${t('legendBlocked')}: ${team}` })
       }
     }
 
@@ -314,7 +322,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
           if (sid == null) continue
           const sl = slotsById.get(String(sid))
           const d = parseYmd(sl?.date)
-          if (d) out.push({ id: `hmp-${b.id}-${n}`, date: d, kind: 'home_proposed', label: team, teamId: tid, time: hhmm(sl?.start_time), opponent: opp, hallName: hallName(sl?.hall), title: `${t('legendHomeProposed')}: ${team}${opp ? ` vs ${opp}` : ''}` })
+          if (d) out.push({ id: `hmp-${b.id}-${n}`, date: d, kind: 'home_proposed', label: team, teamId: tid, time: slotTime(d, sl?.start_time), opponent: opp, hallName: hallName(sl?.hall), title: `${t('legendHomeProposed')}: ${team}${opp ? ` vs ${opp}` : ''}` })
         }
       }
     }
@@ -399,7 +407,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
       .filter((s) => s.status === 'available'
         && (teamFilter.size === 0 || teamFilter.has(String(s.kscw_team)))
         && toDateKey(parseYmd(s.date) ?? new Date(0)) === key)
-      .map((s) => { const team = teamName(s.kscw_team); return { id: `open-${s.id}`, time: hhmm(s.start_time), team, match: team, hall: hallName(s.hall), kind: 'open' as const } })
+      .map((s) => { const team = teamName(s.kscw_team); return { id: `open-${s.id}`, time: slotTime(parseYmd(s.date), s.start_time), team, match: team, hall: hallName(s.hall), kind: 'open' as const } })
       .sort((a, b) => a.team.localeCompare(b.team) || a.time.localeCompare(b.time))
     return { games, open }
   }, [dayDetail, slots, teamFilter, teamName, hallName])
