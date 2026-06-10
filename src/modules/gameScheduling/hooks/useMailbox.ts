@@ -72,6 +72,41 @@ export function messagesForOpponent(messages: MailboxMessage[], opp: GameSchedul
   return messages.filter((m) => messageMatchesContacts(m, contacts))
 }
 
+export interface OpponentContacts {
+  opp: GameSchedulingOpponent
+  contacts: Set<string>
+}
+
+/**
+ * Best opponent row for a message. One club contact often serves several
+ * teams (one opponent row per KSCW team × opponent team — e.g. the same
+ * person for VC Tornado Adliswil D1 AND H2), so a bare address match is
+ * ambiguous. Disambiguate by which opponent team/club name appears in the
+ * subject or snippet; the longest matching name wins, so "… Adliswil H2"
+ * beats the shared club prefix "… Adliswil". Falls back to the first
+ * address match when no name appears.
+ */
+export function bestOpponentForMessage(
+  msg: MailboxMessage,
+  opponentContacts: OpponentContacts[],
+): GameSchedulingOpponent | null {
+  const matches = opponentContacts.filter(({ contacts }) => messageMatchesContacts(msg, contacts))
+  if (matches.length <= 1) return matches[0]?.opp || null
+  const hay = `${msg.subject || ''} ${msg.snippet || ''}`.toLowerCase()
+  let best: GameSchedulingOpponent | null = null
+  let bestLen = 0
+  for (const { opp } of matches) {
+    for (const name of [opp.team_name, opp.club_name]) {
+      const needle = String(name || '').trim().toLowerCase()
+      if (needle.length > bestLen && hay.includes(needle)) {
+        best = opp
+        bestLen = needle.length
+      }
+    }
+  }
+  return best || matches[0].opp
+}
+
 /**
  * Download an attachment through the authed endpoint (a plain <a href> can't
  * carry the Bearer token). Streams live from IMAP server-side.

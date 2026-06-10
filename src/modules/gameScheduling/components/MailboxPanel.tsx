@@ -8,9 +8,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/table'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import {
+  bestOpponentForMessage,
   contactAddressSet,
   downloadMailboxAttachment,
-  messageMatchesContacts,
   messagesForOpponent,
   type MailboxAttachment,
   type MailboxMessage,
@@ -34,6 +34,10 @@ interface Props {
   /** Set from an opponent card's "N emails" button — opens the per-opponent thread dialog. */
   focusOpponent: GameSchedulingOpponent | null
   onClearFocus: () => void
+  /** Season label (e.g. "2026/2027") for the auto-generated compose subject. */
+  seasonName?: string
+  /** Resolves the KSCW team label for an opponent row (matchup subject). */
+  kscwTeamLabelFor?: (opp: GameSchedulingOpponent) => string
 }
 
 /**
@@ -41,7 +45,7 @@ interface Props {
  * volleyball@spielplanung.kscw.ch inbox + sent mail, with reply/compose.
  * Messages are matched to opponents client-side by contact-address overlap.
  */
-export default function MailboxPanel({ mailbox, opponents, focusOpponent, onClearFocus }: Props) {
+export default function MailboxPanel({ mailbox, opponents, focusOpponent, onClearFocus, seasonName, kscwTeamLabelFor }: Props) {
   const { t } = useTranslation('gameScheduling')
   const { configured, messages, unread, lastSync, syncing, sending } = mailbox
   const [showAll, setShowAll] = useState(false)
@@ -55,7 +59,7 @@ export default function MailboxPanel({ mailbox, opponents, focusOpponent, onClea
     [opponents],
   )
   const opponentForMessage = (msg: MailboxMessage): GameSchedulingOpponent | null =>
-    opponentContacts.find(({ contacts }) => messageMatchesContacts(msg, contacts))?.opp || null
+    bestOpponentForMessage(msg, opponentContacts)
 
   const focusMessages = focusOpponent ? messagesForOpponent(messages, focusOpponent) : []
 
@@ -102,7 +106,15 @@ export default function MailboxPanel({ mailbox, opponents, focusOpponent, onClea
   }
 
   const composeForOpponent = (opp: GameSchedulingOpponent) => {
-    setCompose({ to: opp.contact_email || '', subject: '', text: '' })
+    // Pre-fill the matchup + season, mirroring the invite email subject —
+    // also lets the row chip resolve the right team on our outgoing mail.
+    const oppLabel = (opp.team_name || opp.club_name || '').trim()
+    const kscwLabel = (kscwTeamLabelFor?.(opp) || '').trim()
+    const matchup = [oppLabel, kscwLabel].filter(Boolean).join(' – ')
+    const subject = [matchup, seasonName ? `Spielplanung ${seasonName}` : '']
+      .filter(Boolean)
+      .join(' / ')
+    setCompose({ to: opp.contact_email || '', subject, text: '' })
   }
 
   const correspondent = (msg: MailboxMessage) =>
@@ -134,7 +146,7 @@ export default function MailboxPanel({ mailbox, opponents, focusOpponent, onClea
                   <span className="break-words">{msg.subject || t('mailboxNoSubject')}</span>
                   {msg.has_attachments && <span aria-hidden title={t('mailboxAttachments')}>📎</span>}
                   {chipOpp && (
-                    <Badge variant="neutral" size="sm">{chipOpp.club_name || chipOpp.team_name}</Badge>
+                    <Badge variant="neutral" size="sm">{chipOpp.team_name || chipOpp.club_name}</Badge>
                   )}
                 </div>
                 <div className="mt-0.5 truncate text-xs text-gray-400 sm:hidden dark:text-gray-500">{correspondent(msg)}</div>
@@ -201,7 +213,7 @@ export default function MailboxPanel({ mailbox, opponents, focusOpponent, onClea
       <Dialog open={!!focusOpponent} onOpenChange={(o) => { if (!o) onClearFocus() }}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{focusOpponent?.club_name || focusOpponent?.team_name}</DialogTitle>
+            <DialogTitle>{focusOpponent?.team_name || focusOpponent?.club_name}</DialogTitle>
             <DialogDescription className="break-words">{focusOpponent?.contact_email}</DialogDescription>
           </DialogHeader>
           {configured === false ? (

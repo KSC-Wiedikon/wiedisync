@@ -479,6 +479,11 @@ export default function AdminDashboardPage() {
         opponents={opponents}
         focusOpponent={mailboxFocus}
         onClearFocus={() => setMailboxFocus(null)}
+        seasonName={season.season}
+        kscwTeamLabelFor={(opp) => {
+          const team = volleyballTeams.find((tm) => String(tm.id) === String(opp.kscw_team))
+          return team?.full_name || (team?.name ? `KSC Wiedikon ${team.name}` : 'KSC Wiedikon')
+        }}
       />
     </div>
   )
