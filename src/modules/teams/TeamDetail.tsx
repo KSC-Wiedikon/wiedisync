@@ -23,6 +23,7 @@ import ImageLightbox from '../../components/ImageLightbox'
 import type { Team, Member, Sponsor } from '../../types'
 import { asObj, flattenMemberIds } from '../../utils/relations'
 import PollsSection from '../polls/PollsSection'
+import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalendar'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { messagingFeatureEnabled } from '../../utils/messagingFeatureFlag'
 import TeamMessagesTab from '../messaging/components/TeamMessagesTab'
@@ -733,6 +734,9 @@ export default function TeamDetail() {
           </div>
         </div>
       )}
+
+      {/* Game schedule — proposed + confirmed games (volleyball, members) */}
+      <TeamScheduleCalendar team={team} />
 
       {/* Polls */}
       {teamId && isFeatureEnabled(team.features_enabled, 'polls') && (

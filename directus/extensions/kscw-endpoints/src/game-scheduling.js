@@ -688,11 +688,74 @@ export function registerGameScheduling(router, { database, logger, services, get
     return out
   }
 
+  // GET /kscw/terminplanung/team-calendar/:teamId — read-only schedule for one
+  // team, visible to ANY authenticated member (the team page is open to all
+  // logged-in users). Reads via knex (bypasses item permissions) and returns
+  // ONLY the fields the calendar needs — never the opponent's contact name,
+  // contact email, invite token, or admin notes. Mirrors the active-season
+  // pick the frontend makes (status='open', else most recent).
+  router.get('/terminplanung/team-calendar/:teamId', async (req, res) => {
+    try {
+      if (!req.accountability?.user && !req.accountability?.admin) {
+        return res.status(401).json({ error: 'Authentication required' })
+      }
+      const teamId = Number(req.params.teamId)
+      if (!Number.isFinite(teamId)) return res.status(400).json({ error: 'Invalid team' })
+
+      const seasons = await database('game_scheduling_seasons')
+        .select('id', 'season', 'status', 'spielsamstage')
+        .orderBy('date_created', 'desc')
+      const season = seasons.find((s) => s.status === 'open') || seasons[0] || null
+      if (!season) return res.json({ season: null, slots: [], bookings: [] })
+
+      const slots = await database('game_scheduling_slots')
+        .where({ season: season.id, kscw_team: teamId })
+        .select(
+          'id', database.raw('date::text as date'), 'start_time', 'end_time',
+          'status', 'source', 'hall', 'kscw_team', 'booking',
+        )
+        .orderBy('date', 'asc')
+
+      // Opponents of this team → their bookings. Only safe label fields are
+      // selected; contact_email / contact_name / token are never read here.
+      const opponents = await database('game_scheduling_opponents')
+        .where({ season: season.id, kscw_team: teamId })
+        .select('id', 'kscw_team', 'club_name', 'team_name')
+      const oppById = new Map(opponents.map((o) => [o.id, o]))
+      const oppIds = opponents.map((o) => o.id)
+
+      let bookings = []
+      if (oppIds.length) {
+        const rows = await database('game_scheduling_bookings')
+          .where('season', season.id)
+          .whereIn('opponent', oppIds)
+          .select(
+            'id', 'type', 'status', 'opponent', 'slot', 'confirmed_proposal',
+            database.raw('proposed_datetime_1::text as proposed_datetime_1'),
+            database.raw('proposed_datetime_2::text as proposed_datetime_2'),
+            database.raw('proposed_datetime_3::text as proposed_datetime_3'),
+            'proposed_slot_1', 'proposed_slot_2', 'proposed_slot_3',
+          )
+        bookings = rows.map((b) => ({ ...b, opponent: oppById.get(b.opponent) || null }))
+      }
+
+      return res.json({ season, slots, bookings })
+    } catch (err) {
+      log.error({ msg: `team-calendar: ${err.message}`, endpoint: 'terminplanung/team-calendar', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      return res.status(500).json({ error: 'Failed to load team calendar' })
+    }
+  })
+
   // GET /kscw/terminplanung/slots/:token — view available slots
   router.get('/terminplanung/slots/:token', async (req, res) => {
     try {
-      // Rate limit: max 10 token lookups per 15 min per IP
-      if (!rateLimit(tokenAttempts, req, 10, 15 * 60 * 1000)) {
+      // Rate limit: max 60 token lookups per 15 min per IP. This is a read-only
+      // lookup the opponent page re-fetches on EVERY action (initial load +
+      // after propose-home / propose-away / save-note / language flips), so it
+      // needs a far higher budget than the write routes (10–20). 10 was tripping
+      // 429s during normal use/testing and for clubs behind shared NAT. Keyed on
+      // cf-connecting-ip (real client IP), so still tight against token scraping.
+      if (!rateLimit(tokenAttempts, req, 60, 15 * 60 * 1000)) {
         return res.status(429).json({ error: 'Too many requests. Try again later.' })
       }
 
