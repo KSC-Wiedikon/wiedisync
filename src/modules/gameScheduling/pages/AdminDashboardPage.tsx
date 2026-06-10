@@ -313,14 +313,6 @@ export default function AdminDashboardPage() {
       {/* Season overview calendar — all proposed/confirmed/blocked slots */}
       <SchedulingCalendar slots={slots} bookings={bookings} teams={volleyballTeams} season={season} showAbsences />
 
-      {/* Spielplanung mailbox — synced volleyball@spielplanung.kscw.ch */}
-      <MailboxPanel
-        mailbox={mailbox}
-        opponents={opponents}
-        focusOpponent={mailboxFocus}
-        onClearFocus={() => setMailboxFocus(null)}
-      />
-
       {/* Team overview accordion */}
       <div className="space-y-3">
         {volleyballTeams.map(team => {
@@ -441,6 +433,14 @@ export default function AdminDashboardPage() {
           )
         })}
       </div>
+
+      {/* Spielplanung mailbox — synced volleyball@spielplanung.kscw.ch */}
+      <MailboxPanel
+        mailbox={mailbox}
+        opponents={opponents}
+        focusOpponent={mailboxFocus}
+        onClearFocus={() => setMailboxFocus(null)}
+      />
     </div>
   )
 }

@@ -44,7 +44,10 @@
     "db:clubdesk:diff:prod": "ssh hetzner 'sudo docker exec -i supabase-db-vek42jyj0owoutoouq29aisq psql -U supabase_admin -d postgres -X' < directus/scripts/clubdesk-diff-queries.sql",
     "ext:deploy:dev": "rsync -avz --delete directus/extensions/ hetzner:/tmp/kscw-extensions/ && ssh hetzner \"sudo rsync -a --delete /tmp/kscw-extensions/ /opt/directus-kscw-dev/extensions/ && sudo docker restart directus-kscw-dev\"",
     "ext:deploy:prod": "rsync -avz --delete directus/extensions/ hetzner:/tmp/kscw-extensions/ && ssh hetzner \"sudo rsync -a --delete /tmp/kscw-extensions/ /opt/directus-kscw/extensions/ && sudo docker restart directus-kscw\"",
-    "ext:deploy": "npm run ext:deploy:dev && npm run ext:deploy:prod"
+    "ext:deploy": "npm run ext:deploy:dev && npm run ext:deploy:prod",
+    "scripts:deploy:dev": "rsync -avz directus/scripts/ hetzner:/tmp/kscw-scripts/ && ssh hetzner \"sudo rsync -a /tmp/kscw-scripts/ /opt/directus-kscw-dev/scripts/\"",
+    "scripts:deploy:prod": "rsync -avz directus/scripts/ hetzner:/tmp/kscw-scripts/ && ssh hetzner \"sudo rsync -a /tmp/kscw-scripts/ /opt/directus-kscw/scripts/\"",
+    "scripts:deploy": "npm run scripts:deploy:dev && npm run scripts:deploy:prod"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.1",
