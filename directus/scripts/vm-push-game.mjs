@@ -95,23 +95,33 @@ const RENDER = [
 ];
 let jar, ctx, wuidHdr;
 async function vmSearchHome() {
-  const p = new URLSearchParams();
-  p.set('searchConfiguration[propertyFilters][0][propertyName]', 'encounter.teamHome.club.Persistence_Object_Identifier');
-  p.set('searchConfiguration[propertyFilters][0][values][0]', VM_CLUB_UUID);
-  p.set('searchConfiguration[customFilters]', '');
-  p.set('searchConfiguration[propertyOrderings]', '');
-  p.set('searchConfiguration[offset]', '0');
-  p.set('searchConfiguration[limit]', '500');
-  p.set('searchConfiguration[textSearchOperator]', 'AND');
-  RENDER.forEach((pr, i) => p.set(`propertyRenderConfiguration[${i}]`, pr));
-  p.set('__csrfToken', ctx.csrf);
-  const r = await fetch(`${VM_BASE}/api/sportmanager.indoorvolleyball/api%5cgame/search`, {
-    method: 'POST',
-    headers: { 'User-Agent': UA, 'Content-Type': 'text/plain;charset=UTF-8', Accept: '*/*', Origin: VM_BASE, Referer: `${VM_BASE}/sportmanager.indoorvolleyball/game/index`, Cookie: jar.header(), ...wuidHdr },
-    body: p.toString(),
-  });
-  if (!r.ok) throw new Error(`vm search HTTP ${r.status}: ${(await r.text()).slice(0, 160)}`);
-  return (await r.json()).items || [];
+  // KSCW has 1500+ home games all-time; a single limit-500 page silently drops
+  // the current-season fixtures (they sort after a decade of history), which made
+  // the push fail with "not found among home fixtures". Paginate through all.
+  const PAGE = 500;
+  const all = [];
+  for (let offset = 0; offset <= 20000; offset += PAGE) {
+    const p = new URLSearchParams();
+    p.set('searchConfiguration[propertyFilters][0][propertyName]', 'encounter.teamHome.club.Persistence_Object_Identifier');
+    p.set('searchConfiguration[propertyFilters][0][values][0]', VM_CLUB_UUID);
+    p.set('searchConfiguration[customFilters]', '');
+    p.set('searchConfiguration[propertyOrderings]', '');
+    p.set('searchConfiguration[offset]', String(offset));
+    p.set('searchConfiguration[limit]', String(PAGE));
+    p.set('searchConfiguration[textSearchOperator]', 'AND');
+    RENDER.forEach((pr, i) => p.set(`propertyRenderConfiguration[${i}]`, pr));
+    p.set('__csrfToken', ctx.csrf);
+    const r = await fetch(`${VM_BASE}/api/sportmanager.indoorvolleyball/api%5cgame/search`, {
+      method: 'POST',
+      headers: { 'User-Agent': UA, 'Content-Type': 'text/plain;charset=UTF-8', Accept: '*/*', Origin: VM_BASE, Referer: `${VM_BASE}/sportmanager.indoorvolleyball/game/index`, Cookie: jar.header(), ...wuidHdr },
+      body: p.toString(),
+    });
+    if (!r.ok) throw new Error(`vm search HTTP ${r.status}: ${(await r.text()).slice(0, 160)}`);
+    const items = (await r.json()).items || [];
+    all.push(...items);
+    if (items.length < PAGE) break;
+  }
+  return all;
 }
 function gameToPairs(g, startingDateTime, hallId) {
   const e = g.encounter || {};
