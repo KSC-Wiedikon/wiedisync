@@ -16,6 +16,7 @@ export default {
   absentCountHint: 'Spieler an diesem Tag nicht verfügbar',
   // Tagesdetail-Dialog
   colTime: 'Zeit',
+  colMatch: 'Spiel',
   colTeam: 'Team',
   colOpponent: 'Gegner',
   colHall: 'Halle',

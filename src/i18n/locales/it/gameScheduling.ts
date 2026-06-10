@@ -16,6 +16,7 @@ export default {
   absentCountHint: 'Giocatori non disponibili quel giorno',
   // Finestra dettaglio giorno
   colTime: 'Ora',
+  colMatch: 'Partita',
   colTeam: 'Squadra',
   colOpponent: 'Avversario',
   colHall: 'Palestra',

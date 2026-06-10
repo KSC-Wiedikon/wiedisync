@@ -174,6 +174,12 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   const rawKscwTeam = kscwTeamObj?.name ?? ''
   const kscwSport = kscwTeamObj?.sport as 'volleyball' | 'basketball' | undefined
   const kscwTeam = rawKscwTeam && kscwSport ? teamNameToColorKey(rawKscwTeam, kscwSport) : rawKscwTeam
+  // Show OUR side from the linked team's VM-owned name (teams.full_name) so it
+  // mirrors VM even when the SV API caption lags (e.g. DU23-1 → DU23-2). Opponent
+  // keeps the SV caption; falls back to the stored string if kscw_team is bare.
+  const kscwFullLabel = kscwTeamObj?.full_name || (rawKscwTeam ? `KSC Wiedikon ${rawKscwTeam}` : '')
+  const homeLabel = game.type === 'home' && kscwFullLabel ? kscwFullLabel : game.home_team
+  const awayLabel = game.type === 'away' && kscwFullLabel ? kscwFullLabel : game.away_team
   const sets = parseSets(game.sets_json)
   const intlLocale = i18n.language === 'gsw' ? 'de-CH' : i18n.language
   const dateStr = game.date ? new Intl.DateTimeFormat(intlLocale, dateFormatOptions).format(new Date(game.date)) : ''
@@ -208,7 +214,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                 activity={{
                   type: 'game',
                   id: Number(game.id),
-                  title: `${game.home_team} vs ${game.away_team}`,
+                  title: `${homeLabel} vs ${awayLabel}`,
                   start_date: game.date && game.time ? `${game.date}T${game.time}` : game.date,
                   location: hall?.name ?? undefined,
                   teamName: rawKscwTeam || undefined,
@@ -253,7 +259,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1 text-right">
               <p className={`text-base text-gray-900 dark:text-gray-100 ${game.type === 'home' ? 'font-semibold' : ''}`}>
-                {game.home_team}
+                {homeLabel}
               </p>
             </div>
 
@@ -271,7 +277,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
 
             <div className="flex-1">
               <p className={`text-base text-gray-900 dark:text-gray-100 ${game.type === 'away' ? 'font-semibold' : ''}`}>
-                {game.away_team}
+                {awayLabel}
               </p>
             </div>
           </div>
@@ -636,7 +642,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
       activityDate={game?.date ?? ''}
       teamIds={kscwTeamId ? [kscwTeamId] : []}
       title={t('participationRoster')}
-      activityKind={game ? `${game.home_team ?? ''} vs ${game.away_team ?? ''}`.trim() : undefined}
+      activityKind={game ? `${homeLabel ?? ''} vs ${awayLabel ?? ''}`.trim() : undefined}
       respondBy={game?.respond_by}
       activityStartTime={game?.time}
       showRsvpTime={isFeatureEnabled(kscwTeamObj?.features_enabled, 'show_rsvp_time')}

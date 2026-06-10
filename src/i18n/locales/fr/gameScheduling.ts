@@ -16,6 +16,7 @@ export default {
   absentCountHint: 'Joueurs indisponibles ce jour',
   // Fenêtre de détail du jour
   colTime: 'Heure',
+  colMatch: 'Match',
   colTeam: 'Équipe',
   colOpponent: 'Adversaire',
   colHall: 'Salle',

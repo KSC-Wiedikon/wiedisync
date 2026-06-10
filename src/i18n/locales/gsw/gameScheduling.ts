@@ -16,6 +16,7 @@ export default {
   absentCountHint: 'Spieler a dem Tag nöd verfüegbar',
   // Tagesdetail-Dialog
   colTime: 'Ziit',
+  colMatch: 'Spiel',
   colTeam: 'Team',
   colOpponent: 'Gegner',
   colHall: 'Halle',

@@ -16,6 +16,7 @@ export default {
   absentCountHint: 'Players unavailable that day',
   // Day-detail modal
   colTime: 'Time',
+  colMatch: 'Match',
   colTeam: 'Team',
   colOpponent: 'Opponent',
   colHall: 'Hall',

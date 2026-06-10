@@ -5,7 +5,6 @@ import Modal from '../../../components/Modal'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table'
 import { fetchAllItems } from '../../../lib/api'
 import { toDateKey, getSeasonYear, formatDate } from '../../../utils/dateUtils'
-import { getDayOfWeek } from '../../../utils/dateHelpers'
 import { relId } from '../../../utils/relations'
 import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team, Absence, MemberTeam } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
@@ -41,7 +40,8 @@ interface DayRow {
   id: string
   time: string
   team: string
-  opponent: string
+  /** Matchup in home-team-first order: home game → "KSCW – opp", away → "opp – KSCW". */
+  match: string
   hall: string
   kind: EntryKind | 'open'
 }
@@ -236,7 +236,10 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
           set.add(mid); byDate.set(key, set)
         }
         for (const a of abs) {
+          // Count only real, blocking absences: skip not-blocking ones and skip
+          // weekly recurring "unavailabilities" (those aren't absences).
           if ((a as { blocking?: boolean }).blocking === false) continue
+          if (a.type === 'weekly') continue
           const affects = (a as { affects?: string[] }).affects
           if (Array.isArray(affects) && affects.length > 0 && !affects.includes('all') && !affects.includes('games')) continue
           const mid = String(relId(a.member as never))
@@ -244,10 +247,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
           if (!s0 || !e0) continue
           const from = s0 < lo ? lo : s0
           const to = e0 > hi ? hi : e0
-          const weekly = a.type === 'weekly'
-          const days = weekly ? (a.days_of_week ?? []) : null
           for (let d = new Date(from), guard = 0; d <= to && guard < 400; d.setDate(d.getDate() + 1), guard++) {
-            if (weekly && !days!.includes(getDayOfWeek(d))) continue
             add(toDateKey(d), mid)
           }
         }
@@ -386,13 +386,20 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
     if (!dayDetail) return { games: [], open: [] }
     const key = toDateKey(dayDetail.date)
     const games: DayRow[] = dayDetail.entries
-      .map((e) => ({ id: e.id, time: e.time || '', team: teamName(e.teamId), opponent: e.opponent || '', hall: e.hallName || '', kind: e.kind }))
+      .map((e) => {
+        const team = teamName(e.teamId)
+        const opp = e.opponent || ''
+        // Home-team first: for an away game the opponent hosts, so it goes left.
+        const isAway = e.kind === 'away_confirmed' || e.kind === 'away_proposed'
+        const match = opp ? (isAway ? `${opp} – ${team}` : `${team} – ${opp}`) : team
+        return { id: e.id, time: e.time || '', team, match, hall: e.hallName || '', kind: e.kind }
+      })
       .sort((a, b) => a.time.localeCompare(b.time))
     const open: DayRow[] = slots
       .filter((s) => s.status === 'available'
         && (teamFilter.size === 0 || teamFilter.has(String(s.kscw_team)))
         && toDateKey(parseYmd(s.date) ?? new Date(0)) === key)
-      .map((s) => ({ id: `open-${s.id}`, time: hhmm(s.start_time), team: teamName(s.kscw_team), opponent: '', hall: hallName(s.hall), kind: 'open' as const }))
+      .map((s) => { const team = teamName(s.kscw_team); return { id: `open-${s.id}`, time: hhmm(s.start_time), team, match: team, hall: hallName(s.hall), kind: 'open' as const } })
       .sort((a, b) => a.team.localeCompare(b.team) || a.time.localeCompare(b.time))
     return { games, open }
   }, [dayDetail, slots, teamFilter, teamName, hallName])
@@ -549,8 +556,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t('colTime')}</TableHead>
-                    <TableHead>{t('colTeam')}</TableHead>
-                    <TableHead>{t('colOpponent')}</TableHead>
+                    <TableHead>{t('colMatch')}</TableHead>
                     <TableHead>{t('colHall')}</TableHead>
                     <TableHead>{t('colType')}</TableHead>
                   </TableRow>
@@ -559,8 +565,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
                   {dayRows.games.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap tabular-nums">{r.time || '—'}</TableCell>
-                      <TableCell className="font-medium">{r.team}</TableCell>
-                      <TableCell>{r.opponent || '—'}</TableCell>
+                      <TableCell className="font-medium">{r.match}</TableCell>
                       <TableCell>{r.hall || '—'}</TableCell>
                       <TableCell>
                         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">

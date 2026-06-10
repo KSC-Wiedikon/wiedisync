@@ -103,6 +103,13 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
   const teamSport = kscwTeamObj?.sport as 'volleyball' | 'basketball' | undefined
   const isBB = teamSport === 'basketball' || game.source === 'basketplan'
   const kscwTeamName = rawTeamName && teamSport ? teamNameToColorKey(rawTeamName, teamSport) : rawTeamName
+  // Show OUR side from the linked team's VM-owned name (teams.full_name) so the
+  // games list mirrors VM even when the SV API caption lags — e.g. a junior team
+  // moving Stärkeklasse (DU23-1 → DU23-2). Opponent side keeps the SV caption.
+  // Falls back to the stored string when kscw_team isn't expanded.
+  const kscwFullLabel = kscwTeamObj?.full_name || (rawTeamName ? `KSC Wiedikon ${rawTeamName}` : '')
+  const homeLabel = game.type === 'home' && kscwFullLabel ? kscwFullLabel : game.home_team
+  const awayLabel = game.type === 'away' && kscwFullLabel ? kscwFullLabel : game.away_team
 
   if (variant === 'compact') {
     const short = game.date ? formatDateCompact(game.date) : ''
@@ -133,10 +140,10 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
             </div>
             <div className="min-w-0 flex-1">
               <p className={`truncate text-sm text-gray-900 dark:text-gray-100 ${game.type === 'home' ? 'font-bold' : ''}`}>
-                {game.home_team}
+                {homeLabel}
               </p>
               <p className={`truncate text-sm text-gray-900 dark:text-gray-100 ${game.type === 'away' ? 'font-bold' : ''}`}>
-                {game.away_team}
+                {awayLabel}
               </p>
             </div>
             {hasScore && (
@@ -187,10 +194,10 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
           {/* Col 5: Team names */}
           <div className="min-w-0">
             <p className={`truncate text-sm leading-5 text-gray-900 dark:text-gray-100 ${game.type === 'home' ? 'font-bold' : ''}`}>
-              {game.home_team}
+              {homeLabel}
             </p>
             <p className={`truncate text-sm leading-5 text-gray-900 dark:text-gray-100 ${game.type === 'away' ? 'font-bold' : ''}`}>
-              {game.away_team}
+              {awayLabel}
             </p>
           </div>
 
@@ -350,10 +357,10 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
         {/* Right: teams stacked + hall */}
         <div className="min-w-0 flex-1">
           <p className={`truncate text-sm text-gray-900 dark:text-gray-100 ${game.type === 'home' ? 'font-bold' : ''}`}>
-            {game.home_team}
+            {homeLabel}
           </p>
           <p className={`truncate text-sm text-gray-900 dark:text-gray-100 ${game.type === 'away' ? 'font-bold' : ''}`}>
-            {game.away_team}
+            {awayLabel}
           </p>
           <div className="mt-1 flex items-center gap-2">
             <StatusBadge status={game.status} />
