@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import CalendarGrid from '../../../components/CalendarGrid'
+import Modal from '../../../components/Modal'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table'
 import { fetchAllItems } from '../../../lib/api'
 import { toDateKey, getSeasonYear, formatDate } from '../../../utils/dateUtils'
-import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team } from '../../../types'
+import { getDayOfWeek } from '../../../utils/dateHelpers'
+import { relId } from '../../../utils/relations'
+import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team, Absence, MemberTeam } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 
 // Season-wide overview of the Terminplanung for all teams: confirmed + proposed
@@ -24,6 +28,22 @@ interface SchedEntry {
   label: string
   title: string
   teamId: string
+  /** HH:MM — for the day-detail table + chip prefix. */
+  time?: string
+  /** Opponent label (games only). */
+  opponent?: string
+  /** Hall / venue name. */
+  hallName?: string
+}
+
+// One row in the day-detail modal table (games + open slots for a day).
+interface DayRow {
+  id: string
+  time: string
+  team: string
+  opponent: string
+  hall: string
+  kind: EntryKind | 'open'
 }
 
 interface Props {
@@ -34,6 +54,10 @@ interface Props {
   // Heading text — defaults to the season-wide overview title. Pass a
   // team-scoped title when rendering this inside a single team's panel.
   title?: string
+  // Show a per-day absent-player count (dashboard only). Renders when a single
+  // team is in scope: teams=[one] (per-team calendar) or exactly one team
+  // selected in the filter (summary calendar).
+  showAbsences?: boolean
 }
 
 // Parse a 'YYYY-MM-DD' (or ISO) string into a LOCAL Date (no TZ shift) so the
@@ -45,6 +69,14 @@ const parseYmd = (s: string | null | undefined): Date | null => {
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
 }
 
+// 'HH:MM:SS' (a slot time) → 'HH:MM'.
+const hhmm = (s: string | null | undefined): string => (s ? String(s).slice(0, 5) : '')
+// A proposed datetime ('YYYY-MM-DD HH:MM:SS' or ISO 'YYYY-MM-DDTHH:MM:SS') → 'HH:MM'.
+const dtTime = (s: string | null | undefined): string => {
+  const m = String(s ?? '').match(/[T ](\d{2}:\d{2})/)
+  return m ? m[1] : ''
+}
+
 const CHIP: Record<EntryKind, string> = {
   home_confirmed: 'bg-green-600 text-white',
   away_confirmed: 'bg-blue-600 text-white',
@@ -53,7 +85,7 @@ const CHIP: Record<EntryKind, string> = {
   blocked: 'bg-gray-300 text-gray-600 line-through dark:bg-gray-600 dark:text-gray-300',
 }
 
-export default function SchedulingCalendar({ slots, bookings, teams, season, title }: Props) {
+export default function SchedulingCalendar({ slots, bookings, teams, season, title, showAbsences }: Props) {
   const { t } = useTranslation('gameScheduling')
 
   const teamName = useMemo(() => {
@@ -87,6 +119,22 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
     for (const s of slots) m.set(String(s.id), s)
     return m
   }, [slots])
+
+  // Hall id → name, for the day-detail table (members + admins can read halls).
+  const [halls, setHalls] = useState<{ id: number; name: string }[]>([])
+  useEffect(() => {
+    fetchAllItems<{ id: number; name: string }>('halls', { fields: ['id', 'name'] })
+      .then(setHalls)
+      .catch(() => {})
+  }, [])
+  const hallName = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const h of halls) m.set(String(h.id), h.name)
+    return (id: string | number | null | undefined) => (id == null ? '' : m.get(String(id)) || '')
+  }, [halls])
+
+  // Day the user clicked → detail modal (its teamFilter-applied entries).
+  const [dayDetail, setDayDetail] = useState<{ date: Date; entries: SchedEntry[] } | null>(null)
 
   // Hall closures (gcal + school holidays) for the season — block home games, so
   // they render as a red day background. Fetched from this season's August on.
@@ -150,6 +198,69 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
   // Team filter — empty Set = all teams shown.
   const [teamFilter, setTeamFilter] = useState<Set<string>>(new Set())
 
+  // The single team to show absences for (dashboard only): the lone team when
+  // this calendar is team-scoped, or the one selected in the filter. null when
+  // absences are off or more/less than one team is in view.
+  const absenceTeamId = useMemo(() => {
+    if (!showAbsences) return null
+    if (teams.length === 1) return String(teams[0].id)
+    if (teamFilter.size === 1) return [...teamFilter][0]
+    return null
+  }, [showAbsences, teams, teamFilter])
+
+  // date key -> number of distinct team members unavailable that day (blocking
+  // absences affecting games). Fetched per-team via a single-level junction walk
+  // (member_teams → members) then absences by member, per the M2M-safe pattern.
+  const [absencesByDate, setAbsencesByDate] = useState<Map<string, number>>(new Map())
+  useEffect(() => {
+    if (!absenceTeamId) { setAbsencesByDate(new Map()); return }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const links = await fetchAllItems<MemberTeam>('member_teams', {
+          fields: ['member'], filter: { team: { _eq: absenceTeamId } },
+        })
+        const memberIds = [...new Set(links.map((l) => relId(l.member)).filter(Boolean))]
+        if (memberIds.length === 0) { if (!cancelled) setAbsencesByDate(new Map()); return }
+        const winStart = `${startYear}-08-01`
+        const winEnd = `${startYear + 1}-03-31`
+        const abs = await fetchAllItems<Absence & { member?: string | { id: string } }>('absences', {
+          fields: ['id', 'member', 'start_date', 'end_date', 'type', 'days_of_week', 'affects', 'blocking'],
+          filter: { _and: [{ member: { _in: memberIds } }, { end_date: { _gte: winStart } }, { start_date: { _lte: winEnd } }] },
+        })
+        const lo = new Date(startYear, 7, 1) // Aug 1
+        const hi = new Date(startYear + 1, 2, 31) // Mar 31
+        const byDate = new Map<string, Set<string>>()
+        const add = (key: string, mid: string) => {
+          const set = byDate.get(key) ?? new Set<string>()
+          set.add(mid); byDate.set(key, set)
+        }
+        for (const a of abs) {
+          if ((a as { blocking?: boolean }).blocking === false) continue
+          const affects = (a as { affects?: string[] }).affects
+          if (Array.isArray(affects) && affects.length > 0 && !affects.includes('all') && !affects.includes('games')) continue
+          const mid = String(relId(a.member as never))
+          const s0 = parseYmd(a.start_date); const e0 = parseYmd(a.end_date)
+          if (!s0 || !e0) continue
+          const from = s0 < lo ? lo : s0
+          const to = e0 > hi ? hi : e0
+          const weekly = a.type === 'weekly'
+          const days = weekly ? (a.days_of_week ?? []) : null
+          for (let d = new Date(from), guard = 0; d <= to && guard < 400; d.setDate(d.getDate() + 1), guard++) {
+            if (weekly && !days!.includes(getDayOfWeek(d))) continue
+            add(toDateKey(d), mid)
+          }
+        }
+        const counts = new Map<string, number>()
+        for (const [k, set] of byDate) counts.set(k, set.size)
+        if (!cancelled) setAbsencesByDate(counts)
+      } catch {
+        if (!cancelled) setAbsencesByDate(new Map())
+      }
+    })()
+    return () => { cancelled = true }
+  }, [absenceTeamId, startYear])
+
   const entries = useMemo<SchedEntry[]>(() => {
     const out: SchedEntry[] = []
     const oppLabel = (b: ExpandedBooking) => {
@@ -171,10 +282,13 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
           kind: 'home_confirmed',
           label: team,
           teamId: tid,
-          title: `${t('legendHomeConfirmed')}: ${team}${opp ? ` vs ${opp}` : ''} · ${String(s.start_time).slice(0, 5)}`,
+          time: hhmm(s.start_time),
+          opponent: opp,
+          hallName: hallName(s.hall),
+          title: `${t('legendHomeConfirmed')}: ${team}${opp ? ` vs ${opp}` : ''} · ${hhmm(s.start_time)}`,
         })
       } else if (s.status === 'blocked') {
-        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: team, teamId: tid, title: `${t('legendBlocked')}: ${team}` })
+        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: team, teamId: tid, time: hhmm(s.start_time), hallName: hallName(s.hall), title: `${t('legendBlocked')}: ${team}` })
       }
     }
 
@@ -183,15 +297,16 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
       const opp = oppLabel(b)
       const tid = typeof b.opponent === 'object' ? String((b.opponent as GameSchedulingOpponent).kscw_team ?? '') : ''
       const team = typeof b.opponent === 'object' ? teamName((b.opponent as GameSchedulingOpponent).kscw_team) : '—'
+      const place = (n: number) => (b as Record<string, unknown>)[`proposed_place_${n}`] as string | undefined
       if (b.type === 'away_proposal' && b.status === 'confirmed' && b.confirmed_proposal) {
         const dt = (b as Record<string, unknown>)[`proposed_datetime_${b.confirmed_proposal}`] as string | undefined
         const d = parseYmd(dt)
-        if (d) out.push({ id: `awc-${b.id}`, date: d, kind: 'away_confirmed', label: `@${team}`, teamId: tid, title: `${t('legendAwayConfirmed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
+        if (d) out.push({ id: `awc-${b.id}`, date: d, kind: 'away_confirmed', label: `@${team}`, teamId: tid, time: dtTime(dt), opponent: opp, hallName: place(b.confirmed_proposal) || '', title: `${t('legendAwayConfirmed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
       } else if (b.type === 'away_proposal' && b.status === 'pending') {
         for (const n of [1, 2, 3]) {
           const dt = (b as Record<string, unknown>)[`proposed_datetime_${n}`] as string | undefined
           const d = parseYmd(dt)
-          if (d) out.push({ id: `awp-${b.id}-${n}`, date: d, kind: 'away_proposed', label: `@${team}`, teamId: tid, title: `${t('legendAwayProposed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
+          if (d) out.push({ id: `awp-${b.id}-${n}`, date: d, kind: 'away_proposed', label: `@${team}`, teamId: tid, time: dtTime(dt), opponent: opp, hallName: place(n) || '', title: `${t('legendAwayProposed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
         }
       } else if (b.type === 'home_slot_pick' && b.status === 'pending') {
         for (const n of [1, 2, 3]) {
@@ -199,12 +314,12 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
           if (sid == null) continue
           const sl = slotsById.get(String(sid))
           const d = parseYmd(sl?.date)
-          if (d) out.push({ id: `hmp-${b.id}-${n}`, date: d, kind: 'home_proposed', label: team, teamId: tid, title: `${t('legendHomeProposed')}: ${team}${opp ? ` vs ${opp}` : ''}` })
+          if (d) out.push({ id: `hmp-${b.id}-${n}`, date: d, kind: 'home_proposed', label: team, teamId: tid, time: hhmm(sl?.start_time), opponent: opp, hallName: hallName(sl?.hall), title: `${t('legendHomeProposed')}: ${team}${opp ? ` vs ${opp}` : ''}` })
         }
       }
     }
     return out
-  }, [slots, bookings, slotsById, oppBySlot, teamName, t])
+  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t])
 
   // Teams that actually appear in the calendar, for the filter chips.
   const filterableTeams = useMemo(() => {
@@ -255,6 +370,32 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
     { kind: 'away_proposed', label: t('legendAwayProposed') },
     { kind: 'blocked', label: t('legendBlocked') },
   ]
+
+  const KIND_LABEL: Record<EntryKind | 'open', string> = {
+    home_confirmed: t('legendHomeConfirmed'),
+    away_confirmed: t('legendAwayConfirmed'),
+    home_proposed: t('legendHomeProposed'),
+    away_proposed: t('legendAwayProposed'),
+    blocked: t('legendBlocked'),
+    open: t('legendOpen'),
+  }
+
+  // Rows for the day-detail modal: the day's games (its teamFilter-applied
+  // entries) plus that day's still-open slots.
+  const dayRows = useMemo<{ games: DayRow[]; open: DayRow[] }>(() => {
+    if (!dayDetail) return { games: [], open: [] }
+    const key = toDateKey(dayDetail.date)
+    const games: DayRow[] = dayDetail.entries
+      .map((e) => ({ id: e.id, time: e.time || '', team: teamName(e.teamId), opponent: e.opponent || '', hall: e.hallName || '', kind: e.kind }))
+      .sort((a, b) => a.time.localeCompare(b.time))
+    const open: DayRow[] = slots
+      .filter((s) => s.status === 'available'
+        && (teamFilter.size === 0 || teamFilter.has(String(s.kscw_team)))
+        && toDateKey(parseYmd(s.date) ?? new Date(0)) === key)
+      .map((s) => ({ id: `open-${s.id}`, time: hhmm(s.start_time), team: teamName(s.kscw_team), opponent: '', hall: hallName(s.hall), kind: 'open' as const }))
+      .sort((a, b) => a.team.localeCompare(b.team) || a.time.localeCompare(b.time))
+    return { games, open }
+  }, [dayDetail, slots, teamFilter, teamName, hallName])
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
@@ -354,10 +495,17 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
         highlightedDates={highlightedDates}
         highlightClassName="bg-gold-100 dark:bg-gold-500/20"
         highlightLabel={t('spielsamstag')}
+        onDayClick={(date, items) => {
+          const open = openByDate.get(toDateKey(date)) || 0
+          if (items.length === 0 && open === 0) return
+          setDayDetail({ date, entries: items })
+        }}
         renderDayContent={(date, items) => {
+          const key = toDateKey(date)
           const visible = items.slice(0, 3)
           const hidden = items.length - visible.length
-          const open = openByDate.get(toDateKey(date)) || 0
+          const open = openByDate.get(key) || 0
+          const absent = absencesByDate.get(key) || 0
           return (
             <div className="flex flex-col gap-0.5">
               {visible.map((e) => (
@@ -366,7 +514,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
                   title={e.title}
                   className={`truncate rounded px-1 py-0.5 text-[10px] leading-tight ${CHIP[e.kind]}`}
                 >
-                  {e.label}
+                  {e.time ? `${e.time} ` : ''}{e.label}
                 </span>
               ))}
               {hidden > 0 && (
@@ -377,10 +525,87 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
                   {t('openCount', { count: open })}
                 </span>
               )}
+              {absent > 0 && (
+                <span className="text-[10px] text-rose-500 dark:text-rose-400" title={t('absentCountHint')}>
+                  {t('absentCount', { count: absent })}
+                </span>
+              )}
             </div>
           )
         }}
       />
+
+      {/* Day-detail modal — time / team / opponent / hall in a table */}
+      <Modal
+        open={!!dayDetail}
+        onClose={() => setDayDetail(null)}
+        title={dayDetail ? formatDate(dayDetail.date, 'EEEE, d MMMM yyyy') : ''}
+        size="lg"
+      >
+        {dayDetail && (
+          <div className="space-y-4">
+            {dayRows.games.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('colTime')}</TableHead>
+                    <TableHead>{t('colTeam')}</TableHead>
+                    <TableHead>{t('colOpponent')}</TableHead>
+                    <TableHead>{t('colHall')}</TableHead>
+                    <TableHead>{t('colType')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dayRows.games.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="whitespace-nowrap tabular-nums">{r.time || '—'}</TableCell>
+                      <TableCell className="font-medium">{r.team}</TableCell>
+                      <TableCell>{r.opponent || '—'}</TableCell>
+                      <TableCell>{r.hall || '—'}</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                          <span className={`inline-block h-2.5 w-2.5 rounded ${CHIP[r.kind as EntryKind]}`} />
+                          <span className="text-xs">{KIND_LABEL[r.kind]}</span>
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('dayNoGames')}</p>
+            )}
+
+            {dayRows.open.length > 0 && (
+              <details className="group">
+                <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t('openSlotsHeading', { count: dayRows.open.length })}
+                </summary>
+                <div className="mt-2 max-h-72 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('colTime')}</TableHead>
+                        <TableHead>{t('colTeam')}</TableHead>
+                        <TableHead>{t('colHall')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dayRows.open.map((r) => (
+                        <TableRow key={r.id}>
+                          <TableCell className="whitespace-nowrap tabular-nums">{r.time || '—'}</TableCell>
+                          <TableCell className="font-medium">{r.team}</TableCell>
+                          <TableCell>{r.hall || '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

@@ -184,8 +184,23 @@ export default function AdminDashboardPage() {
       const oid = typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent
       return activeOppIds.has(String(oid))
     }).length
+    // Saturday game counters: confirmed HOME games are booked slots on a
+    // Saturday; confirmed AWAY games are confirmed away_proposals whose chosen
+    // datetime is a Saturday. Total = home + away.
+    const isSat = (d: string | null | undefined) =>
+      !!d && new Date(`${String(d).slice(0, 10)}T00:00:00Z`).getUTCDay() === 6
+    const homeSat = teamSlots.filter(s => s.status === 'booked' && isSat(s.date)).length
+    const oppIdSet = new Set(opps.map(o => String(o.id)))
+    const awaySat = bookings.filter(b => {
+      if (b.type !== 'away_proposal' || b.status !== 'confirmed' || !b.confirmed_proposal) return false
+      const oid = typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent
+      if (!oppIdSet.has(String(oid))) return false
+      const dt = (b as unknown as Record<string, unknown>)[`proposed_datetime_${b.confirmed_proposal}`] as string | undefined
+      return isSat(dt)
+    }).length
     return {
       booked, total: teamSlots.length, opponents: opps.length, byStatus, toConfirm,
+      homeSat, satTotal: homeSat + awaySat,
     }
   }
 
@@ -207,7 +222,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Season overview calendar — all proposed/confirmed/blocked slots */}
-      <SchedulingCalendar slots={slots} bookings={bookings} teams={volleyballTeams} season={season} />
+      <SchedulingCalendar slots={slots} bookings={bookings} teams={volleyballTeams} season={season} showAbsences />
 
       {/* Team overview accordion */}
       <div className="space-y-3">
@@ -238,6 +253,11 @@ export default function AdminDashboardPage() {
                   )}
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-3 text-xs text-gray-600 sm:text-sm dark:text-gray-400">
+                  {stats.satTotal > 0 && (
+                    <span className="whitespace-nowrap" title={t('saturdayCounterHint')}>
+                      {t('saturdayCounter', { home: stats.homeSat, total: stats.satTotal })}
+                    </span>
+                  )}
                   {stats.opponents > 0 && (
                     <span className="hidden sm:inline">
                       {t('opponentCount', { count: stats.opponents })}
@@ -291,6 +311,7 @@ export default function AdminDashboardPage() {
                       teams={[team]}
                       season={season}
                       title={t('teamCalendarTitle')}
+                      showAbsences
                     />
                   </div>
                   <TeamBookingsContent

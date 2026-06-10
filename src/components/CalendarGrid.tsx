@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   startOfMonth,
@@ -36,6 +36,11 @@ interface CalendarGridProps<T> {
    * and fires with the clicked date. Useful for quick-add flows.
    */
   onEmptyDayClick?: (date: Date) => void
+  /**
+   * When set, in-month day cells become clickable and fire with the date +
+   * that day's items. Useful for opening a day-detail view.
+   */
+  onDayClick?: (date: Date, items: T[]) => void
 }
 
 export default function CalendarGrid<T>({
@@ -52,6 +57,7 @@ export default function CalendarGrid<T>({
   minMonth,
   maxMonth,
   onEmptyDayClick,
+  onDayClick,
 }: CalendarGridProps<T>) {
   const { t } = useTranslation()
   const monthStart = startOfMonth(month)
@@ -120,11 +126,24 @@ export default function CalendarGrid<T>({
           const items = itemsByDate.get(key) ?? []
           const isClosed = closedDates?.has(key) ?? false
           const isHighlighted = highlightedDates?.has(key) ?? false
+          const clickable = !!onDayClick && inMonth
 
           return (
             <div
               key={key}
+              {...(clickable
+                ? {
+                    role: 'button',
+                    tabIndex: 0,
+                    onClick: () => onDayClick!(date, items),
+                    onKeyDown: (e: ReactKeyboardEvent) => {
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDayClick!(date, items) }
+                    },
+                  }
+                : {})}
               className={`group relative min-h-[3rem] border-b border-r border-gray-200 p-0.5 sm:min-h-[5rem] sm:p-1 lg:min-h-[6.5rem] lg:p-2 dark:border-gray-700 ${
+                clickable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : ''
+              } ${
                 isToday ? 'ring-2 ring-inset ring-gold-400 dark:ring-gold-500' : ''
               } ${
                 !inMonth ? 'bg-gray-50 dark:bg-gray-900' : isHighlighted ? highlightClassName : 'bg-white dark:bg-gray-800'
