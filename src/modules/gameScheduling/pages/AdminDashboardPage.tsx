@@ -70,7 +70,7 @@ export default function AdminDashboardPage() {
   const { t } = useTranslation('gameScheduling')
   const { hasAdminAccessToSport, is_spielplaner } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
-  const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, manualBooking, blockSlot, finalizeNotify } = useAdminBookings(season?.id)
+  const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, manualBooking, blockSlot, finalizeNotify, refetch } = useAdminBookings(season?.id)
   const { data: teams } = useTeams()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
@@ -87,6 +87,9 @@ export default function AdminDashboardPage() {
       toast.success(t('confirmed'))
     } catch (err) {
       toast.error(confirmErrMsg(err))
+      // Refetch so a stale booking id (opponent re-proposed → new id) or a slot
+      // that changed underneath self-heals instead of staying broken.
+      void refetch()
       throw err
     }
   }
@@ -96,6 +99,7 @@ export default function AdminDashboardPage() {
       toast.success(t('confirmed'))
     } catch (err) {
       toast.error(confirmErrMsg(err))
+      void refetch()
       throw err
     }
   }

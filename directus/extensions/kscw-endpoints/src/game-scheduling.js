@@ -1220,19 +1220,36 @@ export function registerGameScheduling(router, { database, logger, services, get
         }
       }
 
-      // Replace any prior PENDING home proposal (a confirmed one stays intact).
-      await database('game_scheduling_bookings')
+      // Replace any prior PENDING home proposal IN PLACE so the booking id stays
+      // stable across re-proposals — a delete+insert mints a new id, and an admin
+      // dashboard still holding the old id then 400s with "Invalid booking" on
+      // confirm. A confirmed proposal stays intact.
+      const priorHome = await database('game_scheduling_bookings')
         .where({ opponent: opponent.id, type: 'home_slot_pick', status: 'pending' })
-        .del()
-      await database('game_scheduling_bookings').insert({
-        opponent: opponent.id,
-        season: opponent.season,
-        type: 'home_slot_pick',
-        status: 'pending',
-        proposed_slot_1: ids[0],
-        proposed_slot_2: ids[1],
-        proposed_slot_3: ids[2],
-      })
+        .orderBy('id').pluck('id')
+      if (priorHome.length > 0) {
+        await database('game_scheduling_bookings').where('id', priorHome[0]).update({
+          season: opponent.season,
+          proposed_slot_1: ids[0],
+          proposed_slot_2: ids[1],
+          proposed_slot_3: ids[2],
+          confirmed_proposal: null,
+          slot: null,
+        })
+        if (priorHome.length > 1) {
+          await database('game_scheduling_bookings').whereIn('id', priorHome.slice(1)).del()
+        }
+      } else {
+        await database('game_scheduling_bookings').insert({
+          opponent: opponent.id,
+          season: opponent.season,
+          type: 'home_slot_pick',
+          status: 'pending',
+          proposed_slot_1: ids[0],
+          proposed_slot_2: ids[1],
+          proposed_slot_3: ids[2],
+        })
+      }
 
       await database('game_scheduling_opponents')
         .where('id', opponent.id)
@@ -1581,12 +1598,28 @@ export function registerGameScheduling(router, { database, logger, services, get
         row[`proposed_place_${i + 1}`] = rawPlace
       }
       // "Update proposals" re-submits via the same endpoint — replace any prior
-      // pending away_proposal for this opponent instead of accumulating duplicate
-      // booking rows. A confirmed one is left intact (opponent UI won't re-propose).
-      await database('game_scheduling_bookings')
+      // pending away_proposal IN PLACE so the booking id stays stable (a
+      // delete+insert mints a new id and the admin dashboard's stale id then 400s
+      // "Invalid booking" on confirm). A confirmed one is left intact.
+      const priorAway = await database('game_scheduling_bookings')
         .where({ opponent: opponent.id, type: 'away_proposal', status: 'pending' })
-        .del()
-      await database('game_scheduling_bookings').insert(row)
+        .orderBy('id').pluck('id')
+      if (priorAway.length > 0) {
+        await database('game_scheduling_bookings').where('id', priorAway[0]).update({
+          // Clear all proposal columns first so a shorter re-proposal doesn't
+          // leave a stale slot 3 behind; `row` re-sets the submitted ones.
+          proposed_datetime_1: null, proposed_datetime_2: null, proposed_datetime_3: null,
+          proposed_place_1: null, proposed_place_2: null, proposed_place_3: null,
+          ...row,
+          confirmed_proposal: null,
+          slot: null,
+        })
+        if (priorAway.length > 1) {
+          await database('game_scheduling_bookings').whereIn('id', priorAway.slice(1)).del()
+        }
+      } else {
+        await database('game_scheduling_bookings').insert(row)
+      }
 
       // Status lifecycle: away proposal transitions invited/viewed → booked
       await database('game_scheduling_opponents')
@@ -1724,9 +1757,20 @@ export function registerGameScheduling(router, { database, logger, services, get
       const seasonKey = String(season_id)
 
       // "Overwrites not-yet-booked slots": drop existing available slots for the
-      // season before regenerating. Booked + blocked rows are preserved.
+      // season before regenerating. Booked + blocked rows are preserved — AND so
+      // are slots a PENDING home proposal points to, otherwise regenerating mints
+      // new slot ids and orphans the proposal (confirm then 400s "Slot is no
+      // longer available"). The clash check below skips re-creating a duplicate.
+      const heldRows = await database('game_scheduling_bookings')
+        .where('season', seasonKey).where('type', 'home_slot_pick').where('status', 'pending')
+        .select('proposed_slot_1', 'proposed_slot_2', 'proposed_slot_3')
+      const heldSlotIds = [...new Set(
+        heldRows.flatMap((r) => [r.proposed_slot_1, r.proposed_slot_2, r.proposed_slot_3]).filter((v) => v != null),
+      )]
       await database('game_scheduling_slots')
-        .where('season', seasonKey).where('status', 'available').del()
+        .where('season', seasonKey).where('status', 'available')
+        .modify((q) => { if (heldSlotIds.length) q.whereNotIn('id', heldSlotIds) })
+        .del()
 
       const addHours = (hhmm, hrs) => {
         const [h, m] = String(hhmm).split(':').map(Number)
