@@ -2218,7 +2218,10 @@ export function registerGameScheduling(router, { database, logger, services, get
       // may have changed since the opponent proposed): derby clamp (Art. 27), team
       // event, game-spacing gap and cross-team same-day. Mirrors propose-away.
       {
-        const chosenDay = String(chosenDateTime).slice(0, 10)
+        // proposed_datetime_N comes back from knex as a JS Date — String(Date)
+        // gives "Sat Feb 13 …", so slice(0,10) yields garbage that 500s the
+        // ?::date guards below. Normalise to a YYYY-MM-DD first.
+        const chosenDay = String(chosenDateTime instanceof Date ? chosenDateTime.toISOString() : chosenDateTime).slice(0, 10)
         const awaySeasonRow = await database('game_scheduling_seasons').where('id', awayOpponent.season).first()
         const awayRueckStart = rueckrundeStart(awaySeasonRow)
         const awayDerbyAnchors = await confirmedDerbyAnchors(awayOpponent.kscw_team, awayOpponent.season, awayRueckStart)
