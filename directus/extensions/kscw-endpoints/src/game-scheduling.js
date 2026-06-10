@@ -2827,6 +2827,34 @@ export function registerGameScheduling(router, { database, logger, services, get
   const ACTIVE_INVITE_STATUSES = ['invited', 'viewed', 'booked', 'active']
   const KSCW_SVRZ_CLUB_ID = process.env.KSCW_SVRZ_CLUB_ID || '912530'
 
+  // ─── Stable team-ID matching (VM is the source of truth for names) ──────────
+  // SVRZ fixture labels ("KSC Wiedikon DU23-1") can lag VM's renames: when a
+  // junior team changes Stärkeklasse it becomes e.g. DU23-2 in VM (which owns
+  // teams.name) before the SVRZ feed catches up. Matching our team to its
+  // fixtures by NAME then silently breaks (0 opponents). But VM and SVRZ key the
+  // team by the SAME stable `staticTeamIdentifier`, which we already store as
+  // `teams.team_id` ("vb_2301"). Match on that id so VM can own the display name
+  // without breaking fixture resolution. Falls back to the name label when a
+  // fixture's raw payload lacks the id (older rows / non-SVRZ data).
+  const staticIdFromTeamId = (teamId) => {
+    const m = String(teamId || '').match(/(\d+)\s*$/)
+    return m ? Number(m[1]) : null
+  }
+  // staticTeamIdentifier on a given side ('home'|'away') of an svrz_games row,
+  // read from the stored raw payload; null if absent/unparseable.
+  const sideStaticId = (g, side) => {
+    let raw = g && g.raw
+    if (typeof raw === 'string') { try { raw = JSON.parse(raw) } catch { return null } }
+    const enc = raw && raw.encounter
+    const team = enc && (side === 'home' ? enc.teamHome : enc.teamAway)
+    const v = team && team.staticTeamIdentifier
+    return v == null ? null : Number(v)
+  }
+  // staticTeamIdentifier of the KSCW side of a fixture (home/away decided by which
+  // side carries our club id), or null if raw lacks it.
+  const kscwSideStaticId = (g) =>
+    sideStaticId(g, String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID) ? 'home' : 'away')
+
   function newInviteExpiry() {
     return INVITE_EXPIRY_ISO
   }
@@ -3090,14 +3118,22 @@ export function registerGameScheduling(router, { database, logger, services, get
       const normTeamId = (s) =>
         String(s || '').toLowerCase().trim().replace(/^ksc\s+wiedikon\s+/, '').replace(/[^a-z0-9]/g, '')
       const teamId = normTeamId(kscwTeamRow.name)
+      const ourStaticId = staticIdFromTeamId(kscwTeamRow.team_id)
       const kscwSideName = (g) =>
         (String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID) ? g.home_team_name : g.away_team_name) || ''
+      // Identify OUR fixtures by the stable staticTeamIdentifier (VM may rename
+      // the team ahead of the SVRZ label); fall back to the name when raw lacks it.
+      const isOurTeam = (g) => {
+        const sid = kscwSideStaticId(g)
+        if (sid != null && ourStaticId != null) return sid === ourStaticId
+        return normTeamId(kscwSideName(g)) === teamId
+      }
       // The SVRZ feed sometimes lists a fixture TWICE (two persistence ids, same
       // matchup + datetime) — dedupe by matchup+datetime so the game count is the
       // real one (e.g. 2 home+away, not a doubled 4).
       const seenGame = new Set()
       const games = allGames
-        .filter((g) => normTeamId(kscwSideName(g)) === teamId)
+        .filter(isOurTeam)
         .filter((g) => {
           const k = `${g.home_team_name}|${g.away_team_name}|${g.starting_date_time || ''}`
           if (seenGame.has(k)) return false
@@ -3279,11 +3315,17 @@ export function registerGameScheduling(router, { database, logger, services, get
       .orderBy('starting_date_time')
 
     const wantName = `ksc wiedikon ${String(kscwTeamRow.name || '').trim().toLowerCase()}`
+    const ourStaticId = staticIdFromTeamId(kscwTeamRow.team_id)
     const byClub = new Map()
     for (const g of games) {
-      const isHomeKscw = g.home_club_id === KSCW_SVRZ_CLUB_ID
-      const kscwSideName = String((isHomeKscw ? g.home_team_name : g.away_team_name) || '').trim().toLowerCase()
-      if (kscwSideName !== wantName) continue
+      const isHomeKscw = String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID)
+      // Prefer the stable staticTeamIdentifier (VM may rename our team ahead of
+      // the SVRZ label); fall back to the name when raw lacks the id.
+      const sid = kscwSideStaticId(g)
+      const matchesOurTeam = (sid != null && ourStaticId != null)
+        ? sid === ourStaticId
+        : String((isHomeKscw ? g.home_team_name : g.away_team_name) || '').trim().toLowerCase() === wantName
+      if (!matchesOurTeam) continue
       const clubId = isHomeKscw ? g.away_club_id : g.home_club_id
       const clubName = isHomeKscw ? g.away_club_name : g.home_club_name
       const teamName = isHomeKscw ? g.away_team_name : g.home_team_name
@@ -3452,9 +3494,21 @@ export function registerGameScheduling(router, { database, logger, services, get
       const normTeamId = (s) =>
         String(s || '').toLowerCase().trim().replace(/^ksc\s+wiedikon\s+/, '').replace(/[^a-z0-9]/g, '')
       const teamRows = await database('teams')
-        .where('sport', 'volleyball').where('active', true).select('id', 'name')
+        .where('sport', 'volleyball').where('active', true).select('id', 'name', 'team_id')
       const teamByNorm = new Map()
-      for (const t of teamRows) teamByNorm.set(normTeamId(t.name), t)
+      const teamByStaticId = new Map()
+      for (const t of teamRows) {
+        teamByNorm.set(normTeamId(t.name), t)
+        const sid = staticIdFromTeamId(t.team_id)
+        if (sid != null) teamByStaticId.set(sid, t)
+      }
+      // Resolve a fixture side to a KSCW team: prefer the stable
+      // staticTeamIdentifier (raw), fall back to the SVRZ name label.
+      const resolveSide = (g, side, label) => {
+        const sid = sideStaticId(g, side)
+        if (sid != null && teamByStaticId.has(sid)) return teamByStaticId.get(sid)
+        return teamByNorm.get(normTeamId(label))
+      }
 
       const pairKey = (a, b) => `${Math.min(a, b)}:${Math.max(a, b)}`
       const stored = await database('game_scheduling_derbies').where('season', season)
@@ -3464,8 +3518,8 @@ export function registerGameScheduling(router, { database, logger, services, get
 
       const pairs = new Map()
       for (const g of games) {
-        const homeT = teamByNorm.get(normTeamId(g.home_team_name))
-        const awayT = teamByNorm.get(normTeamId(g.away_team_name))
+        const homeT = resolveSide(g, 'home', g.home_team_name)
+        const awayT = resolveSide(g, 'away', g.away_team_name)
         if (!homeT || !awayT || homeT.id === awayT.id) continue
         const [a, b] = homeT.id < awayT.id ? [homeT, awayT] : [awayT, homeT]
         const key = pairKey(a.id, b.id)
