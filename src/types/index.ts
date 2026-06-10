@@ -730,7 +730,12 @@ export interface GameSchedulingBooking extends BaseRecord {
   confirmed_proposal: number
   status: 'pending' | 'confirmed' | 'rejected'
   admin_notes: string
-
+  /** VolleyManager push tracking (home_slot_pick only). */
+  vm_push_status?: 'queued' | 'pushed' | 'pushed_no_hall' | 'needs_pick' | 'no_fixture' | 'failed' | null
+  vm_game_id?: string | null
+  vm_pushed_at?: string | null
+  /** Failure message, OR a JSON {"needs_pick":[{id,label,date}]} candidate list. */
+  vm_push_error?: string | null
 }
 
 export interface ScorerDelegation extends BaseRecord {

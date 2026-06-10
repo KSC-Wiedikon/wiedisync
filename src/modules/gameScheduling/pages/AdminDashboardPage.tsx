@@ -74,7 +74,7 @@ export default function AdminDashboardPage() {
   const { t } = useTranslation('gameScheduling')
   const { hasAdminAccessToSport, is_spielplaner } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
-  const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, manualBooking, blockSlot, finalizeNotify, refetch } = useAdminBookings(season?.id)
+  const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, manualBooking, blockSlot, finalizeNotify, vmPush, refetch } = useAdminBookings(season?.id)
   const { data: teams } = useTeams()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
@@ -426,6 +426,7 @@ export default function AdminDashboardPage() {
                     proposalHealth={proposalHealth}
                     onConfirmAway={handleConfirmAway}
                     onConfirmHome={handleConfirmHome}
+                    onVmPush={vmPush}
                     onRequestNewSlots={requestNewSlots}
                     onSaveOpponentNote={saveOpponentNote}
                     onManualBooking={manualBooking}
@@ -454,6 +455,7 @@ function TeamBookingsContent({
   proposalHealth,
   onConfirmAway,
   onConfirmHome,
+  onVmPush,
   onRequestNewSlots,
   onSaveOpponentNote,
   onManualBooking,
@@ -470,6 +472,7 @@ function TeamBookingsContent({
   proposalHealth: ProposalHealthEntry[]
   onConfirmAway: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   onConfirmHome: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
+  onVmPush: (bookingId: string, svrzPersistenceId?: string) => Promise<void>
   onRequestNewSlots: (opponentId: string | number) => Promise<void>
   onSaveOpponentNote: (opponentId: string | number, kscwNote: string) => Promise<void>
   onManualBooking: (
@@ -634,6 +637,7 @@ function TeamBookingsContent({
                     alsoProposedBy={(slotId) => homeAlsoProposedBy(slotId, oppIdOf(homeBooking))}
                     health={healthByBooking.get(String(homeBooking.id))}
                     onConfirm={onConfirmHome}
+                    onVmPush={onVmPush}
                     onRequestNewSlots={() => onRequestNewSlots(opp.id)}
                   />
                 ) : opp.new_slots_requested_at ? (

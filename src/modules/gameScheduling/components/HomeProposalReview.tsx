@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BookingStatusBadge from './BookingStatusBadge'
+import VmPushStatus from './VmPushStatus'
 import { formatDateCompactZurich } from '../../../utils/dateHelpers'
 import type { GameSchedulingBooking, GameSchedulingSlot, ProposalHealthEntry } from '../../../types'
 
@@ -15,6 +16,8 @@ interface Props {
   onConfirm: (bookingId: string, proposalNumber: number) => Promise<void>
   /** Semi-automatic re-request: email the opponent to pick 3 new slots. */
   onRequestNewSlots?: () => Promise<void>
+  /** (Re)push the confirmed date/time/hall into VolleyManager. */
+  onVmPush?: (bookingId: string, svrzPersistenceId?: string) => Promise<void>
 }
 
 const hm = (s?: string) => String(s || '').slice(0, 5)
@@ -37,7 +40,7 @@ const REASON_KEY: Record<string, string> = {
 // so each row shows its LIVE validity (taken / too close / hall closed / …) from
 // the proposal-health check; when all proposals are gone the admin can email the
 // opponent to pick 3 new ones (semi-automatic — confirmed here in the page).
-export default function HomeProposalReview({ booking, slotsById, hallsById, alsoProposedBy, health, onConfirm, onRequestNewSlots }: Props) {
+export default function HomeProposalReview({ booking, slotsById, hallsById, alsoProposedBy, health, onConfirm, onRequestNewSlots, onVmPush }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [confirming, setConfirming] = useState(false)
   const [askRequest, setAskRequest] = useState(false)
@@ -82,9 +85,12 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
   if (booking.status === 'confirmed') {
     const info = slotInfo(booking.slot)
     return (
-      <div className="flex items-center gap-2">
-        <BookingStatusBadge status="confirmed" />
-        {info && <span className="text-sm text-gray-600 dark:text-gray-400">{info.label}</span>}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <BookingStatusBadge status="confirmed" />
+          {info && <span className="text-sm text-gray-600 dark:text-gray-400">{info.label}</span>}
+        </div>
+        {onVmPush && <VmPushStatus booking={booking} onPush={onVmPush} />}
       </div>
     )
   }

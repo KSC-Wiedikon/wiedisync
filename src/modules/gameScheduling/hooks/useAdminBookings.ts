@@ -143,6 +143,19 @@ export function useAdminBookings(seasonId: string | undefined) {
     await fetchAll()
   }, [fetchAll])
 
+  // (Re)push a confirmed home booking's date/time/hall into VolleyManager.
+  // Pass svrzPersistenceId to resolve an ambiguous 'needs_pick' (choose the leg).
+  // The push runs fire-and-forget server-side; we refetch so the badge flips to
+  // 'queued', then again shortly after to catch the terminal status.
+  const vmPush = useCallback(async (bookingId: string, svrzPersistenceId?: string) => {
+    await kscwApi('/admin/terminplanung/vm-push', {
+      method: 'POST',
+      body: { booking_id: Number(bookingId), ...(svrzPersistenceId ? { svrz_persistence_id: svrzPersistenceId } : {}) },
+    })
+    await fetchAll()
+    setTimeout(() => { fetchAll() }, 6000)
+  }, [fetchAll])
+
   const generateSlots = useCallback(async (seasonIdParam: string) => {
     const resp = await kscwApi('/terminplanung/admin/generate-slots', {
       method: 'POST',
@@ -178,6 +191,7 @@ export function useAdminBookings(seasonId: string | undefined) {
     blockSlot,
     generateSlots,
     finalizeNotify,
+    vmPush,
     refetch: fetchAll,
   }
 }
