@@ -72,6 +72,12 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
         method: 'POST',
         body: { season_name: seasonName },
       })
+      // Also refresh VM team names/leagues (e.g. a junior team's Stärkeklasse
+      // rename DU23-1 → DU23-2). Admin-only + best-effort: a non-admin spielplaner
+      // gets 403 here, which we swallow so the SVRZ sync still counts as started.
+      try {
+        await kscwApi('/admin/vm-sync', { method: 'POST', body: {} })
+      } catch { /* non-admin or VM busy — SVRZ already started */ }
       toast.success(t('svrzSyncStarted'))
       // The sync runs in the background; refresh the summary once it's likely done.
       setTimeout(fetchSvrz, 8000)
