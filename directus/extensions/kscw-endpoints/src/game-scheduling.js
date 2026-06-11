@@ -1186,6 +1186,18 @@ export function registerGameScheduling(router, { database, logger, services, get
         strictSet.add(k)                        // proposals 1 & 2: any absence
         if (members.size >= 3) looseSet.add(k)  // proposal 3: only 3+ absent
       }
+      // Non-junior teams may not play away on Sundays (propose-away hard-rejects
+      // it) — grey out every Sunday in the season window so it's never offered.
+      if (!isJr) {
+        const sw = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
+        if (sw) {
+          let yEnd = parseInt(sw[2], 10); if (yEnd < 100) yEnd = 2000 + yEnd
+          const swEnd = new Date(`${yEnd}-03-31T00:00:00Z`)
+          for (const d = new Date(`${parseInt(sw[1], 10)}-09-01T00:00:00Z`); d <= swEnd; d.setUTCDate(d.getUTCDate() + 1)) {
+            if (d.getUTCDay() === 0) { const k = d.toISOString().slice(0, 10); strictSet.add(k); looseSet.add(k) }
+          }
+        }
+      }
       const blocked_away_strict = [...strictSet].sort()
       const blocked_away_loose = [...looseSet].sort()
 
@@ -1753,11 +1765,17 @@ export function registerGameScheduling(router, { database, logger, services, get
       const awaySeasonRow = await database('game_scheduling_seasons').where('id', opponent.season).first()
       const awayRueckStart = rueckrundeStart(awaySeasonRow)
       const awayDerbyAnchors = await confirmedDerbyAnchors(opponent.kscw_team, opponent.season, awayRueckStart)
+      const usedAwayDays = new Set()
       for (let i = 0; i < proposals.length; i++) {
         const p = proposals[i]
         if (!p.date || !DATE_RE.test(String(p.date))) {
           return res.status(400).json({ error: 'Each proposal needs a valid date (YYYY-MM-DD)' })
         }
+        const pDay = String(p.date).slice(0, 10)
+        if (usedAwayDays.has(pDay)) {
+          return res.status(400).json({ error: `${p.date} is the same day as another of your proposals — your dates must be on different days.` })
+        }
+        usedAwayDays.add(pDay)
         if (p.start_time && !TIME_RE.test(String(p.start_time))) {
           return res.status(400).json({ error: 'start_time must be HH:MM' })
         }
