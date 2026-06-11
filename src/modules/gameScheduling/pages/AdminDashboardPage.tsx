@@ -14,7 +14,7 @@ import ManualBookingForm from '../components/ManualBookingForm'
 import ExcelExportButton from '../components/ExcelExportButton'
 import SchedulingCalendar from '../components/SchedulingCalendar'
 import MailboxPanel from '../components/MailboxPanel'
-import { useMailbox, messagesForOpponent } from '../hooks/useMailbox'
+import { useMailbox, messagesForOpponent, type MailboxMessage } from '../hooks/useMailbox'
 import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
@@ -463,7 +463,7 @@ export default function AdminDashboardPage() {
                     onManualBooking={manualBooking}
                     onBlockSlot={blockSlot}
                     mailboxConfigured={mailbox.configured === true}
-                    emailCountFor={(opp) => messagesForOpponent(mailbox.messages, opp).length}
+                    emailsFor={(opp) => messagesForOpponent(mailbox.messages, opp)}
                     onOpenMailbox={setMailboxFocus}
                   />
                 </div>
@@ -504,7 +504,7 @@ function TeamBookingsContent({
   onSaveOpponentNote,
   onManualBooking,
   mailboxConfigured,
-  emailCountFor,
+  emailsFor,
   onOpenMailbox,
 }: {
   kscwTeamId: string
@@ -528,12 +528,22 @@ function TeamBookingsContent({
   ) => Promise<void>
   onBlockSlot: (slotId: string, action: 'block' | 'unblock') => Promise<void>
   mailboxConfigured: boolean
-  emailCountFor: (opp: GameSchedulingOpponent) => number
+  emailsFor: (opp: GameSchedulingOpponent) => MailboxMessage[]
   onOpenMailbox: (opp: GameSchedulingOpponent) => void
 }) {
   const { t } = useTranslation('gameScheduling')
   const { data: halls } = useHalls()
   const hallsById = new Map((halls || []).map((h) => [String(h.id), h.name]))
+
+  // Per-opponent inline email thread — collapsed by default so a long mail
+  // history doesn't bloat the card. Full read/reply still opens the bottom panel.
+  const [openEmails, setOpenEmails] = useState<Set<string>>(new Set())
+  const toggleEmails = (id: string) =>
+    setOpenEmails((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
 
   // SVRZ fixtures per opponent (the games still to schedule) — loaded lazily when
   // this team's accordion expands. Matched to opponent rows by normalised team
@@ -648,15 +658,25 @@ function TeamBookingsContent({
                     </button>
                   )}
                   {mailboxConfigured && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenMailbox(opp)}
-                      className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-                    >
-                      {emailCountFor(opp) > 0
-                        ? t('opponentEmails', { count: emailCountFor(opp) })
-                        : t('mailboxCompose')}
-                    </button>
+                    emailsFor(opp).length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleEmails(String(opp.id))}
+                        aria-expanded={openEmails.has(String(opp.id))}
+                        className="inline-flex items-center gap-0.5 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                      >
+                        {t('opponentEmails', { count: emailsFor(opp).length })}
+                        <span aria-hidden>{openEmails.has(String(opp.id)) ? '▾' : '▸'}</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onOpenMailbox(opp)}
+                        className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                      >
+                        {t('mailboxCompose')}
+                      </button>
+                    )
                   )}
                 </div>
                 <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -670,6 +690,30 @@ function TeamBookingsContent({
                 )}
               </div>
             </div>
+
+            {mailboxConfigured && openEmails.has(String(opp.id)) && emailsFor(opp).length > 0 && (
+              <div className="mb-3 divide-y divide-gray-100 rounded-md border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+                {emailsFor(opp).map((m) => {
+                  const unread = m.direction === 'in' && !m.read_at
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => onOpenMailbox(opp)}
+                      className="flex w-full items-start gap-2 px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    >
+                      <span className="whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">
+                        {m.date_sent ? formatDateTimeCompact(m.date_sent) : ''}
+                      </span>
+                      <span className={`min-w-0 flex-1 truncate text-xs ${unread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
+                        {m.direction === 'out' ? '→ ' : ''}{m.subject || t('mailboxNoSubject')}
+                      </span>
+                      {unread && <span aria-hidden className="mt-1 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-600" />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {/* Home game bookings — one block per fixture */}
