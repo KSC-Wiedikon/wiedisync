@@ -241,6 +241,7 @@ export default {
   conflictCrossTeam: 'Spieler us {{teams}} händ a dem Datum es anders Spiel.',
   conflictSatCap: 'Das Team het sis Limit a Heimspiel am Samschtig erreicht.',
   awayNoSunday: 'Auswärtsspiel am Sunntig sind für das Team nöd möglich.',
+  awayNoSaturday: 'Auswärtsspiel am Samschtig sind für das Team nöd möglich.',
   awayMaxOneSaturday: 'Höchschtens ei vo de vorgschlagene Auswärtstermin dörf en Samschtig sii.',
   invalidEmail: 'Bitte gib e gültigi E-Mail-Adrässe ii.',
   required: 'Das Feld muäss usgfüllt werde.',

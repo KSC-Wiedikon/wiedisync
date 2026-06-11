@@ -230,6 +230,7 @@ export default {
   conflictCrossTeam: 'Players from {{teams}} have another game on this date.',
   conflictSatCap: 'This team has reached its limit of Saturday home games.',
   awayNoSunday: 'Away games on Sundays are not possible for this team.',
+  awayNoSaturday: 'Away games on Saturdays are not possible for this team.',
   awayMaxOneSaturday: 'At most one of your proposed away dates may be a Saturday.',
   preferredSunday: 'Shared Sunday',
   invalidEmail: 'Please enter a valid email address.',

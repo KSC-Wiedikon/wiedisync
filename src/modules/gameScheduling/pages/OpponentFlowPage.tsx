@@ -195,6 +195,7 @@ export default function OpponentFlowPage() {
       case 'conflict_sat_cap': return t('conflictSatCap')
       case 'conflict_cross_team': return t('conflictCrossTeam', { teams: body?.teams || '' })
       case 'away_no_sunday': return t('awayNoSunday')
+      case 'away_no_saturday': return t('awayNoSaturday')
       case 'away_max_one_saturday': return t('awayMaxOneSaturday')
       case 'away_before_derby': return t('awayBeforeDerby')
       case 'slot_unavailable': return t('slotUnavailable')

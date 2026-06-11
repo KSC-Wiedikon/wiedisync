@@ -241,6 +241,7 @@ export default {
   conflictCrossTeam: 'Des joueurs de {{teams}} ont deja un match a cette date.',
   conflictSatCap: 'Cette equipe a atteint sa limite de matchs a domicile le samedi.',
   awayNoSunday: 'Les matchs a l\'exterieur le dimanche ne sont pas possibles pour cette equipe.',
+  awayNoSaturday: 'Les matchs a l\'exterieur le samedi ne sont pas possibles pour cette equipe.',
   awayMaxOneSaturday: 'Au maximum une des dates proposees a l\'exterieur peut etre un samedi.',
   invalidEmail: 'Veuillez saisir une adresse email valide.',
   required: 'Ce champ est requis.',

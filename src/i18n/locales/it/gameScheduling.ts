@@ -241,6 +241,7 @@ export default {
   conflictCrossTeam: 'I giocatori di {{teams}} hanno un\'altra partita in questa data.',
   conflictSatCap: 'Questa squadra ha raggiunto il limite di partite in casa al sabato.',
   awayNoSunday: 'Le partite in trasferta di domenica non sono possibili per questa squadra.',
+  awayNoSaturday: 'Le partite in trasferta di sabato non sono possibili per questa squadra.',
   awayMaxOneSaturday: 'Al massimo una delle date proposte in trasferta puo essere un sabato.',
   invalidEmail: 'Inserisci un indirizzo email valido.',
   required: 'Questo campo è obbligatorio.',
