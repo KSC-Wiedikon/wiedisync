@@ -53,8 +53,13 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
     const s = (typeof slotOrId === 'object' ? slotOrId : slotsById.get(String(slotOrId))) as GameSchedulingSlot | undefined
     if (!s) return null
     const hall = hallsById.get(String(s.hall))
+    // Weekday (Mon-Fri) home games are at 20:00 — the slot is just the hall
+    // window (e.g. 19:30-21:30). Weekend slots keep their window. Matches the
+    // calendar / export / emails / VM push.
+    const dow = new Date(`${String(s.date).slice(0, 10)}T00:00:00Z`).getUTCDay()
+    const timeLabel = dow >= 1 && dow <= 5 ? '20:00' : `${hm(s.start_time)}–${hm(s.end_time)}`
     return {
-      label: `${formatDateCompactZurich(s.date)} · ${hm(s.start_time)}–${hm(s.end_time)}${hall ? ` · ${hall}` : ''}`,
+      label: `${formatDateCompactZurich(s.date)} · ${timeLabel}${hall ? ` · ${hall}` : ''}`,
       available: s.status === 'available',
       ymd: String(s.date).slice(0, 10),
     }
