@@ -680,8 +680,12 @@ export interface ProposalHealthProposal {
   num: number
   slot_id: number
   valid: boolean
-  /** Short reason code when invalid: taken | team_event | team_block | hall_closed | too_close | derby | doltschi_cap | doltschi_taken */
+  /** Short reason code when invalid: taken | team_event | team_block | hall_closed | too_close | derby | doltschi_cap | doltschi_taken | cross_team */
   reason: string | null
+  /** For reason='cross_team': the KSCW team(s) already playing that day. */
+  teams?: string[]
+  /** For the lenient 3rd pick (num===3): players absent on that date (0 = none). */
+  absences?: number
 }
 
 export interface ProposalHealthEntry {

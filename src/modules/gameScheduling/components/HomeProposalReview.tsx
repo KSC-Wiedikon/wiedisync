@@ -169,10 +169,15 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
                 {info ? info.label : t('slotMaybeTaken')}
               </p>
               {!valid && (
-                <p className="text-xs text-red-600 dark:text-red-400">⚠ {t(reasonKey)}</p>
+                <p className="text-xs text-red-600 dark:text-red-400">
+                  ⚠ {t(reasonKey)}{hp?.reason === 'cross_team' && hp.teams?.length ? `: ${hp.teams.join(', ')}` : ''}
+                </p>
               )}
               {valid && others > 0 && (
                 <p className="text-xs text-orange-600 dark:text-orange-400">⚠ {t('slotAlsoProposed', { count: others })}</p>
+              )}
+              {p.num === 3 && (hp?.absences ?? 0) > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">{t('absentCount', { count: hp?.absences ?? 0 })}</p>
               )}
             </div>
             <button

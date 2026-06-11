@@ -698,22 +698,50 @@ export function registerGameScheduling(router, { database, logger, services, get
       const satDates = await committedSaturdayDates(teamId)
 
       // Cross-team (C1): exact dates any team sharing a person with this one is
-      // already committed to — those days are blocked for this team too.
+      // already committed to — those days are blocked for this team too. Keep the
+      // committing team id per day so the UI can say WHO conflicts.
       const sharedTeams = await sharedPlayerTeams(teamId)
-      const sharedCommitted = new Set()
+      const sharedCommitted = new Map() // 'YYYY-MM-DD' -> Set<teamId>
+      const sharedNames = new Map()     // teamId -> name
+      const addShared = (d, tid) => {
+        const k = String(d).slice(0, 10)
+        if (!sharedCommitted.has(k)) sharedCommitted.set(k, new Set())
+        sharedCommitted.get(k).add(tid)
+      }
       if (sharedTeams.length) {
+        ;(await database('teams').whereIn('id', sharedTeams).select('id', 'name'))
+          .forEach((t) => sharedNames.set(t.id, t.name))
         ;(await database('games').whereIn('kscw_team', sharedTeams).whereNotNull('date')
-          .select(database.raw('date::text as d'))).forEach((r) => sharedCommitted.add(String(r.d).slice(0, 10)))
+          .select('kscw_team', database.raw('date::text as d'))).forEach((r) => addShared(r.d, r.kscw_team))
         ;(await database('game_scheduling_slots').whereIn('kscw_team', sharedTeams).where('status', 'booked')
-          .select(database.raw('date::text as d'))).forEach((r) => sharedCommitted.add(String(r.d).slice(0, 10)))
+          .select('kscw_team', database.raw('date::text as d'))).forEach((r) => addShared(r.d, r.kscw_team))
         ;(await database('game_scheduling_bookings as bk')
           .join('game_scheduling_opponents as o', 'o.id', 'bk.opponent')
           .whereIn('o.kscw_team', sharedTeams).where('bk.type', 'away_proposal').where('bk.status', 'confirmed')
-          .select('bk.confirmed_proposal as n', database.raw('bk.proposed_datetime_1::text as d1'), database.raw('bk.proposed_datetime_2::text as d2'), database.raw('bk.proposed_datetime_3::text as d3')))
-          .forEach((r) => { const d = r[`d${r.n}`]; if (d) sharedCommitted.add(String(d).slice(0, 10)) })
+          .select('o.kscw_team as tid', 'bk.confirmed_proposal as n', database.raw('bk.proposed_datetime_1::text as d1'), database.raw('bk.proposed_datetime_2::text as d2'), database.raw('bk.proposed_datetime_3::text as d3')))
+          .forEach((r) => { const d = r[`d${r.n}`]; if (d) addShared(d, r.tid) })
       }
 
-      const ctx = { committedHome, committedProposal3, derbyAnchors, eventDates, blockDates, satCap, satDates, sharedCommitted }
+      // One-off blocking absences (affecting games) across this team's roster, so
+      // the lenient 3rd pick can show how many players would miss that date.
+      // (weekly recurrences + guests don't count — mirrors slots/:token abs_count.)
+      const absRows = await database('absences as a')
+        .join('member_teams as mt', 'mt.member', 'a.member')
+        .where('mt.team', teamId)
+        .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
+        .whereRaw("a.type IS DISTINCT FROM 'weekly'")
+        .whereRaw('a.blocking IS NOT FALSE')
+        .whereRaw('a.start_date IS NOT NULL AND a.end_date IS NOT NULL')
+        .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
+        .select('a.member', database.raw('a.start_date::text as s'), database.raw('a.end_date::text as e'))
+      const absences = absRows.map((r) => ({ m: r.member, s: String(r.s).slice(0, 10), e: String(r.e).slice(0, 10) }))
+      const absentCountOn = (day) => {
+        const ms = new Set()
+        for (const a of absences) if (a.s <= day && day <= a.e) ms.add(a.m)
+        return ms.size
+      }
+
+      const ctx = { committedHome, committedProposal3, derbyAnchors, eventDates, blockDates, satCap, satDates, sharedCommitted, sharedNames, absentCountOn }
       teamCache.set(teamId, ctx)
       return ctx
     }
@@ -730,7 +758,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         return { valid: false, reason: 'hall_closed' }
       }
       if (derbyDateBlocked(day, ctx.derbyAnchors, boundary)) return { valid: false, reason: 'derby' }
-      if (ctx.sharedCommitted.has(day)) return { valid: false, reason: 'cross_team' }
+      if (ctx.sharedCommitted.has(day)) {
+        return { valid: false, reason: 'cross_team', teams: [...ctx.sharedCommitted.get(day)].map((id) => ctx.sharedNames.get(id) || String(id)) }
+      }
       const gapSet = n < 3 ? ctx.committedHome : ctx.committedProposal3
       if (gapSet.has(day)) return { valid: false, reason: 'too_close' }
       if (isSaturday(day) && !ctx.satDates.has(day) && ctx.satDates.size >= ctx.satCap) {
@@ -751,7 +781,13 @@ export function registerGameScheduling(router, { database, logger, services, get
         const sid = b[`proposed_slot_${n}`]
         if (sid == null) continue
         const v = validate(ctx, sid, n)
-        proposals.push({ num: n, slot_id: sid, valid: v.valid, reason: v.reason })
+        const entry = { num: n, slot_id: sid, valid: v.valid, reason: v.reason }
+        if (v.reason === 'cross_team' && v.teams?.length) entry.teams = v.teams
+        if (n === 3) {
+          const slot = slotById.get(sid)
+          if (slot) entry.absences = ctx.absentCountOn(ymdOf(slot.date))
+        }
+        proposals.push(entry)
       }
       const aliveCount = proposals.filter((p) => p.valid).length
       out.push({
