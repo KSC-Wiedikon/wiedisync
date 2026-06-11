@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { gameStartForDate } from '../utils/slotTime'
 import BookingStatusBadge from './BookingStatusBadge'
 import VmPushStatus from './VmPushStatus'
 import { formatDateCompactZurich } from '../../../utils/dateHelpers'
@@ -20,7 +21,6 @@ interface Props {
   onVmPush?: (bookingId: string, svrzPersistenceId?: string) => Promise<void>
 }
 
-const hm = (s?: string) => String(s || '').slice(0, 5)
 
 // Map a server reason code → a localised label key.
 const REASON_KEY: Record<string, string> = {
@@ -53,13 +53,9 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
     const s = (typeof slotOrId === 'object' ? slotOrId : slotsById.get(String(slotOrId))) as GameSchedulingSlot | undefined
     if (!s) return null
     const hall = hallsById.get(String(s.hall))
-    // Weekday (Mon-Fri) home games are at 20:00 — the slot is just the hall
-    // window (e.g. 19:30-21:30). Weekend slots keep their window. Matches the
-    // calendar / export / emails / VM push.
-    const dow = new Date(`${String(s.date).slice(0, 10)}T00:00:00Z`).getUTCDay()
-    const timeLabel = dow >= 1 && dow <= 5 ? '20:00' : `${hm(s.start_time)}–${hm(s.end_time)}`
+    // Show only the game start (weekday → 20:00); never the hall-window range.
     return {
-      label: `${formatDateCompactZurich(s.date)} · ${timeLabel}${hall ? ` · ${hall}` : ''}`,
+      label: `${formatDateCompactZurich(s.date)} · ${gameStartForDate(s.date, s.start_time)}${hall ? ` · ${hall}` : ''}`,
       available: s.status === 'available',
       ymd: String(s.date).slice(0, 10),
     }

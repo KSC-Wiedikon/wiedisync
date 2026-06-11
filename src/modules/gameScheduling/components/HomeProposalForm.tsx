@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parseISO } from 'date-fns'
+import { gameStartForDate } from '../utils/slotTime'
 import { Calendar } from '@/components/ui/calendar'
 import { Button } from '@/components/ui/button'
 import Modal from '@/components/Modal'
@@ -26,7 +27,6 @@ interface TimeOption {
   strict: boolean
 }
 
-const hm = (s: string) => String(s || '').slice(0, 5)
 
 // "KWI A" + "KWI B" -> "KWI A/B"; otherwise join with " / ".
 function mergeHalls(names: string[]): string {
@@ -140,9 +140,9 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
 
   const slotLabel = (slotId: string) => {
     const s = slotById.get(slotId)
-    if (s) return `${formatDateLocale(parseISO(s.date), 'EEE d. MMM', i18n.language)} · ${hm(s.start_time)}–${hm(s.end_time)}${s.hall_name ? ` · ${s.hall_name}` : ''}`
+    if (s) return `${formatDateLocale(parseISO(s.date), 'EEE d. MMM', i18n.language)} · ${gameStartForDate(s.date, s.start_time)}${s.hall_name ? ` · ${s.hall_name}` : ''}`
     const p = proposedById.get(slotId)
-    if (p?.date) return `${formatDateLocale(parseISO(p.date), 'EEE d. MMM', i18n.language)} · ${hm(p.start || '')}–${hm(p.end || '')}${p.hall_name ? ` · ${p.hall_name}` : ''}`
+    if (p?.date) return `${formatDateLocale(parseISO(p.date), 'EEE d. MMM', i18n.language)} · ${gameStartForDate(p.date, p.start)}${p.hall_name ? ` · ${p.hall_name}` : ''}`
     return slotId
   }
 
@@ -247,7 +247,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
                       </span>
                       <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                         {opts.length === 1
-                          ? `${hm(opts[0].start_time)}–${hm(opts[0].end_time)} · ${opts[0].hallLabel}`
+                          ? `${gameStartForDate(dk, opts[0].start_time)} · ${opts[0].hallLabel}`
                           : t('nTimeOptions', { count: opts.length })}
                       </span>
                     </button>
@@ -274,7 +274,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
                 className="flex w-full items-center justify-between rounded-md border border-gray-200 px-3 py-3 text-sm hover:border-blue-500 hover:bg-blue-50 dark:border-gray-600 dark:hover:bg-blue-900/30"
               >
                 <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {hm(o.start_time)} – {hm(o.end_time)}
+                  {gameStartForDate(modalDate, o.start_time)}
                 </span>
                 <span className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                   {!o.strict && (

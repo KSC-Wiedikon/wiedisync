@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../../components/ui/button'
 import { fetchAllItems } from '../../../lib/api'
+import { gameStartForDow } from '../utils/slotTime'
 import type { Team, TeamSlotConfig } from '../../../types'
 
 interface Props {
@@ -63,7 +64,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
     const kwiOwn = mine.filter((s) => hm(s.end_time) === '21:30' && isKwi(s.hall?.name || ''))
     const usesDoltschi = mine.some((s) => s.sport === 'volleyball' && isDoltschi(s.hall?.name || ''))
     const isJr = /u\d/i.test(team.name || '')
-    const fmt = (s: HallSlotLite) => `${DAY[s.day_of_week]} ${hm(s.start_time)}–${hm(s.end_time)} · ${s.hall?.name}`
+    const fmt = (s: HallSlotLite) => `${DAY[s.day_of_week]} ${gameStartForDow(s.day_of_week, s.start_time)} · ${s.hall?.name}`
 
     // One merged "Döltschi" entry per day: a Döltschi date is a single slot
     // regardless of time (19:00 / 20:30) or hall (Döltschi 1 or 2). Show the
@@ -80,8 +81,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
       for (const day of [...byDay.keys()].sort((a, b) => a - b)) {
         const slots = byDay.get(day)!
         const start = slots.map((s) => hm(s.start_time)).sort()[0]
-        const end = slots.map((s) => hm(s.end_time)).sort().slice(-1)[0]
-        doltschiLabels.push(`${DAY[day]} ${start}–${end} · Döltschi`)
+        doltschiLabels.push(`${DAY[day]} ${gameStartForDow(day, start)} · Döltschi`)
       }
     }
     const hasPool = doltschiLabels.length > 0
