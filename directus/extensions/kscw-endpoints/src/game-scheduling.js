@@ -457,10 +457,20 @@ export function registerGameScheduling(router, { database, logger, services, get
     return !!doltschi
   }
 
+  // Per-team opt-out: teams.features_enabled.no_saturday_games → no Saturday games
+  // (home OR away). Already-confirmed Saturdays are untouched; just no NEW ones.
+  async function teamNoSaturday(teamId, db = database) {
+    const row = await db('teams').where('id', teamId).first('features_enabled')
+    let f = row?.features_enabled
+    if (typeof f === 'string') { try { f = JSON.parse(f) } catch { f = {} } }
+    return !!(f && f.no_saturday_games)
+  }
+
   // Effective max number of Saturday home games per season for a team:
-  //   junior → ∞ (A2), no evening slot → 3 (A4), otherwise → 2 (A1).
+  //   junior → ∞ (A2), flagged no_saturday_games → 0, no evening slot → 3 (A4), else 2 (A1).
   async function teamSaturdayCap(team, db = database) {
     if (isJuniorTeam(team?.name)) return Infinity
+    if (team?.id && (await teamNoSaturday(team.id, db))) return 0
     if (!(await hasEveningSlot(team.id, db))) return 3
     return 2
   }
@@ -1186,15 +1196,18 @@ export function registerGameScheduling(router, { database, logger, services, get
         strictSet.add(k)                        // proposals 1 & 2: any absence
         if (members.size >= 3) looseSet.add(k)  // proposal 3: only 3+ absent
       }
-      // Non-junior teams may not play away on Sundays (propose-away hard-rejects
-      // it) — grey out every Sunday in the season window so it's never offered.
-      if (!isJr) {
+      // Season-window day exclusions: non-junior teams never play away on Sundays
+      // (propose-away hard-rejects); teams flagged no_saturday_games never play
+      // away on Saturdays either. Grey them so they're never offered.
+      const noSatAway = await teamNoSaturday(opponent.kscw_team)
+      if (!isJr || noSatAway) {
         const sw = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
         if (sw) {
           let yEnd = parseInt(sw[2], 10); if (yEnd < 100) yEnd = 2000 + yEnd
           const swEnd = new Date(`${yEnd}-03-31T00:00:00Z`)
           for (const d = new Date(`${parseInt(sw[1], 10)}-09-01T00:00:00Z`); d <= swEnd; d.setUTCDate(d.getUTCDate() + 1)) {
-            if (d.getUTCDay() === 0) { const k = d.toISOString().slice(0, 10); strictSet.add(k); looseSet.add(k) }
+            const dow = d.getUTCDay()
+            if ((!isJr && dow === 0) || (noSatAway && dow === 6)) { const k = d.toISOString().slice(0, 10); strictSet.add(k); looseSet.add(k) }
           }
         }
       }
@@ -1742,7 +1755,11 @@ export function registerGameScheduling(router, { database, logger, services, get
         if (validDates.some((p) => isSunday(p.date))) {
           return res.status(400).json({ error: 'away_no_sunday' })
         }
-        if (validDates.filter((p) => isSaturday(p.date)).length > 1) {
+        const noSatProp = await teamNoSaturday(opponent.kscw_team)
+        if (noSatProp && validDates.some((p) => isSaturday(p.date))) {
+          return res.status(400).json({ error: 'away_no_saturday' })
+        }
+        if (!noSatProp && validDates.filter((p) => isSaturday(p.date)).length > 1) {
           return res.status(400).json({ error: 'away_max_one_saturday' })
         }
       }
@@ -3530,6 +3547,10 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!(await spielplanerCanManageTeam(req, opp.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
       await database('game_scheduling_opponents')
         .where('id', id).update({ status: 'revoked' })
+      // Clean up the revoked opponent's still-pending proposals so they don't
+      // linger as ghost slots on the calendar (confirmed bookings are kept).
+      await database('game_scheduling_bookings')
+        .where('opponent', id).where('status', 'pending').del()
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `invites revoke: ${err.message}`, endpoint: 'admin/terminplanung/invites/:id/revoke', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
