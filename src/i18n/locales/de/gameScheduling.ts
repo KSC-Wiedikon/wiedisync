@@ -282,6 +282,8 @@ export default {
   invitesEmailSent: '{{count}} Einladungs-E-Mails gesendet',
   invitesEmailFailed: '{{count}} konnten nicht gesendet werden',
   opponentContacts: 'Gegner-Kontakte',
+  contactCount_one: '{{count}} Kontakt',
+  contactCount_other: '{{count}} Kontakte',
   reloadSynced: 'Synchronisierte laden',
   refreshFromSvrzLive: 'Von SVRZ aktualisieren (live)',
   invitesAutoCreated: '{{count}} Einladungen automatisch hinzugefügt',

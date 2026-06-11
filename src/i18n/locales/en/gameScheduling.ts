@@ -282,6 +282,8 @@ export default {
   invitesEmailSent: '{{count}} invite emails sent',
   invitesEmailFailed: '{{count}} failed to send',
   opponentContacts: 'Opponent contacts',
+  contactCount_one: '{{count}} contact',
+  contactCount_other: '{{count}} contacts',
   reloadSynced: 'Reload synced',
   refreshFromSvrzLive: 'Refresh from SVRZ (live)',
   invitesAutoCreated: '{{count}} invites added automatically',

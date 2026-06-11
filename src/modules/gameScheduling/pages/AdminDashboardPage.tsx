@@ -545,6 +545,16 @@ function TeamBookingsContent({
       return next
     })
 
+  // Clubs can carry a dozen+ Spielplan contacts (comma-joined) — collapse the
+  // list by default so it doesn't balloon the card.
+  const [openContacts, setOpenContacts] = useState<Set<string>>(new Set())
+  const toggleContacts = (id: string) =>
+    setOpenContacts((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+
   // SVRZ fixtures per opponent (the games still to schedule) — loaded lazily when
   // this team's accordion expands. Matched to opponent rows by normalised team
   // name. Best-effort: a hiccup just hides the "N games" buttons.
@@ -679,12 +689,37 @@ function TeamBookingsContent({
                     )
                   )}
                 </div>
-                <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {opp.contact_name && <span>{opp.contact_name} </span>}
-                  <a href={buildMailtoHref(opp.contact_email)} className="hover:underline">
-                    ({opp.contact_email})
-                  </a>
-                </div>
+                {(() => {
+                  const contactEmails = String(opp.contact_email || '').split(',').map((s) => s.trim()).filter(Boolean)
+                  const idStr = String(opp.id)
+                  const collapsible = contactEmails.length > 1
+                  const open = openContacts.has(idStr)
+                  return (
+                    <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      {collapsible && (
+                        <button
+                          type="button"
+                          onClick={() => toggleContacts(idStr)}
+                          aria-expanded={open}
+                          className="inline-flex items-center gap-0.5 font-medium text-brand-600 hover:underline dark:text-brand-400"
+                        >
+                          {t('contactCount', { count: contactEmails.length })}
+                          <span aria-hidden>{open ? '▾' : '▸'}</span>
+                        </button>
+                      )}
+                      {(!collapsible || open) && (
+                        <div className={`break-words ${collapsible ? 'mt-1' : ''}`}>
+                          {opp.contact_name && <span>{opp.contact_name} </span>}
+                          {opp.contact_email && (
+                            <a href={buildMailtoHref(opp.contact_email)} className="hover:underline">
+                              ({opp.contact_email})
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
                 {opp.team_name && opp.team_name !== opp.club_name && (
                   <div className="text-xs text-gray-400 dark:text-gray-500">{opp.team_name}</div>
                 )}

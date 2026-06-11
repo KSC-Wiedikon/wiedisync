@@ -308,6 +308,8 @@ export default {
   invitesEmailSent: '{{count}} Iladigs-E-Mails gsändet',
   invitesEmailFailed: '{{count}} händ nöd chöne gsändet wärde',
   opponentContacts: 'Gägner-Kontäkt',
+  contactCount_one: '{{count}} Kontakt',
+  contactCount_other: '{{count}} Kontäkt',
   reloadSynced: 'Synchronisierti lade',
   refreshFromSvrzLive: 'Vo SVRZ aktualisiere (live)',
   invitesAutoCreated: '{{count}} Iladige automatisch dezuegfüegt',

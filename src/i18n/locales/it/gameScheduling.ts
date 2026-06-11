@@ -308,6 +308,8 @@ export default {
   invitesEmailSent: '{{count}} e-mail di invito inviate',
   invitesEmailFailed: '{{count}} non sono state inviate',
   opponentContacts: 'Contatti avversari',
+  contactCount_one: '{{count}} contatto',
+  contactCount_other: '{{count}} contatti',
   reloadSynced: 'Ricarica sincronizzati',
   refreshFromSvrzLive: 'Aggiorna da SVRZ (live)',
   invitesAutoCreated: '{{count}} inviti aggiunti automaticamente',
