@@ -1021,6 +1021,26 @@ export function registerGameScheduling(router, { database, logger, services, get
         sat.setUTCDate(sat.getUTCDate() - 1)
         return spielsamstagDates.has(sat.toISOString().slice(0, 10))
       }
+
+      // Cross-team rule — mirror the dashboard health-check + confirm guard: don't
+      // OFFER a home slot on a day a team sharing a player/coach with this team
+      // already plays, else the opponent picks a date we can never confirm. This
+      // filter was missing here, so blocked dates leaked into the pick page (an
+      // opponent could select e.g. a day a shared team already plays at Wetzikon).
+      const xTeams = await sharedPlayerTeams(opponent.kscw_team)
+      const xCommitted = new Set()
+      if (xTeams.length) {
+        ;(await database('games').whereIn('kscw_team', xTeams).whereNotNull('date')
+          .select(database.raw('date::text as d'))).forEach((r) => xCommitted.add(String(r.d).slice(0, 10)))
+        ;(await database('game_scheduling_slots').whereIn('kscw_team', xTeams).where('status', 'booked')
+          .select(database.raw('date::text as d'))).forEach((r) => xCommitted.add(String(r.d).slice(0, 10)))
+        ;(await database('game_scheduling_bookings as bk')
+          .join('game_scheduling_opponents as o', 'o.id', 'bk.opponent')
+          .whereIn('o.kscw_team', xTeams).where('bk.type', 'away_proposal').where('bk.status', 'confirmed')
+          .select('bk.confirmed_proposal as n', database.raw('bk.proposed_datetime_1::text as d1'), database.raw('bk.proposed_datetime_2::text as d2'), database.raw('bk.proposed_datetime_3::text as d3')))
+          .forEach((r) => { const d = r[`d${r.n}`]; if (d) xCommitted.add(String(d).slice(0, 10)) })
+      }
+
       // Two-tier home slots: a slot is OFFERED if it clears the LOOSE bar
       // (proposal-3 gap + <3 absences). `strict` marks the stricter bar (home
       // gap + 0 absences) required for home picks 1 & 2; pick 3 may use any
@@ -1031,6 +1051,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           const absCount = Number(s.abs_count || 0)
           if (committedProposal3.has(date) || absCount >= 3) return null
           if (derbyBlocked.has(date)) return null  // before the derby in this half (Art. 27)
+          if (xCommitted.has(date)) return null    // a shared-roster team plays that day (cross-team)
           const startHM = String(s.start_time).slice(0, 5)
           if (isDoltschiHall(s.hall)) {
             // Döltschi: drop if the season cap is reached, this date is already
