@@ -1041,6 +1041,13 @@ export function registerGameScheduling(router, { database, logger, services, get
           .forEach((r) => { const d = r[`d${r.n}`]; if (d) xCommitted.add(String(d).slice(0, 10)) })
       }
 
+      // Saturday cap (A1/A4) — once a team has used its Saturday home-game
+      // allotment, don't OFFER further Saturday slots (the health-check + confirm-
+      // home guard otherwise reject the pick → an un-confirmable date was offered).
+      const teamRowSat = await database('teams').where('id', opponent.kscw_team).first('id', 'name')
+      const satCap = await teamSaturdayCap(teamRowSat)
+      const satDates = await committedSaturdayDates(opponent.kscw_team)
+
       // Two-tier home slots: a slot is OFFERED if it clears the LOOSE bar
       // (proposal-3 gap + <3 absences). `strict` marks the stricter bar (home
       // gap + 0 absences) required for home picks 1 & 2; pick 3 may use any
@@ -1052,6 +1059,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           if (committedProposal3.has(date) || absCount >= 3) return null
           if (derbyBlocked.has(date)) return null  // before the derby in this half (Art. 27)
           if (xCommitted.has(date)) return null    // a shared-roster team plays that day (cross-team)
+          if (isSaturday(date) && !satDates.has(date) && satDates.size >= satCap) return null // Saturday home-game cap reached
           const startHM = String(s.start_time).slice(0, 5)
           if (isDoltschiHall(s.hall)) {
             // Döltschi: drop if the season cap is reached, this date is already
@@ -1149,6 +1157,10 @@ export function registerGameScheduling(router, { database, logger, services, get
       // Intra-club derby clamp — pre-derby dates hard-block every away proposal
       // too (merged into eventSet → lands in both strictSet and looseSet).
       for (const d of derbyBlocked) eventSet.add(d)
+      // Cross-team — a day a roster-sharing team already plays hard-blocks every
+      // away proposal too (propose-away/confirm-away reject it). Reuse the set
+      // built for the home offer above so both surfaces agree.
+      for (const d of xCommitted) eventSet.add(d)
       const absRows = await database('absences as a')
         .join('member_teams as mt', 'mt.member', 'a.member')
         .where('mt.team', opponent.kscw_team)
@@ -1320,6 +1332,13 @@ export function registerGameScheduling(router, { database, logger, services, get
       const homeSeasonRow = await database('game_scheduling_seasons').where('id', opponent.season).first()
       const homeRueckStart = rueckrundeStart(homeSeasonRow)
       const homeDerbyAnchors = await confirmedDerbyAnchors(opponent.kscw_team, opponent.season, homeRueckStart)
+      // Guards a stale page might bypass: the three picks must be on three
+      // DIFFERENT days (same-day/different-time makes no sense), within the
+      // Saturday cap, and clear of the cross-team same-day rule.
+      const usedDays = new Set()
+      const sharedTeamsHome = await sharedPlayerTeams(opponent.kscw_team)
+      const satCapHome = await teamSaturdayCap(homeTeam)
+      const satDatesHome = await committedSaturdayDates(opponent.kscw_team)
 
       for (let i = 0; i < 3; i++) {
         const slot = await database('game_scheduling_slots').where('id', ids[i]).first()
@@ -1330,6 +1349,18 @@ export function registerGameScheduling(router, { database, logger, services, get
           return res.status(400).json({ error: `Slot ${i + 1} is no longer available — please pick another.` })
         }
         const day = toYmd(slot.date)
+        if (usedDays.has(day)) {
+          return res.status(400).json({ error: `Slot ${i + 1} is on the same day as another of your picks — your three options must be on three different days.` })
+        }
+        usedDays.add(day)
+        if (isSaturday(day) && !satDatesHome.has(day) && satDatesHome.size >= satCapHome) {
+          return res.status(400).json({ error: `Slot ${i + 1} is a Saturday but this team has used its Saturday home-game allotment — please pick another.` })
+        }
+        const xConflict = await teamsCommittedOnDate(sharedTeamsHome, day, database)
+        if (xConflict.length) {
+          const xNames = await database('teams').whereIn('id', xConflict).pluck('name')
+          return res.status(400).json({ error: `Slot ${i + 1} is on a day a team sharing a player/coach already plays (${xNames.join(', ')}) — please pick another.` })
+        }
         // Juniors: the Friday Spielhalle pool and Sundays are last-resort — only
         // allowed as the 3rd pick (picks 1 & 2 = own slot / Spielsamstag / Döltschi).
         if (homeIsJr && i < 2 && (isSunday(day) || slot.source === 'spielhalle')) {

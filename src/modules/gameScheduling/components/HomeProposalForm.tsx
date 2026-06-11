@@ -76,7 +76,12 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
   const poolSlots = useMemo(() => {
     if (activeRow == null) return []
     const otherPicks = new Set(picks.filter((p, i) => p && i !== activeRow) as string[])
-    const avail = slots.filter((s) => !otherPicks.has(s.id))
+    // Exclude any DATE already used by another pick — the three options must be on
+    // three DIFFERENT days (same-day / different-time makes no sense).
+    const usedDates = new Set(
+      ([...otherPicks].map((id) => slotById.get(id)?.date).filter(Boolean)) as string[],
+    )
+    const avail = slots.filter((s) => !otherPicks.has(s.id) && !usedDates.has(s.date))
     if (activeRow < 2) return avail.filter((s) => s.strict)
     // Pick 3: offer only the highest-priority tier still available, so each lower
     // tier is used only when nothing better is left. Priority (juniors):
@@ -87,7 +92,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
       isSun(s) ? (s.preferred ? 3 : 4) : s.source === 'spielhalle' ? 2 : 1
     const best = avail.reduce((m, s) => Math.min(m, tier(s)), 5)
     return avail.filter((s) => tier(s) === best)
-  }, [slots, activeRow, picks])
+  }, [slots, activeRow, picks, slotById])
 
   // date -> time options, merging same date+time across halls (strict if any).
   const byDate = useMemo(() => {
