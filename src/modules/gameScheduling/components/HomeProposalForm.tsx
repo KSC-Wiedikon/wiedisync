@@ -57,6 +57,11 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
   const [submitting, setSubmitting] = useState(false)
 
   const slotById = useMemo(() => new Map(slots.map((s) => [s.id, s])), [slots])
+  // Smart slots: a team may have fewer than 3 offerable days (after cross-team,
+  // Saturday, derby, distinct-day… filters), so require only as many picks as
+  // there are available days — never a mandatory 3.
+  const availableDays = useMemo(() => new Set(slots.map((s) => s.date)).size, [slots])
+  const requiredPicks = Math.min(3, availableDays)
   // Fallback labels for already-proposed slots no longer in the available list
   // (e.g. booked by someone else since) — server-enriched on the pending booking.
   const proposedById = useMemo(() => {
@@ -82,6 +87,9 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
       ([...otherPicks].map((id) => slotById.get(id)?.date).filter(Boolean)) as string[],
     )
     const avail = slots.filter((s) => !otherPicks.has(s.id) && !usedDates.has(s.date))
+    // Smart: too few offerable days to satisfy the strict/lenient tiering — offer
+    // whatever's available for every pick.
+    if (availableDays < 3) return avail
     if (activeRow < 2) return avail.filter((s) => s.strict)
     // Pick 3: offer only the highest-priority tier still available, so each lower
     // tier is used only when nothing better is left. Priority (juniors):
@@ -92,7 +100,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
       isSun(s) ? (s.preferred ? 3 : 4) : s.source === 'spielhalle' ? 2 : 1
     const best = avail.reduce((m, s) => Math.min(m, tier(s)), 5)
     return avail.filter((s) => tier(s) === best)
-  }, [slots, activeRow, picks, slotById])
+  }, [slots, activeRow, picks, slotById, availableDays])
 
   // date -> time options, merging same date+time across halls (strict if any).
   const byDate = useMemo(() => {
@@ -151,18 +159,19 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
     return slotId
   }
 
-  const allFilled = picks.every(Boolean) && new Set(picks).size === 3
+  const filled = picks.filter(Boolean) as string[]
+  const allFilled = requiredPicks > 0 && filled.length === requiredPicks && new Set(filled).size === filled.length
 
   // Report the current picks upward (for a parent-owned combined submit).
   useEffect(() => {
-    onChange?.(allFilled ? (picks as string[]) : null)
+    onChange?.(allFilled ? filled : null)
   }, [picks, allFilled, onChange])
 
   const handleSubmit = async () => {
     if (!allFilled) return
     setSubmitting(true)
     try {
-      await onSubmit?.(picks as string[])
+      await onSubmit?.(filled)
     } finally {
       setSubmitting(false)
     }
@@ -301,7 +310,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-500 dark:text-gray-400">{t('homeProposalDesc')}</p>
-      {[0, 1, 2].map((i) => (
+      {[0, 1, 2].filter((i) => i < requiredPicks).map((i) => (
         <button
           key={i}
           type="button"

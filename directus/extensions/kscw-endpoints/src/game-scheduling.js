@@ -1312,10 +1312,12 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
 
       const ids = Array.isArray(req.body?.slot_ids) ? req.body.slot_ids.map((x) => Number(x)) : []
-      if (ids.length !== 3 || ids.some((x) => !Number.isInteger(x) || x <= 0)) {
-        return res.status(400).json({ error: 'exactly 3 slot_ids required' })
+      // 1-3 picks: when fewer than 3 slots are available a team may offer fewer
+      // (no mandatory 3). Each must be a positive integer and distinct.
+      if (ids.length < 1 || ids.length > 3 || ids.some((x) => !Number.isInteger(x) || x <= 0)) {
+        return res.status(400).json({ error: '1 to 3 slot_ids required' })
       }
-      if (new Set(ids).size !== 3) {
+      if (new Set(ids).size !== ids.length) {
         return res.status(400).json({ error: 'slot_ids must be distinct' })
       }
 
@@ -1365,7 +1367,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       const satCapHome = await teamSaturdayCap(homeTeam)
       const satDatesHome = await committedSaturdayDates(opponent.kscw_team)
 
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < ids.length; i++) {
         const slot = await database('game_scheduling_slots').where('id', ids[i]).first()
         if (!slot || slot.kscw_team !== opponent.kscw_team) {
           return res.status(400).json({ error: `Slot ${i + 1} is invalid` })
@@ -1388,7 +1390,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         }
         // Juniors: the Friday Spielhalle pool and Sundays are last-resort — only
         // allowed as the 3rd pick (picks 1 & 2 = own slot / Spielsamstag / Döltschi).
-        if (homeIsJr && i < 2 && (isSunday(day) || slot.source === 'spielhalle')) {
+        if (homeIsJr && i < 2 && ids.length === 3 && (isSunday(day) || slot.source === 'spielhalle')) {
           return res.status(400).json({ error: `Slot ${i + 1} must be the own slot, Spielsamstag or Döltschi — Friday Spielhalle and Sundays are only allowed as your 3rd choice.` })
         }
         const eventCover = await database('events as e')
@@ -1442,9 +1444,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         await database('game_scheduling_bookings').where('id', priorHome[0]).update({
           season: opponent.season,
           svrz_game_id: target.fixtureId,
-          proposed_slot_1: ids[0],
-          proposed_slot_2: ids[1],
-          proposed_slot_3: ids[2],
+          proposed_slot_1: ids[0] ?? null,
+          proposed_slot_2: ids[1] ?? null,
+          proposed_slot_3: ids[2] ?? null,
           confirmed_proposal: null,
           slot: null,
         })
@@ -1458,9 +1460,9 @@ export function registerGameScheduling(router, { database, logger, services, get
           type: 'home_slot_pick',
           status: 'pending',
           svrz_game_id: target.fixtureId,
-          proposed_slot_1: ids[0],
-          proposed_slot_2: ids[1],
-          proposed_slot_3: ids[2],
+          proposed_slot_1: ids[0] ?? null,
+          proposed_slot_2: ids[1] ?? null,
+          proposed_slot_3: ids[2] ?? null,
         })
       }
 
