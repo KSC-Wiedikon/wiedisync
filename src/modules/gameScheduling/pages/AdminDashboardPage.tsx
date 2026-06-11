@@ -12,7 +12,7 @@ import HomeProposalReview from '../components/HomeProposalReview'
 import OpponentNotes from '../components/OpponentNotes'
 import ManualBookingForm from '../components/ManualBookingForm'
 import ExcelExportButton from '../components/ExcelExportButton'
-import SchedulingCalendar from '../components/SchedulingCalendar'
+import SchedulingCalendar, { type IntraClubGame } from '../components/SchedulingCalendar'
 import MailboxPanel from '../components/MailboxPanel'
 import { useMailbox, messagesForOpponent, type MailboxMessage } from '../hooks/useMailbox'
 import { Badge } from '../../../components/ui/badge'
@@ -24,7 +24,7 @@ import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import { formatSeasonShort } from '../utils/formatSeason'
 import { formatDateCompactZurich, formatDateTimeCompact } from '../../../utils/dateHelpers'
 import { buildMailtoHref } from '../../../utils/sanitizeUrl'
-import { kscwApi } from '../../../lib/api'
+import { kscwApi, fetchAllItems } from '../../../lib/api'
 import { useHalls } from '../../../hooks/useData'
 import { isSchedulableTeam } from '../utils/schedulableTeams'
 
@@ -118,6 +118,19 @@ export default function AdminDashboardPage() {
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
   const mailbox = useMailbox(hasAdminAccessToSport('volleyball') || is_spielplaner)
+
+  // Intra-club games (e.g. the H1↔H3 derby) — not bookings, so they don't come
+  // through useAdminBookings. Surface them on the overview + per-team calendars.
+  const [derbyGames, setDerbyGames] = useState<IntraClubGame[]>([])
+  useEffect(() => {
+    if (!season?.season) { setDerbyGames([]); return }
+    let cancelled = false
+    fetchAllItems<IntraClubGame>('games', {
+      filter: { season: { _eq: season.season }, home_team: { _starts_with: 'KSC Wiedikon' }, away_team: { _starts_with: 'KSC Wiedikon' } },
+      fields: ['id', 'game_id', 'date', 'time', 'home_team', 'away_team', 'kscw_team', 'type'],
+    }).then((g) => { if (!cancelled) setDerbyGames(g) }).catch(() => { if (!cancelled) setDerbyGames([]) })
+    return () => { cancelled = true }
+  }, [season?.season])
   const [mailboxFocus, setMailboxFocus] = useState<GameSchedulingOpponent | null>(null)
 
   // Wrap confirm so a rejected booking (Saturday cap, cross-team, gap, Döltschi,
@@ -350,7 +363,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Season overview calendar — all proposed/confirmed/blocked slots */}
-      <SchedulingCalendar slots={slots} bookings={bookings} teams={volleyballTeams} season={season} showAbsences />
+      <SchedulingCalendar slots={slots} bookings={bookings} teams={volleyballTeams} season={season} games={derbyGames} showAbsences />
 
       {/* Team overview accordion */}
       <div className="space-y-3">
@@ -443,6 +456,7 @@ export default function AdminDashboardPage() {
                       bookings={getTeamBookings(team.id)}
                       teams={[team]}
                       season={season}
+                      games={derbyGames.filter((g) => String(g.kscw_team) === String(team.id))}
                       title={t('teamCalendarTitle')}
                       showAbsences
                     />

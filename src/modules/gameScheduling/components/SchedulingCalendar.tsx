@@ -20,6 +20,19 @@ type EntryKind =
   | 'away_proposed'
   | 'blocked'
 
+/** An intra-club game (e.g. the H1↔H3 derby) — not a booking; comes from `games`.
+ *  Rendered as a normal confirmed home/away game per the team's perspective. */
+export interface IntraClubGame {
+  id: number
+  game_id?: string | null
+  date: string
+  time?: string | null
+  home_team: string
+  away_team: string
+  kscw_team: number
+  type?: string | null
+}
+
 interface SchedEntry {
   id: string
   date: Date
@@ -51,6 +64,8 @@ interface Props {
   bookings: ExpandedBooking[]
   teams: Team[]
   season: GameSchedulingSeason
+  /** Intra-club games (derby) to surface on the calendar — not bookings. */
+  games?: IntraClubGame[]
   // Heading text — defaults to the season-wide overview title. Pass a
   // team-scoped title when rendering this inside a single team's panel.
   title?: string
@@ -93,7 +108,7 @@ const CHIP: Record<EntryKind, string> = {
   blocked: 'bg-gray-300 text-gray-600 line-through dark:bg-gray-600 dark:text-gray-300',
 }
 
-export default function SchedulingCalendar({ slots, bookings, teams, season, title, showAbsences }: Props) {
+export default function SchedulingCalendar({ slots, bookings, teams, season, games = [], title, showAbsences }: Props) {
   const { t } = useTranslation('gameScheduling')
 
   const teamName = useMemo(() => {
@@ -326,8 +341,26 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, tit
         }
       }
     }
+
+    // Intra-club games (e.g. the H1↔H3 derby) — not bookings, so they arrive via
+    // `games` (one row per team's perspective). Render each as a normal confirmed
+    // home/away game so they look like every other game on the calendar.
+    const shortName = (n: string) => String(n).replace(/^KSC Wiedikon\s+/, '')
+    for (const g of games) {
+      const d = parseYmd(g.date)
+      if (!d) continue
+      const me = teamName(g.kscw_team)
+      const isHome = g.type !== 'away'
+      const opp = shortName(isHome ? g.away_team : g.home_team)
+      const time = g.time ? hhmm(g.time) : ''
+      if (isHome) {
+        out.push({ id: `g-${g.id}`, date: d, kind: 'home_confirmed', label: me, teamId: String(g.kscw_team), time, opponent: opp, title: `${t('legendHomeConfirmed')}: ${me} vs ${opp}` })
+      } else {
+        out.push({ id: `g-${g.id}`, date: d, kind: 'away_confirmed', label: `@${me}`, teamId: String(g.kscw_team), time, opponent: opp, title: `${t('legendAwayConfirmed')}: ${me} @ ${opp}` })
+      }
+    }
     return out
-  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t])
+  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games])
 
   // Teams that actually appear in the calendar, for the filter chips.
   const filterableTeams = useMemo(() => {

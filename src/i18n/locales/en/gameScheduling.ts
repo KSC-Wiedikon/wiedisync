@@ -7,6 +7,7 @@ export default {
   legendHomeProposed: 'Home (proposed)',
   legendAwayProposed: 'Away (proposed)',
   legendBlocked: 'Blocked',
+  legendDerby: 'Derby',
   legendOpen: 'Open slots',
   legendClosed: 'Hall closed',
   hallClosure: 'Hall closure',
