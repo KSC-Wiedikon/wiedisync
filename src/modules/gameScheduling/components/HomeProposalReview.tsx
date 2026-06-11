@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { gameStartForDate } from '../utils/slotTime'
 import BookingStatusBadge from './BookingStatusBadge'
 import VmPushStatus from './VmPushStatus'
-import { formatDateCompactZurich } from '../../../utils/dateHelpers'
+import { formatDateCompactZurich, formatWeekdayZurich } from '../../../utils/dateHelpers'
 import type { GameSchedulingBooking, GameSchedulingSlot, ProposalHealthEntry } from '../../../types'
 
 interface Props {
@@ -55,7 +55,7 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
     const hall = hallsById.get(String(s.hall))
     // Show only the game start (weekday → 20:00); never the hall-window range.
     return {
-      label: `${formatDateCompactZurich(s.date)} · ${gameStartForDate(s.date, s.start_time)}${hall ? ` · ${hall}` : ''}`,
+      label: `${formatWeekdayZurich(s.date)} ${formatDateCompactZurich(s.date)} · ${gameStartForDate(s.date, s.start_time)}${hall ? ` · ${hall}` : ''}`,
       available: s.status === 'available',
       ymd: String(s.date).slice(0, 10),
     }

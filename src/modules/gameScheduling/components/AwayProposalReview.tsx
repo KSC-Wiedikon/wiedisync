@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BookingStatusBadge from './BookingStatusBadge'
+import { formatWeekdayZurich } from '../../../utils/dateHelpers'
 import type { GameSchedulingBooking } from '../../../types'
 
 interface Props {
@@ -16,7 +17,9 @@ function fmtProposal(iso: string | null | undefined): string {
   const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/)
   if (!m) return String(iso)
   const [, y, mo, d, hh, mm] = m
-  return hh ? `${d}.${mo}.${y} ${hh}:${mm}` : `${d}.${mo}.${y}`
+  const dow = formatWeekdayZurich(`${y}-${mo}-${d}`)
+  const date = `${dow} ${d}.${mo}.${y}`
+  return hh ? `${date} ${hh}:${mm}` : date
 }
 
 export default function AwayProposalReview({ booking, onConfirm }: Props) {
