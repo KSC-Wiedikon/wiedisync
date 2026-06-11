@@ -295,6 +295,9 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     for (const s of slots) {
       const d = parseYmd(s.date)
       if (!d) continue
+      // 'derby' slots only RESERVE the hall — the matchup is shown via the games
+      // table (intra-club), so don't render them here (would double the entry).
+      if ((s as { source?: string }).source === 'derby') continue
       const team = teamName(s.kscw_team)
       const tid = String(s.kscw_team ?? '')
       if (s.status === 'booked') {
