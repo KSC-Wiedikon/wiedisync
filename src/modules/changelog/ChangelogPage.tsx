@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.28.0'
+const APP_VERSION = '4.29.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '4.29.0',
+    date: '12.06.2026',
+    sections: [
+      {
+        title: 'Scheduled games on your calendar',
+        items: [
+          'Games booked through the scheduling tool now appear on the app calendars right away — no more waiting for the official Swiss Volley feed.',
+        ],
+      },
+      {
+        title: 'Scheduling dashboard',
+        items: [
+          'New "Available slots" view per team: every still-offerable home date with its booking conditions, plus the dates the team cannot play away — copy it as text for an opponent email or download it as CSV.',
+          'The games list per opponent now shows each fixture\'s official SVRZ game number and no longer squeezes long names into one line.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.28.0',
     date: '10.06.2026',
