@@ -122,6 +122,7 @@ export default function AdminDashboardPage() {
   const { data: teams } = useTeams()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
   const mailbox = useMailbox(hasAdminAccessToSport('volleyball') || is_spielplaner)
 
   // Intra-club games (e.g. the H1↔H3 derby) — not bookings, so they don't come
@@ -232,6 +233,44 @@ export default function AdminDashboardPage() {
       const opp = typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent) : null
       return opp ? String(opp.kscw_team) === String(teamId) : false
     })
+
+  // Dashboard search: matches opponent/club/contact names and any booking date
+  // of the opponent (booked or proposed, home or away) in dd.mm.yyyy, dd.mm.yy
+  // and yyyy-mm-dd forms. Active search filters the accordion to matching
+  // opponent cards and force-expands the teams that still have matches.
+  const searchQuery = search.trim().toLowerCase()
+  const slotByIdAll = new Map(slots.map(s => [String(s.id), s]))
+  const dateForms = (ymd: unknown): string[] => {
+    const m = String(ymd ?? '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    return m ? [`${m[3]}.${m[2]}.${m[1]}`, `${m[3]}.${m[2]}.${m[1].slice(2)}`, `${m[1]}-${m[2]}-${m[3]}`] : []
+  }
+  const opponentSearchText = (opp: GameSchedulingOpponent): string => {
+    const parts: string[] = [opp.team_name || '', opp.club_name || '', opp.contact_name || '', opp.contact_email || '']
+    for (const b of bookings) {
+      const oid = typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent
+      if (String(oid) !== String(opp.id)) continue
+      const rec = b as unknown as Record<string, unknown>
+      if (b.type === 'home_slot_pick') {
+        for (const key of ['slot', 'proposed_slot_1', 'proposed_slot_2', 'proposed_slot_3']) {
+          const ref = rec[key]
+          if (ref == null) continue
+          const sl = typeof ref === 'object' ? (ref as GameSchedulingSlot) : slotByIdAll.get(String(ref))
+          if (sl?.date) parts.push(...dateForms(sl.date))
+        }
+      } else {
+        for (const n of [1, 2, 3]) {
+          const dt = rec[`proposed_datetime_${n}`]
+          if (dt) parts.push(...dateForms(String(dt)))
+        }
+      }
+    }
+    return parts.join(' ').toLowerCase()
+  }
+  const opponentMatches = (opp: GameSchedulingOpponent) => !searchQuery || opponentSearchText(opp).includes(searchQuery)
+  const teamMatchedOpponents = (teamId: string) => getTeamOpponents(teamId).filter(opponentMatches)
+  const visibleTeams = searchQuery
+    ? volleyballTeams.filter(team => teamMatchedOpponents(team.id).length > 0)
+    : volleyballTeams
 
   // Opponents (excluding revoked/expired) still missing a confirmed home or away
   // leg — mirrors the backend's "Noch offen" count for the finalize warning.
@@ -370,11 +409,31 @@ export default function AdminDashboardPage() {
       {/* Season overview calendar — all proposed/confirmed/blocked slots */}
       <SchedulingCalendar slots={slots} bookings={bookings} teams={volleyballTeams} season={season} games={derbyGames} showAbsences />
 
+      {/* Search across all teams: opponent / club / contact / booking dates */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('searchPlaceholder')}
+          aria-label={t('searchPlaceholder')}
+          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none sm:max-w-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
+        />
+        {searchQuery && (
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {t('searchMatchCount', { count: visibleTeams.reduce((n, team) => n + teamMatchedOpponents(team.id).length, 0) })}
+          </span>
+        )}
+      </div>
+
       {/* Team overview accordion */}
       <div className="space-y-3">
-        {volleyballTeams.map(team => {
+        {searchQuery && visibleTeams.length === 0 && (
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('searchNoResults')}</p>
+        )}
+        {visibleTeams.map(team => {
           const stats = teamStats(team.id)
-          const isExpanded = expandedTeam === team.id
+          const isExpanded = searchQuery ? true : expandedTeam === team.id
 
           return (
             <div
@@ -435,9 +494,11 @@ export default function AdminDashboardPage() {
                 </div>
               </button>
 
-              {/* Expanded content */}
+              {/* Expanded content — while searching, skip the calendar +
+                  finalize row so the matching opponent cards stand alone. */}
               {isExpanded && (
                 <div className="border-t border-gray-200 px-4 py-4 dark:border-gray-700">
+                  {!searchQuery && (
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       {teamPending(team.id) > 0
@@ -461,8 +522,10 @@ export default function AdminDashboardPage() {
                       </button>
                     </div>
                   </div>
+                  )}
                   {/* This team's own calendar — proposed + confirmed home/away
                       games, blocked + open slots, scoped to the team. */}
+                  {!searchQuery && (
                   <div className="mb-4">
                     <SchedulingCalendar
                       slots={getTeamSlots(team.id)}
@@ -474,11 +537,12 @@ export default function AdminDashboardPage() {
                       showAbsences
                     />
                   </div>
+                  )}
                   <TeamBookingsContent
                     kscwTeamId={team.id}
                     kscwTeamName={team.name}
                     seasonId={season.id}
-                    opponents={getTeamOpponents(team.id)}
+                    opponents={searchQuery ? teamMatchedOpponents(team.id) : getTeamOpponents(team.id)}
                     bookings={bookings}
                     slots={getTeamSlots(team.id)}
                     proposalHealth={proposalHealth}

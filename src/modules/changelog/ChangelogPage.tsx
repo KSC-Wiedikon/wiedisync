@@ -26,6 +26,7 @@ const CHANGELOG: ChangelogEntry[] = [
         items: [
           'New "Available slots" view per team: every still-offerable home date with its booking conditions, plus the dates the team cannot play away — copy it as text for an opponent email or download it as CSV.',
           'The games list per opponent now shows each fixture\'s official SVRZ game number and no longer squeezes long names into one line.',
+          'New search box: find an opponent card by team, club, contact or any booked/proposed date across all teams.',
         ],
       },
     ],

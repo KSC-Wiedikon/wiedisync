@@ -398,6 +398,11 @@ export default {
   gameN: 'Match {{number}}',
   gameNumberHint: 'Numéro de match SVRZ',
   duplicateSlotAcrossGames: 'Chaque match a besoin de ses propres créneaux — merci de choisir des créneaux différents pour chaque match.',
+  // Dashboard search
+  searchPlaceholder: 'Rechercher un adversaire, un contact ou une date…',
+  searchNoResults: 'Aucun adversaire ne correspond à la recherche',
+  searchMatchCount_one: '{{count}} résultat',
+  searchMatchCount_other: '{{count}} résultats',
   // Per-team availability dialog (admin)
   availableSlots: 'Créneaux disponibles',
   availableSlotsTitle: 'Créneaux disponibles — {{team}}',

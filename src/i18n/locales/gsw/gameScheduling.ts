@@ -399,6 +399,11 @@ export default {
   gameN: 'Spiel {{number}}',
   gameNumberHint: 'SVRZ-Spielnummere',
   duplicateSlotAcrossGames: 'Jedes Spiel bruucht eigeni Slots — bitte wähl für jedes Spiel anderi Slots.',
+  // Dashboard search
+  searchPlaceholder: 'Gegner, Kontakt oder Datum sueche…',
+  searchNoResults: 'Kei Gegner passed zu de Suechi',
+  searchMatchCount_one: '{{count}} Treffer',
+  searchMatchCount_other: '{{count}} Treffer',
   // Per-team availability dialog (admin)
   availableSlots: 'Verfüegbari Slots',
   availableSlotsTitle: 'Verfüegbari Slots — {{team}}',
