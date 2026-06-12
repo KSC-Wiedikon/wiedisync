@@ -12,6 +12,7 @@ import HomeProposalReview from '../components/HomeProposalReview'
 import OpponentNotes from '../components/OpponentNotes'
 import ManualBookingForm from '../components/ManualBookingForm'
 import ExcelExportButton from '../components/ExcelExportButton'
+import TeamAvailabilityDialog from '../components/TeamAvailabilityDialog'
 import SchedulingCalendar, { type IntraClubGame } from '../components/SchedulingCalendar'
 import MailboxPanel from '../components/MailboxPanel'
 import { useMailbox, messagesForOpponent, type MailboxMessage } from '../hooks/useMailbox'
@@ -32,6 +33,8 @@ import { isSchedulableTeam } from '../utils/schedulableTeams'
 interface OpponentGame {
   /** svrz_games.svrz_persistence_id — the key bookings attach to (multi-game pairings). */
   svrz_game_id?: string | null
+  /** Official SVRZ game number (svrz_games.svrz_number), e.g. 406192. */
+  number?: string | number | null
   date: string | null
   display_name: string | null
   is_home_kscw: boolean
@@ -49,6 +52,8 @@ interface SvrzClub {
 interface FixtureLeg {
   key: string
   svrzGameId: string | null
+  /** Official SVRZ game number, shown next to the "Game N" label. */
+  number: string | number | null
   seq: number
   sideCount: number
   booking?: ExpandedBooking
@@ -69,14 +74,14 @@ function buildFixtureLegs(oppGames: OpponentGame[], oppBookings: ExpandedBooking
       : undefined
     if (!bk && i === 0) bk = sideBookings.find((b) => b.svrz_game_id == null && !used.has(String(b.id)))
     if (bk) used.add(String(bk.id))
-    return { key: String(g.svrz_game_id ?? `fixture-${i}`), svrzGameId: g.svrz_game_id ?? null, seq: i + 1, sideCount: side.length, booking: bk }
+    return { key: String(g.svrz_game_id ?? `fixture-${i}`), svrzGameId: g.svrz_game_id ?? null, number: g.number ?? null, seq: i + 1, sideCount: side.length, booking: bk }
   })
   for (const b of sideBookings) {
     if (used.has(String(b.id))) continue
-    legs.push({ key: `bk-${b.id}`, svrzGameId: b.svrz_game_id ?? null, seq: legs.length + 1, sideCount: side.length, booking: b })
+    legs.push({ key: `bk-${b.id}`, svrzGameId: b.svrz_game_id ?? null, number: null, seq: legs.length + 1, sideCount: side.length, booking: b })
   }
   if (legs.length === 0) {
-    legs.push({ key: isHome ? 'legacy-home' : 'legacy-away', svrzGameId: null, seq: 1, sideCount: 1 })
+    legs.push({ key: isHome ? 'legacy-home' : 'legacy-away', svrzGameId: null, number: null, seq: 1, sideCount: 1 })
   }
   return legs.map((l) => ({ ...l, sideCount: legs.length }))
 }
@@ -439,14 +444,22 @@ export default function AdminDashboardPage() {
                         ? t('finalizeNotifyPending', { count: teamPending(team.id) })
                         : t('finalizeNotifyReady')}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => handleFinalizeNotify(team.id, teamPending(team.id))}
-                      disabled={notifyingTeam === team.id || stats.opponents === 0}
-                      className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                    >
-                      {notifyingTeam === team.id ? t('finalizeNotifySending') : t('finalizeNotify')}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <TeamAvailabilityDialog
+                        kscwTeamId={team.id}
+                        kscwTeamName={team.name}
+                        seasonId={season.id}
+                        seasonName={season.season}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleFinalizeNotify(team.id, teamPending(team.id))}
+                        disabled={notifyingTeam === team.id || stats.opponents === 0}
+                        className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                      >
+                        {notifyingTeam === team.id ? t('finalizeNotifySending') : t('finalizeNotify')}
+                      </button>
+                    </div>
                   </div>
                   {/* This team's own calendar — proposed + confirmed home/away
                       games, blocked + open slots, scoped to the team. */}
@@ -771,9 +784,10 @@ function TeamBookingsContent({
                 <div className="space-y-3">
                   {homeLegs.map((leg) => (
                     <div key={leg.key}>
-                      {leg.sideCount > 1 && (
+                      {(leg.sideCount > 1 || leg.number != null) && (
                         <p className="mb-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
-                          {t('gameN', { number: leg.seq })}
+                          {leg.sideCount > 1 ? t('gameN', { number: leg.seq }) : t('manualHomeGame')}
+                          {leg.number != null && <span className="font-normal"> · #{leg.number}</span>}
                         </p>
                       )}
                       {leg.booking ? (
@@ -805,9 +819,10 @@ function TeamBookingsContent({
                 <div className="space-y-3">
                   {awayLegs.map((leg) => (
                     <div key={leg.key}>
-                      {leg.sideCount > 1 && (
+                      {(leg.sideCount > 1 || leg.number != null) && (
                         <p className="mb-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
-                          {t('gameN', { number: leg.seq })}
+                          {leg.sideCount > 1 ? t('gameN', { number: leg.seq }) : t('manualAwayGame')}
+                          {leg.number != null && <span className="font-normal"> · #{leg.number}</span>}
                         </p>
                       )}
                       {leg.booking ? (
@@ -849,27 +864,36 @@ function TeamBookingsContent({
       })}
     </div>
 
-    {/* SVRZ fixtures for one opponent (the games still to schedule). */}
+    {/* SVRZ fixtures for one opponent (the games still to schedule). Each row
+        stacks date+number / matchup on separate lines so nothing is squeezed
+        into a wide single line. */}
     <Dialog open={!!gamesFor} onOpenChange={(o) => { if (!o) setGamesFor(null) }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{gamesFor?.label}</DialogTitle>
           <DialogDescription>
             {t('gameCount', { count: gamesFor?.games.length ?? 0 })}
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-[60vh] overflow-y-auto">
+        <div className="max-h-[65vh] overflow-y-auto">
           <Table>
             <TableBody>
               {(gamesFor?.games ?? []).map((g, i) => (
                 <TableRow key={i}>
-                  <TableCell className="whitespace-nowrap font-medium">
-                    {g.date ? formatDateTimeCompact(g.date) : '—'}
-                  </TableCell>
-                  <TableCell className="text-gray-600 dark:text-gray-400">
-                    {g.is_home_kscw
-                      ? `KSCW ${kscwTeamName} vs ${gamesFor?.label ?? ''}`
-                      : `${gamesFor?.label ?? ''} vs KSCW ${kscwTeamName}`}
+                  <TableCell className="py-2.5">
+                    <p className="font-medium">
+                      {g.date ? formatDateTimeCompact(g.date) : '—'}
+                      {g.number != null && (
+                        <span className="ml-2 font-normal text-gray-400 dark:text-gray-500" title={t('gameNumberHint')}>
+                          #{g.number}
+                        </span>
+                      )}
+                    </p>
+                    <p className="break-words whitespace-normal text-gray-600 dark:text-gray-400">
+                      {g.is_home_kscw
+                        ? `KSCW ${kscwTeamName} vs ${gamesFor?.label ?? ''}`
+                        : `${gamesFor?.label ?? ''} vs KSCW ${kscwTeamName}`}
+                    </p>
                   </TableCell>
                 </TableRow>
               ))}

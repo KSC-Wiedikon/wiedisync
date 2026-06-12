@@ -872,6 +872,388 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // ── Admin: full availability picture for one team ─────────────────────────
+  // Mirrors the offer computation of GET /terminplanung/slots/:token (keep the
+  // two in sync!) but with no opponent context: every pending first-proposal
+  // hold counts as taken (no excludeOpponent) — the conservative view a
+  // spielplaner can email to any opponent. Returns the offered home slots
+  // tiered strict / 3rd-pick-only plus the blocked away-date sets.
+  async function computeTeamAvailability(seasonRow, teamRow) {
+    const seasonId = seasonRow.id
+    const teamId = teamRow.id
+    const gaps = await seasonGaps(seasonId)
+    const held = { includeHeld: true }
+    const committedHome = await committedGameDates(teamId, gaps.home, held)
+    const committedProposal = await committedGameDates(teamId, gaps.proposal, held)
+    const committedProposal3 = await committedGameDates(teamId, gaps.proposal3, held)
+
+    const rueckStart = rueckrundeStart(seasonRow)
+    const derbyAnchors = await confirmedDerbyAnchors(teamId, seasonId, rueckStart)
+    const derbyBlocked = buildDerbyBlockedSet(derbyAnchors, rueckStart, seasonRow)
+
+    const DOLTSCHI_SEASON_CAP = 10
+    const doltschiHallIds = await database('halls')
+      .whereRaw("LOWER(name) LIKE '%döltschi%' OR LOWER(name) LIKE '%doltschi%'").pluck('id')
+    const isDoltschiHall = (h) => h != null && doltschiHallIds.includes(h)
+    let doltschiFull = false
+    const doltschiTakenDates = new Set()
+    if (doltschiHallIds.length) {
+      const bookedDoltschi = await database('game_scheduling_slots')
+        .where('season', String(seasonId)).where('status', 'booked')
+        .whereIn('hall', doltschiHallIds)
+        .select(database.raw('date::text as d'))
+      doltschiFull = bookedDoltschi.length >= DOLTSCHI_SEASON_CAP
+      for (const r of bookedDoltschi) doltschiTakenDates.add(String(r.d).slice(0, 10))
+    }
+    const offeredDoltschiDates = new Set()
+
+    const slotRows = await database('game_scheduling_slots')
+      .where('kscw_team', teamId)
+      .where('status', 'available')
+      .whereNotExists(function () {
+        this.select(database.raw('1'))
+          .from('events as e')
+          .join('events_teams as et', 'et.events_id', 'e.id')
+          .whereRaw('et.teams_id = ?', [teamId])
+          .whereRaw(
+            'game_scheduling_slots.date BETWEEN ' +
+            "(e.start_date AT TIME ZONE 'Europe/Zurich')::date " +
+            "AND (COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date"
+          )
+      })
+      .whereNotExists(function () {
+        this.select(database.raw('1'))
+          .from('scheduling_blocks as sb')
+          .whereRaw('sb.team = ?', [teamId])
+          .whereRaw('game_scheduling_slots.date BETWEEN sb.start_date AND sb.end_date')
+      })
+      .whereNotExists(function () {
+        this.select(database.raw('1'))
+          .from('hall_closures as hc')
+          .whereRaw('hc.hall = game_scheduling_slots.hall')
+          .whereRaw('game_scheduling_slots.date BETWEEN hc.start_date AND hc.end_date')
+      })
+      .select('game_scheduling_slots.*', database.raw(
+        '(SELECT count(DISTINCT a.member) FROM absences a ' +
+        'JOIN member_teams mt ON mt.member = a.member ' +
+        'WHERE mt.team = ? AND (mt.guest_level = 0 OR mt.guest_level IS NULL) ' +
+        "AND a.type IS DISTINCT FROM 'weekly' " +
+        'AND a.blocking IS NOT FALSE ' +
+        'AND a.start_date::date <= game_scheduling_slots.date AND a.end_date::date >= game_scheduling_slots.date ' +
+        "AND (a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')) as abs_count",
+        [teamId],
+      ))
+      .orderBy('date')
+
+    const hallNameById = {}
+    ;(await database('halls').select('id', 'name')).forEach((h) => { hallNameById[h.id] = h.name })
+    const ymd = (v) => {
+      if (typeof v === 'string') return v.slice(0, 10)
+      const d = new Date(v)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
+    const isJr = isJuniorTeam(teamRow.name)
+    const spielsamstagDates = new Set(
+      (Array.isArray(seasonRow?.spielsamstage)
+        ? seasonRow.spielsamstage
+        : (() => { try { return JSON.parse(seasonRow?.spielsamstage || '[]') } catch { return [] } })())
+        .map((x) => String(x?.date || '').slice(0, 10)).filter(Boolean),
+    )
+    const isSpielsamstagWeekendSunday = (date) => {
+      const sat = new Date(`${date}T00:00:00Z`)
+      sat.setUTCDate(sat.getUTCDate() - 1)
+      return spielsamstagDates.has(sat.toISOString().slice(0, 10))
+    }
+
+    const xTeams = await sharedPlayerTeams(teamId)
+    const xCommitted = new Set()
+    if (xTeams.length) {
+      ;(await database('games').whereIn('kscw_team', xTeams).whereNotNull('date')
+        .select(database.raw('date::text as d'))).forEach((r) => xCommitted.add(String(r.d).slice(0, 10)))
+      ;(await database('game_scheduling_slots').whereIn('kscw_team', xTeams).where('status', 'booked')
+        .select(database.raw('date::text as d'))).forEach((r) => xCommitted.add(String(r.d).slice(0, 10)))
+      ;(await database('game_scheduling_bookings as bk')
+        .join('game_scheduling_opponents as o', 'o.id', 'bk.opponent')
+        .whereIn('o.kscw_team', xTeams).where('bk.type', 'away_proposal').where('bk.status', 'confirmed')
+        .select('bk.confirmed_proposal as n', database.raw('bk.proposed_datetime_1::text as d1'), database.raw('bk.proposed_datetime_2::text as d2'), database.raw('bk.proposed_datetime_3::text as d3')))
+        .forEach((r) => { const d = r[`d${r.n}`]; if (d) xCommitted.add(String(d).slice(0, 10)) })
+    }
+
+    const satCap = await teamSaturdayCap(teamRow)
+    const satDates = await committedSaturdayDates(teamId)
+
+    const slots = slotRows
+      .map((s) => {
+        const date = ymd(s.date)
+        const absCount = Number(s.abs_count || 0)
+        if (committedProposal3.has(date) || absCount >= 3) return null
+        if (derbyBlocked.has(date)) return null
+        if (xCommitted.has(date)) return null
+        if (isSaturday(date) && !satDates.has(date) && satDates.size >= satCap) return null
+        if (isDoltschiHall(s.hall)) {
+          if (doltschiFull || doltschiTakenDates.has(date) || offeredDoltschiDates.has(date)) return null
+          offeredDoltschiDates.add(date)
+        }
+        return {
+          id: s.id,
+          date,
+          start_time: String(s.start_time).slice(0, 5),
+          end_time: String(s.end_time).slice(0, 5),
+          source: s.source,
+          hall_id: s.hall,
+          hall_name: hallNameById[s.hall] || '',
+          abs_count: absCount,
+          strict: !committedHome.has(date) && absCount === 0 && !(isJr && (isSunday(date) || s.source === 'spielhalle')),
+        }
+      })
+      .filter(Boolean)
+
+    // Away blocked-date sets — same composition as slots/:token.
+    const eventSet = new Set()
+    const addRange = (s, e) => {
+      if (!s) return
+      const d = new Date(`${s}T00:00:00Z`)
+      const end = new Date(`${e || s}T00:00:00Z`)
+      for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) eventSet.add(d.toISOString().slice(0, 10))
+    }
+    const evRows = await database('events as e')
+      .join('events_teams as et', 'et.events_id', 'e.id')
+      .where('et.teams_id', teamId)
+      .select(
+        database.raw("(e.start_date AT TIME ZONE 'Europe/Zurich')::date::text as s"),
+        database.raw("(COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date::text as e"),
+      )
+    evRows.forEach((r) => addRange(r.s, r.e))
+    const blockRows = await database('scheduling_blocks')
+      .where('team', teamId)
+      .select(database.raw('start_date::text as s'), database.raw('end_date::text as e'))
+    blockRows.forEach((r) => addRange(r.s, r.e))
+    for (const d of derbyBlocked) eventSet.add(d)
+    for (const d of xCommitted) eventSet.add(d)
+    const absRows = await database('absences as a')
+      .join('member_teams as mt', 'mt.member', 'a.member')
+      .where('mt.team', teamId)
+      .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
+      .whereRaw("a.type IS DISTINCT FROM 'weekly'")
+      .whereRaw('a.blocking IS NOT FALSE')
+      .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
+      .select(database.raw('a.member as member'), database.raw('a.start_date::text as s'), database.raw('a.end_date::text as e'))
+    const absByDate = {}
+    for (const r of absRows) {
+      const d = new Date(`${r.s}T00:00:00Z`)
+      const end = new Date(`${r.e || r.s}T00:00:00Z`)
+      for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        const k = d.toISOString().slice(0, 10)
+        ;(absByDate[k] || (absByDate[k] = new Set())).add(r.member)
+      }
+    }
+    const strictSet = new Set(eventSet)
+    for (const d of committedProposal) strictSet.add(d)
+    const looseSet = new Set(eventSet)
+    for (const d of committedProposal3) looseSet.add(d)
+    for (const [k, members] of Object.entries(absByDate)) {
+      strictSet.add(k)
+      if (members.size >= 3) looseSet.add(k)
+    }
+    const noSatAway = await teamNoSaturday(teamId)
+    if (!isJr || noSatAway) {
+      const sw = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
+      if (sw) {
+        let yEnd = parseInt(sw[2], 10); if (yEnd < 100) yEnd = 2000 + yEnd
+        const swEnd = new Date(`${yEnd}-03-31T00:00:00Z`)
+        for (const d = new Date(`${parseInt(sw[1], 10)}-09-01T00:00:00Z`); d <= swEnd; d.setUTCDate(d.getUTCDate() + 1)) {
+          const dow = d.getUTCDay()
+          if ((!isJr && dow === 0) || (noSatAway && dow === 6)) { const k = d.toISOString().slice(0, 10); strictSet.add(k); looseSet.add(k) }
+        }
+      }
+    }
+
+    let season_window = null
+    const sm = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
+    if (sm) {
+      const y1 = parseInt(sm[1], 10)
+      let y2 = parseInt(sm[2], 10)
+      if (y2 < 100) y2 = 2000 + y2
+      season_window = { start: `${y1}-09-01`, end: `${y2}-03-31` }
+    }
+
+    return {
+      team: { id: teamId, name: teamRow.name || '' },
+      slots,
+      blocked_away_strict: [...strictSet].sort(),
+      blocked_away_loose: [...looseSet].sort(),
+      season_window,
+      saturday: {
+        cap: Number.isFinite(satCap) ? satCap : null,
+        used: satDates.size,
+        no_saturday: noSatAway,
+      },
+    }
+  }
+
+  // GET /kscw/terminplanung/admin/team-availability?kscw_team=&season= — the
+  // spielplaner's view of everything still offerable for one team (home slots
+  // tiered + away blocked dates), e.g. to email an opponent or export.
+  router.get('/terminplanung/admin/team-availability', async (req, res) => {
+    try {
+      const { kscw_team, season } = req.query
+      if (!kscw_team || !season) return res.status(400).json({ error: 'kscw_team, season required' })
+      if (!(await spielplanerCanManageTeam(req, kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
+      if (!seasonRow) return res.status(404).json({ error: 'season not found' })
+      const teamRow = await database('teams').where('id', kscw_team).first()
+      if (!teamRow) return res.status(404).json({ error: 'kscw_team not found' })
+      res.json(await computeTeamAvailability(seasonRow, teamRow))
+    } catch (err) {
+      log.error({ msg: `team-availability: ${err.message}`, endpoint: 'terminplanung/admin/team-availability', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── Mirror confirmed bookings into the `games` collection ─────────────────
+  // Booked games only reach the member-facing calendars once a `games` row
+  // exists, but the SV national feed (sv-sync) lags the scheduling tool by
+  // months at season start. So every confirmed booking is mirrored into
+  // `games` in exactly the shape sv-sync would create (game_id
+  // `vb_<svrz_number>`, source 'swiss_volley') — when the national feed goes
+  // live, sv-sync matches by game_id and simply adopts the row. Create/update
+  // only, never deletes: a row with no matching booking may be legitimately
+  // scheduled outside the tool (VM is the source of truth there). Rows at
+  // status 'completed' are never touched.
+  async function reconcileBookingsToGames(seasonId, { silent = false } = {}) {
+    const seasonRow = await database('game_scheduling_seasons').where('id', seasonId).first()
+    if (!seasonRow) return { created: 0, updated: 0, skipped: 0 }
+
+    const opps = await database('game_scheduling_opponents as o')
+      .where('o.season', seasonId)
+      .whereExists(function () {
+        this.select(database.raw('1')).from('game_scheduling_bookings as b')
+          .whereRaw('b.opponent = o.id').where('b.status', 'confirmed')
+      })
+      .select('o.*')
+
+    let created = 0, updated = 0, skipped = 0
+    const desired = []
+    for (const opp of opps) {
+      const fixtures = await opponentSvrzFixtures(opp)
+      if (!fixtures.length) { skipped++; continue }
+      const fxRows = await database('svrz_games').whereIn('svrz_persistence_id', fixtures.map((f) => f.id))
+      const fxById = new Map(fxRows.map((r) => [String(r.svrz_persistence_id), r]))
+      const bookings = await database('game_scheduling_bookings')
+        .where('opponent', opp.id).where('status', 'confirmed')
+        .select('*',
+          database.raw('proposed_datetime_1::text as d1'),
+          database.raw('proposed_datetime_2::text as d2'),
+          database.raw('proposed_datetime_3::text as d3'))
+      for (const b of bookings) {
+        const isHome = b.type === 'home_slot_pick'
+        const side = fixtures.filter((f) => f.is_home_kscw === isHome)
+        const fxMeta = b.svrz_game_id
+          ? side.find((f) => String(f.id) === String(b.svrz_game_id))
+          : side[0]
+        const fx = fxMeta ? fxById.get(String(fxMeta.id)) : null
+        if (!fx || !fx.svrz_number) { skipped++; continue }
+
+        let date = null, time = null, hallId = null, place = ''
+        if (isHome) {
+          if (!b.slot) { skipped++; continue }
+          const slot = await database('game_scheduling_slots').where('id', b.slot)
+            .first('hall', database.raw('date::text as d'), database.raw('start_time::text as st'))
+          if (!slot?.d) { skipped++; continue }
+          date = String(slot.d).slice(0, 10)
+          time = weekdayHomeTime(date, slot.st)
+          hallId = slot.hall || null
+        } else {
+          const dt = b[`d${b.confirmed_proposal || 1}`] || ''
+          date = String(dt).slice(0, 10)
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { skipped++; continue }
+          const m = String(dt).match(/[T ](\d{2}:\d{2})/)
+          time = m ? m[1] : null
+          place = String(b[`proposed_place_${b.confirmed_proposal || 1}`] || '')
+        }
+
+        desired.push({
+          game_id: `vb_${fx.svrz_number}`,
+          home_team: fx.home_team_name || '',
+          away_team: fx.away_team_name || '',
+          kscw_team: opp.kscw_team,
+          hall: hallId,
+          away_hall_json: !isHome && place ? JSON.stringify({ name: place, address: '', city: '', plus_code: '' }) : null,
+          date,
+          time,
+          league: fx.league_name || fx.league_short || '',
+          round: '',
+          season: seasonRow.season || '',
+          type: isHome ? 'home' : 'away',
+          status: 'scheduled',
+          home_score: 0,
+          away_score: 0,
+          sets_json: '[]',
+          referees_json: '[]',
+          source: 'swiss_volley',
+        })
+      }
+    }
+
+    const apply = async (db) => {
+      for (const data of desired) {
+        const existing = await db('games')
+          .where('game_id', data.game_id).where('kscw_team', data.kscw_team)
+          .first('id', 'status', 'home_team', 'away_team', 'type', 'hall',
+            database.raw('date::text as date_txt'), database.raw('time::text as time_txt'))
+        if (existing) {
+          // Never touch a played game; sv-sync owns results.
+          if (existing.status === 'completed') { skipped++; continue }
+          const changed =
+            String(existing.date_txt || '').slice(0, 10) !== data.date ||
+            String(existing.time_txt || '').slice(0, 5) !== String(data.time || '').slice(0, 5) ||
+            String(existing.hall ?? '') !== String(data.hall ?? '') ||
+            String(existing.home_team || '') !== data.home_team ||
+            String(existing.away_team || '') !== data.away_team ||
+            String(existing.type || '') !== data.type
+          if (!changed) { skipped++; continue }
+          await db('games').where('id', existing.id).update({
+            date: data.date, time: data.time, hall: data.hall,
+            home_team: data.home_team, away_team: data.away_team, type: data.type,
+            away_hall_json: data.away_hall_json,
+            date_updated: new Date(),
+          })
+          updated++
+        } else {
+          await db('games').insert({ ...data, date_created: new Date(), date_updated: new Date() })
+          created++
+        }
+      }
+    }
+    if (silent) {
+      // Transaction-scoped GUC silences trg_games_notify (migration 095) so a
+      // bulk backfill doesn't push "new game" to every roster at once.
+      await database.transaction(async (trx) => {
+        await trx.raw("SELECT set_config('kscw.skip_games_notify', 'on', true)")
+        await apply(trx)
+      })
+    } else {
+      await apply(database)
+    }
+    return { created, updated, skipped }
+  }
+
+  // POST /kscw/terminplanung/admin/reconcile-games { season, silent? } — manual
+  // run of the booking→games mirror (backfill after deploy; re-run anytime,
+  // idempotent). silent defaults to true: no notification fanout.
+  router.post('/terminplanung/admin/reconcile-games', async (req, res) => {
+    try {
+      if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin access required' })
+      const seasonId = req.body?.season
+      if (!seasonId) return res.status(400).json({ error: 'season required' })
+      const silent = req.body?.silent !== false
+      res.json(await reconcileBookingsToGames(seasonId, { silent }))
+    } catch (err) {
+      log.error({ msg: `reconcile-games: ${err.message}`, endpoint: 'terminplanung/admin/reconcile-games', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // GET /kscw/terminplanung/slots/:token — view available slots
   router.get('/terminplanung/slots/:token', async (req, res) => {
     try {
@@ -1676,6 +2058,10 @@ export function registerGameScheduling(router, { database, logger, services, get
         log.warn(`confirm-home VM push enqueue failed: ${pushErr.message}`)
       }
 
+      // Mirror into `games` so the new fixture shows on member calendars right
+      // away (fire-and-forget; sv-sync adopts the row later).
+      reconcileBookingsToGames(opponent.season).catch((e) => log.warn(`confirm-home games reconcile failed: ${e.message}`))
+
       res.json({ success: true, confirmed_proposal: n })
     } catch (err) {
       if (err && err.httpStatus) {
@@ -2416,6 +2802,10 @@ export function registerGameScheduling(router, { database, logger, services, get
         admin_notes: admin_notes || booking.admin_notes || null,
       })
 
+      // Mirror into `games` so the away fixture shows on member calendars right
+      // away (fire-and-forget; sv-sync adopts the row later).
+      reconcileBookingsToGames(awayOpponent.season).catch((e) => log.warn(`confirm-away games reconcile failed: ${e.message}`))
+
       // Confirmation email to the opponent in their language — final date +
       // "enter it in VolleyManager, we'll do the home game". Best-effort.
       try {
@@ -2591,6 +2981,11 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
 
       await database('game_scheduling_opponents').where('id', opponent.id).update({ status: 'booked' })
+
+      // Mirror into `games` so the manual booking shows on member calendars
+      // right away (fire-and-forget; sv-sync adopts the row later).
+      reconcileBookingsToGames(opponent.season).catch((e) => log.warn(`manual-booking games reconcile failed: ${e.message}`))
+
       res.json({ success: true })
     } catch (err) {
       if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.message })
@@ -3362,6 +3757,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       })
       .map((g) => ({
         id: g.svrz_persistence_id,
+        number: g.svrz_number ?? null,
         display_name: g.display_name,
         starting_date_time: g.starting_date_time,
         is_home_kscw: String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID),
@@ -3930,6 +4326,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       entry.game_count++
       entry.games.push({
         svrz_game_id: g.svrz_persistence_id || null,
+        number: g.svrz_number ?? null,
         date: g.starting_date_time || null,
         display_name: g.display_name || null,
         is_home_kscw: isHomeKscw,
