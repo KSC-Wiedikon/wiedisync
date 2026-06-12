@@ -182,4 +182,13 @@ export default {
   teamPageOnlyHint: 'Si désactivé, le sponsor apparaît aussi sur la page d\'accueil et la page des sponsors',
   sponsorSaved: 'Sponsor enregistré',
   sponsorDeleted: 'Sponsor supprimé',
+  // Staff management (coaches & team responsibles)
+  manageStaff: 'Gérer le staff',
+  manageStaffTitle: 'Entraîneurs et responsables d\'équipe',
+  manageStaffHint: 'Ajouter ou retirer un entraîneur ou un responsable accorde ou retire aussi son accès de responsable dans l\'app.',
+  teamResponsibles: 'Responsables d\'équipe',
+  noStaffYet: 'Personne n\'est encore assigné',
+  staffRemoved: '{{name}} retiré(e)',
+  removeStaffTitle: 'Retirer le rôle',
+  removeStaffMessage: 'Retirer {{name}} ({{role}}) ?',
 } as const

@@ -16,6 +16,7 @@ import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import VolleyballIcon from '../../components/VolleyballIcon'
 import BasketballIcon from '../../components/BasketballIcon'
 import MemberRow, { getMemberRole } from './MemberRow'
+import ManageStaffModal from './ManageStaffModal'
 import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions } from '../../utils/memberPositions'
 import { getCurrentSeason } from '../../utils/dateHelpers'
@@ -92,6 +93,7 @@ export default function TeamDetail() {
 
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [manageStaffOpen, setManageStaffOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [adjustingCrop, setAdjustingCrop] = useState(false)
   const [cropPos, setCropPos] = useState({ x: 50, y: 50 })
@@ -607,9 +609,17 @@ export default function TeamDetail() {
       )}
 
       {/* Coaches */}
-      {coachMembers.length > 0 && (
+      {(coachMembers.length > 0 || (effectiveIsAdmin && hasAdminAccessToTeam(team.id))) && (
         <div className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('coaches')} ({coachMembers.length})</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('coaches')} ({coachMembers.length})</h2>
+            {effectiveIsAdmin && hasAdminAccessToTeam(team.id) && (
+              <Button variant="outline" size="sm" onClick={() => setManageStaffOpen(true)}>
+                {t('manageStaff')}
+              </Button>
+            )}
+          </div>
+          {coachMembers.length > 0 && (
           <div className="mt-4 overflow-x-auto rounded-lg border bg-white dark:bg-gray-800">
             <table className="w-full">
               <thead>
@@ -640,6 +650,7 @@ export default function TeamDetail() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
       )}
 
@@ -769,6 +780,15 @@ export default function TeamDetail() {
             ))}
           </div>
         </div>
+      )}
+
+      {effectiveIsAdmin && hasAdminAccessToTeam(team.id) && (
+        <ManageStaffModal
+          open={manageStaffOpen}
+          onClose={() => setManageStaffOpen(false)}
+          team={team}
+          onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
+        />
       )}
     </div>
   )

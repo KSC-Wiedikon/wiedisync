@@ -196,4 +196,13 @@ export default {
   teamPageOnlyHint: 'Wenn deaktiviert, erschint de Sponsor au uf de Homepage und Sponsoresiite',
   sponsorSaved: 'Sponsor gspeicheret',
   sponsorDeleted: 'Sponsor entfernt',
+  // Staff management (coaches & team responsibles)
+  manageStaff: 'Staff verwalte',
+  manageStaffTitle: 'Trainer & Teamverantwortlichi',
+  manageStaffHint: 'S Hinzuefüege oder Entferne git bzw. nimmt au de Leiter-Zuegriff i de App.',
+  teamResponsibles: 'Teamverantwortlichi',
+  noStaffYet: 'No niemert zuegwiese',
+  staffRemoved: '{{name}} entfernt',
+  removeStaffTitle: 'Rolle entferne',
+  removeStaffMessage: '{{name}} ({{role}}) entferne?',
 } as const

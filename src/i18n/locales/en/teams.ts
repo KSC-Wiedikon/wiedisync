@@ -196,4 +196,13 @@ export default {
   teamPageOnlyHint: 'If disabled, the sponsor also appears on the homepage and sponsors page',
   sponsorSaved: 'Sponsor saved',
   sponsorDeleted: 'Sponsor removed',
+  // Staff management (coaches & team responsibles)
+  manageStaff: 'Manage staff',
+  manageStaffTitle: 'Coaches & team responsibles',
+  manageStaffHint: 'Adding or removing a coach or team responsible also grants or revokes their leader access in the app.',
+  teamResponsibles: 'Team responsibles',
+  noStaffYet: 'No one assigned yet',
+  staffRemoved: '{{name}} removed',
+  removeStaffTitle: 'Remove role',
+  removeStaffMessage: 'Remove {{name}} ({{role}})?',
 } as const
