@@ -427,6 +427,7 @@ export default {
   awayBlockedHint: 'Dates this team cannot play away (events, game spacing, absences, shared players).',
   availabilityNoSaturday: 'No-Saturday opt-out active — no new Saturday slots are offered.',
   availabilitySaturdayCap: 'Saturday home games used: {{used}}/{{cap}}',
+  availabilitySaturdayAway: 'Saturday away games: {{n}}',
   copyAsText: 'Copy as text',
   copiedToClipboard: 'Copied to clipboard',
   downloadCsv: 'Download CSV',

@@ -427,6 +427,7 @@ export default {
   awayBlockedHint: 'Daten, an denen dieses Team nicht auswärts spielen kann (Events, Spielabstand, Abwesenheiten, geteilte Spieler).',
   availabilityNoSaturday: 'Kein-Samstag-Option aktiv — es werden keine neuen Samstags-Slots angeboten.',
   availabilitySaturdayCap: 'Samstags-Heimspiele belegt: {{used}}/{{cap}}',
+  availabilitySaturdayAway: 'Samstags-Auswärtsspiele: {{n}}',
   copyAsText: 'Als Text kopieren',
   copiedToClipboard: 'In die Zwischenablage kopiert',
   downloadCsv: 'CSV herunterladen',

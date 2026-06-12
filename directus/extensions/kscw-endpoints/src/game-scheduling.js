@@ -563,6 +563,31 @@ export function registerGameScheduling(router, { database, logger, services, get
     return set
   }
 
+  // Distinct Saturday dates a team already plays AWAY on this season — KSCW-away
+  // rows in `games` plus confirmed away proposals, deduped by date, same season
+  // floor as the home counter. Informational only: there is NO away Saturday cap
+  // (A3 limits Saturdays per proposal, not per season).
+  async function committedAwaySaturdayDates(teamId, db = database, seasonId = null) {
+    const floor = await seasonFloorYmd(seasonId, db)
+    const set = new Set()
+    let gamesQ = db('games').where('kscw_team', teamId).whereNotNull('date')
+      .whereRaw("LOWER(away_team) LIKE 'ksc wiedikon%'")
+    if (floor) gamesQ = gamesQ.whereRaw('date::date >= ?::date', [floor])
+    const awayGames = await gamesQ.select(db.raw('date::text as d'))
+    awayGames.forEach((g) => { if (isSaturday(g.d)) set.add(String(g.d).slice(0, 10)) })
+    const confirmed = await db('game_scheduling_bookings as b')
+      .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
+      .where('o.kscw_team', teamId)
+      .where('b.type', 'away_proposal').where('b.status', 'confirmed')
+      .select('b.confirmed_proposal as n',
+              db.raw('b.proposed_datetime_1::text as d1'), db.raw('b.proposed_datetime_2::text as d2'), db.raw('b.proposed_datetime_3::text as d3'))
+    confirmed.forEach((b) => {
+      const d = String(b[`d${b.n}`] || '').slice(0, 10)
+      if (d && isSaturday(d) && (!floor || d >= floor)) set.add(d)
+    })
+    return set
+  }
+
   // ── Intra-club derby anchoring (Art. 27 SVRZ) ────────────────────────
   // When two KSCW teams share a league group (e.g. H1 & H3 in 2L), their two
   // head-to-head games MUST be the first game of the Vorrunde and of the
@@ -1006,6 +1031,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
     const satCap = await teamSaturdayCap(teamRow)
     const satDates = await committedSaturdayDates(teamId, database, seasonId)
+    const awaySatDates = await committedAwaySaturdayDates(teamId, database, seasonId)
 
     const slots = slotRows
       .map((s) => {
@@ -1111,6 +1137,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       saturday: {
         cap: Number.isFinite(satCap) ? satCap : null,
         used: satDates.size,
+        away_used: awaySatDates.size,
         no_saturday: noSatAway,
       },
     }

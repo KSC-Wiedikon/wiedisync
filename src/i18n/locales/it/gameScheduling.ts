@@ -419,6 +419,7 @@ export default {
   awayBlockedHint: 'Date in cui questa squadra non può giocare in trasferta (eventi, distanza tra partite, assenze, giocatori condivisi).',
   availabilityNoSaturday: 'Opzione senza sabato attiva — non vengono offerti nuovi slot del sabato.',
   availabilitySaturdayCap: 'Partite casalinghe del sabato usate: {{used}}/{{cap}}',
+  availabilitySaturdayAway: 'Partite in trasferta del sabato: {{n}}',
   copyAsText: 'Copia come testo',
   copiedToClipboard: 'Copiato negli appunti',
   downloadCsv: 'Scarica CSV',

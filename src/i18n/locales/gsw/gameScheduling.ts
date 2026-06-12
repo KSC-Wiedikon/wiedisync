@@ -419,6 +419,7 @@ export default {
   awayBlockedHint: 'Date, a dene das Team nöd uswärts spiele cha (Events, Spielabstand, Abwesenheite, teilti Spieler).',
   availabilityNoSaturday: 'Kei-Samschtig-Option aktiv — es werded kei neui Samschtigs-Slots aabote.',
   availabilitySaturdayCap: 'Samschtigs-Heimspiel belegt: {{used}}/{{cap}}',
+  availabilitySaturdayAway: 'Samschtigs-Uswärtsspiel: {{n}}',
   copyAsText: 'Als Text kopiere',
   copiedToClipboard: 'I d Zwüscheablag kopiert',
   downloadCsv: 'CSV abelade',

@@ -418,6 +418,7 @@ export default {
   awayBlockedHint: 'Dates auxquelles cette équipe ne peut pas jouer à l’extérieur (événements, espacement des matchs, absences, joueurs partagés).',
   availabilityNoSaturday: 'Option sans samedi active — aucun nouveau créneau du samedi n’est proposé.',
   availabilitySaturdayCap: 'Matchs à domicile du samedi utilisés : {{used}}/{{cap}}',
+  availabilitySaturdayAway: 'Matchs à l’extérieur du samedi : {{n}}',
   copyAsText: 'Copier comme texte',
   copiedToClipboard: 'Copié dans le presse-papiers',
   downloadCsv: 'Télécharger le CSV',

@@ -27,7 +27,7 @@ interface TeamAvailability {
   blocked_away_strict: string[]
   blocked_away_loose: string[]
   season_window: { start: string; end: string } | null
-  saturday: { cap: number | null; used: number; no_saturday: boolean }
+  saturday: { cap: number | null; used: number; away_used?: number; no_saturday: boolean }
 }
 
 interface Props {
@@ -178,6 +178,11 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
               {!data.saturday.no_saturday && data.saturday.cap != null && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {t('availabilitySaturdayCap', { used: data.saturday.used, cap: data.saturday.cap })}
+                </p>
+              )}
+              {typeof data.saturday.away_used === 'number' && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('availabilitySaturdayAway', { n: data.saturday.away_used })}
                 </p>
               )}
 
