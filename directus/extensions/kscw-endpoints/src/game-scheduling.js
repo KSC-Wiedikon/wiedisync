@@ -523,17 +523,42 @@ export function registerGameScheduling(router, { database, logger, services, get
     return [...out]
   }
 
-  // Distinct Saturday dates a team already has a HOME game on — booked home slots
-  // (the tool's own picks) plus KSCW-home rows in `games` (home_team is KSCW),
-  // deduped by date. Drives the Saturday cap (A1/A4).
-  async function committedSaturdayDates(teamId, db = database) {
+  // First day of a scheduling season's cycle (July 1 of the season's start
+  // year, i.e. between the old season's last game and the new one's first).
+  // Counters scoped "per season" must floor on this: until the club rollover
+  // runs, LAST season's games still sit on the ACTIVE team ids, so an
+  // unfloored count over `games` silently includes them. Falls back to the
+  // open season when no id is given; null (= no floor) when none resolvable.
+  async function seasonFloorYmd(seasonId, db = database) {
+    let name = null
+    if (seasonId) {
+      const row = await db('game_scheduling_seasons').where('id', seasonId).first('season')
+      name = row?.season
+    }
+    if (!name) {
+      const row = await db('game_scheduling_seasons').where('status', 'open').orderBy('id', 'desc').first('season')
+      name = row?.season
+    }
+    const m = String(name || '').match(/(\d{4})/)
+    return m ? `${m[1]}-07-01` : null
+  }
+
+  // Distinct Saturday dates a team already has a HOME game on THIS SEASON —
+  // booked home slots (the tool's own picks) plus KSCW-home rows in `games`
+  // (home_team is KSCW), deduped by date, floored at the season start so last
+  // season's games (same team ids until rollover) don't eat the allotment.
+  // Drives the Saturday cap (A1/A4).
+  async function committedSaturdayDates(teamId, db = database, seasonId = null) {
+    const floor = await seasonFloorYmd(seasonId, db)
     const set = new Set()
-    const booked = await db('game_scheduling_slots').where('kscw_team', teamId).where('status', 'booked')
-      .select(db.raw('date::text as d'))
+    let bookedQ = db('game_scheduling_slots').where('kscw_team', teamId).where('status', 'booked')
+    if (floor) bookedQ = bookedQ.whereRaw('date::date >= ?::date', [floor])
+    const booked = await bookedQ.select(db.raw('date::text as d'))
     booked.forEach((s) => { if (isSaturday(s.d)) set.add(String(s.d).slice(0, 10)) })
-    const homeGames = await db('games').where('kscw_team', teamId).whereNotNull('date')
+    let gamesQ = db('games').where('kscw_team', teamId).whereNotNull('date')
       .whereRaw("LOWER(home_team) LIKE 'ksc wiedikon%'")
-      .select(db.raw('date::text as d'))
+    if (floor) gamesQ = gamesQ.whereRaw('date::date >= ?::date', [floor])
+    const homeGames = await gamesQ.select(db.raw('date::text as d'))
     homeGames.forEach((g) => { if (isSaturday(g.d)) set.add(String(g.d).slice(0, 10)) })
     return set
   }
@@ -705,7 +730,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       // which Saturdays it already uses.
       const teamRow = await database('teams').where('id', teamId).first('id', 'name')
       const satCap = await teamSaturdayCap(teamRow)
-      const satDates = await committedSaturdayDates(teamId)
+      const satDates = await committedSaturdayDates(teamId, database, seasonId)
 
       // Cross-team (C1): exact dates any team sharing a person with this one is
       // already committed to — those days are blocked for this team too. Keep the
@@ -980,7 +1005,7 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
 
     const satCap = await teamSaturdayCap(teamRow)
-    const satDates = await committedSaturdayDates(teamId)
+    const satDates = await committedSaturdayDates(teamId, database, seasonId)
 
     const slots = slotRows
       .map((s) => {
@@ -1438,7 +1463,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       // home guard otherwise reject the pick → an un-confirmable date was offered).
       const teamRowSat = await database('teams').where('id', opponent.kscw_team).first('id', 'name')
       const satCap = await teamSaturdayCap(teamRowSat)
-      const satDates = await committedSaturdayDates(opponent.kscw_team)
+      const satDates = await committedSaturdayDates(opponent.kscw_team, database, opponent.season)
 
       // Two-tier home slots: a slot is OFFERED if it clears the LOOSE bar
       // (proposal-3 gap + <3 absences). `strict` marks the stricter bar (home
@@ -1747,7 +1772,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       const usedDays = new Set()
       const sharedTeamsHome = await sharedPlayerTeams(opponent.kscw_team)
       const satCapHome = await teamSaturdayCap(homeTeam)
-      const satDatesHome = await committedSaturdayDates(opponent.kscw_team)
+      const satDatesHome = await committedSaturdayDates(opponent.kscw_team, database, opponent.season)
 
       for (let i = 0; i < ids.length; i++) {
         const slot = await database('game_scheduling_slots').where('id', ids[i]).first()
@@ -1998,7 +2023,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         const team = await trx('teams').where('id', opponent.kscw_team).first('id', 'name')
         if (isSaturday(slotYmd)) {
           const cap = await teamSaturdayCap(team, trx)
-          const satDates = await committedSaturdayDates(team.id, trx)
+          const satDates = await committedSaturdayDates(team.id, trx, opponent.season)
           if (satDates.size + 1 > cap) throw Object.assign(new Error('Saturday home-game cap reached for this team'), { httpStatus: 400 })
         }
         const others = await sharedPlayerTeams(team.id, trx)
