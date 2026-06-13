@@ -345,7 +345,7 @@ export default function AdminDashboardPage() {
     return {
       booked, total: teamSlots.length, opponents: opps.length, byStatus, toConfirm,
       notProposed, confirmed, homeConfirmed, awayConfirmed, gamesTotal,
-      homeSat, satTotal: homeSat + awaySat,
+      homeSat, awaySat, satTotal: homeSat + awaySat,
     }
   }
 
@@ -465,7 +465,7 @@ export default function AdminDashboardPage() {
                   )}
                   {stats.satTotal > 0 && (
                     <span className="whitespace-nowrap" title={t('saturdayCounterHint')}>
-                      {t('saturdayCounter', { home: stats.homeSat, total: stats.satTotal })}
+                      {t('saturdayCounter', { home: stats.homeSat, away: stats.awaySat })}
                     </span>
                   )}
                   {stats.opponents > 0 && (
