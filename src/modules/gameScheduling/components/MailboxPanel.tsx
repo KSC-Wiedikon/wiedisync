@@ -9,12 +9,12 @@ import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/ta
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import {
   bestOpponentForMessage,
-  contactAddressSet,
   downloadMailboxAttachment,
-  messagesForOpponent,
+  messagesForOpponentThread,
   type MailboxAttachment,
   type MailboxMessage,
   type MailboxMessageFull,
+  type OpponentContacts,
   type UseMailboxReturn,
 } from '../hooks/useMailbox'
 import type { GameSchedulingOpponent } from '../../../types'
@@ -30,7 +30,10 @@ interface ComposeState {
 
 interface Props {
   mailbox: UseMailboxReturn
-  opponents: GameSchedulingOpponent[]
+  /** All opponents + their contact sets (and KSCW-pairing aliases), built once
+   *  by the dashboard so the chip and the per-opponent thread disambiguate
+   *  identically across opponent rows that share a club's contacts. */
+  opponentContacts: OpponentContacts[]
   /** Set from an opponent card's "N emails" button — opens the per-opponent thread dialog. */
   focusOpponent: GameSchedulingOpponent | null
   onClearFocus: () => void
@@ -45,7 +48,7 @@ interface Props {
  * volleyball@spielplanung.kscw.ch inbox + sent mail, with reply/compose.
  * Messages are matched to opponents client-side by contact-address overlap.
  */
-export default function MailboxPanel({ mailbox, opponents, focusOpponent, onClearFocus, seasonName, kscwTeamLabelFor }: Props) {
+export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent, onClearFocus, seasonName, kscwTeamLabelFor }: Props) {
   const { t } = useTranslation('gameScheduling')
   const { configured, messages, unread, lastSync, syncing, sending } = mailbox
   const [showAll, setShowAll] = useState(false)
@@ -53,15 +56,10 @@ export default function MailboxPanel({ mailbox, opponents, focusOpponent, onClea
   const [detailLoading, setDetailLoading] = useState(false)
   const [compose, setCompose] = useState<ComposeState | null>(null)
 
-  // Per-opponent contact sets, for the club chip on each row.
-  const opponentContacts = useMemo(
-    () => opponents.map((o) => ({ opp: o, contacts: contactAddressSet(o) })),
-    [opponents],
-  )
   const opponentForMessage = (msg: MailboxMessage): GameSchedulingOpponent | null =>
     bestOpponentForMessage(msg, opponentContacts)
 
-  const focusMessages = focusOpponent ? messagesForOpponent(messages, focusOpponent) : []
+  const focusMessages = focusOpponent ? messagesForOpponentThread(messages, focusOpponent, opponentContacts) : []
 
   const openMessage = async (id: number) => {
     setDetailLoading(true)

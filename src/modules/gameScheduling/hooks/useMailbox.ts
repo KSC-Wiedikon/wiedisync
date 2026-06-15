@@ -75,6 +75,13 @@ export function messagesForOpponent(messages: MailboxMessage[], opp: GameSchedul
 export interface OpponentContacts {
   opp: GameSchedulingOpponent
   contacts: Set<string>
+  /**
+   * Extra disambiguating needles beyond opp.team_name — typically the KSCW
+   * pairing's short name ("Legends" / "D1"), so a "… – KSC Wiedikon Legends"
+   * mail is routed to the Legends pairing's thread even when several opponent
+   * rows of the same club share one contact set. Not used by the row chip.
+   */
+  aliases?: string[]
 }
 
 /**
@@ -105,6 +112,48 @@ export function bestOpponentForMessage(
     }
   }
   return best || matches[0].opp
+}
+
+/** Disambiguating needles for one opponent: its team name + any aliases. */
+function threadNeedles(oc: OpponentContacts): string[] {
+  return [oc.opp.team_name, ...(oc.aliases || [])]
+    .map((s) => String(s || '').trim().toLowerCase())
+    .filter(Boolean)
+}
+
+/**
+ * Messages belonging to one opponent's *thread* (the "N emails" button on an
+ * opponent card / the per-opponent dialog). A bare contact-address match
+ * over-collects: one club's contacts often serve several opponent rows (one
+ * per KSCW pairing — e.g. Volley Uster D1 AND Volley Uster H4 share the same
+ * 15 club contacts), so D1's thread would otherwise show H4's mail.
+ *
+ * We therefore drop a contact-matching message from this opponent's thread
+ * only when it *names a different* opponent that shares these contacts (by
+ * team name or KSCW-pairing alias) and does NOT name this one. A message that
+ * names this opponent — or names no specific opponent at all — stays:
+ * genuinely-ambiguous mail is better shown on every related thread than
+ * silently hidden from the one you're looking at.
+ */
+export function messagesForOpponentThread(
+  messages: MailboxMessage[],
+  opp: GameSchedulingOpponent,
+  opponentContacts: OpponentContacts[],
+): MailboxMessage[] {
+  const self = opponentContacts.find((oc) => String(oc.opp.id) === String(opp.id))
+  const contacts = self?.contacts ?? contactAddressSet(opp)
+  const myNeedles = self ? threadNeedles(self) : threadNeedles({ opp, contacts })
+  return messages.filter((msg) => {
+    if (!messageMatchesContacts(msg, contacts)) return false
+    const rivals = opponentContacts.filter(
+      (oc) => String(oc.opp.id) !== String(opp.id) && messageMatchesContacts(msg, oc.contacts),
+    )
+    if (rivals.length === 0) return true
+    const hay = `${msg.subject || ''} ${msg.snippet || ''}`.toLowerCase()
+    const named = (needles: string[]) => needles.some((n) => hay.includes(n))
+    if (named(myNeedles)) return true
+    return !rivals.some((r) => named(threadNeedles(r)))
+  })
 }
 
 /**

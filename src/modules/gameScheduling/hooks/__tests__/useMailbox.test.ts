@@ -3,6 +3,7 @@ import {
   bestOpponentForMessage,
   contactAddressSet,
   messageMatchesContacts,
+  messagesForOpponentThread,
   type MailboxMessage,
   type OpponentContacts,
 } from '../useMailbox'
@@ -93,5 +94,48 @@ describe('bestOpponentForMessage', () => {
   it('matches case-insensitively', () => {
     const msg = makeMessage({ subject: 'vc tornado adliswil h2 – Termine' })
     expect(bestOpponentForMessage(msg, contacts)?.id).toBe('h2')
+  })
+})
+
+describe('messagesForOpponentThread', () => {
+  // The reported case: Volley Uster D1 (KSCW D1) and Volley Uster H4 (KSCW
+  // Legends) are two opponent rows of the same club sharing one contact set.
+  const sharedEmail = 'kontakt@volleyuster.ch'
+  const d1 = makeOpponent({ id: 'd1', club_name: 'Volley Uster', team_name: 'Volley Uster D1', contact_email: sharedEmail, kscw_team: '1' })
+  const h4 = makeOpponent({ id: 'h4', club_name: 'Volley Uster', team_name: 'Volley Uster H4', contact_email: sharedEmail, kscw_team: '2' })
+  const oc: OpponentContacts[] = [
+    { opp: d1, contacts: contactAddressSet(d1), aliases: ['D1'] },
+    { opp: h4, contacts: contactAddressSet(h4), aliases: ['Legends'] },
+  ]
+  const mail = (subject: string) => makeMessage({ subject, from_address: sharedEmail })
+
+  it('keeps a message naming the opponent team off the sibling thread', () => {
+    const msgs = [mail('Volley Uster H4 – KSC Wiedikon Legends / Spielplanung 2026/27')]
+    expect(messagesForOpponentThread(msgs, h4, oc).map((m) => m.subject)).toEqual(msgs.map((m) => m.subject))
+    expect(messagesForOpponentThread(msgs, d1, oc)).toEqual([])
+  })
+
+  it('routes by the KSCW pairing alias when only our team is named', () => {
+    const msgs = [mail('Re: KSCW Legends 4LC')]
+    expect(messagesForOpponentThread(msgs, h4, oc)).toHaveLength(1)
+    expect(messagesForOpponentThread(msgs, d1, oc)).toEqual([])
+  })
+
+  it('shows genuinely ambiguous mail (no team named) on every shared thread', () => {
+    const msgs = [mail('Re: KSC Wiedikon – Spielplanung / Game scheduling 2026/27')]
+    expect(messagesForOpponentThread(msgs, d1, oc)).toHaveLength(1)
+    expect(messagesForOpponentThread(msgs, h4, oc)).toHaveLength(1)
+  })
+
+  it('keeps a message when the opponent does not share contacts with any sibling', () => {
+    const solo = makeOpponent({ id: 'solo', club_name: 'Other', team_name: 'Other 1', contact_email: 'solo@other.ch' })
+    const ocSolo: OpponentContacts[] = [...oc, { opp: solo, contacts: contactAddressSet(solo), aliases: ['H1'] }]
+    const msgs = [makeMessage({ subject: 'Anything at all', from_address: 'solo@other.ch' })]
+    expect(messagesForOpponentThread(msgs, solo, ocSolo)).toHaveLength(1)
+  })
+
+  it('drops messages that do not match the opponent contacts at all', () => {
+    const msgs = [makeMessage({ subject: 'Volley Uster D1', from_address: 'stranger@elsewhere.ch' })]
+    expect(messagesForOpponentThread(msgs, d1, oc)).toEqual([])
   })
 })
