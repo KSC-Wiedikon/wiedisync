@@ -21,6 +21,26 @@ import type { GameSchedulingOpponent } from '../../../types'
 
 const COLLAPSED_COUNT = 10
 
+/**
+ * Wrap a received email's HTML in a minimal document that pins a light colour
+ * scheme (white background, dark text). Emails carry their own colours and the
+ * sandboxed iframe otherwise inherits the app's dark canvas — dark-on-dark mail
+ * was unreadable. Like every mail client, we render messages on white in both
+ * app themes. `base target=_blank` keeps any links opening in a new tab.
+ */
+function emailSrcDoc(html: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+    `<base target="_blank">` +
+    `<style>:root{color-scheme:light}` +
+    `html,body{margin:0;padding:12px;background:#ffffff;color:#111827;` +
+    `font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;` +
+    `font-size:14px;line-height:1.5;overflow-wrap:break-word}` +
+    `a{color:#3D4A99}img{max-width:100%;height:auto}` +
+    `blockquote{margin:0 0 0 12px;padding-left:12px;border-left:3px solid #e5e7eb;color:#4b5563}` +
+    `</style></head><body>${html}</body></html>`
+}
+
 interface ComposeState {
   to: string
   subject: string
@@ -250,7 +270,7 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
                 /* Sandboxed so the email HTML can't touch the app DOM. */
                 <iframe
                   title={detail.subject || t('mailboxNoSubject')}
-                  srcDoc={detail.body_html}
+                  srcDoc={emailSrcDoc(detail.body_html)}
                   sandbox=""
                   className="h-96 w-full rounded-md border border-gray-200 bg-white dark:border-gray-700"
                 />
