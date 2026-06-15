@@ -3925,11 +3925,25 @@ export function registerGameScheduling(router, { database, logger, services, get
       for (const r of rows) {
         const email = (r.contact_email || '').toLowerCase().trim()
         if (!email || !r.team_name) continue
+        // Dedupe by opponent TEAM NAME, not by exact contact_email. The resolved
+        // contact set legitimately changes over time (e.g. team responsibles got
+        // merged in alongside the club calendar responsible) — an email-string
+        // match then misses the existing invite and spawns a phantom duplicate
+        // (8 such rows accreted on DU23-1 after the 2026-06-15 contacts merge).
+        // One opponent team = one invite row per kscw_team+season; refresh its
+        // contacts in place instead of inserting a clone.
         const existingRow = await database('game_scheduling_opponents')
-          .where({ kscw_team, season, contact_email: email })
+          .where({ kscw_team, season })
           .whereIn('status', ACTIVE_INVITE_STATUSES)
+          .whereRaw('lower(trim(team_name)) = ?', [String(r.team_name).trim().toLowerCase()])
           .first()
         if (existingRow) {
+          // Never blank contacts; only refresh when the new set is non-empty and
+          // differs (keeps the richer merged list flowing onto the live invite).
+          const patch = {}
+          if (email && (existingRow.contact_email || '').toLowerCase().trim() !== email) patch.contact_email = email
+          if (r.contact_name && existingRow.contact_name !== r.contact_name) patch.contact_name = r.contact_name
+          if (Object.keys(patch).length) await database('game_scheduling_opponents').where('id', existingRow.id).update(patch)
           existing.push({ id: existingRow.id, token: existingRow.token, email, team_name: existingRow.team_name })
           continue
         }
