@@ -276,6 +276,19 @@ export default function AdminDashboardPage() {
     }
   }
 
+  // Contact sets for every opponent (across all teams), each tagged with its
+  // KSCW pairing short name. Mailbox matching disambiguates opponent rows that
+  // share a club's contacts (e.g. Volley Uster D1 vs H4) by these needles, so a
+  // "Volley Uster H4 – KSC Wiedikon Legends" mail no longer lands on D1's thread.
+  // Declared before the early returns below so the hook order stays stable.
+  const opponentContacts = useMemo<OpponentContacts[]>(
+    () => opponents.map((o) => {
+      const team = (teams || []).find((tm) => String(tm.id) === String(o.kscw_team))
+      return { opp: o, contacts: contactAddressSet(o), aliases: team?.name ? [team.name] : [] }
+    }),
+    [opponents, teams],
+  )
+
   if (!hasAdminAccessToSport('volleyball') && !is_spielplaner) {
     return <Navigate to="/" replace />
   }
@@ -293,18 +306,6 @@ export default function AdminDashboardPage() {
   }
 
   const volleyballTeams = (teams || []).filter(isSchedulableTeam)
-
-  // Contact sets for every opponent (across all teams), each tagged with its
-  // KSCW pairing short name. Mailbox matching disambiguates opponent rows that
-  // share a club's contacts (e.g. Volley Uster D1 vs H4) by these needles, so a
-  // "Volley Uster H4 – KSC Wiedikon Legends" mail no longer lands on D1's thread.
-  const opponentContacts = useMemo<OpponentContacts[]>(
-    () => opponents.map((o) => {
-      const team = (teams || []).find((tm) => String(tm.id) === String(o.kscw_team))
-      return { opp: o, contacts: contactAddressSet(o), aliases: team?.name ? [team.name] : [] }
-    }),
-    [opponents, teams],
-  )
 
   const getTeamOpponents = (teamId: string) =>
     opponents.filter(o => String(o.kscw_team) === String(teamId))
