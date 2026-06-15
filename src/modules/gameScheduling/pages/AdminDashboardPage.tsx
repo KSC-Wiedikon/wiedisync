@@ -38,6 +38,9 @@ interface OpponentGame {
   date: string | null
   display_name: string | null
   is_home_kscw: boolean
+  /** UI-only: real agreed date (dd.mm.yyyy HH:MM) overlaid from a confirmed
+   *  booking, so the modal shows it instead of the unscheduled SVRZ placeholder. */
+  _realDate?: string
 }
 interface SvrzClub {
   club_id: number
@@ -87,6 +90,36 @@ function buildFixtureLegs(oppGames: OpponentGame[], oppBookings: ExpandedBooking
 }
 
 const normName = (s: string | null | undefined) => String(s || '').trim().toLowerCase()
+
+// Read an ISO timestamp's WALL-CLOCK lexically (no tz conversion) as
+// dd.mm.yyyy HH:MM — matches how the away date is mirrored into `games`
+// (reconcileBookingsToGames extracts the time lexically too), so the modal
+// agrees with the member calendar (e.g. 18:00, not a tz-shifted 19:00).
+function fixtureWallClock(iso: string | null | undefined): string {
+  const s = String(iso || '')
+  const d = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!d) return ''
+  const tm = s.match(/[T ](\d{2}:\d{2})/)
+  return `${d[3]}.${d[2]}.${d[1]}${tm ? ` ${tm[1]}` : ''}`
+}
+
+// The "N games" modal lists SVRZ fixtures at their feed date — but an away game
+// we've already agreed sits at the unscheduled placeholder until the opponent
+// enters it in VM. Overlay the confirmed away booking's agreed date so the modal
+// shows the real date, not the placeholder. (Home games keep their feed date —
+// it's real once pushed to VM.)
+function overlayBookedDates(games: OpponentGame[], bookings: ExpandedBooking[]): OpponentGame[] {
+  return games.map((g) => {
+    if (g.is_home_kscw || !g.svrz_game_id) return g
+    const b = bookings.find((bk) =>
+      bk.type === 'away_proposal' && bk.status === 'confirmed' &&
+      String(bk.svrz_game_id || '') === String(g.svrz_game_id))
+    if (!b) return g
+    const dt = (b as unknown as Record<string, string>)[`proposed_datetime_${b.confirmed_proposal || 1}`]
+    const real = fixtureWallClock(dt)
+    return real ? { ...g, _realDate: real } : g
+  })
+}
 
 const INVITE_STATUS_VARIANT: Record<InviteStatus, 'info' | 'warning' | 'success' | 'danger' | 'neutral' | 'secondary'> = {
   invited: 'info',
@@ -752,7 +785,7 @@ function TeamBookingsContent({
                   {oppGames.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setGamesFor({ label: opp.team_name || opp.club_name, games: oppGames })}
+                      onClick={() => setGamesFor({ label: opp.team_name || opp.club_name, games: overlayBookedDates(oppGames, oppBookings) })}
                       className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
                     >
                       {t('gameCount', { count: oppGames.length })}
@@ -946,7 +979,7 @@ function TeamBookingsContent({
                 <TableRow key={i}>
                   <TableCell className="py-2.5">
                     <p className="font-medium">
-                      {g.date ? formatDateTimeCompact(g.date) : '—'}
+                      {g._realDate || (g.date ? formatDateTimeCompact(g.date) : '—')}
                       {g.number != null && (
                         <span className="ml-2 font-normal text-gray-400 dark:text-gray-500" title={t('gameNumberHint')}>
                           #{g.number}

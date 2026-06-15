@@ -96,6 +96,21 @@ export async function syncSvGames(db, log) {
       'sets_json', 'referees_json', 'respond_by', 'kscw_team')
   const existingMap = new Map(existingRows.map(r => [r.game_id, r]))
 
+  // Schedule ownership: a game scheduled through the Terminplanung tool (a
+  // confirmed booking, mirrored into `games` by reconcileBookingsToGames) carries
+  // its AGREED date/time/venue. The national feed often still serves such a
+  // fixture at the league's unscheduled placeholder date until the opponent enters
+  // it in VM (especially our AWAY games, which the opponent owns) — so syncing it
+  // blindly would clobber the agreed date back to the placeholder. Treat the
+  // booking as authoritative for date/time/venue until the game is actually played
+  // (completed); scores, status and everything else still sync normally.
+  const bookedRows = await db('game_scheduling_bookings as b')
+    .join('svrz_games as s', 's.svrz_persistence_id', 'b.svrz_game_id')
+    .where('b.status', 'confirmed')
+    .whereNotNull('s.svrz_number')
+    .distinct('s.svrz_number')
+  const toolScheduledIds = new Set(bookedRows.map(r => `vb_${r.svrz_number}`))
+
   // Fields to compare — if all match, skip the update
   const COMPARE_FIELDS = [
     'date', 'time', 'status', 'home_score', 'away_score',
@@ -160,15 +175,25 @@ export async function syncSvGames(db, log) {
 
       const existing = existingMap.get(`vb_${gameId}`)
       if (existing) {
+        // Tool-scheduled & not yet played → keep the agreed date/time/venue; don't
+        // let a feed placeholder overwrite it (a real reschedule reaches these via
+        // the tool). Scores/status/teams/etc. below still sync.
+        if (toolScheduledIds.has(`vb_${gameId}`) && existing.status !== 'completed' && data.status !== 'completed') {
+          data.date = existing.date
+          data.time = existing.time
+          data.hall = existing.hall
+          data.away_hall_json = existing.away_hall_json
+        }
         // Skip if nothing meaningful changed — avoids trigger-based notification spam
         const changed = COMPARE_FIELDS.some(f =>
           String(data[f] ?? '') !== String(existing[f] ?? '')
         )
         if (!changed) { skipped++; continue }
-        // Adjust respond_by if date changed
-        if (existing.respond_by && existing.date && existing.date !== parsed.date) {
+        // Adjust respond_by if date changed (data.date, not the raw feed date, so a
+        // protected tool game whose date we kept doesn't shift its respond_by).
+        if (existing.respond_by && existing.date && existing.date !== data.date) {
           const offset = new Date(existing.date).getTime() - new Date(existing.respond_by).getTime()
-          const newRb = new Date(new Date(parsed.date).getTime() - offset)
+          const newRb = new Date(new Date(data.date).getTime() - offset)
           data.respond_by = newRb.toISOString().split('T')[0]
         }
         await db('games').where('id', existing.id).update({ ...data, date_updated: new Date() })
