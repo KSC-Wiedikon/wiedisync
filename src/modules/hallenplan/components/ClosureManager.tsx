@@ -6,6 +6,7 @@ import { FormInput, FormField } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import DatePicker from '@/components/ui/DatePicker'
 import { logActivity } from '../../../utils/logActivity'
+import { useConfirm } from '../../../components/ConfirmProvider'
 import type { Hall, HallClosure } from '../../../types'
 import { createRecord, deleteRecord, updateRecord } from '../../../lib/api'
 
@@ -50,6 +51,7 @@ const SOURCE_COLORS: Record<string, string> = {
 
 export default function ClosureManager({ halls, closures, onClose, onChanged }: ClosureManagerProps) {
   const { t } = useTranslation('hallenplan')
+  const confirm = useConfirm()
 
   const SOURCE_OPTIONS = [
     { value: 'hauswart', label: t('sourceCaretaker') },
@@ -164,7 +166,7 @@ export default function ClosureManager({ halls, closures, onClose, onChanged }: 
     const msg = group.records.length > 1
       ? `${t('deleteClosureConfirm')} (${group.records.length} ${t('halls')})`
       : t('deleteClosureConfirm')
-    if (!window.confirm(msg)) return
+    if (!(await confirm({ message: msg, danger: true }))) return
     try {
       for (const rec of group.records) {
         await deleteRecord('hall_closures', rec.id)

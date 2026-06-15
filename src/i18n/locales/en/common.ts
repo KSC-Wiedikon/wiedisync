@@ -9,6 +9,8 @@ export default {
   remove: 'Remove',
   add: 'Add',
   confirm: 'Confirm',
+  confirmTitle: 'Please confirm',
+  linkUrl: 'Link URL (https://… or /path)',
   list: 'List',
   calendar: 'Calendar',
   close: 'Close',

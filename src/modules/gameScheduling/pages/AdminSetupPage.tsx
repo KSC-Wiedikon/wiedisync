@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '../../../hooks/useAuth'
+import { useConfirm } from '../../../components/ConfirmProvider'
 import { kscwApi } from '../../../lib/api'
 import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
 import { useAdminBookings } from '../hooks/useAdminBookings'
@@ -30,6 +31,7 @@ interface RolloverResult {
 
 export default function AdminSetupPage() {
   const { t } = useTranslation('gameScheduling')
+  const confirm = useConfirm()
   const { hasAdminAccessToSport, isGlobalAdmin, is_spielplaner } = useAuth()
   const { season, allSeasons, isLoading, createSeason, updateSeason, setSeason, refetch: refetchSeasons } = useGameSchedulingSeason()
   const { generateSlots, slots } = useAdminBookings(season?.id)
@@ -102,7 +104,7 @@ export default function AdminSetupPage() {
         toast.error(t('rolloverEmptySource', { from }))
         return
       }
-      if (!window.confirm(t('rolloverConfirm', { from, to: season.season, teams: preview.teams_cloned, members: preview.member_teams }))) return
+      if (!(await confirm({ message: t('rolloverConfirm', { from, to: season.season, teams: preview.teams_cloned, members: preview.member_teams }) }))) return
       const resp = await kscwApi<RolloverResult>('/admin/terminplanung/rollover-season', {
         method: 'POST',
         body: { from_season: from, to_season: season.season },
@@ -119,7 +121,7 @@ export default function AdminSetupPage() {
     if (!season) return
     // Regenerating overwrites not-yet-booked slots (booked + blocked survive) —
     // confirm once slots already exist.
-    if (slots.length > 0 && !window.confirm(t('regenerateConfirm'))) return
+    if (slots.length > 0 && !(await confirm({ message: t('regenerateConfirm'), danger: true }))) return
     setGenerating(true)
     setGenResult(null)
     try {

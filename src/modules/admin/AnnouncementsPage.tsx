@@ -8,6 +8,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { fetchItems, createRecord, updateRecord, deleteRecord, assetUrl, API_URL, getAccessToken } from '../../lib/api'
 import { pickTranslation } from '../../hooks/useAnnouncements'
 import { isSafeAppLink } from '../../utils/sanitizeUrl'
+import { useConfirm } from '../../components/ConfirmProvider'
 import Modal from '../../components/Modal'
 import RichTextEditor from '../../components/RichTextEditor'
 import LoadingSpinner from '../../components/LoadingSpinner'
@@ -55,6 +56,7 @@ const emptyForm: FormState = {
 
 export default function AnnouncementsPage() {
   const { t, i18n } = useTranslation('announcements')
+  const confirm = useConfirm()
   const { user } = useAuth()
   const [items, setItems] = useState<Announcement[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -158,9 +160,7 @@ export default function AnnouncementsPage() {
     // Mass-email confirmation guard — audience=all + email send would hit ~200 members.
     // Single point of friction modeled on the /events/test-email CLAUDE.md guideline.
     if (form.notify_email && form.audience_type === 'all' && (form.publishNow || form.published_at)) {
-      const ok = window.confirm(
-        t('confirmMassEmail'),
-      )
+      const ok = await confirm({ message: t('confirmMassEmail'), danger: true })
       if (!ok) return
     }
 

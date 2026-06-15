@@ -5,6 +5,7 @@ import { QueryProvider } from './lib/query'
 import { AuthProvider } from './hooks/useAuth'
 import { ThemeProvider } from './hooks/useTheme'
 import { AdminModeProvider } from './hooks/useAdminMode'
+import { ConfirmProvider } from './components/ConfirmProvider'
 import { TourProvider } from './modules/guide/TourProvider'
 import Layout from './components/Layout'
 import AdminRoute from './components/AdminRoute'
@@ -133,6 +134,7 @@ export default function App() {
     <ThemeProvider>
     <AuthProvider>
       <AdminModeProvider>
+      <ConfirmProvider>
       <BrowserRouter>
       <TourProvider>
         <Routes>
@@ -199,6 +201,7 @@ export default function App() {
       </TourProvider>
       </BrowserRouter>
       <Toaster richColors position="top-center" />
+      </ConfirmProvider>
       </AdminModeProvider>
     </AuthProvider>
     </ThemeProvider>

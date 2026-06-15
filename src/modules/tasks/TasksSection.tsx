@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ListTodo, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '../../hooks/useAuth'
+import { useConfirm } from '../../components/ConfirmProvider'
 import { useTasks, useTaskTemplates } from './hooks/useTasks'
 import TaskCard from './TaskCard'
 import TaskForm from './TaskForm'
@@ -24,6 +25,7 @@ export default function TasksSection({
   members,
 }: TasksSectionProps) {
   const { t } = useTranslation('tasks')
+  const confirm = useConfirm()
   const { user } = useAuth()
   const { tasks, addTask, removeTask, claimTask, unclaimTask, toggleComplete } = useTasks(
     activityType,
@@ -50,12 +52,12 @@ export default function TasksSection({
   )
 
   const handleDelete = useCallback(
-    (taskId: string) => {
-      if (window.confirm(t('confirmDelete'))) {
+    async (taskId: string) => {
+      if (await confirm({ message: t('confirmDelete'), danger: true })) {
         removeTask(taskId)
       }
     },
-    [removeTask, t],
+    [removeTask, t, confirm],
   )
 
   const completedCount = tasks.filter((t) => t.completed).length

@@ -3,7 +3,9 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Bold, Italic, List, ListOrdered, Quote, Link as LinkIcon, Heading2, Heading3 } from 'lucide-react'
 import { useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { isSafeAppLink } from '../utils/sanitizeUrl'
+import { usePrompt } from './ConfirmProvider'
 
 interface Props {
   value: string
@@ -18,6 +20,8 @@ interface Props {
  * li, h1-h3, blockquote, span).
  */
 export default function RichTextEditor({ value, onChange, placeholder, minHeight = '8rem' }: Props) {
+  const { t } = useTranslation('common')
+  const prompt = usePrompt()
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -52,10 +56,10 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
     }
   }, [value, editor])
 
-  const setLink = useCallback(() => {
+  const setLink = useCallback(async () => {
     if (!editor) return
     const previous = editor.getAttributes('link').href as string | undefined
-    const url = window.prompt('Link URL (https://… or /path)', previous ?? '')
+    const url = await prompt({ message: t('linkUrl'), defaultValue: previous ?? '' })
     if (url === null) return
     if (url === '') {
       editor.chain().focus().extendMarkRange('link').unsetLink().run()
@@ -65,7 +69,7 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
     // `javascript:`/`data:` out of the stored HTML at rest.
     if (!isSafeAppLink(url.trim())) return
     editor.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run()
-  }, [editor])
+  }, [editor, prompt, t])
 
   if (!editor) return null
 

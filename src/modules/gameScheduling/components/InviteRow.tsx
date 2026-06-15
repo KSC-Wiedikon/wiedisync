@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useConfirm } from '../../../components/ConfirmProvider'
 import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
 import type { OpponentInvite, InviteSource, InviteStatus } from '../../../types'
@@ -39,6 +40,7 @@ function sourceKey(source: InviteSource): string {
 
 export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onReissue, onRevoke, onSent }: Props) {
   const { t } = useTranslation('gameScheduling')
+  const confirm = useConfirm()
   const [busy, setBusy] = useState(false)
   const link = `${frontendUrl}/terminplanung/${invite.token}`
 
@@ -90,7 +92,7 @@ export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onRei
   }
 
   const handleRevoke = async () => {
-    if (!window.confirm(t('confirmRevoke'))) return
+    if (!(await confirm({ message: t('confirmRevoke'), danger: true }))) return
     setBusy(true)
     try {
       await onRevoke(invite.id)

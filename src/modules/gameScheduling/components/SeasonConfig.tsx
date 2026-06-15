@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useConfirm } from '../../../components/ConfirmProvider'
 import { kscwApi } from '../../../lib/api'
 import type { GameSchedulingSeason } from '../../../types'
 import { formatSeasonShort, previousSeasonShort } from '../utils/formatSeason'
@@ -43,6 +44,7 @@ export default function SeasonConfig({
   onRollover,
 }: Props) {
   const { t } = useTranslation('gameScheduling')
+  const confirm = useConfirm()
   const [creating, setCreating] = useState(false)
   const [svrzOptions, setSvrzOptions] = useState<SvrzSeasonOption[]>([])
   const [savingSvrz, setSavingSvrz] = useState(false)
@@ -116,7 +118,7 @@ export default function SeasonConfig({
   const [restoring, setRestoring] = useState(false)
   const handleArchive = async () => {
     if (!season) return
-    if (!window.confirm(t('archiveSeasonConfirm', { season: formatSeasonShort(season.season) }))) return
+    if (!(await confirm({ message: t('archiveSeasonConfirm', { season: formatSeasonShort(season.season) }), danger: true }))) return
     setArchiving(true)
     try {
       const resp = await kscwApi<ArchiveResult>(`/admin/terminplanung/archive-season/${season.id}`, { method: 'POST' })
@@ -148,7 +150,7 @@ export default function SeasonConfig({
 
   const handleRestore = async () => {
     if (!season) return
-    if (!window.confirm(t('restoreSeasonConfirm', { season: formatSeasonShort(season.season) }))) return
+    if (!(await confirm({ message: t('restoreSeasonConfirm', { season: formatSeasonShort(season.season) }) }))) return
     setRestoring(true)
     try {
       const resp = await kscwApi<{ success: true; season: string; teams_restored: number }>(

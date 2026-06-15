@@ -10,6 +10,7 @@ import { ChevronsUpDown, Check } from 'lucide-react'
 import DatePicker from '@/components/ui/DatePicker'
 import { Switch } from '@/components/ui/switch'
 import { logActivity } from '../../../utils/logActivity'
+import { useConfirm } from '../../../components/ConfirmProvider'
 import { useConflictChecker } from '../hooks/useConflictChecker'
 import { minutesToTime, timeToMinutes } from '../../../utils/dateHelpers'
 import type { Hall, HallSlot, Team } from '../../../types'
@@ -52,6 +53,7 @@ export default function SlotEditor({
   onSaved,
 }: SlotEditorProps) {
   const { t } = useTranslation('hallenplan')
+  const confirm = useConfirm()
 
   const DAY_OPTIONS = [
     { value: 0, label: t('dayMonday') },
@@ -200,7 +202,7 @@ export default function SlotEditor({
   }
 
   async function handleDelete() {
-    if (!slot || !window.confirm(t('deleteSlotConfirm'))) return
+    if (!slot || !(await confirm({ message: t('deleteSlotConfirm'), danger: true }))) return
     setIsSaving(true)
     try {
       await deleteRecord('hall_slots', slot.id)

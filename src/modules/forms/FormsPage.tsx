@@ -9,6 +9,7 @@ import { useCollection } from '../../lib/query'
 import { useFillableForms, type FillableForm } from '../../hooks/useFillableForms'
 import { updateRecord, deleteRecord } from '../../lib/api'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
+import { useConfirm } from '../../components/ConfirmProvider'
 import FormFillModal from './FormFillModal'
 import FormResponsesModal from './FormResponsesModal'
 import type { FormDef, FormStatus } from './types'
@@ -41,6 +42,7 @@ function StatusBadge({ status }: { status: FormStatus }) {
 export default function FormsPage() {
   const { t } = useTranslation('forms')
   const { t: tc } = useTranslation('common')
+  const confirm = useConfirm()
   const navigate = useNavigate()
   const { user, coachTeamIds, teamResponsibleIds, isAdmin, isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin } = useAuth()
   // Authoring is role-gated (see Layout) — members never reach this page via nav,
@@ -90,7 +92,7 @@ export default function FormsPage() {
     refetch()
   }
   async function remove(f: FormDef) {
-    if (!window.confirm(t('confirmDelete', { title: f.title }))) return
+    if (!(await confirm({ message: t('confirmDelete', { title: f.title }), danger: true }))) return
     await deleteRecord('forms', f.id)
     refetch()
   }

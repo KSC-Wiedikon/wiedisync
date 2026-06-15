@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import type { Poll } from '../../types'
 import { formatDateZurich } from '../../utils/dateHelpers'
 import { usePollVotes } from './hooks/usePoll'
+import { useConfirm } from '../../components/ConfirmProvider'
 
 interface PollCardProps {
   poll: Poll
@@ -15,6 +16,7 @@ interface PollCardProps {
 
 export default function PollCard({ poll, canManage, onClose, onDelete }: PollCardProps) {
   const { t } = useTranslation('polls')
+  const confirm = useConfirm()
   const { myVote, isLoading, vote, getResults } = usePollVotes(poll.id)
   const [selected, setSelected] = useState<number[]>([])
 
@@ -46,14 +48,14 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
     setSelected([])
   }
 
-  const handleClose = () => {
-    if (window.confirm(t('confirmClose'))) {
+  const handleClose = async () => {
+    if (await confirm({ message: t('confirmClose') })) {
       onClose(poll.id)
     }
   }
 
-  const handleDelete = () => {
-    if (window.confirm(t('confirmDelete'))) {
+  const handleDelete = async () => {
+    if (await confirm({ message: t('confirmDelete'), danger: true })) {
       onDelete(poll.id)
     }
   }

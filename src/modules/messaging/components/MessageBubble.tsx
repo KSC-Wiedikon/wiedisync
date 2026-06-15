@@ -8,6 +8,7 @@ import ReactionBar from './ReactionBar'
 import { messagingApi } from '../api/messaging'
 import { formatTimeZurich } from '../../../utils/dateHelpers'
 import PollMessage from './PollMessage'
+import { useConfirm } from '../../../components/ConfirmProvider'
 
 type Props = {
   message: MessageRow
@@ -20,12 +21,13 @@ type Props = {
 
 export default function MessageBubble({ message, isOwn, currentMemberId, isTeamModerator, onReport, onEdit }: Props) {
   const { t } = useTranslation('messaging')
+  const confirm = useConfirm()
   const [editing, setEditing] = useState(false)
   const [showOriginal, setShowOriginal] = useState(false)
   const timestamp = message.created_at ? formatTimeZurich(message.created_at) : ''
 
   const onDelete = async () => {
-    if (!confirm(t('confirmDelete'))) return
+    if (!(await confirm({ message: t('confirmDelete'), danger: true }))) return
     try { await messagingApi.delete(message.id) } catch { /* toast later */ }
   }
 

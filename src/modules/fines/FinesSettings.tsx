@@ -4,6 +4,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { useFineRules, formatFineAmount } from '../../hooks/useFines'
 import { createRecord, updateRecord, deleteRecord } from '../../lib/api'
 import { Button } from '@/components/ui/button'
+import { useConfirm } from '../../components/ConfirmProvider'
 import type { FineCategory, FineResetWindow, FineRule, FineRuleTier } from '../../types'
 
 const CATEGORIES: FineCategory[] = ['late_signin', 'no_show', 'late_payment', 'custom']
@@ -80,6 +81,7 @@ interface CategoryEditorProps {
 
 function CategoryEditor({ teamId, category, rule, onChange }: CategoryEditorProps) {
   const { t } = useTranslation(['fines', 'common'])
+  const confirm = useConfirm()
   const [enabled, setEnabled] = useState(rule?.enabled ?? false)
   const [window, setWindow] = useState<FineResetWindow>(rule?.reset_window ?? 'calendar_month')
   const [tiers, setTiers] = useState<FineRuleTier[]>(rule?.tiers ?? [])
@@ -138,7 +140,7 @@ function CategoryEditor({ teamId, category, rule, onChange }: CategoryEditorProp
 
   async function handleDelete() {
     if (!rule) return
-    if (!confirm(t('common:confirmDelete') as string)) return
+    if (!(await confirm({ message: t('common:confirmDelete') as string, danger: true }))) return
     await deleteRecord('fine_rules', rule.id)
     onChange()
   }

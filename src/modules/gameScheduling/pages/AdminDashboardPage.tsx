@@ -16,6 +16,7 @@ import TeamAvailabilityDialog from '../components/TeamAvailabilityDialog'
 import SchedulingCalendar, { type IntraClubGame } from '../components/SchedulingCalendar'
 import MailboxPanel from '../components/MailboxPanel'
 import { useMailbox, messagesForOpponentThread, contactAddressSet, type MailboxMessage, type OpponentContacts } from '../hooks/useMailbox'
+import { useConfirm } from '../../../components/ConfirmProvider'
 import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
@@ -153,6 +154,7 @@ export default function AdminDashboardPage() {
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
   const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, manualBooking, blockSlot, finalizeNotify, vmPush, refetch } = useAdminBookings(season?.id)
   const { data: teams } = useTeams()
+  const confirm = useConfirm()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -250,7 +252,7 @@ export default function AdminDashboardPage() {
         const miss = [p.missing.home ? `${p.missing.home}H` : '', p.missing.away ? `${p.missing.away}A` : ''].filter(Boolean).join('+')
         return `• KSCW ${p.kscw} / ${p.team_name} (${miss})`
       }).join('\n')
-      if (!window.confirm(`${t('remindConfirm', { count: list.length })}\n\n${lines}`)) return
+      if (!(await confirm({ message: `${t('remindConfirm', { count: list.length })}\n\n${lines}` }))) return
       const res = await kscwApi<{ sent: number; failed: unknown[] }>(
         '/admin/terminplanung/invites/remind', { method: 'POST', body: { season_id: season.id } })
       toast.success(t('remindSent', { count: res.sent }))
@@ -264,7 +266,7 @@ export default function AdminDashboardPage() {
 
   const handleFinalizeNotify = async (teamId: string, pendingCount: number) => {
     if (!season) return
-    if (pendingCount > 0 && !window.confirm(t('finalizeNotifyConfirmPending', { count: pendingCount }))) return
+    if (pendingCount > 0 && !(await confirm({ message: t('finalizeNotifyConfirmPending', { count: pendingCount }) }))) return
     setNotifyingTeam(teamId)
     try {
       const res = await finalizeNotify(teamId, season.id)

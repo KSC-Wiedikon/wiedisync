@@ -9,6 +9,8 @@ export default {
   remove: 'Ewägneh',
   add: 'Dezuetuä',
   confirm: 'Bestätige',
+  confirmTitle: 'Bitte bestätige',
+  linkUrl: 'Link-URL (https://… oder /Pfad)',
   list: 'Lischtä',
   calendar: 'Kaländer',
   close: 'Zuämache',
