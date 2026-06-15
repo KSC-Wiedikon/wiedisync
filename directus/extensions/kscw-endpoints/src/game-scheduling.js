@@ -4203,6 +4203,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         const p = (n) => String(n).padStart(2, '0')
         return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`
       }
+      // Resolve each opponent's team responsibles so reminders reach them too
+      // (not just the saved Spielplan contact in contact_email).
+      const contactsMap = await opponentContactsBySeason(seasonRow, manageable)
 
       const previews = []; const failed = []
       let sent = 0; let skipped_complete = 0; let skipped_no_email = 0
@@ -4222,14 +4225,17 @@ export function registerGameScheduling(router, { database, logger, services, get
           expires: fmtDate(o.expires_at),
           reminder: true,
         })
-        previews.push({ id: o.id, to: o.contact_email, team_name: o.team_name, kscw: teamNameById.get(o.kscw_team) || '', missing: { home: homeMiss, away: awayMiss }, subject, html, text })
+        // Recipients = saved Spielplan contact(s) + the team's responsibles, deduped.
+        const trEmails = (contactsMap.get(o.id)?.team_responsibles || []).map((c) => c.email).filter(Boolean)
+        const toCombined = [o.contact_email || '', ...trEmails].filter(Boolean).join(', ')
+        previews.push({ id: o.id, to: toCombined, team_name: o.team_name, kscw: teamNameById.get(o.kscw_team) || '', team_responsibles: trEmails.join(', '), missing: { home: homeMiss, away: awayMiss }, subject, html, text })
         if (!dry_run) {
-          const recipients = parseRecipients(o.contact_email)
+          const recipients = parseRecipients(toCombined)
           if (!recipients || (Array.isArray(recipients) && recipients.length === 0)) {
             skipped_no_email++; failed.push({ id: o.id, error: 'no valid recipient' }); continue
           }
           try {
-            await sendSchedulingMail(o.contact_email, subject, text, SCHEDULING_REPLY_TO, html)
+            await sendSchedulingMail(toCombined, subject, text, SCHEDULING_REPLY_TO, html)
             await database('game_scheduling_opponents').where('id', o.id).update({ reminder_sent_at: new Date().toISOString() })
             sent++
           } catch (e) {
@@ -4566,20 +4572,88 @@ export function registerGameScheduling(router, { database, logger, services, get
         else add(trByClub, String(c.club_id), c)
       }
     }
-    // Merge calendar + team responsibles, deduped by email (calendar first).
-    const mergeContacts = (entry) => {
+    // Calendar / Spielplan responsible(s) for the club (club-level).
+    const calendarContacts = (entry) => [...(spiel.get(String(entry.club_id))?.values() || [])]
+    // Team responsible(s) for THIS opponent team (team-keyed `tr:` rows, plus any
+    // legacy club-wide tr rows), deduped by email.
+    const teamResponsibleContacts = (entry) => {
       const out = new Map()
       const take = (m) => { if (m) for (const [email, v] of m) if (!out.has(email)) out.set(email, v) }
-      take(spiel.get(String(entry.club_id)))
       if (entry.opp_static_id != null) take(trByTeam.get(String(entry.opp_static_id)))
       take(trByClub.get(String(entry.club_id)))
       return [...out.values()]
     }
+    // Merge calendar + team responsibles, deduped by email (calendar first).
+    const mergeContacts = (entry) => {
+      const out = new Map()
+      const take = (list) => { for (const v of list) if (!out.has(v.email)) out.set(v.email, v) }
+      take(calendarContacts(entry))
+      take(teamResponsibleContacts(entry))
+      return [...out.values()]
+    }
 
     return [...byClub.values()]
-      .map((c) => ({ ...c, suggested_contacts: mergeContacts(c) }))
+      .map((c) => ({
+        ...c,
+        suggested_contacts: mergeContacts(c),
+        calendar_contacts: calendarContacts(c),
+        team_responsible_contacts: teamResponsibleContacts(c),
+      }))
       .sort((a, b) => (a.club_name || '').localeCompare(b.club_name || ''))
   }
+
+  // Per-opponent resolved contacts for a season, split into calendar (Spielplan)
+  // vs team responsibles. Keyed by stored opponent id. Resolves once per KSCW
+  // team (resolveSyncedOpponents scans svrz_games per team) and matches stored
+  // opponents to feed entries by team name. `restrict` (Set of team ids) limits
+  // to teams the caller manages. Used by the export column + reminder recipients.
+  async function opponentContactsBySeason(seasonRow, restrict = null) {
+    const opps = await database('game_scheduling_opponents')
+      .where('season', seasonRow.id).whereNotIn('status', ['revoked', 'expired'])
+      .select('id', 'kscw_team', 'team_name')
+    const byTeam = new Map()
+    for (const o of opps) {
+      if (restrict && !restrict.has(o.kscw_team)) continue
+      if (!byTeam.has(o.kscw_team)) byTeam.set(o.kscw_team, [])
+      byTeam.get(o.kscw_team).push(o)
+    }
+    const out = new Map()
+    for (const [teamId, list] of byTeam) {
+      const teamRow = await database('teams').where('id', teamId).first()
+      if (!teamRow) continue
+      const entries = await resolveSyncedOpponents(seasonRow, teamRow)
+      const byName = new Map(entries.map((e) => [String(e.team_name || '').trim().toLowerCase(), e]))
+      for (const o of list) {
+        const e = byName.get(String(o.team_name || '').trim().toLowerCase())
+        out.set(o.id, { calendar: e?.calendar_contacts || [], team_responsibles: e?.team_responsible_contacts || [] })
+      }
+    }
+    return out
+  }
+
+  // GET /admin/terminplanung/opponent-contacts?season= — per-opponent calendar
+  // (Spielplan) + team-responsible emails for the season, keyed by opponent id.
+  // Feeds the export's "Team responsibles" column.
+  router.get('/admin/terminplanung/opponent-contacts', async (req, res) => {
+    try {
+      const { season } = req.query
+      if (!season) return res.status(400).json({ error: 'season required' })
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
+      if (!seasonRow) return res.status(404).json({ error: 'season not found' })
+      const teamIds = await database('game_scheduling_opponents')
+        .where('season', season).whereNotIn('status', ['revoked', 'expired']).distinct('kscw_team').pluck('kscw_team')
+      const manageable = new Set()
+      for (const tId of teamIds) { if (await spielplanerCanManageTeam(req, tId)) manageable.add(tId) }
+      const map = await opponentContactsBySeason(seasonRow, manageable)
+      const join = (list) => [...new Set(list.map((c) => c.email).filter(Boolean))].join(', ')
+      const out = {}
+      for (const [id, v] of map) out[id] = { calendar: join(v.calendar), team_responsibles: join(v.team_responsibles) }
+      res.json({ contacts: out })
+    } catch (err) {
+      log.error({ msg: `opponent-contacts: ${err.message}`, endpoint: 'admin/terminplanung/opponent-contacts', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
 
   // GET /admin/terminplanung/invites/svrz-clubs?kscw_team=&season= — fast list of
   // the clubs in this team's league for the semi-manual invite flow. Unlike

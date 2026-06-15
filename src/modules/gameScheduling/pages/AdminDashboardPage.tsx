@@ -442,7 +442,7 @@ export default function AdminDashboardPage() {
           <Button size="sm" variant="outline" onClick={handleSendReminders} disabled={reminding}>
             {reminding ? '…' : t('sendReminders')}
           </Button>
-          <ExcelExportButton bookings={bookings} opponents={opponents} slots={slots} teams={volleyballTeams} />
+          <ExcelExportButton bookings={bookings} opponents={opponents} slots={slots} teams={volleyballTeams} season={season} />
         </div>
       </div>
 

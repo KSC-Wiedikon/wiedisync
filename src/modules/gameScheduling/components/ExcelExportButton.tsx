@@ -1,12 +1,13 @@
 import { useTranslation } from 'react-i18next'
-import { fetchAllItems } from '../../../lib/api'
-import type { GameSchedulingBooking, GameSchedulingOpponent, GameSchedulingSlot, Team } from '../../../types'
+import { fetchAllItems, kscwApi } from '../../../lib/api'
+import type { GameSchedulingBooking, GameSchedulingOpponent, GameSchedulingSeason, GameSchedulingSlot, Team } from '../../../types'
 
 interface Props {
   bookings: GameSchedulingBooking[]
   opponents: GameSchedulingOpponent[]
   slots: GameSchedulingSlot[]
   teams: Team[]
+  season: GameSchedulingSeason | null
 }
 
 interface ExportRow {
@@ -19,19 +20,23 @@ interface ExportRow {
   status: string
   vm: string
   contact: string
+  teamResponsible: string
 }
 
 const COLUMNS: { header: string; key: keyof ExportRow; xlsxWidth: number; pdfWidth: number }[] = [
-  { header: 'Date', key: 'date', xlsxWidth: 12, pdfWidth: 20 },
-  { header: 'Time', key: 'time', xlsxWidth: 10, pdfWidth: 16 },
-  { header: 'KSCW team', key: 'team', xlsxWidth: 12, pdfWidth: 22 },
-  { header: 'Opponent', key: 'opponent', xlsxWidth: 26, pdfWidth: 46 },
-  { header: 'Hall / venue', key: 'hall', xlsxWidth: 22, pdfWidth: 42 },
-  { header: 'Type', key: 'type', xlsxWidth: 8, pdfWidth: 14 },
-  { header: 'Status', key: 'status', xlsxWidth: 11, pdfWidth: 20 },
-  { header: 'VM status', key: 'vm', xlsxWidth: 14, pdfWidth: 26 },
-  { header: 'Contact', key: 'contact', xlsxWidth: 32, pdfWidth: 60 },
+  { header: 'Date', key: 'date', xlsxWidth: 12, pdfWidth: 18 },
+  { header: 'Time', key: 'time', xlsxWidth: 10, pdfWidth: 14 },
+  { header: 'KSCW team', key: 'team', xlsxWidth: 12, pdfWidth: 20 },
+  { header: 'Opponent', key: 'opponent', xlsxWidth: 26, pdfWidth: 40 },
+  { header: 'Hall / venue', key: 'hall', xlsxWidth: 22, pdfWidth: 36 },
+  { header: 'Type', key: 'type', xlsxWidth: 8, pdfWidth: 12 },
+  { header: 'Status', key: 'status', xlsxWidth: 11, pdfWidth: 18 },
+  { header: 'VM status', key: 'vm', xlsxWidth: 14, pdfWidth: 22 },
+  { header: 'Spielplaner', key: 'contact', xlsxWidth: 32, pdfWidth: 50 },
+  { header: 'Team responsibles', key: 'teamResponsible', xlsxWidth: 32, pdfWidth: 50 },
 ]
+// The Spielplaner (calendar contact) column is highlighted in the Excel export.
+const HIGHLIGHT_KEY: keyof ExportRow = 'contact'
 
 // YYYY-MM-DD → dd.mm.yyyy (Swiss). Empty if unparseable.
 const fmtDate = (ymd: string | null | undefined): string => {
@@ -58,13 +63,23 @@ const VM_LABEL: Record<string, string> = {
 const vmLabel = (s: string | null | undefined): string => (s ? (VM_LABEL[s] || s) : 'Not pushed')
 const statusLabel = (s: string | null | undefined): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '')
 
-export default function ExcelExportButton({ bookings, opponents, slots, teams }: Props) {
+export default function ExcelExportButton({ bookings, opponents, slots, teams, season }: Props) {
   const { t } = useTranslation('gameScheduling')
 
   // Resolve confirmed + pending bookings to flat, sorted schedule rows. Shared by
   // both exporters so Excel and PDF stay identical.
   const buildRows = async (): Promise<ExportRow[]> => {
     const halls = await fetchAllItems<{ id: number; name: string }>('halls', { fields: ['id', 'name'] }).catch(() => [])
+    // Team responsibles per opponent (resolved from the SVRZ feed), for the
+    // dedicated column — separate from the saved Spielplan contact (contact_email).
+    const trByOpp = new Map<string, string>()
+    if (season?.id) {
+      try {
+        const resp = await kscwApi<{ contacts: Record<string, { calendar: string; team_responsibles: string }> }>(
+          `/admin/terminplanung/opponent-contacts?season=${season.id}`)
+        for (const [id, v] of Object.entries(resp.contacts || {})) trByOpp.set(String(id), v.team_responsibles || '')
+      } catch { /* feed unavailable — leave the column blank */ }
+    }
     const teamName = new Map(teams.map(tm => [String(tm.id), tm.name]))
     const oppById = new Map(opponents.map(o => [String(o.id), o]))
     const slotById = new Map(slots.map(s => [String(s.id), s]))
@@ -88,6 +103,7 @@ export default function ExcelExportButton({ bookings, opponents, slots, teams }:
         const team = opp ? (teamName.get(String(opp.kscw_team)) || '') : ''
         const opponent = opp ? (opp.team_name || opp.club_name || '') : ''
         const contact = opp?.contact_email || ''
+        const teamResponsible = opp ? (trByOpp.get(String(opp.id)) || '') : ''
         const status = statusLabel(b.status)
 
         if (b.type === 'home_slot_pick') {
@@ -99,7 +115,7 @@ export default function ExcelExportButton({ bookings, opponents, slots, teams }:
             time: homeGameTime(slot.date, slot.start_time),
             team, opponent,
             hall: hallName.get(String(slot.hall)) || '',
-            type: 'Home', status, vm: vmLabel(b.vm_push_status as unknown as string), contact,
+            type: 'Home', status, vm: vmLabel(b.vm_push_status as unknown as string), contact, teamResponsible,
           }
         }
         // Away — confirmed uses the chosen proposal, pending shows the 1st.
@@ -114,7 +130,7 @@ export default function ExcelExportButton({ bookings, opponents, slots, teams }:
           time: dtTime(dt),
           team, opponent,
           hall: place,
-          type: 'Away', status, vm: '—', contact,
+          type: 'Away', status, vm: '—', contact, teamResponsible,
         }
       })
       .filter((r): r is ExportRow & { _sort: string } => r !== null)
@@ -131,6 +147,11 @@ export default function ExcelExportButton({ bookings, opponents, slots, teams }:
     ws.getRow(1).font = { bold: true }
     ws.views = [{ state: 'frozen', ySplit: 1 }]
     rows.forEach(r => ws.addRow(r))
+    // Highlight the Spielplaner column (header + cells) so it's distinct from the
+    // new Team responsibles column.
+    ws.getColumn(HIGHLIGHT_KEY).eachCell((cell) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } }
+    })
     const buffer = await wb.xlsx.writeBuffer()
     downloadBlob(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), exportFilename('xlsx'))
   }
