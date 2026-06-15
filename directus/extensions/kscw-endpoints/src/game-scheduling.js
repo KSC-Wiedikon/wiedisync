@@ -4106,8 +4106,17 @@ export function registerGameScheduling(router, { database, logger, services, get
   // invite link base is the env-aware FRONTEND_URL, not a client value.
   router.post('/admin/terminplanung/invites/send', async (req, res) => {
     try {
-      const { ids, dry_run, season_name = '', kscw_team_name = '', kscw_league = '' } = req.body || {}
+      const { ids, dry_run, season_name = '', kscw_team_name = '', kscw_league = '', contacts_group = 'all' } = req.body || {}
       if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids[] required' })
+      // Which contacts to email: 'all' (union, default), 'calendar' (club
+      // Spielplanverantwortliche) or 'team' (the opponent team's responsibles).
+      // Falls back to the union when a row has no split stored yet (legacy rows
+      // not re-synced) so a chosen group never silently sends to nobody.
+      const recipientsFor = (row) => {
+        if (contacts_group === 'calendar') return row.calendar_contact_email || row.contact_email || ''
+        if (contacts_group === 'team') return row.team_contact_email || row.contact_email || ''
+        return row.contact_email || ''
+      }
       const rows = await database('game_scheduling_opponents')
         .whereIn('id', ids)
         .whereNotIn('status', ['revoked', 'expired'])
@@ -4145,11 +4154,12 @@ export function registerGameScheduling(router, { database, logger, services, get
           url,
           expires: fmtDate(row.expires_at),
         })
-        previews.push({ id: row.id, to: row.contact_email, team_name: row.team_name, subject, html, text })
+        const toAddrs = recipientsFor(row)
+        previews.push({ id: row.id, to: toAddrs, team_name: row.team_name, subject, html, text })
         if (!dry_run) {
           // Skip rows with no valid (sanitised) recipient — count as failed, don't
           // stamp them as sent.
-          const recipients = parseRecipients(row.contact_email)
+          const recipients = parseRecipients(toAddrs)
           if (!recipients || (Array.isArray(recipients) && recipients.length === 0)) {
             failed.push({ id: row.id, error: 'no valid recipient' })
             continue
@@ -4157,7 +4167,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           try {
             // CC the club's scheduling mailbox so the spielplaner has a copy of
             // every invite that went out.
-            await sendSchedulingMail(row.contact_email, subject, text, SCHEDULING_REPLY_TO, html)
+            await sendSchedulingMail(toAddrs, subject, text, SCHEDULING_REPLY_TO, html)
             // Stamp the send so the list shows "Invited" (vs "Not sent") — never
             // touches the lifecycle status (a reminder to a viewed/booked row
             // keeps that status).
@@ -4796,29 +4806,59 @@ export function registerGameScheduling(router, { database, logger, services, get
       const existing = await database('game_scheduling_opponents')
         .where({ kscw_team, season })
       const norm = (s) => String(s || '').trim().toLowerCase()
-      const haveNames = new Set(existing.map((e) => norm(e.team_name)))
+      const existingByName = new Map(existing.map((e) => [norm(e.team_name), e]))
+      const insertedNames = new Set()
+
+      // A resolved contact list → comma-joined { names, emails }.
+      const joinContacts = (list) => ({
+        names: (list || []).map((c) => c.name).filter(Boolean).join(', '),
+        emails: (list || []).map((c) => c.email).filter(Boolean).join(', '),
+      })
 
       let created = 0
+      let refreshed = 0
       for (const opp of opponents) {
-        const emails = opp.suggested_contacts.map((c) => c.email).filter(Boolean)
-        if (!emails.length) continue
+        const union = joinContacts(opp.suggested_contacts)
+        if (!union.emails) continue
+        const cal = joinContacts(opp.calendar_contacts)
+        const team = joinContacts(opp.team_responsible_contacts)
         const teamName = opp.team_name || opp.club_name
-        if (haveNames.has(norm(teamName))) continue
-        const names = opp.suggested_contacts.map((c) => c.name).filter(Boolean)
+        // contact_email/contact_name stay the UNION (send path + everything else
+        // reads these); the split columns label who's a calendar vs team contact.
+        const contactFields = {
+          contact_email: union.emails, contact_name: union.names,
+          calendar_contact_email: cal.emails, calendar_contact_name: cal.names,
+          team_contact_email: team.emails, team_contact_name: team.names,
+        }
+        const existingRow = existingByName.get(norm(teamName))
+        if (existingRow) {
+          // Refresh contacts in place — this is what recovers per-team
+          // responsibles that were dropped before they'd been synced (they're
+          // matched by the opponent team's staticTeamIdentifier). Never touches
+          // token/status/expiry, so a revoked invite stays revoked. Only writes
+          // when the union (or a split group) actually changed.
+          const changed =
+            (existingRow.contact_email || '') !== contactFields.contact_email ||
+            (existingRow.calendar_contact_email || '') !== contactFields.calendar_contact_email ||
+            (existingRow.team_contact_email || '') !== contactFields.team_contact_email
+          if (changed) { await database('game_scheduling_opponents').where('id', existingRow.id).update(contactFields); refreshed++ }
+          continue
+        }
+        if (insertedNames.has(norm(teamName))) continue
         await database('game_scheduling_opponents').insert({
           kscw_team, season, team_name: teamName,
-          contact_email: emails.join(', '), contact_name: names.join(', '),
+          ...contactFields,
           token: crypto.randomBytes(16).toString('hex'), status: 'invited',
           source: 'svrz', created_by_admin: true, expires_at: newInviteExpiry(seasonRow.season),
         })
-        haveNames.add(norm(teamName))
+        insertedNames.add(norm(teamName))
         created++
       }
 
       const invites = await database('game_scheduling_opponents')
         .where('kscw_team', kscw_team).where('season', season)
         .orderBy('date_created', 'desc')
-      res.json({ created, invites })
+      res.json({ created, refreshed, invites })
     } catch (err) {
       log.error({ msg: `invites ensure-from-svrz: ${err.message}`, endpoint: 'admin/terminplanung/invites/ensure-from-svrz', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })

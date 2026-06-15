@@ -677,6 +677,13 @@ export interface GameSchedulingOpponent extends BaseRecord {
   kscw_note?: string | null
   /** Free-text remark written by the opponent (read-only for KSCW, shown in the dashboard). */
   opponent_note?: string | null
+  /** contact_name/contact_email above is the UNION; these split it into the two
+   *  sources for display. Calendar = club Spielplanverantwortliche; team = the
+   *  opponent team's own responsibles. Comma-joined; empty on not-yet-resynced rows. */
+  calendar_contact_name?: string | null
+  calendar_contact_email?: string | null
+  team_contact_name?: string | null
+  team_contact_email?: string | null
 }
 
 /** Live validity of one proposed home slot (GET /admin/terminplanung/proposal-health). */

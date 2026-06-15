@@ -880,6 +880,20 @@ function TeamBookingsContent({
                   const idStr = String(opp.id)
                   const collapsible = contactEmails.length > 1
                   const open = openContacts.has(idStr)
+                  // Two labelled groups when the split is stored; otherwise fall
+                  // back to the merged blob (rows not re-synced since migration 110).
+                  const hasSplit = !!(String(opp.calendar_contact_email || '').trim() || String(opp.team_contact_email || '').trim())
+                  const renderGroup = (label: string, names?: string | null, emails?: string | null) => {
+                    const e = String(emails || '').trim()
+                    if (!e) return null
+                    return (
+                      <div className="break-words">
+                        <span className="font-medium text-gray-600 dark:text-gray-300">{label}:</span>{' '}
+                        {names && <span>{names} </span>}
+                        <a href={buildMailtoHref(e)} className="hover:underline">({e})</a>
+                      </div>
+                    )
+                  }
                   return (
                     <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       {collapsible && (
@@ -894,14 +908,21 @@ function TeamBookingsContent({
                         </button>
                       )}
                       {(!collapsible || open) && (
-                        <div className={`break-words ${collapsible ? 'mt-1' : ''}`}>
-                          {opp.contact_name && <span>{opp.contact_name} </span>}
-                          {opp.contact_email && (
-                            <a href={buildMailtoHref(opp.contact_email)} className="hover:underline">
-                              ({opp.contact_email})
-                            </a>
-                          )}
-                        </div>
+                        hasSplit ? (
+                          <div className={`space-y-1 ${collapsible ? 'mt-1' : ''}`}>
+                            {renderGroup(t('calendarResponsibles'), opp.calendar_contact_name, opp.calendar_contact_email)}
+                            {renderGroup(t('teamResponsibles'), opp.team_contact_name, opp.team_contact_email)}
+                          </div>
+                        ) : (
+                          <div className={`break-words ${collapsible ? 'mt-1' : ''}`}>
+                            {opp.contact_name && <span>{opp.contact_name} </span>}
+                            {opp.contact_email && (
+                              <a href={buildMailtoHref(opp.contact_email)} className="hover:underline">
+                                ({opp.contact_email})
+                              </a>
+                            )}
+                          </div>
+                        )
                       )}
                     </div>
                   )

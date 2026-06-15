@@ -35,6 +35,9 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
   const [previews, setPreviews] = useState<InvitePreview[]>([])
   const [selected, setSelected] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  // Which contacts to email: union (default), calendar responsibles, or team
+  // responsibles. Drives both the preview re-fetch and the actual send.
+  const [group, setGroup] = useState<'all' | 'calendar' | 'team'>('all')
 
   useEffect(() => {
     if (!open || ids.length === 0) return
@@ -44,7 +47,7 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
     setPreviews([])
     setSelected(0)
     api
-      .sendInvites(ids, { dryRun: true, ...ctx })
+      .sendInvites(ids, { dryRun: true, contactsGroup: group, ...ctx })
       .then((resp) => {
         if (cancelled) return
         setPreviews(resp.previews ?? [])
@@ -60,14 +63,14 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, ids.join(',')])
+  }, [open, ids.join(','), group])
 
   const current = previews[selected] ?? null
 
   const handleSend = async () => {
     setSending(true)
     try {
-      const resp = await api.sendInvites(ids, { dryRun: false, ...ctx })
+      const resp = await api.sendInvites(ids, { dryRun: false, contactsGroup: group, ...ctx })
       toast.success(t('invitesEmailSent', { count: resp.sent }))
       if (resp.failed.length > 0) toast.error(t('invitesEmailFailed', { count: resp.failed.length }))
       await api.refetch() // refresh badges → "Invited" now that the email went out
@@ -86,6 +89,26 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
           <DialogTitle>{t('invitePreviewTitle')}</DialogTitle>
           <DialogDescription>{t('invitePreviewDesc', { count: previews.length })}</DialogDescription>
         </DialogHeader>
+
+        {/* Recipient group — union (default) / calendar / team responsibles. */}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="font-medium text-gray-600 dark:text-gray-400">{t('sendToLabel')}:</span>
+          {(['all', 'calendar', 'team'] as const).map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setGroup(g)}
+              disabled={sending}
+              className={`rounded-full border px-2.5 py-1 transition-colors disabled:opacity-50 ${
+                group === g
+                  ? 'border-brand-500 bg-brand-50 font-medium text-brand-700 dark:border-brand-400 dark:bg-brand-900/40 dark:text-brand-300'
+                  : 'border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
+              }`}
+            >
+              {t(g === 'all' ? 'sendGroupAll' : g === 'calendar' ? 'calendarResponsibles' : 'teamResponsibles')}
+            </button>
+          ))}
+        </div>
 
         {loading ? (
           <div className="py-10 text-center text-sm text-gray-500">{t('previewLoading')}</div>

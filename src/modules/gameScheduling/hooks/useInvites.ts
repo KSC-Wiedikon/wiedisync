@@ -196,7 +196,7 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
   // Bulk-send invite emails per team. dryRun=true returns rendered previews
   // (byte-identical to what's sent) so the confirm modal can show each email.
   const sendInvites = useCallback(
-    async (ids: Array<string | number>, opts: { dryRun: boolean } & SendInvitesContext) => {
+    async (ids: Array<string | number>, opts: { dryRun: boolean; contactsGroup?: 'all' | 'calendar' | 'team' } & SendInvitesContext) => {
       return kscwApi<SendInvitesResponse>('/admin/terminplanung/invites/send', {
         method: 'POST',
         body: {
@@ -205,6 +205,7 @@ export function useInvites(kscwTeamId: string | number | null | undefined, seaso
           season_name: opts.seasonName,
           kscw_team_name: opts.kscwTeamName,
           kscw_league: opts.kscwLeague,
+          contacts_group: opts.contactsGroup || 'all',
         },
       })
     },
