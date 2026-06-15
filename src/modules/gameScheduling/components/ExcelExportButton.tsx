@@ -132,7 +132,7 @@ export default function ExcelExportButton({ bookings, opponents, slots, teams }:
     ws.views = [{ state: 'frozen', ySplit: 1 }]
     rows.forEach(r => ws.addRow(r))
     const buffer = await wb.xlsx.writeBuffer()
-    downloadBlob(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'kscw_schedule.xlsx')
+    downloadBlob(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), exportFilename('xlsx'))
   }
 
   const handlePdf = async () => {
@@ -173,7 +173,7 @@ export default function ExcelExportButton({ bookings, opponents, slots, teams }:
       doc.line(margin, y + 1.2, margin + tableW, y + 1.2)
       y += rowH
     }
-    doc.save('kscw_schedule.pdf')
+    doc.save(exportFilename('pdf'))
   }
 
   const disabled = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length === 0
@@ -196,6 +196,16 @@ export default function ExcelExportButton({ bookings, opponents, slots, teams }:
       </button>
     </div>
   )
+}
+
+// Export filename: kscw_spielplanung_vb_<ddmmyy>_<HHMM>.<ext> in Zurich time.
+function exportFilename(ext: string): string {
+  const parts = new Intl.DateTimeFormat('de-CH', {
+    timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date())
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
+  return `kscw_spielplanung_vb_${g('day')}${g('month')}${g('year')}_${g('hour')}${g('minute')}.${ext}`
 }
 
 function downloadBlob(blob: Blob, filename: string) {
