@@ -128,6 +128,21 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   // so drop Apr/May and clamp navigation to the two boundary months.
   const firstMonth = useMemo(() => new Date(startYear, 8, 1), [startYear]) // September
   const lastMonth = useMemo(() => new Date(startYear + 1, 2, 1), [startYear]) // March
+  // Configurable season offer window (mirrors backend seasonOfferWindow): days
+  // before it opens / after it closes render black with "Season not open".
+  const seasonWindow = useMemo(() => ({
+    start: season.season_opens ? String(season.season_opens).slice(0, 10) : `${startYear}-09-01`,
+    end: season.season_closes ? String(season.season_closes).slice(0, 10) : `${startYear + 1}-03-31`,
+  }), [season.season_opens, season.season_closes, startYear])
+  const outOfSeasonDates = useMemo(() => {
+    const set = new Set<string>()
+    const end = new Date(startYear + 1, 3, 30) // Apr 30 — covers trailing grid days
+    for (const d = new Date(startYear, 7, 1); d <= end; d.setDate(d.getDate() + 1)) { // from Aug 1
+      const k = toDateKey(d)
+      if (k < seasonWindow.start || k > seasonWindow.end) set.add(k)
+    }
+    return set
+  }, [seasonWindow, startYear])
   const seasonMonths = useMemo(() => {
     const out: Date[] = []
     for (let m = 8; m <= 11; m++) out.push(new Date(startYear, m, 1)) // Sep–Dec
@@ -546,6 +561,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         highlightedDates={highlightedDates}
         highlightClassName="bg-gold-100 dark:bg-gold-500/20"
         highlightLabel={t('spielsamstag')}
+        outOfSeasonDates={outOfSeasonDates}
+        outOfSeasonLabel={t('outsideSeasonLabel')}
         onDayClick={(date, items) => {
           const open = openByDate.get(toDateKey(date)) || 0
           if (items.length === 0 && open === 0) return

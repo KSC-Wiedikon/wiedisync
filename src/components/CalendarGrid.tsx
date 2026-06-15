@@ -29,6 +29,10 @@ interface CalendarGridProps<T> {
   highlightClassName?: string
   /** Short label rendered beside the day number on highlighted days (opt-in). */
   highlightLabel?: string
+  /** Date keys outside the season window — rendered black with `outOfSeasonLabel`. Opt-in. */
+  outOfSeasonDates?: Set<string>
+  /** Short label shown on out-of-season days (e.g. "Season not open"). */
+  outOfSeasonLabel?: string
   minMonth?: Date
   maxMonth?: Date
   /**
@@ -54,6 +58,8 @@ export default function CalendarGrid<T>({
   highlightedDates,
   highlightClassName = 'bg-amber-50 dark:bg-amber-950',
   highlightLabel,
+  outOfSeasonDates,
+  outOfSeasonLabel,
   minMonth,
   maxMonth,
   onEmptyDayClick,
@@ -126,7 +132,8 @@ export default function CalendarGrid<T>({
           const items = itemsByDate.get(key) ?? []
           const isClosed = closedDates?.has(key) ?? false
           const isHighlighted = highlightedDates?.has(key) ?? false
-          const clickable = !!onDayClick && inMonth
+          const isOutOfSeason = outOfSeasonDates?.has(key) ?? false
+          const clickable = !!onDayClick && inMonth && !isOutOfSeason
 
           return (
             <div
@@ -146,7 +153,7 @@ export default function CalendarGrid<T>({
               } ${
                 isToday ? 'ring-2 ring-inset ring-gold-400 dark:ring-gold-500' : ''
               } ${
-                !inMonth ? 'bg-gray-50 dark:bg-gray-900' : isHighlighted ? highlightClassName : 'bg-white dark:bg-gray-800'
+                !inMonth ? 'bg-gray-50 dark:bg-gray-900' : isOutOfSeason ? 'bg-black' : isHighlighted ? highlightClassName : 'bg-white dark:bg-gray-800'
               }`}
             >
               {/* Closure overlay (red — visible in both light and dark mode) */}
@@ -162,12 +169,14 @@ export default function CalendarGrid<T>({
                       ? 'font-bold text-gold-600 dark:text-gold-400'
                       : !inMonth
                         ? 'text-gray-300 dark:text-gray-600'
-                        : 'text-gray-700 dark:text-gray-300'
+                        : isOutOfSeason
+                          ? 'text-white/60'
+                          : 'text-gray-700 dark:text-gray-300'
                   }`}
                 >
                   {date.getDate()}
                 </span>
-                {isHighlighted && inMonth && highlightLabel && (
+                {isHighlighted && inMonth && !isOutOfSeason && highlightLabel && (
                   <span
                     title={highlightLabel}
                     className="min-w-0 truncate rounded bg-gold-400/25 px-1 text-[9px] font-semibold uppercase tracking-wide text-gold-700 dark:bg-gold-400/20 dark:text-gold-300"
@@ -176,6 +185,13 @@ export default function CalendarGrid<T>({
                   </span>
                 )}
               </div>
+
+              {/* Out-of-season label (e.g. "Season not open") — black-day overlay */}
+              {isOutOfSeason && inMonth && outOfSeasonLabel && (
+                <div className="truncate text-[9px] font-semibold uppercase tracking-wide text-white/70" title={outOfSeasonLabel}>
+                  {outOfSeasonLabel}
+                </div>
+              )}
 
               {/* Closure label + reason (small) */}
               {isClosed && inMonth && closedLabel && (
