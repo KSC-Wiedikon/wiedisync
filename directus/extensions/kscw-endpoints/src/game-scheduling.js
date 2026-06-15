@@ -617,6 +617,40 @@ export function registerGameScheduling(router, { database, logger, services, get
     return `${y2}-01-01`
   }
 
+  // The selectable offer window [start, end] (YYYY-MM-DD) for a season — bounds
+  // the home slots and away dates the tool offers, and the calendars' selectable
+  // range (anything before start / after end is greyed out). Uses the per-season
+  // configurable season_opens / season_closes dates when set (migration 108),
+  // otherwise derives Sep 1 (first year) → Mar 31 (second year) from the season
+  // name (e.g. "2026/27") — the value that was hardcoded before. Either bound may
+  // be configured independently; the other falls back to the derived default.
+  const seasonOfferWindow = (seasonRow) => {
+    // pg returns `date` columns as JS Date objects — format with local getters
+    // (matching the ymd() helper) so we get 'YYYY-MM-DD', not 'Mon Sep 14'.
+    const toYmd = (v) => {
+      if (!v) return null
+      if (typeof v === 'string') return /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null
+      const d = new Date(v)
+      if (Number.isNaN(d.getTime())) return null
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
+    const opens = toYmd(seasonRow?.season_opens)
+    const closes = toYmd(seasonRow?.season_closes)
+    let dStart = null
+    let dEnd = null
+    const m = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
+    if (m) {
+      const y1 = parseInt(m[1], 10)
+      let y2 = parseInt(m[2], 10)
+      if (y2 < 100) y2 = 2000 + y2
+      dStart = `${y1}-09-01`
+      dEnd = `${y2}-03-31`
+    }
+    const start = opens || dStart
+    const end = closes || dEnd
+    return start && end ? { start, end } : null
+  }
+
   // Confirmed-derby anchors for a team in a season: the LATEST Vorrunde-leg date
   // and the LATEST Rückrunde-leg date across every confirmed derby the team is in
   // (latest, so ALL its derbies come first when a club has 3+ teams in a group).
@@ -940,6 +974,8 @@ export function registerGameScheduling(router, { database, logger, services, get
     const rueckStart = rueckrundeStart(seasonRow)
     const derbyAnchors = await confirmedDerbyAnchors(teamId, seasonId, rueckStart)
     const derbyBlocked = buildDerbyBlockedSet(derbyAnchors, rueckStart, seasonRow)
+    // Configurable season offer window — bounds home slots + away dates.
+    const offerWindow = seasonOfferWindow(seasonRow)
 
     const DOLTSCHI_SEASON_CAP = 10
     const doltschiHallIds = await database('halls')
@@ -960,6 +996,8 @@ export function registerGameScheduling(router, { database, logger, services, get
     const slotRows = await database('game_scheduling_slots')
       .where('kscw_team', teamId)
       .where('status', 'available')
+      // Configurable season window: never offer a slot outside [open, close].
+      .modify((q) => { if (offerWindow) q.whereBetween('date', [offerWindow.start, offerWindow.end]) })
       .whereNotExists(function () {
         this.select(database.raw('1'))
           .from('events as e')
@@ -1107,26 +1145,15 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (members.size >= 3) looseSet.add(k)
     }
     const noSatAway = await teamNoSaturday(teamId)
-    if (!isJr || noSatAway) {
-      const sw = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
-      if (sw) {
-        let yEnd = parseInt(sw[2], 10); if (yEnd < 100) yEnd = 2000 + yEnd
-        const swEnd = new Date(`${yEnd}-03-31T00:00:00Z`)
-        for (const d = new Date(`${parseInt(sw[1], 10)}-09-01T00:00:00Z`); d <= swEnd; d.setUTCDate(d.getUTCDate() + 1)) {
-          const dow = d.getUTCDay()
-          if ((!isJr && dow === 0) || (noSatAway && dow === 6)) { const k = d.toISOString().slice(0, 10); strictSet.add(k); looseSet.add(k) }
-        }
+    if ((!isJr || noSatAway) && offerWindow) {
+      const swEnd = new Date(`${offerWindow.end}T00:00:00Z`)
+      for (const d = new Date(`${offerWindow.start}T00:00:00Z`); d <= swEnd; d.setUTCDate(d.getUTCDate() + 1)) {
+        const dow = d.getUTCDay()
+        if ((!isJr && dow === 0) || (noSatAway && dow === 6)) { const k = d.toISOString().slice(0, 10); strictSet.add(k); looseSet.add(k) }
       }
     }
 
-    let season_window = null
-    const sm = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
-    if (sm) {
-      const y1 = parseInt(sm[1], 10)
-      let y2 = parseInt(sm[2], 10)
-      if (y2 < 100) y2 = 2000 + y2
-      season_window = { start: `${y1}-09-01`, end: `${y2}-03-31` }
-    }
+    const season_window = offerWindow
 
     return {
       team: { id: teamId, name: teamRow.name || '' },
@@ -1360,6 +1387,8 @@ export function registerGameScheduling(router, { database, logger, services, get
       const rueckStart = rueckrundeStart(seasonRow)
       const derbyAnchors = await confirmedDerbyAnchors(opponent.kscw_team, opponent.season, rueckStart)
       const derbyBlocked = buildDerbyBlockedSet(derbyAnchors, rueckStart, seasonRow)
+      // Configurable season offer window — bounds home slots + away dates.
+      const offerWindow = seasonOfferWindow(seasonRow)
 
       // Döltschi rules: the club may schedule at most DOLTSCHI_SEASON_CAP games in
       // Döltschi per season (club-wide), and a Döltschi DATE counts as ONE slot —
@@ -1392,6 +1421,8 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where('kscw_team', opponent.kscw_team)
         // Only offer available slots — a booked KWI A drops out so KWI B shows alone.
         .where('status', 'available')
+        // Configurable season window: never offer a slot outside [open, close].
+        .modify((q) => { if (offerWindow) q.whereBetween('date', [offerWindow.start, offerWindow.end]) })
         .whereNotExists(function () {
           this.select(database.raw('1'))
             .from('events as e')
@@ -1634,15 +1665,11 @@ export function registerGameScheduling(router, { database, logger, services, get
       // (propose-away hard-rejects); teams flagged no_saturday_games never play
       // away on Saturdays either. Grey them so they're never offered.
       const noSatAway = await teamNoSaturday(opponent.kscw_team)
-      if (!isJr || noSatAway) {
-        const sw = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
-        if (sw) {
-          let yEnd = parseInt(sw[2], 10); if (yEnd < 100) yEnd = 2000 + yEnd
-          const swEnd = new Date(`${yEnd}-03-31T00:00:00Z`)
-          for (const d = new Date(`${parseInt(sw[1], 10)}-09-01T00:00:00Z`); d <= swEnd; d.setUTCDate(d.getUTCDate() + 1)) {
-            const dow = d.getUTCDay()
-            if ((!isJr && dow === 0) || (noSatAway && dow === 6)) { const k = d.toISOString().slice(0, 10); strictSet.add(k); looseSet.add(k) }
-          }
+      if ((!isJr || noSatAway) && offerWindow) {
+        const swEnd = new Date(`${offerWindow.end}T00:00:00Z`)
+        for (const d = new Date(`${offerWindow.start}T00:00:00Z`); d <= swEnd; d.setUTCDate(d.getUTCDate() + 1)) {
+          const dow = d.getUTCDay()
+          if ((!isJr && dow === 0) || (noSatAway && dow === 6)) { const k = d.toISOString().slice(0, 10); strictSet.add(k); looseSet.add(k) }
         }
       }
       const blocked_away_strict = [...strictSet].sort()
@@ -1653,16 +1680,9 @@ export function registerGameScheduling(router, { database, logger, services, get
       // our-side-checked, in the deterministic order bookings are keyed by.
       const svrzGames = await opponentSvrzFixtures(opponent)
 
-      // Season window (Sep 1 → Mar 31) so the away calendar can bound itself.
-      // (seasonRow already fetched above for the derby clamp.)
-      let season_window = null
-      const sm = String(seasonRow?.season || '').match(/(\d{4})\D+(\d{2,4})/)
-      if (sm) {
-        const y1 = parseInt(sm[1], 10)
-        let y2 = parseInt(sm[2], 10)
-        if (y2 < 100) y2 = 2000 + y2
-        season_window = { start: `${y1}-09-01`, end: `${y2}-03-31` }
-      }
+      // Season offer window (configurable via season_opens/season_closes, else
+      // Sep 1 → Mar 31) so the away calendar can bound itself.
+      const season_window = offerWindow
 
       // Junior Sunday steer: a Sunday slot is "preferred" when it lands on a
       // Spielsamstag weekend (rule: Spielsamstag-weekend Sundays before other
@@ -1793,6 +1813,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       const homeSeasonRow = await database('game_scheduling_seasons').where('id', opponent.season).first()
       const homeRueckStart = rueckrundeStart(homeSeasonRow)
       const homeDerbyAnchors = await confirmedDerbyAnchors(opponent.kscw_team, opponent.season, homeRueckStart)
+      const homeWindow = seasonOfferWindow(homeSeasonRow)
       // Guards a stale page might bypass: the three picks must be on three
       // DIFFERENT days (same-day/different-time makes no sense), within the
       // Saturday cap, and clear of the cross-team same-day rule.
@@ -1814,6 +1835,9 @@ export function registerGameScheduling(router, { database, logger, services, get
           return res.status(400).json({ error: `Slot ${i + 1} is on the same day as another of your picks — your three options must be on three different days.` })
         }
         usedDays.add(day)
+        if (homeWindow && (day < homeWindow.start || day > homeWindow.end)) {
+          return res.status(400).json({ error: `Slot ${i + 1} is outside the season window — please pick another.` })
+        }
         if (isSaturday(day) && !satDatesHome.has(day) && satDatesHome.size >= satCapHome) {
           return res.status(400).json({ error: `Slot ${i + 1} is a Saturday but this team has used its Saturday home-game allotment — please pick another.` })
         }
@@ -2222,6 +2246,8 @@ export function registerGameScheduling(router, { database, logger, services, get
       const awaySeasonRow = await database('game_scheduling_seasons').where('id', opponent.season).first()
       const awayRueckStart = rueckrundeStart(awaySeasonRow)
       const awayDerbyAnchors = await confirmedDerbyAnchors(opponent.kscw_team, opponent.season, awayRueckStart)
+      // Season window: no away date may fall outside [open, close] either.
+      const awayWindow = seasonOfferWindow(awaySeasonRow)
       const usedAwayDays = new Set()
       for (let i = 0; i < proposals.length; i++) {
         const p = proposals[i]
@@ -2233,6 +2259,10 @@ export function registerGameScheduling(router, { database, logger, services, get
           return res.status(400).json({ error: `${p.date} is the same day as another of your proposals — your dates must be on different days.` })
         }
         usedAwayDays.add(pDay)
+        // Season window: reject away dates before the season opens / after it closes.
+        if (awayWindow && (pDay < awayWindow.start || pDay > awayWindow.end)) {
+          return res.status(400).json({ error: 'away_outside_season' })
+        }
         if (p.start_time && !TIME_RE.test(String(p.start_time))) {
           return res.status(400).json({ error: 'start_time must be HH:MM' })
         }
@@ -2483,18 +2513,15 @@ export function registerGameScheduling(router, { database, logger, services, get
         return d.toISOString().slice(11, 16)
       }
 
-      // Evening (hall_slot) mode repeats weekly across the volleyball season
-      // window: Sep 1 (first year) → Mar 31 (second year), parsed from the
-      // season name (e.g. "2026/27").
-      const seasonWindow = (name) => {
-        const m = String(name || '').match(/(\d{4})\D+(\d{2,4})/)
-        if (!m) return null
-        const y1 = parseInt(m[1], 10)
-        let y2 = parseInt(m[2], 10)
-        if (y2 < 100) y2 = 2000 + y2
-        return { start: new Date(Date.UTC(y1, 8, 1)), end: new Date(Date.UTC(y2, 2, 31)) }
-      }
-      const eveningWindow = seasonWindow(season.season)
+      // Evening (hall_slot) mode repeats weekly across the season offer window —
+      // configurable via season_opens/season_closes (migration 108), else
+      // Sep 1 (first year) → Mar 31 (second year) derived from the season name
+      // (e.g. "2026/27"). Generation is bounded to it so no slot is ever created
+      // outside the window (the offer queries also re-filter, belt and braces).
+      const ow = seasonOfferWindow(season)
+      const eveningWindow = ow
+        ? { start: new Date(`${ow.start}T00:00:00Z`), end: new Date(`${ow.end}T00:00:00Z`) }
+        : null
 
       // Club-wide Spielhalle pool: the shared game-hall slots (label
       // 'Spielhalle', no team assigned — KWI A/B on Friday). Any team without

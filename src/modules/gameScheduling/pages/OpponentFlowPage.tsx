@@ -321,6 +321,7 @@ export default function OpponentFlowPage() {
             <HomeProposalForm
               slots={slots}
               existing={card.booking?.status === 'pending' ? card.booking : undefined}
+              seasonWindow={seasonWindow}
               onChange={homeChangeFor(card.key)}
               hideSubmit
             />

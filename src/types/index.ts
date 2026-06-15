@@ -574,6 +574,10 @@ export interface GameSchedulingSeason extends BaseRecord {
   team_slot_config: TeamSlotConfig | null
   /** Per-season game-spacing gaps in days. Null/missing → defaults {4,4,2}. */
   gap_config: GameSchedulingGapConfig | null
+  /** First date the tool offers slots/away dates (YYYY-MM-DD). Null → Sep 1 of the season's first year. */
+  season_opens: string | null
+  /** Last date the tool offers slots/away dates (YYYY-MM-DD). Null → Mar 31 of the season's second year. */
+  season_closes: string | null
   notes: string
 
 }

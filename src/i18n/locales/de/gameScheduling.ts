@@ -333,6 +333,12 @@ export default {
   svrzSeasonEmpty: 'Noch keine SVRZ-Daten. Bitte zuerst SVRZ-Sync ausführen.',
   svrzSeasonLinked: '✓ verknüpft',
   svrzSeasonMismatchHint: 'SVRZ {{kscw}} ist noch nicht veröffentlicht — Swiss Volley publiziert die nächste Saison jeweils im Juni. Bis dahin werden {{svrz}}-Kontakte als Fallback genutzt.',
+  seasonWindowLabel: 'Saisonfenster',
+  seasonOpens: 'Saison öffnet',
+  seasonCloses: 'Saison schliesst',
+  seasonWindowHelp: 'Daten vor dem Öffnungs- oder nach dem Schliessdatum sind in beiden Kalendern ausgegraut. Leer lassen für den Standard (1. September – 31. März).',
+  seasonWindowSaved: 'Saisonfenster gespeichert',
+  outsideSeasonLabel: 'Saison nicht offen',
   save: 'Speichern',
 
   // Season archive

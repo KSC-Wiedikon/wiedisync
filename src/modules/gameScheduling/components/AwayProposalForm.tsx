@@ -117,7 +117,13 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
                   startMonth={winStart ?? undefined}
                   endMonth={winEnd ?? undefined}
                   disabled={isDisabled(i)}
+                  modifiers={{ outOfSeason: (date) => (!!winStart && isBefore(date, winStart)) || (!!winEnd && isAfter(date, winEnd)) }}
+                  modifiersClassNames={{ outOfSeason: '!bg-black !text-white/40' }}
                 />
+                <p className="flex items-center gap-1.5 border-t border-gray-100 px-3 py-2 text-[11px] text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  <span className="inline-block h-3 w-3 rounded-sm bg-black" />
+                  {t('outsideSeasonLabel')}
+                </p>
               </PopoverContent>
             </Popover>
             <input

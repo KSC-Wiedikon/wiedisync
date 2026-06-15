@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { parseISO } from 'date-fns'
+import { parseISO, isBefore, isAfter } from 'date-fns'
 import { gameStartForDate } from '../utils/slotTime'
 import { Calendar } from '@/components/ui/calendar'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,8 @@ interface Props {
   onChange?: (slotIds: string[] | null) => void
   /** Hide the form's own submit button (parent owns submission). */
   hideSubmit?: boolean
+  /** Selectable window (season open → close). Days outside it render "season not open". */
+  seasonWindow?: { start: string; end: string } | null
 }
 
 interface TimeOption {
@@ -44,8 +46,11 @@ function mergeHalls(names: string[]): string {
 // 1 & 2 come from the strict pool (home gap + full squad), slot 3 may also use
 // the lenient pool (proposal-3 gap, a couple of absences) — mirrors the away
 // proposal form's strict/loose split. Slots are NOT reserved on submit.
-export default function HomeProposalForm({ slots, existing, onSubmit, onChange, hideSubmit }: Props) {
+export default function HomeProposalForm({ slots, existing, onSubmit, onChange, hideSubmit, seasonWindow }: Props) {
   const { t, i18n } = useTranslation('gameScheduling')
+  const winStart = seasonWindow ? parseISO(seasonWindow.start) : null
+  const winEnd = seasonWindow ? parseISO(seasonWindow.end) : null
+  const isOutOfSeason = (date: Date) => (!!winStart && isBefore(date, winStart)) || (!!winEnd && isAfter(date, winEnd))
   const [picks, setPicks] = useState<(string | null)[]>(() => [
     existing?.proposed_slot_1 != null ? String(existing.proposed_slot_1) : null,
     existing?.proposed_slot_2 != null ? String(existing.proposed_slot_2) : null,
@@ -223,22 +228,34 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
             </div>
 
             {view === 'calendar' ? (
-              <div className="flex justify-center">
+              <div className="flex flex-col items-center gap-2">
                 <Calendar
                   mode="single"
                   weekStartsOn={1}
                   showOutsideDays={false}
                   defaultMonth={parseISO(sortedDates[0])}
-                  startMonth={parseISO(sortedDates[0])}
-                  endMonth={parseISO(sortedDates[sortedDates.length - 1])}
+                  startMonth={winStart ?? parseISO(sortedDates[0])}
+                  endMonth={winEnd ?? parseISO(sortedDates[sortedDates.length - 1])}
                   disabled={(date) => !availableDates.has(toDateKey(date))}
-                  modifiers={{ spielsamstag: (date) => spielsamstagSet.has(toDateKey(date)) }}
-                  modifiersClassNames={{ spielsamstag: 'bg-amber-100 dark:bg-amber-900/40 font-semibold' }}
+                  modifiers={{
+                    spielsamstag: (date) => spielsamstagSet.has(toDateKey(date)),
+                    outOfSeason: isOutOfSeason,
+                  }}
+                  modifiersClassNames={{
+                    spielsamstag: 'bg-amber-100 dark:bg-amber-900/40 font-semibold',
+                    outOfSeason: '!bg-black !text-white/40',
+                  }}
                   onDayClick={(day, modifiers) => {
                     if (modifiers.disabled) return
                     setModalDate(toDateKey(day))
                   }}
                 />
+                {seasonWindow && (
+                  <p className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                    <span className="inline-block h-3 w-3 rounded-sm bg-black" />
+                    {t('outsideSeasonLabel')}
+                  </p>
+                )}
               </div>
             ) : (
               <div className="max-h-80 space-y-1 overflow-y-auto">

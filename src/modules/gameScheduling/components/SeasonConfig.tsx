@@ -46,6 +46,7 @@ export default function SeasonConfig({
   const [creating, setCreating] = useState(false)
   const [svrzOptions, setSvrzOptions] = useState<SvrzSeasonOption[]>([])
   const [savingSvrz, setSavingSvrz] = useState(false)
+  const [savingWindow, setSavingWindow] = useState(false)
 
   const currentSvrzUuid = typeof season?.svrz_season_uuid === 'string' ? season.svrz_season_uuid : ''
 
@@ -63,6 +64,19 @@ export default function SeasonConfig({
       await onUpdateSeason({ svrz_season_uuid: uuid || null })
     } finally {
       setSavingSvrz(false)
+    }
+  }
+
+  const handleWindowSave = async (field: 'season_opens' | 'season_closes', value: string) => {
+    if (!onUpdateSeason) return
+    setSavingWindow(true)
+    try {
+      await onUpdateSeason({ [field]: value || null })
+      toast.success(t('seasonWindowSaved'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSavingWindow(false)
     }
   }
 
@@ -342,6 +356,37 @@ export default function SeasonConfig({
               {t('svrzSeasonMismatchHint', { kscw: kscwShort, svrz: linkedShort })}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Season offer window — bounds the selectable dates in both calendars */}
+      {season && onUpdateSeason && (
+        <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-700">
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{t('seasonWindowLabel')}</span>
+          <div className="mt-2 flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+              {t('seasonOpens')}
+              <input
+                type="date"
+                value={season.season_opens ? String(season.season_opens).slice(0, 10) : ''}
+                disabled={savingWindow}
+                onChange={(e) => handleWindowSave('season_opens', e.target.value)}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+              {t('seasonCloses')}
+              <input
+                type="date"
+                value={season.season_closes ? String(season.season_closes).slice(0, 10) : ''}
+                disabled={savingWindow}
+                onChange={(e) => handleWindowSave('season_closes', e.target.value)}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+              />
+            </label>
+            {savingWindow && <span className="pb-1 text-xs text-gray-500">…</span>}
+          </div>
+          <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{t('seasonWindowHelp')}</p>
         </div>
       )}
     </div>
