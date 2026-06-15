@@ -208,36 +208,64 @@ export async function fetchGameContacts(jar, ctx, gameUuid) {
 }
 
 /**
- * For KSCW opponents with NO Spielplaner contact in the bulk feed, recover a
- * TEAM responsible from the per-game contact info and return rows shaped like
- * svrz_spielplaner_contacts (synthetic persistence id `tr:<club>:<email>` so
- * re-runs upsert cleanly and they never collide with real bulk rows). One game
- * per opponent club. This lets the fast auto-create path (which reads the bulk
- * table) find a contact without a live login.
+ * staticTeamIdentifier on a side ('home'|'away') of an svrz game row, read from
+ * the stored raw payload (the original VM game object). null if absent.
  */
-export async function fetchTeamResponsibleFallbacks(jar, ctx, { gameRows = [], contactRows = [], seasonUuid, seasonName = '', getContacts = fetchGameContacts } = {}) {
-  const haveContact = new Set(contactRows.filter(r => r.contact_email).map(r => String(r.club_id)));
-  const oppGame = new Map(); // club_id -> { gameUuid, isHomeKscw, clubName }
+function rawSideStaticId(rawGame, side) {
+  let raw = rawGame;
+  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { return null; } }
+  const enc = raw && raw.encounter;
+  const team = enc && (side === 'home' ? enc.teamHome : enc.teamAway);
+  const v = team && team.staticTeamIdentifier;
+  return v == null ? null : Number(v);
+}
+
+/**
+ * Harvest the "Teamverantwortlicher" (team responsible) for EVERY KSCW opponent
+ * team from the live per-game contact feed, returning rows shaped like
+ * svrz_spielplaner_contacts. Unlike the bulk Spielplanverantwortliche (club-level
+ * calendar responsibles) these are per TEAM, so they are keyed by the opponent
+ * team's staticTeamIdentifier (synthetic persistence id `tr:t<staticId>:<email>`,
+ * and `team_identifier` set to that id). When a game's raw lacks the id we fall
+ * back to club scope (`tr:c<clubId>:<email>`, `team_identifier` NULL = club-wide).
+ * One game per opponent team is enough (the responsible is the same across that
+ * team's fixtures). These are MERGED downstream with the calendar responsibles —
+ * NOT used as an either/or fallback. Best-effort: a game whose contacts can't be
+ * fetched just yields nothing for that team.
+ */
+export async function fetchTeamResponsibles(jar, ctx, { gameRows = [], seasonUuid, seasonName = '', getContacts = fetchGameContacts } = {}) {
+  // One game per distinct opponent TEAM (prefer the stable staticTeamIdentifier;
+  // fall back to club+name when raw lacks it).
+  const oppTeamGame = new Map(); // teamKey -> { gameUuid, isHomeKscw, clubId, clubName, staticId }
   for (const g of gameRows) {
     if (g.status !== 'open' && g.status !== 'waitingForApproval') continue;
     const isHomeKscw = String(g.home_club_id || '') === KSCW_CLUB_NUMERIC;
-    const opp = isHomeKscw ? String(g.away_club_id || '') : String(g.home_club_id || '');
-    if (!opp || opp === KSCW_CLUB_NUMERIC || haveContact.has(opp) || oppGame.has(opp)) continue;
-    oppGame.set(opp, { gameUuid: g.svrz_persistence_id, isHomeKscw, clubName: isHomeKscw ? g.away_club_name : g.home_club_name });
+    const clubId = isHomeKscw ? String(g.away_club_id || '') : String(g.home_club_id || '');
+    if (!clubId || clubId === KSCW_CLUB_NUMERIC) continue;
+    const teamName = isHomeKscw ? (g.away_team_name || '') : (g.home_team_name || '');
+    const staticId = rawSideStaticId(g.raw, isHomeKscw ? 'away' : 'home');
+    const teamKey = staticId != null ? `t${staticId}` : `c${clubId}:${teamName}`;
+    if (oppTeamGame.has(teamKey)) continue;
+    oppTeamGame.set(teamKey, {
+      gameUuid: g.svrz_persistence_id, isHomeKscw, clubId,
+      clubName: isHomeKscw ? g.away_club_name : g.home_club_name, staticId,
+    });
   }
   const rows = [];
-  for (const [clubId, info] of oppGame) {
+  for (const [, info] of oppTeamGame) {
     const resp = await getContacts(jar, ctx, info.gameUuid);
     if (!resp) continue;
     const pool = info.isHomeKscw ? (resp.teamAway || []) : (resp.teamHome || []);
+    const idKey = info.staticId != null ? `t${info.staticId}` : `c${info.clubId}`;
     for (const c of pool) {
       if (!/spielplan|teamverantwort/i.test(c.addressOrganisationMemberFunctionTitle || '')) continue;
       const email = (c.primaryEmailAddress || '').toLowerCase().trim();
       if (!email) continue;
       rows.push({
-        svrz_persistence_id: `tr:${clubId}:${email}`,
+        svrz_persistence_id: `tr:${idKey}:${email}`,
         season_uuid: seasonUuid, season_name: seasonName,
-        club_id: String(clubId), club_name: info.clubName || '',
+        club_id: String(info.clubId), club_name: info.clubName || '',
+        team_identifier: info.staticId != null ? String(info.staticId) : null,
         person_first_name: c.firstName || '', person_last_name: c.lastName || '',
         contact_name: `${c.firstName || ''} ${c.lastName || ''}`.trim(),
         contact_email: email, contact_phone: c.primaryPhoneNumber || '',
@@ -384,6 +412,7 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
     csrf = csrfFromPage,
     getGames = fetchAllGames,
     getContacts = fetchAllContacts,
+    getGameContacts = fetchGameContacts,
     upsert = upsertByPersistenceId,
     prune = pruneOrphanedGames,
   } = io;
@@ -444,22 +473,23 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
     contactsResult = { skipped: true, error: err.message, created: 0, updated: 0, total_fetched: 0 };
   }
 
-  // Third pass — team-responsible fallback for opponent clubs that have no
-  // Spielplaner contact (so the fast bulk auto-create still finds a contact).
-  // Isolated so any breakage never blocks games/contacts.
+  // Third pass — the per-team "Teamverantwortlicher" for EVERY opponent team,
+  // merged downstream with the bulk Spielplanverantwortliche (calendar + team
+  // responsibles, not an either/or fallback). One live per-game contact call per
+  // opponent team. Isolated so any breakage never blocks games/contacts.
   let teamResponsibleResult = { created: 0, updated: 0, total_fetched: 0 };
   try {
-    console.log('[svrz-sync] Team-responsible fallback...');
-    const trRows = await fetchTeamResponsibleFallbacks(jar, gamesCtx, { gameRows, contactRows, seasonUuid, seasonName });
+    console.log('[svrz-sync] Team responsibles (per opponent team)...');
+    const trRows = await fetchTeamResponsibles(jar, gamesCtx, { gameRows, seasonUuid, seasonName, getContacts: getGameContacts });
     if (trRows.length) {
       const up = await upsert('svrz_spielplaner_contacts', trRows);
-      console.log(`[svrz-sync]   team-responsible: ${trRows.length} found, created=${up.created} updated=${up.updated}`);
+      console.log(`[svrz-sync]   team responsibles: ${trRows.length} found, created=${up.created} updated=${up.updated}`);
       teamResponsibleResult = { ...up, total_fetched: trRows.length };
     } else {
-      console.log('[svrz-sync]   team-responsible: none needed');
+      console.log('[svrz-sync]   team responsibles: none found');
     }
   } catch (err) {
-    console.warn(`[svrz-sync] ⚠ team-responsible fallback skipped: ${err.message}`);
+    console.warn(`[svrz-sync] ⚠ team responsibles skipped: ${err.message}`);
     teamResponsibleResult = { skipped: true, error: err.message, created: 0, updated: 0, total_fetched: 0 };
   }
 

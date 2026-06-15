@@ -276,3 +276,62 @@ test('planUpsert returns the seen persistence ids for downstream soft-delete', (
   const plan = planUpsert(existing, rows);
   assert.deepEqual([...plan.seenIds].sort(), ['persist-1', 'persist-2']);
 });
+
+import { fetchTeamResponsibles } from '../svrz-scheduling-sync.mjs';
+
+// gameRow shaped like gameToSvrzRow output (flat fields + raw original game).
+function trGameRow({ id, awayClubId, awayTeamName, awayStaticId }) {
+  return {
+    svrz_persistence_id: id,
+    status: 'open',
+    home_club_id: '912530', // KSCW (KSCW_CLUB_NUMERIC default)
+    home_club_name: 'KSC Wiedikon',
+    home_team_name: 'KSC Wiedikon H1',
+    away_club_id: String(awayClubId),
+    away_club_name: 'Opp Club',
+    away_team_name: awayTeamName,
+    raw: { encounter: { teamAway: awayStaticId == null ? {} : { staticTeamIdentifier: awayStaticId } } },
+  };
+}
+
+test('fetchTeamResponsibles keys a team responsible by the opponent staticTeamIdentifier', async () => {
+  const rows = await fetchTeamResponsibles(null, null, {
+    gameRows: [trGameRow({ id: 'g1', awayClubId: 42, awayTeamName: 'Opp H1', awayStaticId: 777 })],
+    seasonUuid: 'uuid', seasonName: '2026/2027',
+    getContacts: async () => ({ teamAway: [{ firstName: 'Tina', lastName: 'Resp', primaryEmailAddress: 'TINA@opp.ch ', addressOrganisationMemberFunctionTitle: 'Teamverantwortlicher' }] }),
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].svrz_persistence_id, 'tr:t777:tina@opp.ch'); // team-keyed + lowercased
+  assert.equal(rows[0].team_identifier, '777');
+  assert.equal(rows[0].club_id, '42');
+  assert.equal(rows[0].contact_email, 'tina@opp.ch');
+});
+
+test('fetchTeamResponsibles falls back to club scope (team_identifier null) when raw lacks the id', async () => {
+  const rows = await fetchTeamResponsibles(null, null, {
+    gameRows: [trGameRow({ id: 'g2', awayClubId: 42, awayTeamName: 'Opp H1', awayStaticId: null })],
+    seasonUuid: 'uuid', seasonName: '2026/2027',
+    getContacts: async () => ({ teamAway: [{ firstName: 'Max', lastName: 'X', primaryEmailAddress: 'max@opp.ch', addressOrganisationMemberFunctionTitle: 'Teamverantwortlicher' }] }),
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].svrz_persistence_id, 'tr:c42:max@opp.ch'); // club-scoped fallback
+  assert.equal(rows[0].team_identifier, null);
+});
+
+test('fetchTeamResponsibles ignores non-responsible roles and skips KSCW + missing clubs', async () => {
+  const rows = await fetchTeamResponsibles(null, null, {
+    gameRows: [
+      trGameRow({ id: 'g3', awayClubId: 42, awayTeamName: 'Opp H1', awayStaticId: 777 }),
+      trGameRow({ id: 'g4', awayClubId: 912530, awayTeamName: 'KSC Wiedikon H3', awayStaticId: 1 }), // intra-club
+      trGameRow({ id: 'g5', awayClubId: '', awayTeamName: '', awayStaticId: null }), // no club
+    ],
+    seasonUuid: 'uuid', seasonName: '2026/2027',
+    getContacts: async () => ({ teamAway: [
+      { firstName: 'Ref', lastName: 'Ee', primaryEmailAddress: 'ref@opp.ch', addressOrganisationMemberFunctionTitle: 'Schiedsrichter' }, // not a responsible
+      { firstName: 'Tina', lastName: 'Resp', primaryEmailAddress: 'tina@opp.ch', addressOrganisationMemberFunctionTitle: 'Teamverantwortlicher' },
+    ] }),
+  });
+  // Only the one external opponent team, only its Teamverantwortlicher.
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].contact_email, 'tina@opp.ch');
+});

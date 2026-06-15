@@ -4241,10 +4241,10 @@ export function registerGameScheduling(router, { database, logger, services, get
           .where('club_id', String(group.club_id))
           .modify((q) => { if (svrzSeasonName) q.where('season_name', 'like', `${svrzSeasonName}%`) })
           .whereNotNull('contact_email')
-        // Spielplaner contacts WIN; team-responsible rows (`tr:` persistence id)
-        // are a FALLBACK only — used only when the club has no Spielplaner.
+        // Club calendar responsible(s) from the synced feed
+        // (Spielplanverantwortlicher). The `tr:` rows are team responsibles —
+        // handled live below, so only take the real Spielplaner rows here.
         const spielSynced = synced.filter((c) => !String(c.svrz_persistence_id || '').startsWith('tr:'))
-        const base = spielSynced.length ? spielSynced : synced
         const league = String(kscwTeamRow.league || '').toLowerCase().replace(/\s+/g, '')
         const inLeague = (c) => {
           let cats = c.club_league_categories
@@ -4252,8 +4252,10 @@ export function registerGameScheduling(router, { database, logger, services, get
           if (!Array.isArray(cats)) return false
           return cats.some((x) => String(x).toLowerCase().replace(/\s+/g, '') === league)
         }
-        const leagueMatched = league ? base.filter(inLeague) : []
-        for (const c of (leagueMatched.length ? leagueMatched : base)) {
+        // Prefer the calendar responsible(s) for THIS team's league; if none
+        // match, take all the club's calendar responsibles.
+        const leagueMatched = league ? spielSynced.filter(inLeague) : []
+        for (const c of (leagueMatched.length ? leagueMatched : spielSynced)) {
           const email = (c.contact_email || '').toLowerCase().trim()
           if (!email || group.contacts.has(email)) continue
           group.contacts.set(email, {
@@ -4264,31 +4266,29 @@ export function registerGameScheduling(router, { database, logger, services, get
           })
         }
 
-        // Fallback: no synced scheduling contact for this club (e.g. clubs that
-        // never registered a Spielplanverantwortlicher) → take the TEAM
-        // responsible(s) from the game contact info (live VolleyManager). The
-        // per-game feed exposes "Teamverantwortlicher" (and sometimes
-        // "Spielplanverantwortlicher") — accept either. One game's contacts are
-        // enough (same team across its fixtures).
-        if (group.contacts.size === 0) {
-          for (const g of group.games) {
-            const resp = await getGameContacts(g.id)
-            if (!resp) continue
-            const pool = g.is_home_kscw ? (resp.teamAway || []) : (resp.teamHome || [])
-            for (const c of pool) {
-              const title = c.addressOrganisationMemberFunctionTitle || ''
-              if (!/spielplan|teamverantwort/i.test(title)) continue
-              const email = (c.primaryEmailAddress || '').toLowerCase().trim()
-              if (!email || group.contacts.has(email)) continue
-              group.contacts.set(email, {
-                name: `${c.firstName || ''} ${c.lastName || ''}`.trim(),
-                email,
-                phone: c.primaryPhoneNumber || '',
-                source: 'team_responsible',
-              })
-            }
-            if (group.contacts.size) break
+        // ALSO this team's own responsible(s) (Teamverantwortlicher) live from the
+        // per-game contact feed — MERGED with the calendar responsible above, not
+        // an either/or fallback. One game's contacts are enough (same team across
+        // its fixtures), so stop once a game yields any.
+        for (const g of group.games) {
+          const resp = await getGameContacts(g.id)
+          if (!resp) continue
+          const pool = g.is_home_kscw ? (resp.teamAway || []) : (resp.teamHome || [])
+          let added = false
+          for (const c of pool) {
+            const title = c.addressOrganisationMemberFunctionTitle || ''
+            if (!/spielplan|teamverantwort/i.test(title)) continue
+            const email = (c.primaryEmailAddress || '').toLowerCase().trim()
+            if (!email || group.contacts.has(email)) continue
+            group.contacts.set(email, {
+              name: `${c.firstName || ''} ${c.lastName || ''}`.trim(),
+              email,
+              phone: c.primaryPhoneNumber || '',
+              source: 'team_responsible',
+            })
+            added = true
           }
+          if (added) break
         }
       }
 
@@ -4373,7 +4373,10 @@ export function registerGameScheduling(router, { database, logger, services, get
       // their own invite each (keying by club alone merged them). Contacts are
       // still looked up per club_id (kept on the entry). Mirrors import-from-svrz.
       const key = `${clubId}::${teamName || ''}`
-      if (!byClub.has(key)) byClub.set(key, { club_id: clubId, club_name: clubName, team_name: teamName, game_count: 0, games: [] })
+      // Opponent team's staticTeamIdentifier (from raw) — used to attach the
+      // team's own responsible(s) to THIS team, not the whole club.
+      const oppStaticId = sideStaticId(g, isHomeKscw ? 'away' : 'home')
+      if (!byClub.has(key)) byClub.set(key, { club_id: clubId, club_name: clubName, team_name: teamName, opp_static_id: oppStaticId, game_count: 0, games: [] })
       const entry = byClub.get(key)
       entry.game_count++
       entry.games.push({
@@ -4393,34 +4396,45 @@ export function registerGameScheduling(router, { database, logger, services, get
     // start-year LIKE that import-from-svrz already uses. (svrzSeasonName is
     // already computed above for the games filter.)
     const clubIds = [...new Set([...byClub.values()].map((c) => c.club_id))]
-    const contactsByClub = new Map()
+    // Each opponent team's contacts = the club calendar responsible(s)
+    // (Spielplanverantwortlicher, bulk feed, club-level) MERGED with that team's
+    // own responsible(s) (Teamverantwortlicher, synthetic `tr:` rows keyed by the
+    // opponent team's staticTeamIdentifier). Both are offered — the team
+    // responsible is the person who actually handles that team's scheduling.
+    const spiel = new Map()      // club_id -> Map(email -> contact)
+    const trByTeam = new Map()   // team_identifier -> Map(email -> contact)
+    const trByClub = new Map()   // club_id -> Map(email -> contact)  (legacy/club-wide tr rows)
     if (svrzSeasonName && clubIds.length) {
       const bulk = await database('svrz_spielplaner_contacts')
         .whereIn('club_id', clubIds)
         .where('season_name', 'like', `${svrzSeasonName}%`)
-      // Spielplaner contacts WIN; the team-responsible rows (synthetic
-      // svrz_persistence_id `tr:…`) are a FALLBACK only — used only for a club
-      // that has no Spielplanverantwortlicher at all. So bucket per club and
-      // pick the Spielplaner set when present, else the team-responsible set.
-      const spiel = new Map() // club_id -> Map(email -> contact)
-      const team = new Map()
-      for (const c of bulk) {
+      const add = (map, mapKey, c) => {
         const email = (c.contact_email || '').toLowerCase().trim()
-        if (!email) continue
-        const isTeamResp = String(c.svrz_persistence_id || '').startsWith('tr:')
-        const bucket = isTeamResp ? team : spiel
-        if (!bucket.has(c.club_id)) bucket.set(c.club_id, new Map())
-        const m = bucket.get(c.club_id)
+        if (!email || mapKey == null || mapKey === '') return
+        if (!map.has(mapKey)) map.set(mapKey, new Map())
+        const m = map.get(mapKey)
         if (!m.has(email)) m.set(email, { name: c.contact_name || '', email, phone: c.contact_phone || '' })
       }
-      for (const cid of clubIds) {
-        const chosen = (spiel.get(cid)?.size ? spiel.get(cid) : team.get(cid))
-        if (chosen?.size) contactsByClub.set(cid, chosen)
+      for (const c of bulk) {
+        const isTeamResp = String(c.svrz_persistence_id || '').startsWith('tr:')
+        if (!isTeamResp) { add(spiel, String(c.club_id), c); continue }
+        const tid = c.team_identifier == null ? '' : String(c.team_identifier)
+        if (tid) add(trByTeam, tid, c)
+        else add(trByClub, String(c.club_id), c)
       }
+    }
+    // Merge calendar + team responsibles, deduped by email (calendar first).
+    const mergeContacts = (entry) => {
+      const out = new Map()
+      const take = (m) => { if (m) for (const [email, v] of m) if (!out.has(email)) out.set(email, v) }
+      take(spiel.get(String(entry.club_id)))
+      if (entry.opp_static_id != null) take(trByTeam.get(String(entry.opp_static_id)))
+      take(trByClub.get(String(entry.club_id)))
+      return [...out.values()]
     }
 
     return [...byClub.values()]
-      .map((c) => ({ ...c, suggested_contacts: [...(contactsByClub.get(c.club_id)?.values() || [])] }))
+      .map((c) => ({ ...c, suggested_contacts: mergeContacts(c) }))
       .sort((a, b) => (a.club_name || '').localeCompare(b.club_name || ''))
   }
 
