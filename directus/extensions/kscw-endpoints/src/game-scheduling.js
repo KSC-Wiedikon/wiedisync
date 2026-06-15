@@ -21,6 +21,10 @@ const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 // bare mailbox.
 const SCHEDULING_FROM = 'volleyball@spielplanung.kscw.ch'
 const SCHEDULING_REPLY_TO = 'volleyball@spielplanung.kscw.ch'
+// Display name on outgoing scheduling mail (invites, confirmations, etc.). Only
+// used in the From *header* — SCHEDULING_FROM stays the bare mailbox for the
+// envelope/replyTo (a name there collapses into an invalid address).
+const SCHEDULING_FROM_NAME = 'KSCW VB Spielplanung'
 
 // Wrap a German admin-notify body (the internal spielplanung-mailbox emails) in
 // the shared branded layout. Dates must already be Swiss-formatted by the
@@ -159,7 +163,7 @@ export function registerGameScheduling(router, { database, logger, services, get
     const schema = await getSchema()
     const { MailService } = services
     const mail = new MailService({ schema, knex: database })
-    await mail.send({ to: recipients, cc: (ccRecipients && ccRecipients.length) ? ccRecipients : undefined, from: SCHEDULING_FROM, replyTo: SCHEDULING_REPLY_TO, subject, text, html: html || undefined })
+    await mail.send({ to: recipients, cc: (ccRecipients && ccRecipients.length) ? ccRecipients : undefined, from: `${SCHEDULING_FROM_NAME} <${SCHEDULING_FROM}>`, replyTo: SCHEDULING_REPLY_TO, subject, text, html: html || undefined })
   }
 
   // Coach + team-responsible emails for a KSCW team (deduped, real addresses
@@ -4097,6 +4101,13 @@ export function registerGameScheduling(router, { database, logger, services, get
         const p = (n) => String(n).padStart(2, '0')
         return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`
       }
+      // Resolve each opponent's KSCW team name from the DB so the per-opponent
+      // subject ("Spielplanung - KSCW <team> / <opponent>") is correct even when
+      // the batch spans multiple teams — the body param is only a fallback.
+      const teamNameById = new Map()
+      for (const tr of await database('teams').whereIn('id', [...new Set(rows.map((r) => r.kscw_team))]).select('id', 'name')) {
+        teamNameById.set(tr.id, tr.name)
+      }
       const previews = []
       const failed = []
       let sent = 0
@@ -4104,7 +4115,8 @@ export function registerGameScheduling(router, { database, logger, services, get
         const url = `${FRONTEND_URL}/terminplanung/${row.token}`
         const { subject, text, html } = inviteEmail({
           contact: row.contact_name || '',
-          kscw: kscw_team_name,
+          kscw: teamNameById.get(row.kscw_team) || kscw_team_name,
+          opponent: row.team_name || '',
           league: kscw_league,
           season: season_name,
           url,

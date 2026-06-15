@@ -342,9 +342,14 @@ export function schedEmail(lang, kind, vars) {
  * @returns {{ subject: string, text: string, html: string }}
  */
 export function inviteEmail(vars) {
-  const { kscw = '', league = '', season = '', url = '', expires = '' } = vars || {}
+  const { kscw = '', league = '', season = '', url = '', expires = '', opponent = '' } = vars || {}
   const team = league ? `${kscw} (${league})` : kscw
-  const subject = `KSC Wiedikon – Spielplanung / Game scheduling ${season}`.trim()
+  // Per-opponent subject so the spielplaner can tell at a glance which invite
+  // went to whom, e.g. "Spielplanung - KSCW D1 / Rüschlikon 2". Falls back to the
+  // generic season subject when the team/opponent names aren't available.
+  const subject = (kscw && opponent)
+    ? `Spielplanung - KSCW ${kscw} / ${opponent}`.trim()
+    : `KSC Wiedikon – Spielplanung / Game scheduling ${season}`.trim()
 
   // Generic greeting (no name): contact_email may list several club contacts,
   // so a single recipient name would be wrong for the rest.
