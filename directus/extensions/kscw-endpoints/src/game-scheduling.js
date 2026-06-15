@@ -5,6 +5,8 @@
  */
 
 import crypto from 'crypto'
+import nodemailer from 'nodemailer'
+import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { FRONTEND_URL, buildEmailLayout, buildInfoCard, escHtml } from './email-template.js'
 import { VALID_LANGS, schedEmail, inviteEmail } from './terminplanung-emails.js'
 
@@ -15,15 +17,16 @@ const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 // the dedicated Migadu mailbox volleyball@spielplanung.kscw.ch. (The kscw.ch
 // apex stays ClubDesk's — we never send from it.)
 //
-// This Directus MailService treats `from` as the ADDRESS only (the display name
-// comes from the global EMAIL_FROM_NAME). Passing a combined "Name <addr>"
-// string here collapses into an invalid address, so SCHEDULING_FROM must be the
-// bare mailbox.
+// We send scheduling mail through the SES SMTP transport directly (see
+// sendSchedulingMail) rather than the Directus MailService: the MailService
+// forces the global EMAIL_FROM_NAME ("WiediSync") as the display name and
+// treats `from` as the ADDRESS only, so a "Name <addr>" string collapses into a
+// quoted junk local-part. Owning the MIME lets the From header carry the proper
+// name below (and matches the mailbox reply path in scheduling-mailbox.js).
 const SCHEDULING_FROM = 'volleyball@spielplanung.kscw.ch'
 const SCHEDULING_REPLY_TO = 'volleyball@spielplanung.kscw.ch'
-// Display name on outgoing scheduling mail (invites, confirmations, etc.). Only
-// used in the From *header* — SCHEDULING_FROM stays the bare mailbox for the
-// envelope/replyTo (a name there collapses into an invalid address).
+// Display name on the From header of outgoing scheduling mail (invites,
+// reminders, confirmations). Keep in sync with FROM_NAME in scheduling-mailbox.js.
 const SCHEDULING_FROM_NAME = 'KSCW VB Spielplanung'
 
 // Wrap a German admin-notify body (the internal spielplanung-mailbox emails) in
@@ -159,11 +162,33 @@ export function registerGameScheduling(router, { database, logger, services, get
       log.warn(`Scheduling email skipped: no valid recipient (subject: ${subject})`)
       return
     }
+    const toList = Array.isArray(recipients) ? recipients : [recipients]
     const ccRecipients = cc ? parseRecipients(cc) : undefined
-    const schema = await getSchema()
-    const { MailService } = services
-    const mail = new MailService({ schema, knex: database })
-    await mail.send({ to: recipients, cc: (ccRecipients && ccRecipients.length) ? ccRecipients : undefined, from: `${SCHEDULING_FROM_NAME} <${SCHEDULING_FROM}>`, replyTo: SCHEDULING_REPLY_TO, subject, text, html: html || undefined })
+    const ccList = Array.isArray(ccRecipients) ? ccRecipients : (ccRecipients ? [ccRecipients] : [])
+
+    // Build our own MIME so the From header carries the real display name
+    // ("KSCW VB Spielplanung <…>"); the Directus MailService can't (see the
+    // identity comment above). Sent over the container's SES SMTP, DKIM-aligned
+    // for spielplanung.kscw.ch — same transport the mailbox reply path uses.
+    const messageId = `<${crypto.randomUUID()}@spielplanung.kscw.ch>`
+    const composer = new MailComposer({
+      from: { name: SCHEDULING_FROM_NAME, address: SCHEDULING_FROM },
+      to: toList,
+      cc: ccList.length ? ccList : undefined,
+      replyTo: SCHEDULING_REPLY_TO,
+      subject,
+      text,
+      html: html || undefined,
+      messageId,
+    })
+    const raw = await composer.compile().build()
+    const transport = nodemailer.createTransport({
+      host: process.env.EMAIL_SMTP_HOST,
+      port: Number(process.env.EMAIL_SMTP_PORT || 587),
+      secure: String(process.env.EMAIL_SMTP_SECURE) === 'true',
+      auth: { user: process.env.EMAIL_SMTP_USER, pass: process.env.EMAIL_SMTP_PASSWORD },
+    })
+    await transport.sendMail({ envelope: { from: SCHEDULING_FROM, to: [...toList, ...ccList] }, raw })
   }
 
   // Coach + team-responsible emails for a KSCW team (deduped, real addresses

@@ -39,7 +39,8 @@ const IMAP_PASSWORD = process.env.SCHEDULING_IMAP_PASSWORD || ''
 const SYNC_DAYS = Number(process.env.SCHEDULING_MAILBOX_SYNC_DAYS || 60)
 
 const SCHEDULING_FROM = 'volleyball@spielplanung.kscw.ch'
-const FROM_NAME = 'KSC Wiedikon Spielplanung'
+// Keep in sync with SCHEDULING_FROM_NAME in game-scheduling.js.
+const FROM_NAME = 'KSCW VB Spielplanung'
 
 // Body columns are text; cap to keep pathological messages from bloating rows.
 const MAX_BODY_CHARS = 500_000
