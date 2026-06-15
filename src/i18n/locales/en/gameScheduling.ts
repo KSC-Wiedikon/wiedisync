@@ -200,7 +200,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'KSCW Home Game',
-  homeGameDesc: 'Choose 3 slots for the game in our hall — we confirm one.',
+  homeGameDesc: 'Choose up to 3 slots for the game in our hall (one is enough) — we confirm one.',
   pickSlot: 'Pick Slot',
   confirmSlot: 'Confirm Slot',
   slotBooked: 'Slot booked!',
@@ -208,7 +208,7 @@ export default {
 
   // Opponent flow - away game
   awayGameTitle: 'Away Game',
-  awayGameDesc: 'Propose 3 slots for the game in your hall',
+  awayGameDesc: 'Propose up to 3 dates for the game in your hall (one is enough)',
   proposalDate: 'Date & Time',
   proposalPlace: 'Hall / Address',
   submitProposals: 'Submit Proposals',
@@ -311,6 +311,10 @@ export default {
   svrzImportEmpty: 'No opponents found in SVRZ.',
   gameCount: '{{count}} games',
   syncSvrzNow: 'Sync now',
+  sendReminders: 'Send reminders',
+  remindNonePending: 'All opponents are fully scheduled — nothing to remind.',
+  remindConfirm: 'Send a reminder to {{count}} opponents still missing a game?',
+  remindSent: '{{count}} reminders sent',
   svrzSyncStarted: 'SVRZ sync started',
   svrzSynced: 'SVRZ synced {{date}} · {{total}} games ({{home}} home / {{away}} away)',
   svrzNotSynced: 'SVRZ not synced yet',

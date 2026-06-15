@@ -211,7 +211,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'Partita in casa KSCW',
-  homeGameDesc: 'Scegli 3 slot per la partita nella nostra palestra — ne confermiamo uno.',
+  homeGameDesc: 'Scegli fino a 3 slot per la partita nella nostra palestra (ne basta uno) — ne confermiamo uno.',
   pickSlot: 'Scegli fascia',
   confirmSlot: 'Conferma fascia',
   slotBooked: 'Fascia prenotata!',
@@ -219,7 +219,7 @@ export default {
 
   // Opponent flow - away game
   awayGameTitle: 'Partita in trasferta',
-  awayGameDesc: 'Proponi 3 fasce per la partita nella tua palestra',
+  awayGameDesc: 'Proponi fino a 3 fasce per la partita nella tua palestra (ne basta una)',
   proposalDate: 'Data e ora',
   proposalPlace: 'Palestra / Indirizzo',
   submitProposals: 'Invia proposte',
@@ -337,6 +337,10 @@ export default {
   svrzImportEmpty: 'Nessun avversario trovato in SVRZ.',
   gameCount: '{{count}} partite',
   syncSvrzNow: 'Sincronizza ora',
+  sendReminders: 'Invia promemoria',
+  remindNonePending: 'Tutti gli avversari sono completamente pianificati — nulla da ricordare.',
+  remindConfirm: 'Inviare un promemoria a {{count}} avversari a cui manca ancora una partita?',
+  remindSent: '{{count}} promemoria inviati',
   svrzSyncStarted: 'Sincronizzazione SVRZ avviata',
   svrzSynced: 'SVRZ sincronizzato {{date}} · {{total}} partite ({{home}} casa / {{away}} trasferta)',
   svrzNotSynced: 'SVRZ non ancora sincronizzato',

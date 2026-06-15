@@ -165,7 +165,9 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
   }
 
   const filled = picks.filter(Boolean) as string[]
-  const allFilled = requiredPicks > 0 && filled.length === requiredPicks && new Set(filled).size === filled.length
+  // At least one pick is enough to submit (the backend accepts 1–3 distinct
+  // slots); the opponent may still add up to `requiredPicks` if they want.
+  const allFilled = filled.length >= 1 && new Set(filled).size === filled.length
 
   // Report the current picks upward (for a parent-owned combined submit).
   useEffect(() => {

@@ -342,8 +342,13 @@ export function schedEmail(lang, kind, vars) {
  * @returns {{ subject: string, text: string, html: string }}
  */
 export function inviteEmail(vars) {
-  const { kscw = '', league = '', season = '', url = '', expires = '', opponent = '' } = vars || {}
+  const { kscw = '', league = '', season = '', url = '', expires = '', opponent = '', reminder = false } = vars || {}
   const team = league ? `${kscw} (${league})` : kscw
+  // Reminder sends add an "ignore if you're already set" line — they go to clubs
+  // that may already have scheduled everything (the tool computes who's still
+  // open, but a club can have arranged a game outside the tool).
+  const remDe = 'Falls bei euch bereits alles geplant ist, kannst du diese E-Mail ignorieren.'
+  const remEn = 'If everything is already scheduled on your side, please ignore this email.'
   // Per-opponent subject so the spielplaner can tell at a glance which invite
   // went to whom, e.g. "Spielplanung - KSCW D1 / Rüschlikon 2". Falls back to the
   // generic season subject when the team/opponent names aren't available.
@@ -358,6 +363,7 @@ export function inviteEmail(vars) {
     `KSC Wiedikon lädt euch zur Spielplanung der Saison ${season} ein – gegen unser Team ${team}.\n\n` +
     `Unter folgendem Link könnt ihr eure Heim- und Auswärtsspieltermine auswählen:\n${url}\n\n` +
     (expires ? `Der Link ist bis ${expires} gültig.\n` : '') +
+    (reminder ? `${remDe}\n\n` : '') +
     `Bei Fragen antwortet einfach auf diese E-Mail.\n\n` +
     `Sportliche Grüsse\nKSC Wiedikon\n\n` +
     `— — — — —\n\n` +
@@ -365,14 +371,17 @@ export function inviteEmail(vars) {
     `KSC Wiedikon invites you to schedule your home and away matches for the ${season} season against our team ${team}.\n\n` +
     `Open the link below to pick your slots:\n${url}\n\n` +
     (expires ? `This link is valid until ${expires}.\n` : '') +
+    (reminder ? `${remEn}\n\n` : '') +
     `If you have any questions, just reply to this email.\n\n` +
     `Best regards\nKSC Wiedikon`
 
   const body =
     para(`KSC Wiedikon lädt euch zur Spielplanung der Saison ${season} ein – gegen unser Team ${team}. Über den Link unten wählt ihr eure Heim- und Auswärtsspieltermine.`) +
+    (reminder ? para(`<strong>${remDe}</strong>`) : '') +
     (expires ? para(`Der Link ist bis ${expires} gültig. Bei Fragen antwortet einfach auf diese E-Mail.`) : para('Bei Fragen antwortet einfach auf diese E-Mail.')) +
     '<div style="height:10px;font-size:0;line-height:0">&nbsp;</div>' +
     para(`KSC Wiedikon invites you to schedule your home and away matches for the ${season} season against our team ${team}. Use the link below to pick your slots.`) +
+    (reminder ? para(`<strong>${remEn}</strong>`) : '') +
     (expires ? para(`This link is valid until ${expires}. If you have any questions, just reply to this email.`) : para('If you have any questions, just reply to this email.'))
 
   const html = buildEmailLayout(body, {

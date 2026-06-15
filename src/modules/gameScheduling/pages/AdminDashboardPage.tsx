@@ -221,6 +221,34 @@ export default function AdminDashboardPage() {
     }
   }
 
+  // Send a reminder invite to every opponent still missing a home/away game.
+  // Two-step: a dry run lists who would be emailed (so the admin confirms the
+  // exact set), then the real send. Fully-scheduled opponents are skipped.
+  const [reminding, setReminding] = useState(false)
+  const handleSendReminders = async () => {
+    if (!season) return
+    setReminding(true)
+    try {
+      const preview = await kscwApi<{ previews: Array<{ team_name: string; kscw: string; missing: { home: number; away: number } }> }>(
+        '/admin/terminplanung/invites/remind', { method: 'POST', body: { season_id: season.id, dry_run: true } })
+      const list = preview.previews || []
+      if (list.length === 0) { toast.info(t('remindNonePending')); return }
+      const lines = list.map((p) => {
+        const miss = [p.missing.home ? `${p.missing.home}H` : '', p.missing.away ? `${p.missing.away}A` : ''].filter(Boolean).join('+')
+        return `• KSCW ${p.kscw} / ${p.team_name} (${miss})`
+      }).join('\n')
+      if (!window.confirm(`${t('remindConfirm', { count: list.length })}\n\n${lines}`)) return
+      const res = await kscwApi<{ sent: number; failed: unknown[] }>(
+        '/admin/terminplanung/invites/remind', { method: 'POST', body: { season_id: season.id } })
+      toast.success(t('remindSent', { count: res.sent }))
+      await refetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setReminding(false)
+    }
+  }
+
   const handleFinalizeNotify = async (teamId: string, pendingCount: number) => {
     if (!season) return
     if (pendingCount > 0 && !window.confirm(t('finalizeNotifyConfirmPending', { count: pendingCount }))) return
@@ -410,6 +438,9 @@ export default function AdminDashboardPage() {
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={handleSyncNow} disabled={syncing}>
             {t('syncSvrzNow')}
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleSendReminders} disabled={reminding}>
+            {reminding ? '…' : t('sendReminders')}
           </Button>
           <ExcelExportButton bookings={bookings} opponents={opponents} slots={slots} teams={volleyballTeams} />
         </div>

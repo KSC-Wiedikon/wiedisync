@@ -67,22 +67,24 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
     return (i < 2 ? strictSet : looseSet).has(k) || otherDates(i).has(k)
   }
 
-  const allFilled = slots.every((s) => s.date && s.time)
+  // At least one fully-filled slot (date + time) is enough to submit — partial
+  // rows are ignored. The backend accepts 1–3 proposals.
+  const filledSlots = slots.filter((s) => s.date && s.time)
+  const canSubmit = filledSlots.length >= 1
+  const toProposals = () => filledSlots.map((s) => ({ date: toDateKey(s.date as Date), start_time: s.time, location: '' }))
 
   // Report the current proposals upward (for a parent-owned combined submit).
   useEffect(() => {
-    onChange?.(
-      allFilled ? slots.map((s) => ({ date: toDateKey(s.date as Date), start_time: s.time, location: '' })) : null,
-    )
-  }, [slots, allFilled, onChange])
+    onChange?.(canSubmit ? toProposals() : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slots, canSubmit, onChange])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (hideSubmit) return
+    if (hideSubmit || !canSubmit) return
     setSubmitting(true)
     try {
-      const proposals = slots.map((s) => ({ date: toDateKey(s.date as Date), start_time: s.time, location: '' }))
-      await onSubmit?.(proposals)
+      await onSubmit?.(toProposals())
     } finally {
       setSubmitting(false)
     }
@@ -147,7 +149,7 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
       {!hideSubmit && (
         <button
           type="submit"
-          disabled={submitting || !allFilled}
+          disabled={submitting || !canSubmit}
           className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {submitting ? t('submitting') : existingProposal ? t('updateProposals') : t('submitProposals')}

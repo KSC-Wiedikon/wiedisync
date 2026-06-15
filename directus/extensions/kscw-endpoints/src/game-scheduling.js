@@ -4154,6 +4154,96 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // POST /admin/terminplanung/invites/remind — send a REMINDER invite to every
+  // opponent of a season (optionally one team) that still has an unscheduled
+  // home OR away game. The incomplete set is computed server-side with the same
+  // rule as finalize-notify's "Noch offen": per opponent, confirmed bookings per
+  // side vs the synced SVRZ fixture count (1+1 fallback when un-synced). Reuses
+  // the invite email with an added "ignore if you're already set" line. Body:
+  // { season_id, team_id?, dry_run? }. dry_run renders previews (with the missing
+  // home/away count per opponent) WITHOUT sending. Stamps reminder_sent_at.
+  // Fully-scheduled opponents (e.g. all legs booked) are skipped — no email.
+  router.post('/admin/terminplanung/invites/remind', async (req, res) => {
+    try {
+      const { season_id, team_id = null, dry_run } = req.body || {}
+      if (!season_id) return res.status(400).json({ error: 'season_id required' })
+      const seasonRow = await database('game_scheduling_seasons').where('id', season_id).first()
+      if (!seasonRow) return res.status(404).json({ error: 'season not found' })
+
+      let oppQuery = database('game_scheduling_opponents')
+        .where('season', season_id).whereNotIn('status', ['revoked', 'expired'])
+      if (team_id) oppQuery = oppQuery.where('kscw_team', team_id)
+      const allOpps = await oppQuery.select('*')
+
+      // Keep only opponents whose KSCW team the caller may manage (a full admin /
+      // unrestricted spielplaner keeps all; a scoped one keeps their teams).
+      const allTeamIds = [...new Set(allOpps.map((o) => o.kscw_team))]
+      const manageable = new Set()
+      for (const tId of allTeamIds) { if (await spielplanerCanManageTeam(req, tId)) manageable.add(tId) }
+      if (manageable.size === 0) return res.status(403).json({ error: 'Not authorized for any team in scope' })
+      const opps = allOpps.filter((o) => manageable.has(o.kscw_team))
+      const teamNameById = new Map()
+      for (const tr of await database('teams').whereIn('id', [...manageable]).select('id', 'name')) teamNameById.set(tr.id, tr.name)
+
+      // Confirmed bookings per opponent + side (mirrors finalize-notify counts).
+      const homeConf = new Map(); const awayConf = new Map()
+      const confRows = await database('game_scheduling_bookings as b')
+        .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
+        .where('o.season', season_id).where('b.status', 'confirmed')
+        .modify((q) => { if (team_id) q.where('o.kscw_team', team_id) })
+        .groupBy('b.opponent', 'b.type')
+        .select('b.opponent', 'b.type', database.raw('count(*) as c'))
+      for (const r of confRows) {
+        if (r.type === 'home_slot_pick') homeConf.set(r.opponent, Number(r.c))
+        else if (r.type === 'away_proposal') awayConf.set(r.opponent, Number(r.c))
+      }
+      const fmtDate = (ts) => {
+        if (!ts) return ''
+        const d = new Date(ts); if (isNaN(d.getTime())) return ''
+        const p = (n) => String(n).padStart(2, '0')
+        return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`
+      }
+
+      const previews = []; const failed = []
+      let sent = 0; let skipped_complete = 0; let skipped_no_email = 0
+      for (const o of opps) {
+        const fixtures = await opponentSvrzFixtures(o)
+        const homeTotal = fixtures.length ? fixtures.filter((f) => f.is_home_kscw).length : 1
+        const awayTotal = fixtures.length ? fixtures.filter((f) => !f.is_home_kscw).length : 1
+        const homeMiss = Math.max(0, homeTotal - (homeConf.get(o.id) || 0))
+        const awayMiss = Math.max(0, awayTotal - (awayConf.get(o.id) || 0))
+        if (homeMiss === 0 && awayMiss === 0) { skipped_complete++; continue } // fully scheduled — never remind
+        const url = `${FRONTEND_URL}/terminplanung/${o.token}`
+        const { subject, text, html } = inviteEmail({
+          kscw: teamNameById.get(o.kscw_team) || '',
+          opponent: o.team_name || '',
+          season: seasonRow.season || '',
+          url,
+          expires: fmtDate(o.expires_at),
+          reminder: true,
+        })
+        previews.push({ id: o.id, to: o.contact_email, team_name: o.team_name, kscw: teamNameById.get(o.kscw_team) || '', missing: { home: homeMiss, away: awayMiss }, subject, html, text })
+        if (!dry_run) {
+          const recipients = parseRecipients(o.contact_email)
+          if (!recipients || (Array.isArray(recipients) && recipients.length === 0)) {
+            skipped_no_email++; failed.push({ id: o.id, error: 'no valid recipient' }); continue
+          }
+          try {
+            await sendSchedulingMail(o.contact_email, subject, text, SCHEDULING_REPLY_TO, html)
+            await database('game_scheduling_opponents').where('id', o.id).update({ reminder_sent_at: new Date().toISOString() })
+            sent++
+          } catch (e) {
+            failed.push({ id: o.id, error: e.message })
+          }
+        }
+      }
+      res.json({ previews, sent, failed, skipped_complete, skipped_no_email, dry_run: !!dry_run })
+    } catch (err) {
+      log.error({ msg: `invites remind: ${err.message}`, endpoint: 'admin/terminplanung/invites/remind', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // GET /admin/terminplanung/invites/import-from-svrz?kscw_team=&season= — preview
   // Lists opponent clubs from synced svrz_games plus per-game Spielplanverantwortlicher
   // contacts, with fallback to the bulk svrz_spielplaner_contacts feed.

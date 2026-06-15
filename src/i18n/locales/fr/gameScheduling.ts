@@ -211,7 +211,7 @@ export default {
 
   // Opponent flow - home game
   homeGameTitle: 'Match a domicile KSCW',
-  homeGameDesc: 'Choisissez 3 créneaux pour le match dans notre salle — nous en confirmons un.',
+  homeGameDesc: 'Choisissez jusqu’à 3 créneaux pour le match dans notre salle (un seul suffit) — nous en confirmons un.',
   pickSlot: 'Choisir un creneau',
   confirmSlot: 'Confirmer le creneau',
   slotBooked: 'Creneau reserve !',
@@ -219,7 +219,7 @@ export default {
 
   // Opponent flow - away game
   awayGameTitle: 'Match a l\'exterieur',
-  awayGameDesc: 'Proposez 3 creneaux pour le match dans votre salle',
+  awayGameDesc: 'Proposez jusqu’à 3 créneaux pour le match dans votre salle (un seul suffit)',
   proposalDate: 'Date et heure',
   proposalPlace: 'Salle / Adresse',
   submitProposals: 'Soumettre les propositions',
@@ -336,6 +336,10 @@ export default {
   svrzImportEmpty: 'Aucun adversaire trouvé dans SVRZ.',
   gameCount: '{{count}} matchs',
   syncSvrzNow: 'Synchroniser maintenant',
+  sendReminders: 'Envoyer des rappels',
+  remindNonePending: 'Tous les adversaires sont entièrement planifiés — rien à rappeler.',
+  remindConfirm: 'Envoyer un rappel à {{count}} adversaires à qui il manque encore un match ?',
+  remindSent: '{{count}} rappels envoyés',
   svrzSyncStarted: 'Synchronisation SVRZ démarrée',
   svrzSynced: 'SVRZ synchronisé {{date}} · {{total}} matchs ({{home}} domicile / {{away}} extérieur)',
   svrzNotSynced: 'SVRZ pas encore synchronisé',
