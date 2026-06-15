@@ -245,6 +245,9 @@ H.gsw = H.de
 
 // Shared paragraph helper for HTML bodies.
 const para = (s) => `<p style="font-size:14px;color:#e2e8f0;line-height:1.6;margin:0 0 12px">${escHtml(s)}</p>`
+// Bold paragraph — the text is still escaped; only the <strong> wrapper is raw
+// (so the markup renders bold instead of showing literal "<strong>" tags).
+const paraStrong = (s) => `<p style="font-size:14px;color:#e2e8f0;line-height:1.6;margin:0 0 12px"><strong>${escHtml(s)}</strong></p>`
 
 // Render the structured slot rows ({ date, time, hall }) as one info card with a
 // label per row (Slot 1 / Slot 2 / …). Falls back to nothing if no rows.
@@ -377,11 +380,11 @@ export function inviteEmail(vars) {
 
   const body =
     para(`KSC Wiedikon lädt euch zur Spielplanung der Saison ${season} ein – gegen unser Team ${team}. Über den Link unten wählt ihr eure Heim- und Auswärtsspieltermine.`) +
-    (reminder ? para(`<strong>${remDe}</strong>`) : '') +
+    (reminder ? paraStrong(remDe) : '') +
     (expires ? para(`Der Link ist bis ${expires} gültig. Bei Fragen antwortet einfach auf diese E-Mail.`) : para('Bei Fragen antwortet einfach auf diese E-Mail.')) +
     '<div style="height:10px;font-size:0;line-height:0">&nbsp;</div>' +
     para(`KSC Wiedikon invites you to schedule your home and away matches for the ${season} season against our team ${team}. Use the link below to pick your slots.`) +
-    (reminder ? para(`<strong>${remEn}</strong>`) : '') +
+    (reminder ? paraStrong(remEn) : '') +
     (expires ? para(`This link is valid until ${expires}. If you have any questions, just reply to this email.`) : para('If you have any questions, just reply to this email.'))
 
   const html = buildEmailLayout(body, {

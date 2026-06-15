@@ -260,9 +260,10 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
             <>
               <DialogHeader>
                 <DialogTitle className="break-words pr-6">{detail.subject || t('mailboxNoSubject')}</DialogTitle>
-                <DialogDescription className="break-words">
-                  {t('mailboxFrom')}: {detail.from_name ? `${detail.from_name} <${detail.from_address}>` : detail.from_address}
-                  {' · '}{t('mailboxTo')}: {detail.to_addresses}
+                <DialogDescription className="max-h-24 overflow-y-auto break-words">
+                  {t('mailboxFrom')}:{' '}
+                  <span className="break-all">{detail.from_name ? `${detail.from_name} <${detail.from_address}>` : detail.from_address}</span>
+                  {' · '}{t('mailboxTo')}: <span className="break-all">{detail.to_addresses}</span>
                   {detail.date_sent ? ` · ${formatDateTimeCompact(detail.date_sent)}` : ''}
                 </DialogDescription>
               </DialogHeader>
