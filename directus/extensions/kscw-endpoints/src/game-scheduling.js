@@ -1690,15 +1690,15 @@ export function registerGameScheduling(router, { database, logger, services, get
         strictSet.add(k)                        // proposals 1 & 2: any absence
         if (members.size >= 3) looseSet.add(k)  // proposal 3: only 3+ absent
       }
-      // Season-window day exclusions: non-junior teams never play away on Sundays
-      // (propose-away hard-rejects); teams flagged no_saturday_games never play
-      // away on Saturdays either. Grey them so they're never offered.
+      // Season-window day exclusions: teams flagged no_saturday_games never play
+      // away on Saturdays — grey those so they're never offered. Sundays are NOT
+      // excluded away: KSCW doesn't own the opponent's venue, so the opponent may
+      // host on a Sunday. (The Sunday-as-last-resort rule is HOME-only.)
       const noSatAway = await teamNoSaturday(opponent.kscw_team)
-      if ((!isJr || noSatAway) && offerWindow) {
+      if (noSatAway && offerWindow) {
         const swEnd = new Date(`${offerWindow.end}T00:00:00Z`)
         for (const d = new Date(`${offerWindow.start}T00:00:00Z`); d <= swEnd; d.setUTCDate(d.getUTCDate() + 1)) {
-          const dow = d.getUTCDay()
-          if ((!isJr && dow === 0) || (noSatAway && dow === 6)) { const k = d.toISOString().slice(0, 10); strictSet.add(k); looseSet.add(k) }
+          if (d.getUTCDay() === 6) { const k = d.toISOString().slice(0, 10); strictSet.add(k); looseSet.add(k) }
         }
       }
       const blocked_away_strict = [...strictSet].sort()
@@ -2241,13 +2241,11 @@ export function registerGameScheduling(router, { database, logger, services, get
       const isJunior = isJuniorTeam(team?.name)
 
       // A3 — for non-junior teams, the away proposals may include at most one
-      // Saturday and no Sunday (hard reject). Juniors are exempt. Malformed dates
-      // are caught per-proposal in the loop below.
+      // Saturday (none for no_saturday_games teams). Juniors are exempt. Sundays
+      // are allowed away (the Sunday-last-resort rule is home-only — the opponent
+      // owns their venue). Malformed dates are caught per-proposal below.
       if (!isJunior) {
         const validDates = proposals.filter((p) => p?.date && DATE_RE.test(String(p.date)))
-        if (validDates.some((p) => isSunday(p.date))) {
-          return res.status(400).json({ error: 'away_no_sunday' })
-        }
         const noSatProp = await teamNoSaturday(opponent.kscw_team)
         if (noSatProp && validDates.some((p) => isSaturday(p.date))) {
           return res.status(400).json({ error: 'away_no_saturday' })
