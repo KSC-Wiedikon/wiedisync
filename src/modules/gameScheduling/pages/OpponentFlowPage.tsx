@@ -41,6 +41,8 @@ interface LegCard {
   isHome: boolean
   /** Fixture to pass to propose-* (null = legacy/non-SVRZ single-game flow). */
   svrzGameId: string | null
+  /** SVRZ fixture number (official game number) shown on the card; null if unknown. */
+  number: number | null
   /** 1-based position within its side, and how many games that side has. */
   seq: number
   sideCount: number
@@ -59,14 +61,14 @@ function buildLegCards(games: InviteGame[], bookings: BookingData[], isHome: boo
     let bk = sideBookings.find((b) => String(b.svrz_game_id || '') === String(g.id))
     if (!bk && i === 0) bk = sideBookings.find((b) => b.svrz_game_id == null && !used.has(b.id))
     if (bk) used.add(bk.id)
-    return { key: String(g.id), isHome, svrzGameId: g.id, seq: i + 1, sideCount: side.length, booking: bk }
+    return { key: String(g.id), isHome, svrzGameId: g.id, number: g.number ?? null, seq: i + 1, sideCount: side.length, booking: bk }
   })
   for (const b of sideBookings) {
     if (used.has(b.id)) continue
-    cards.push({ key: `bk-${b.id}`, isHome, svrzGameId: b.svrz_game_id ?? null, seq: cards.length + 1, sideCount: side.length, booking: b })
+    cards.push({ key: `bk-${b.id}`, isHome, svrzGameId: b.svrz_game_id ?? null, number: null, seq: cards.length + 1, sideCount: side.length, booking: b })
   }
   if (cards.length === 0) {
-    cards.push({ key: isHome ? 'legacy-home' : 'legacy-away', isHome, svrzGameId: null, seq: 1, sideCount: 1 })
+    cards.push({ key: isHome ? 'legacy-home' : 'legacy-away', isHome, svrzGameId: null, number: null, seq: 1, sideCount: 1 })
   }
   // sideCount drives the "Game N" suffix — recompute after orphans were added.
   return cards.map((c) => ({ ...c, sideCount: cards.length }))
@@ -280,7 +282,12 @@ export default function OpponentFlowPage() {
   const renderCard = (card: LegCard) => (
     <div key={card.key} className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
       <div className="mb-1 flex items-start justify-between gap-2">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{cardTitle(card)}</h2>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+          {cardTitle(card)}
+          {card.number != null && (
+            <span className="ml-2 text-sm font-normal text-gray-400 dark:text-gray-500">#{card.number}</span>
+          )}
+        </h2>
         {statusBadge(legStatus(card))}
       </div>
       <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
@@ -380,45 +387,45 @@ export default function OpponentFlowPage() {
           <div className="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">{bookingSuccess}</div>
         )}
 
-        {/* Home games — confirm independently from away, button right beneath. */}
-        {homeCards.length > 0 && (
-          <section className="mb-8">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('homeGamesTitle')}</h2>
-            <div className={`grid grid-cols-1 gap-6 ${homeCards.length > 1 ? 'lg:grid-cols-2' : ''}`}>
-              {homeCards.map(renderCard)}
-            </div>
-            {shownHome.length > 0 && (
-              <button
-                type="button"
-                onClick={() => handleConfirmSide('home')}
-                disabled={!canConfirmHome || busy}
-                className={sideButtonClass}
-              >
-                {submittingSide === 'home' ? t('submitting') : t('confirmHomeGames')}
-              </button>
-            )}
-          </section>
-        )}
+        {/* Home and away as two columns (side by side on lg, stacked on mobile).
+            Each side has its own confirm button right beneath its cards. */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {homeCards.length > 0 && (
+            <section className="mb-2">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('homeGamesTitle')}</h2>
+              <div className="space-y-6">{homeCards.map(renderCard)}</div>
+              {shownHome.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleConfirmSide('home')}
+                  disabled={!canConfirmHome || busy}
+                  className={sideButtonClass}
+                >
+                  {submittingSide === 'home' ? t('submitting') : t('confirmHomeGames')}
+                </button>
+              )}
+            </section>
+          )}
 
-        {/* Away games — confirm independently from home, button right beneath. */}
-        {awayCards.length > 0 && (
-          <section className="mb-8">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('awayGamesTitle')}</h2>
-            <div className={`grid grid-cols-1 gap-6 ${awayCards.length > 1 ? 'lg:grid-cols-2' : ''}`}>
-              {awayCards.map(renderCard)}
-            </div>
-            {shownAway.length > 0 && (
-              <button
-                type="button"
-                onClick={() => handleConfirmSide('away')}
-                disabled={!canConfirmAway || busy}
-                className={sideButtonClass}
-              >
-                {submittingSide === 'away' ? t('submitting') : t('confirmAwayGames')}
-              </button>
-            )}
-          </section>
-        )}
+          {awayCards.length > 0 && (
+            <section className="mb-2">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('awayGamesTitle')}</h2>
+              <div className="space-y-6">{awayCards.map(renderCard)}</div>
+              {shownAway.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleConfirmSide('away')}
+                  disabled={!canConfirmAway || busy}
+                  className={sideButtonClass}
+                >
+                  {submittingSide === 'away' ? t('submitting') : t('confirmAwayGames')}
+                </button>
+              )}
+            </section>
+          )}
+        </div>
+
+        <div className="mb-6" />
 
         {/* Opponent's remark to KSCW (free text, independent of proposing) — its
             own save button so a note-only update doesn't ride a game submit. */}

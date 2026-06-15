@@ -51,6 +51,8 @@ export interface OpponentData {
 
 export interface InviteGame {
   id: string
+  /** SVRZ fixture number (official game number), if known. */
+  number?: number | null
   display_name: string
   starting_date_time: string | null
   is_home_kscw: boolean
