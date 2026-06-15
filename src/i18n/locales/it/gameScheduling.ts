@@ -226,6 +226,8 @@ export default {
   confirmSlots: 'Conferma gli slot',
   confirmHomeGames: 'Conferma le partite in casa',
   confirmAwayGames: 'Conferma le partite in trasferta',
+  homeGamesTitle: 'Partite in casa',
+  awayGamesTitle: 'Partite in trasferta',
   submitting: 'Invio in corso...',
   proposalsSubmitted: 'Proposte inviate!',
   awaitingConfirmation: 'In attesa di conferma',

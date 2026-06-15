@@ -226,6 +226,8 @@ export default {
   confirmSlots: 'Confirmer les créneaux',
   confirmHomeGames: 'Confirmer les matchs à domicile',
   confirmAwayGames: 'Confirmer les matchs à l’extérieur',
+  homeGamesTitle: 'Matchs à domicile',
+  awayGamesTitle: 'Matchs à l’extérieur',
   submitting: 'Envoi...',
   proposalsSubmitted: 'Propositions soumises !',
   awaitingConfirmation: 'En attente de confirmation',

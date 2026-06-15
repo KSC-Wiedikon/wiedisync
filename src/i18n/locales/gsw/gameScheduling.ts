@@ -226,6 +226,8 @@ export default {
   confirmSlots: 'Slots bestätige',
   confirmHomeGames: 'Heimspiel bestätige',
   confirmAwayGames: 'Uswärtsspiel bestätige',
+  homeGamesTitle: 'Heimspiel',
+  awayGamesTitle: 'Uswärtsspiel',
   submitting: 'Wird iigreichne...',
   proposalsSubmitted: 'Vorschläg iigrichnet!',
   awaitingConfirmation: 'Wartet uf Bestätigung',

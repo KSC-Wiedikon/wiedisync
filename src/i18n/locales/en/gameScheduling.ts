@@ -215,6 +215,8 @@ export default {
   confirmSlots: 'Confirm slots',
   confirmHomeGames: 'Confirm home games',
   confirmAwayGames: 'Confirm away games',
+  homeGamesTitle: 'Home games',
+  awayGamesTitle: 'Away games',
   submitting: 'Submitting...',
   proposalsSubmitted: 'Proposals submitted!',
   awaitingConfirmation: 'Awaiting confirmation',

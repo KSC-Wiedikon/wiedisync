@@ -151,10 +151,10 @@ export default function OpponentFlowPage() {
     )
   }
 
-  // One card per game — home fixtures first, then away (multi-game pairings).
+  // One card per game (multi-game pairings). Home and away are rendered as
+  // separate sections, each with its own confirm button beneath.
   const homeCards = buildLegCards(games, bookings, true)
   const awayCards = buildLegCards(games, bookings, false)
-  const allCards = [...homeCards, ...awayCards]
 
   const isInvited = opponent.source !== 'self_registration'
   // Always a generic greeting — an invite's contact_name may list several club
@@ -275,6 +275,71 @@ export default function OpponentFlowPage() {
       ? (booking[`proposed_datetime_${booking.confirmed_proposal}` as keyof BookingData] as string)
       : ''
 
+  // One opponent card (home or away). Confirmed cards render read-only; open
+  // cards render the proposal form (submitted by the section's button below).
+  const renderCard = (card: LegCard) => (
+    <div key={card.key} className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+      <div className="mb-1 flex items-start justify-between gap-2">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{cardTitle(card)}</h2>
+        {statusBadge(legStatus(card))}
+      </div>
+      <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+        {card.isHome ? t('homeGameDesc') : t('awayGameDesc')}
+      </p>
+
+      {card.isHome ? (
+        card.booking?.status === 'confirmed' ? (
+          <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
+            <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('slotBooked')}</p>
+            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+              {fmtDate(card.booking.slot_date)} · {gameStartForDate(card.booking.slot_date, card.booking.slot_start)}
+              {card.booking.slot_hall_name ? ` · ${card.booking.slot_hall_name}` : ''}
+            </p>
+          </div>
+        ) : (
+          <>
+            {card.booking?.status === 'pending' && card.booking.proposed_slots && (
+              <div className="mb-4 rounded-md bg-yellow-50 p-3 dark:bg-yellow-900/20">
+                <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">{t('homeProposalsPending')}</p>
+                <ul className="mt-1 space-y-0.5">
+                  {card.booking.proposed_slots.map((p, idx) => (
+                    <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
+                      {p.date ? `${fmtDate(p.date)} · ${gameStartForDate(p.date, p.start)}${p.hall_name ? ` · ${p.hall_name}` : ''}` : t('slotN', { number: idx + 1 })}
+                      {!p.available && <span className="ml-2 text-xs text-red-600 dark:text-red-400">⚠ {t('slotMaybeTaken')}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <HomeProposalForm
+              slots={slots}
+              existing={card.booking?.status === 'pending' ? card.booking : undefined}
+              onChange={homeChangeFor(card.key)}
+              hideSubmit
+            />
+          </>
+        )
+      ) : card.booking?.status === 'confirmed' ? (
+        <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
+          <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('confirmed')}</p>
+          <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{fmtDateTime(decidedAway(card.booking))}</p>
+        </div>
+      ) : (
+        <AwayProposalForm
+          existingProposal={card.booking || undefined}
+          blockedStrict={blockedStrict}
+          blockedLoose={blockedLoose}
+          seasonWindow={seasonWindow}
+          onChange={awayChangeFor(card.key)}
+          hideSubmit
+        />
+      )}
+    </div>
+  )
+
+  const sideButtonClass =
+    'mt-4 w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto sm:px-8'
+
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-900">
       <div className="mx-auto max-w-4xl">
@@ -315,70 +380,49 @@ export default function OpponentFlowPage() {
           <div className="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">{bookingSuccess}</div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {allCards.map((card) => (
-            <div key={card.key} className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-              <div className="mb-1 flex items-start justify-between gap-2">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{cardTitle(card)}</h2>
-                {statusBadge(legStatus(card))}
-              </div>
-              <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
-                {card.isHome ? t('homeGameDesc') : t('awayGameDesc')}
-              </p>
-
-              {card.isHome ? (
-                card.booking?.status === 'confirmed' ? (
-                  <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
-                    <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('slotBooked')}</p>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                      {fmtDate(card.booking.slot_date)} · {gameStartForDate(card.booking.slot_date, card.booking.slot_start)}
-                      {card.booking.slot_hall_name ? ` · ${card.booking.slot_hall_name}` : ''}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {card.booking?.status === 'pending' && card.booking.proposed_slots && (
-                      <div className="mb-4 rounded-md bg-yellow-50 p-3 dark:bg-yellow-900/20">
-                        <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">{t('homeProposalsPending')}</p>
-                        <ul className="mt-1 space-y-0.5">
-                          {card.booking.proposed_slots.map((p, idx) => (
-                            <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
-                              {p.date ? `${fmtDate(p.date)} · ${gameStartForDate(p.date, p.start)}${p.hall_name ? ` · ${p.hall_name}` : ''}` : t('slotN', { number: idx + 1 })}
-                              {!p.available && <span className="ml-2 text-xs text-red-600 dark:text-red-400">⚠ {t('slotMaybeTaken')}</span>}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    <HomeProposalForm
-                      slots={slots}
-                      existing={card.booking?.status === 'pending' ? card.booking : undefined}
-                      onChange={homeChangeFor(card.key)}
-                      hideSubmit
-                    />
-                  </>
-                )
-              ) : card.booking?.status === 'confirmed' ? (
-                <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
-                  <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('confirmed')}</p>
-                  <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{fmtDateTime(decidedAway(card.booking))}</p>
-                </div>
-              ) : (
-                <AwayProposalForm
-                  existingProposal={card.booking || undefined}
-                  blockedStrict={blockedStrict}
-                  blockedLoose={blockedLoose}
-                  seasonWindow={seasonWindow}
-                  onChange={awayChangeFor(card.key)}
-                  hideSubmit
-                />
-              )}
+        {/* Home games — confirm independently from away, button right beneath. */}
+        {homeCards.length > 0 && (
+          <section className="mb-8">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('homeGamesTitle')}</h2>
+            <div className={`grid grid-cols-1 gap-6 ${homeCards.length > 1 ? 'lg:grid-cols-2' : ''}`}>
+              {homeCards.map(renderCard)}
             </div>
-          ))}
-        </div>
+            {shownHome.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleConfirmSide('home')}
+                disabled={!canConfirmHome || busy}
+                className={sideButtonClass}
+              >
+                {submittingSide === 'home' ? t('submitting') : t('confirmHomeGames')}
+              </button>
+            )}
+          </section>
+        )}
 
-        {/* Opponent's remark to KSCW (free text, independent of proposing). */}
-        <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+        {/* Away games — confirm independently from home, button right beneath. */}
+        {awayCards.length > 0 && (
+          <section className="mb-8">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('awayGamesTitle')}</h2>
+            <div className={`grid grid-cols-1 gap-6 ${awayCards.length > 1 ? 'lg:grid-cols-2' : ''}`}>
+              {awayCards.map(renderCard)}
+            </div>
+            {shownAway.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleConfirmSide('away')}
+                disabled={!canConfirmAway || busy}
+                className={sideButtonClass}
+              >
+                {submittingSide === 'away' ? t('submitting') : t('confirmAwayGames')}
+              </button>
+            )}
+          </section>
+        )}
+
+        {/* Opponent's remark to KSCW (free text, independent of proposing) — its
+            own save button so a note-only update doesn't ride a game submit. */}
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
           <label htmlFor="opp-remark" className="block text-base font-semibold text-gray-900 dark:text-gray-100">
             {t('yourRemarks')}
           </label>
@@ -397,40 +441,12 @@ export default function OpponentFlowPage() {
               type="button"
               onClick={handleSaveRemark}
               disabled={busy}
-              className="mt-3 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+              className="mt-3 w-full rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:w-auto dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
             >
               {savingRemark ? t('submitting') : t('saveRemarks')}
             </button>
           )}
         </div>
-
-        {/* Per-side submit: home and away confirm independently, so the opponent
-            can send one now and the other later. A side's button only shows when
-            that side still has open games. */}
-        {(shownHome.length > 0 || shownAway.length > 0) && (
-          <div className={`mt-6 grid grid-cols-1 gap-3 ${shownHome.length > 0 && shownAway.length > 0 ? 'sm:grid-cols-2' : ''}`}>
-            {shownHome.length > 0 && (
-              <button
-                type="button"
-                onClick={() => handleConfirmSide('home')}
-                disabled={!canConfirmHome || busy}
-                className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {submittingSide === 'home' ? t('submitting') : t('confirmHomeGames')}
-              </button>
-            )}
-            {shownAway.length > 0 && (
-              <button
-                type="button"
-                onClick={() => handleConfirmSide('away')}
-                disabled={!canConfirmAway || busy}
-                className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {submittingSide === 'away' ? t('submitting') : t('confirmAwayGames')}
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Help line — for anything else, the club's scheduling mailbox. */}
         <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
