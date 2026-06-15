@@ -427,6 +427,23 @@ export default function OpponentFlowPage() {
 
         <div className="mb-6" />
 
+        {/* Slot-availability explainer — why only certain dates are offered.
+            Sits right above the remarks box so the opponent understands the
+            constraints before leaving a note. */}
+        <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-700 dark:bg-gray-800/50">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('slotRulesTitle')}</h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t('slotRulesIntro')}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-600 dark:text-gray-400">
+            <li>{t('slotRulesHall')}</li>
+            <li>{t('slotRulesSaturday')}</li>
+            <li>{t('slotRulesGap')}</li>
+            <li>{t('slotRulesVenue')}</li>
+            <li>{t('slotRulesSunday')}</li>
+          </ul>
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">{t('slotRulesAway')}</p>
+          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t('slotRulesOutro')}</p>
+        </div>
+
         {/* Opponent's remark to KSCW (free text, independent of proposing) — its
             own save button so a note-only update doesn't ride a game submit. */}
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
