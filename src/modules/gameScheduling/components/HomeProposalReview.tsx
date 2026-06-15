@@ -87,11 +87,15 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
     const info = slotInfo(booking.slot)
     return (
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-2">
+        <div className="flex min-h-7 items-center gap-2">
           <BookingStatusBadge status="confirmed" />
           {info && <span className="text-sm text-gray-600 dark:text-gray-400">{info.label}</span>}
         </div>
-        {onVmPush && <VmPushStatus booking={booking} onPush={onVmPush} />}
+        {onVmPush && (
+          <div className="flex min-h-7 items-center">
+            <VmPushStatus booking={booking} onPush={onVmPush} />
+          </div>
+        )}
       </div>
     )
   }
