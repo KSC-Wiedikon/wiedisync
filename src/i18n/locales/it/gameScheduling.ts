@@ -224,6 +224,8 @@ export default {
   proposalPlace: 'Palestra / Indirizzo',
   submitProposals: 'Invia proposte',
   confirmSlots: 'Conferma gli slot',
+  confirmHomeGames: 'Conferma le partite in casa',
+  confirmAwayGames: 'Conferma le partite in trasferta',
   submitting: 'Invio in corso...',
   proposalsSubmitted: 'Proposte inviate!',
   awaitingConfirmation: 'In attesa di conferma',

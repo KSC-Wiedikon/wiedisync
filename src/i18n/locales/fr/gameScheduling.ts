@@ -224,6 +224,8 @@ export default {
   proposalPlace: 'Salle / Adresse',
   submitProposals: 'Soumettre les propositions',
   confirmSlots: 'Confirmer les créneaux',
+  confirmHomeGames: 'Confirmer les matchs à domicile',
+  confirmAwayGames: 'Confirmer les matchs à l’extérieur',
   submitting: 'Envoi...',
   proposalsSubmitted: 'Propositions soumises !',
   awaitingConfirmation: 'En attente de confirmation',

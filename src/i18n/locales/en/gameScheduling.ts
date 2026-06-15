@@ -213,6 +213,8 @@ export default {
   proposalPlace: 'Hall / Address',
   submitProposals: 'Submit Proposals',
   confirmSlots: 'Confirm slots',
+  confirmHomeGames: 'Confirm home games',
+  confirmAwayGames: 'Confirm away games',
   submitting: 'Submitting...',
   proposalsSubmitted: 'Proposals submitted!',
   awaitingConfirmation: 'Awaiting confirmation',

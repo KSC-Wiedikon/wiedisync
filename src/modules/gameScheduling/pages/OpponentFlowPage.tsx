@@ -79,9 +79,10 @@ export default function OpponentFlowPage() {
     useAvailableSlots(token)
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
-  const [submittingAll, setSubmittingAll] = useState(false)
+  const [submittingSide, setSubmittingSide] = useState<'home' | 'away' | null>(null)
+  const [savingRemark, setSavingRemark] = useState(false)
   // Current proposals reported by each card's form, keyed by card key (null
-  // while incomplete) — submitted together by the single button below. The
+  // while incomplete) — submitted per side by the buttons below. The
   // per-card onChange handlers are memoised in refs: the forms' report-upward
   // effects depend on the callback identity, so a fresh inline closure per
   // render would re-fire them every render (set-state loop).
@@ -207,44 +208,65 @@ export default function OpponentFlowPage() {
     }
   }
 
-  // One combined submit: every open card's proposals + the remark. A confirmed
-  // card isn't shown and isn't required; every shown card must have a complete
-  // proposal before the button enables.
+  // Home and away submit independently — each side has its own button so the
+  // opponent can confirm one now and the other later. A confirmed card isn't
+  // shown and isn't required; every shown card on a side must be complete before
+  // that side's button enables. The remark rides along with whichever side is
+  // submitted, and has its own button for note-only edits.
   const isShown = (card: LegCard) => card.booking?.status !== 'confirmed'
   const shownHome = homeCards.filter(isShown)
   const shownAway = awayCards.filter(isShown)
   const remarkChanged = remark.trim() !== (opponent.opponent_note || '').trim()
-  const canConfirm =
-    shownHome.every((c) => !!homePicksByCard[c.key]) &&
-    shownAway.every((c) => !!awayProposalsByCard[c.key]) &&
-    (shownHome.length > 0 || shownAway.length > 0 || remarkChanged)
+  const busy = submittingSide !== null || savingRemark
+  const canConfirmHome = shownHome.length > 0 && shownHome.every((c) => !!homePicksByCard[c.key])
+  const canConfirmAway = shownAway.length > 0 && shownAway.every((c) => !!awayProposalsByCard[c.key])
 
-  const handleConfirmAll = async () => {
+  const handleConfirmSide = async (side: 'home' | 'away') => {
     setBookingError('')
     setBookingSuccess('')
-    // Each game needs its own 3 slots — catch cross-card duplicates before
-    // submitting (the backend rejects them too, but mid-loop is messier).
-    const allHomePicks = shownHome.flatMap((c) => homePicksByCard[c.key] || [])
-    if (new Set(allHomePicks).size !== allHomePicks.length) {
-      setBookingError(t('duplicateSlotAcrossGames'))
-      return
+    if (side === 'home') {
+      // Each game needs its own 3 slots — catch cross-card duplicates before
+      // submitting (the backend rejects them too, but mid-loop is messier).
+      const allHomePicks = shownHome.flatMap((c) => homePicksByCard[c.key] || [])
+      if (new Set(allHomePicks).size !== allHomePicks.length) {
+        setBookingError(t('duplicateSlotAcrossGames'))
+        return
+      }
     }
-    setSubmittingAll(true)
+    setSubmittingSide(side)
     try {
-      for (const c of shownHome) {
-        const picks = homePicksByCard[c.key]
-        if (picks) await proposeHome(picks, c.svrzGameId)
+      if (side === 'home') {
+        for (const c of shownHome) {
+          const picks = homePicksByCard[c.key]
+          if (picks) await proposeHome(picks, c.svrzGameId)
+        }
+      } else {
+        for (const c of shownAway) {
+          const proposals = awayProposalsByCard[c.key]
+          if (proposals) await proposeAway(proposals, c.svrzGameId)
+        }
       }
-      for (const c of shownAway) {
-        const proposals = awayProposalsByCard[c.key]
-        if (proposals) await proposeAway(proposals, c.svrzGameId)
-      }
+      // Carry the remark along if the opponent edited it while filling this side.
       if (remarkChanged) await saveNote(remark.trim())
       setBookingSuccess(t('proposalsSubmitted'))
     } catch (err: unknown) {
       setBookingError(schedErrorMessage(err))
     } finally {
-      setSubmittingAll(false)
+      setSubmittingSide(null)
+    }
+  }
+
+  const handleSaveRemark = async () => {
+    setBookingError('')
+    setBookingSuccess('')
+    setSavingRemark(true)
+    try {
+      await saveNote(remark.trim())
+      setBookingSuccess(t('remarksSaved'))
+    } catch (err: unknown) {
+      setBookingError(schedErrorMessage(err))
+    } finally {
+      setSavingRemark(false)
     }
   }
 
@@ -370,17 +392,45 @@ export default function OpponentFlowPage() {
             placeholder={t('yourRemarksPlaceholder')}
             className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
           />
+          {remarkChanged && (
+            <button
+              type="button"
+              onClick={handleSaveRemark}
+              disabled={busy}
+              className="mt-3 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              {savingRemark ? t('submitting') : t('saveRemarks')}
+            </button>
+          )}
         </div>
 
-        {/* Single combined submit: all open games + the remark in one action. */}
-        <button
-          type="button"
-          onClick={handleConfirmAll}
-          disabled={!canConfirm || submittingAll}
-          className="mt-6 w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {submittingAll ? t('submitting') : t('confirmSlots')}
-        </button>
+        {/* Per-side submit: home and away confirm independently, so the opponent
+            can send one now and the other later. A side's button only shows when
+            that side still has open games. */}
+        {(shownHome.length > 0 || shownAway.length > 0) && (
+          <div className={`mt-6 grid grid-cols-1 gap-3 ${shownHome.length > 0 && shownAway.length > 0 ? 'sm:grid-cols-2' : ''}`}>
+            {shownHome.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleConfirmSide('home')}
+                disabled={!canConfirmHome || busy}
+                className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submittingSide === 'home' ? t('submitting') : t('confirmHomeGames')}
+              </button>
+            )}
+            {shownAway.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleConfirmSide('away')}
+                disabled={!canConfirmAway || busy}
+                className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submittingSide === 'away' ? t('submitting') : t('confirmAwayGames')}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Help line — for anything else, the club's scheduling mailbox. */}
         <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">

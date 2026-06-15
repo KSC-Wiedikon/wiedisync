@@ -224,6 +224,8 @@ export default {
   proposalPlace: 'Halle / Adrässe',
   submitProposals: 'Vorschläg iireichne',
   confirmSlots: 'Slots bestätige',
+  confirmHomeGames: 'Heimspiel bestätige',
+  confirmAwayGames: 'Uswärtsspiel bestätige',
   submitting: 'Wird iigreichne...',
   proposalsSubmitted: 'Vorschläg iigrichnet!',
   awaitingConfirmation: 'Wartet uf Bestätigung',
