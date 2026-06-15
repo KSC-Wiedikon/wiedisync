@@ -4655,6 +4655,65 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // GET /admin/terminplanung/away-vm-check?season= — for each CONFIRMED away
+  // game, compare the agreed date/time (the confirmed proposal, stored lexically
+  // as Zurich wall-clock) against what's in VolleyManager (svrz_games
+  // .starting_date_time, a true-UTC instant → converted to Zurich). The opponent
+  // owns the away hall, so THEY enter the date in VM; this surfaces whether they
+  // did. Keyed by booking id:
+  //   match    (green)  — VM equals the agreed slot.
+  //   unset    (yellow) — VM still at the season-start placeholder (not updated).
+  //   mismatch (red)    — VM has a different real date/time (diff shown).
+  //   no_vm    (grey)   — no synced fixture / no VM datetime to compare.
+  // A real game whose VM date == agreed wins as `match` before the placeholder
+  // check (covers the edge where the game genuinely falls on the placeholder day).
+  router.get('/admin/terminplanung/away-vm-check', async (req, res) => {
+    try {
+      const { season } = req.query
+      if (!season) return res.status(400).json({ error: 'season required' })
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
+      if (!seasonRow) return res.status(404).json({ error: 'season not found' })
+      // VM's unscheduled placeholder sits at the season start — anything on/before
+      // the configured season-open date that isn't the agreed slot is "not set yet".
+      const offerWindow = seasonOfferWindow(seasonRow)
+      const placeholderMax = offerWindow ? offerWindow.start : null // 'YYYY-MM-DD'
+
+      const rows = await database('game_scheduling_bookings as b')
+        .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
+        .leftJoin('svrz_games as g', 'g.svrz_persistence_id', 'b.svrz_game_id')
+        .where('o.season', season).where('b.type', 'away_proposal').where('b.status', 'confirmed')
+        .select('b.id', 'o.kscw_team', 'b.confirmed_proposal as cp',
+          database.raw('b.proposed_datetime_1::text as d1'),
+          database.raw('b.proposed_datetime_2::text as d2'),
+          database.raw('b.proposed_datetime_3::text as d3'),
+          database.raw("to_char(g.starting_date_time AT TIME ZONE 'Europe/Zurich', 'DD.MM.YYYY HH24:MI') as vm_zurich"),
+          database.raw("to_char((g.starting_date_time AT TIME ZONE 'Europe/Zurich')::date, 'YYYY-MM-DD') as vm_date_iso"))
+
+      const teamIds = [...new Set(rows.map((r) => r.kscw_team))]
+      const manageable = new Set()
+      for (const tId of teamIds) { if (await spielplanerCanManageTeam(req, tId)) manageable.add(tId) }
+
+      // Confirmed proposal → lexical Zurich wall-clock dd.mm.yyyy HH:MM.
+      const lexical = (s) => {
+        const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/)
+        return m ? `${m[3]}.${m[2]}.${m[1]}${m[4] ? ` ${m[4]}:${m[5]}` : ''}` : ''
+      }
+      const out = {}
+      for (const r of rows) {
+        if (!manageable.has(r.kscw_team)) continue
+        const agreed = lexical(r[`d${r.cp || 1}`])
+        if (!r.vm_zurich) { out[r.id] = { status: 'no_vm', agreed, vm: null }; continue }
+        if (r.vm_zurich === agreed) { out[r.id] = { status: 'match', agreed, vm: r.vm_zurich }; continue }
+        const isPlaceholder = placeholderMax && r.vm_date_iso && r.vm_date_iso <= placeholderMax
+        out[r.id] = { status: isPlaceholder ? 'unset' : 'mismatch', agreed, vm: r.vm_zurich }
+      }
+      res.json({ checks: out })
+    } catch (err) {
+      log.error({ msg: `away-vm-check: ${err.message}`, endpoint: 'admin/terminplanung/away-vm-check', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // GET /admin/terminplanung/invites/svrz-clubs?kscw_team=&season= — fast list of
   // the clubs in this team's league for the semi-manual invite flow. Unlike
   // import-from-svrz this does NO live SVRZ login: the club list comes straight

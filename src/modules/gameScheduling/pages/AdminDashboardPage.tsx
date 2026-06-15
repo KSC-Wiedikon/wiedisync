@@ -7,7 +7,7 @@ import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
 import { useAdminBookings } from '../hooks/useAdminBookings'
 import { useTeams } from '../../../hooks/useTeams'
 import LoadingSpinner from '../../../components/LoadingSpinner'
-import AwayProposalReview from '../components/AwayProposalReview'
+import AwayProposalReview, { type AwayVmCheck } from '../components/AwayProposalReview'
 import HomeProposalReview from '../components/HomeProposalReview'
 import OpponentNotes from '../components/OpponentNotes'
 import ManualBookingForm from '../components/ManualBookingForm'
@@ -170,6 +170,19 @@ export default function AdminDashboardPage() {
     }).then((g) => { if (!cancelled) setDerbyGames(g) }).catch(() => { if (!cancelled) setDerbyGames([]) })
     return () => { cancelled = true }
   }, [season?.season])
+
+  // VolleyManager cross-check for confirmed away games (green/yellow/red), keyed
+  // by booking id. Re-fetched when bookings change (e.g. after a confirm).
+  const [awayVmChecks, setAwayVmChecks] = useState<Record<string, AwayVmCheck>>({})
+  useEffect(() => {
+    if (!season?.id) { setAwayVmChecks({}); return }
+    let cancelled = false
+    kscwApi<{ checks: Record<string, AwayVmCheck> }>(`/admin/terminplanung/away-vm-check?season=${season.id}`)
+      .then((r) => { if (!cancelled) setAwayVmChecks(r.checks || {}) })
+      .catch(() => { if (!cancelled) setAwayVmChecks({}) })
+    return () => { cancelled = true }
+  }, [season?.id, bookings])
+
   const [mailboxFocus, setMailboxFocus] = useState<GameSchedulingOpponent | null>(null)
 
   // Wrap confirm so a rejected booking (Saturday cap, cross-team, gap, Döltschi,
@@ -620,6 +633,7 @@ export default function AdminDashboardPage() {
                     mailboxConfigured={mailbox.configured === true}
                     emailsFor={(opp) => messagesForOpponent(mailbox.messages, opp)}
                     onOpenMailbox={setMailboxFocus}
+                    awayVmChecks={awayVmChecks}
                   />
                 </div>
               )}
@@ -661,6 +675,7 @@ function TeamBookingsContent({
   mailboxConfigured,
   emailsFor,
   onOpenMailbox,
+  awayVmChecks,
 }: {
   kscwTeamId: string
   kscwTeamName: string
@@ -685,6 +700,7 @@ function TeamBookingsContent({
   mailboxConfigured: boolean
   emailsFor: (opp: GameSchedulingOpponent) => MailboxMessage[]
   onOpenMailbox: (opp: GameSchedulingOpponent) => void
+  awayVmChecks: Record<string, AwayVmCheck>
 }) {
   const { t } = useTranslation('gameScheduling')
   const { data: halls } = useHalls()
@@ -957,6 +973,7 @@ function TeamBookingsContent({
                         <AwayProposalReview
                           booking={leg.booking}
                           onConfirm={onConfirmAway}
+                          vmCheck={awayVmChecks[String(leg.booking.id)] ?? null}
                         />
                       ) : (
                         <span className="text-sm text-gray-400">{t('pending')}</span>

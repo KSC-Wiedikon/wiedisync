@@ -4,9 +4,24 @@ import BookingStatusBadge from './BookingStatusBadge'
 import { formatWeekdayZurich } from '../../../utils/dateHelpers'
 import type { GameSchedulingBooking } from '../../../types'
 
+export interface AwayVmCheck {
+  status: 'match' | 'unset' | 'mismatch' | 'no_vm'
+  agreed: string
+  vm: string | null
+}
+
 interface Props {
   booking: GameSchedulingBooking
   onConfirm: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
+  /** VolleyManager cross-check for the confirmed away game (from away-vm-check). */
+  vmCheck?: AwayVmCheck | null
+}
+
+const VM_CHECK_STYLE: Record<string, string> = {
+  match: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  unset: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+  mismatch: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  no_vm: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
 }
 
 // Proposals are stored as a naive wall-clock (`${date}T${start_time}`) but come
@@ -22,7 +37,7 @@ function fmtProposal(iso: string | null | undefined): string {
   return hh ? `${date} ${hh}:${mm}` : date
 }
 
-export default function AwayProposalReview({ booking, onConfirm }: Props) {
+export default function AwayProposalReview({ booking, onConfirm, vmCheck }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [confirming, setConfirming] = useState(false)
 
@@ -46,12 +61,29 @@ export default function AwayProposalReview({ booking, onConfirm }: Props) {
   if (booking.status === 'confirmed') {
     const confirmed = proposals.find(p => p.num === booking.confirmed_proposal)
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <BookingStatusBadge status="confirmed" />
         {confirmed && (
           <span className="text-sm text-gray-600 dark:text-gray-400">
             {fmtProposal(confirmed.datetime)}
             {confirmed.place ? ` — ${confirmed.place}` : ''}
+          </span>
+        )}
+        {vmCheck && (
+          <span
+            className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${VM_CHECK_STYLE[vmCheck.status] || VM_CHECK_STYLE.no_vm}`}
+            title={
+              vmCheck.status === 'mismatch'
+                ? t('awayVmMismatchHint', { vm: vmCheck.vm || '—', agreed: vmCheck.agreed || '—' })
+                : vmCheck.status === 'unset'
+                  ? t('awayVmUnsetHint')
+                  : vmCheck.status === 'match'
+                    ? t('awayVmMatchHint')
+                    : t('awayVmNoneHint')
+            }
+          >
+            {t(`awayVm_${vmCheck.status}`)}
+            {vmCheck.status === 'mismatch' && vmCheck.vm ? `: ${vmCheck.vm}` : ''}
           </span>
         )}
       </div>
