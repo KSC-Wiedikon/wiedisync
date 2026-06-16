@@ -69,6 +69,9 @@ export default {
   allHalls: 'Alli Halle',
   halls: 'Halle',
   editAppliesToAllHalls: 'Änderig gilt für {{count}} Halle',
+  hallsField: 'Halle',
+  selectHallsHint: 'Ei oder mehreri Halle uswähle',
+  presetKwi: 'KWI',
 
   // Navigation
   today: 'Hüt',

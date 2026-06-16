@@ -69,6 +69,9 @@ export default {
   allHalls: 'Alle Hallen',
   halls: 'Hallen',
   editAppliesToAllHalls: 'Änderung gilt für {{count}} Hallen',
+  hallsField: 'Hallen',
+  selectHallsHint: 'Eine oder mehrere Hallen auswählen',
+  presetKwi: 'KWI',
 
   // Navigation
   today: 'Heute',

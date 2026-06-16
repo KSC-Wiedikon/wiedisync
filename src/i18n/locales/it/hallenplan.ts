@@ -69,6 +69,9 @@ export default {
   allHalls: 'Tutte le palestre',
   halls: 'palestre',
   editAppliesToAllHalls: 'La modifica si applica a {{count}} palestre',
+  hallsField: 'Palestre',
+  selectHallsHint: 'Seleziona una o più palestre',
+  presetKwi: 'KWI',
 
   // Navigation
   today: 'Oggi',

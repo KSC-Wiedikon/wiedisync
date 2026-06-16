@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { FormInput, FormField } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import DatePicker from '@/components/ui/DatePicker'
+import { cn } from '@/lib/utils'
 import { logActivity } from '../../../utils/logActivity'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import type { Hall, HallClosure } from '../../../types'
@@ -28,13 +29,11 @@ interface ClosureGroup {
 }
 
 const emptyForm: {
-  hall: string
   start_date: string
   end_date: string
   reason: string
   source: HallClosure['source']
 } = {
-  hall: '',
   start_date: '',
   end_date: '',
   reason: '',
@@ -64,6 +63,7 @@ export default function ClosureManager({ halls, closures, onClose, onChanged }: 
   const sourceLabel = (s: string) => SOURCE_OPTIONS.find((o) => o.value === s)?.label ?? s
 
   const [form, setForm] = useState(emptyForm)
+  const [selectedHalls, setSelectedHalls] = useState<string[]>([])
   const [editingGroup, setEditingGroup] = useState<ClosureGroup | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,6 +74,29 @@ export default function ClosureManager({ halls, closures, onClose, onChanged }: 
 
   function getHallName(hallId: string): string {
     return halls.find((h) => h.id === hallId)?.name ?? hallId
+  }
+
+  // Quick-select presets
+  const kwiHallIds = useMemo(
+    () => halls.filter((h) => h.name.trim().toLowerCase().startsWith('kwi')).map((h) => h.id),
+    [halls],
+  )
+  const allHallIds = useMemo(() => halls.map((h) => h.id), [halls])
+
+  const kwiActive = kwiHallIds.length > 0 && kwiHallIds.every((id) => selectedHalls.includes(id))
+  const allActive = allHallIds.length > 0 && allHallIds.every((id) => selectedHalls.includes(id))
+
+  function toggleHall(id: string) {
+    setSelectedHalls((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  // Union-add a preset's halls; if all already selected, toggle them off.
+  function applyPreset(ids: string[]) {
+    setSelectedHalls((prev) => {
+      const allOn = ids.length > 0 && ids.every((id) => prev.includes(id))
+      if (allOn) return prev.filter((id) => !ids.includes(id))
+      return Array.from(new Set([...prev, ...ids]))
+    })
   }
 
   // Group closures by reason + date range + source
@@ -111,8 +134,8 @@ export default function ClosureManager({ halls, closures, onClose, onChanged }: 
 
   function startEdit(group: ClosureGroup) {
     setEditingGroup(group)
+    setSelectedHalls(group.records.map((r) => r.hall))
     setForm({
-      hall: group.records[0].hall,
       start_date: group.start_date,
       end_date: group.end_date,
       reason: group.reason,
@@ -122,12 +145,17 @@ export default function ClosureManager({ halls, closures, onClose, onChanged }: 
 
   function cancelEdit() {
     setEditingGroup(null)
+    setSelectedHalls([])
     setForm(emptyForm)
     setError(null)
   }
 
   async function handleSave() {
-    if (!form.hall || !form.start_date || !form.end_date || !form.reason) {
+    if (selectedHalls.length === 0) {
+      setError(t('hallRequired'))
+      return
+    }
+    if (!form.start_date || !form.end_date || !form.reason) {
       setError(t('common:required'))
       return
     }
@@ -140,19 +168,32 @@ export default function ClosureManager({ halls, closures, onClose, onChanged }: 
     setError(null)
     try {
       if (editingGroup) {
-        // Update all records in the group
-        for (const rec of editingGroup.records) {
-          await updateRecord('hall_closures', rec.id, {
-            ...form,
-            hall: rec.hall, // Keep each record's original hall
-          })
-          logActivity('update', 'hall_closures', rec.id, form)
+        // Reconcile the group's halls against the new selection:
+        // keep+update overlaps, delete removed halls, create added halls.
+        const byHall = new Map(editingGroup.records.map((r) => [r.hall, r]))
+        const target = new Set(selectedHalls)
+        for (const [hallId, rec] of byHall) {
+          if (target.has(hallId)) {
+            await updateRecord('hall_closures', rec.id, { ...form, hall: hallId })
+            logActivity('update', 'hall_closures', rec.id, { ...form, hall: hallId })
+          } else {
+            await deleteRecord('hall_closures', rec.id)
+            logActivity('delete', 'hall_closures', rec.id)
+          }
+        }
+        for (const hallId of selectedHalls) {
+          if (byHall.has(hallId)) continue
+          const rec = await createRecord<{ id: string }>('hall_closures', { ...form, hall: hallId })
+          logActivity('create', 'hall_closures', rec.id, { ...form, hall: hallId })
         }
       } else {
-        const rec = await createRecord<{ id: string }>('hall_closures', form)
-        logActivity('create', 'hall_closures', rec.id, form)
+        for (const hallId of selectedHalls) {
+          const rec = await createRecord<{ id: string }>('hall_closures', { ...form, hall: hallId })
+          logActivity('create', 'hall_closures', rec.id, { ...form, hall: hallId })
+        }
       }
       setForm(emptyForm)
+      setSelectedHalls([])
       setEditingGroup(null)
       onChanged()
     } catch (err) {
@@ -249,32 +290,66 @@ export default function ClosureManager({ halls, closures, onClose, onChanged }: 
             {editingGroup ? t('editClosure') : t('addNewClosure')}
           </h3>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField label={t('hall')} helperText={editingGroup && editingGroup.records.length > 1 ? t('editAppliesToAllHalls', { count: editingGroup.records.length }) : undefined}>
-              <Select value={form.hall} onValueChange={(v) => update('hall', v)} disabled={!!editingGroup}>
-                <SelectTrigger className="min-h-[44px]">
-                  <SelectValue placeholder={t('selectPlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {halls.map((h) => (
-                    <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-            <FormField label={t('source')}>
-              <Select value={form.source} onValueChange={(v) => update('source', v as typeof form.source)}>
-                <SelectTrigger className="min-h-[44px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SOURCE_OPTIONS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-          </div>
+          <FormField label={t('hallsField')} helperText={t('selectHallsHint')}>
+            <div className="space-y-2">
+              {/* Quick presets */}
+              <div className="flex flex-wrap gap-2">
+                {kwiHallIds.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={kwiActive ? 'default' : 'outline'}
+                    onClick={() => applyPreset(kwiHallIds)}
+                  >
+                    {t('presetKwi')}
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={allActive ? 'default' : 'outline'}
+                  onClick={() => applyPreset(allHallIds)}
+                >
+                  {t('allHalls')}
+                </Button>
+              </div>
+              {/* Per-hall toggle chips */}
+              <div className="flex flex-wrap gap-2">
+                {halls.map((h) => {
+                  const active = selectedHalls.includes(h.id)
+                  return (
+                    <button
+                      type="button"
+                      key={h.id}
+                      onClick={() => toggleHall(h.id)}
+                      aria-pressed={active}
+                      className={cn(
+                        'min-h-[44px] rounded-full border px-4 text-sm font-medium transition-colors',
+                        active
+                          ? 'border-brand-600 bg-brand-600 text-white'
+                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700',
+                      )}
+                    >
+                      {h.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </FormField>
+
+          <FormField label={t('source')}>
+            <Select value={form.source} onValueChange={(v) => update('source', v as typeof form.source)}>
+              <SelectTrigger className="min-h-[44px] sm:max-w-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SOURCE_OPTIONS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <DatePicker

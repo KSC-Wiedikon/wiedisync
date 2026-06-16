@@ -69,6 +69,9 @@ export default {
   allHalls: 'All halls',
   halls: 'halls',
   editAppliesToAllHalls: 'Change applies to {{count}} halls',
+  hallsField: 'Halls',
+  selectHallsHint: 'Select one or more halls',
+  presetKwi: 'KWI',
 
   // Navigation
   today: 'Today',
