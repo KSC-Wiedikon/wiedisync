@@ -7,6 +7,7 @@ export default {
   legendHomeProposed: 'Casa (proposta)',
   legendAwayProposed: 'Trasferta (proposta)',
   legendBlocked: 'Bloccato',
+  reservedForBB: 'Riservato per il BB',
   legendDerby: 'Derby',
   legendOpen: 'Slot liberi',
   legendClosed: 'Palestra chiusa',

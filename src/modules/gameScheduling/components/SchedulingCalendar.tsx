@@ -329,7 +329,9 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
           title: `${t('legendHomeConfirmed')}: ${team}${opp ? ` vs ${opp}` : ''} · ${slotTime(d, s.start_time)}`,
         })
       } else if (s.status === 'blocked') {
-        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: team, teamId: tid, time: slotTime(d, s.start_time), hallName: hallName(s.hall), title: `${t('legendBlocked')}: ${team}` })
+        // Blocked slots are hall reservations for basketball (the KWI VB/BB Friday
+        // alternation) — show "Reserved for BB" rather than the team name.
+        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: t('reservedForBB'), teamId: tid, time: slotTime(d, s.start_time), hallName: hallName(s.hall), title: `${t('reservedForBB')} · ${team}` })
       }
     }
 
@@ -427,7 +429,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     { kind: 'away_confirmed', label: t('legendAwayConfirmed') },
     { kind: 'home_proposed', label: t('legendHomeProposed') },
     { kind: 'away_proposed', label: t('legendAwayProposed') },
-    { kind: 'blocked', label: t('legendBlocked') },
+    { kind: 'blocked', label: t('reservedForBB') },
   ]
 
   const KIND_LABEL: Record<EntryKind | 'open', string> = {
@@ -435,7 +437,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     away_confirmed: t('legendAwayConfirmed'),
     home_proposed: t('legendHomeProposed'),
     away_proposed: t('legendAwayProposed'),
-    blocked: t('legendBlocked'),
+    blocked: t('reservedForBB'),
     open: t('legendOpen'),
   }
 
