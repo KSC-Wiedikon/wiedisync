@@ -481,6 +481,7 @@ export default {
   manualEnd: 'Fin',
   manualHall: 'Salle',
   manualSelectHall: 'Choisir une salle',
+  manualOpenSlotHall: 'Créneau libre',
   manualPlace: 'Lieu',
   manualPlacePlaceholder: 'p. ex. nom de la salle adverse',
   manualSave: 'Enregistrer les matchs convenus',

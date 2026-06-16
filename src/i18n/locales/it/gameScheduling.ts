@@ -482,6 +482,7 @@ export default {
   manualEnd: 'Fine',
   manualHall: 'Palestra',
   manualSelectHall: 'Seleziona una palestra',
+  manualOpenSlotHall: 'Slot libero',
   manualPlace: 'Luogo',
   manualPlacePlaceholder: 'es. nome della palestra avversaria',
   manualSave: 'Salva le partite concordate',

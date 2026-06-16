@@ -10,7 +10,7 @@ import LoadingSpinner from '../../../components/LoadingSpinner'
 import AwayProposalReview, { type AwayVmCheck } from '../components/AwayProposalReview'
 import HomeProposalReview from '../components/HomeProposalReview'
 import OpponentNotes from '../components/OpponentNotes'
-import ManualBookingForm from '../components/ManualBookingForm'
+import ManualBookingForm, { type ManualFixtureOption } from '../components/ManualBookingForm'
 import ExcelExportButton from '../components/ExcelExportButton'
 import TeamAvailabilityDialog from '../components/TeamAvailabilityDialog'
 import SchedulingCalendar, { type IntraClubGame } from '../components/SchedulingCalendar'
@@ -24,6 +24,7 @@ import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/ta
 import type { GameSchedulingOpponent, GameSchedulingSeason, GameSchedulingSlot, InviteStatus, InviteSource, ProposalHealthEntry } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import { formatSeasonShort } from '../utils/formatSeason'
+import { gameStartForDate } from '../utils/slotTime'
 import { formatDateCompactZurich, formatDateTimeCompact } from '../../../utils/dateHelpers'
 import { buildMailtoHref } from '../../../utils/sanitizeUrl'
 import { kscwApi, fetchAllItems } from '../../../lib/api'
@@ -88,6 +89,36 @@ function buildFixtureLegs(oppGames: OpponentGame[], oppBookings: ExpandedBooking
     legs.push({ key: isHome ? 'legacy-home' : 'legacy-away', svrzGameId: null, number: null, seq: 1, sideCount: 1 })
   }
   return legs.map((l) => ({ ...l, sideCount: legs.length }))
+}
+
+// Pre-fill values for the manual-booking form when a leg already has a confirmed
+// booking — selecting that fixture starts the fields at the current date/time/hall
+// so an overwrite is "tweak the time", not retype from scratch.
+function homeLegPrefill(leg: FixtureLeg): ManualFixtureOption['prefill'] | undefined {
+  const b = leg.booking
+  if (!b || b.status !== 'confirmed') return undefined
+  const slot = (typeof b.slot === 'object' ? b.slot : null) as GameSchedulingSlot | null
+  if (!slot) return undefined
+  return {
+    date: String(slot.date).slice(0, 10),
+    start_time: gameStartForDate(slot.date, slot.start_time),
+    hall: slot.hall != null ? String(slot.hall) : undefined,
+  }
+}
+
+// Away confirmed bookings store the agreed slot as proposed_datetime_<n> (naive
+// wall-clock, e.g. "2026-10-03T18:00", may come back "…Z") — slice it, don't
+// tz-convert, to mirror AwayProposalReview.
+function awayLegPrefill(leg: FixtureLeg): ManualFixtureOption['prefill'] | undefined {
+  const b = leg.booking
+  if (!b || b.status !== 'confirmed') return undefined
+  const n = b.confirmed_proposal || 1
+  const rec = b as unknown as Record<string, unknown>
+  const dt = String(rec[`proposed_datetime_${n}`] || '')
+  const m = dt.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}):(\d{2}))?/)
+  if (!m) return undefined
+  const place = String(rec[`proposed_place_${n}`] || '')
+  return { date: m[1], start_time: m[2] ? `${m[2]}:${m[3]}` : undefined, place: place || undefined }
 }
 
 const normName = (s: string | null | undefined) => String(s || '').trim().toLowerCase()
@@ -826,6 +857,20 @@ function TeamBookingsContent({
   }, [kscwTeamId, seasonId])
   const hallOptions = (halls || []).map((h) => ({ id: h.id, name: h.name }))
   const slotsById = new Map(teamSlots.map((s) => [String(s.id), s]))
+  // The gym this team plays its home games in — the hall its currently-open slots
+  // use (most common among available slots). Pre-selected + floated to the top of
+  // the manual-booking hall dropdown so a new home game defaults to the right gym.
+  const defaultHomeHall = (() => {
+    const counts = new Map<string, number>()
+    for (const s of teamSlots) {
+      if (s.status !== 'available') continue
+      const h = s.hall != null ? String(s.hall) : ''
+      if (h) counts.set(h, (counts.get(h) || 0) + 1)
+    }
+    let best: string | undefined; let bestN = 0
+    for (const [h, n] of counts) if (n > bestN) { best = h; bestN = n }
+    return best
+  })()
   // Home slots are KSCW-hall, shared across this team's opponents and NOT held
   // until confirmed — so the real contention is "another club proposed this same
   // slot". Index: home slot id -> set of opponent ids that proposed it (pending).
@@ -1090,15 +1135,18 @@ function TeamBookingsContent({
 
             <ManualBookingForm
               halls={hallOptions}
+              defaultHomeHall={defaultHomeHall}
               homeFixtures={homeLegs.map((leg) => ({
                 id: leg.svrzGameId,
                 label: leg.sideCount > 1 ? t('gameN', { number: leg.seq }) : t('manualHomeGame'),
                 booked: leg.booking?.status === 'confirmed',
+                prefill: homeLegPrefill(leg),
               }))}
               awayFixtures={awayLegs.map((leg) => ({
                 id: leg.svrzGameId,
                 label: leg.sideCount > 1 ? t('gameN', { number: leg.seq }) : t('manualAwayGame'),
                 booked: leg.booking?.status === 'confirmed',
+                prefill: awayLegPrefill(leg),
               }))}
               minDate={dateWindow?.start}
               maxDate={dateWindow?.end}

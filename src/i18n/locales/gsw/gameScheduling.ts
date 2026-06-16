@@ -482,6 +482,7 @@ export default {
   manualEnd: 'Ändi',
   manualHall: 'Halle',
   manualSelectHall: 'Halle uswähle',
+  manualOpenSlotHall: 'Offne Slot',
   manualPlace: 'Ort',
   manualPlacePlaceholder: 'z. B. Name vo de gegnerische Halle',
   manualSave: 'Abgmachti Spiel speichere',

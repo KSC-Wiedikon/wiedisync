@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { formatDateZurich } from '../../../utils/dateHelpers'
 import { gameStartForDate } from '../utils/slotTime'
 
-/** One offerable home slot from /admin/terminplanung/team-availability. */
+/** One offerable home slot from /terminplanung/admin/team-availability. */
 interface AvailabilitySlot {
   id: number
   date: string
@@ -81,7 +81,7 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
   const load = async () => {
     setLoading(true)
     try {
-      const resp = await kscwApi(`/admin/terminplanung/team-availability?kscw_team=${kscwTeamId}&season=${seasonId}`) as TeamAvailability
+      const resp = await kscwApi(`/terminplanung/admin/team-availability?kscw_team=${kscwTeamId}&season=${seasonId}`) as TeamAvailability
       setData(resp)
     } catch {
       toast.error(t('availabilityLoadError'))

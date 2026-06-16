@@ -490,6 +490,7 @@ export default {
   manualEnd: 'End',
   manualHall: 'Hall',
   manualSelectHall: 'Select a hall',
+  manualOpenSlotHall: 'Open slot',
   manualPlace: 'Location',
   manualPlacePlaceholder: 'e.g. opponent hall name',
   manualSave: 'Save agreed games',

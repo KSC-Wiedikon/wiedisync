@@ -490,6 +490,7 @@ export default {
   manualEnd: 'Ende',
   manualHall: 'Halle',
   manualSelectHall: 'Halle wählen',
+  manualOpenSlotHall: 'Offener Slot',
   manualPlace: 'Ort',
   manualPlacePlaceholder: 'z. B. Name der gegnerischen Halle',
   manualSave: 'Vereinbarte Spiele speichern',
