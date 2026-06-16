@@ -100,7 +100,7 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
   if (booking.status === 'confirmed') {
     const info = slotInfo(booking.slot)
     return (
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-1 flex-col gap-1.5">
         <div className="flex min-h-7 items-center gap-2">
           <BookingStatusBadge status="confirmed" />
           {info && <span className="text-sm text-gray-600 dark:text-gray-400">{info.label}</span>}
@@ -108,7 +108,7 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
         {proposedBy}
         {confirmedBy}
         {onVmPush && (
-          <div className="flex min-h-7 items-center">
+          <div className="mt-auto flex min-h-7 items-center">
             <VmPushStatus booking={booking} onPush={onVmPush} />
           </div>
         )}

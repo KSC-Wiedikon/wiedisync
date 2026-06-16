@@ -1066,11 +1066,11 @@ function TeamBookingsContent({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {/* Home game bookings — one block per fixture */}
-              <div>
+              <div className="flex flex-col">
                 <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('homeBookings')}</h4>
-                <div className="space-y-3">
+                <div className="flex flex-1 flex-col gap-3">
                   {homeLegs.map((leg) => (
-                    <div key={leg.key}>
+                    <div key={leg.key} className="flex flex-1 flex-col">
                       {(leg.sideCount > 1 || leg.number != null) && (
                         <p className="mb-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
                           {leg.sideCount > 1 ? t('gameN', { number: leg.seq }) : t('manualHomeGame')}
@@ -1101,11 +1101,11 @@ function TeamBookingsContent({
               </div>
 
               {/* Away game proposals — one block per fixture */}
-              <div>
+              <div className="flex flex-col">
                 <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('awayProposals')}</h4>
-                <div className="space-y-3">
+                <div className="flex flex-1 flex-col gap-3">
                   {awayLegs.map((leg) => (
-                    <div key={leg.key}>
+                    <div key={leg.key} className="flex flex-1 flex-col">
                       {(leg.sideCount > 1 || leg.number != null) && (
                         <p className="mb-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
                           {leg.sideCount > 1 ? t('gameN', { number: leg.seq }) : t('manualAwayGame')}

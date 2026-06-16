@@ -75,7 +75,7 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck }: Prop
   if (booking.status === 'confirmed') {
     const confirmed = proposals.find(p => p.num === booking.confirmed_proposal)
     return (
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-1 flex-col gap-1.5">
         <div className="flex min-h-7 flex-wrap items-center gap-2">
           <BookingStatusBadge status="confirmed" />
           {confirmed && (
@@ -88,7 +88,7 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck }: Prop
         {proposedBy}
         {confirmedBy}
         {vmCheck && (
-          <div className="flex min-h-7 items-center">
+          <div className="mt-auto flex min-h-7 items-center">
           <span
             className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${VM_CHECK_STYLE[vmCheck.status] || VM_CHECK_STYLE.no_vm}`}
             title={
