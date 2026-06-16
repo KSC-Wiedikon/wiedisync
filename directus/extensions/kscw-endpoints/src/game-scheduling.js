@@ -2155,6 +2155,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           admin_notes: admin_notes || booking.admin_notes || null,
           confirmed_by_name: actor.name,
           confirmed_by_email: actor.email,
+          confirmed_at: trx.fn.now(),
         })
         await trx('game_scheduling_slots').where('id', slotId).update({ status: 'booked' })
       })
@@ -2953,6 +2954,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         admin_notes: admin_notes || booking.admin_notes || null,
         confirmed_by_name: actor.name,
         confirmed_by_email: actor.email,
+        confirmed_at: database.fn.now(),
       })
 
       // Mirror into `games` so the away fixture shows on member calendars right
@@ -3116,7 +3118,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             status: 'confirmed', confirmed_proposal: 1, proposed_slot_1: slotId, slot: slotId,
             svrz_game_id: homeTarget.fixtureId,
             admin_notes: 'Manuell erfasst',
-            confirmed_by_name: actor.name, confirmed_by_email: actor.email,
+            confirmed_by_name: actor.name, confirmed_by_email: actor.email, confirmed_at: trx.fn.now(),
           }).returning('id')
           homeBookingId = typeof insHome[0] === 'object' ? insHome[0].id : insHome[0]
         })
@@ -3144,7 +3146,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           svrz_game_id: awayTarget.fixtureId,
           proposed_datetime_1: dt, proposed_place_1: String(away.place || '').slice(0, 200),
           admin_notes: 'Manuell erfasst',
-          confirmed_by_name: actor.name, confirmed_by_email: actor.email,
+          confirmed_by_name: actor.name, confirmed_by_email: actor.email, confirmed_at: database.fn.now(),
         })
       }
 

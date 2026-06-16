@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { gameStartForDate } from '../utils/slotTime'
 import BookingStatusBadge from './BookingStatusBadge'
 import VmPushStatus from './VmPushStatus'
-import { formatDateCompactZurich, formatWeekdayZurich } from '../../../utils/dateHelpers'
+import { formatDateCompactZurich, formatWeekdayZurich, formatDateTimeCompact } from '../../../utils/dateHelpers'
 import type { GameSchedulingBooking, GameSchedulingSlot, ProposalHealthEntry } from '../../../types'
 
 interface Props {
@@ -79,10 +79,10 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
     </p>
   ) : null
 
-  // Who on the KSCW side confirmed / manually entered this game (audit line).
-  const confirmedBy = (booking.confirmed_by_name || booking.confirmed_by_email) ? (
+  // Who on the KSCW side confirmed / manually entered this game, and when.
+  const confirmedBy = (booking.confirmed_by_name || booking.confirmed_by_email || booking.confirmed_at) ? (
     <p className="text-xs text-gray-500 dark:text-gray-400">
-      {t('confirmedBy')}: {[booking.confirmed_by_name, booking.confirmed_by_email].filter(Boolean).join(' · ')}
+      {t('confirmedBy')}: {[booking.confirmed_by_name, booking.confirmed_by_email, booking.confirmed_at ? formatDateTimeCompact(booking.confirmed_at) : null].filter(Boolean).join(' · ')}
     </p>
   ) : null
 
