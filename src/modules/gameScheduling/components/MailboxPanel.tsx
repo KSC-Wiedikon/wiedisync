@@ -146,30 +146,38 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
         {list.map((msg) => {
           const isUnread = msg.direction === 'in' && !msg.read_at
           const chipOpp = showChip ? opponentForMessage(msg) : null
+          const when = msg.date_sent ? formatDateTimeCompact(msg.date_sent) : '—'
+          const who = correspondent(msg)
           return (
             <TableRow
               key={msg.id}
               onClick={() => void openMessage(msg.id)}
               className="cursor-pointer"
             >
-              <TableCell className="whitespace-nowrap align-top text-xs text-gray-500 dark:text-gray-400">
-                {msg.date_sent ? formatDateTimeCompact(msg.date_sent) : '—'}
+              {/* Date — own column on ≥sm; folded into the content cell on mobile so it can't eat the subject's width */}
+              <TableCell className="hidden whitespace-nowrap align-top text-xs text-gray-500 sm:table-cell dark:text-gray-400">
+                {when}
               </TableCell>
               <TableCell className={`hidden max-w-44 truncate align-top sm:table-cell ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
-                {correspondent(msg)}
+                {who}
               </TableCell>
-              <TableCell className="align-top">
+              {/* whitespace-normal overrides the cell default (nowrap) so the subject wraps instead of overflowing the viewport */}
+              <TableCell className="whitespace-normal align-top">
+                {/* Mobile header line: sender (truncates) + date (right, never overflows) — mail-client style */}
+                <div className="mb-0.5 flex items-baseline gap-2 sm:hidden">
+                  <span className={`min-w-0 flex-1 truncate text-xs ${isUnread ? 'font-semibold text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{who}</span>
+                  <span className="flex-shrink-0 whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">{when}</span>
+                </div>
                 <div className={`flex flex-wrap items-center gap-1.5 ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}`}>
-                  {isUnread && <span aria-hidden className="inline-block h-2 w-2 flex-shrink-0 rounded-full bg-brand-600" />}
-                  <span className="break-words">{msg.subject || t('mailboxNoSubject')}</span>
+                  {isUnread && <span aria-hidden className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 self-start rounded-full bg-brand-600 sm:mt-0 sm:self-auto" />}
+                  <span className="min-w-0 break-words">{msg.subject || t('mailboxNoSubject')}</span>
                   {msg.has_attachments && <span aria-hidden title={t('mailboxAttachments')}>📎</span>}
                   {chipOpp && (
                     <Badge variant="neutral" size="sm">{chipOpp.team_name || chipOpp.club_name}</Badge>
                   )}
                 </div>
-                <div className="mt-0.5 truncate text-xs text-gray-400 sm:hidden dark:text-gray-500">{correspondent(msg)}</div>
                 {msg.snippet && (
-                  <div className="mt-0.5 hidden truncate text-xs text-gray-400 sm:block dark:text-gray-500">{msg.snippet}</div>
+                  <div className="mt-0.5 truncate text-xs text-gray-400 dark:text-gray-500">{msg.snippet}</div>
                 )}
               </TableCell>
             </TableRow>

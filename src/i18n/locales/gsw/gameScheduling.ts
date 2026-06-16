@@ -8,6 +8,7 @@ export default {
   legendAwayProposed: 'Uswärts (vorgschlage)',
   legendBlocked: 'Blockiert',
   reservedForBB: 'Für BB reserviert',
+  reservedForDerby: 'Für Derby reserviert',
   legendDerby: 'Derby',
   legendOpen: 'Freii Slots',
   legendClosed: 'Halle zue',

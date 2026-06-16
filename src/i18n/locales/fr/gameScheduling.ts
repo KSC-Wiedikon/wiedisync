@@ -8,6 +8,7 @@ export default {
   legendAwayProposed: 'Extérieur (proposé)',
   legendBlocked: 'Bloqué',
   reservedForBB: 'Réservé pour le BB',
+  reservedForDerby: 'Réservé pour le derby',
   legendDerby: 'Derby',
   legendOpen: 'Créneaux libres',
   legendClosed: 'Salle fermée',

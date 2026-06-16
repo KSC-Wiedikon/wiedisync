@@ -307,6 +307,16 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       return o?.team_name || o?.club_name || ''
     }
 
+    // Dates on which an intra-club derby reserves the gym (a source='derby' slot).
+    // On those evenings the whole KWI gym (A+B) is held for the derby, so a blocked
+    // KWI court there is a derby reservation — NOT the basketball Friday split.
+    const derbyDates = new Set(
+      slots
+        .filter((s) => (s as { source?: string }).source === 'derby')
+        .map((s) => { const dd = parseYmd(s.date); return dd ? toDateKey(dd) : '' })
+        .filter(Boolean),
+    )
+
     // Slots: booked = confirmed home game; blocked = blocked.
     for (const s of slots) {
       const d = parseYmd(s.date)
@@ -330,9 +340,10 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
           title: `${t('legendHomeConfirmed')}: ${team}${opp ? ` vs ${opp}` : ''} · ${slotTime(d, s.start_time)}`,
         })
       } else if (s.status === 'blocked') {
-        // Blocked slots are hall reservations for basketball (the KWI VB/BB Friday
-        // alternation) — show "Reserved for BB" rather than the team name.
-        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: t('reservedForBB'), teamId: tid, time: slotTime(d, s.start_time), hallName: hallName(s.hall), title: `${t('reservedForBB')} · ${team}` })
+        // A blocked slot is either a derby hall reservation (the gym is held A+B for
+        // an intra-club derby that evening) or the KWI VB/BB Friday alternation.
+        const lbl = derbyDates.has(toDateKey(d)) ? t('reservedForDerby') : t('reservedForBB')
+        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: lbl, teamId: tid, time: slotTime(d, s.start_time), hallName: hallName(s.hall), title: `${lbl} · ${team}` })
       }
     }
 
