@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-09T15:41:32.677Z
+-- Generated:   2026-06-16T10:58:03.582Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -1064,6 +1064,7 @@ COMMENT ON FUNCTION public.kscw_fine_window_start(p_window text, p_ts timestamp 
 
 CREATE FUNCTION public.members_prevent_email_blanking() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public'
     AS $$
 BEGIN
   IF OLD.email IS NOT NULL AND btrim(OLD.email) <> ''
@@ -1196,6 +1197,7 @@ $$;
 
 CREATE FUNCTION public.trg_form_submissions_guard() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public'
     AS $$
 DECLARE
   f forms%ROWTYPE;
@@ -1226,6 +1228,7 @@ $$;
 
 CREATE FUNCTION public.trg_form_submissions_update_guard() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public'
     AS $$
 DECLARE
   f forms%ROWTYPE;
@@ -1397,7 +1400,7 @@ $$;
 CREATE FUNCTION public.trg_participations_guest_block() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 DECLARE
   v_team integer;
 BEGIN
@@ -1408,7 +1411,16 @@ BEGIN
       -- Resolve the game's team. If the game row is missing (FK orphan)
       -- we fall back to allowing the write — the FK constraint will catch
       -- the real problem, not this trigger.
-      SELECT kscw_team INTO v_team FROM games WHERE id = NEW.activity_id;
+      --
+      -- Guard the implicit varchar->int cast: only look up games when
+      -- activity_id is a pure numeric string. A non-numeric activity_id would
+      -- otherwise make the cast error or the lookup find nothing, silently
+      -- skipping the guest block. A non-numeric game activity_id is itself
+      -- invalid, so leaving v_team NULL (no block) is the safe fallback —
+      -- the FK / app layer owns that error, not this guard.
+      IF NEW.activity_id ~ '^[0-9]+$' THEN
+        SELECT kscw_team INTO v_team FROM games WHERE id = NEW.activity_id::integer;
+      END IF;
       IF v_team IS NOT NULL THEN
         IF EXISTS (
           SELECT 1 FROM member_teams
@@ -1424,7 +1436,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$;
+$_$;
 
 
 --
@@ -1507,6 +1519,30 @@ BEGIN
     RAISE EXCEPTION 'This slot is already claimed for this date';
   END IF;
   RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: trg_teams_release_derby_host(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_teams_release_derby_host() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  -- The team being deleted hosts a leg of one or more derbies — un-confirm them
+  -- and clear the host pointer (matching the FK's ON DELETE SET NULL). A derby
+  -- that loses a team is no longer a valid Art. 27 anchor.
+  UPDATE game_scheduling_derbies
+  SET confirmed = false,
+      leg1_home_team = CASE WHEN leg1_home_team = OLD.id THEN NULL ELSE leg1_home_team END,
+      leg2_home_team = CASE WHEN leg2_home_team = OLD.id THEN NULL ELSE leg2_home_team END,
+      date_updated = now()
+  WHERE leg1_home_team = OLD.id OR leg2_home_team = OLD.id;
+
+  RETURN OLD;
 END;
 $$;
 
@@ -2989,7 +3025,14 @@ CREATE TABLE public.game_scheduling_bookings (
     date_updated timestamp with time zone,
     proposed_slot_1 integer,
     proposed_slot_2 integer,
-    proposed_slot_3 integer
+    proposed_slot_3 integer,
+    vm_game_id character varying(64),
+    vm_pushed_at timestamp with time zone,
+    vm_push_status character varying(24),
+    vm_push_error text,
+    svrz_game_id character varying(255),
+    proposed_by_name text,
+    proposed_by_email text
 );
 
 
@@ -3117,7 +3160,13 @@ CREATE TABLE public.game_scheduling_opponents (
     language character varying(5),
     new_slots_requested_at timestamp with time zone,
     kscw_note text,
-    opponent_note text
+    opponent_note text,
+    email_sent_at timestamp with time zone,
+    reminder_sent_at timestamp with time zone,
+    calendar_contact_name text,
+    calendar_contact_email text,
+    team_contact_name text,
+    team_contact_email text
 );
 
 
@@ -3126,6 +3175,13 @@ CREATE TABLE public.game_scheduling_opponents (
 --
 
 COMMENT ON COLUMN public.game_scheduling_opponents.language IS 'Opponent UI language chosen on the public Terminplanung page (de/gsw/en/fr/it). Used for transactional emails. Null = not yet chosen (falls back to de).';
+
+
+--
+-- Name: COLUMN game_scheduling_opponents.reminder_sent_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_opponents.reminder_sent_at IS 'When a scheduling reminder was last emailed to this opponent (NULL = never reminded).';
 
 
 --
@@ -3162,7 +3218,9 @@ CREATE TABLE public.game_scheduling_seasons (
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
     svrz_season_uuid character varying(64) DEFAULT NULL::character varying,
-    gap_config jsonb DEFAULT '{"home": 4, "proposal": 4, "proposal3": 2}'::jsonb NOT NULL
+    gap_config jsonb DEFAULT '{"home": 4, "proposal": 4, "proposal3": 2}'::jsonb NOT NULL,
+    season_opens date,
+    season_closes date
 );
 
 
@@ -3171,6 +3229,20 @@ CREATE TABLE public.game_scheduling_seasons (
 --
 
 COMMENT ON COLUMN public.game_scheduling_seasons.gap_config IS 'Per-season game-spacing gaps in days {home, proposal, proposal3}: minimum days between games. proposal3 is the lenient gap for the 3rd away proposal.';
+
+
+--
+-- Name: COLUMN game_scheduling_seasons.season_opens; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_seasons.season_opens IS 'First date the tool offers slots/away dates. NULL → Sep 1 of the season''s first year.';
+
+
+--
+-- Name: COLUMN game_scheduling_seasons.season_closes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_seasons.season_closes IS 'Last date the tool offers slots/away dates. NULL → Mar 31 of the season''s second year.';
 
 
 --
@@ -3505,7 +3577,8 @@ CREATE TABLE public.halls (
     homologation boolean DEFAULT false NOT NULL,
     sv_hall_id character varying(255) DEFAULT NULL::character varying,
     date_created timestamp with time zone,
-    date_updated timestamp with time zone
+    date_updated timestamp with time zone,
+    vm_hall_id character varying(64)
 );
 
 
@@ -4419,6 +4492,82 @@ ALTER SEQUENCE public.scheduling_blocks_id_seq OWNED BY public.scheduling_blocks
 
 
 --
+-- Name: scheduling_emails; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scheduling_emails (
+    id integer NOT NULL,
+    message_id text NOT NULL,
+    in_reply_to text,
+    references_ids text,
+    direction character varying(8) DEFAULT 'in'::character varying NOT NULL,
+    folder character varying(64),
+    imap_uid integer,
+    from_address text,
+    from_name text,
+    to_addresses text,
+    cc_addresses text,
+    subject text,
+    body_text text,
+    body_html text,
+    has_attachments boolean DEFAULT false NOT NULL,
+    attachments jsonb,
+    date_sent timestamp with time zone,
+    read_at timestamp with time zone,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT scheduling_emails_direction_check CHECK (((direction)::text = ANY ((ARRAY['in'::character varying, 'out'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE scheduling_emails; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.scheduling_emails IS 'Synced copy of the volleyball@spielplanung.kscw.ch Migadu mailbox (INBOX + Sent) plus dashboard-composed replies. Deduped by Message-ID. Opponent matching is computed at read time by address intersection with game_scheduling_opponents.contact_email. Managed only via the kscw scheduling-mailbox endpoints (knex, admin/spielplaner-gated).';
+
+
+--
+-- Name: COLUMN scheduling_emails.message_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scheduling_emails.message_id IS 'RFC 5322 Message-ID without angle brackets; synthetic fallback when absent. Unique — the sync upserts ON CONFLICT DO NOTHING.';
+
+
+--
+-- Name: COLUMN scheduling_emails.imap_uid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scheduling_emails.imap_uid IS 'IMAP UID in `folder` at sync time. Used to stream attachment bytes on demand; can go stale after mailbox moves (the endpoint then returns 410 and a re-sync refreshes it).';
+
+
+--
+-- Name: COLUMN scheduling_emails.read_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scheduling_emails.read_at IS 'Set when a spielplaner opens the message in the dashboard. Global marker (single shared mailbox), not per-user.';
+
+
+--
+-- Name: scheduling_emails_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.scheduling_emails_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: scheduling_emails_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.scheduling_emails_id_seq OWNED BY public.scheduling_emails.id;
+
+
+--
 -- Name: scorer_courses; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5194,7 +5343,8 @@ CREATE TABLE public.svrz_spielplaner_contacts (
     club_league_categories json,
     club_team_genders json,
     raw json,
-    last_synced_at timestamp with time zone
+    last_synced_at timestamp with time zone,
+    team_identifier character varying(255)
 );
 
 
@@ -5989,6 +6139,13 @@ ALTER TABLE ONLY public.scheduling_blocks ALTER COLUMN id SET DEFAULT nextval('p
 
 
 --
+-- Name: scheduling_emails id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduling_emails ALTER COLUMN id SET DEFAULT nextval('public.scheduling_emails_id_seq'::regclass);
+
+
+--
 -- Name: scorer_courses id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -6644,6 +6801,22 @@ ALTER TABLE ONLY public.scheduling_blocks
 
 
 --
+-- Name: scheduling_emails scheduling_emails_message_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduling_emails
+    ADD CONSTRAINT scheduling_emails_message_id_unique UNIQUE (message_id);
+
+
+--
+-- Name: scheduling_emails scheduling_emails_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduling_emails
+    ADD CONSTRAINT scheduling_emails_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: scorer_courses scorer_courses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7042,6 +7215,13 @@ CREATE INDEX game_scheduling_bookings_game_index ON public.game_scheduling_booki
 
 
 --
+-- Name: game_scheduling_bookings_opp_type_fixture_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX game_scheduling_bookings_opp_type_fixture_unique ON public.game_scheduling_bookings USING btree (opponent, type, svrz_game_id) WHERE (svrz_game_id IS NOT NULL);
+
+
+--
 -- Name: game_scheduling_bookings_opponent_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7053,6 +7233,13 @@ CREATE INDEX game_scheduling_bookings_opponent_index ON public.game_scheduling_b
 --
 
 CREATE INDEX game_scheduling_bookings_slot_index ON public.game_scheduling_bookings USING btree (slot);
+
+
+--
+-- Name: game_scheduling_bookings_svrz_game_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX game_scheduling_bookings_svrz_game_id_index ON public.game_scheduling_bookings USING btree (svrz_game_id);
 
 
 --
@@ -7721,6 +7908,20 @@ CREATE INDEX scheduling_blocks_team_range_idx ON public.scheduling_blocks USING 
 
 
 --
+-- Name: scheduling_emails_date_sent_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scheduling_emails_date_sent_idx ON public.scheduling_emails USING btree (date_sent DESC NULLS LAST);
+
+
+--
+-- Name: scheduling_emails_unread_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scheduling_emails_unread_idx ON public.scheduling_emails USING btree (direction) WHERE (read_at IS NULL);
+
+
+--
 -- Name: scorer_delegations_from_member_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8110,6 +8311,13 @@ CREATE TRIGGER trg_slot_claims_validate BEFORE INSERT OR UPDATE ON public.slot_c
 --
 
 CREATE TRIGGER trg_teams_protect_delete BEFORE DELETE ON public.teams FOR EACH ROW EXECUTE FUNCTION public.trg_protect_team_delete();
+
+
+--
+-- Name: teams trg_teams_release_derby_host; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_teams_release_derby_host BEFORE DELETE ON public.teams FOR EACH ROW EXECUTE FUNCTION public.trg_teams_release_derby_host();
 
 
 --
