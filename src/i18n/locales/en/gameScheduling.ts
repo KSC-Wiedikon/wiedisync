@@ -491,6 +491,7 @@ export default {
   manualHall: 'Hall',
   manualSelectHall: 'Select a hall',
   manualOpenSlotHall: 'Open slot',
+  manualHallMismatchWarn: 'This is not the gym assigned to this team in its slot — confirm only if that change is intended.',
   manualPlace: 'Location',
   manualPlacePlaceholder: 'e.g. opponent hall name',
   manualSave: 'Save agreed games',

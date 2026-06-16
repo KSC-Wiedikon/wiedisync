@@ -482,6 +482,7 @@ export default {
   manualHall: 'Salle',
   manualSelectHall: 'Choisir une salle',
   manualOpenSlotHall: 'Créneau libre',
+  manualHallMismatchWarn: "Ce n'est pas la salle attribuée à cette équipe pour son créneau — confirmez seulement si ce changement est voulu.",
   manualPlace: 'Lieu',
   manualPlacePlaceholder: 'p. ex. nom de la salle adverse',
   manualSave: 'Enregistrer les matchs convenus',

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
@@ -236,6 +236,11 @@ export default function Layout() {
   const { t } = useTranslation('nav')
   const isDesktop = useIsDesktop()
   const { isAdminMode } = useAdminMode()
+  const location = useLocation()
+  // Match-scheduling (Terminplanung) is a spielplaner tool with its own per-team
+  // scoping — the gold admin-mode banner is just noise there, so hide it on those
+  // pages (the toggle itself stays on; only the banner is suppressed).
+  const onScheduling = location.pathname.includes('/terminplanung')
   const { navItems, memberToolsItems, spielplanerItems, adminItems, superadminItems } = useNavItems(!!user, isApproved, user?.id)
   const messagingOn = messagingFeatureEnabled(user?.id)
   const unreadMessages = useUnreadTotal()
@@ -653,7 +658,7 @@ export default function Layout() {
         <main className={`flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 ${
           !isDesktop ? 'pb-24' : ''
         }`}>
-          {isAdminMode && (
+          {isAdminMode && !onScheduling && (
             <div
               className="
                 -mx-4 -mt-4 mb-4 border-x border-b border-t-2 border-gold-400 bg-gold-50 px-4 py-1 text-center text-xs font-semibold uppercase tracking-wider text-gold-700

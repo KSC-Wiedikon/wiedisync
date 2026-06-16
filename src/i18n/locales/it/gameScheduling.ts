@@ -483,6 +483,7 @@ export default {
   manualHall: 'Palestra',
   manualSelectHall: 'Seleziona una palestra',
   manualOpenSlotHall: 'Slot libero',
+  manualHallMismatchWarn: 'Questa non è la palestra assegnata a questa squadra per il suo slot — conferma solo se la modifica è voluta.',
   manualPlace: 'Luogo',
   manualPlacePlaceholder: 'es. nome della palestra avversaria',
   manualSave: 'Salva le partite concordate',

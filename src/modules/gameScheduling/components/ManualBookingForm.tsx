@@ -114,6 +114,9 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
   const orderedHalls = defaultHallKey
     ? [...halls.filter((h) => String(h.id) === defaultHallKey), ...halls.filter((h) => String(h.id) !== defaultHallKey)]
     : halls
+  // Warn (don't block — manual booking is a deliberate override) when the chosen
+  // home hall isn't the gym this team is assigned in its open slots.
+  const homeHallMismatch = homeOn && !!homeHall && !!defaultHallKey && homeHall !== defaultHallKey
 
   // True if a date falls outside the season offer window (typo guard).
   const outOfWindow = (date: string) => !!date && ((minDate && date < minDate) || (maxDate && date > maxDate))
@@ -220,6 +223,11 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
               </select>
             </label>
           </div>
+        )}
+        {homeHallMismatch && (
+          <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+            ⚠ {t('manualHallMismatchWarn')}
+          </p>
         )}
       </div>
 

@@ -483,6 +483,7 @@ export default {
   manualHall: 'Halle',
   manualSelectHall: 'Halle uswähle',
   manualOpenSlotHall: 'Offne Slot',
+  manualHallMismatchWarn: 'Das isch nöd d Halle, wo dem Team i dem Slot zueteilt isch — nu bestätige, wenns würkli so gmeint isch.',
   manualPlace: 'Ort',
   manualPlacePlaceholder: 'z. B. Name vo de gegnerische Halle',
   manualSave: 'Abgmachti Spiel speichere',

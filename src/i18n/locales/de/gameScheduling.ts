@@ -491,6 +491,7 @@ export default {
   manualHall: 'Halle',
   manualSelectHall: 'Halle wählen',
   manualOpenSlotHall: 'Offener Slot',
+  manualHallMismatchWarn: 'Das ist nicht die Halle, die diesem Team im Slot zugewiesen ist — nur bestätigen, wenn das so gewollt ist.',
   manualPlace: 'Ort',
   manualPlacePlaceholder: 'z. B. Name der gegnerischen Halle',
   manualSave: 'Vereinbarte Spiele speichern',
