@@ -262,12 +262,17 @@ export default function AdminDashboardPage() {
   // Two-step: a dry run lists who would be emailed (so the admin confirms the
   // exact set), then the real send. Fully-scheduled opponents are skipped.
   const [reminding, setReminding] = useState(false)
-  const handleSendReminders = async () => {
+  const [remindingTeam, setRemindingTeam] = useState<string | null>(null)
+  // teamId omitted → season-wide (all teams). teamId set → only that team's
+  // opponents (the remind endpoint accepts an optional team_id).
+  const handleSendReminders = async (teamId?: string) => {
     if (!season) return
-    setReminding(true)
+    if (teamId) setRemindingTeam(teamId); else setReminding(true)
+    const body: { season_id: string; team_id?: string } = { season_id: season.id }
+    if (teamId) body.team_id = teamId
     try {
       const preview = await kscwApi<{ previews: Array<{ team_name: string; kscw: string; missing: { home: number; away: number } }> }>(
-        '/admin/terminplanung/invites/remind', { method: 'POST', body: { season_id: season.id, dry_run: true } })
+        '/admin/terminplanung/invites/remind', { method: 'POST', body: { ...body, dry_run: true } })
       const list = preview.previews || []
       if (list.length === 0) { toast.info(t('remindNonePending')); return }
       const lines = list.map((p) => {
@@ -276,13 +281,25 @@ export default function AdminDashboardPage() {
       }).join('\n')
       if (!(await confirm({ message: `${t('remindConfirm', { count: list.length })}\n\n${lines}` }))) return
       const res = await kscwApi<{ sent: number; failed: unknown[] }>(
-        '/admin/terminplanung/invites/remind', { method: 'POST', body: { season_id: season.id } })
+        '/admin/terminplanung/invites/remind', { method: 'POST', body })
       toast.success(t('remindSent', { count: res.sent }))
       await refetch()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
     } finally {
-      setReminding(false)
+      if (teamId) setRemindingTeam(null); else setReminding(false)
+    }
+  }
+
+  // Copy a team's public self-registration link (opponents register themselves +
+  // get their tokenized scheduling link). ?team= pre-selects the team there.
+  const copyTeamLink = async (teamId: string) => {
+    const url = `${window.location.origin}/terminplanung?team=${teamId}`
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success(t('linkCopied'))
+    } catch {
+      toast.error(url)
     }
   }
 
@@ -493,7 +510,7 @@ export default function AdminDashboardPage() {
           <Button size="sm" variant="outline" onClick={handleSyncNow} disabled={syncing}>
             {t('syncSvrzNow')}
           </Button>
-          <Button size="sm" variant="outline" onClick={handleSendReminders} disabled={reminding}>
+          <Button size="sm" variant="outline" onClick={() => handleSendReminders()} disabled={reminding}>
             {reminding ? '…' : t('sendReminders')}
           </Button>
           <ExcelExportButton bookings={bookings} opponents={opponents} slots={slots} teams={volleyballTeams} season={season} />
@@ -637,6 +654,22 @@ export default function AdminDashboardPage() {
                         className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       >
                         {notifyingTeam === team.id ? t('finalizeNotifySending') : t('finalizeNotify')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => copyTeamLink(team.id)}
+                        title={t('copyTeamLinkHint')}
+                        className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                      >
+                        {t('copyTeamLink')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSendReminders(team.id)}
+                        disabled={remindingTeam === team.id || stats.opponents === 0}
+                        className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                      >
+                        {remindingTeam === team.id ? '…' : t('sendReminder')}
                       </button>
                     </div>
                   </div>

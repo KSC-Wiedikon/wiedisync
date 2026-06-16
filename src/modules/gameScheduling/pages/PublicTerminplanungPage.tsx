@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
 export default function PublicTerminplanungPage() {
   const { t } = useTranslation('gameScheduling')
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [teams, setTeams] = useState<Team[]>([])
   const [gender, setGender] = useState<'H' | 'D' | ''>('')
@@ -35,12 +36,22 @@ export default function PublicTerminplanungPage() {
         ])
         setTeams(teamRecords)
         setSeasonOpen(seasons.length > 0)
+        // Deep-link from the admin dashboard's "Copy registration link" button:
+        // ?team=<id> pre-selects that KSCW team (+ derives the gender toggle).
+        const preTeam = searchParams.get('team')
+        if (preTeam) {
+          const tm = teamRecords.find((x) => String(x.id) === preTeam)
+          if (tm) {
+            setGender(tm.name.startsWith('H') ? 'H' : tm.name.startsWith('D') ? 'D' : '')
+            setSelectedTeamId(tm.id)
+          }
+        }
       } catch {
         setSeasonOpen(false)
       }
     }
     load()
-  }, [])
+  }, [searchParams])
 
   // Filter teams by gender prefix
   const filteredTeams = teams.filter(team => {
