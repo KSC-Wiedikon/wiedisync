@@ -231,6 +231,16 @@ export default {
   submitting: 'Invio in corso...',
   proposalsSubmitted: 'Proposte inviate!',
   awaitingConfirmation: 'In attesa di conferma',
+  // Confirmer modal (who at the opponent club is confirming) + admin display
+  confirmerTitle: 'Chi conferma?',
+  confirmerHintHome: 'Inserisci nome ed e-mail così sappiamo chi ha confermato queste partite in casa.',
+  confirmerHintAway: 'Inserisci nome ed e-mail così sappiamo chi ha confermato queste partite in trasferta.',
+  confirmerName: 'Il tuo nome',
+  confirmerEmail: 'La tua e-mail',
+  confirmAndSend: 'Conferma e invia',
+  proposerRequired: 'Inserisci nome ed e-mail.',
+  proposedBy: 'Proposto da',
+  manualDateOutOfWindow: 'La data deve rientrare nella stagione ({{start}} – {{end}}).',
 
   // Confirmation
   confirmationTitle: 'Grazie!',

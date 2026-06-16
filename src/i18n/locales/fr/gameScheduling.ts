@@ -231,6 +231,16 @@ export default {
   submitting: 'Envoi...',
   proposalsSubmitted: 'Propositions soumises !',
   awaitingConfirmation: 'En attente de confirmation',
+  // Confirmer modal (who at the opponent club is confirming) + admin display
+  confirmerTitle: 'Qui confirme ?',
+  confirmerHintHome: 'Indiquez votre nom et e-mail pour que nous sachions qui a confirmé ces matchs à domicile.',
+  confirmerHintAway: 'Indiquez votre nom et e-mail pour que nous sachions qui a confirmé ces matchs à l’extérieur.',
+  confirmerName: 'Votre nom',
+  confirmerEmail: 'Votre e-mail',
+  confirmAndSend: 'Confirmer et envoyer',
+  proposerRequired: 'Veuillez indiquer votre nom et e-mail.',
+  proposedBy: 'Proposé par',
+  manualDateOutOfWindow: 'La date doit être dans la saison ({{start}} – {{end}}).',
 
   // Confirmation
   confirmationTitle: 'Merci !',

@@ -220,6 +220,16 @@ export default {
   submitting: 'Submitting...',
   proposalsSubmitted: 'Proposals submitted!',
   awaitingConfirmation: 'Awaiting confirmation',
+  // Confirmer modal (who at the opponent club is confirming) + admin display
+  confirmerTitle: 'Who is confirming?',
+  confirmerHintHome: 'Enter your name and email so we know who confirmed these home games.',
+  confirmerHintAway: 'Enter your name and email so we know who confirmed these away games.',
+  confirmerName: 'Your name',
+  confirmerEmail: 'Your email',
+  confirmAndSend: 'Confirm & send',
+  proposerRequired: 'Please enter your name and email.',
+  proposedBy: 'Proposed by',
+  manualDateOutOfWindow: 'Date must be within the season ({{start}} – {{end}}).',
 
   // Confirmation
   confirmationTitle: 'Thank you!',

@@ -7,8 +7,11 @@ import type { BookingData, InviteGame } from '../hooks/useAvailableSlots'
 import HomeProposalForm from '../components/HomeProposalForm'
 import AwayProposalForm from '../components/AwayProposalForm'
 import LoadingSpinner from '../../../components/LoadingSpinner'
+import Modal from '../../../components/Modal'
 import { Badge } from '../../../components/ui/badge'
 import LanguageDropdown from '../../../components/LanguageDropdown'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const SUPPORT_EMAIL = 'volleyball@spielplanung.kscw.ch'
 
@@ -83,6 +86,13 @@ export default function OpponentFlowPage() {
   const [bookingSuccess, setBookingSuccess] = useState('')
   const [submittingSide, setSubmittingSide] = useState<'home' | 'away' | null>(null)
   const [savingRemark, setSavingRemark] = useState(false)
+  // "Who is confirming" modal — opened by the side confirm buttons, collects the
+  // opponent-club person's name + email so KSCW knows who to follow up with. Kept
+  // across home/away within the visit so the 2nd submit is pre-filled.
+  const [confirmerSide, setConfirmerSide] = useState<'home' | 'away' | null>(null)
+  const [confirmerName, setConfirmerName] = useState('')
+  const [confirmerEmail, setConfirmerEmail] = useState('')
+  const [confirmerError, setConfirmerError] = useState('')
   // Current proposals reported by each card's form, keyed by card key (null
   // while incomplete) — submitted per side by the buttons below. The
   // per-card onChange handlers are memoised in refs: the forms' report-upward
@@ -202,6 +212,8 @@ export default function OpponentFlowPage() {
       case 'away_max_one_saturday': return t('awayMaxOneSaturday')
       case 'away_before_derby': return t('awayBeforeDerby')
       case 'slot_unavailable': return t('slotUnavailable')
+      case 'proposer_required': return t('proposerRequired')
+      case 'invalid_email': return t('invalidEmail')
       case 'conflict_same_day': return t('conflictSameDay')
       case 'conflict_gap_rule': return t('conflictGapRule')
       case 'conflict_closure': return t('conflictClosure')
@@ -223,11 +235,14 @@ export default function OpponentFlowPage() {
   const canConfirmHome = shownHome.length > 0 && shownHome.every((c) => !!homePicksByCard[c.key])
   const canConfirmAway = shownAway.length > 0 && shownAway.every((c) => !!awayProposalsByCard[c.key])
 
-  const handleConfirmSide = async (side: 'home' | 'away') => {
+  // Step 1: the confirm button opens the "who is confirming" modal. The home
+  // cross-card duplicate-slot precheck runs here so we don't ask for a name/email
+  // and then fail mid-submit.
+  const openConfirmer = (side: 'home' | 'away') => {
     setBookingError('')
     setBookingSuccess('')
     if (side === 'home') {
-      // Each game needs its own 3 slots — catch cross-card duplicates before
+      // Each game needs its own slots — catch cross-card duplicates before
       // submitting (the backend rejects them too, but mid-loop is messier).
       const allHomePicks = shownHome.flatMap((c) => homePicksByCard[c.key] || [])
       if (new Set(allHomePicks).size !== allHomePicks.length) {
@@ -235,17 +250,24 @@ export default function OpponentFlowPage() {
         return
       }
     }
+    setConfirmerError('')
+    setConfirmerSide(side)
+  }
+
+  const handleConfirmSide = async (side: 'home' | 'away', proposer: { name: string; email: string }) => {
+    setBookingError('')
+    setBookingSuccess('')
     setSubmittingSide(side)
     try {
       if (side === 'home') {
         for (const c of shownHome) {
           const picks = homePicksByCard[c.key]
-          if (picks) await proposeHome(picks, c.svrzGameId)
+          if (picks) await proposeHome(picks, c.svrzGameId, proposer)
         }
       } else {
         for (const c of shownAway) {
           const proposals = awayProposalsByCard[c.key]
-          if (proposals) await proposeAway(proposals, c.svrzGameId)
+          if (proposals) await proposeAway(proposals, c.svrzGameId, proposer)
         }
       }
       // Carry the remark along if the opponent edited it while filling this side.
@@ -256,6 +278,18 @@ export default function OpponentFlowPage() {
     } finally {
       setSubmittingSide(null)
     }
+  }
+
+  // Step 2: validate the modal's name + email, then submit that side.
+  const submitConfirmer = async () => {
+    const name = confirmerName.trim()
+    const email = confirmerEmail.trim()
+    if (!name || !email) { setConfirmerError(t('proposerRequired')); return }
+    if (!EMAIL_RE.test(email)) { setConfirmerError(t('invalidEmail')); return }
+    const side = confirmerSide
+    if (!side) return
+    setConfirmerSide(null)
+    await handleConfirmSide(side, { name, email })
   }
 
   const handleSaveRemark = async () => {
@@ -398,7 +432,7 @@ export default function OpponentFlowPage() {
               {shownHome.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => handleConfirmSide('home')}
+                  onClick={() => openConfirmer('home')}
                   disabled={!canConfirmHome || busy}
                   className={sideButtonClass}
                 >
@@ -415,7 +449,7 @@ export default function OpponentFlowPage() {
               {shownAway.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => handleConfirmSide('away')}
+                  onClick={() => openConfirmer('away')}
                   disabled={!canConfirmAway || busy}
                   className={sideButtonClass}
                 >
@@ -472,6 +506,66 @@ export default function OpponentFlowPage() {
             </button>
           )}
         </div>
+
+        {/* "Who is confirming" — captured on submit so KSCW knows the contact. */}
+        <Modal
+          open={confirmerSide !== null}
+          onClose={() => setConfirmerSide(null)}
+          title={t('confirmerTitle')}
+          size="sm"
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {confirmerSide === 'home' ? t('confirmerHintHome') : t('confirmerHintAway')}
+            </p>
+            <div>
+              <label htmlFor="confirmer-name" className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                {t('confirmerName')}
+              </label>
+              <input
+                id="confirmer-name"
+                type="text"
+                value={confirmerName}
+                onChange={(e) => setConfirmerName(e.target.value)}
+                autoComplete="name"
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              />
+            </div>
+            <div>
+              <label htmlFor="confirmer-email" className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                {t('confirmerEmail')}
+              </label>
+              <input
+                id="confirmer-email"
+                type="email"
+                value={confirmerEmail}
+                onChange={(e) => setConfirmerEmail(e.target.value)}
+                autoComplete="email"
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              />
+            </div>
+            {confirmerError && (
+              <p className="text-sm text-red-600 dark:text-red-400">{confirmerError}</p>
+            )}
+            <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setConfirmerSide(null)}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={submitConfirmer}
+                disabled={busy}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {t('confirmAndSend')}
+              </button>
+            </div>
+          </div>
+        </Modal>
 
         {/* Help line — for anything else, the club's scheduling mailbox. */}
         <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">

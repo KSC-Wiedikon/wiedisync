@@ -22,6 +22,10 @@ interface Props {
    *  single entry hides the picker; its `booked` flag drives the overwrite hint. */
   homeFixtures: ManualFixtureOption[]
   awayFixtures: ManualFixtureOption[]
+  /** Season offer window (YYYY-MM-DD) — bounds the date inputs so an out-of-season
+   *  typo (e.g. 10.02.2026 for a 2026/27 season) can't be entered. */
+  minDate?: string
+  maxDate?: string
   onSave: (legs: {
     home?: { date: string; start_time: string; end_time?: string; hall: number | string; svrz_game_id?: string }
     away?: { date: string; start_time?: string; place?: string; svrz_game_id?: string }
@@ -44,7 +48,7 @@ const defaultFixture = (opts: ManualFixtureOption[]): string =>
 // Manually record an already-agreed matchup (date settled by email/phone outside
 // the tool), skipping the opponent's propose/choose flow. Collapsed by default;
 // the admin fills the home leg, the away leg, or both.
-export default function ManualBookingForm({ halls, homeFixtures, awayFixtures, onSave }: Props) {
+export default function ManualBookingForm({ halls, homeFixtures, awayFixtures, minDate, maxDate, onSave }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -81,8 +85,16 @@ export default function ManualBookingForm({ halls, homeFixtures, awayFixtures, o
   const selectedHome = homeFixtures.find((o) => String(o.id ?? '') === homeFixtureId)
   const selectedAway = awayFixtures.find((o) => String(o.id ?? '') === awayFixtureId)
 
+  // True if a date falls outside the season offer window (typo guard).
+  const outOfWindow = (date: string) => !!date && ((minDate && date < minDate) || (maxDate && date > maxDate))
+  const fmtWin = (ymd: string) => { const [y, m, d] = ymd.split('-'); return `${d}.${m}.${y}` }
+
   const handleSave = async () => {
     const legs: Parameters<typeof onSave>[0] = {}
+    if ((homeOn && outOfWindow(homeDate)) || (awayOn && outOfWindow(awayDate))) {
+      toast.error(t('manualDateOutOfWindow', { start: fmtWin(minDate || ''), end: fmtWin(maxDate || '') }))
+      return
+    }
     if (homeOn) {
       if (!homeDate || !homeStart || !homeHall) { toast.error(t('manualHomeIncomplete')); return }
       legs.home = {
@@ -152,7 +164,7 @@ export default function ManualBookingForm({ halls, homeFixtures, awayFixtures, o
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <label className="col-span-2 sm:col-span-1">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualDate')}</span>
-              <input type="date" value={homeDate} onChange={(e) => setHomeDate(e.target.value)} className={inputCls} />
+              <input type="date" value={homeDate} min={minDate} max={maxDate} onChange={(e) => setHomeDate(e.target.value)} className={inputCls} />
             </label>
             <label>
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualStart')}</span>
@@ -199,7 +211,7 @@ export default function ManualBookingForm({ halls, homeFixtures, awayFixtures, o
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <label className="col-span-2 sm:col-span-1">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualDate')}</span>
-              <input type="date" value={awayDate} onChange={(e) => setAwayDate(e.target.value)} className={inputCls} />
+              <input type="date" value={awayDate} min={minDate} max={maxDate} onChange={(e) => setAwayDate(e.target.value)} className={inputCls} />
             </label>
             <label>
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualStart')}</span>

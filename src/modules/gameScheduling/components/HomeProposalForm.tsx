@@ -62,11 +62,11 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
   const [submitting, setSubmitting] = useState(false)
 
   const slotById = useMemo(() => new Map(slots.map((s) => [s.id, s])), [slots])
-  // Smart slots: a team may have fewer than 3 offerable days (after cross-team,
-  // Saturday, derby, distinct-day… filters), so require only as many picks as
-  // there are available days — never a mandatory 3.
+  // Always offer all 3 slot rows (incl. slot 3) so the opponent can propose up to
+  // three; only 1 is required to submit. `availableDays` still drives the
+  // strict/lenient tiering — when there are fewer than 3 offerable days a later
+  // row's picker just shows "no slots available".
   const availableDays = useMemo(() => new Set(slots.map((s) => s.date)).size, [slots])
-  const requiredPicks = Math.min(3, availableDays)
   // Fallback labels for already-proposed slots no longer in the available list
   // (e.g. booked by someone else since) — server-enriched on the pending booking.
   const proposedById = useMemo(() => {
@@ -166,7 +166,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
 
   const filled = picks.filter(Boolean) as string[]
   // At least one pick is enough to submit (the backend accepts 1–3 distinct
-  // slots); the opponent may still add up to `requiredPicks` if they want.
+  // slots); all 3 rows are always shown so the opponent may add up to three.
   const allFilled = filled.length >= 1 && new Set(filled).size === filled.length
 
   // Report the current picks upward (for a parent-owned combined submit).
@@ -329,7 +329,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-500 dark:text-gray-400">{t('homeProposalDesc')}</p>
-      {[0, 1, 2].filter((i) => i < requiredPicks).map((i) => (
+      {[0, 1, 2].map((i) => (
         <button
           key={i}
           type="button"

@@ -72,6 +72,13 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
     }
   }
 
+  // Who at the opponent club submitted this proposal (captured at confirm time).
+  const proposedBy = (booking.proposed_by_name || booking.proposed_by_email) ? (
+    <p className="text-xs text-gray-500 dark:text-gray-400">
+      {t('proposedBy')}: {[booking.proposed_by_name, booking.proposed_by_email].filter(Boolean).join(' · ')}
+    </p>
+  ) : null
+
   const handleRequest = async () => {
     if (!onRequestNewSlots) return
     setRequesting(true)
@@ -91,6 +98,7 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
           <BookingStatusBadge status="confirmed" />
           {info && <span className="text-sm text-gray-600 dark:text-gray-400">{info.label}</span>}
         </div>
+        {proposedBy}
         {onVmPush && (
           <div className="flex min-h-7 items-center">
             <VmPushStatus booking={booking} onPush={onVmPush} />
@@ -114,6 +122,7 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
   return (
     <div className="space-y-2">
       <BookingStatusBadge status={booking.status} />
+      {proposedBy}
 
       {allDead && (
         <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs dark:border-red-800 dark:bg-red-900/30">

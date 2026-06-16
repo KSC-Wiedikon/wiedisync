@@ -58,6 +58,13 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck }: Prop
     }
   }
 
+  // Who at the opponent club submitted this proposal (captured at confirm time).
+  const proposedBy = (booking.proposed_by_name || booking.proposed_by_email) ? (
+    <p className="text-xs text-gray-500 dark:text-gray-400">
+      {t('proposedBy')}: {[booking.proposed_by_name, booking.proposed_by_email].filter(Boolean).join(' · ')}
+    </p>
+  ) : null
+
   if (booking.status === 'confirmed') {
     const confirmed = proposals.find(p => p.num === booking.confirmed_proposal)
     return (
@@ -71,6 +78,7 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck }: Prop
             </span>
           )}
         </div>
+        {proposedBy}
         {vmCheck && (
           <div className="flex min-h-7 items-center">
           <span
@@ -97,6 +105,7 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck }: Prop
   return (
     <div className="space-y-2">
       <BookingStatusBadge status={booking.status} />
+      {proposedBy}
       {proposals.map(p => (
         <div
           key={p.num}

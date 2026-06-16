@@ -21,7 +21,7 @@ import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/table'
-import type { GameSchedulingOpponent, GameSchedulingSlot, InviteStatus, InviteSource, ProposalHealthEntry } from '../../../types'
+import type { GameSchedulingOpponent, GameSchedulingSeason, GameSchedulingSlot, InviteStatus, InviteSource, ProposalHealthEntry } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import { formatSeasonShort } from '../utils/formatSeason'
 import { formatDateCompactZurich, formatDateTimeCompact } from '../../../utils/dateHelpers'
@@ -91,6 +91,28 @@ function buildFixtureLegs(oppGames: OpponentGame[], oppBookings: ExpandedBooking
 }
 
 const normName = (s: string | null | undefined) => String(s || '').trim().toLowerCase()
+
+// The season's offer window [start, end] (YYYY-MM-DD) — the configurable
+// season_opens / season_closes when set (migration 108), else Sep 1 (first year)
+// → Mar 31 (second year) derived from the season name (e.g. "2026/27"). Mirrors
+// the backend `seasonOfferWindow`; used to bound the manual-booking date inputs
+// so a typo like 10.02.2026 for a 2026/27 season can't be entered.
+function computeSeasonWindow(season: GameSchedulingSeason | null): { start: string; end: string } | null {
+  if (!season) return null
+  const m = String(season.season || '').match(/(\d{4})\D+(\d{2,4})/)
+  let dStart: string | null = null
+  let dEnd: string | null = null
+  if (m) {
+    const y1 = parseInt(m[1], 10)
+    let y2 = parseInt(m[2], 10)
+    if (y2 < 100) y2 = 2000 + y2
+    dStart = `${y1}-09-01`
+    dEnd = `${y2}-03-31`
+  }
+  const start = (season.season_opens || dStart)?.slice(0, 10) || null
+  const end = (season.season_closes || dEnd)?.slice(0, 10) || null
+  return start && end ? { start, end } : null
+}
 
 // Read an ISO timestamp's WALL-CLOCK lexically (no tz conversion) as
 // dd.mm.yyyy HH:MM — matches how the away date is mirrored into `games`
@@ -290,6 +312,10 @@ export default function AdminDashboardPage() {
     }),
     [opponents, teams],
   )
+
+  // Selectable date window for manual bookings — guards against date typos
+  // (e.g. 10.02.2026 for a 2026/27 season).
+  const manualDateWindow = useMemo(() => computeSeasonWindow(season), [season])
 
   if (!hasAdminAccessToSport('volleyball') && !is_spielplaner) {
     return <Navigate to="/" replace />
@@ -644,6 +670,7 @@ export default function AdminDashboardPage() {
                     onRequestNewSlots={requestNewSlots}
                     onSaveOpponentNote={saveOpponentNote}
                     onManualBooking={manualBooking}
+                    dateWindow={manualDateWindow}
                     onBlockSlot={blockSlot}
                     mailboxConfigured={mailbox.configured === true}
                     emailsFor={(opp) => messagesForOpponentThread(mailbox.messages, opp, opponentContacts)}
@@ -687,6 +714,7 @@ function TeamBookingsContent({
   onRequestNewSlots,
   onSaveOpponentNote,
   onManualBooking,
+  dateWindow,
   mailboxConfigured,
   emailsFor,
   onOpenMailbox,
@@ -711,6 +739,7 @@ function TeamBookingsContent({
       away?: { date: string; start_time?: string; place?: string; svrz_game_id?: string }
     },
   ) => Promise<void>
+  dateWindow: { start: string; end: string } | null
   onBlockSlot: (slotId: string, action: 'block' | 'unblock') => Promise<void>
   mailboxConfigured: boolean
   emailsFor: (opp: GameSchedulingOpponent) => MailboxMessage[]
@@ -1038,6 +1067,8 @@ function TeamBookingsContent({
                 label: leg.sideCount > 1 ? t('gameN', { number: leg.seq }) : t('manualAwayGame'),
                 booked: leg.booking?.status === 'confirmed',
               }))}
+              minDate={dateWindow?.start}
+              maxDate={dateWindow?.end}
               onSave={(legs) => onManualBooking(opp.id, legs)}
             />
           </div>

@@ -231,6 +231,16 @@ export default {
   submitting: 'Wird iigreichne...',
   proposalsSubmitted: 'Vorschläg iigrichnet!',
   awaitingConfirmation: 'Wartet uf Bestätigung',
+  // Confirmer modal (who at the opponent club is confirming) + admin display
+  confirmerTitle: 'Wer bestätigt?',
+  confirmerHintHome: 'Bitte Name und E-Mail aagäh, damit mer wüssed, wer die Heimspiel bestätigt hät.',
+  confirmerHintAway: 'Bitte Name und E-Mail aagäh, damit mer wüssed, wer die Auswärtsspiel bestätigt hät.',
+  confirmerName: 'Din Name',
+  confirmerEmail: 'Dini E-Mail',
+  confirmAndSend: 'Bestätige & schicke',
+  proposerRequired: 'Bitte Name und E-Mail aagäh.',
+  proposedBy: 'Vorgschlage vo',
+  manualDateOutOfWindow: 'S Datum mues i de Saison sii ({{start}} – {{end}}).',
 
   // Confirmation
   confirmationTitle: 'Merci vilmal!',

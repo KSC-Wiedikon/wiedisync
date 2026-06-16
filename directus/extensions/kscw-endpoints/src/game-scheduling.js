@@ -314,6 +314,18 @@ export function registerGameScheduling(router, { database, logger, services, get
     return true
   }
 
+  // Validate + normalise the proposer (the opponent-club person confirming) from
+  // a propose-home / propose-away body. Both fields are required so the
+  // spielplaner always knows who to follow up with. Returns { ok, name, email }
+  // on success, or { ok:false, error } with a stable error code on failure.
+  function parseProposer(body) {
+    const name = String(body?.proposer_name || '').trim().slice(0, 200)
+    const email = String(body?.proposer_email || '').trim().slice(0, 200)
+    if (!name || !email) return { ok: false, error: 'proposer_required' }
+    if (!EMAIL_RE.test(email)) return { ok: false, error: 'invalid_email' }
+    return { ok: true, name, email }
+  }
+
   // True if the caller is a full admin OR a club-wide Spielplaner
   // (members.is_spielplaner = true). Used to gate the operational
   // /admin/terminplanung/* action endpoints (the items-API reads/writes are
@@ -1794,6 +1806,11 @@ export function registerGameScheduling(router, { database, logger, services, get
         opponent.language = lang
       }
 
+      // Who at the opponent club is confirming (required — captured by the modal
+      // on the "Confirm home games" button so we know who to follow up with).
+      const proposer = parseProposer(req.body)
+      if (!proposer.ok) return res.status(400).json({ error: proposer.error })
+
       const ids = Array.isArray(req.body?.slot_ids) ? req.body.slot_ids.map((x) => Number(x)) : []
       // 1-3 picks: when fewer than 3 slots are available a team may offer fewer
       // (no mandatory 3). Each must be a positive integer and distinct.
@@ -1934,6 +1951,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           proposed_slot_1: ids[0] ?? null,
           proposed_slot_2: ids[1] ?? null,
           proposed_slot_3: ids[2] ?? null,
+          proposed_by_name: proposer.name,
+          proposed_by_email: proposer.email,
           confirmed_proposal: null,
           slot: null,
         })
@@ -1950,6 +1969,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           proposed_slot_1: ids[0] ?? null,
           proposed_slot_2: ids[1] ?? null,
           proposed_slot_3: ids[2] ?? null,
+          proposed_by_name: proposer.name,
+          proposed_by_email: proposer.email,
         })
       }
 
@@ -1979,12 +2000,12 @@ export function registerGameScheduling(router, { database, logger, services, get
           return { date, time: weekdayHomeTime(s.date, s.start_time), hall }
         }).filter(Boolean)
         const list = slotRowsMail.map((r) => `• ${r.date}, ${r.time}${r.hall ? `, ${r.hall}` : ''}`).join('\n')
-        if (opponent.contact_email) {
-          const { subject, text, html } = schedEmail(opponent.language, 'home_proposals_sent', {
-            contact: opponent.contact_name || '', kscw, opp, list, slots: slotRowsMail,
-          })
-          await sendSchedulingMail(opponent.contact_email, subject, text, null, html)
-        }
+        // Receipt to the person who confirmed (always known now) + CC the club's
+        // contact list, so the individual always gets a copy.
+        const { subject, text, html } = schedEmail(opponent.language, 'home_proposals_sent', {
+          contact: proposer.name || opponent.contact_name || '', kscw, opp, list, slots: slotRowsMail,
+        })
+        await sendSchedulingMail(proposer.email, subject, text, opponent.contact_email || null, html)
         const adminText = `${opp} hat Heimspiel-Slots vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${FRONTEND_URL}/admin/terminplanung/dashboard`
         const adminHtml = adminNotifyHtml({
           title: 'Heim-Slot-Vorschläge',
@@ -2201,6 +2222,11 @@ export function registerGameScheduling(router, { database, logger, services, get
         opponent.language = lang
       }
 
+      // Who at the opponent club is confirming (required — captured by the modal
+      // on the "Confirm away games" button so we know who to follow up with).
+      const proposer = parseProposer(req.body)
+      if (!proposer.ok) return res.status(400).json({ error: proposer.error })
+
       const { proposals } = req.body
       if (!Array.isArray(proposals) || proposals.length === 0 || proposals.length > 3) {
         return res.status(400).json({ error: '1-3 proposals required' })
@@ -2229,6 +2255,8 @@ export function registerGameScheduling(router, { database, logger, services, get
         type: 'away_proposal',
         status: 'pending',
         svrz_game_id: target.fixtureId,
+        proposed_by_name: proposer.name,
+        proposed_by_email: proposer.email,
       }
       // 2026-05-12 audit #22: validate date/time/location before storing or
       // later emailing. Token-flow rate-limit + auth are intact, but garbage
@@ -2403,12 +2431,12 @@ export function registerGameScheduling(router, { database, logger, services, get
           slotRowsMail.push({ date, time })
         }
         const list = slotRowsMail.map((r) => `• ${r.date}${r.time ? `, ${r.time}` : ''}`).join('\n')
-        if (opponent.contact_email) {
-          const { subject, text, html } = schedEmail(opponent.language, 'proposals_sent', {
-            contact: opponent.contact_name || '', kscw, opp, list, slots: slotRowsMail,
-          })
-          await sendSchedulingMail(opponent.contact_email, subject, text, null, html)
-        }
+        // Receipt to the person who confirmed (always known now) + CC the club's
+        // contact list, so the individual always gets a copy.
+        const { subject, text, html } = schedEmail(opponent.language, 'proposals_sent', {
+          contact: proposer.name || opponent.contact_name || '', kscw, opp, list, slots: slotRowsMail,
+        })
+        await sendSchedulingMail(proposer.email, subject, text, opponent.contact_email || null, html)
         const adminText = `${opp} hat Auswärts-Termine vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${FRONTEND_URL}/admin/terminplanung/dashboard`
         const adminHtml = adminNotifyHtml({
           title: 'Auswärts-Terminvorschläge',
@@ -2981,6 +3009,16 @@ export function registerGameScheduling(router, { database, logger, services, get
       const seasonId = String(opponent.season)
       let homeBookingId = null
 
+      // Guard against date typos (e.g. 10.02.2026 for a 2026/27 season): a manual
+      // game's date must fall within the season's offer window. Auto-tracks the
+      // configured season_opens / season_closes (migration 108), so it stays
+      // correct across seasons without hardcoding. Both legs are checked.
+      const manualSeasonRow = await database('game_scheduling_seasons').where('id', opponent.season).first()
+      const offerWindow = seasonOfferWindow(manualSeasonRow)
+      const fmtWin = (ymd) => { const [y, m, d] = ymd.split('-'); return `${d}.${m}.${y}` }
+      const outsideWindow = (ymd) => offerWindow && (ymd < offerWindow.start || ymd > offerWindow.end)
+      const windowError = () => `Date must be within the season window (${fmtWin(offerWindow.start)} – ${fmtWin(offerWindow.end)}).`
+
       // Multi-game: each leg may name its fixture; absent → first of its side.
       const fixtures = await opponentSvrzFixtures(opponent)
       const homeTarget = home ? resolveTargetFixture(fixtures, true, home.svrz_game_id || null) : null
@@ -2993,6 +3031,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
       if (home) {
         if (!DATE_RE.test(String(home.date || ''))) return res.status(400).json({ error: 'home.date must be YYYY-MM-DD' })
+        if (outsideWindow(String(home.date))) return res.status(400).json({ error: windowError() })
         if (!home.start_time || !TIME_RE.test(String(home.start_time))) return res.status(400).json({ error: 'home.start_time must be HH:MM' })
         if (home.end_time && !TIME_RE.test(String(home.end_time))) return res.status(400).json({ error: 'home.end_time must be HH:MM' })
         if (!home.hall) return res.status(400).json({ error: 'home.hall required' })
@@ -3071,6 +3110,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
       if (away) {
         if (!DATE_RE.test(String(away.date || ''))) return res.status(400).json({ error: 'away.date must be YYYY-MM-DD' })
+        if (outsideWindow(String(away.date))) return res.status(400).json({ error: windowError() })
         if (away.start_time && !TIME_RE.test(String(away.start_time))) return res.status(400).json({ error: 'away.start_time must be HH:MM' })
         const dt = away.start_time ? `${away.date}T${away.start_time}` : away.date
         await scopeToFixture(

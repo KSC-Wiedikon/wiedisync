@@ -200,18 +200,20 @@ export default function ExcelExportButton({ bookings, opponents, slots, teams, s
   const disabled = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length === 0
 
   return (
-    <div className="flex items-center gap-2">
+    // Stack on mobile (PDF beneath Excel) so the buttons never overflow; side by
+    // side on ≥sm.
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <button
         onClick={handleExcel}
         disabled={disabled}
-        className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+        className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:w-auto"
       >
         {t('downloadExcel')}
       </button>
       <button
         onClick={handlePdf}
         disabled={disabled}
-        className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+        className="w-full rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50 sm:w-auto"
       >
         {t('downloadPdf')}
       </button>

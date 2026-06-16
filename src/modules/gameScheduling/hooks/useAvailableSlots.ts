@@ -119,9 +119,13 @@ export function useAvailableSlots(token: string | undefined) {
 
   useEffect(() => { fetchSlots() }, [fetchSlots])
 
+  // The opponent-club person confirming — captured by the modal on the confirm
+  // buttons, stored on each booking so we know who to follow up with.
+  interface Proposer { name: string; email: string }
+
   // svrzGameId targets one fixture of a multi-game pairing; null/undefined =
   // the first fixture of the side (legacy single-game behaviour).
-  const proposeHome = useCallback(async (slotIds: Array<string | number>, svrzGameId?: string | null) => {
+  const proposeHome = useCallback(async (slotIds: Array<string | number>, svrzGameId?: string | null, proposer?: Proposer) => {
     if (!token) throw new Error('No token')
     const resp = await kscwApi(`/terminplanung/propose-home/${token}`, {
       method: 'POST',
@@ -130,13 +134,14 @@ export function useAvailableSlots(token: string | undefined) {
         slot_ids: slotIds.map((x) => Number(x)),
         language: baseLang(i18n.resolvedLanguage || i18n.language),
         ...(svrzGameId ? { svrz_game_id: svrzGameId } : {}),
+        ...(proposer ? { proposer_name: proposer.name, proposer_email: proposer.email } : {}),
       },
     })
     await fetchSlots()
     return resp
   }, [token, fetchSlots, i18n])
 
-  const proposeAway = useCallback(async (proposals: Array<{ date: string; start_time: string; location: string }>, svrzGameId?: string | null) => {
+  const proposeAway = useCallback(async (proposals: Array<{ date: string; start_time: string; location: string }>, svrzGameId?: string | null, proposer?: Proposer) => {
     if (!token) throw new Error('No token')
     const resp = await kscwApi(`/terminplanung/propose-away/${token}`, {
       method: 'POST',
@@ -145,6 +150,7 @@ export function useAvailableSlots(token: string | undefined) {
         proposals,
         language: baseLang(i18n.resolvedLanguage || i18n.language),
         ...(svrzGameId ? { svrz_game_id: svrzGameId } : {}),
+        ...(proposer ? { proposer_name: proposer.name, proposer_email: proposer.email } : {}),
       },
     })
     await fetchSlots()
