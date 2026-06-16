@@ -25,7 +25,7 @@ Direct VPS exposure (Hetzner ports 8055/8056) is **not** publicly reachable — 
 Already in `.gitignore` (don't commit):
 
 - `.env`, `.env.*` (`.env.example` is the only tracked env file)
-- `.env.test` (line 28 — local-only test creds; passwords share value `thamykscw_1972`. Rotate if leaked.)
+- `.env.test` — local-only test creds; the test accounts share a single password (structural value, not reproduced here — see Vaultwarden `services/kscw-test-accounts`). Rotate if leaked.
 - `INFRA.md` — contains VPS IPs / SMTP creds / token formats
 - `CONTINGENCY.md`
 - `directus/.env`, `directus/uploads/`, `directus/node_modules/`
@@ -45,6 +45,14 @@ Tracked (must stay clean of secrets):
 ## Hardening completed (audit log)
 
 Treat this as a deduplication shield: if a future audit finds something on this list, it's either a regression or a misunderstanding — verify before re-flagging.
+
+### 2026-06-16 — Scheduling/forms/mailbox cycle reconciliation
+
+Doc-drift catch-up for the work landing 2026-06-10..06-15 after the deep-audit remediation below. No new security regression — recorded here as the security-relevant slice of a feature/schema cycle so a future audit doesn't re-flag it. Most of this cycle is features; only the slices below touch the security/permission surface.
+
+- **Migrations 104–111 (schema-only, idempotent, no permission rows):** `104` VM-push tracking columns, `105` per-fixture bookings, `106` contacts team-identifier, `107` repoint orphaned games to active teams, `108` game-scheduling season window, `109` invite-reminder-sent, `110` game-scheduling contact groups, `111` booking-proposer. All verified to carry NO permission rows and NO new plpgsql functions lacking `SET search_path` (the search_path discipline below still holds for this cycle). Per the Migration & Permission Policy these are correctly schema-only; permissions stay in `setup-permissions.mjs`.
+- **Scheduling mailbox went LIVE (dev + prod):** the embedded IMAP client for `volleyball@spielplanung.kscw.ch` (migration 100, `kscw-endpoints/src/scheduling-mailbox.js`) is now wired with real credentials (`SCHEDULING_IMAP_PASSWORD` from Vaultwarden, both `.env`s + both containers recreated). Attachment bytes are never stored — streamed on demand from IMAP. Replies send via the existing SES SMTP (DKIM-aligned) and are append-only to Migadu Sent. The endpoint stays gated like the derbies surface (no item-collection perm grant). Env changes need a container **recreate**, not `docker restart`.
+- **Forms permission surface (migrations 086–089) — recorded so the role-table reconciliation in `PERMISSIONS.md` is the source of truth, not a finding:** Member gets read on `forms` (scoped to club-wide ∪ their teams via `FORMS_VISIBLE`) + `forms_teams`, and create/read of their OWN `form_submissions` only (`FORM_SUBMISSION_OWN` self-scope `_or` anonymous `member = NULL`, blocking submit-as-another-member). LEADER (coach/TR) gets read/create/update/delete on `forms` + `forms_teams` scoped to teams they coach/TR (`FORMS_LEADER_SCOPE`) and reads submissions of forms in that scope. Vorstand has **full CRUD** on `forms` / `forms_teams` / `form_submissions` (decision 2026-06-05) — i.e. Vorstand is **not** read-only for Forms; the "read-only by design" wording in `PERMISSIONS.md` is corrected for this collection set. Submission ownership is additionally enforced by the `assertCreateOwnership` create-guard hook (perm row-filters are no-ops on CREATE — see the 2026-05-31 High note) plus the migration-086/088 `form_submissions` guard triggers (search_path-pinned in migration 101).
 
 ### 2026-06-10 — Deep audit remediation
 
@@ -244,7 +252,7 @@ Deep audit run post-v4.8.1 (LEADER-per-user backfill) and v4.8.2 (LEADER read sc
 
 These have bitten before and will bite again:
 
-1. **`setup-permissions.mjs` vs. SQL migrations.** Bidirectional contract: every permission change goes into both. The script is the snapshot, migrations are the journal. Fresh installs run only the script, so silent rollbacks are real (see `feedback_prod_is_canonical.md` memory).
+1. **`setup-permissions.mjs` vs. SQL migrations.** See `CLAUDE.md → "Migration & Permission Policy"` for the authoritative contract (permissions live ONLY in the script; migrations are schema-only). Security-relevant gotcha to keep in mind: fresh installs run only the script, so a permission row that was hand-applied to prod but never folded into the script silently rolls back on the next fresh build (see `feedback_prod_is_canonical.md` memory).
 
 2. **M2M junction permissions.** Flat-id payloads trigger junction-PK lookup (403 for non-admin); use `[{ teams_id: 3 }]` shape. Grant junction CRUD AND base CRUD as a pair. Without both, frontend operations hit 403 silently because `Promise.all` in `loadTeamContext` swallows individual failures.
 
@@ -285,17 +293,6 @@ After each audit, append a `### YYYY-MM-DD — Deep audit + remediation` block a
 
 ## Continuous verification (process — not findings)
 
-The deep audit catches drift; these always-on guards stop new drift from reaching prod:
+The deep audit catches drift; an always-on guard rail stops new drift from reaching prod. The declarative-permissions / schema-only-migrations / apply-once-tracker / fresh-install contract is authoritative in **`CLAUDE.md → "Migration & Permission Policy"`** (rules 1–6) — don't restate it here. The runbook is `INFRA.md → "Database Deploy Workflow"`.
 
-1. **Permissions are declarative.** `directus/scripts/setup-permissions.mjs` is the only place where role × collection × action rows live. Numbered SQL migrations are SCHEMA ONLY (DDL, triggers, RLS, FKs, grants, data backfills). The 4.4.4 / 042 incidents were both "permission row never created on prod" — that class of bug is structurally impossible when the script runs on every deploy.
-
-2. **`npm run db:deploy:<env>` is the canonical deploy.** It runs three phases:
-   - `db:migrate:<env>` — applies pending numbered migrations (tracker-aware, sha-verified, idempotent).
-   - `db:setup-perms:<env>` — reconciles Directus permission rows from the script.
-   - `db:smoke:<env>` — logs in as a non-admin Member, exercises every collection touched by `loadTeamContext` + the home page, exits non-zero on any 4xx/5xx. Catches the silent-Promise.all-failure pattern (the 4.4.4 incident) on first deploy after the regression.
-
-3. **Migration tracker = the apply-once contract.** `kscw_migrations(filename, sha256, applied_at, applied_by)` records every applied migration. The runner refuses to proceed if any row's stored sha differs from the on-disk file. This kills "was migration 009 ever applied to prod?" mysteries (which is exactly what migration 042 was guessing about).
-
-4. **Fresh-install path is one file + one script.** `directus/scripts/SCHEMA.sql` (regenerated from prod via `npm run db:baseline:prod`) + `setup-permissions.mjs`. Numbered migrations stay as the historical journal but aren't part of the bootstrap.
-
-See `CLAUDE.md → "Migration & Permission Policy"` for the rules and `INFRA.md → "Database Deploy Workflow"` for the runbook.
+Security-relevant note that earns its place in this file: `npm run db:deploy:<env>` runs `db:migrate → db:setup-perms → db:smoke`, and the **smoke test is the safety net for the silent-`Promise.all`-empty class** (the 4.4.4 / 2026-06-07 `fine_rules` incidents). `smoke-test.mjs` logs in as a non-admin Member and probes the read-rows whose loss silently empties `loadTeamContext` / HomePage — `teams_coaches`, `teams_responsibles`, `member_teams`, `fine_rules`, `rankings`, `forms` — plus the `/kscw/messaging/conversations` endpoint (there is deliberately no Member direct `/items/conversations` read grant). A re-granted-then-lost permission row turns the next deploy red the same minute it ships.

@@ -1,77 +1,77 @@
 {
   "generatedFrom": "src/",
-  "totalFiles": 773,
-  "totalLoc": 125418,
+  "totalFiles": 787,
+  "totalLoc": 132810,
   "areas": [
     {
       "area": "components",
-      "files": 235,
-      "loc": 38734,
-      "inDeg": 289,
-      "outDeg": 273
+      "files": 236,
+      "loc": 38971,
+      "inDeg": 307,
+      "outDeg": 276
     },
     {
       "area": "i18n",
       "files": 162,
-      "loc": 18085,
+      "loc": 19735,
       "inDeg": 10,
       "outDeg": 0
     },
     {
       "area": "modules/admin",
       "files": 37,
-      "loc": 11299,
+      "loc": 11292,
       "inDeg": 19,
-      "outDeg": 149
+      "outDeg": 151
+    },
+    {
+      "area": "modules/gameScheduling",
+      "files": 39,
+      "loc": 8567,
+      "inDeg": 7,
+      "outDeg": 120
     },
     {
       "area": "modules/hallenplan",
       "files": 20,
-      "loc": 4888,
+      "loc": 4980,
       "inDeg": 15,
-      "outDeg": 71
-    },
-    {
-      "area": "modules/gameScheduling",
-      "files": 27,
-      "loc": 4075,
-      "inDeg": 4,
-      "outDeg": 68
+      "outDeg": 74
     },
     {
       "area": "modules/calendar",
       "files": 13,
-      "loc": 3835,
+      "loc": 3862,
       "inDeg": 4,
-      "outDeg": 84
+      "outDeg": 87
     },
     {
       "area": "modules/games",
       "files": 12,
-      "loc": 3483,
+      "loc": 3499,
       "inDeg": 5,
       "outDeg": 100
     },
     {
+      "area": "modules/teams",
+      "files": 9,
+      "loc": 3407,
+      "inDeg": 4,
+      "outDeg": 104
+    },
+    {
       "area": "modules/auth",
       "files": 10,
-      "loc": 3187,
+      "loc": 3194,
       "inDeg": 9,
-      "outDeg": 92
+      "outDeg": 93
     },
     {
       "area": "modules/messaging",
       "files": 46,
-      "loc": 3061,
-      "inDeg": 9,
+      "loc": 3069,
+      "inDeg": 10,
       "outDeg": 69
-    },
-    {
-      "area": "modules/teams",
-      "files": 8,
-      "loc": 2997,
-      "inDeg": 4,
-      "outDeg": 94
     },
     {
       "area": "modules/scorer",
@@ -79,6 +79,13 @@
       "loc": 2914,
       "inDeg": 2,
       "outDeg": 54
+    },
+    {
+      "area": "hooks",
+      "files": 29,
+      "loc": 2901,
+      "inDeg": 260,
+      "outDeg": 56
     },
     {
       "area": "modules/trainings",
@@ -95,16 +102,9 @@
       "outDeg": 86
     },
     {
-      "area": "hooks",
-      "files": 29,
-      "loc": 2805,
-      "inDeg": 261,
-      "outDeg": 56
-    },
-    {
       "area": "modules/absences",
       "files": 12,
-      "loc": 2595,
+      "loc": 2671,
       "inDeg": 2,
       "outDeg": 91
     },
@@ -112,7 +112,7 @@
       "area": "ui",
       "files": 26,
       "loc": 2481,
-      "inDeg": 225,
+      "inDeg": 247,
       "outDeg": 27
     },
     {
@@ -125,16 +125,16 @@
     {
       "area": "utils",
       "files": 21,
-      "loc": 1741,
-      "inDeg": 270,
+      "loc": 1762,
+      "inDeg": 287,
       "outDeg": 11
     },
     {
       "area": "modules/forms",
       "files": 9,
-      "loc": 1605,
+      "loc": 1607,
       "inDeg": 5,
-      "outDeg": 37
+      "outDeg": 38
     },
     {
       "area": "modules/home",
@@ -153,44 +153,44 @@
     {
       "area": "lib",
       "files": 4,
-      "loc": 1269,
-      "inDeg": 358,
+      "loc": 1281,
+      "inDeg": 368,
       "outDeg": 1
     },
     {
       "area": "types",
       "files": 2,
-      "loc": 996,
-      "inDeg": 182,
+      "loc": 1083,
+      "inDeg": 191,
       "outDeg": 0
     },
     {
       "area": "modules/fines",
       "files": 5,
-      "loc": 901,
+      "loc": 903,
       "inDeg": 4,
-      "outDeg": 28
+      "outDeg": 29
     },
     {
       "area": "modules/broadcast",
       "files": 7,
-      "loc": 830,
+      "loc": 834,
       "inDeg": 3,
       "outDeg": 10
     },
     {
       "area": "modules/polls",
       "files": 4,
-      "loc": 620,
+      "loc": 622,
       "inDeg": 3,
-      "outDeg": 11
+      "outDeg": 12
     },
     {
       "area": "modules/tasks",
       "files": 4,
-      "loc": 548,
+      "loc": 550,
       "inDeg": 3,
-      "outDeg": 12
+      "outDeg": 13
     },
     {
       "area": "modules/feedback",
@@ -207,18 +207,18 @@
       "outDeg": 14
     },
     {
+      "area": "modules/changelog",
+      "files": 1,
+      "loc": 410,
+      "inDeg": 3,
+      "outDeg": 1
+    },
+    {
       "area": "modules/legal",
       "files": 2,
       "loc": 262,
       "inDeg": 3,
       "outDeg": 0
-    },
-    {
-      "area": "modules/changelog",
-      "files": 1,
-      "loc": 257,
-      "inDeg": 3,
-      "outDeg": 1
     },
     {
       "area": "modules/news",
@@ -230,9 +230,9 @@
     {
       "area": "app-root",
       "files": 2,
-      "loc": 224,
+      "loc": 227,
       "inDeg": 0,
-      "outDeg": 69
+      "outDeg": 70
     }
   ],
   "areaEdges": [
@@ -244,7 +244,7 @@
     {
       "from": "modules/admin",
       "to": "components",
-      "count": 71
+      "count": 72
     },
     {
       "from": "components",
@@ -252,14 +252,24 @@
       "count": 42
     },
     {
+      "from": "modules/gameScheduling",
+      "to": "ui",
+      "count": 42
+    },
+    {
+      "from": "modules/teams",
+      "to": "utils",
+      "count": 32
+    },
+    {
       "from": "modules/games",
       "to": "utils",
       "count": 29
     },
     {
-      "from": "modules/teams",
-      "to": "utils",
-      "count": 29
+      "from": "modules/gameScheduling",
+      "to": "types",
+      "count": 26
     },
     {
       "from": "ui",
@@ -282,8 +292,8 @@
       "count": 24
     },
     {
-      "from": "modules/gameScheduling",
-      "to": "ui",
+      "from": "components",
+      "to": "utils",
       "count": 23
     },
     {
@@ -295,11 +305,6 @@
       "from": "modules/trainings",
       "to": "components",
       "count": 23
-    },
-    {
-      "from": "components",
-      "to": "utils",
-      "count": 22
     },
     {
       "from": "modules/absences",
@@ -314,6 +319,11 @@
     {
       "from": "modules/messaging",
       "to": "ui",
+      "count": 22
+    },
+    {
+      "from": "modules/teams",
+      "to": "components",
       "count": 22
     },
     {
@@ -322,18 +332,8 @@
       "count": 21
     },
     {
-      "from": "modules/messaging",
-      "to": "hooks",
-      "count": 20
-    },
-    {
       "from": "modules/spielplanung",
       "to": "types",
-      "count": 20
-    },
-    {
-      "from": "modules/teams",
-      "to": "components",
       "count": 20
     },
     {
@@ -342,8 +342,18 @@
       "count": 19
     },
     {
+      "from": "modules/admin",
+      "to": "utils",
+      "count": 19
+    },
+    {
       "from": "modules/calendar",
       "to": "components",
+      "count": 19
+    },
+    {
+      "from": "modules/messaging",
+      "to": "hooks",
       "count": 19
     },
     {
@@ -354,11 +364,6 @@
     {
       "from": "modules/absences",
       "to": "components",
-      "count": 18
-    },
-    {
-      "from": "modules/admin",
-      "to": "utils",
       "count": 18
     },
     {
@@ -368,13 +373,18 @@
     },
     {
       "from": "modules/gameScheduling",
-      "to": "types",
+      "to": "lib",
       "count": 18
     },
     {
       "from": "modules/trainings",
       "to": "hooks",
       "count": 18
+    },
+    {
+      "from": "components",
+      "to": "ui",
+      "count": 17
     },
     {
       "from": "modules/absences",
@@ -412,13 +422,18 @@
       "count": 16
     },
     {
-      "from": "components",
-      "to": "ui",
+      "from": "hooks",
+      "to": "types",
       "count": 15
     },
     {
-      "from": "hooks",
-      "to": "types",
+      "from": "modules/gameScheduling",
+      "to": "utils",
+      "count": 15
+    },
+    {
+      "from": "modules/hallenplan",
+      "to": "components",
       "count": 15
     },
     {
@@ -428,6 +443,11 @@
     },
     {
       "from": "hooks",
+      "to": "utils",
+      "count": 14
+    },
+    {
+      "from": "modules/auth",
       "to": "utils",
       "count": 14
     },
@@ -447,17 +467,12 @@
       "count": 13
     },
     {
-      "from": "modules/auth",
-      "to": "utils",
-      "count": 13
-    },
-    {
       "from": "modules/calendar",
       "to": "modules/hallenplan",
       "count": 13
     },
     {
-      "from": "modules/hallenplan",
+      "from": "modules/gameScheduling",
       "to": "components",
       "count": 13
     },
@@ -477,6 +492,11 @@
       "count": 12
     },
     {
+      "from": "modules/teams",
+      "to": "lib",
+      "count": 12
+    },
+    {
       "from": "modules/admin",
       "to": "hooks",
       "count": 11
@@ -489,11 +509,6 @@
     {
       "from": "modules/forms",
       "to": "ui",
-      "count": 11
-    },
-    {
-      "from": "modules/gameScheduling",
-      "to": "lib",
       "count": 11
     },
     {
@@ -513,7 +528,7 @@
     },
     {
       "from": "modules/teams",
-      "to": "lib",
+      "to": "ui",
       "count": 11
     },
     {
@@ -562,11 +577,6 @@
       "count": 10
     },
     {
-      "from": "modules/teams",
-      "to": "ui",
-      "count": 10
-    },
-    {
       "from": "modules/guide",
       "to": "ui",
       "count": 9
@@ -602,9 +612,24 @@
       "count": 8
     },
     {
+      "from": "modules/hallenplan",
+      "to": "lib",
+      "count": 8
+    },
+    {
+      "from": "modules/teams",
+      "to": "types",
+      "count": 8
+    },
+    {
       "from": "modules/trainings",
       "to": "ui",
       "count": 8
+    },
+    {
+      "from": "app-root",
+      "to": "components",
+      "count": 7
     },
     {
       "from": "app-root",
@@ -632,21 +657,11 @@
       "count": 7
     },
     {
-      "from": "modules/hallenplan",
-      "to": "lib",
-      "count": 7
-    },
-    {
       "from": "modules/scorer",
       "to": "hooks",
       "count": 7
     },
     {
-      "from": "modules/teams",
-      "to": "types",
-      "count": 7
-    },
-    {
       "from": "modules/trainings",
       "to": "lib",
       "count": 7
@@ -657,12 +672,12 @@
       "count": 7
     },
     {
-      "from": "app-root",
+      "from": "modules/fines",
       "to": "components",
       "count": 6
     },
     {
-      "from": "modules/gameScheduling",
+      "from": "modules/forms",
       "to": "components",
       "count": 6
     },
@@ -707,16 +722,6 @@
       "count": 5
     },
     {
-      "from": "modules/fines",
-      "to": "components",
-      "count": 5
-    },
-    {
-      "from": "modules/forms",
-      "to": "components",
-      "count": 5
-    },
-    {
       "from": "modules/forms",
       "to": "hooks",
       "count": 5
@@ -752,6 +757,11 @@
       "count": 4
     },
     {
+      "from": "modules/calendar",
+      "to": "lib",
+      "count": 4
+    },
+    {
       "from": "modules/events",
       "to": "types",
       "count": 4
@@ -777,8 +787,8 @@
       "count": 4
     },
     {
-      "from": "modules/gameScheduling",
-      "to": "utils",
+      "from": "modules/messaging",
+      "to": "components",
       "count": 4
     },
     {
@@ -827,11 +837,6 @@
       "count": 3
     },
     {
-      "from": "modules/calendar",
-      "to": "lib",
-      "count": 3
-    },
-    {
       "from": "modules/carpool",
       "to": "hooks",
       "count": 3
@@ -852,11 +857,6 @@
       "count": 3
     },
     {
-      "from": "modules/messaging",
-      "to": "components",
-      "count": 3
-    },
-    {
       "from": "modules/news",
       "to": "hooks",
       "count": 3
@@ -869,6 +869,11 @@
     {
       "from": "modules/tasks",
       "to": "ui",
+      "count": 3
+    },
+    {
+      "from": "modules/teams",
+      "to": "modules/messaging",
       "count": 3
     },
     {
@@ -899,6 +904,11 @@
     {
       "from": "modules/admin",
       "to": "modules/messaging",
+      "count": 2
+    },
+    {
+      "from": "modules/calendar",
+      "to": "modules/gameScheduling",
       "count": 2
     },
     {
@@ -944,11 +954,6 @@
     {
       "from": "modules/scorer",
       "to": "modules/guide",
-      "count": 2
-    },
-    {
-      "from": "modules/teams",
-      "to": "modules/messaging",
       "count": 2
     },
     {
@@ -1283,6 +1288,11 @@
     },
     {
       "from": "modules/polls",
+      "to": "components",
+      "count": 1
+    },
+    {
+      "from": "modules/polls",
       "to": "lib",
       "count": 1
     },
@@ -1294,6 +1304,11 @@
     {
       "from": "modules/spielplanung",
       "to": "modules/guide",
+      "count": 1
+    },
+    {
+      "from": "modules/tasks",
+      "to": "components",
       "count": 1
     },
     {
@@ -1314,6 +1329,11 @@
     {
       "from": "modules/teams",
       "to": "modules/polls",
+      "count": 1
+    },
+    {
+      "from": "modules/teams",
+      "to": "modules/gameScheduling",
       "count": 1
     },
     {
@@ -1355,12 +1375,13 @@
   "fileInfo": {
     "App.tsx": {
       "area": "app-root",
-      "loc": 209,
+      "loc": 212,
       "deps": [
         "lib/query",
         "hooks/useAuth",
         "hooks/useTheme",
         "hooks/useAdminMode",
+        "components/ConfirmProvider",
         "modules/guide/TourProvider",
         "components/Layout",
         "components/AdminRoute",
@@ -1426,8 +1447,8 @@
       "areaDeps": [
         "lib",
         "hooks",
-        "modules/guide",
         "components",
+        "modules/guide",
         "modules/games",
         "modules/spielplanung",
         "modules/trainings",
@@ -1538,7 +1559,7 @@
     },
     "components/CalendarGrid.tsx": {
       "area": "components",
-      "loc": 167,
+      "loc": 238,
       "deps": [
         "utils/dateUtils"
       ],
@@ -1575,6 +1596,18 @@
       "areaDeps": [
         "ui",
         "lib"
+      ]
+    },
+    "components/ConfirmProvider.tsx": {
+      "area": "components",
+      "loc": 147,
+      "deps": [
+        "components/ConfirmDialog",
+        "components/ui/dialog",
+        "components/ui/button"
+      ],
+      "areaDeps": [
+        "ui"
       ]
     },
     "components/EmptyState.tsx": {
@@ -1800,7 +1833,7 @@
     },
     "components/ParticipationRosterModal.tsx": {
       "area": "components",
-      "loc": 1670,
+      "loc": 1675,
       "deps": [
         "components/Modal",
         "components/ui/dropdown-menu",
@@ -1871,9 +1904,14 @@
     },
     "components/RichTextEditor.tsx": {
       "area": "components",
-      "loc": 94,
-      "deps": [],
-      "areaDeps": []
+      "loc": 102,
+      "deps": [
+        "utils/sanitizeUrl",
+        "components/ConfirmProvider"
+      ],
+      "areaDeps": [
+        "utils"
+      ]
     },
     "components/RoleChipPicker.tsx": {
       "area": "components",
@@ -3187,7 +3225,7 @@
     },
     "components/magicui/code-comparison.tsx": {
       "area": "components",
-      "loc": 157,
+      "loc": 163,
       "deps": [
         "hooks/useTheme",
         "lib/utils"
@@ -4083,7 +4121,7 @@
     },
     "hooks/useAuth.tsx": {
       "area": "hooks",
-      "loc": 389,
+      "loc": 407,
       "deps": [
         "lib/api",
         "lib/query",
@@ -4246,7 +4284,7 @@
     },
     "hooks/useNotifications.ts": {
       "area": "hooks",
-      "loc": 109,
+      "loc": 116,
       "deps": [
         "lib/api",
         "hooks/useAuth",
@@ -4317,7 +4355,7 @@
     },
     "hooks/useTeamAbsences.ts": {
       "area": "hooks",
-      "loc": 132,
+      "loc": 183,
       "deps": [
         "lib/api",
         "hooks/useRealtime",
@@ -4332,7 +4370,7 @@
     },
     "hooks/useTeamMembers.ts": {
       "area": "hooks",
-      "loc": 140,
+      "loc": 160,
       "deps": [
         "lib/api",
         "utils/memberPositions",
@@ -4562,7 +4600,7 @@
     },
     "i18n/locales/de/absences.ts": {
       "area": "i18n",
-      "loc": 163,
+      "loc": 165,
       "deps": [],
       "areaDeps": []
     },
@@ -4580,13 +4618,13 @@
     },
     "i18n/locales/de/auth.ts": {
       "area": "i18n",
-      "loc": 231,
+      "loc": 233,
       "deps": [],
       "areaDeps": []
     },
     "i18n/locales/de/broadcast.ts": {
       "area": "i18n",
-      "loc": 58,
+      "loc": 57,
       "deps": [],
       "areaDeps": []
     },
@@ -4598,7 +4636,7 @@
     },
     "i18n/locales/de/calendar.ts": {
       "area": "i18n",
-      "loc": 65,
+      "loc": 67,
       "deps": [],
       "areaDeps": []
     },
@@ -4610,7 +4648,7 @@
     },
     "i18n/locales/de/common.ts": {
       "area": "i18n",
-      "loc": 129,
+      "loc": 133,
       "deps": [],
       "areaDeps": []
     },
@@ -4640,7 +4678,7 @@
     },
     "i18n/locales/de/gameScheduling.ts": {
       "area": "i18n",
-      "loc": 285,
+      "loc": 537,
       "deps": [],
       "areaDeps": []
     },
@@ -4658,7 +4696,7 @@
     },
     "i18n/locales/de/hallenplan.ts": {
       "area": "i18n",
-      "loc": 138,
+      "loc": 141,
       "deps": [],
       "areaDeps": []
     },
@@ -4688,7 +4726,7 @@
     },
     "i18n/locales/de/messaging.ts": {
       "area": "i18n",
-      "loc": 159,
+      "loc": 160,
       "deps": [],
       "areaDeps": []
     },
@@ -4748,7 +4786,7 @@
     },
     "i18n/locales/de/teams.ts": {
       "area": "i18n",
-      "loc": 197,
+      "loc": 209,
       "deps": [],
       "areaDeps": []
     },
@@ -4760,7 +4798,7 @@
     },
     "i18n/locales/en/absences.ts": {
       "area": "i18n",
-      "loc": 163,
+      "loc": 166,
       "deps": [],
       "areaDeps": []
     },
@@ -4778,13 +4816,13 @@
     },
     "i18n/locales/en/auth.ts": {
       "area": "i18n",
-      "loc": 231,
+      "loc": 233,
       "deps": [],
       "areaDeps": []
     },
     "i18n/locales/en/broadcast.ts": {
       "area": "i18n",
-      "loc": 58,
+      "loc": 57,
       "deps": [],
       "areaDeps": []
     },
@@ -4796,7 +4834,7 @@
     },
     "i18n/locales/en/calendar.ts": {
       "area": "i18n",
-      "loc": 65,
+      "loc": 67,
       "deps": [],
       "areaDeps": []
     },
@@ -4808,7 +4846,7 @@
     },
     "i18n/locales/en/common.ts": {
       "area": "i18n",
-      "loc": 129,
+      "loc": 133,
       "deps": [],
       "areaDeps": []
     },
@@ -4838,7 +4876,7 @@
     },
     "i18n/locales/en/gameScheduling.ts": {
       "area": "i18n",
-      "loc": 278,
+      "loc": 537,
       "deps": [],
       "areaDeps": []
     },
@@ -4856,7 +4894,7 @@
     },
     "i18n/locales/en/hallenplan.ts": {
       "area": "i18n",
-      "loc": 138,
+      "loc": 141,
       "deps": [],
       "areaDeps": []
     },
@@ -4886,7 +4924,7 @@
     },
     "i18n/locales/en/messaging.ts": {
       "area": "i18n",
-      "loc": 159,
+      "loc": 160,
       "deps": [],
       "areaDeps": []
     },
@@ -4946,7 +4984,7 @@
     },
     "i18n/locales/en/teams.ts": {
       "area": "i18n",
-      "loc": 197,
+      "loc": 209,
       "deps": [],
       "areaDeps": []
     },
@@ -4958,7 +4996,7 @@
     },
     "i18n/locales/fr/absences.ts": {
       "area": "i18n",
-      "loc": 150,
+      "loc": 152,
       "deps": [],
       "areaDeps": []
     },
@@ -4976,13 +5014,13 @@
     },
     "i18n/locales/fr/auth.ts": {
       "area": "i18n",
-      "loc": 229,
+      "loc": 231,
       "deps": [],
       "areaDeps": []
     },
     "i18n/locales/fr/broadcast.ts": {
       "area": "i18n",
-      "loc": 58,
+      "loc": 57,
       "deps": [],
       "areaDeps": []
     },
@@ -4994,7 +5032,7 @@
     },
     "i18n/locales/fr/calendar.ts": {
       "area": "i18n",
-      "loc": 59,
+      "loc": 61,
       "deps": [],
       "areaDeps": []
     },
@@ -5006,7 +5044,7 @@
     },
     "i18n/locales/fr/common.ts": {
       "area": "i18n",
-      "loc": 128,
+      "loc": 132,
       "deps": [],
       "areaDeps": []
     },
@@ -5030,7 +5068,7 @@
     },
     "i18n/locales/fr/gameScheduling.ts": {
       "area": "i18n",
-      "loc": 191,
+      "loc": 528,
       "deps": [],
       "areaDeps": []
     },
@@ -5048,7 +5086,7 @@
     },
     "i18n/locales/fr/hallenplan.ts": {
       "area": "i18n",
-      "loc": 138,
+      "loc": 141,
       "deps": [],
       "areaDeps": []
     },
@@ -5072,7 +5110,7 @@
     },
     "i18n/locales/fr/messaging.ts": {
       "area": "i18n",
-      "loc": 152,
+      "loc": 153,
       "deps": [],
       "areaDeps": []
     },
@@ -5132,7 +5170,7 @@
     },
     "i18n/locales/fr/teams.ts": {
       "area": "i18n",
-      "loc": 183,
+      "loc": 195,
       "deps": [],
       "areaDeps": []
     },
@@ -5144,7 +5182,7 @@
     },
     "i18n/locales/gsw/absences.ts": {
       "area": "i18n",
-      "loc": 150,
+      "loc": 152,
       "deps": [],
       "areaDeps": []
     },
@@ -5162,13 +5200,13 @@
     },
     "i18n/locales/gsw/auth.ts": {
       "area": "i18n",
-      "loc": 231,
+      "loc": 233,
       "deps": [],
       "areaDeps": []
     },
     "i18n/locales/gsw/broadcast.ts": {
       "area": "i18n",
-      "loc": 58,
+      "loc": 57,
       "deps": [],
       "areaDeps": []
     },
@@ -5180,7 +5218,7 @@
     },
     "i18n/locales/gsw/calendar.ts": {
       "area": "i18n",
-      "loc": 59,
+      "loc": 61,
       "deps": [],
       "areaDeps": []
     },
@@ -5192,7 +5230,7 @@
     },
     "i18n/locales/gsw/common.ts": {
       "area": "i18n",
-      "loc": 129,
+      "loc": 133,
       "deps": [],
       "areaDeps": []
     },
@@ -5216,7 +5254,7 @@
     },
     "i18n/locales/gsw/gameScheduling.ts": {
       "area": "i18n",
-      "loc": 191,
+      "loc": 529,
       "deps": [],
       "areaDeps": []
     },
@@ -5234,7 +5272,7 @@
     },
     "i18n/locales/gsw/hallenplan.ts": {
       "area": "i18n",
-      "loc": 138,
+      "loc": 141,
       "deps": [],
       "areaDeps": []
     },
@@ -5264,7 +5302,7 @@
     },
     "i18n/locales/gsw/messaging.ts": {
       "area": "i18n",
-      "loc": 152,
+      "loc": 153,
       "deps": [],
       "areaDeps": []
     },
@@ -5324,7 +5362,7 @@
     },
     "i18n/locales/gsw/teams.ts": {
       "area": "i18n",
-      "loc": 197,
+      "loc": 209,
       "deps": [],
       "areaDeps": []
     },
@@ -5336,7 +5374,7 @@
     },
     "i18n/locales/it/absences.ts": {
       "area": "i18n",
-      "loc": 150,
+      "loc": 152,
       "deps": [],
       "areaDeps": []
     },
@@ -5354,13 +5392,13 @@
     },
     "i18n/locales/it/auth.ts": {
       "area": "i18n",
-      "loc": 229,
+      "loc": 231,
       "deps": [],
       "areaDeps": []
     },
     "i18n/locales/it/broadcast.ts": {
       "area": "i18n",
-      "loc": 58,
+      "loc": 57,
       "deps": [],
       "areaDeps": []
     },
@@ -5372,7 +5410,7 @@
     },
     "i18n/locales/it/calendar.ts": {
       "area": "i18n",
-      "loc": 59,
+      "loc": 61,
       "deps": [],
       "areaDeps": []
     },
@@ -5384,7 +5422,7 @@
     },
     "i18n/locales/it/common.ts": {
       "area": "i18n",
-      "loc": 128,
+      "loc": 132,
       "deps": [],
       "areaDeps": []
     },
@@ -5408,7 +5446,7 @@
     },
     "i18n/locales/it/gameScheduling.ts": {
       "area": "i18n",
-      "loc": 191,
+      "loc": 529,
       "deps": [],
       "areaDeps": []
     },
@@ -5426,7 +5464,7 @@
     },
     "i18n/locales/it/hallenplan.ts": {
       "area": "i18n",
-      "loc": 138,
+      "loc": 141,
       "deps": [],
       "areaDeps": []
     },
@@ -5450,7 +5488,7 @@
     },
     "i18n/locales/it/messaging.ts": {
       "area": "i18n",
-      "loc": 152,
+      "loc": 153,
       "deps": [],
       "areaDeps": []
     },
@@ -5510,7 +5548,7 @@
     },
     "i18n/locales/it/teams.ts": {
       "area": "i18n",
-      "loc": 183,
+      "loc": 195,
       "deps": [],
       "areaDeps": []
     },
@@ -5522,7 +5560,7 @@
     },
     "lib/api.ts": {
       "area": "lib",
-      "loc": 527,
+      "loc": 539,
       "deps": [
         "lib/sentry"
       ],
@@ -5571,7 +5609,7 @@
     },
     "modules/absences/AbsenceCard.tsx": {
       "area": "modules/absences",
-      "loc": 122,
+      "loc": 148,
       "deps": [
         "components/StatusBadge",
         "utils/dateHelpers",
@@ -5682,7 +5720,7 @@
     },
     "modules/absences/TeamAbsenceView.tsx": {
       "area": "modules/absences",
-      "loc": 629,
+      "loc": 679,
       "deps": [
         "hooks/useTeamAbsences",
         "lib/query",
@@ -5936,6 +5974,7 @@
         "lib/api",
         "hooks/useAnnouncements",
         "utils/sanitizeUrl",
+        "components/ConfirmProvider",
         "components/Modal",
         "components/RichTextEditor",
         "components/LoadingSpinner",
@@ -6220,7 +6259,7 @@
     },
     "modules/admin/components/RecordEditModal.tsx": {
       "area": "modules/admin",
-      "loc": 426,
+      "loc": 417,
       "deps": [
         "lib/api",
         "utils/logActivity",
@@ -6324,12 +6363,14 @@
     },
     "modules/admin/utils/dataHealthChecks.ts": {
       "area": "modules/admin",
-      "loc": 203,
+      "loc": 205,
       "deps": [
-        "lib/api"
+        "lib/api",
+        "utils/dateHelpers"
       ],
       "areaDeps": [
-        "lib"
+        "lib",
+        "utils"
       ]
     },
     "modules/admin/utils/exportResults.ts": {
@@ -6414,7 +6455,7 @@
     },
     "modules/auth/ProfileEditModal.tsx": {
       "area": "modules/auth",
-      "loc": 710,
+      "loc": 711,
       "deps": [
         "components/Modal",
         "components/ui/button",
@@ -6427,6 +6468,7 @@
         "utils/memberPositions",
         "utils/languageMap",
         "utils/relations",
+        "utils/dateHelpers",
         "i18n/languageConfig",
         "assets/flags/de.svg",
         "assets/flags/gb.svg",
@@ -6450,7 +6492,7 @@
     },
     "modules/auth/ProfilePage.tsx": {
       "area": "modules/auth",
-      "loc": 560,
+      "loc": 563,
       "deps": [
         "hooks/useAuth",
         "lib/query",
@@ -6540,7 +6582,7 @@
     },
     "modules/auth/TeamRequestModal.tsx": {
       "area": "modules/auth",
-      "loc": 229,
+      "loc": 232,
       "deps": [
         "components/Modal",
         "components/ui/button",
@@ -6576,7 +6618,7 @@
     },
     "modules/broadcast/BroadcastDialog.tsx": {
       "area": "modules/broadcast",
-      "loc": 416,
+      "loc": 418,
       "deps": [
         "components/ui/button",
         "components/ui/checkbox",
@@ -6617,7 +6659,7 @@
     },
     "modules/broadcast/types.ts": {
       "area": "modules/broadcast",
-      "loc": 77,
+      "loc": 79,
       "deps": [],
       "areaDeps": []
     },
@@ -6681,7 +6723,7 @@
     },
     "modules/calendar/CalendarPage.tsx": {
       "area": "modules/calendar",
-      "loc": 377,
+      "loc": 404,
       "deps": [
         "components/ViewToggle",
         "components/Modal",
@@ -6703,14 +6745,19 @@
         "components/BasketballIcon",
         "components/VolleyballIcon",
         "types/calendar",
-        "types"
+        "types",
+        "lib/query",
+        "modules/gameScheduling/utils/schedulableTeams",
+        "modules/gameScheduling/components/TeamScheduleCalendar"
       ],
       "areaDeps": [
         "components",
         "modules/games",
         "hooks",
         "utils",
-        "types"
+        "types",
+        "lib",
+        "modules/gameScheduling"
       ]
     },
     "modules/calendar/HallenplanView.tsx": {
@@ -6941,7 +6988,7 @@
     },
     "modules/changelog/ChangelogPage.tsx": {
       "area": "modules/changelog",
-      "loc": 257,
+      "loc": 410,
       "deps": [
         "components/ui/badge"
       ],
@@ -7137,17 +7184,19 @@
     },
     "modules/fines/FinesSettings.tsx": {
       "area": "modules/fines",
-      "loc": 285,
+      "loc": 287,
       "deps": [
         "hooks/useFines",
         "lib/api",
         "components/ui/button",
+        "components/ConfirmProvider",
         "types"
       ],
       "areaDeps": [
         "hooks",
         "lib",
         "ui",
+        "components",
         "types"
       ]
     },
@@ -7288,7 +7337,7 @@
     },
     "modules/forms/FormsPage.tsx": {
       "area": "modules/forms",
-      "loc": 227,
+      "loc": 229,
       "deps": [
         "components/ui/button",
         "components/ui/table",
@@ -7297,6 +7346,7 @@
         "hooks/useFillableForms",
         "lib/api",
         "utils/dateHelpers",
+        "components/ConfirmProvider",
         "modules/forms/FormFillModal",
         "modules/forms/FormResponsesModal",
         "modules/forms/types"
@@ -7305,7 +7355,8 @@
         "ui",
         "hooks",
         "lib",
-        "utils"
+        "utils",
+        "components"
       ]
     },
     "modules/forms/PublicFormPage.tsx": {
@@ -7338,7 +7389,7 @@
     },
     "modules/gameScheduling/components/AwayProposalForm.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 138,
+      "loc": 161,
       "deps": [
         "components/ui/popover",
         "components/ui/calendar",
@@ -7353,12 +7404,14 @@
     },
     "modules/gameScheduling/components/AwayProposalReview.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 93,
+      "loc": 136,
       "deps": [
         "modules/gameScheduling/components/BookingStatusBadge",
+        "utils/dateHelpers",
         "types"
       ],
       "areaDeps": [
+        "utils",
         "types"
       ]
     },
@@ -7368,13 +7421,28 @@
       "deps": [],
       "areaDeps": []
     },
-    "modules/gameScheduling/components/ExcelExportButton.tsx": {
+    "modules/gameScheduling/components/DerbyPanel.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 80,
+      "loc": 165,
       "deps": [
+        "components/ui/button",
+        "modules/gameScheduling/hooks/useDerbies",
         "types"
       ],
       "areaDeps": [
+        "ui",
+        "types"
+      ]
+    },
+    "modules/gameScheduling/components/ExcelExportButton.tsx": {
+      "area": "modules/gameScheduling",
+      "loc": 242,
+      "deps": [
+        "lib/api",
+        "types"
+      ],
+      "areaDeps": [
+        "lib",
         "types"
       ]
     },
@@ -7406,8 +7474,9 @@
     },
     "modules/gameScheduling/components/HomeProposalForm.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 309,
+      "loc": 370,
       "deps": [
+        "modules/gameScheduling/utils/slotTime",
         "components/ui/calendar",
         "components/ui/button",
         "components/Modal",
@@ -7422,9 +7491,11 @@
     },
     "modules/gameScheduling/components/HomeProposalReview.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 102,
+      "loc": 210,
       "deps": [
+        "modules/gameScheduling/utils/slotTime",
         "modules/gameScheduling/components/BookingStatusBadge",
+        "modules/gameScheduling/components/VmPushStatus",
         "utils/dateHelpers",
         "types"
       ],
@@ -7435,77 +7506,158 @@
     },
     "modules/gameScheduling/components/InviteRow.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 137,
+      "loc": 156,
       "deps": [
+        "components/ConfirmProvider",
         "components/ui/badge",
         "components/ui/button",
         "types",
-        "modules/gameScheduling/components/inviteEmailTemplate"
+        "modules/gameScheduling/components/inviteEmailTemplate",
+        "utils/sanitizeUrl"
       ],
       "areaDeps": [
+        "components",
         "ui",
-        "types"
+        "types",
+        "utils"
       ]
     },
     "modules/gameScheduling/components/InvitesDrawer.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 339,
+      "loc": 400,
       "deps": [
         "components/ui/drawer",
+        "components/ui/dialog",
         "components/ui/button",
         "components/ui/badge",
         "components/ui/checkbox",
         "components/ui/input",
         "components/ui/textarea",
+        "components/ui/table",
         "modules/gameScheduling/utils/parseInviteCsv",
+        "utils/dateHelpers",
         "modules/gameScheduling/hooks/useInvites",
         "types"
       ],
       "areaDeps": [
         "ui",
+        "utils",
         "types"
       ]
     },
     "modules/gameScheduling/components/InvitesPanel.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 122,
+      "loc": 189,
       "deps": [
         "components/ui/button",
         "components/ui/card",
         "lib/api",
+        "utils/dateHelpers",
         "types",
         "modules/gameScheduling/hooks/useInvites",
         "modules/gameScheduling/components/InviteRow",
-        "modules/gameScheduling/components/InvitesDrawer"
+        "modules/gameScheduling/components/InvitesDrawer",
+        "modules/gameScheduling/components/SendInvitesModal"
       ],
       "areaDeps": [
         "ui",
         "lib",
+        "utils",
+        "types"
+      ]
+    },
+    "modules/gameScheduling/components/MailboxPanel.tsx": {
+      "area": "modules/gameScheduling",
+      "loc": 390,
+      "deps": [
+        "components/ui/badge",
+        "components/ui/button",
+        "components/ui/card",
+        "components/ui/dialog",
+        "components/ui/table",
+        "utils/dateHelpers",
+        "modules/gameScheduling/hooks/useMailbox",
+        "types"
+      ],
+      "areaDeps": [
+        "ui",
+        "utils",
+        "types"
+      ]
+    },
+    "modules/gameScheduling/components/ManualBookingForm.tsx": {
+      "area": "modules/gameScheduling",
+      "loc": 249,
+      "deps": [],
+      "areaDeps": []
+    },
+    "modules/gameScheduling/components/OpponentNotes.tsx": {
+      "area": "modules/gameScheduling",
+      "loc": 95,
+      "deps": [],
+      "areaDeps": []
+    },
+    "modules/gameScheduling/components/SchedulingCalendar.tsx": {
+      "area": "modules/gameScheduling",
+      "loc": 678,
+      "deps": [
+        "components/CalendarGrid",
+        "components/Modal",
+        "components/ui/table",
+        "lib/api",
+        "utils/dateUtils",
+        "utils/relations",
+        "types",
+        "modules/gameScheduling/hooks/useAdminBookings"
+      ],
+      "areaDeps": [
+        "components",
+        "ui",
+        "lib",
+        "utils",
         "types"
       ]
     },
     "modules/gameScheduling/components/SeasonConfig.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 350,
+      "loc": 397,
       "deps": [
+        "components/ConfirmProvider",
         "lib/api",
         "types",
         "modules/gameScheduling/utils/formatSeason"
       ],
       "areaDeps": [
+        "components",
         "lib",
         "types"
       ]
     },
+    "modules/gameScheduling/components/SendInvitesModal.tsx": {
+      "area": "modules/gameScheduling",
+      "loc": 181,
+      "deps": [
+        "components/ui/dialog",
+        "components/ui/button",
+        "modules/gameScheduling/hooks/useInvites"
+      ],
+      "areaDeps": [
+        "ui"
+      ]
+    },
     "modules/gameScheduling/components/SlotGenerationPanel.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 35,
-      "deps": [],
-      "areaDeps": []
+      "loc": 75,
+      "deps": [
+        "types"
+      ],
+      "areaDeps": [
+        "types"
+      ]
     },
     "modules/gameScheduling/components/SpielsamstageEditor.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 212,
+      "loc": 216,
       "deps": [
         "components/ui/popover",
         "components/ui/calendar",
@@ -7521,12 +7673,45 @@
         "utils"
       ]
     },
+    "modules/gameScheduling/components/TeamAvailabilityDialog.tsx": {
+      "area": "modules/gameScheduling",
+      "loc": 253,
+      "deps": [
+        "lib/api",
+        "components/ui/badge",
+        "components/ui/dialog",
+        "components/ui/table",
+        "utils/dateHelpers",
+        "modules/gameScheduling/utils/slotTime"
+      ],
+      "areaDeps": [
+        "lib",
+        "ui",
+        "utils"
+      ]
+    },
+    "modules/gameScheduling/components/TeamScheduleCalendar.tsx": {
+      "area": "modules/gameScheduling",
+      "loc": 56,
+      "deps": [
+        "types",
+        "modules/gameScheduling/hooks/useAdminBookings",
+        "lib/api",
+        "modules/gameScheduling/utils/schedulableTeams",
+        "modules/gameScheduling/components/SchedulingCalendar"
+      ],
+      "areaDeps": [
+        "types",
+        "lib"
+      ]
+    },
     "modules/gameScheduling/components/TeamSlotConfigPanel.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 171,
+      "loc": 204,
       "deps": [
         "components/ui/button",
         "lib/api",
+        "modules/gameScheduling/utils/slotTime",
         "types"
       ],
       "areaDeps": [
@@ -7535,15 +7720,30 @@
         "types"
       ]
     },
+    "modules/gameScheduling/components/VmPushStatus.tsx": {
+      "area": "modules/gameScheduling",
+      "loc": 93,
+      "deps": [
+        "components/ui/button",
+        "components/ui/dialog",
+        "utils/dateHelpers",
+        "types"
+      ],
+      "areaDeps": [
+        "ui",
+        "utils",
+        "types"
+      ]
+    },
     "modules/gameScheduling/components/inviteEmailTemplate.ts": {
       "area": "modules/gameScheduling",
-      "loc": 56,
+      "loc": 59,
       "deps": [],
       "areaDeps": []
     },
     "modules/gameScheduling/hooks/useAdminBookings.ts": {
       "area": "modules/gameScheduling",
-      "loc": 114,
+      "loc": 200,
       "deps": [
         "types",
         "lib/api"
@@ -7555,12 +7755,24 @@
     },
     "modules/gameScheduling/hooks/useAvailableSlots.ts": {
       "area": "modules/gameScheduling",
-      "loc": 158,
+      "loc": 192,
       "deps": [
         "lib/api"
       ],
       "areaDeps": [
         "lib"
+      ]
+    },
+    "modules/gameScheduling/hooks/useDerbies.ts": {
+      "area": "modules/gameScheduling",
+      "loc": 60,
+      "deps": [
+        "lib/api",
+        "types"
+      ],
+      "areaDeps": [
+        "lib",
+        "types"
       ]
     },
     "modules/gameScheduling/hooks/useGameSchedulingSeason.ts": {
@@ -7577,7 +7789,19 @@
     },
     "modules/gameScheduling/hooks/useInvites.ts": {
       "area": "modules/gameScheduling",
-      "loc": 149,
+      "loc": 237,
+      "deps": [
+        "lib/api",
+        "types"
+      ],
+      "areaDeps": [
+        "lib",
+        "types"
+      ]
+    },
+    "modules/gameScheduling/hooks/useMailbox.ts": {
+      "area": "modules/gameScheduling",
+      "loc": 274,
       "deps": [
         "lib/api",
         "types"
@@ -7589,7 +7813,7 @@
     },
     "modules/gameScheduling/pages/AdminDashboardPage.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 374,
+      "loc": 1120,
       "deps": [
         "hooks/useAuth",
         "modules/gameScheduling/hooks/useGameSchedulingSeason",
@@ -7598,10 +7822,23 @@
         "components/LoadingSpinner",
         "modules/gameScheduling/components/AwayProposalReview",
         "modules/gameScheduling/components/HomeProposalReview",
+        "modules/gameScheduling/components/OpponentNotes",
+        "modules/gameScheduling/components/ManualBookingForm",
         "modules/gameScheduling/components/ExcelExportButton",
+        "modules/gameScheduling/components/TeamAvailabilityDialog",
+        "modules/gameScheduling/components/SchedulingCalendar",
+        "modules/gameScheduling/components/MailboxPanel",
+        "modules/gameScheduling/hooks/useMailbox",
+        "components/ConfirmProvider",
         "components/ui/badge",
+        "components/ui/button",
+        "components/ui/dialog",
+        "components/ui/table",
         "types",
         "modules/gameScheduling/utils/formatSeason",
+        "utils/dateHelpers",
+        "utils/sanitizeUrl",
+        "lib/api",
         "hooks/useData",
         "modules/gameScheduling/utils/schedulableTeams"
       ],
@@ -7609,14 +7846,17 @@
         "hooks",
         "components",
         "ui",
-        "types"
+        "types",
+        "utils",
+        "lib"
       ]
     },
     "modules/gameScheduling/pages/AdminSetupPage.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 214,
+      "loc": 235,
       "deps": [
         "hooks/useAuth",
+        "components/ConfirmProvider",
         "lib/api",
         "modules/gameScheduling/hooks/useGameSchedulingSeason",
         "modules/gameScheduling/hooks/useAdminBookings",
@@ -7629,25 +7869,28 @@
         "modules/gameScheduling/components/SlotGenerationPanel",
         "modules/gameScheduling/components/TeamSlotConfigPanel",
         "modules/gameScheduling/components/GapConfigPanel",
+        "modules/gameScheduling/components/DerbyPanel",
         "modules/gameScheduling/components/ExcelImportPanel",
         "modules/gameScheduling/components/InvitesPanel",
         "types"
       ],
       "areaDeps": [
         "hooks",
-        "lib",
         "components",
+        "lib",
         "types"
       ]
     },
     "modules/gameScheduling/pages/OpponentFlowPage.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 258,
+      "loc": 582,
       "deps": [
         "modules/gameScheduling/hooks/useAvailableSlots",
+        "modules/gameScheduling/utils/slotTime",
         "modules/gameScheduling/components/HomeProposalForm",
         "modules/gameScheduling/components/AwayProposalForm",
         "components/LoadingSpinner",
+        "components/Modal",
         "components/ui/badge",
         "components/LanguageDropdown"
       ],
@@ -7658,7 +7901,7 @@
     },
     "modules/gameScheduling/pages/PublicTerminplanungPage.tsx": {
       "area": "modules/gameScheduling",
-      "loc": 206,
+      "loc": 207,
       "deps": [
         "components/ui/button",
         "components/FormField",
@@ -7686,13 +7929,19 @@
     },
     "modules/gameScheduling/utils/schedulableTeams.ts": {
       "area": "modules/gameScheduling",
-      "loc": 12,
+      "loc": 13,
       "deps": [
         "types"
       ],
       "areaDeps": [
         "types"
       ]
+    },
+    "modules/gameScheduling/utils/slotTime.ts": {
+      "area": "modules/gameScheduling",
+      "loc": 26,
+      "deps": [],
+      "areaDeps": []
     },
     "modules/games/EmbedGamesPage.tsx": {
       "area": "modules/games",
@@ -7718,7 +7967,7 @@
     },
     "modules/games/GamesPage.tsx": {
       "area": "modules/games",
-      "loc": 501,
+      "loc": 504,
       "deps": [
         "hooks/useAuth",
         "hooks/useAdminMode",
@@ -7770,7 +8019,7 @@
     },
     "modules/games/components/GameCard.tsx": {
       "area": "modules/games",
-      "loc": 584,
+      "loc": 591,
       "deps": [
         "types",
         "utils/dateHelpers",
@@ -7821,7 +8070,7 @@
     },
     "modules/games/components/GameDetailModal.tsx": {
       "area": "modules/games",
-      "loc": 690,
+      "loc": 696,
       "deps": [
         "types",
         "components/ui/button",
@@ -8273,23 +8522,25 @@
     },
     "modules/hallenplan/components/ClosureManager.tsx": {
       "area": "modules/hallenplan",
-      "loc": 323,
+      "loc": 400,
       "deps": [
         "components/Modal",
         "components/ui/button",
         "components/FormField",
         "components/ui/select",
         "components/ui/DatePicker",
+        "lib/utils",
         "utils/logActivity",
+        "components/ConfirmProvider",
         "types",
         "lib/api"
       ],
       "areaDeps": [
         "components",
         "ui",
+        "lib",
         "utils",
-        "types",
-        "lib"
+        "types"
       ]
     },
     "modules/hallenplan/components/ClosureOverlay.tsx": {
@@ -8346,7 +8597,7 @@
     },
     "modules/hallenplan/components/SlotEditor.tsx": {
       "area": "modules/hallenplan",
-      "loc": 482,
+      "loc": 485,
       "deps": [
         "components/Modal",
         "components/ui/button",
@@ -8357,6 +8608,7 @@
         "components/ui/DatePicker",
         "components/ui/switch",
         "utils/logActivity",
+        "components/ConfirmProvider",
         "modules/hallenplan/hooks/useConflictChecker",
         "utils/dateHelpers",
         "types",
@@ -8413,7 +8665,7 @@
     },
     "modules/hallenplan/components/WeekSlotView.tsx": {
       "area": "modules/hallenplan",
-      "loc": 618,
+      "loc": 630,
       "deps": [
         "types",
         "utils/dateHelpers",
@@ -8740,7 +8992,7 @@
     },
     "modules/messaging/components/MessageBubble.tsx": {
       "area": "modules/messaging",
-      "loc": 119,
+      "loc": 121,
       "deps": [
         "modules/messaging/api/types",
         "modules/messaging/components/Avatar",
@@ -8749,10 +9001,12 @@
         "modules/messaging/components/ReactionBar",
         "modules/messaging/api/messaging",
         "utils/dateHelpers",
-        "modules/messaging/components/PollMessage"
+        "modules/messaging/components/PollMessage",
+        "components/ConfirmProvider"
       ],
       "areaDeps": [
-        "utils"
+        "utils",
+        "components"
       ]
     },
     "modules/messaging/components/MessageComposer.tsx": {
@@ -8858,17 +9112,14 @@
     },
     "modules/messaging/components/TeamMessagesTab.tsx": {
       "area": "modules/messaging",
-      "loc": 31,
+      "loc": 37,
       "deps": [
-        "hooks/useAuth",
-        "modules/messaging/hooks/useConversations",
+        "modules/messaging/api/types",
         "modules/messaging/components/ThreadView",
         "modules/messaging/components/MessagingDisabledBanner",
         "modules/messaging/components/ConsentModal"
       ],
-      "areaDeps": [
-        "hooks"
-      ]
+      "areaDeps": []
     },
     "modules/messaging/components/ThreadView.tsx": {
       "area": "modules/messaging",
@@ -9187,17 +9438,19 @@
     },
     "modules/polls/PollCard.tsx": {
       "area": "modules/polls",
-      "loc": 184,
+      "loc": 186,
       "deps": [
         "components/ui/button",
         "types",
         "utils/dateHelpers",
-        "modules/polls/hooks/usePoll"
+        "modules/polls/hooks/usePoll",
+        "components/ConfirmProvider"
       ],
       "areaDeps": [
         "ui",
         "types",
-        "utils"
+        "utils",
+        "components"
       ]
     },
     "modules/polls/PollForm.tsx": {
@@ -9754,10 +10007,11 @@
     },
     "modules/tasks/TasksSection.tsx": {
       "area": "modules/tasks",
-      "loc": 133,
+      "loc": 135,
       "deps": [
         "components/ui/button",
         "hooks/useAuth",
+        "components/ConfirmProvider",
         "modules/tasks/hooks/useTasks",
         "modules/tasks/TaskCard",
         "modules/tasks/TaskForm",
@@ -9766,6 +10020,7 @@
       "areaDeps": [
         "ui",
         "hooks",
+        "components",
         "types"
       ]
     },
@@ -9799,9 +10054,30 @@
         "lib"
       ]
     },
+    "modules/teams/ManageStaffModal.tsx": {
+      "area": "modules/teams",
+      "loc": 247,
+      "deps": [
+        "components/Modal",
+        "components/ConfirmDialog",
+        "components/ui/button",
+        "utils/fileUrl",
+        "utils/logActivity",
+        "lib/api",
+        "utils/relations",
+        "types"
+      ],
+      "areaDeps": [
+        "components",
+        "ui",
+        "utils",
+        "lib",
+        "types"
+      ]
+    },
     "modules/teams/MemberRow.tsx": {
       "area": "modules/teams",
-      "loc": 332,
+      "loc": 349,
       "deps": [
         "utils/logActivity",
         "utils/memberPositions",
@@ -9854,7 +10130,7 @@
     },
     "modules/teams/RosterEditor.tsx": {
       "area": "modules/teams",
-      "loc": 888,
+      "loc": 892,
       "deps": [
         "utils/logActivity",
         "utils/memberPositions",
@@ -9905,7 +10181,7 @@
     },
     "modules/teams/TeamDetail.tsx": {
       "area": "modules/teams",
-      "loc": 736,
+      "loc": 870,
       "deps": [
         "utils/logActivity",
         "hooks/useTeamMembers",
@@ -9920,6 +10196,7 @@
         "components/VolleyballIcon",
         "components/BasketballIcon",
         "modules/teams/MemberRow",
+        "modules/teams/ManageStaffModal",
         "utils/fileUrl",
         "utils/memberPositions",
         "utils/dateHelpers",
@@ -9927,9 +10204,11 @@
         "types",
         "utils/relations",
         "modules/polls/PollsSection",
+        "modules/gameScheduling/components/TeamScheduleCalendar",
         "utils/featureToggles",
         "utils/messagingFeatureFlag",
         "modules/messaging/components/TeamMessagesTab",
+        "modules/messaging/hooks/useConversations",
         "lib/api"
       ],
       "areaDeps": [
@@ -9940,12 +10219,13 @@
         "components",
         "types",
         "modules/polls",
+        "modules/gameScheduling",
         "modules/messaging"
       ]
     },
     "modules/teams/TeamSponsorsEditor.tsx": {
       "area": "modules/teams",
-      "loc": 249,
+      "loc": 257,
       "deps": [
         "utils/logActivity",
         "utils/fileUrl",
@@ -10201,7 +10481,7 @@
     },
     "types/index.ts": {
       "area": "types",
-      "loc": 948,
+      "loc": 1035,
       "deps": [],
       "areaDeps": []
     },
@@ -10362,7 +10642,7 @@
     },
     "utils/sanitizeUrl.ts": {
       "area": "utils",
-      "loc": 36,
+      "loc": 57,
       "deps": [],
       "areaDeps": []
     },

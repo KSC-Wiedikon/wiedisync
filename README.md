@@ -4,6 +4,8 @@ Internal platform for **KSC Wiedikon** — managing teams, games, trainings, and
 
 **Live:** [wiedisync.kscw.ch](https://wiedisync.kscw.ch)
 
+> See `CLAUDE.md` for conventions and `INFRA.md` for infra/deploy details.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -11,10 +13,10 @@ Internal platform for **KSC Wiedikon** — managing teams, games, trainings, and
 | Frontend | React 19 + TypeScript + Vite |
 | Styling | Tailwind CSS v4 + shadcn/ui |
 | Backend | [Directus](https://directus.io) (Postgres REST API + Realtime) |
-| Auth | Google OAuth via Directus |
+| Auth | Google OAuth + email/password via Directus |
 | Testing | Playwright (E2E), Vitest (unit) |
 | Hosting | Cloudflare Pages (frontend), Hetzner VPS (backend) |
-| i18n | i18next (German/English) |
+| i18n | i18next (DE / EN / FR / GSW / IT) |
 
 ## Features
 
@@ -22,8 +24,15 @@ Internal platform for **KSC Wiedikon** — managing teams, games, trainings, and
 - **Trainings** — Recurring schedules, RSVP, and email reminders
 - **Hallenplan** — Hall booking overview with closures, slot claims, and Google Calendar sync
 - **Schreibereinsaetze** — Scorer duty assignments with delegation and iCal export
-- **Spielplanung** — Season scheduling and opponent game booking (Terminplanung) with conflict detection
+- **Spielplanung** — Season scheduling with opponent invites and game booking (Terminplanung), conflict detection, VolleyManager push, and an embedded scheduling mailbox
 - **Teams & Rosters** — Multi-sport roster management, player profiles, photos, and sponsor display
+- **Messaging** — Team chat and direct messages with reactions, polls, and reports
+- **News** — Club news (Vereinsnews) and broadcasts via email and push
+- **Forms** — Internal form builder with team-scoped submissions
+- **Fines** — Team fine rules and tracking (Bussenkasse)
+- **Carpool** — Ride coordination for games and events
+- **Polls** — In-app voting
+- **Tasks** — Team task assignments
 - **Notifications** — Web push (Cloudflare Workers), email reminders, activity alerts
 - **Admin tools** — Native DB panel (SQL editor, table browser, schema viewer), ClubDesk CSV sync
 - **Calendar** — Unified view with home/away colors and iCal feed generation
@@ -40,12 +49,14 @@ src/
   utils/          # Helpers (dates, team colors, league tiers)
   i18n/           # Translation files
   lib/            # Library utilities
+  data/           # Static data
+  types/          # Shared TypeScript types
+  assets/         # Static assets
 directus/
   extensions/     # Directus custom endpoints + hooks
-  scripts/        # DB setup & utility scripts
+  scripts/        # DB setup, migrations & utility scripts
 e2e/              # Playwright E2E tests
-scripts/          # Setup & utility scripts
-workers/          # Cloudflare Workers (web push)
+workers/          # Cloudflare Workers (push, sentry-tunnel)
 ```
 
 ## Getting Started
@@ -66,8 +77,12 @@ npm run test:unit       # Vitest unit tests
 
 ## Deployment
 
-- **Frontend:** Push to `prod` branch triggers Cloudflare Pages deploy
-- **Backend:** Directus extensions auto-deploy via Coolify on VPS
+All changes go through `dev` first.
+
+- **Frontend:** Pushing to `dev` auto-deploys the preview at [wiedisync.pages.dev](https://wiedisync.pages.dev) (Cloudflare Pages). An approval-gated merge of `dev` → `prod` deploys to [wiedisync.kscw.ch](https://wiedisync.kscw.ch).
+- **Backend:** Directus runs as plain Docker on Hetzner (not Coolify). Deploy extensions with `npm run ext:deploy:dev` / `npm run ext:deploy:prod` (rsync + container restart); apply DB migrations and permissions with `npm run db:deploy:dev` / `npm run db:deploy:prod`.
+
+See `CLAUDE.md` (Branches & Dev-First Workflow) and `INFRA.md` for the full flow.
 
 ## Related
 

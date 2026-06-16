@@ -1,1 +1,3 @@
 vendor/
+# Generated, regenerable browser bundle (4 MB). Build on demand: npm run docs:graph
+graph.html

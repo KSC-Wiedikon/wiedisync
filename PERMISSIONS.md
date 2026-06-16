@@ -1,14 +1,12 @@
 # Permissions reference — KSCW Directus
 
-Canonical role × collection × action map. Reflects the live state through migration 103 (2026-06-10). Updated by reviewers as part of every permission change.
+Canonical role × collection × action map. Reflects the live state through migration 111 (2026-06-15). Updated by reviewers as part of every permission change.
+
+> Migrations 104–111 (2026-06-10..06-15) are all schema-only — they carry no permission rows and add no plpgsql functions needing `search_path`, so this doc's role tables are unchanged by them; only the version anchor moved. The Forms permission surface (migrations 086–089) is documented in the role tables below.
 
 > **2026-06-10 — Deep-audit remediation (Public `events` row-scope + doc-drift corrections).** Public `events` read was field-restricted but **NOT row-restricted** (filter `null`), so anon could read every event's title via `/items/events` — including team-internal events. Scoped to club-wide types `{ event_type: { _in: ['verein', 'tournament'] } }`, mirroring the Member `EVENTS_VISIBLE` club-wide branch (the `/kscw/public/events` endpoint still additionally excludes any team-/member-scoped event). Also corrected several rows where this doc had drifted from the authoritative `setup-permissions.mjs` (the script is canonical; the doc lied): `sv_vm_check` Member direct read is **REVOKED** (access via `/kscw/sv-licence/me`, not `OWN_MEMBER`); public `directus_files` read is `folder _null` (the `PUBLIC_FILES_FOLDER` env approach was dropped, no env/fallback); `member_teams` Member read returns `*` incl. `guest_level` (not the claimed `id, member, team, season`); `event_sessions` Member read is unfiltered cross-club (in `MEMBER_READ_ALL`, not `EVENTS_VISIBLE`-scoped); LEADER `absences` read is the coach/TR-team scope (not "none"); LEADER `user_logs` read is **REVOKED** (not granted). Three schema-only migrations shipped alongside (no perm rows): **100** pins `search_path = public` on `members_prevent_email_blanking` / `trg_form_submissions_guard` / `trg_form_submissions_update_guard` (regressed the 071 hardening); **101** guards the implicit `varchar→int` cast in `trg_participations_guest_block` (a non-numeric `activity_id` silently skipped the guest block); **102** un-confirms a derby (`game_scheduling_derbies`) whose host team is deleted (the FK's `ON DELETE SET NULL` would otherwise leave `confirmed=true` with a null host, breaking Art. 27 clamping). See SECURITY.md "2026-06-10" block.
 
 > **2026-05-31 — Security audit hardening (self-scoped Member creates + public read scoping).** Member `create` on `participations`, `absences`, `poll_votes`, `scorer_delegations`, `push_subscriptions`, `team_requests`, `carpools`, `carpool_passengers` was unfiltered — any member could write a row attributed to another member (mark a teammate absent, vote/RSVP as them, file a join request for them; an absence write even cascaded all the victim's confirmed RSVPs to declined via migration 038). All now carry the same self-scope filter their `update` already used (`OWN_MEMBER` / `OWN_DRIVER` / `OWN_PASSENGER` / `from_member = $CURRENT_USER` for delegations). Public `members` read scoped to `website_visible = true` (was ignoring the privacy opt-out and exposing the whole roster). Public `directus_files` read scoped to the public-assets folder via `PUBLIC_FILES_FOLDER` env (feedback screenshots / profile photos no longer anonymously enumerable); falls back to the legacy blanket read with a warning if the env is unset. See SECURITY.md "2026-05-31" block. **Untested in this branch — `npm run db:setup-perms:dev` + `db:smoke:dev` MUST pass before prod, and `PUBLIC_FILES_FOLDER` MUST be set on dev + prod for the files fix to take effect.**
-
-> **2026-05-23 — Restored public `events` + `news` for kscw-website.** Migration 035 dropped Public read on `events` on the mistaken assumption the website didn't consume it, silently emptying the homepage events + `/weiteres/kalender`; `news` had never been granted (homepage News showed "no news"). Re-added both to Public as field-scoped reads (`PUBLIC_EVENT_FIELDS` / `PUBLIC_NEWS_FIELDS`, non-PII); `news` limited to published, non-future posts. RSVP junctions (`events_teams` / `participations`) stay private — 035's privacy fix is intact. Applied dev→prod via `db:setup-perms`; smoke green.
-
-> **2026-05-12 — Deep-audit LEADER tightening.** Removed unfiltered LEADER reads on `members`, `participations`, `absences`, `user_logs`, and unfiltered LEADER updates on `games`, `trainings`, `events`. All now use the coach/TR-of-the-target-team filter pattern; `members.read` adds a `LEADER_TEAM_MEMBER_FIELDS` whitelist that excludes `ahv_nummer`. LEADER lost `user_logs.read` entirely — audit access goes through `/kscw/admin/audit` (admin-only). See SECURITY.md "2026-05-12" block for the full per-finding ledger.
 
 > **Source of truth (post-2026-05-06):** `directus/scripts/setup-permissions.mjs` is the SINGLE source for Directus permissions. It is declarative, idempotent (clears + recreates on every run), and applied via `npm run db:setup-perms:<env>` on every deploy. Numbered SQL migrations are SCHEMA-ONLY going forward — they no longer carry permission rows. This doc is the human-readable index of the script — keep both in sync.
 
@@ -103,6 +101,9 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | referee_expenses | `MY_TEAMS` (via team) | `*` | 035 |
 | fines | `member.user = $CURRENT_USER` | `*` | **069** |
 | fine_rules | `team.member_teams.member.user = $CURRENT_USER` | `*` | **069** |
+| forms | `FORMS_VISIBLE` — `status _in {open, closed}` AND (`audience = club_wide` OR an attached team I'm a member of). Frontend resolves visibility via the two-step junction fetch (`useUserVisibleFormIds`); the policy walk of `forms.teams` is why the frontend must NOT also deep-filter it (M2M-deep-filter + policy-walk silent-`[]` landmine) | `*` | **086 / 087** |
+| forms_teams | none | `*` — junction read for the forms M2M | **086 / 087** |
+| form_submissions | `member.user = $CURRENT_USER` (own only) | `*` | **086 / 087** |
 
 ### Reads (intentionally cross-club)
 
@@ -125,6 +126,8 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | carpool_passengers | create / update | own (`OWN_PASSENGER`; create self-scoped 2026-05-31 audit) |
 | poll_votes | create / update | `OWN_MEMBER` (create self-scoped 2026-05-31 audit) |
 | team_requests | create | `member.user = $CURRENT_USER` (self-scoped 2026-05-31 audit) |
+| form_submissions | create | `member _null` (anonymous) OR `member.user = $CURRENT_USER` — self-scoped, blocks submitting as another member while still allowing anonymous forms |
+| form_submissions | update | `member.user = $CURRENT_USER`, fields = `answers` only (migration 088 — revise own answers while the form is open; BEFORE UPDATE guard blocks edits once closed / past deadline, and the field restriction stops reassigning the submission to another member/form) |
 | directus_files | create | none |
 
 **Explicit non-write for Member:** `members.role` field — stripped by `filter('members.items.update')` in `kscw-hooks` for non-admin callers (defense-in-depth on top of field-level perm).
@@ -167,6 +170,11 @@ Inherits everything from Member. Adds:
 | game_scheduling_* | read | none | |
 | fines | CRUD | scoped via teams.coach / team_responsible | **069** |
 | fine_rules | CRUD | scoped via teams.coach / team_responsible | **069** |
+| forms | read | `audience = club_wide` OR `FORMS_LEADER_SCOPE` (creator OR coach/TR of an attached team) | **086 / 087** |
+| forms | create | none (UI attaches the team; CREATE can't be relationally filtered) | **086 / 087** |
+| forms | update / delete | `FORMS_LEADER_SCOPE` — `created_by` is me, OR coach/TR of an attached team | **086 / 087** |
+| forms_teams | CRUD | none (junction for the forms M2M write) | **086 / 087** |
+| form_submissions | read | `form` matches `FORMS_LEADER_SCOPE` (submissions of forms in their scope) | **086 / 087** |
 | sponsors | create | none (UI attaches the team; CREATE can't be relationally filtered) | **2026-06-08** |
 | sponsors | update / delete | scoped via `teams_sponsors → teams.coach / team_responsible` (`SPONSORS_LEADER_SCOPE`); read stays inherited-unfiltered to avoid the M2M-deep-filter gotcha vs the editor's `teams.teams_id` fetch | **2026-06-08** |
 | teams_sponsors | CRUD | none (junction for the sponsor M2M write) | **2026-06-08** |
@@ -178,9 +186,11 @@ Inherits everything from Member. Adds:
 
 Inherits Member. Adds read-all on operational collections — board oversight role:
 
-`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, tasks, task_templates, poll_votes, team_requests, push_subscriptions, game_scheduling_*, announcements, fines, fine_rules`.
+`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, tasks, task_templates, poll_votes, team_requests, push_subscriptions, game_scheduling_seasons, game_scheduling_slots, game_scheduling_opponents, game_scheduling_bookings, announcements, fines, fine_rules, scheduling_blocks`.
 
-No CRU writes — Vorstand is read-only by design.
+**Plus full CRUD on Forms** — `forms`, `forms_teams`, `form_submissions` (decision 2026-06-05: create/edit/delete any form club-wide + read all submissions, exactly like a global admin). This is the one exception to the otherwise read-only board role.
+
+Read-only on everything else by design (no CRU writes outside the Forms grant above).
 
 ---
 
@@ -214,7 +224,7 @@ The reviewer should diff `setup-permissions.mjs` against this doc to confirm par
 
 ## Verification queries
 
-Run these after migration 043 to confirm parity:
+Current parity checks — run these any time to confirm the live DB matches `setup-permissions.mjs`:
 
 ```sql
 -- 1. Critical reads scoped
@@ -256,3 +266,16 @@ WHERE table_schema = 'public'
 ORDER BY table_name;
 -- Expected: empty (or only the explicitly-public set).
 ```
+
+---
+
+## History
+
+<details>
+<summary>Older reconciliation notes (archival — the full audit ledger lives in SECURITY.md + git).</summary>
+
+> **2026-05-23 — Restored public `events` + `news` for kscw-website.** Migration 035 dropped Public read on `events` on the mistaken assumption the website didn't consume it, silently emptying the homepage events + `/weiteres/kalender`; `news` had never been granted (homepage News showed "no news"). Re-added both to Public as field-scoped reads (`PUBLIC_EVENT_FIELDS` / `PUBLIC_NEWS_FIELDS`, non-PII); `news` limited to published, non-future posts. RSVP junctions (`events_teams` / `participations`) stay private — 035's privacy fix is intact. Applied dev→prod via `db:setup-perms`; smoke green.
+
+> **2026-05-12 — Deep-audit LEADER tightening.** Removed unfiltered LEADER reads on `members`, `participations`, `absences`, `user_logs`, and unfiltered LEADER updates on `games`, `trainings`, `events`. All now use the coach/TR-of-the-target-team filter pattern; `members.read` adds a `LEADER_TEAM_MEMBER_FIELDS` whitelist that excludes `ahv_nummer`. LEADER lost `user_logs.read` entirely — audit access goes through `/kscw/admin/audit` (admin-only). See SECURITY.md "2026-05-12" block for the full per-finding ledger.
+
+</details>

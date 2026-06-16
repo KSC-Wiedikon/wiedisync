@@ -2,13 +2,14 @@
 
 > **▶ Open [`graph.html`](./graph.html) in a browser** — a single self-contained, offline-capable page with an interactive force-directed dependency graph (area + file level, click-to-highlight, search, isolate-by-area) plus all five docs below with their Mermaid diagrams rendered. No server, no internet needed. Regenerate with `node docs/code-graph/gen-html.mjs`.
 
-A layered map of the whole codebase, generated 2026-06-07. Two layers:
+A layered map of the whole codebase, generated 2026-06-07. **Last reviewed: 16.06.2026.** Two layers:
 
-- **Layer 1 — mechanical** (`layer1-imports.md`): exact import edges parsed from every `src/` file. Nodes = areas/modules, edges = `import` statements. Ground truth, no interpretation.
-- **Layer 2 — conceptual** (`layer2-*.md`): what the code *means* — data model, backend surface, and feature/domain flows — cross-linked back to the files.
+- **Layer 1 — mechanical** (`layer1-imports.md`): exact import edges parsed from every `src/` file. Nodes = areas/modules, edges = `import` statements. Ground truth, no interpretation. **Machine-generated** — refreshed by `npm run docs:graph`.
+- **Layer 2 — conceptual** (`layer2-*.md`): what the code *means* — data model, backend surface, and feature/domain flows — cross-linked back to the files. **Hand-authored** — edit by hand; see the regenerate note below.
 
-Regenerate Layer 1 with: `node docs/code-graph/extract-graph.mjs && node docs/code-graph/gen-layer1.mjs`
-Raw graph data (nodes + edges + per-file deps): `import-graph.json`.
+**Regenerate everything: `npm run docs:graph`** — chains `extract-graph.mjs` → `gen-layer1.mjs` → `gen-html.mjs`. This rebuilds **only** Layer 1 (`import-graph.json`, `layer1-imports.md`) and the `graph.html` wrapper. **It does NOT touch the three hand-authored `layer2-*.md` docs** — the generators only *read* them into the HTML, no script writes them. After significant `src/` or `directus/` changes: run `npm run docs:graph` to refresh Layer 1 + HTML, then manually edit the affected `layer2-*.md` and bump the "Last reviewed" date above.
+
+Raw graph data (nodes + edges + per-file deps): `import-graph.json`. Note: `vendor/` (the three minified libs `gen-html.mjs` inlines into `graph.html`) is gitignored, so a fresh checkout has no `vendor/` and `gen-html.mjs` falls back via an `existsSync` guard — populate `vendor/` locally to regenerate a fully-bundled `graph.html`.
 
 | Document | Layer | What it covers |
 |---|---|---|

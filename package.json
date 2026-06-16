@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
+    "test:scripts": "node --test directus/scripts/__tests__/*.test.mjs",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
@@ -47,7 +48,8 @@
     "ext:deploy": "npm run ext:deploy:dev && npm run ext:deploy:prod",
     "scripts:deploy:dev": "rsync -avz directus/scripts/ hetzner:/tmp/kscw-scripts/ && ssh hetzner \"sudo rsync -a /tmp/kscw-scripts/ /opt/directus-kscw-dev/scripts/\"",
     "scripts:deploy:prod": "rsync -avz directus/scripts/ hetzner:/tmp/kscw-scripts/ && ssh hetzner \"sudo rsync -a /tmp/kscw-scripts/ /opt/directus-kscw/scripts/\"",
-    "scripts:deploy": "npm run scripts:deploy:dev && npm run scripts:deploy:prod"
+    "scripts:deploy": "npm run scripts:deploy:dev && npm run scripts:deploy:prod",
+    "docs:graph": "node docs/code-graph/extract-graph.mjs && node docs/code-graph/gen-layer1.mjs && node docs/code-graph/gen-html.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.1",
