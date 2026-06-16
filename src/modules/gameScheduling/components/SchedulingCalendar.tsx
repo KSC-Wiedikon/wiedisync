@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { House, Plane } from 'lucide-react'
 import CalendarGrid from '../../../components/CalendarGrid'
 import Modal from '../../../components/Modal'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table'
@@ -344,12 +345,12 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       if (b.type === 'away_proposal' && b.status === 'confirmed' && b.confirmed_proposal) {
         const dt = (b as Record<string, unknown>)[`proposed_datetime_${b.confirmed_proposal}`] as string | undefined
         const d = parseYmd(dt)
-        if (d) out.push({ id: `awc-${b.id}`, date: d, kind: 'away_confirmed', label: `@${team}`, teamId: tid, time: dtTime(dt), opponent: opp, hallName: place(b.confirmed_proposal) || '', title: `${t('legendAwayConfirmed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
+        if (d) out.push({ id: `awc-${b.id}`, date: d, kind: 'away_confirmed', label: team, teamId: tid, time: dtTime(dt), opponent: opp, hallName: place(b.confirmed_proposal) || '', title: `${t('legendAwayConfirmed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
       } else if (b.type === 'away_proposal' && b.status === 'pending') {
         for (const n of [1, 2, 3]) {
           const dt = (b as Record<string, unknown>)[`proposed_datetime_${n}`] as string | undefined
           const d = parseYmd(dt)
-          if (d) out.push({ id: `awp-${b.id}-${n}`, date: d, kind: 'away_proposed', label: `@${team}`, teamId: tid, time: dtTime(dt), opponent: opp, hallName: place(n) || '', title: `${t('legendAwayProposed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
+          if (d) out.push({ id: `awp-${b.id}-${n}`, date: d, kind: 'away_proposed', label: team, teamId: tid, time: dtTime(dt), opponent: opp, hallName: place(n) || '', title: `${t('legendAwayProposed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
         }
       } else if (b.type === 'home_slot_pick' && b.status === 'pending') {
         for (const n of [1, 2, 3]) {
@@ -376,7 +377,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       if (isHome) {
         out.push({ id: `g-${g.id}`, date: d, kind: 'home_confirmed', label: me, teamId: String(g.kscw_team), time, opponent: opp, title: `${t('legendHomeConfirmed')}: ${me} vs ${opp}` })
       } else {
-        out.push({ id: `g-${g.id}`, date: d, kind: 'away_confirmed', label: `@${me}`, teamId: String(g.kscw_team), time, opponent: opp, title: `${t('legendAwayConfirmed')}: ${me} @ ${opp}` })
+        out.push({ id: `g-${g.id}`, date: d, kind: 'away_confirmed', label: me, teamId: String(g.kscw_team), time, opponent: opp, title: `${t('legendAwayConfirmed')}: ${me} @ ${opp}` })
       }
     }
     return out
@@ -578,15 +579,24 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
           const absent = absencesByDate.get(key) || 0
           return (
             <div className="flex flex-col gap-0.5">
-              {visible.map((e) => (
-                <span
-                  key={e.id}
-                  title={e.title}
-                  className={`truncate rounded px-1 py-0.5 text-[10px] leading-tight ${CHIP[e.kind]}`}
-                >
-                  {e.time ? `${e.time} ` : ''}{e.label}
-                </span>
-              ))}
+              {visible.map((e) => {
+                // Home/away games get a glyph instead of the old "@" prefix:
+                // a house for home legs, a plane (travel) for away legs.
+                const isHomeKind = e.kind === 'home_confirmed' || e.kind === 'home_proposed'
+                const isAwayKind = e.kind === 'away_confirmed' || e.kind === 'away_proposed'
+                return (
+                  <span
+                    key={e.id}
+                    title={e.title}
+                    className={`flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] leading-tight ${CHIP[e.kind]}`}
+                  >
+                    {e.time && <span className="shrink-0 tabular-nums">{e.time}</span>}
+                    {isHomeKind && <House className="h-2.5 w-2.5 shrink-0" aria-hidden />}
+                    {isAwayKind && <Plane className="h-2.5 w-2.5 shrink-0" aria-hidden />}
+                    <span className="truncate">{e.label}</span>
+                  </span>
+                )
+              })}
               {hidden > 0 && (
                 <span className="text-[10px] text-gray-500 dark:text-gray-400">+{hidden}</span>
               )}
