@@ -179,7 +179,7 @@ export default function SpielsamstageEditor({ spielsamstage, onUpdate, season }:
                 <button
                   type="button"
                   onClick={() => removeDate(key)}
-                  className="ml-1 rounded hover:text-blue-600 dark:hover:text-white"
+                  className="-mr-1.5 ml-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full hover:text-blue-600 dark:hover:text-white"
                   aria-label={t('removeSpielssamstag')}
                 >
                   <X className="h-3 w-3" />

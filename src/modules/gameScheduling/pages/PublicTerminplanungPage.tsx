@@ -195,7 +195,7 @@ export default function PublicTerminplanungPage() {
             siteKey={TURNSTILE_SITE_KEY}
             onSuccess={setTurnstileToken}
             onExpire={() => setTurnstileToken('')}
-            options={{ theme: 'auto', size: 'normal' }}
+            options={{ theme: 'auto', size: 'flexible' }}
           />
 
           {error && (

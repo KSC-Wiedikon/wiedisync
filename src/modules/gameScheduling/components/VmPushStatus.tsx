@@ -48,19 +48,19 @@ export default function VmPushStatus({ booking, onPush }: Props) {
   const canRetry = status === 'failed' || status === 'pushed' || status === 'pushed_no_hall' || status === 'no_fixture' || !status
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STYLES[status || ''] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}
         title={status === 'failed' ? (booking.vm_push_error || undefined) : undefined}>
         {label}
       </span>
 
       {status === 'needs_pick' && (
-        <Button size="sm" variant="outline" className="h-6 px-2 text-xs" disabled={busy} onClick={() => setPicking(true)}>
+        <Button size="sm" variant="outline" className="h-11 sm:h-6 px-2 text-xs" disabled={busy} onClick={() => setPicking(true)}>
           {t('vmPushChoose')}
         </Button>
       )}
       {canRetry && (
-        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={busy} onClick={() => push()}>
+        <Button size="sm" variant="ghost" className="h-11 sm:h-6 px-2 text-xs" disabled={busy} onClick={() => push()}>
           {status === 'pushed' || status === 'pushed_no_hall' ? t('vmPushRetry') : t('vmPushButton')}
         </Button>
       )}
@@ -77,7 +77,7 @@ export default function VmPushStatus({ booking, onPush }: Props) {
                 key={c.id}
                 disabled={busy}
                 onClick={() => push(c.id)}
-                className="rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                className="min-h-11 rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-800"
               >
                 <span className="font-medium">{c.label}</span>
                 {c.date && <span className="ml-2 text-gray-500">{formatDateCompactZurich(c.date)}</span>}

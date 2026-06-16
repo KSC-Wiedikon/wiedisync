@@ -168,7 +168,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
                         variant={selected ? 'default' : 'outline'}
                         onClick={() => handleToggle(team.id, source)}
                         aria-pressed={selected}
-                        className="h-7 w-full px-2.5 text-xs"
+                        className="h-11 sm:h-7 w-full px-2.5 text-xs"
                       >
                         {source === 'hall_slot' ? t('latestSlot') : t('spielsamstagMode')}
                       </Button>

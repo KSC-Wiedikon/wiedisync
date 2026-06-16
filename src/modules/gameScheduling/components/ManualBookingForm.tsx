@@ -156,7 +156,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
     }
   }
 
-  const inputCls = 'w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+  const inputCls = 'w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 min-h-11 sm:min-h-0'
 
   if (!open) {
     return (
@@ -164,7 +164,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+          className="inline-flex items-center min-h-11 sm:min-h-0 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
         >
           {t('manualEnterAgreed')}
         </button>
@@ -279,7 +279,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50 min-h-11 sm:min-h-0"
         >
           {saving ? t('saving') : t('manualSave')}
         </button>
@@ -287,7 +287,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
           type="button"
           onClick={() => { reset(); setOpen(false) }}
           disabled={saving}
-          className="rounded-md px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-700"
+          className="rounded-md px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-700 min-h-11 sm:min-h-0"
         >
           {t('cancel')}
         </button>

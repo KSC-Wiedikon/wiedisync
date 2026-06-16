@@ -9,6 +9,7 @@ import nodemailer from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { FRONTEND_URL, buildEmailLayout, buildInfoCard, escHtml } from './email-template.js'
 import { VALID_LANGS, schedEmail, inviteEmail } from './terminplanung-emails.js'
+import { writeUserLog } from './activity-log.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -2160,6 +2161,8 @@ export function registerGameScheduling(router, { database, logger, services, get
         await trx('game_scheduling_slots').where('id', slotId).update({ status: 'booked' })
       })
 
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'game_scheduling_bookings', recordId: booking_id, data: { kind: 'confirm_home', proposal: n, slot: slotId } })
+
       // Confirmation email to the opponent (their language) + mailbox notice.
       try {
         const slot = await database('game_scheduling_slots').where('id', slotId).first()
@@ -2957,6 +2960,8 @@ export function registerGameScheduling(router, { database, logger, services, get
         confirmed_at: database.fn.now(),
       })
 
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'game_scheduling_bookings', recordId: booking_id, data: { kind: 'confirm_away', proposal: n } })
+
       // Mirror into `games` so the away fixture shows on member calendars right
       // away (fire-and-forget; sv-sync adopts the row later).
       reconcileBookingsToGames(awayOpponent.season).catch((e) => log.warn(`confirm-away games reconcile failed: ${e.message}`))
@@ -3149,6 +3154,9 @@ export function registerGameScheduling(router, { database, logger, services, get
           confirmed_by_name: actor.name, confirmed_by_email: actor.email, confirmed_at: database.fn.now(),
         })
       }
+
+      if (home) await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'game_scheduling_bookings', recordId: homeBookingId, data: { kind: 'manual_home', date: home.date, start_time: home.start_time, hall: home.hall } })
+      if (away) await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'game_scheduling_bookings', recordId: null, data: { kind: 'manual_away', opponent: opponent.id, date: away.date } })
 
       await database('game_scheduling_opponents').where('id', opponent.id).update({ status: 'booked' })
 
@@ -3779,6 +3787,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
       await database('game_scheduling_slots').where('id', slot_id)
         .update({ status: action === 'block' ? 'blocked' : 'available' })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'game_scheduling_slots', recordId: slot_id, data: { kind: action === 'block' ? 'block_slot' : 'unblock_slot' } })
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `block-slot: ${err.message}`, endpoint: 'terminplanung/admin/block-slot', userId: req.accountability?.user || null, method: req.method, stack: err.stack })

@@ -184,7 +184,7 @@ export default function SeasonConfig({
           <button
             onClick={handleCreate}
             disabled={creating}
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="min-h-11 sm:min-h-0 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {creating ? '…' : `+ ${nextSeason}`}
           </button>
@@ -198,7 +198,7 @@ export default function SeasonConfig({
             <button
               key={s.id}
               onClick={() => onSelectSeason(s)}
-              className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`min-h-11 sm:min-h-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
                 season?.id === s.id
                   ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
                   : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'

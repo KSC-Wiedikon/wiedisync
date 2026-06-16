@@ -124,8 +124,8 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
             ))}
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="min-w-0 break-words text-sm text-gray-600 dark:text-gray-400">
               {selectedTeam ? `${selectedTeam.name} (${selectedTeam.league || '—'})` : '—'} · {api.invites.length} {t('invites')}
             </span>
             <div className="flex gap-2">

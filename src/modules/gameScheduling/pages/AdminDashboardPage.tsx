@@ -537,7 +537,7 @@ export default function AdminDashboardPage() {
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('dashboardTitle')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{formatSeasonShort(season.season)}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Button size="sm" variant="outline" onClick={handleSyncNow} disabled={syncing}>
             {t('syncSvrzNow')}
           </Button>

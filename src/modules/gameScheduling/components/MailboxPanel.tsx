@@ -225,7 +225,7 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
                 <button
                   type="button"
                   onClick={() => setShowAll((v) => !v)}
-                  className="mt-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                  className="inline-flex items-center min-h-11 sm:min-h-0 mt-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
                 >
                   {showAll ? t('mailboxShowLess') : t('mailboxShowAll', { count: messages.length })}
                 </button>
@@ -387,7 +387,7 @@ function MailboxAttachments({ message }: { message: MailboxMessageFull }) {
           type="button"
           onClick={() => void download(i, a.filename)}
           disabled={downloading !== null}
-          className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          className="min-h-11 sm:min-h-0 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
         >
           {downloading === i ? '…' : `📎 ${a.filename}`}
         </button>

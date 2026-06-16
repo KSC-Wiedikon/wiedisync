@@ -273,8 +273,8 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                     <th className="w-10 py-2 pl-3"></th>
                     <th className="py-2 pr-2">{t('inviteTeam')}</th>
                     <th className="py-2 pr-2">{t('inviteEmail')}</th>
-                    <th className="py-2 pr-2">{t('inviteContact')}</th>
-                    <th className="w-24 py-2 pr-2">{t('inviteSource')}</th>
+                    <th className="hidden sm:table-cell py-2 pr-2">{t('inviteContact')}</th>
+                    <th className="hidden sm:table-cell w-24 py-2 pr-2">{t('inviteSource')}</th>
                     <th className="w-10 py-2 pr-2"></th>
                   </tr>
                 </thead>
@@ -317,14 +317,14 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                           <div className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-400">⚠ {d.warning}</div>
                         )}
                       </td>
-                      <td className="py-1.5 pr-2">
+                      <td className="hidden sm:table-cell py-1.5 pr-2">
                         <Input
                           value={d.contact_name}
                           onChange={(e) => updateDraft(d.id, { contact_name: e.target.value })}
                           className="h-8 text-sm"
                         />
                       </td>
-                      <td className="py-1.5 pr-2 text-xs">
+                      <td className="hidden sm:table-cell py-1.5 pr-2 text-xs">
                         <Badge variant={d.source === 'svrz' ? 'default' : 'secondary'}>
                           {d.source === 'svrz' ? 'SVRZ' : t('sourceManual')}
                         </Badge>
@@ -333,7 +333,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                         <button
                           type="button"
                           onClick={() => removeDraft(d.id)}
-                          className="text-xs text-gray-400 hover:text-red-600"
+                          className="inline-flex h-11 w-11 items-center justify-center text-xs text-gray-400 hover:text-red-600"
                           aria-label="Remove"
                         >
                           ✕
@@ -382,7 +382,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                   <TableCell className="whitespace-nowrap font-medium">
                     {g.date ? formatDateTimeCompact(g.date) : '—'}
                   </TableCell>
-                  <TableCell className="text-gray-600 dark:text-gray-400">
+                  <TableCell className="text-gray-600 dark:text-gray-400 whitespace-normal break-words">
                     {g.is_home_kscw
                       ? `KSCW ${kscwTeam?.name ?? ''} vs ${gamesFor?.team_name ?? ''}`
                       : `${gamesFor?.team_name ?? ''} vs KSCW ${kscwTeam?.name ?? ''}`}

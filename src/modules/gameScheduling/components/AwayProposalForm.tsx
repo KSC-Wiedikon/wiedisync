@@ -101,7 +101,7 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
           <div className="flex flex-col gap-2 sm:flex-row">
             <Popover open={openIdx === i} onOpenChange={(o) => setOpenIdx(o ? i : null)}>
               <PopoverTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="h-10 w-full justify-start gap-2 sm:flex-1">
+                <Button type="button" variant="outline" size="sm" className="h-11 sm:h-10 w-full justify-start gap-2 sm:flex-1">
                   <CalendarIcon className="h-4 w-4 shrink-0" />
                   {s.date ? formatDateLocale(s.date, 'EEE d. MMM yyyy', i18n.language) : t('proposalDate')}
                 </Button>
@@ -132,7 +132,7 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
               type="time"
               value={s.time}
               onChange={(e) => update(i, { time: e.target.value })}
-              className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm dark:border-gray-500 dark:bg-gray-600 dark:text-gray-100 sm:w-36"
+              className="h-11 sm:h-10 w-full rounded-md border border-gray-300 px-3 text-sm dark:border-gray-500 dark:bg-gray-600 dark:text-gray-100 sm:w-36"
               required
             />
           </div>

@@ -205,7 +205,7 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
                           {weekdayShort(s.date, i18n.language)} {formatDateZurich(s.date)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{gameStartForDate(s.date, s.start_time)}</TableCell>
-                        <TableCell>{s.hall_name}</TableCell>
+                        <TableCell className="whitespace-normal break-words">{s.hall_name}</TableCell>
                         <TableCell>
                           {s.strict
                             ? <Badge variant="success" size="sm">{t('pickAnyLabel')}</Badge>

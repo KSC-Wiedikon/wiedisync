@@ -99,7 +99,7 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
               type="button"
               onClick={() => setGroup(g)}
               disabled={sending}
-              className={`rounded-full border px-2.5 py-1 transition-colors disabled:opacity-50 ${
+              className={`inline-flex items-center justify-center min-h-11 sm:min-h-0 rounded-full border px-2.5 py-1 transition-colors disabled:opacity-50 ${
                 group === g
                   ? 'border-brand-500 bg-brand-50 font-medium text-brand-700 dark:border-brand-400 dark:bg-brand-900/40 dark:text-brand-300'
                   : 'border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'

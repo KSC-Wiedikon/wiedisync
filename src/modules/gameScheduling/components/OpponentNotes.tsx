@@ -51,7 +51,7 @@ export default function OpponentNotes({ opponentNote, kscwNote, onSave }: Props)
           <button
             type="button"
             onClick={() => { setDraft(kscwNote || ''); setOpen(true); setSaved(false) }}
-            className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+            className="inline-flex items-center min-h-11 sm:min-h-0 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
           >
             {hasKscwNote ? t('edit') : t('add')}
           </button>
@@ -74,7 +74,7 @@ export default function OpponentNotes({ opponentNote, kscwNote, onSave }: Props)
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+              className="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50 min-h-11 sm:min-h-0"
             >
               {saving ? t('saving') : t('save')}
             </button>
@@ -82,7 +82,7 @@ export default function OpponentNotes({ opponentNote, kscwNote, onSave }: Props)
               type="button"
               onClick={() => setOpen(false)}
               disabled={saving}
-              className="rounded-md px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-700"
+              className="rounded-md px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-700 min-h-11 sm:min-h-0"
             >
               {t('cancel')}
             </button>

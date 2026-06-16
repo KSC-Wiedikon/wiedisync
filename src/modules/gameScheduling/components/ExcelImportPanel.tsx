@@ -139,7 +139,7 @@ export default function ExcelImportPanel() {
         <button
           type="button"
           onClick={handleDownloadTemplate}
-          className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          className="flex items-center gap-1.5 min-h-11 py-2 self-start sm:min-h-0 sm:py-0 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
         >
           <Download className="h-3.5 w-3.5" />
           {t('downloadTemplate')}
@@ -174,7 +174,7 @@ export default function ExcelImportPanel() {
           <button
             onClick={handleImport}
             disabled={importing}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 min-h-11 w-full sm:w-auto sm:min-h-0"
           >
             {importing ? '...' : t('importGames') + ` (${preview.length})`}
           </button>
