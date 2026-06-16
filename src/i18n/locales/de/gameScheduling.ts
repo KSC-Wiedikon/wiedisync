@@ -230,6 +230,7 @@ export default {
   confirmAndSend: 'Bestätigen & senden',
   proposerRequired: 'Bitte Name und E-Mail angeben.',
   proposedBy: 'Vorgeschlagen von',
+  confirmedBy: 'Bestätigt von',
   manualDateOutOfWindow: 'Datum muss innerhalb der Saison liegen ({{start}} – {{end}}).',
 
   // Confirmation

@@ -755,6 +755,10 @@ export interface GameSchedulingBooking extends BaseRecord {
    *  (captured by the confirm modal on the opponent page). */
   proposed_by_name?: string | null
   proposed_by_email?: string | null
+  /** Name + email of the KSCW spielplaner/admin who confirmed the proposal or
+   *  manually entered this booking (captured at action time, migration 112). */
+  confirmed_by_name?: string | null
+  confirmed_by_email?: string | null
   /** VolleyManager push tracking (home_slot_pick only). */
   vm_push_status?: 'queued' | 'pushed' | 'pushed_no_hall' | 'needs_pick' | 'no_fixture' | 'failed' | null
   vm_game_id?: string | null

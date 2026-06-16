@@ -356,6 +356,19 @@ export function registerGameScheduling(router, { database, logger, services, get
     return member.is_spielplaner === true // club-wide (documented design) — unrestricted
   }
 
+  // Who (KSCW side) is performing this action — resolved from the authenticated
+  // member, for the booking audit line ("Confirmed by …", migration 112). Best
+  // effort: returns {name:null,email:null} for an admin token with no linked
+  // member, or when unauthenticated.
+  async function resolveActingUser(req) {
+    const userId = req.accountability?.user
+    if (!userId) return { name: null, email: null }
+    const m = await database('members').where('user', userId).first('first_name', 'last_name', 'email')
+    if (!m) return { name: null, email: null }
+    const name = [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null
+    return { name, email: m.email || null }
+  }
+
   // Default game-spacing gaps (days) when a season has no gap_config. ±N means
   // the team never plays two games closer than N days apart (date ± N → a
   // (2N+1)-day exclusion span per game). Per-season overrides live in
@@ -2054,6 +2067,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       const opponent = await database('game_scheduling_opponents').where('id', booking.opponent).first()
       if (!opponent) return res.status(400).json({ error: 'Opponent not found' })
       if (!(await spielplanerCanManageTeam(req, opponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      const actor = await resolveActingUser(req)
 
       await database.transaction(async (trx) => {
         await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [GSCH_BOOK_LOCK_CLASS, opponent.kscw_team])
@@ -2139,6 +2153,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           confirmed_proposal: n,
           slot: slotId,
           admin_notes: admin_notes || booking.admin_notes || null,
+          confirmed_by_name: actor.name,
+          confirmed_by_email: actor.email,
         })
         await trx('game_scheduling_slots').where('id', slotId).update({ status: 'booked' })
       })
@@ -2930,10 +2946,13 @@ export function registerGameScheduling(router, { database, logger, services, get
         }
       }
 
+      const actor = await resolveActingUser(req)
       await database('game_scheduling_bookings').where('id', booking_id).update({
         status: 'confirmed',
         confirmed_proposal: n,
         admin_notes: admin_notes || booking.admin_notes || null,
+        confirmed_by_name: actor.name,
+        confirmed_by_email: actor.email,
       })
 
       // Mirror into `games` so the away fixture shows on member calendars right
@@ -3006,6 +3025,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       const opponent = await database('game_scheduling_opponents').where('id', opponent_id).first()
       if (!opponent) return res.status(404).json({ error: 'Opponent not found' })
       if (!(await spielplanerCanManageTeam(req, opponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      const actor = await resolveActingUser(req)
       const seasonId = String(opponent.season)
       let homeBookingId = null
 
@@ -3096,6 +3116,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             status: 'confirmed', confirmed_proposal: 1, proposed_slot_1: slotId, slot: slotId,
             svrz_game_id: homeTarget.fixtureId,
             admin_notes: 'Manuell erfasst',
+            confirmed_by_name: actor.name, confirmed_by_email: actor.email,
           }).returning('id')
           homeBookingId = typeof insHome[0] === 'object' ? insHome[0].id : insHome[0]
         })
@@ -3123,6 +3144,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           svrz_game_id: awayTarget.fixtureId,
           proposed_datetime_1: dt, proposed_place_1: String(away.place || '').slice(0, 200),
           admin_notes: 'Manuell erfasst',
+          confirmed_by_name: actor.name, confirmed_by_email: actor.email,
         })
       }
 

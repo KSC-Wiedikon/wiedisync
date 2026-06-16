@@ -79,6 +79,13 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
     </p>
   ) : null
 
+  // Who on the KSCW side confirmed / manually entered this game (audit line).
+  const confirmedBy = (booking.confirmed_by_name || booking.confirmed_by_email) ? (
+    <p className="text-xs text-gray-500 dark:text-gray-400">
+      {t('confirmedBy')}: {[booking.confirmed_by_name, booking.confirmed_by_email].filter(Boolean).join(' · ')}
+    </p>
+  ) : null
+
   const handleRequest = async () => {
     if (!onRequestNewSlots) return
     setRequesting(true)
@@ -99,6 +106,7 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
           {info && <span className="text-sm text-gray-600 dark:text-gray-400">{info.label}</span>}
         </div>
         {proposedBy}
+        {confirmedBy}
         {onVmPush && (
           <div className="flex min-h-7 items-center">
             <VmPushStatus booking={booking} onPush={onVmPush} />

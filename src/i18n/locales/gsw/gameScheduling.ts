@@ -241,6 +241,7 @@ export default {
   confirmAndSend: 'Bestätige & schicke',
   proposerRequired: 'Bitte Name und E-Mail aagäh.',
   proposedBy: 'Vorgschlage vo',
+  confirmedBy: 'Bestätigt vo',
   manualDateOutOfWindow: 'S Datum mues i de Saison sii ({{start}} – {{end}}).',
 
   // Confirmation

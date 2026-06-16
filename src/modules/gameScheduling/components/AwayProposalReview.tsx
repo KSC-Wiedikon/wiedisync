@@ -65,6 +65,13 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck }: Prop
     </p>
   ) : null
 
+  // Who on the KSCW side confirmed / manually entered this game (audit line).
+  const confirmedBy = (booking.confirmed_by_name || booking.confirmed_by_email) ? (
+    <p className="text-xs text-gray-500 dark:text-gray-400">
+      {t('confirmedBy')}: {[booking.confirmed_by_name, booking.confirmed_by_email].filter(Boolean).join(' · ')}
+    </p>
+  ) : null
+
   if (booking.status === 'confirmed') {
     const confirmed = proposals.find(p => p.num === booking.confirmed_proposal)
     return (
@@ -79,6 +86,7 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck }: Prop
           )}
         </div>
         {proposedBy}
+        {confirmedBy}
         {vmCheck && (
           <div className="flex min-h-7 items-center">
           <span

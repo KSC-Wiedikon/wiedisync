@@ -241,6 +241,7 @@ export default {
   confirmAndSend: 'Conferma e invia',
   proposerRequired: 'Inserisci nome ed e-mail.',
   proposedBy: 'Proposto da',
+  confirmedBy: 'Confermato da',
   manualDateOutOfWindow: 'La data deve rientrare nella stagione ({{start}} – {{end}}).',
 
   // Confirmation

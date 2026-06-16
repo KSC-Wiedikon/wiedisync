@@ -241,6 +241,7 @@ export default {
   confirmAndSend: 'Confirmer et envoyer',
   proposerRequired: 'Veuillez indiquer votre nom et e-mail.',
   proposedBy: 'Proposé par',
+  confirmedBy: 'Confirmé par',
   manualDateOutOfWindow: 'La date doit être dans la saison ({{start}} – {{end}}).',
 
   // Confirmation
