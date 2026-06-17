@@ -349,6 +349,8 @@ export default {
   awayVmMatchHint: 'VolleyManager matches the agreed date — the opponent entered it.',
   awayVmUnsetHint: 'VolleyManager still shows the season-start placeholder — the opponent has not entered the agreed date yet.',
   awayVmMismatchHint: 'VolleyManager ({{vm}}) differs from the agreed slot ({{agreed}}).',
+  awayVmMismatchAlert: 'Away games that differ from VolleyManager: {{count}}',
+  awayVmMismatchRow: 'Agreed {{agreed}} · VM {{vm}}',
   awayVmNoneHint: 'No VolleyManager fixture to compare yet.',
   svrzSyncStarted: 'SVRZ sync started',
   svrzSynced: 'SVRZ synced {{date}} · {{total}} games ({{home}} home / {{away}} away)',

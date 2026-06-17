@@ -375,6 +375,8 @@ export default {
   awayVmMatchHint: 'VolleyManager stimmt mitem vereinbarte Termin — de Gägner hetne yträit.',
   awayVmUnsetHint: 'VolleyManager zeigt no de Saisonstart-Platzhalter — de Gägner het de vereinbarti Termin no nöd yträit.',
   awayVmMismatchHint: 'VolleyManager ({{vm}}) wycht vom vereinbarte Termin ({{agreed}}) ab.',
+  awayVmMismatchAlert: 'Uswärtsspiel, wo vo VolleyManager abwiichend: {{count}}',
+  awayVmMismatchRow: 'Abgmacht {{agreed}} · VM {{vm}}',
   awayVmNoneHint: 'No kei VolleyManager-Spiel zum verglyche.',
   svrzSyncStarted: 'SVRZ-Sync gstartet',
   svrzSynced: 'SVRZ synchronisiert {{date}} · {{total}} Spiel ({{home}} Heim / {{away}} Uswärts)',

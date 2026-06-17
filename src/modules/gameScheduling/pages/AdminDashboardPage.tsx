@@ -529,6 +529,29 @@ export default function AdminDashboardPage() {
     return acc
   }, { homeConfirmed: 0, awayConfirmed: 0, gamesTotal: 0, toConfirm: 0, notProposed: 0 })
 
+  // Confirmed away games whose agreed date/time DIFFERS from VolleyManager (red).
+  // "Not updated yet" (unset) is fine and excluded — only genuine conflicts. The
+  // away-vm-check endpoint already scopes this to the teams the user manages.
+  const awayMismatches = (() => {
+    const entries = Object.entries(awayVmChecks).filter(([, c]) => c.status === 'mismatch')
+    if (!entries.length) return []
+    const oppById = new Map(opponents.map((o) => [String(o.id), o]))
+    const teamNameById = new Map(volleyballTeams.map((tm) => [String(tm.id), tm.name]))
+    const bookingById = new Map(bookings.map((b) => [String(b.id), b]))
+    return entries.map(([bid, c]) => {
+      const b = bookingById.get(bid)
+      const oid = b ? String(typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent) : ''
+      const opp = oid ? oppById.get(oid) : null
+      return {
+        bid,
+        opp: opp ? (opp.team_name || opp.club_name) : `#${bid}`,
+        team: opp ? (teamNameById.get(String(opp.kscw_team)) || '') : '',
+        agreed: c.agreed,
+        vm: c.vm,
+      }
+    })
+  })()
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -577,6 +600,25 @@ export default function AdminDashboardPage() {
           <p className="mt-1 text-2xl font-bold text-blue-600 dark:text-blue-400 tabular-nums">{summary.notProposed}</p>
         </div>
       </div>
+
+      {/* Away games whose agreed date diverges from VolleyManager — red alert.
+          "VM not updated yet" (unset) is intentionally NOT flagged. */}
+      {awayMismatches.length > 0 && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/30">
+          <p className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
+            <span aria-hidden>⚠</span>
+            {t('awayVmMismatchAlert', { count: awayMismatches.length })}
+          </p>
+          <ul className="mt-2 space-y-1">
+            {awayMismatches.map((m) => (
+              <li key={m.bid} className="flex flex-wrap items-baseline gap-x-2 text-xs text-red-700 dark:text-red-300">
+                <span className="font-medium">{[m.team, m.opp].filter(Boolean).join(' · ')}</span>
+                <span className="text-red-600/80 dark:text-red-400/80">{t('awayVmMismatchRow', { agreed: m.agreed || '—', vm: m.vm || '—' })}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Season overview calendar — all proposed/confirmed/blocked slots */}
       <SchedulingCalendar slots={slots} bookings={bookings} teams={volleyballTeams} season={season} games={derbyGames} showAbsences />

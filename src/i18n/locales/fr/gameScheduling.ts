@@ -374,6 +374,8 @@ export default {
   awayVmMatchHint: 'VolleyManager correspond à la date convenue — l’adversaire l’a saisie.',
   awayVmUnsetHint: 'VolleyManager affiche encore le paramètre par défaut de début de saison — l’adversaire n’a pas encore saisi la date convenue.',
   awayVmMismatchHint: 'VolleyManager ({{vm}}) diffère du créneau convenu ({{agreed}}).',
+  awayVmMismatchAlert: 'Matchs à l’extérieur différant de VolleyManager : {{count}}',
+  awayVmMismatchRow: 'Convenu {{agreed}} · VM {{vm}}',
   awayVmNoneHint: 'Pas encore de match VolleyManager à comparer.',
   svrzSyncStarted: 'Synchronisation SVRZ démarrée',
   svrzSynced: 'SVRZ synchronisé {{date}} · {{total}} matchs ({{home}} domicile / {{away}} extérieur)',

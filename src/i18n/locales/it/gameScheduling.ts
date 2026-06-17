@@ -375,6 +375,8 @@ export default {
   awayVmMatchHint: 'VolleyManager corrisponde alla data concordata — l’avversario l’ha inserita.',
   awayVmUnsetHint: 'VolleyManager mostra ancora il segnaposto di inizio stagione — l’avversario non ha ancora inserito la data concordata.',
   awayVmMismatchHint: 'VolleyManager ({{vm}}) differisce dalla fascia concordata ({{agreed}}).',
+  awayVmMismatchAlert: 'Partite in trasferta diverse da VolleyManager: {{count}}',
+  awayVmMismatchRow: 'Concordato {{agreed}} · VM {{vm}}',
   awayVmNoneHint: 'Nessuna partita VolleyManager da confrontare.',
   svrzSyncStarted: 'Sincronizzazione SVRZ avviata',
   svrzSynced: 'SVRZ sincronizzato {{date}} · {{total}} partite ({{home}} casa / {{away}} trasferta)',
