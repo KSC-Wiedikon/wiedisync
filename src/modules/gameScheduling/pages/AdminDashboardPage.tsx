@@ -322,18 +322,6 @@ export default function AdminDashboardPage() {
     }
   }
 
-  // Copy a team's public self-registration link (opponents register themselves +
-  // get their tokenized scheduling link). ?team= pre-selects the team there.
-  const copyTeamLink = async (teamId: string) => {
-    const url = `${window.location.origin}/terminplanung?team=${teamId}`
-    try {
-      await navigator.clipboard.writeText(url)
-      toast.success(t('linkCopied'))
-    } catch {
-      toast.error(url)
-    }
-  }
-
   const handleFinalizeNotify = async (teamId: string, pendingCount: number) => {
     if (!season) return
     if (pendingCount > 0 && !(await confirm({ message: t('finalizeNotifyConfirmPending', { count: pendingCount }) }))) return
@@ -600,16 +588,30 @@ export default function AdminDashboardPage() {
         {visibleTeams.map(team => {
           const stats = teamStats(team.id)
           const isExpanded = searchQuery ? true : expandedTeam === team.id
+          // Matchups still missing a confirmed game — the canonical "is this team
+          // done?" metric (same one driving the finalize-ready text). A team can
+          // have all its existing bookings confirmed yet still be missing legs that
+          // were never proposed, so this is the truthful "remaining" count.
+          const pending = teamPending(team.id)
+          const finished = stats.gamesTotal > 0 && pending === 0
 
           return (
             <div
               key={team.id}
-              className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+              className={`overflow-hidden rounded-lg border ${
+                finished
+                  ? 'border-green-300 bg-green-50 dark:border-green-900 dark:bg-green-900/20'
+                  : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+              }`}
             >
               {/* Team header */}
               <button
                 onClick={() => setExpandedTeam(isExpanded ? null : team.id)}
-                className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700"
+                className={`flex w-full items-center justify-between px-4 py-3 text-left ${
+                  finished
+                    ? 'hover:bg-green-100 dark:hover:bg-green-900/30'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <span
@@ -640,19 +642,14 @@ export default function AdminDashboardPage() {
                     </span>
                   )}
                   <div className="flex items-center gap-1">
-                    {stats.notProposed > 0 && (
-                      <Badge variant="info" size="sm" title={t('statusNotProposed')}>
-                        {stats.notProposed}
+                    {pending > 0 && (
+                      <Badge variant="info" size="sm" title={t('remainingGamesHint')}>
+                        {pending}
                       </Badge>
                     )}
                     {stats.toConfirm > 0 && (
                       <Badge variant="warning" size="sm" title={t('statusToConfirm')}>
                         {stats.toConfirm}
-                      </Badge>
-                    )}
-                    {stats.confirmed > 0 && (
-                      <Badge variant="success" size="sm" title={t('statusConfirmed')}>
-                        {stats.confirmed}
                       </Badge>
                     )}
                   </div>
@@ -685,14 +682,6 @@ export default function AdminDashboardPage() {
                         className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       >
                         {notifyingTeam === team.id ? t('finalizeNotifySending') : t('finalizeNotify')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => copyTeamLink(team.id)}
-                        title={t('copyTeamLinkHint')}
-                        className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                      >
-                        {t('copyTeamLink')}
                       </button>
                       <button
                         type="button"
@@ -813,6 +802,19 @@ function TeamBookingsContent({
   const { t } = useTranslation('gameScheduling')
   const { data: halls } = useHalls()
   const hallsById = new Map((halls || []).map((h) => [String(h.id), h.name]))
+
+  // Copy this opponent's tokenized scheduling link — mirrors the invites
+  // section's "Copy link" (the per-opponent /terminplanung/<token> URL the
+  // opponent uses to view + propose dates).
+  const copyOpponentLink = async (opp: GameSchedulingOpponent) => {
+    const url = `${window.location.origin}/terminplanung/${opp.token}`
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success(t('linkCopied'))
+    } catch {
+      toast.error(url)
+    }
+  }
 
   // Per-opponent inline email thread — collapsed by default so a long mail
   // history doesn't bloat the card. Full read/reply still opens the bottom panel.
@@ -951,6 +953,15 @@ function TeamBookingsContent({
                   <Badge variant={SOURCE_VARIANT[source]} size="sm">
                     {t(sourceKey(source))}
                   </Badge>
+                  {opp.token && (
+                    <button
+                      type="button"
+                      onClick={() => copyOpponentLink(opp)}
+                      className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                    >
+                      {t('copyLink')}
+                    </button>
+                  )}
                   {oppGames.length > 0 && (
                     <button
                       type="button"
