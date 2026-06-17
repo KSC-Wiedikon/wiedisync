@@ -16,7 +16,7 @@
 
 import { FRONTEND_URL, escHtml } from './email-template.js'
 
-const LOGO_URL = `${FRONTEND_URL}/kscw_email_logo.png`
+const LOGO_URL = `${FRONTEND_URL}/kscw_email_crest.png`
 const SIG_EMAIL = 'volleyball@spielplanung.kscw.ch'
 const SIG_WA_HREF = 'https://wa.me/41797891817'
 const SIG_WA_DISPLAY = '+41&nbsp;79&nbsp;789&nbsp;18&nbsp;17'
@@ -29,7 +29,7 @@ function lightCard({ role, waLabel }) {
     `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; font-size: 14px; line-height: 1.5;">` +
     `<tr>` +
     `<td style="padding-right: 16px; border-right: 3px solid #FCDC29; vertical-align: middle;">` +
-    `<img src="${LOGO_URL}" width="76" height="80" alt="KSC Wiedikon" style="display: block;">` +
+    `<img src="${LOGO_URL}" width="73" height="80" alt="KSC Wiedikon" style="display: block;">` +
     `</td>` +
     `<td style="padding-left: 16px; vertical-align: middle;">` +
     `<div style="font-size: 16px; font-weight: bold; color: #3D4A99; letter-spacing: 0.3px;">KSC Wiedikon</div>` +
@@ -44,13 +44,11 @@ function lightCard({ role, waLabel }) {
 }
 
 /**
- * Full light signature for manual mailbox emails — bilingual (DE + EN), since
- * the operator replies to clubs whose language we don't reliably know here.
+ * Light signature for manual mailbox emails — German only (Swiss clubs;
+ * formal correspondence is High German, matching the email copy convention).
  */
 export const SCHEDULING_SIGNATURE_LIGHT_HTML =
-  lightCard({ role: 'Spielplanung Volleyball', waLabel: 'WhatsApp (Notfall, Luca)' }) +
-  '<br><br>' +
-  lightCard({ role: 'Volleyball Scheduling', waLabel: 'WhatsApp (urgency, Luca)' })
+  lightCard({ role: 'Spielplanung Volleyball', waLabel: 'WhatsApp (Notfall, Luca)' })
 
 /** Plain-text signature appended to the text part of manual emails. */
 export const SCHEDULING_SIGNATURE_TEXT =
@@ -58,7 +56,7 @@ export const SCHEDULING_SIGNATURE_TEXT =
   'KSC Wiedikon · Spielplanung Volleyball\n' +
   'Luca · Martin · Hella\n' +
   `${SIG_EMAIL}\n` +
-  'WhatsApp (Notfall / urgency, Luca): +41 79 789 18 17'
+  'WhatsApp (Notfall, Luca): +41 79 789 18 17'
 
 // Localised role + WhatsApp label for the dark automated footer (gsw → de).
 const DARK_I18N = {
