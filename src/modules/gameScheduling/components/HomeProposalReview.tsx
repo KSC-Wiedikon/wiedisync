@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { gameStartForDate } from '../utils/slotTime'
 import BookingStatusBadge from './BookingStatusBadge'
+import ProposalContextHints from './ProposalContextHints'
 import VmPushStatus from './VmPushStatus'
 import { formatDateCompactZurich, formatWeekdayZurich, formatDateTimeCompact } from '../../../utils/dateHelpers'
 import type { GameSchedulingBooking, GameSchedulingSlot, ProposalHealthEntry } from '../../../types'
@@ -221,9 +222,7 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
               {valid && others > 0 && (
                 <p className="text-xs text-orange-600 dark:text-orange-400">⚠ {t('slotAlsoProposed', { count: others })}</p>
               )}
-              {p.num === 3 && (hp?.absences ?? 0) > 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">{t('absentCount', { count: hp?.absences ?? 0 })}</p>
-              )}
+              {valid && <ProposalContextHints hp={hp} showAbsences={p.num === 3} />}
             </div>
             <button
               onClick={() => handleConfirm(p.num)}

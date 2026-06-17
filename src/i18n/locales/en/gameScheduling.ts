@@ -17,6 +17,9 @@ export default {
   openCount: '{{count}} open',
   absentCount: '{{count}} absent',
   absentCountHint: 'Players unavailable that day',
+  absentPlayers: 'Absent: {{names}}',
+  gapAfterPrev: '{{days}} d since last game ({{date}})',
+  gapBeforeNext: '{{days}} d until next game ({{date}})',
   // Day-detail modal
   colTime: 'Time',
   colMatch: 'Match',

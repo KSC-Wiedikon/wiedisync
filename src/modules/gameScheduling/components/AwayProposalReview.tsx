@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BookingStatusBadge from './BookingStatusBadge'
+import ProposalContextHints from './ProposalContextHints'
 import { formatWeekdayZurich, formatDateTimeCompact } from '../../../utils/dateHelpers'
-import type { GameSchedulingBooking } from '../../../types'
+import type { GameSchedulingBooking, ProposalHealthEntry } from '../../../types'
 
 export interface AwayVmCheck {
   status: 'match' | 'unset' | 'mismatch' | 'no_vm'
@@ -15,6 +16,8 @@ interface Props {
   onConfirm: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   /** VolleyManager cross-check for the confirmed away game (from away-vm-check). */
   vmCheck?: AwayVmCheck | null
+  /** Per-proposal decision context (absences + adjacent-game spacing). */
+  health?: ProposalHealthEntry
   /** Delete a confirmed away game so it can be rescheduled (confirm lives in the
    *  dashboard handler). Only rendered for confirmed bookings. */
   onDelete?: () => Promise<void>
@@ -40,10 +43,11 @@ function fmtProposal(iso: string | null | undefined): string {
   return hh ? `${date} ${hh}:${mm}` : date
 }
 
-export default function AwayProposalReview({ booking, onConfirm, vmCheck, onDelete }: Props) {
+export default function AwayProposalReview({ booking, onConfirm, vmCheck, health, onDelete }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const healthByNum = new Map((health?.proposals || []).map((p) => [p.num, p]))
 
   const handleDelete = async () => {
     if (!onDelete) return
@@ -150,6 +154,7 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck, onDele
             </span>
             <p className="text-sm text-gray-900 dark:text-gray-100">{fmtProposal(p.datetime)}</p>
             {p.place && <p className="text-xs text-gray-500 dark:text-gray-400 break-words">{p.place}</p>}
+            <ProposalContextHints hp={healthByNum.get(p.num)} />
           </div>
           {booking.status === 'pending' && (
             <button

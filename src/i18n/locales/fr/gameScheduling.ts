@@ -17,6 +17,9 @@ export default {
   openCount: '{{count}} libres',
   absentCount: '{{count}} absents',
   absentCountHint: 'Joueurs indisponibles ce jour',
+  absentPlayers: 'Absents : {{names}}',
+  gapAfterPrev: '{{days}} j depuis le dernier match ({{date}})',
+  gapBeforeNext: '{{days}} j avant le prochain match ({{date}})',
   // Fenêtre de détail du jour
   colTime: 'Heure',
   colMatch: 'Match',

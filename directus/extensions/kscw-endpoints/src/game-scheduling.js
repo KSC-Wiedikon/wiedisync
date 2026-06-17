@@ -767,7 +767,52 @@ export function registerGameScheduling(router, { database, logger, services, get
   // The rarer Saturday-cap and cross-team races stay enforced HARD at confirm
   // time, so a stale "valid" here can never become a bad booking. `reason` is a
   // short code the admin UI maps to a localised label.
-  async function homeProposalHealth(seasonId) {
+  // Sorted, distinct YYYY-MM-DD list of a team's already-scheduled games (real
+  // games + booked home slots + confirmed away proposals + confirmed derby
+  // legs) — so the review can say how a proposed date spaces against the
+  // nearest game before/after it.
+  async function teamGameDateList(kscwTeamId) {
+    const dates = new Set()
+    const add = (v) => { const k = v ? String(v).slice(0, 10) : ''; if (/^\d{4}-\d{2}-\d{2}$/.test(k)) dates.add(k) }
+    ;(await database('games').where('kscw_team', kscwTeamId).whereNotNull('date')
+      .select(database.raw('games.date::text as d'))).forEach((g) => add(g.d))
+    ;(await database('game_scheduling_slots').where('kscw_team', kscwTeamId).where('status', 'booked')
+      .select(database.raw('date::text as d'))).forEach((s) => add(s.d))
+    ;(await database('game_scheduling_bookings as b')
+      .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
+      .where('o.kscw_team', kscwTeamId).where('b.type', 'away_proposal').where('b.status', 'confirmed')
+      .select('b.confirmed_proposal as n', database.raw('b.proposed_datetime_1::text as d1'),
+        database.raw('b.proposed_datetime_2::text as d2'), database.raw('b.proposed_datetime_3::text as d3')))
+      .forEach((b) => add(b[`d${b.n}`]))
+    ;(await database('game_scheduling_derbies').where('confirmed', true)
+      .where(function () { this.where('team_a', kscwTeamId).orWhere('team_b', kscwTeamId) })
+      .select(database.raw('leg1_date::text as leg1_date'), database.raw('leg2_date::text as leg2_date')))
+      .forEach((r) => { add(r.leg1_date); add(r.leg2_date) })
+    return [...dates].sort()
+  }
+
+  // Nearest scheduled game strictly before / after `day` (both 'YYYY-MM-DD'),
+  // with the day-gap. `dateList` must be sorted ascending.
+  const adjacentGames = (dateList, day) => {
+    let prev = null
+    let next = null
+    for (const d of dateList) {
+      if (d < day) prev = d
+      else if (d > day && !next) next = d
+    }
+    const diff = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000)
+    return {
+      prev_game: prev ? { date: prev, days: diff(prev, day) } : null,
+      next_game: next ? { date: next, days: diff(day, next) } : null,
+    }
+  }
+
+  // Live validity + decision context (absent players, adjacent-game spacing) of
+  // every pending HOME proposal. With { includeAway: true } it also appends
+  // pending AWAY proposals (date spacing + absences only — away validity is the
+  // opponent's hall, not ours). Away entries are OFF by default so the
+  // home-only request-new-slots caller keeps matching the right booking.
+  async function homeProposalHealth(seasonId, opts = {}) {
     const bookings = await database('game_scheduling_bookings as b')
       .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
       .where('b.season', seasonId)
@@ -778,7 +823,20 @@ export function registerGameScheduling(router, { database, logger, services, get
         'b.proposed_slot_1', 'b.proposed_slot_2', 'b.proposed_slot_3',
         'o.kscw_team', 'o.club_name', 'o.team_name',
       )
-    if (!bookings.length) return []
+    const awayBookings = opts.includeAway
+      ? await database('game_scheduling_bookings as b')
+        .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
+        .where('b.season', seasonId)
+        .where('b.type', 'away_proposal')
+        .where('b.status', 'pending')
+        .select(
+          'b.id as booking_id', 'b.opponent as opponent_id', 'b.svrz_game_id',
+          database.raw('b.proposed_datetime_1::text as d1'), database.raw('b.proposed_datetime_2::text as d2'),
+          database.raw('b.proposed_datetime_3::text as d3'),
+          'o.kscw_team', 'o.club_name', 'o.team_name',
+        )
+      : []
+    if (!bookings.length && !awayBookings.length) return []
 
     const seasonRow = await database('game_scheduling_seasons').where('id', seasonId).first()
     const gaps = await seasonGaps(seasonId)
@@ -889,8 +947,27 @@ export function registerGameScheduling(router, { database, logger, services, get
         for (const a of absences) if (a.s <= day && day <= a.e) ms.add(a.m)
         return ms.size
       }
+      // Resolve absent-member display names so the review can say WHO is out on a
+      // date (admin-only surface — never returned to opponent-facing routes).
+      const absMemberIds = [...new Set(absences.map((a) => a.m))]
+      const absNameById = new Map()
+      if (absMemberIds.length) {
+        ;(await database('members').whereIn('id', absMemberIds).select('id', 'first_name', 'last_name'))
+          .forEach((m) => absNameById.set(m.id, [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || `#${m.id}`))
+      }
+      const absentNamesOn = (day) => {
+        const seen = new Set()
+        const names = []
+        for (const a of absences) {
+          if (a.s <= day && day <= a.e && !seen.has(a.m)) { seen.add(a.m); names.push(absNameById.get(a.m) || `#${a.m}`) }
+        }
+        return names.sort((x, y) => x.localeCompare(y))
+      }
 
-      const ctx = { committedHome, committedProposal3, derbyAnchors, eventDates, blockDates, satCap, satDates, sharedCommitted, sharedNames, absentCountOn }
+      // This team's already-scheduled game dates → adjacent-game spacing hints.
+      const gameDates = await teamGameDateList(teamId)
+
+      const ctx = { committedHome, committedProposal3, derbyAnchors, eventDates, blockDates, satCap, satDates, sharedCommitted, sharedNames, absentCountOn, absentNamesOn, gameDates }
       teamCache.set(teamId, ctx)
       return ctx
     }
@@ -932,9 +1009,18 @@ export function registerGameScheduling(router, { database, logger, services, get
         const v = validate(ctx, sid, n)
         const entry = { num: n, slot_id: sid, valid: v.valid, reason: v.reason }
         if (v.reason === 'cross_team' && v.teams?.length) entry.teams = v.teams
-        if (n === 3) {
-          const slot = slotById.get(sid)
-          if (slot) entry.absences = ctx.absentCountOn(ymdOf(slot.date))
+        const slot = slotById.get(sid)
+        if (slot) {
+          const day = ymdOf(slot.date)
+          const adj = adjacentGames(ctx.gameDates, day)
+          entry.prev_game = adj.prev_game
+          entry.next_game = adj.next_game
+          // Picks 1 & 2 are strict (0 absences by construction); only the lenient
+          // 3rd pick can carry absentees, so surface WHO there.
+          if (n === 3) {
+            entry.absences = ctx.absentCountOn(day)
+            entry.absent_names = ctx.absentNamesOn(day)
+          }
         }
         proposals.push(entry)
       }
@@ -948,6 +1034,41 @@ export function registerGameScheduling(router, { database, logger, services, get
         proposals,
         alive_count: aliveCount,
         all_dead: proposals.length > 0 && aliveCount === 0,
+      })
+    }
+
+    // Away proposals: no home-slot validity (the venue is the opponent's hall),
+    // but the spielplaner still wants the spacing + who'd be absent for each
+    // date the opponent picked. Empty unless opts.includeAway.
+    for (const b of awayBookings) {
+      const ctx = await getTeamCtx(b.kscw_team)
+      const proposals = []
+      for (const n of [1, 2, 3]) {
+        const dt = b[`d${n}`]
+        if (!dt) continue
+        const day = ymdOf(dt)
+        if (!day) continue
+        const adj = adjacentGames(ctx.gameDates, day)
+        proposals.push({
+          num: n,
+          slot_id: 0,
+          valid: true,
+          reason: null,
+          prev_game: adj.prev_game,
+          next_game: adj.next_game,
+          absences: ctx.absentCountOn(day),
+          absent_names: ctx.absentNamesOn(day),
+        })
+      }
+      out.push({
+        booking_id: b.booking_id,
+        opponent_id: b.opponent_id,
+        svrz_game_id: b.svrz_game_id || null,
+        opponent_label: b.team_name || b.club_name || '',
+        kscw_team: b.kscw_team,
+        proposals,
+        alive_count: proposals.length,
+        all_dead: false,
       })
     }
     return out
@@ -5184,7 +5305,7 @@ export function registerGameScheduling(router, { database, logger, services, get
     try {
       const seasonId = req.query.season_id
       if (!seasonId) return res.status(400).json({ error: 'season_id required' })
-      const health = await homeProposalHealth(seasonId)
+      const health = await homeProposalHealth(seasonId, { includeAway: true })
       res.json({ health })
     } catch (err) {
       log.error({ msg: `proposal-health: ${err.message}`, endpoint: 'admin/terminplanung/proposal-health', userId: req.accountability?.user || null, method: req.method, stack: err.stack })

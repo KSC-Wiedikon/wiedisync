@@ -1150,6 +1150,7 @@ function TeamBookingsContent({
                           booking={leg.booking}
                           onConfirm={onConfirmAway}
                           vmCheck={awayVmChecks[String(leg.booking.id)] ?? null}
+                          health={healthByBooking.get(String(leg.booking.id))}
                           onDelete={() => onDeleteBooking(leg.booking!)}
                         />
                       ) : (

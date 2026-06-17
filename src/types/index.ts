@@ -695,8 +695,14 @@ export interface ProposalHealthProposal {
   reason: string | null
   /** For reason='cross_team': the KSCW team(s) already playing that day. */
   teams?: string[]
-  /** For the lenient 3rd pick (num===3): players absent on that date (0 = none). */
+  /** For the lenient 3rd pick (num===3) / away proposals: players absent on that date (0 = none). */
   absences?: number
+  /** Names of the players absent on that date (admin-only). */
+  absent_names?: string[]
+  /** Nearest already-scheduled game before this date (gap in days). */
+  prev_game?: { date: string; days: number } | null
+  /** Nearest already-scheduled game after this date (gap in days). */
+  next_game?: { date: string; days: number } | null
 }
 
 export interface ProposalHealthEntry {

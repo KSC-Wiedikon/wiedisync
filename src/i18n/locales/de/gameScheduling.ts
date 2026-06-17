@@ -17,6 +17,9 @@ export default {
   openCount: '{{count}} frei',
   absentCount: '{{count}} abwesend',
   absentCountHint: 'Spieler an diesem Tag nicht verfügbar',
+  absentPlayers: 'Abwesend: {{names}}',
+  gapAfterPrev: '{{days}} T seit letztem Spiel ({{date}})',
+  gapBeforeNext: '{{days}} T bis nächstem Spiel ({{date}})',
   // Tagesdetail-Dialog
   colTime: 'Zeit',
   colMatch: 'Spiel',
