@@ -72,6 +72,7 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
   const { t } = useTranslation('gameScheduling')
   const { configured, messages, unread, lastSync, syncing, sending } = mailbox
   const [showAll, setShowAll] = useState(false)
+  const [search, setSearch] = useState('')
   const [detail, setDetail] = useState<MailboxMessageFull | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [compose, setCompose] = useState<ComposeState | null>(null)
@@ -187,7 +188,20 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
     </Table>
   )
 
-  const visible = showAll ? messages : messages.slice(0, COLLAPSED_COUNT)
+  // Client-side mailbox search over the loaded messages (≤500, all loaded).
+  // Matches sender/recipient, subject, the preview snippet, and the opponent
+  // the row is matched to (so "Volleyfriends" finds its thread). Full body is
+  // not in the list payload — only the 160-char snippet is searchable here.
+  const q = search.trim().toLowerCase()
+  const filtered = useMemo(() => {
+    if (!q) return messages
+    return messages.filter((m) => {
+      const opp = bestOpponentForMessage(m, opponentContacts)
+      return [m.subject, m.from_name, m.from_address, m.to_addresses, m.snippet, opp?.team_name, opp?.club_name]
+        .filter(Boolean).join(' ').toLowerCase().includes(q)
+    })
+  }, [messages, q, opponentContacts])
+  const visible = (q || showAll) ? filtered : filtered.slice(0, COLLAPSED_COUNT)
 
   return (
     <>
@@ -220,15 +234,35 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxEmpty')}</p>
           ) : (
             <>
-              {renderRows(visible, true)}
-              {messages.length > COLLAPSED_COUNT && (
-                <button
-                  type="button"
-                  onClick={() => setShowAll((v) => !v)}
-                  className="inline-flex items-center min-h-11 sm:min-h-0 mt-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-                >
-                  {showAll ? t('mailboxShowLess') : t('mailboxShowAll', { count: messages.length })}
-                </button>
+              <div className="mb-3">
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t('mailboxSearchPlaceholder')}
+                  className="min-h-11 sm:min-h-0 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                />
+                {q && (
+                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                    {t('mailboxSearchCount', { shown: filtered.length, total: messages.length })}
+                  </p>
+                )}
+              </div>
+              {q && filtered.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxSearchEmpty')}</p>
+              ) : (
+                <>
+                  {renderRows(visible, true)}
+                  {!q && messages.length > COLLAPSED_COUNT && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAll((v) => !v)}
+                      className="inline-flex items-center min-h-11 sm:min-h-0 mt-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                    >
+                      {showAll ? t('mailboxShowLess') : t('mailboxShowAll', { count: messages.length })}
+                    </button>
+                  )}
+                </>
               )}
             </>
           )}
