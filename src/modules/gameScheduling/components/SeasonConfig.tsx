@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import WeekdayHint from './WeekdayHint'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { kscwApi } from '../../../lib/api'
 import type { GameSchedulingSeason } from '../../../types'
@@ -375,6 +376,7 @@ export default function SeasonConfig({
                 onChange={(e) => handleWindowSave('season_opens', e.target.value)}
                 className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
               />
+              <WeekdayHint date={season.season_opens ? String(season.season_opens).slice(0, 10) : ''} />
             </label>
             <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
               {t('seasonCloses')}
@@ -385,6 +387,7 @@ export default function SeasonConfig({
                 onChange={(e) => handleWindowSave('season_closes', e.target.value)}
                 className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
               />
+              <WeekdayHint date={season.season_closes ? String(season.season_closes).slice(0, 10) : ''} />
             </label>
             {savingWindow && <span className="pb-1 text-xs text-gray-500">…</span>}
           </div>

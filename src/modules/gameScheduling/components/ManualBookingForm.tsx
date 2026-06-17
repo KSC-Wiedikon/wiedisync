@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import WeekdayHint from './WeekdayHint'
 
 interface HallOption {
   id: string | number
@@ -206,6 +207,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
             <label className="col-span-2 sm:col-span-1">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualDate')}</span>
               <input type="date" value={homeDate} min={minDate} max={maxDate} onChange={(e) => setHomeDate(e.target.value)} className={inputCls} />
+              <WeekdayHint date={homeDate} className="mt-0.5 block" />
             </label>
             <label>
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualStart')}</span>
@@ -261,6 +263,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
             <label className="col-span-2 sm:col-span-1">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualDate')}</span>
               <input type="date" value={awayDate} min={minDate} max={maxDate} onChange={(e) => setAwayDate(e.target.value)} className={inputCls} />
+              <WeekdayHint date={awayDate} className="mt-0.5 block" />
             </label>
             <label>
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualStart')}</span>
