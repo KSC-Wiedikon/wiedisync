@@ -58,7 +58,7 @@ export default function Modal({ open, onClose, title, children, size = 'md', hid
             )}
           >
             <div className="min-w-0 flex-1">
-              <DialogTitle>{title}</DialogTitle>
+              <DialogTitle className="break-words">{title}</DialogTitle>
               <DialogDescription className="sr-only">{title}</DialogDescription>
             </div>
             {headerAction && <div className="shrink-0">{headerAction}</div>}
@@ -76,7 +76,7 @@ export default function Modal({ open, onClose, title, children, size = 'md', hid
           className={cn(headerAction && 'flex flex-row items-center gap-2 space-y-0 text-left')}
         >
           <div className="min-w-0 flex-1">
-            <DrawerTitle>{title}</DrawerTitle>
+            <DrawerTitle className="break-words">{title}</DrawerTitle>
             <DrawerDescription className="sr-only">{title}</DrawerDescription>
           </div>
           {headerAction && <div className="shrink-0">{headerAction}</div>}
