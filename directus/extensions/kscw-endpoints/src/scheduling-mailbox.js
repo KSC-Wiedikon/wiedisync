@@ -27,6 +27,7 @@
  */
 
 import crypto from 'crypto'
+import Busboy from 'busboy'
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import nodemailer from 'nodemailer'
@@ -48,7 +49,92 @@ const FROM_NAME = 'KSCW VB Spielplanung'
 const MAX_BODY_CHARS = 500_000
 const LIST_LIMIT = 500
 
+// Outgoing-attachment limits. SES accepts large messages but many receiving
+// servers cap at ~25 MB, so 10 MB total is a safe, generous ceiling for the
+// PDFs/schedules opponents actually exchange. Enforced server-side regardless
+// of what the frontend allows.
+const ATTACH_MAX_FILES = 10
+const ATTACH_MAX_PER_FILE = 10 * 1024 * 1024
+const ATTACH_MAX_TOTAL = 10 * 1024 * 1024
+
 const isConfigured = () => Boolean(IMAP_PASSWORD)
+
+/**
+ * Parse a multipart/form-data reply (text fields + attachment files) with
+ * busboy. We parse it here rather than letting attachments ride in a JSON body
+ * because Directus caps the JSON body parser at MAX_PAYLOAD_SIZE (1 MB default).
+ * Resolves { fields, files:[{filename, contentType, content:Buffer}] }; rejects
+ * on any limit breach so the route can answer 413.
+ */
+function parseMultipartReply(req) {
+  return new Promise((resolve, reject) => {
+    let bb
+    try {
+      bb = Busboy({ headers: req.headers, limits: { files: ATTACH_MAX_FILES, fileSize: ATTACH_MAX_PER_FILE } })
+    } catch (err) { return reject(err) }
+    const fields = {}
+    const files = []
+    let total = 0
+    let done = false
+    const fail = (err) => { if (!done) { done = true; reject(err); req.unpipe(bb); req.resume() } }
+    bb.on('field', (name, val) => { fields[name] = val })
+    bb.on('file', (_name, stream, info) => {
+      const chunks = []
+      let truncated = false
+      stream.on('data', (d) => { total += d.length; chunks.push(d) })
+      stream.on('limit', () => { truncated = true })
+      stream.on('error', fail)
+      stream.on('close', () => {
+        if (done) return
+        if (truncated) return fail(new Error('Attachment too large'))
+        if (total > ATTACH_MAX_TOTAL) return fail(new Error('Attachments exceed total size limit'))
+        files.push({
+          filename: String(info?.filename || 'attachment').replace(/[\r\n"]/g, '').slice(0, 200),
+          contentType: info?.mimeType || 'application/octet-stream',
+          content: Buffer.concat(chunks),
+        })
+      })
+    })
+    bb.on('filesLimit', () => fail(new Error('Too many attachments')))
+    bb.on('error', fail)
+    bb.on('close', () => { if (!done) { done = true; resolve({ fields, files }) } })
+    req.pipe(bb)
+  })
+}
+
+/**
+ * Defence-in-depth scrub of admin-authored reply HTML (the TipTap editor already
+ * emits a constrained whitelist; this guards the raw endpoint). Drops scripts/
+ * styles/frames, inline event handlers, and javascript:/data: URLs.
+ */
+function sanitizeOutgoingHtml(html) {
+  if (!html) return ''
+  return String(html)
+    .replace(/<(script|style|iframe|object|embed|link|meta|base)\b[\s\S]*?<\/\1\s*>/gi, '')
+    .replace(/<(script|style|iframe|object|embed|link|meta|base)\b[^>]*\/?>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(href|src)\s*=\s*("|')\s*(?:javascript|data|vbscript):[^"']*\2/gi, '$1=$2#$2')
+}
+
+/** Best-effort HTML → plain text for the text/plain MIME part + search/storage. */
+function htmlToPlain(html) {
+  if (!html) return ''
+  return String(html)
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '- ')
+    .replace(/<blockquote[^>]*>/gi, '> ')
+    .replace(/<\/(p|div|h[1-6]|li|tr|blockquote)\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&(?:#0*39|#x0*27|apos);/gi, "'")
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
 
 function imapClient() {
   return new ImapFlow({
@@ -261,17 +347,47 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       if (!isConfigured()) return res.status(409).json({ error: 'Mailbox not configured' })
-      const to = cleanAddresses(req.body?.to)
-      const cc = cleanAddresses(req.body?.cc)
-      const subject = String(req.body?.subject || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 300)
-      const text = String(req.body?.text || '').slice(0, 50_000)
+
+      // The compose dialog now posts multipart/form-data (rich-text HTML body +
+      // file attachments). A plain JSON body is still accepted for callers that
+      // send a text-only reply.
+      let body = req.body || {}
+      let uploads = []
+      if (String(req.headers['content-type'] || '').includes('multipart/form-data')) {
+        try {
+          const parsed = await parseMultipartReply(req)
+          body = parsed.fields
+          uploads = parsed.files
+        } catch (err) {
+          return res.status(413).json({ error: err.message || 'Attachment upload failed' })
+        }
+      }
+
+      const to = cleanAddresses(body.to)
+      const cc = cleanAddresses(body.cc)
+      const subject = String(body.subject || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 300)
+
+      // Body: rich-text HTML (TipTap) is primary; fall back to a plain-text body
+      // (legacy/JSON callers) wrapped to HTML. Plain text is always derived for
+      // the text/plain MIME part + storage/search.
+      const rawHtml = String(body.html || '').slice(0, 200_000)
+      const legacyText = String(body.text || '').slice(0, 50_000)
+      let bodyContentHtml = ''
+      let plainContent = ''
+      if (rawHtml.trim()) {
+        bodyContentHtml = sanitizeOutgoingHtml(rawHtml)
+        plainContent = htmlToPlain(bodyContentHtml)
+      } else if (legacyText.trim()) {
+        bodyContentHtml = escHtml(legacyText).replace(/\n/g, '<br>')
+        plainContent = legacyText
+      }
       if (!to.length) return res.status(400).json({ error: 'No valid recipient' })
-      if (!subject || !text.trim()) return res.status(400).json({ error: 'subject and text required' })
+      if (!subject || !bodyContentHtml.trim()) return res.status(400).json({ error: 'subject and body required' })
 
       // Threading: chain References from the replied-to message.
       let inReplyTo, references
-      if (req.body?.reply_to_id) {
-        const parent = await database('scheduling_emails').where('id', Number(req.body.reply_to_id)).first()
+      if (body.reply_to_id) {
+        const parent = await database('scheduling_emails').where('id', Number(body.reply_to_id)).first()
         if (parent?.message_id && !parent.message_id.endsWith('@sync.local')) {
           inReplyTo = `<${parent.message_id}>`
           references = [parent.references_ids, `<${parent.message_id}>`].filter(Boolean).join(' ')
@@ -279,19 +395,22 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       }
 
       // Append the Spielplanung signature: plain-text version on the text part,
-      // and a light HTML part (typed body → HTML + branded signature card) so the
-      // crest/contacts render. Manual replies were text-only before this.
-      const textWithSig = `${text}\n\n${SCHEDULING_SIGNATURE_TEXT}`
+      // and a light HTML part (rich body → HTML + branded signature card) so the
+      // crest/contacts render.
+      const textWithSig = `${plainContent}\n\n${SCHEDULING_SIGNATURE_TEXT}`
       const htmlBody =
         `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:14px;line-height:1.5">` +
-        `${escHtml(text).replace(/\n/g, '<br>')}` +
+        `${bodyContentHtml}` +
         `</div><br>` +
         SCHEDULING_SIGNATURE_LIGHT_HTML
+
+      const attachments = uploads.map((u) => ({ filename: u.filename, content: u.content, contentType: u.contentType }))
 
       const messageId = `<${crypto.randomUUID()}@spielplanung.kscw.ch>`
       const composer = new MailComposer({
         from: { name: FROM_NAME, address: SCHEDULING_FROM },
         to, cc: cc.length ? cc : undefined, subject, text: textWithSig, html: htmlBody,
+        attachments: attachments.length ? attachments : undefined,
         messageId, inReplyTo, references,
       })
       const raw = await composer.compile().build()
@@ -338,6 +457,11 @@ export function registerSchedulingMailbox(router, { database, logger }) {
           cc_addresses: cc.join(',') || null,
           subject,
           body_text: textWithSig,
+          body_html: htmlBody,
+          has_attachments: attachments.length > 0,
+          attachments: attachments.length
+            ? JSON.stringify(attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, size: a.content.length })))
+            : null,
           date_sent: new Date().toISOString(),
           read_at: new Date().toISOString(),
         })

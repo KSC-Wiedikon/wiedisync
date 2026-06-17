@@ -42,8 +42,11 @@ export interface MailboxReplyPayload {
   to: string
   cc?: string
   subject: string
-  text: string
+  /** Rich-text HTML body from the TipTap editor. */
+  html: string
   reply_to_id?: number
+  /** Files to attach; posted as multipart/form-data. */
+  attachments?: File[]
 }
 
 /** Lower-cased bare addresses from a comma/semicolon-joined contact_email. */
@@ -262,10 +265,35 @@ export function useMailbox(enabled: boolean = true): UseMailboxReturn {
     return msg
   }, [])
 
+  // Posts multipart/form-data (HTML body + attachment files) via a raw fetch —
+  // kscwApi only speaks JSON, and attachments would exceed Directus's 1 MB JSON
+  // body limit. Carries the Bearer token like downloadMailboxAttachment.
   const sendReply = useCallback(async (payload: MailboxReplyPayload) => {
     setSending(true)
     try {
-      await kscwApi('/admin/terminplanung/mailbox/reply', { method: 'POST', body: payload })
+      const token = getAccessToken()
+      const fd = new FormData()
+      fd.append('to', payload.to)
+      if (payload.cc) fd.append('cc', payload.cc)
+      fd.append('subject', payload.subject)
+      fd.append('html', payload.html)
+      if (payload.reply_to_id != null) fd.append('reply_to_id', String(payload.reply_to_id))
+      for (const f of payload.attachments || []) fd.append('attachments', f, f.name)
+      const res = await fetch(`${API_URL}/kscw/admin/terminplanung/mailbox/reply`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      })
+      if (!res.ok) {
+        let message = `Send failed (${res.status})`
+        try {
+          const j = (await res.json()) as { error?: string }
+          if (j?.error) message = j.error
+        } catch { /* non-JSON error body */ }
+        const err = new Error(message) as Error & { body?: { error?: string } }
+        err.body = { error: message }
+        throw err
+      }
       await refetch()
     } finally {
       setSending(false)

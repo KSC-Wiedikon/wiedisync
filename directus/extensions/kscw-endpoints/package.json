@@ -9,6 +9,7 @@
     "host": "^11.0.0"
   },
   "dependencies": {
+    "busboy": "^1.6.0",
     "imapflow": "^1.4.0",
     "mailparser": "^3.9.9",
     "nodemailer": "^8.0.10"

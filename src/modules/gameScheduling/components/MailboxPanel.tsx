@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Paperclip, X } from 'lucide-react'
 import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/table'
+import RichTextEditor from '../../../components/RichTextEditor'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import {
   bestOpponentForMessage,
@@ -20,6 +22,16 @@ import {
 import type { GameSchedulingOpponent } from '../../../types'
 
 const COLLAPSED_COUNT = 10
+
+// Outgoing-attachment caps (mirrored server-side in scheduling-mailbox.js).
+const ATTACH_MAX_FILES = 10
+const ATTACH_MAX_TOTAL = 10 * 1024 * 1024 // 10 MB total
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
 
 /**
  * Wrap a received email's HTML in a minimal document that pins a light colour
@@ -44,7 +56,9 @@ function emailSrcDoc(html: string): string {
 interface ComposeState {
   to: string
   subject: string
-  text: string
+  /** Rich-text HTML from the TipTap editor (empty string when blank). */
+  html: string
+  attachments: File[]
   replyToId?: number
 }
 
@@ -131,8 +145,9 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
       await mailbox.sendReply({
         to: compose.to,
         subject: compose.subject,
-        text: compose.text,
+        html: compose.html,
         reply_to_id: compose.replyToId,
+        attachments: compose.attachments,
       })
       toast.success(t('mailboxSent'))
       setCompose(null)
@@ -142,10 +157,34 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
     }
   }
 
+  // Merge newly picked files into the compose state, deduping by name+size and
+  // enforcing the count + total-size caps (also enforced server-side).
+  const addAttachments = (files: FileList | null) => {
+    if (!compose || !files || files.length === 0) return
+    const merged = [...compose.attachments]
+    for (const f of Array.from(files)) {
+      if (!merged.some((m) => m.name === f.name && m.size === f.size)) merged.push(f)
+    }
+    if (merged.length > ATTACH_MAX_FILES) {
+      toast.error(t('mailboxAttachTooMany', { count: ATTACH_MAX_FILES }))
+      return
+    }
+    if (merged.reduce((s, f) => s + f.size, 0) > ATTACH_MAX_TOTAL) {
+      toast.error(t('mailboxAttachTooLarge', { size: formatBytes(ATTACH_MAX_TOTAL) }))
+      return
+    }
+    setCompose({ ...compose, attachments: merged })
+  }
+
+  const removeAttachment = (idx: number) => {
+    if (!compose) return
+    setCompose({ ...compose, attachments: compose.attachments.filter((_, i) => i !== idx) })
+  }
+
   const replyTo = (msg: MailboxMessageFull) => {
     const to = msg.direction === 'in' ? (msg.from_address || '') : (msg.to_addresses || '')
     const subject = /^re:/i.test(msg.subject || '') ? (msg.subject || '') : `Re: ${msg.subject || ''}`
-    setCompose({ to, subject, text: '', replyToId: msg.id })
+    setCompose({ to, subject, html: '', attachments: [], replyToId: msg.id })
   }
 
   const composeForOpponent = (opp: GameSchedulingOpponent) => {
@@ -157,7 +196,7 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
     const subject = [matchup, seasonName ? `Spielplanung ${seasonName}` : '']
       .filter(Boolean)
       .join(' / ')
-    setCompose({ to: opp.contact_email || '', subject, text: '' })
+    setCompose({ to: opp.contact_email || '', subject, html: '', attachments: [] })
   }
 
   const correspondent = (msg: MailboxMessage) =>
@@ -234,7 +273,7 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
                   {t('mailboxLastSync', { time: formatDateTimeCompact(lastSync) })}
                 </span>
               )}
-              <Button size="sm" variant="outline" onClick={() => setCompose({ to: '', subject: '', text: '' })}>
+              <Button size="sm" variant="outline" onClick={() => setCompose({ to: '', subject: '', html: '', attachments: [] })}>
                 {t('mailboxCompose')}
               </Button>
               <Button size="sm" variant="outline" onClick={() => void handleSync()} disabled={syncing}>
@@ -377,20 +416,53 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
               </div>
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxBody')}</label>
-                <textarea
-                  value={compose.text}
-                  onChange={(e) => setCompose({ ...compose, text: e.target.value })}
-                  rows={8}
-                  maxLength={50000}
-                  className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                />
+                <div className="mt-1">
+                  <RichTextEditor
+                    value={compose.html}
+                    onChange={(html) => setCompose({ ...compose, html })}
+                    placeholder={t('mailboxBody')}
+                    minHeight="10rem"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50 sm:min-h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                  <Paperclip className="h-4 w-4" />
+                  {t('mailboxAttach')}
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => { addAttachments(e.target.files); e.target.value = '' }}
+                  />
+                </label>
+                {compose.attachments.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {compose.attachments.map((f, i) => (
+                      <li key={`${f.name}-${f.size}-${i}`} className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900">
+                        <Paperclip className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
+                        <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-200">{f.name}</span>
+                        <span className="flex-shrink-0 text-gray-400 dark:text-gray-500">{formatBytes(f.size)}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(i)}
+                          aria-label={t('mailboxRemoveAttachment')}
+                          title={t('mailboxRemoveAttachment')}
+                          className="flex-shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div className="flex items-center justify-end gap-2">
                 <Button size="sm" variant="outline" onClick={() => setCompose(null)}>{t('cancel')}</Button>
                 <Button
                   size="sm"
                   onClick={() => void handleSend()}
-                  disabled={sending || !compose.to.trim() || !compose.subject.trim() || !compose.text.trim()}
+                  disabled={sending || !compose.to.trim() || !compose.subject.trim() || !compose.html.trim()}
                 >
                   {sending ? t('mailboxSending') : t('mailboxSend')}
                 </Button>
