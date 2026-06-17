@@ -242,6 +242,13 @@ export default function OpponentFlowPage() {
     setBookingError('')
     setBookingSuccess('')
     if (side === 'home') {
+      // Spell out WHAT is missing rather than leaving the button inertly disabled
+      // — a greyed-out button with no message reads as "I clicked and nothing
+      // happened" (which is exactly how this surfaced for an opponent).
+      if (!canConfirmHome) {
+        setBookingError(t('homeIncomplete'))
+        return
+      }
       // Each game needs its own slots — catch cross-card duplicates before
       // submitting (the backend rejects them too, but mid-loop is messier).
       const allHomePicks = shownHome.flatMap((c) => homePicksByCard[c.key] || [])
@@ -249,6 +256,11 @@ export default function OpponentFlowPage() {
         setBookingError(t('duplicateSlotAcrossGames'))
         return
       }
+    } else if (!canConfirmAway) {
+      // Most common away trap: a date picked but no time set (two separate
+      // fields) — tell them instead of silently disabling the button.
+      setBookingError(t('awayIncomplete'))
+      return
     }
     setConfirmerError('')
     setConfirmerSide(side)
@@ -433,7 +445,7 @@ export default function OpponentFlowPage() {
                 <button
                   type="button"
                   onClick={() => openConfirmer('home')}
-                  disabled={!canConfirmHome || busy}
+                  disabled={busy}
                   className={sideButtonClass}
                 >
                   {submittingSide === 'home' ? t('submitting') : t('confirmHomeGames')}
@@ -450,7 +462,7 @@ export default function OpponentFlowPage() {
                 <button
                   type="button"
                   onClick={() => openConfirmer('away')}
-                  disabled={!canConfirmAway || busy}
+                  disabled={busy}
                   className={sideButtonClass}
                 >
                   {submittingSide === 'away' ? t('submitting') : t('confirmAwayGames')}

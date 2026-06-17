@@ -448,6 +448,9 @@ export default {
   gameN: 'Match {{number}}',
   gameNumberHint: 'Numéro de match SVRZ',
   duplicateSlotAcrossGames: 'Chaque match a besoin de ses propres créneaux — merci de choisir des créneaux différents pour chaque match.',
+  homeIncomplete: 'Veuillez choisir un créneau pour chaque match à domicile avant de confirmer.',
+  awayIncomplete: 'Veuillez choisir une date et une heure pour chaque match à l’extérieur avant de confirmer.',
+  awayNeedsTime: 'Veuillez aussi indiquer une heure pour cette date.',
   // Dashboard search
   searchPlaceholder: 'Rechercher un adversaire, un contact ou une date…',
   searchNoResults: 'Aucun adversaire ne correspond à la recherche',

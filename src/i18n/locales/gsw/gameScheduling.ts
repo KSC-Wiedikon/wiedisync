@@ -449,6 +449,9 @@ export default {
   gameN: 'Spiel {{number}}',
   gameNumberHint: 'SVRZ-Spielnummere',
   duplicateSlotAcrossGames: 'Jedes Spiel bruucht eigeni Slots — bitte wähl für jedes Spiel anderi Slots.',
+  homeIncomplete: 'Bitte wähl für jedes Heimspiel en Slot, bevor du bestätigsch.',
+  awayIncomplete: 'Bitte wähl für jedes Uswärtsspiel es Datum und e Zit, bevor du bestätigsch.',
+  awayNeedsTime: 'Bitte au e Zit für das Datum wähle.',
   // Dashboard search
   searchPlaceholder: 'Gegner, Kontakt oder Datum sueche…',
   searchNoResults: 'Kei Gegner passed zu de Suechi',

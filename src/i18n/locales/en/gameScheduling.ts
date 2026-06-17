@@ -457,6 +457,9 @@ export default {
   gameN: 'Game {{number}}',
   gameNumberHint: 'SVRZ game number',
   duplicateSlotAcrossGames: 'Each game needs its own slots — please pick different slots for each game.',
+  homeIncomplete: 'Please pick a slot for every home game before confirming.',
+  awayIncomplete: 'Please pick a date and a time for every away game before confirming.',
+  awayNeedsTime: 'Please also set a time for this date.',
   // Dashboard search
   searchPlaceholder: 'Search opponent, contact or date…',
   searchNoResults: 'No opponents match your search',

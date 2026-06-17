@@ -132,10 +132,17 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
               type="time"
               value={s.time}
               onChange={(e) => update(i, { time: e.target.value })}
-              className="h-11 sm:h-10 w-full rounded-md border border-gray-300 px-3 text-sm dark:border-gray-500 dark:bg-gray-600 dark:text-gray-100 sm:w-36"
+              className={`h-11 sm:h-10 w-full rounded-md border px-3 text-sm dark:bg-gray-600 dark:text-gray-100 sm:w-36 ${
+                s.date && !s.time
+                  ? 'border-amber-500 dark:border-amber-500'
+                  : 'border-gray-300 dark:border-gray-500'
+              }`}
               required
             />
           </div>
+          {s.date && !s.time && (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{t('awayNeedsTime')}</p>
+          )}
         </div>
       ))}
 

@@ -449,6 +449,9 @@ export default {
   gameN: 'Partita {{number}}',
   gameNumberHint: 'Numero di partita SVRZ',
   duplicateSlotAcrossGames: 'Ogni partita ha bisogno dei propri slot — scegli slot diversi per ogni partita.',
+  homeIncomplete: 'Seleziona uno slot per ogni partita in casa prima di confermare.',
+  awayIncomplete: 'Seleziona una data e un orario per ogni partita in trasferta prima di confermare.',
+  awayNeedsTime: 'Imposta anche un orario per questa data.',
   // Dashboard search
   searchPlaceholder: 'Cerca avversario, contatto o data…',
   searchNoResults: 'Nessun avversario corrisponde alla ricerca',

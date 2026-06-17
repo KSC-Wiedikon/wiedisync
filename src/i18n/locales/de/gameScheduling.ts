@@ -457,6 +457,9 @@ export default {
   gameN: 'Spiel {{number}}',
   gameNumberHint: 'SVRZ-Spielnummer',
   duplicateSlotAcrossGames: 'Jedes Spiel braucht eigene Slots — bitte wähle für jedes Spiel andere Slots.',
+  homeIncomplete: 'Bitte wähle für jedes Heimspiel einen Slot, bevor du bestätigst.',
+  awayIncomplete: 'Bitte wähle für jedes Auswärtsspiel ein Datum und eine Uhrzeit, bevor du bestätigst.',
+  awayNeedsTime: 'Bitte auch eine Uhrzeit für dieses Datum wählen.',
   // Dashboard search
   searchPlaceholder: 'Gegner, Kontakt oder Datum suchen…',
   searchNoResults: 'Keine Gegner entsprechen der Suche',
