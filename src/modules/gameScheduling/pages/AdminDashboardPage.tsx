@@ -205,7 +205,7 @@ export default function AdminDashboardPage() {
   const { t } = useTranslation('gameScheduling')
   const { hasAdminAccessToSport, is_spielplaner } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
-  const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, manualBooking, blockSlot, finalizeNotify, vmPush, refetch } = useAdminBookings(season?.id)
+  const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, manualBooking, deleteBooking, blockSlot, finalizeNotify, vmPush, refetch } = useAdminBookings(season?.id)
   const { data: teams } = useTeams()
   const confirm = useConfirm()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
@@ -266,6 +266,24 @@ export default function AdminDashboardPage() {
       toast.error(confirmErrMsg(err))
       void refetch()
       throw err
+    }
+  }
+  // Delete a confirmed game (frees the slot + clears the member calendar) so the
+  // matchup can be rescheduled. Warns when the game was already pushed to VM,
+  // since deletion here can't remove it from VolleyManager.
+  const handleDeleteBooking = async (booking: ExpandedBooking) => {
+    const pushed = booking.type === 'home_slot_pick'
+      && ['pushed', 'pushed_no_hall'].includes(String(booking.vm_push_status || ''))
+    const message = pushed
+      ? `${t('deleteGameConfirm')}\n\n${t('deleteGameVmWarning')}`
+      : t('deleteGameConfirm')
+    if (!(await confirm({ message }))) return
+    try {
+      await deleteBooking(booking.id)
+      toast.success(t('gameDeleted'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+      void refetch()
     }
   }
 
@@ -719,6 +737,7 @@ export default function AdminDashboardPage() {
                     proposalHealth={proposalHealth}
                     onConfirmAway={handleConfirmAway}
                     onConfirmHome={handleConfirmHome}
+                    onDeleteBooking={handleDeleteBooking}
                     onVmPush={vmPush}
                     onRequestNewSlots={requestNewSlots}
                     onSaveOpponentNote={saveOpponentNote}
@@ -763,6 +782,7 @@ function TeamBookingsContent({
   proposalHealth,
   onConfirmAway,
   onConfirmHome,
+  onDeleteBooking,
   onVmPush,
   onRequestNewSlots,
   onSaveOpponentNote,
@@ -782,6 +802,7 @@ function TeamBookingsContent({
   proposalHealth: ProposalHealthEntry[]
   onConfirmAway: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   onConfirmHome: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
+  onDeleteBooking: (booking: ExpandedBooking) => Promise<void>
   onVmPush: (bookingId: string, svrzPersistenceId?: string) => Promise<void>
   onRequestNewSlots: (opponentId: string | number, bookingId?: string | number) => Promise<void>
   onSaveOpponentNote: (opponentId: string | number, kscwNote: string) => Promise<void>
@@ -1098,6 +1119,7 @@ function TeamBookingsContent({
                           onConfirm={onConfirmHome}
                           onVmPush={onVmPush}
                           onRequestNewSlots={() => onRequestNewSlots(opp.id, leg.booking!.id)}
+                          onDelete={() => onDeleteBooking(leg.booking!)}
                         />
                       ) : opp.new_slots_requested_at ? (
                         <span className="text-sm text-amber-600 dark:text-amber-400">
@@ -1128,6 +1150,7 @@ function TeamBookingsContent({
                           booking={leg.booking}
                           onConfirm={onConfirmAway}
                           vmCheck={awayVmChecks[String(leg.booking.id)] ?? null}
+                          onDelete={() => onDeleteBooking(leg.booking!)}
                         />
                       ) : (
                         <span className="text-sm text-gray-400">{t('pending')}</span>

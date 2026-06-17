@@ -137,6 +137,17 @@ export function useAdminBookings(seasonId: string | undefined) {
     await fetchAll()
   }, [fetchAll])
 
+  // Cancel a CONFIRMED game so it can be rescheduled: deletes the booking, frees
+  // its home slot, and removes it from the member calendar (server-side). VM is
+  // not un-pushed — the caller warns the operator to handle VolleyManager.
+  const deleteBooking = useCallback(async (bookingId: string | number) => {
+    await kscwApi('/terminplanung/admin/delete-booking', {
+      method: 'POST',
+      body: { booking_id: Number(bookingId) },
+    })
+    await fetchAll()
+  }, [fetchAll])
+
   const blockSlot = useCallback(async (slotId: string, action: 'block' | 'unblock') => {
     await kscwApi('/terminplanung/admin/block-slot', {
       method: 'POST',
@@ -190,6 +201,7 @@ export function useAdminBookings(seasonId: string | undefined) {
     requestNewSlots,
     saveOpponentNote,
     manualBooking,
+    deleteBooking,
     blockSlot,
     generateSlots,
     finalizeNotify,

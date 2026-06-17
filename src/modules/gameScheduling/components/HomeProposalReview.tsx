@@ -19,6 +19,9 @@ interface Props {
   onRequestNewSlots?: () => Promise<void>
   /** (Re)push the confirmed date/time/hall into VolleyManager. */
   onVmPush?: (bookingId: string, svrzPersistenceId?: string) => Promise<void>
+  /** Delete a confirmed game so it can be rescheduled (confirm + VM warning live
+   *  in the dashboard handler). Only rendered for confirmed bookings. */
+  onDelete?: () => Promise<void>
 }
 
 
@@ -40,11 +43,22 @@ const REASON_KEY: Record<string, string> = {
 // so each row shows its LIVE validity (taken / too close / hall closed / …) from
 // the proposal-health check; when all proposals are gone the admin can email the
 // opponent to pick 3 new ones (semi-automatic — confirmed here in the page).
-export default function HomeProposalReview({ booking, slotsById, hallsById, alsoProposedBy, health, onConfirm, onRequestNewSlots, onVmPush }: Props) {
+export default function HomeProposalReview({ booking, slotsById, hallsById, alsoProposedBy, health, onConfirm, onRequestNewSlots, onVmPush, onDelete }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [confirming, setConfirming] = useState(false)
   const [askRequest, setAskRequest] = useState(false)
   const [requesting, setRequesting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (!onDelete) return
+    setDeleting(true)
+    try {
+      await onDelete()
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   // Accepts a slot id (proposals) OR an already-expanded slot object (the
   // confirmed booking's `slot` comes back expanded from the admin fetch).
@@ -111,6 +125,16 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
           <div className="mt-auto flex min-h-7 items-center">
             <VmPushStatus booking={booking} onPush={onVmPush} />
           </div>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="min-h-11 self-start text-xs font-medium text-red-600 hover:underline disabled:opacity-50 sm:min-h-0 dark:text-red-400"
+          >
+            {deleting ? t('deletingGame') : t('deleteGame')}
+          </button>
         )}
       </div>
     )

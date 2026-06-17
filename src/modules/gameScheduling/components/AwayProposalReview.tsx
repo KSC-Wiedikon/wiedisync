@@ -15,6 +15,9 @@ interface Props {
   onConfirm: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   /** VolleyManager cross-check for the confirmed away game (from away-vm-check). */
   vmCheck?: AwayVmCheck | null
+  /** Delete a confirmed away game so it can be rescheduled (confirm lives in the
+   *  dashboard handler). Only rendered for confirmed bookings. */
+  onDelete?: () => Promise<void>
 }
 
 const VM_CHECK_STYLE: Record<string, string> = {
@@ -37,9 +40,20 @@ function fmtProposal(iso: string | null | undefined): string {
   return hh ? `${date} ${hh}:${mm}` : date
 }
 
-export default function AwayProposalReview({ booking, onConfirm, vmCheck }: Props) {
+export default function AwayProposalReview({ booking, onConfirm, vmCheck, onDelete }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (!onDelete) return
+    setDeleting(true)
+    try {
+      await onDelete()
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const proposals = [
     { num: 1, datetime: booking.proposed_datetime_1, place: booking.proposed_place_1 },
@@ -105,6 +119,16 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck }: Prop
             {vmCheck.status === 'mismatch' && vmCheck.vm ? `: ${vmCheck.vm}` : ''}
           </span>
           </div>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="min-h-11 self-start text-xs font-medium text-red-600 hover:underline disabled:opacity-50 sm:min-h-0 dark:text-red-400"
+          >
+            {deleting ? t('deletingGame') : t('deleteGame')}
+          </button>
         )}
       </div>
     )

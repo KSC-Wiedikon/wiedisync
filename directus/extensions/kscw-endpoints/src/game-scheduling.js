@@ -3172,6 +3172,75 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // POST /kscw/terminplanung/admin/delete-booking { booking_id } — cancel a
+  // CONFIRMED game so the matchup can be rescheduled. Deletes the booking, frees
+  // its home slot (a 'manual' slot is removed, a real one goes back to
+  // available), and clears the mirrored `games` row (skip-notify, so the
+  // cancellation doesn't fan out a push — a later rebook re-notifies). VM is NOT
+  // un-pushed: there's no VM delete API, so a game already in VolleyManager must
+  // be removed/rescheduled there by hand (the UI warns about this).
+  router.post('/terminplanung/admin/delete-booking', async (req, res) => {
+    try {
+      const bookingId = req.body?.booking_id
+      if (!bookingId) return res.status(400).json({ error: 'booking_id required' })
+      const booking = await database('game_scheduling_bookings').where('id', bookingId).first()
+      if (!booking) return res.status(404).json({ error: 'Booking not found' })
+      if (booking.status !== 'confirmed') return res.status(400).json({ error: 'Only a confirmed game can be deleted here' })
+      const opponent = await database('game_scheduling_opponents').where('id', booking.opponent).first()
+      if (!opponent) return res.status(404).json({ error: 'Opponent not found' })
+      if (!(await spielplanerCanManageTeam(req, opponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      const actor = await resolveActingUser(req)
+      const isHome = booking.type === 'home_slot_pick'
+
+      // Resolve the member-calendar row key (vb_<svrz_number> + kscw_team) for
+      // this fixture before the txn — same mapping reconcileBookingsToGames uses.
+      let gameId = null
+      try {
+        const fixtures = await opponentSvrzFixtures(opponent)
+        const side = fixtures.filter((f) => f.is_home_kscw === isHome)
+        const fxMeta = booking.svrz_game_id ? side.find((f) => String(f.id) === String(booking.svrz_game_id)) : side[0]
+        if (fxMeta) {
+          const fx = await database('svrz_games').where('svrz_persistence_id', fxMeta.id).first('svrz_number')
+          if (fx?.svrz_number) gameId = `vb_${fx.svrz_number}`
+        }
+      } catch (e) { log.warn(`delete-booking: games-row resolve failed: ${e.message}`) }
+
+      await database.transaction(async (trx) => {
+        await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [GSCH_BOOK_LOCK_CLASS, opponent.kscw_team])
+        // Free the home slot (away legs hold no slot). A 'manual' slot is a
+        // one-off → delete it; a real generated slot goes back to available.
+        if (isHome && booking.slot) {
+          const slot = await trx('game_scheduling_slots').where('id', booking.slot).first()
+          if (slot && slot.source === 'manual') {
+            await trx('game_scheduling_slots').where('id', slot.id).del()
+          } else if (slot) {
+            await trx('game_scheduling_slots').where('id', slot.id).update({ status: 'available' })
+          }
+        }
+        await trx('game_scheduling_bookings').where('id', bookingId).del()
+        // Remove the member-calendar mirror for this fixture (never a played
+        // game — sv-sync owns results). Suppress the notify fanout.
+        if (gameId) {
+          await trx.raw("SELECT set_config('kscw.skip_games_notify', 'on', true)")
+          await trx('games').where({ game_id: gameId, kscw_team: opponent.kscw_team })
+            .whereNot('status', 'completed').del()
+        }
+      })
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'delete', collection: 'game_scheduling_bookings',
+        recordId: bookingId,
+        data: { kind: isHome ? 'delete_confirmed_home' : 'delete_confirmed_away', opponent: opponent.id, freed_slot: isHome ? booking.slot : null },
+      })
+
+      res.json({ success: true })
+    } catch (err) {
+      if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.message })
+      log.error({ msg: `delete-booking: ${err.message}`, endpoint: 'terminplanung/admin/delete-booking', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // POST /kscw/admin/terminplanung/vm-push — (re)push a confirmed HOME booking's
   // date/time/hall into VolleyManager. Used for manual retry of a failed push and
   // for resolving an ambiguous match: pass svrz_persistence_id to pick the exact
