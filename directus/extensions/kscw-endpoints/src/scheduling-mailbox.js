@@ -202,9 +202,24 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       if (!isConfigured()) return res.json({ configured: false, unread: 0, messages: [], last_sync: null })
-      const rows = await database('scheduling_emails')
+      // Optional full-text search: subject + sender/recipient AND body_text.
+      // ≥2 chars to avoid scanning the whole table on a single keystroke; LIKE
+      // wildcards in the term are escaped so they're matched literally.
+      const search = String(req.query.search || '').trim().slice(0, 100)
+      let q = database('scheduling_emails')
         .select('id', 'direction', 'from_address', 'from_name', 'to_addresses', 'cc_addresses', 'subject', 'date_sent', 'read_at', 'has_attachments', 'in_reply_to', 'message_id',
           database.raw('left(coalesce(body_text, \'\'), 160) as snippet'))
+      if (search.length >= 2) {
+        const like = `%${search.replace(/[\\%_]/g, '\\$&')}%`
+        q = q.where((b) => {
+          b.whereRaw("coalesce(body_text, '') ilike ?", [like])
+            .orWhereRaw("coalesce(subject, '') ilike ?", [like])
+            .orWhereRaw("coalesce(from_name, '') ilike ?", [like])
+            .orWhereRaw("coalesce(from_address, '') ilike ?", [like])
+            .orWhereRaw("coalesce(to_addresses, '') ilike ?", [like])
+        })
+      }
+      const rows = await q
         .orderBy([{ column: 'date_sent', order: 'desc', nulls: 'last' }])
         .limit(LIST_LIMIT)
       const [{ count }] = await database('scheduling_emails').where({ direction: 'in' }).whereNull('read_at').count('id as count')

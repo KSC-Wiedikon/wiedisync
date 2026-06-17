@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '../../../components/ui/badge'
@@ -73,6 +73,13 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
   const { configured, messages, unread, lastSync, syncing, sending } = mailbox
   const [showAll, setShowAll] = useState(false)
   const [search, setSearch] = useState('')
+  // Server-side search results (subject + sender/recipient + body). null = not
+  // searching → show the cached list. The cached `messages` is never replaced,
+  // so the opponent thread/chip features keep reading the full list.
+  const [results, setResults] = useState<MailboxMessage[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchSeq = useRef(0)
   const [detail, setDetail] = useState<MailboxMessageFull | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [compose, setCompose] = useState<ComposeState | null>(null)
@@ -99,6 +106,23 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
     }
+  }
+
+  // Debounced server-side search. Runs in the change handler (not an effect) so
+  // it stays a plain event handler. A seq guard drops stale/late responses.
+  const onSearchChange = (value: string) => {
+    setSearch(value)
+    const q = value.trim()
+    if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null }
+    if (q.length < 2) { searchSeq.current++; setResults(null); setSearching(false); return }
+    setSearching(true)
+    const seq = ++searchSeq.current
+    searchTimer.current = setTimeout(() => {
+      mailbox.searchMessages(q)
+        .then((r) => { if (seq === searchSeq.current) setResults(r) })
+        .catch(() => { if (seq === searchSeq.current) setResults([]) })
+        .finally(() => { if (seq === searchSeq.current) setSearching(false) })
+    }, 300)
   }
 
   const handleSend = async () => {
@@ -188,20 +212,12 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
     </Table>
   )
 
-  // Client-side mailbox search over the loaded messages (≤500, all loaded).
-  // Matches sender/recipient, subject, the preview snippet, and the opponent
-  // the row is matched to (so "Volleyfriends" finds its thread). Full body is
-  // not in the list payload — only the 160-char snippet is searchable here.
-  const q = search.trim().toLowerCase()
-  const filtered = useMemo(() => {
-    if (!q) return messages
-    return messages.filter((m) => {
-      const opp = bestOpponentForMessage(m, opponentContacts)
-      return [m.subject, m.from_name, m.from_address, m.to_addresses, m.snippet, opp?.team_name, opp?.club_name]
-        .filter(Boolean).join(' ').toLowerCase().includes(q)
-    })
-  }, [messages, q, opponentContacts])
-  const visible = (q || showAll) ? filtered : filtered.slice(0, COLLAPSED_COUNT)
+  // When a search is active, `results` (server-side: subject + sender/recipient
+  // + full body) replaces the cached list; otherwise show the cached list with
+  // the show-all collapse. Search results are shown in full (no collapse).
+  const searchActive = results !== null
+  const list = results ?? messages
+  const visible = searchActive ? list : (showAll ? list : list.slice(0, COLLAPSED_COUNT))
 
   return (
     <>
@@ -238,22 +254,22 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
                 <input
                   type="search"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => onSearchChange(e.target.value)}
                   placeholder={t('mailboxSearchPlaceholder')}
                   className="min-h-11 sm:min-h-0 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
                 />
-                {q && (
+                {(searching || searchActive) && (
                   <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                    {t('mailboxSearchCount', { shown: filtered.length, total: messages.length })}
+                    {searching ? t('mailboxSearching') : t('mailboxSearchCount', { count: list.length })}
                   </p>
                 )}
               </div>
-              {q && filtered.length === 0 ? (
+              {searchActive && !searching && list.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxSearchEmpty')}</p>
               ) : (
                 <>
                   {renderRows(visible, true)}
-                  {!q && messages.length > COLLAPSED_COUNT && (
+                  {!searchActive && messages.length > COLLAPSED_COUNT && (
                     <button
                       type="button"
                       onClick={() => setShowAll((v) => !v)}

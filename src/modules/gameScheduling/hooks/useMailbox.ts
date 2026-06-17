@@ -199,6 +199,9 @@ export interface UseMailboxReturn {
   /** Load full body; the backend stamps read_at, mirrored locally. */
   loadMessage: (id: number) => Promise<MailboxMessageFull>
   sendReply: (payload: MailboxReplyPayload) => Promise<void>
+  /** Full-text search across stored mail (subject, sender/recipient AND body),
+   *  server-side — returns matches without touching the cached list state. */
+  searchMessages: (q: string) => Promise<MailboxMessage[]>
 }
 
 export function useMailbox(enabled: boolean = true): UseMailboxReturn {
@@ -269,5 +272,14 @@ export function useMailbox(enabled: boolean = true): UseMailboxReturn {
     }
   }, [refetch])
 
-  return { configured, messages, unread, lastSync, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply }
+  // Server-side full-text search (subject + sender/recipient + body_text). Does
+  // NOT mutate the cached `messages` list — the panel keeps its own results
+  // state so the opponent thread/chip features still read the full list.
+  const searchMessages = useCallback(async (q: string) => {
+    const resp = await kscwApi<MailboxListResponse>(
+      `/admin/terminplanung/mailbox?search=${encodeURIComponent(q)}`)
+    return Array.isArray(resp.messages) ? resp.messages : []
+  }, [])
+
+  return { configured, messages, unread, lastSync, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages }
 }
