@@ -31,6 +31,8 @@ import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import nodemailer from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer/index.js'
+import { escHtml } from './email-template.js'
+import { SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT } from './scheduling-signature.js'
 
 const IMAP_HOST = process.env.SCHEDULING_IMAP_HOST || 'imap.migadu.com'
 const IMAP_PORT = Number(process.env.SCHEDULING_IMAP_PORT || 993)
@@ -261,10 +263,20 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         }
       }
 
+      // Append the Spielplanung signature: plain-text version on the text part,
+      // and a light HTML part (typed body → HTML + branded signature card) so the
+      // crest/contacts render. Manual replies were text-only before this.
+      const textWithSig = `${text}\n\n${SCHEDULING_SIGNATURE_TEXT}`
+      const htmlBody =
+        `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:14px;line-height:1.5">` +
+        `${escHtml(text).replace(/\n/g, '<br>')}` +
+        `</div><br>` +
+        SCHEDULING_SIGNATURE_LIGHT_HTML
+
       const messageId = `<${crypto.randomUUID()}@spielplanung.kscw.ch>`
       const composer = new MailComposer({
         from: { name: FROM_NAME, address: SCHEDULING_FROM },
-        to, cc: cc.length ? cc : undefined, subject, text,
+        to, cc: cc.length ? cc : undefined, subject, text: textWithSig, html: htmlBody,
         messageId, inReplyTo, references,
       })
       const raw = await composer.compile().build()
@@ -310,7 +322,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
           to_addresses: to.join(','),
           cc_addresses: cc.join(',') || null,
           subject,
-          body_text: text,
+          body_text: textWithSig,
           date_sent: new Date().toISOString(),
           read_at: new Date().toISOString(),
         })

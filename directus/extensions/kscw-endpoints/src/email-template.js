@@ -114,6 +114,13 @@ export function buildEmailLayout(bodyHtml, opts = {}) {
     html += `<tr><td style="padding:0 28px 20px;text-align:center"><div style="font-size:13px;color:#94a3b8">${escHtml(opts.footerExtra)}</div></td></tr>`
   }
 
+  // Optional signature block (raw HTML rows, e.g. the Spielplanung contact
+  // signature on opponent-facing emails). Opt-in per caller — most features
+  // pass nothing here and keep the plain footer.
+  if (opts.signatureHtml) {
+    html += opts.signatureHtml
+  }
+
   // Bottom bar
   const footerHost = FRONTEND_URL.replace('https://', '')
   html += `<tr><td style="background:#0f172a;border-top:1px solid #334155;padding:14px 28px;text-align:center"><div style="font-size:11px;color:#64748b">KSC Wiedikon &middot; <a href="${FRONTEND_URL}" style="color:#64748b;text-decoration:none">${footerHost}</a></div></td></tr>`

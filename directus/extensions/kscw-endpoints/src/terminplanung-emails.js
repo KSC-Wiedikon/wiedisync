@@ -12,6 +12,7 @@
  */
 
 import { buildEmailLayout, buildInfoCard, buildAlertBox, escHtml } from './email-template.js'
+import { buildSchedSignatureRows } from './scheduling-signature.js'
 
 export const VALID_LANGS = ['de', 'gsw', 'en', 'fr', 'it']
 
@@ -305,6 +306,7 @@ function buildHtml(lang, kind, vars) {
     sport: 'vb',
     greeting,
     footerExtra: h.signoff,
+    signatureHtml: buildSchedSignatureRows(lang),
     ...(ctaUrl && ctaLabel ? { ctaUrl, ctaLabel } : {}),
   })
 }
@@ -392,6 +394,7 @@ export function inviteEmail(vars) {
     sport: 'vb',
     greeting: 'Hallo / Hello,',
     footerExtra: 'Sportliche Grüsse / Best regards · KSC Wiedikon',
+    signatureHtml: buildSchedSignatureRows('de'),
     ctaUrl: url,
     ctaLabel: 'Termine auswählen / Pick slots',
   })
