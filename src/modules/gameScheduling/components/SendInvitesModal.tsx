@@ -35,9 +35,13 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
   const [previews, setPreviews] = useState<InvitePreview[]>([])
   const [selected, setSelected] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  // Which contacts to email: union (default), calendar responsibles, or team
-  // responsibles. Drives both the preview re-fetch and the actual send.
-  const [group, setGroup] = useState<'all' | 'calendar' | 'team'>('all')
+  // Which contacts to email: team responsibles (default), calendar responsibles,
+  // or the full union. Drives both the preview re-fetch and the actual send.
+  // Default to 'team' so an opponent team only gets ITS OWN responsibles — the
+  // server falls back to the full contact list when a team has none (clubs that
+  // register one big club-wide Spielplan list, e.g. Volley Uster's 25, no longer
+  // blanket every team's invite). Admins can still switch to 'all'/'calendar'.
+  const [group, setGroup] = useState<'all' | 'calendar' | 'team'>('team')
 
   useEffect(() => {
     if (!open || ids.length === 0) return

@@ -4521,9 +4521,14 @@ export function registerGameScheduling(router, { database, logger, services, get
           expires: fmtDate(o.expires_at),
           reminder: true,
         })
-        // Recipients = saved Spielplan contact(s) + the team's responsibles, deduped.
+        // Recipients = the opponent TEAM's own responsibles when we have them,
+        // else fall back to the saved Spielplan contact(s). Mirrors the send-invite
+        // 'team' default: a club that registers one big club-wide Spielplan list
+        // (e.g. Volley Uster's 25) must not have every team's reminder blast all of
+        // them — only that team's people. Falls back so clubs with no per-team
+        // responsibles still get reached.
         const trEmails = (contactsMap.get(o.id)?.team_responsibles || []).map((c) => c.email).filter(Boolean)
-        const toCombined = [o.contact_email || '', ...trEmails].filter(Boolean).join(', ')
+        const toCombined = (trEmails.length ? trEmails : [o.contact_email || '']).filter(Boolean).join(', ')
         previews.push({ id: o.id, to: toCombined, team_name: o.team_name, kscw: teamNameById.get(o.kscw_team) || '', team_responsibles: trEmails.join(', '), missing: { home: homeMiss, away: awayMiss }, subject, html, text })
         if (!dry_run) {
           const recipients = parseRecipients(toCombined)
