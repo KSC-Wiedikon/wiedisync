@@ -18,6 +18,8 @@ export default {
   // Filter modal
   filterTitle: 'Filtro',
   filterCategories: 'Categorie',
+  showHiddenAbsences: 'Mostra indisponibilità e assenze non bloccanti',
+  showHiddenAbsencesHint: 'Disattivato di default — ingombrano il calendario e non influiscono sul resto della squadra.',
 
   // Filter groups
   filterGroupGames: 'Partite',

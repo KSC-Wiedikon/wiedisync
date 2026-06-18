@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
+import { Switch } from '@/components/ui/switch'
 import CategoryMultiSelect from '../../components/CategoryMultiSelect'
 import TeamMultiSelect from '../../components/TeamMultiSelect'
 import { useTeams } from '../../hooks/useTeams'
@@ -79,6 +80,25 @@ export default function CalendarFilters({ open, onClose, filters, onChange, allo
               onChange={(ids) => onChange({ ...filters, selectedTeamIds: ids })}
               placeholder={tc('allTeams')}
             />
+          </div>
+        )}
+
+        {/* Show unavailabilities + non-blocking absences (hidden by default) */}
+        {filters.sources.includes('absence') && (
+          <div className="flex items-start gap-2">
+            <Switch
+              id="cal-show-hidden-absences"
+              checked={filters.showHiddenAbsences === true}
+              onCheckedChange={(checked) => onChange({ ...filters, showHiddenAbsences: checked })}
+            />
+            <label htmlFor="cal-show-hidden-absences" className="cursor-pointer">
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('showHiddenAbsences')}
+              </span>
+              <span className="block text-xs text-gray-500 dark:text-gray-400">
+                {t('showHiddenAbsencesHint')}
+              </span>
+            </label>
           </div>
         )}
       </div>

@@ -17,6 +17,8 @@ export interface CalendarEntry {
   source: Game | Training | Event | HallClosure | HallEvent | Absence
   /** Only set for game entries */
   gameType?: 'home' | 'away'
+  /** Opponent team name — set for game entries (the non-KSCW side). */
+  opponent?: string
   /** Sport type — set for game entries to show correct ball icon */
   sport?: 'volleyball' | 'basketball'
   /**
@@ -44,4 +46,9 @@ export interface SpielplanungFilterState {
 export interface CalendarFilterState {
   sources: SourceFilter[]
   selectedTeamIds: string[]
+  /**
+   * Show unavailabilities (weekly) + non-blocking absences. Default (undefined/false)
+   * hides them — they clutter the calendar without affecting the rest of the team.
+   */
+  showHiddenAbsences?: boolean
 }

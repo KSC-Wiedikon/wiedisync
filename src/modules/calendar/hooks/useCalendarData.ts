@@ -92,6 +92,7 @@ function gameToEntry(game: Game & { kscw_team?: Team | string; hall?: { name: st
     description: [game.league, game.round].filter(Boolean).join(' | '),
     source: game,
     gameType: game.type,
+    opponent: game.type === 'home' ? game.away_team : game.home_team,
     sport: expandedTeam?.sport ?? (game.source === 'basketplan' ? 'basketball' : 'volleyball'),
   }
 }
@@ -342,7 +343,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
     filter: fetchAbsences
       ? { _and: [{ end_date: { _gte: fetchRange.start } }, { start_date: { _lte: fetchRange.end } }] }
       : { id: { _eq: -1 } },
-    fields: ['id', 'member.*', 'start_date', 'end_date', 'reason', 'reason_detail', 'affects', 'type', 'days_of_week'],
+    fields: ['id', 'member.*', 'start_date', 'end_date', 'reason', 'reason_detail', 'affects', 'type', 'days_of_week', 'blocking'],
     sort: ['start_date'],
     all: true,
   })
@@ -407,7 +408,11 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       // Filter absences by team membership when team filter is active
       const teamMemberIds = hasTeamFilter ? new Set(teamMemberLinks.map((mt) => relId(mt.member))) : null
       const teamIdSet = hasTeamFilter ? new Set(filters.selectedTeamIds) : null
+      // By default, hide unavailabilities (weekly) and non-blocking absences —
+      // they clutter the calendar and don't affect the rest of the team.
+      const showHidden = filters.showHiddenAbsences === true
       for (const a of absences) {
+        if (!showHidden && (a.type === 'weekly' || (a as { blocking?: boolean }).blocking === false)) continue
         // Skip if team filter active and member not in selected teams
         if (teamMemberIds && !teamMemberIds.has(relId(a.member))) continue
         // Also check affects field: skip if affects specific teams that don't match
@@ -435,7 +440,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
     })
 
     return filtered
-  }, [games, trainings, events, closuresRaw, hallEvents, absences, teamMemberLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds])
+  }, [games, trainings, events, closuresRaw, hallEvents, absences, teamMemberLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds, filters.showHiddenAbsences])
 
   const closedDates = useMemo(() => {
     const dates = new Set<string>()

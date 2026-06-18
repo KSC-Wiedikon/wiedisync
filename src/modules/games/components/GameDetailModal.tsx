@@ -340,11 +340,12 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
               </p>
             </div>
           ) : (
-          <div className="flex flex-wrap items-center gap-3 border-t dark:border-gray-700 px-6 py-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t dark:border-gray-700 px-6 py-3">
             {hasAbsence && (
               <span className="w-full text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</span>
             )}
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('participation:attending')}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('participation:attending')}</span>
                 <div className="relative flex gap-2">
                   <button
                     onClick={() => setStatus('confirmed', noteText)}
@@ -391,7 +392,8 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                     )
                   })()}
                 </div>
-            <div className="ml-auto border-l pl-3 dark:border-gray-600">
+            </div>
+            <div className="ml-auto">
               <ParticipationSummary activityType="game" activityId={game.id} bars coachMemberIds={teamCoachIds(kscwTeamObj)} />
             </div>
             {/* Participation note */}

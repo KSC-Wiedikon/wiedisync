@@ -18,6 +18,8 @@ export default {
   // Filter modal
   filterTitle: 'Filter',
   filterCategories: 'Kategorie',
+  showHiddenAbsences: 'Nöd-Verfüegbarkeite & nöd-blockierendi Absänze zeige',
+  showHiddenAbsencesHint: 'Standardmässig us — si überladed de Kalender und betreffed s restliche Team nöd.',
 
   // Filter groups
   filterGroupGames: 'Spiel',
