@@ -6,9 +6,26 @@ import {
   useFinanceAccounts, useFinanceFiscalYears, useFinanceTransactions, useFinanceInvoices, useFinanceImports,
   toNum, formatChf, isOpenInvoice,
 } from '../../hooks/useFinance'
-import type { FinanceAccount } from './types'
+import type { FinanceAccount, FinanceTransaction } from './types'
 
 type Tab = 'overview' | 'income' | 'balance' | 'sync'
+
+/** Aggregate debit/credit totals per account number from a set of transactions. */
+function statsFrom(rows: FinanceTransaction[]) {
+  const map = new Map<string, { debit: number; credit: number }>()
+  const bump = (num: string | null, key: 'debit' | 'credit', amt: number) => {
+    if (!num) return
+    const e = map.get(num) ?? { debit: 0, credit: 0 }
+    e[key] += amt
+    map.set(num, e)
+  }
+  for (const tx of rows) {
+    const amt = toNum(tx.amount_chf)
+    bump(tx.debit_account_number, 'debit', amt)
+    bump(tx.credit_account_number, 'credit', amt)
+  }
+  return map
+}
 type AcctRow = FinanceAccount & { bal: number }
 
 /** KPI tile. */
@@ -92,29 +109,21 @@ export default function FinancePage() {
   const { data: importsRaw } = useFinanceImports()
   const imports = importsRaw ?? []
 
-  // Per-account debit/credit totals from the ledger (keyed by account number).
-  const accountStats = useMemo(() => {
-    const map = new Map<string, { debit: number; credit: number }>()
-    const bump = (num: string | null, key: 'debit' | 'credit', amt: number) => {
-      if (!num) return
-      const e = map.get(num) ?? { debit: 0, credit: 0 }
-      e[key] += amt
-      map.set(num, e)
-    }
-    for (const tx of transactions) {
-      const amt = toNum(tx.amount_chf)
-      bump(tx.debit_account_number, 'debit', amt)
-      bump(tx.credit_account_number, 'credit', amt)
-    }
-    return map
-  }, [transactions])
+  // Per-account debit/credit totals. allStats = every booking (balance sheet +
+  // liquidity); plStats EXCLUDES year-end closing entries (typ 'Abschluss'), which
+  // zero the income/expense accounts — without this a CLOSED fiscal year's P&L
+  // reads as 0, because the closing offsets the whole year's nominal activity.
+  const allStats = useMemo(() => statsFrom(transactions), [transactions])
+  const plStats = useMemo(() => statsFrom(transactions.filter((tx) => tx.typ !== 'Abschluss')), [transactions])
 
-  /** Natural-sign balance: assets/expenses are debit-normal, the rest credit-normal. */
+  /** Natural-sign balance. Income/expense (nominal) accounts read plStats so a
+   *  closed year still shows its real P&L; balance-sheet accounts read allStats. */
   const accountRows = useMemo<AcctRow[]>(() => accounts.map((a) => {
-    const s = accountStats.get(a.number) ?? { debit: 0, credit: 0 }
+    const nominal = a.type === 'income' || a.type === 'expense'
+    const s = (nominal ? plStats : allStats).get(a.number) ?? { debit: 0, credit: 0 }
     const bal = (a.type === 'asset' || a.type === 'expense') ? s.debit - s.credit : s.credit - s.debit
     return { ...a, bal }
-  }), [accounts, accountStats])
+  }), [accounts, allStats, plStats])
 
   const nonZero = (a: AcctRow) => Math.abs(a.bal) > 0.005
   const incomeRows = useMemo(() => accountRows.filter((a) => a.type === 'income' && nonZero(a)).sort((x, y) => y.bal - x.bal), [accountRows])
