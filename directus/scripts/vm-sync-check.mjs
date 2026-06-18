@@ -914,8 +914,13 @@ async function main() {
     throw new Error(failures.join(' | '));
   }
   if (warnings.length) {
-    console.warn(`\n⚠ Completed with warnings (sync OK): ${warnings.join(' | ')}`);
+    // Signal a soft DEFER to the caller (exit 75 below). The cron records this
+    // as `deferred` (not `error`) — no alert — and the watchdog retries a few
+    // times to catch a healthy VM window before backing off to the weekly run.
+    console.warn(`\n⚠ Completed with warnings — deferred: ${warnings.join(' | ')}`);
+    return { deferred: true };
   }
+  return { deferred: false };
 }
 
 // Exit explicitly. A timed-out stage leaves its retry loop running in the
@@ -924,5 +929,5 @@ async function main() {
 // exit the process would linger long after the sync logically finished. On
 // success/warnings exit 0; a thrown (hard) failure exits 1 → cron alerts/retries.
 main()
-  .then(() => process.exit(0))
+  .then((r) => process.exit(r && r.deferred ? 75 : 0))   // 0 = full sync, 75 = soft defer (transient VM), 1 = hard failure
   .catch(e => { console.error('✗ Fatal:', e.message); process.exit(1); });
