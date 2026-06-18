@@ -34,6 +34,18 @@ function nextDay(dateStr) {
   const d = new Date(dateStr); d.setDate(d.getDate() + 1); return isoDate(d)
 }
 
+// Zurich calendar date (YYYY-MM-DD) for a timestamptz instant. All-day events are
+// stored at the Zurich-midnight boundary (e.g. 22:00Z = 00:00 the next day in summer),
+// so the raw UTC date (toISO) is a day early. Mirrors the frontend toZurichDateString.
+// Safe for plain date strings too — a midnight-UTC date never crosses the Zurich boundary.
+function toZurichDate(input) {
+  const d = input instanceof Date ? input : new Date(input)
+  if (Number.isNaN(d.getTime())) return toISO(input)
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d)
+}
+
 export function registerICalFeed(router, { database, logger }) {
   const log = logger.child({ endpoint: 'ical-feed' })
 
@@ -133,9 +145,12 @@ export function registerICalFeed(router, { database, logger }) {
           lines.push('BEGIN:VEVENT', `UID:event-${ev.id}@kscw.ch`, `DTSTAMP:${now}`)
 
           if (ev.all_day) {
-            lines.push(`DTSTART;VALUE=DATE:${fmtDate(d)}`)
-            const end = ev.end_date ? nextDay(toISO(ev.end_date)) : nextDay(d)
-            lines.push(`DTEND;VALUE=DATE:${fmtDate(end)}`)
+            // Use the Zurich calendar day so subscribers see the same day as the app —
+            // the raw UTC date is one day early for boundary-stored all-day events.
+            const startZ = toZurichDate(ev.start_date)
+            lines.push(`DTSTART;VALUE=DATE:${fmtDate(startZ)}`)
+            const endZ = ev.end_date ? toZurichDate(ev.end_date) : startZ
+            lines.push(`DTEND;VALUE=DATE:${fmtDate(nextDay(endZ))}`)
           } else {
             const dtStart = toZurichICSLocal(ev.start_date)
             if (dtStart) {
