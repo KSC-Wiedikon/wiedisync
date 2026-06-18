@@ -1227,6 +1227,15 @@ function TeamBookingsContent({
               }))}
               minDate={dateWindow?.start}
               maxDate={dateWindow?.end}
+              fetchDateContext={async (date) => {
+                try {
+                  const resp = await kscwApi(`/admin/terminplanung/date-context?kscw_team=${kscwTeamId}&dates=${date}`) as {
+                    context?: Record<string, { absences: number; absent_names: string[]; prev_game: { date: string; days: number } | null; next_game: { date: string; days: number } | null }>
+                  }
+                  const c = resp.context?.[date]
+                  return c ? { num: 0, slot_id: 0, valid: true, reason: null, absences: c.absences, absent_names: c.absent_names, prev_game: c.prev_game, next_game: c.next_game } : null
+                } catch { return null }
+              }}
               onSave={(legs) => onManualBooking(opp.id, legs)}
             />
           </div>

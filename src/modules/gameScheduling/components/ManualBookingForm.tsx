@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import WeekdayHint from './WeekdayHint'
+import ProposalContextHints from './ProposalContextHints'
+import type { ProposalHealthProposal } from '../../../types'
 
 interface HallOption {
   id: string | number
@@ -38,6 +40,9 @@ interface Props {
    *  typo (e.g. 10.02.2026 for a 2026/27 season) can't be entered. */
   minDate?: string
   maxDate?: string
+  /** Indication only: resolve who'd be absent + adjacent-game spacing for a typed
+   *  date (admin/spielplaner-scoped). Returns null when there's nothing to show. */
+  fetchDateContext?: (date: string) => Promise<ProposalHealthProposal | null>
   onSave: (legs: {
     home?: { date: string; start_time: string; end_time?: string; hall: number | string; svrz_game_id?: string }
     away?: { date: string; start_time?: string; place?: string; svrz_game_id?: string }
@@ -60,10 +65,15 @@ const defaultFixture = (opts: ManualFixtureOption[]): string =>
 // Manually record an already-agreed matchup (date settled by email/phone outside
 // the tool), skipping the opponent's propose/choose flow. Collapsed by default;
 // the admin fills the home leg, the away leg, or both.
-export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures, awayFixtures, minDate, maxDate, onSave }: Props) {
+export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures, awayFixtures, minDate, maxDate, fetchDateContext, onSave }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  // Indication-only date context (absences + adjacent-game spacing), per leg.
+  const [homeCtx, setHomeCtx] = useState<ProposalHealthProposal | null>(null)
+  const [awayCtx, setAwayCtx] = useState<ProposalHealthProposal | null>(null)
+  const ctxTimers = useRef<{ home?: ReturnType<typeof setTimeout>; away?: ReturnType<typeof setTimeout> }>({})
 
   const [homeOn, setHomeOn] = useState(false)
   const [homeFixtureId, setHomeFixtureId] = useState(() => defaultFixture(homeFixtures))
@@ -77,11 +87,26 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
   const [awayStart, setAwayStart] = useState('')
   const [awayPlace, setAwayPlace] = useState('')
 
+  // Indication-only: (re)load the absence + spacing hint for a leg's date,
+  // debounced. Runs in the handler (not an effect) to stay lint-clean; clears
+  // immediately for an empty/out-of-window date.
+  const refreshCtx = (leg: 'home' | 'away', date: string) => {
+    const set = leg === 'home' ? setHomeCtx : setAwayCtx
+    const timers = ctxTimers.current
+    if (timers[leg]) clearTimeout(timers[leg])
+    const valid = !!date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !((minDate && date < minDate) || (maxDate && date > maxDate))
+    if (!fetchDateContext || !valid) { set(null); return }
+    timers[leg] = setTimeout(() => {
+      fetchDateContext(date).then((c) => set(c)).catch(() => set(null))
+    }, 350)
+  }
+
   const reset = () => {
     setHomeOn(false); setHomeDate(''); setHomeStart(''); setHomeHall('')
     setAwayOn(false); setAwayDate(''); setAwayStart(''); setAwayPlace('')
     setHomeFixtureId(defaultFixture(homeFixtures))
     setAwayFixtureId(defaultFixture(awayFixtures))
+    setHomeCtx(null); setAwayCtx(null)
   }
 
   // Pre-fill a leg from the selected fixture: its existing confirmed booking when
@@ -90,11 +115,13 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
     setHomeDate(fx?.prefill?.date || '')
     setHomeStart(fx?.prefill?.start_time || '')
     setHomeHall(String(fx?.prefill?.hall ?? defaultHomeHall ?? ''))
+    refreshCtx('home', fx?.prefill?.date || '')
   }
   const applyAwayPrefill = (fx?: ManualFixtureOption) => {
     setAwayDate(fx?.prefill?.date || '')
     setAwayStart(fx?.prefill?.start_time || '')
     setAwayPlace(fx?.prefill?.place || '')
+    refreshCtx('away', fx?.prefill?.date || '')
   }
 
   // The fixture options load lazily (per-team SVRZ fetch) and can arrive after
@@ -206,7 +233,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
             <label className="col-span-2 sm:col-span-1">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualDate')}</span>
-              <input type="date" value={homeDate} min={minDate} max={maxDate} onChange={(e) => setHomeDate(e.target.value)} className={inputCls} />
+              <input type="date" value={homeDate} min={minDate} max={maxDate} onChange={(e) => { setHomeDate(e.target.value); refreshCtx('home', e.target.value) }} className={inputCls} />
               <WeekdayHint date={homeDate} className="mt-0.5 block" />
             </label>
             <label>
@@ -225,6 +252,9 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
               </select>
             </label>
           </div>
+        )}
+        {homeOn && homeCtx && (
+          <div className="mt-1.5"><ProposalContextHints hp={homeCtx} /></div>
         )}
         {homeHallMismatch && (
           <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
@@ -262,7 +292,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <label className="col-span-2 sm:col-span-1">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualDate')}</span>
-              <input type="date" value={awayDate} min={minDate} max={maxDate} onChange={(e) => setAwayDate(e.target.value)} className={inputCls} />
+              <input type="date" value={awayDate} min={minDate} max={maxDate} onChange={(e) => { setAwayDate(e.target.value); refreshCtx('away', e.target.value) }} className={inputCls} />
               <WeekdayHint date={awayDate} className="mt-0.5 block" />
             </label>
             <label>
@@ -274,6 +304,9 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
               <input type="text" value={awayPlace} onChange={(e) => setAwayPlace(e.target.value)} placeholder={t('manualPlacePlaceholder')} className={inputCls} />
             </label>
           </div>
+        )}
+        {awayOn && awayCtx && (
+          <div className="mt-1.5"><ProposalContextHints hp={awayCtx} /></div>
         )}
       </div>
 

@@ -807,6 +807,42 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   }
 
+  // Game-affecting one-off absences across a team's roster (weekly recurrences +
+  // guests excluded — mirrors slots/:token abs_count) → count + NAME lookups by
+  // day. Shared by the proposal-health context and the manual-booking date hint.
+  async function teamAbsenceLookup(teamId) {
+    const absRows = await database('absences as a')
+      .join('member_teams as mt', 'mt.member', 'a.member')
+      .where('mt.team', teamId)
+      .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
+      .whereRaw("a.type IS DISTINCT FROM 'weekly'")
+      .whereRaw('a.blocking IS NOT FALSE')
+      .whereRaw('a.start_date IS NOT NULL AND a.end_date IS NOT NULL')
+      .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
+      .select('a.member', database.raw('a.start_date::text as s'), database.raw('a.end_date::text as e'))
+    const absences = absRows.map((r) => ({ m: r.member, s: String(r.s).slice(0, 10), e: String(r.e).slice(0, 10) }))
+    const nameById = new Map()
+    const memberIds = [...new Set(absences.map((a) => a.m))]
+    if (memberIds.length) {
+      ;(await database('members').whereIn('id', memberIds).select('id', 'first_name', 'last_name'))
+        .forEach((m) => nameById.set(m.id, [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || `#${m.id}`))
+    }
+    const absentCountOn = (day) => {
+      const ms = new Set()
+      for (const a of absences) if (a.s <= day && day <= a.e) ms.add(a.m)
+      return ms.size
+    }
+    const absentNamesOn = (day) => {
+      const seen = new Set()
+      const names = []
+      for (const a of absences) {
+        if (a.s <= day && day <= a.e && !seen.has(a.m)) { seen.add(a.m); names.push(nameById.get(a.m) || `#${a.m}`) }
+      }
+      return names.sort((x, y) => x.localeCompare(y))
+    }
+    return { absentCountOn, absentNamesOn }
+  }
+
   // Live validity + decision context (absent players, adjacent-game spacing) of
   // every pending HOME proposal. With { includeAway: true } it also appends
   // pending AWAY proposals (date spacing + absences only — away validity is the
@@ -930,39 +966,8 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
 
       // One-off blocking absences (affecting games) across this team's roster, so
-      // the lenient 3rd pick can show how many players would miss that date.
-      // (weekly recurrences + guests don't count — mirrors slots/:token abs_count.)
-      const absRows = await database('absences as a')
-        .join('member_teams as mt', 'mt.member', 'a.member')
-        .where('mt.team', teamId)
-        .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
-        .whereRaw("a.type IS DISTINCT FROM 'weekly'")
-        .whereRaw('a.blocking IS NOT FALSE')
-        .whereRaw('a.start_date IS NOT NULL AND a.end_date IS NOT NULL')
-        .whereRaw("(a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')")
-        .select('a.member', database.raw('a.start_date::text as s'), database.raw('a.end_date::text as e'))
-      const absences = absRows.map((r) => ({ m: r.member, s: String(r.s).slice(0, 10), e: String(r.e).slice(0, 10) }))
-      const absentCountOn = (day) => {
-        const ms = new Set()
-        for (const a of absences) if (a.s <= day && day <= a.e) ms.add(a.m)
-        return ms.size
-      }
-      // Resolve absent-member display names so the review can say WHO is out on a
-      // date (admin-only surface — never returned to opponent-facing routes).
-      const absMemberIds = [...new Set(absences.map((a) => a.m))]
-      const absNameById = new Map()
-      if (absMemberIds.length) {
-        ;(await database('members').whereIn('id', absMemberIds).select('id', 'first_name', 'last_name'))
-          .forEach((m) => absNameById.set(m.id, [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || `#${m.id}`))
-      }
-      const absentNamesOn = (day) => {
-        const seen = new Set()
-        const names = []
-        for (const a of absences) {
-          if (a.s <= day && day <= a.e && !seen.has(a.m)) { seen.add(a.m); names.push(absNameById.get(a.m) || `#${a.m}`) }
-        }
-        return names.sort((x, y) => x.localeCompare(y))
-      }
+      // the lenient 3rd pick can show WHO would miss that date.
+      const { absentCountOn, absentNamesOn } = await teamAbsenceLookup(teamId)
 
       // This team's already-scheduled game dates → adjacent-game spacing hints.
       const gameDates = await teamGameDateList(teamId)
@@ -5314,6 +5319,38 @@ export function registerGameScheduling(router, { database, logger, services, get
       res.json({ health })
     } catch (err) {
       log.error({ msg: `proposal-health: ${err.message}`, endpoint: 'admin/terminplanung/proposal-health', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // GET /kscw/admin/terminplanung/date-context?kscw_team=&dates=YYYY-MM-DD,… — for
+  // the manual-booking form: who'd be absent + how each typed date spaces against
+  // the team's nearest already-scheduled games. Admin/spielplaner-only (absent
+  // names) and scoped to the manageable team. Returns { context: { [date]: … } }.
+  router.get('/admin/terminplanung/date-context', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const kscwTeam = Number(req.query.kscw_team)
+      if (!kscwTeam) return res.status(400).json({ error: 'kscw_team required' })
+      if (!(await spielplanerCanManageTeam(req, kscwTeam))) return res.status(403).json({ error: 'Not authorized for this team' })
+      const dates = String(req.query.dates || '')
+        .split(',').map((d) => d.trim()).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice(0, 6)
+      if (!dates.length) return res.json({ context: {} })
+      const gameDates = await teamGameDateList(kscwTeam)
+      const { absentCountOn, absentNamesOn } = await teamAbsenceLookup(kscwTeam)
+      const context = {}
+      for (const day of dates) {
+        const adj = adjacentGames(gameDates, day)
+        context[day] = {
+          absences: absentCountOn(day),
+          absent_names: absentNamesOn(day),
+          prev_game: adj.prev_game,
+          next_game: adj.next_game,
+        }
+      }
+      res.json({ context })
+    } catch (err) {
+      log.error({ msg: `date-context: ${err.message}`, endpoint: 'admin/terminplanung/date-context', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
