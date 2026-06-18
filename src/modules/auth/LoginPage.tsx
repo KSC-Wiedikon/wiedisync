@@ -5,7 +5,6 @@ import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import { Button } from '@/components/ui/button'
 import { FormInput } from '@/components/FormField'
-import { Switch } from '@/components/ui/switch'
 
 export default function LoginPage() {
   const { login, user } = useAuth()
@@ -34,10 +33,6 @@ export default function LoginPage() {
     if (stored) sessionStorage.removeItem('login-redirect-exists')
     return stored
   })
-  const [rememberMe, setRememberMe] = useState(
-    () => localStorage.getItem('wiedisync-remember-me') !== 'false',
-  )
-
   useEffect(() => {
     if (user) navigate('/', { replace: true })
   }, [user, navigate])
@@ -47,7 +42,6 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     setShowAccountExists(false)
-    localStorage.setItem('wiedisync-remember-me', String(rememberMe))
     try {
       await login(email, password)
       sessionStorage.removeItem('login-redirect-email')
@@ -118,13 +112,6 @@ export default function LoginPage() {
                   {t('forgotPassword')}
                 </Link>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Switch checked={rememberMe} onCheckedChange={setRememberMe} id="remember-me" />
-              <label htmlFor="remember-me" className="text-sm text-gray-600 dark:text-gray-400">
-                {t('rememberMe')}
-              </label>
             </div>
 
             {error && (

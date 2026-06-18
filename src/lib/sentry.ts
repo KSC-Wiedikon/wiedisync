@@ -181,11 +181,12 @@ export class ApiError extends Error {
   }
 }
 
-/** True if a Directus auth token is present (mirrors sendToErrorLog's read). */
+/** True if a session likely exists (reads the readable `.kscw.ch` auth hint
+ *  cookie set by api.ts — the real session token is an httpOnly cookie). */
 function hasAuthToken(): boolean {
   try {
-    const raw = localStorage.getItem('directus_auth') || sessionStorage.getItem('directus_auth')
-    return !!(raw && JSON.parse(raw)?.access_token)
+    if (typeof document === 'undefined') return false
+    return document.cookie.split('; ').some((c) => c === 'wiedisync_auth=1' || c === 'wiedisync_auth_dev=1')
   } catch { return false }
 }
 
@@ -463,19 +464,12 @@ function sendToErrorLog(entry: Record<string, unknown>) {
     // Skip empty entries — backend would log them as null-field noise
     if (!entry.error && !entry.stack && !entry.type && !entry.responseBody) return
 
-    const token = (() => {
-      try {
-        const raw = localStorage.getItem('directus_auth') || sessionStorage.getItem('directus_auth')
-        return raw ? JSON.parse(raw)?.access_token : null
-      } catch { return null }
-    })()
-
+    // Session cookie (if any) identifies the user; anonymous errors on public
+    // pages send no cookie and are logged without a user — both accepted.
     fetch(`${API_BASE}/kscw/client-error`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(entry),
       keepalive: true, // survives page unload
     }).catch(() => {}) // truly fire-and-forget

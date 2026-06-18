@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfraHealth } from '../../hooks/useInfraHealth'
-import { API_URL, fetchItems, countItems, getAccessToken } from '../../lib/api'
+import { API_URL, fetchItems, countItems } from '../../lib/api'
 import { currentLocale } from '../../utils/dateHelpers'
 
 const PROD_URL = API_URL
@@ -153,11 +153,9 @@ export default function InfraHealthPage() {
   const triggerSync = useCallback(async (source: string, endpoint: string) => {
     setTriggering(prev => ({ ...prev, [source]: true }))
     const clickedAt = Date.now()
-    const token = getAccessToken()
-    const authHeader = token ? { Authorization: `Bearer ${token}` } : undefined
     let async202 = false
     try {
-      const res = await fetch(`${PROD_URL}/kscw/admin/${endpoint}`, { method: 'POST', headers: authHeader })
+      const res = await fetch(`${PROD_URL}/kscw/admin/${endpoint}`, { method: 'POST', credentials: 'include' })
       async202 = res.status === 202 // VM / SVRZ run as background children
     } catch { /* poll / refresh reflects the outcome */ }
 
@@ -175,7 +173,7 @@ export default function InfraHealthPage() {
       polls++
       let advanced = false
       try {
-        const r = await fetch(`${PROD_URL}/kscw/admin/sync-status`, { headers: authHeader })
+        const r = await fetch(`${PROD_URL}/kscw/admin/sync-status`, { credentials: 'include' })
         if (r.ok) {
           const { runs } = await r.json()
           const run = (runs || []).find((x: { source: string }) => x.source === source) as { last_run_at?: string } | undefined
@@ -289,9 +287,8 @@ export default function InfraHealthPage() {
 
     // Error Log — today's error count
     try {
-      const token = getAccessToken()
       const res = await fetch(`${PROD_URL}/kscw/admin/error-logs?limit=1`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
       })
       if (res.ok) {
         const data = await res.json()
@@ -452,9 +449,8 @@ export default function InfraHealthPage() {
     // Migration tracker — applied vs pending. Pending > 0 means dev/prod
     // are out of sync; the deploy hasn't been run yet.
     try {
-      const token = getAccessToken()
       const r = await fetch(`${PROD_URL}/kscw/admin/migrations-status`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
       })
       if (r.ok) {
         const m = await r.json()
@@ -475,9 +471,8 @@ export default function InfraHealthPage() {
     // ── VPS Metrics ──
     const vpsResults: HealthCheck[] = []
     try {
-      const token = getAccessToken()
       const vpsRes = await fetch(`${PROD_URL}/kscw/admin/vps-metrics`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
       })
       if (vpsRes.ok) {
         const v = await vpsRes.json()
@@ -493,9 +488,8 @@ export default function InfraHealthPage() {
 
     // ── Slow Queries ──
     try {
-      const token = getAccessToken()
       const sqRes = await fetch(`${PROD_URL}/kscw/admin/slow-queries?limit=10`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
       })
       if (sqRes.ok) {
         const sqData = await sqRes.json()

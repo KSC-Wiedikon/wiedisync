@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { kscwApi, API_URL, getAccessToken } from '../../../lib/api'
+import { kscwApi, API_URL } from '../../../lib/api'
 import type { GameSchedulingOpponent } from '../../../types'
 
 /**
@@ -164,9 +164,8 @@ export function messagesForOpponentThread(
  * carry the Bearer token). Streams live from IMAP server-side.
  */
 export async function downloadMailboxAttachment(messageId: number, index: number, filename: string): Promise<void> {
-  const token = getAccessToken()
   const res = await fetch(`${API_URL}/kscw/admin/terminplanung/mailbox/attachment/${messageId}/${index}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include',
   })
   if (!res.ok) throw new Error(`Attachment download failed (${res.status})`)
   const blob = await res.blob()
@@ -271,7 +270,6 @@ export function useMailbox(enabled: boolean = true): UseMailboxReturn {
   const sendReply = useCallback(async (payload: MailboxReplyPayload) => {
     setSending(true)
     try {
-      const token = getAccessToken()
       const fd = new FormData()
       fd.append('to', payload.to)
       if (payload.cc) fd.append('cc', payload.cc)
@@ -281,7 +279,7 @@ export function useMailbox(enabled: boolean = true): UseMailboxReturn {
       for (const f of payload.attachments || []) fd.append('attachments', f, f.name)
       const res = await fetch(`${API_URL}/kscw/admin/terminplanung/mailbox/reply`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
         body: fd,
       })
       if (!res.ok) {
