@@ -16,9 +16,6 @@ export default {
   enterEmailFirst: 'Bitte gib zersch dini E-Mail ii.',
   accountAlreadyExists: 'Es Konto mit dere E-Mail gits scho. Bitte logg di ii.',
   noAccountYet: 'No käs Konto?',
-  orContinueWith: 'oder wiiter mit',
-  signInWithGoogle: 'Mit Google ilogge',
-  oauthError: 'S Ilogge het nöd klappt. Probiers nomal.',
 
   // Profile
   editProfile: 'Profil bearbeite',

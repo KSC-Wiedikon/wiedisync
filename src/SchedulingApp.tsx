@@ -16,7 +16,6 @@ import SpielplanerOrAdminRoute from './components/SpielplanerOrAdminRoute'
 import LoginPage from './modules/auth/LoginPage'
 import PendingPage from './modules/auth/PendingPage'
 import SetPasswordPage from './modules/auth/SetPasswordPage'
-import OAuthCallbackPage from './modules/auth/OAuthCallbackPage'
 // Scheduling pages
 import PublicTerminplanungPage from './modules/gameScheduling/pages/PublicTerminplanungPage'
 import OpponentFlowPage from './modules/gameScheduling/pages/OpponentFlowPage'
@@ -70,7 +69,6 @@ export default function SchedulingApp() {
                       <Route path="login" element={<LoginPage />} />
                       <Route path="pending" element={<PendingPage />} />
                       <Route path="set-password" element={<SetPasswordPage />} />
-                      <Route path="auth/callback" element={<OAuthCallbackPage />} />
 
                       {/* `/` dispatches by access; bare so unauth bounces to /login
                           without flashing the shell (and no guard→/ redirect loop). */}
