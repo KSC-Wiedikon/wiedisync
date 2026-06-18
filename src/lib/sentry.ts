@@ -220,9 +220,14 @@ export function captureApiError(
   // skip Sentry so a dropped signal doesn't page anyone. Anchored ^…$ so a
   // real error whose message merely *contains* these words is NOT swallowed,
   // and gated on absent status so every 4xx/5xx (incl. 403 perms) still flows.
+  // The @directus/sdk `request` helper appends the API host in parens
+  // ("Load failed (directus.kscw.ch)"), so allow an optional trailing " (…)"
+  // suffix — without it the anchor missed every SDK fetch reject and these
+  // mobile aborts paged anyway (prod 2026-06-18: 6 at once from one iPhone
+  // backgrounding /games → fetchItems/fetchAllItems on teams, status null).
   const isTransientNetworkFailure =
     context.status == null &&
-    /^(Load failed|Failed to fetch|NetworkError when attempting to fetch resource|The Internet connection appears to be offline|The network connection was lost)\.?$/i.test(
+    /^(Load failed|Failed to fetch|NetworkError when attempting to fetch resource|The Internet connection appears to be offline|The network connection was lost)\.?(?:\s*\([^)]*\))?$/i.test(
       err.message.trim(),
     )
   if (isTransientNetworkFailure) {
