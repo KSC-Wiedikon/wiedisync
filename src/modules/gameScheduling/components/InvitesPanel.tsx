@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
-import { kscwApi } from '../../../lib/api'
+import { kscwApi, SCHEDULING_ORIGIN } from '../../../lib/api'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import type { Team } from '../../../types'
 
@@ -39,7 +39,9 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
     () => api.invites.filter((i) => i.status !== 'revoked' && i.status !== 'expired').map((i) => i.id),
     [api.invites],
   )
-  const frontendUrl = typeof window !== 'undefined' ? window.location.origin : 'https://wiedisync.kscw.ch'
+  // Invite links must point at the Spielplanung subdomain (once
+  // VITE_SCHEDULING_ORIGIN is set); falls back to the current origin until then.
+  const frontendUrl = SCHEDULING_ORIGIN
 
   // Auto-create invite links for synced opponents the first time a team is shown,
   // so the list populates itself. Runs once per team+season (ref-guarded); the

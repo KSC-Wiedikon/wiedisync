@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:prod": "VITE_PROD_DATA=1 vite",
     "build": "tsc -b && vite build",
+    "build:scheduling": "tsc -b && VITE_APP_TARGET=scheduling vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:unit": "vitest run",

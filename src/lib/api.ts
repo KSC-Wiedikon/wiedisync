@@ -65,6 +65,17 @@ if (useProdProxy && typeof window !== 'undefined') {
   )
 }
 
+// ── Scheduling app origin ───────────────────────────────────────────
+// The game-scheduling feature lives on its own subdomain
+// (spielplanung.wiedisync.kscw.ch). Opponent-invite links must point THERE,
+// not at whatever origin the admin happens to be browsing from. Driven by
+// `VITE_SCHEDULING_ORIGIN` (set per Cloudflare Pages project). Until that's set
+// — i.e. before the subdomain is live — we fall back to the current origin so
+// invite links keep working exactly as they do today (this is a no-op flip).
+export const SCHEDULING_ORIGIN: string =
+  (import.meta.env.VITE_SCHEDULING_ORIGIN as string | undefined) ||
+  (typeof window !== 'undefined' ? window.location.origin : 'https://wiedisync.kscw.ch')
+
 // ── Client ──────────────────────────────────────────────────────────
 
 // ACCEPTED RISK (2026-05-31 security audit — [Medium] "Access + refresh tokens
