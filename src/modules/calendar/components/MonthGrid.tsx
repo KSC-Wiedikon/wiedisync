@@ -375,9 +375,11 @@ export default function MonthGrid({
                         </div>
                       )}
 
-                      {/* Timed events */}
+                      {/* Timed events — fill the space beneath the date number / absences.
+                          Each event grows to share the remaining cell height (it's a
+                          calendar — events are the content, so use the room). */}
                       {inMonth && (visibleTimed.length + overflow > 0) && (
-                        <div className="mt-auto space-y-px overflow-hidden">
+                        <div className="mt-0.5 flex flex-1 flex-col gap-0.5 overflow-hidden">
                           {visibleTimed.map((entry) => {
                             const entryColor = barColors[paintKey(entry)]
                             const useChip = !bgColor && (entry.type === 'event' || entry.type === 'game')
@@ -389,7 +391,7 @@ export default function MonthGrid({
                                 e.stopPropagation()
                                 onEntryClick?.(entry)
                               }}
-                              className={`flex w-full items-center gap-0.5 truncate rounded px-0.5 text-left text-[10px] font-medium leading-snug transition-opacity hover:opacity-80 lg:text-xs ${
+                              className={`flex w-full min-h-0 flex-1 items-center gap-1 truncate rounded px-1 py-0.5 text-left text-[11px] font-medium leading-snug transition-opacity hover:opacity-80 lg:text-sm ${
                                 bgColor
                                   ? `${bgColor.text} ${bgColor.darkText}`
                                   : useChip
@@ -399,17 +401,21 @@ export default function MonthGrid({
                             >
                               <TypeIcon type={colorKey(entry)} sport={entry.sport} className={dotColors[paintKey(entry)].replace('bg-', 'text-')} />
                               {entry.startTime && (
-                                <span className="font-medium">{entry.startTime}</span>
+                                <span className="font-semibold">{entry.startTime}</span>
                               )}
                               {entry.type === 'game' && entry.gameType ? (
                                 <>
-                                  <span className={`hidden lg:inline-flex h-3.5 w-3.5 items-center justify-center rounded-sm text-[8px] font-bold leading-none text-white ${entry.gameType === 'home' ? 'bg-brand-500' : 'bg-amber-500'}`}>
+                                  <span className={`hidden lg:inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-[9px] font-bold leading-none text-white ${entry.gameType === 'home' ? 'bg-brand-500' : 'bg-amber-500'}`}>
                                     {entry.gameType === 'home' ? 'H' : 'A'}
                                   </span>
-                                  {entry.teamNames[0] ? <span className="hidden lg:inline truncate">{entry.teamNames[0]}</span> : null}
+                                  {(entry.teamNames[0] || entry.opponent) ? (
+                                    <span className="hidden lg:inline truncate">
+                                      {entry.teamNames[0]}{entry.opponent ? ` vs ${entry.opponent}` : ''}
+                                    </span>
+                                  ) : null}
                                 </>
                               ) : (
-                                <span className="hidden lg:inline truncate">{entry.title}</span>
+                                <span className="hidden truncate lg:inline">{entry.title}</span>
                               )}
                             </button>
                             )
@@ -425,7 +431,7 @@ export default function MonthGrid({
                                 })
                                 onOverflowClick?.(allForDay, date)
                               }}
-                              className={`rounded px-1 text-[10px] font-medium hover:bg-gray-100 lg:text-xs dark:hover:bg-gray-700 ${
+                              className={`shrink-0 rounded px-1 text-[11px] font-medium hover:bg-gray-100 lg:text-xs dark:hover:bg-gray-700 ${
                                 bgColor ? `${bgColor.text} ${bgColor.darkText}` : 'text-gray-500 dark:text-gray-400'
                               }`}
                             >
