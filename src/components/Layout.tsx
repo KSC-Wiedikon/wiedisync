@@ -9,7 +9,7 @@ import { useUnreadTotal } from '../modules/messaging/hooks/useUnreadTotal'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { getFileUrl } from '../utils/fileUrl'
 import { getCurrentSeason } from '../utils/dateHelpers'
-import { isAuthenticated } from '../lib/api'
+import { isAuthenticated, SCHEDULING_ORIGIN } from '../lib/api'
 import AdminToggle from './AdminToggle'
 import { useAdminMode } from '../hooks/useAdminMode'
 import BottomTabBar from './BottomTabBar'
@@ -86,12 +86,17 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
   // can open these in either mode). Spielplanung = admin / club-wide / per-team
   // Spielplaner (SpielplanerOrAdminRoute); Terminplanung = admin / club-wide
   // Spielplaner (AdminOrSpielplanerRoute).
+  // Game scheduling now lives on its own subdomain. When SCHEDULING_ORIGIN is a
+  // different origin (prod/dev with the env set), these jump there as external
+  // links (seamless via the shared .kscw.ch session cookie / SSO); on localhost
+  // or when unset, SCHEDULING_ORIGIN === current origin → they stay in-app.
+  const schedExternal = typeof window !== 'undefined' && SCHEDULING_ORIGIN.replace(/\/$/, '') !== window.location.origin
   const spielplanerItems = [
     ...(isAdmin || is_spielplaner || spielplanerTeamIds.length > 0
-      ? [{ to: '/admin/spielplanung', label: t('gameplan'), icon: <ClipboardList className={iconClass} /> }]
+      ? [{ to: '/admin/spielplanung', href: `${SCHEDULING_ORIGIN}/admin/spielplanung`, external: schedExternal, label: t('gameplan'), icon: <ClipboardList className={iconClass} /> }]
       : []),
     ...(isAdmin || is_spielplaner
-      ? [{ to: '/admin/terminplanung', label: t('terminplanung'), icon: <CalendarClock className={iconClass} /> }]
+      ? [{ to: '/admin/terminplanung', href: `${SCHEDULING_ORIGIN}/admin/terminplanung`, external: schedExternal, label: t('terminplanung'), icon: <CalendarClock className={iconClass} /> }]
       : []),
   ]
   return {
@@ -449,24 +454,39 @@ export default function Layout() {
                   <ul className="space-y-1">
                     {spielplanerItems.map((item) => (
                       <li key={item.to}>
-                        <NavLink
-                          to={item.to}
-                          onClick={() => setSidebarView('closed')}
-                          className={({ isActive }) =>
-                            `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        {item.external ? (
+                          <a
+                            href={item.href}
+                            onClick={() => setSidebarView('closed')}
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                               theme === 'light'
-                                ? isActive
-                                  ? 'bg-brand-50 text-brand-700'
-                                  : 'text-gray-700 hover:bg-gray-100'
-                                : isActive
-                                  ? 'border-l-3 border-gold-400 bg-brand-800 text-gold-400'
-                                  : 'text-gray-300 hover:bg-brand-800 hover:text-white'
-                            }`
-                          }
-                        >
-                          {item.icon}
-                          {item.label}
-                        </NavLink>
+                                ? 'text-gray-700 hover:bg-gray-100'
+                                : 'text-gray-300 hover:bg-brand-800 hover:text-white'
+                            }`}
+                          >
+                            {item.icon}
+                            {item.label}
+                          </a>
+                        ) : (
+                          <NavLink
+                            to={item.to}
+                            onClick={() => setSidebarView('closed')}
+                            className={({ isActive }) =>
+                              `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                theme === 'light'
+                                  ? isActive
+                                    ? 'bg-brand-50 text-brand-700'
+                                    : 'text-gray-700 hover:bg-gray-100'
+                                  : isActive
+                                    ? 'border-l-3 border-gold-400 bg-brand-800 text-gold-400'
+                                    : 'text-gray-300 hover:bg-brand-800 hover:text-white'
+                              }`
+                            }
+                          >
+                            {item.icon}
+                            {item.label}
+                          </NavLink>
+                        )}
                       </li>
                     ))}
                   </ul>

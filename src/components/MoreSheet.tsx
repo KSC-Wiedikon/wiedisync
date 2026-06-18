@@ -12,6 +12,7 @@ import { Bell, UserX, PenSquare, PartyPopper, ClipboardList, Building2, Calendar
 import type { MemberTeam, Team } from '../types'
 import { asObj } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
+import { SCHEDULING_ORIGIN } from '../lib/api'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 
 type ExpandedMemberTeam = MemberTeam & { team: Team | string }
@@ -30,7 +31,7 @@ function useAnimatedClose(onClose: () => void) {
 
 const iconClass = 'h-5 w-5'
 
-interface SheetItem { to: string; labelKey: string; icon: ReactNode }
+interface SheetItem { to: string; labelKey: string; icon: ReactNode; external?: boolean; href?: string }
 
 function buildSecondaryItems(
   memberId: number | string | undefined | null,
@@ -55,12 +56,15 @@ function buildSecondaryItems(
     { to: '/news', labelKey: 'news', icon: <Newspaper className={iconClass} /> },
   ]
   // Spielplaner tools — own role-gated section (mirrors Layout.tsx + route guards).
+  // Game scheduling lives on its own subdomain; link out when SCHEDULING_ORIGIN
+  // differs from the current origin (SSO makes it seamless), else stay in-app.
+  const schedExternal = typeof window !== 'undefined' && SCHEDULING_ORIGIN.replace(/\/$/, '') !== window.location.origin
   const spielplaner: SheetItem[] = [
     ...(sched.isAdmin || sched.is_spielplaner || sched.spielplanerTeamIds.length > 0
-      ? [{ to: '/admin/spielplanung', labelKey: 'gameplan', icon: <ClipboardList className={iconClass} /> }]
+      ? [{ to: '/admin/spielplanung', href: `${SCHEDULING_ORIGIN}/admin/spielplanung`, external: schedExternal, labelKey: 'gameplan', icon: <ClipboardList className={iconClass} /> }]
       : []),
     ...(sched.isAdmin || sched.is_spielplaner
-      ? [{ to: '/admin/terminplanung', labelKey: 'terminplanung', icon: <CalendarClock className={iconClass} /> }]
+      ? [{ to: '/admin/terminplanung', href: `${SCHEDULING_ORIGIN}/admin/terminplanung`, external: schedExternal, labelKey: 'terminplanung', icon: <CalendarClock className={iconClass} /> }]
       : []),
   ]
   return { primary, memberTools, spielplaner }
@@ -317,21 +321,33 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
           {(!user || !isApproved) ? null : (() => {
             const groups = buildSecondaryItems(user.id, { isAdmin, is_spielplaner, spielplanerTeamIds, canManageForms })
             const renderItem = (item: SheetItem) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                onClick={startClose}
-                className={({ isActive }) =>
-                  `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`
-                }
-              >
-                {item.icon}
-                {t(item.labelKey)}
-              </NavLink>
+              item.external ? (
+                <a
+                  key={item.to}
+                  href={item.href}
+                  onClick={startClose}
+                  className="flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  {item.icon}
+                  {t(item.labelKey)}
+                </a>
+              ) : (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  onClick={startClose}
+                  className={({ isActive }) =>
+                    `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
+                      isActive
+                        ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
+                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                    }`
+                  }
+                >
+                  {item.icon}
+                  {t(item.labelKey)}
+                </NavLink>
+              )
             )
             return (
               <>
