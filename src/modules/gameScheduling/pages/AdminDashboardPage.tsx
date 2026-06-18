@@ -12,6 +12,10 @@ import HomeProposalReview from '../components/HomeProposalReview'
 import OpponentNotes from '../components/OpponentNotes'
 import ManualBookingForm, { type ManualFixtureOption } from '../components/ManualBookingForm'
 import ExcelExportButton from '../components/ExcelExportButton'
+import {
+  buildScheduleRows, buildScheduleXlsx, buildSchedulePdf,
+  bytesToBase64, exportFilename, XLSX_MIME, PDF_MIME,
+} from '../lib/scheduleExport'
 import TeamAvailabilityDialog from '../components/TeamAvailabilityDialog'
 import SchedulingCalendar, { type IntraClubGame } from '../components/SchedulingCalendar'
 import MailboxPanel from '../components/MailboxPanel'
@@ -345,7 +349,23 @@ export default function AdminDashboardPage() {
     if (pendingCount > 0 && !(await confirm({ message: t('finalizeNotifyConfirmPending', { count: pendingCount }) }))) return
     setNotifyingTeam(teamId)
     try {
-      const res = await finalizeNotify(teamId, season.id)
+      // Attach the team's schedule as Excel + PDF so coaches can check the dates
+      // directly. Best-effort: a generation hiccup must not block the email — the
+      // body already lists every game.
+      let attachments: { filename: string; content_base64: string; content_type: string }[] = []
+      try {
+        const teamName = volleyballTeams.find((tm) => String(tm.id) === String(teamId))?.name
+        const rows = await buildScheduleRows({ bookings, opponents, slots, teams: volleyballTeams, season, teamId })
+        if (rows.length) {
+          const title = teamName ? `KSCW ${teamName} schedule` : 'KSCW game schedule'
+          const [xlsx, pdf] = await Promise.all([buildScheduleXlsx(rows), buildSchedulePdf(rows, title)])
+          attachments = [
+            { filename: exportFilename('xlsx', teamName), content_base64: bytesToBase64(xlsx), content_type: XLSX_MIME },
+            { filename: exportFilename('pdf', teamName), content_base64: bytesToBase64(pdf), content_type: PDF_MIME },
+          ]
+        }
+      } catch { /* fall through — send the email without attachments */ }
+      const res = await finalizeNotify(teamId, season.id, attachments)
       toast.success(t('finalizeNotifySent', { home: res.home, away: res.away }))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
@@ -751,6 +771,17 @@ export default function AdminDashboardPage() {
                       >
                         {remindingTeam === team.id ? '…' : t('sendReminder')}
                       </button>
+                      {/* Per-team Excel / PDF export of just this team's games. */}
+                      <ExcelExportButton
+                        bookings={bookings}
+                        opponents={opponents}
+                        slots={slots}
+                        teams={volleyballTeams}
+                        season={season}
+                        teamId={team.id}
+                        teamName={team.name}
+                        compact
+                      />
                     </div>
                   </div>
                   )}

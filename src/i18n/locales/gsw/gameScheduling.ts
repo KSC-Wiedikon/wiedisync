@@ -187,6 +187,8 @@ export default {
   importSuccess: '{{count}} Spiel importiert',
   downloadExcel: 'Excel abelade',
   downloadPdf: 'PDF abelade',
+  exportExcelShort: 'Excel',
+  exportPdfShort: 'PDF',
   downloadTemplate: 'Vorlag abelade',
   importColumnsHint: 'Spalte: Datum, Heimteam, Gastteam, Liga, Runde',
 

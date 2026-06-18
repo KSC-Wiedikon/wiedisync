@@ -156,7 +156,8 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // Send a Terminplanung email from the dedicated spielplanung identity.
   // Best-effort: callers wrap in try/catch so a mail failure never blocks the action.
-  async function sendSchedulingMail(to, subject, text, cc = null, html = null) {
+  // attachments: optional nodemailer attachment objects ({ filename, content: Buffer, contentType }).
+  async function sendSchedulingMail(to, subject, text, cc = null, html = null, attachments = null) {
     const recipients = parseRecipients(to)
     // No valid address survived sanitisation — skip the send (don't throw).
     if (!recipients || (Array.isArray(recipients) && recipients.length === 0)) {
@@ -180,6 +181,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       subject,
       text,
       html: html || undefined,
+      attachments: attachments && attachments.length ? attachments : undefined,
       messageId,
     })
     const raw = await composer.compile().build()
@@ -3501,12 +3503,32 @@ export function registerGameScheduling(router, { database, logger, services, get
         footerExtra: 'Sportliche Grüsse, KSC Wiedikon',
       })
 
+      // Optional Excel + PDF report, generated client-side and uploaded as
+      // base64. Decoded to Buffers for nodemailer. Whitelisted to the two report
+      // types and capped (4 files / 8 MB total) so the field can't be abused.
+      const ALLOWED_ATTACH = new Set([
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/pdf',
+      ])
+      const attachments = []
+      if (Array.isArray(req.body?.attachments)) {
+        let totalBytes = 0
+        for (const a of req.body.attachments.slice(0, 4)) {
+          if (!a || typeof a.filename !== 'string' || typeof a.content_base64 !== 'string') continue
+          if (!ALLOWED_ATTACH.has(a.content_type)) continue
+          const content = Buffer.from(a.content_base64, 'base64')
+          totalBytes += content.length
+          if (!content.length || totalBytes > 8 * 1024 * 1024) continue
+          attachments.push({ filename: a.filename.slice(0, 120), content, contentType: a.content_type })
+        }
+      }
+
       // To: the spielplanung mailbox (auto-forwards to the VB Spielplanung
       // group). Cc: the team's coaches + team-responsibles.
       const staff = await teamStaffEmails(teamId)
-      await sendSchedulingMail(SCHEDULING_REPLY_TO, `Spielplan ${kscw}${seasonLabel ? ` ${seasonLabel}` : ''}`, text, staff.length ? staff.join(',') : null, finalizeHtml)
+      await sendSchedulingMail(SCHEDULING_REPLY_TO, `Spielplan ${kscw}${seasonLabel ? ` ${seasonLabel}` : ''}`, text, staff.length ? staff.join(',') : null, finalizeHtml, attachments)
 
-      res.json({ success: true, staff: staff.length, home: homeLines.length, away: awayLines.length, pending: pending.length })
+      res.json({ success: true, staff: staff.length, home: homeLines.length, away: awayLines.length, pending: pending.length, attachments: attachments.length })
     } catch (err) {
       log.error({ msg: `finalize-notify: ${err.message}`, endpoint: 'terminplanung/admin/finalize-notify', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })

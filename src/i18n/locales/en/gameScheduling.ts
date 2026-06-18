@@ -184,6 +184,8 @@ export default {
   importSuccess: '{{count}} games imported',
   downloadExcel: 'Download Excel',
   downloadPdf: 'Download PDF',
+  exportExcelShort: 'Excel',
+  exportPdfShort: 'PDF',
   downloadTemplate: 'Download Template',
   importColumnsHint: 'Columns: Datum, Heimteam, Gastteam, Liga, Runde',
 

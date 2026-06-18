@@ -180,10 +180,16 @@ export function useAdminBookings(seasonId: string | undefined) {
 
   // Email the finalized schedule (all confirmed home + away games) for one team
   // to its coaches + team-responsibles and the spielplanung mailbox (→ group).
-  const finalizeNotify = useCallback(async (teamId: string, seasonIdParam: string) => {
+  // Optionally attach the Excel + PDF report (built client-side) so the same file
+  // the admin downloads rides along with the email.
+  const finalizeNotify = useCallback(async (
+    teamId: string,
+    seasonIdParam: string,
+    attachments?: { filename: string; content_base64: string; content_type: string }[],
+  ) => {
     const resp = await kscwApi('/terminplanung/admin/finalize-notify', {
       method: 'POST',
-      body: { team_id: teamId, season_id: seasonIdParam },
+      body: { team_id: teamId, season_id: seasonIdParam, attachments: attachments?.length ? attachments : undefined },
     })
     return resp as { staff: number; home: number; away: number; pending: number }
   }, [])
