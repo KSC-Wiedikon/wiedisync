@@ -14,6 +14,23 @@ export default {
   noData: 'No finance data yet. Run a ClubDesk sync to populate it.',
   mirrorNote: 'Read-only mirror of ClubDesk — synced, not edited here.',
 
+  // Reporting (dashboard tabs + statements)
+  tabOverview: 'Overview',
+  tabIncome: 'Income statement',
+  tabBalance: 'Balance sheet',
+  totalIncome: 'Total income',
+  totalExpenses: 'Total expenses',
+  netResult: 'Net result',
+  assets: 'Assets',
+  liabilitiesEquity: 'Liabilities & equity',
+  totalAssets: 'Total assets',
+  totalLiabEquity: 'Total liabilities & equity',
+  byDivision: 'By division',
+  divClub: 'Club',
+  divVb: 'Volleyball',
+  divBb: 'Basketball',
+  colAccount: 'Account',
+
   // Ledger table
   colDate: 'Date',
   colText: 'Description',

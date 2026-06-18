@@ -13,6 +13,23 @@ export default {
   noData: 'No kei Finanzdate. Mach e ClubDesk-Synchronisation.',
   mirrorNote: 'Nume-Läse-Kopie us ClubDesk – synchronisiert, nöd da bearbeitet.',
 
+  // Reporting (Tabs + Abschlüss)
+  tabOverview: 'Übersicht',
+  tabIncome: 'Erfolgsrechnig',
+  tabBalance: 'Bilanz',
+  totalIncome: 'Total Iinnahme',
+  totalExpenses: 'Total Uusgabe',
+  netResult: 'Ergebnis',
+  assets: 'Aktive',
+  liabilitiesEquity: 'Passive',
+  totalAssets: 'Total Aktive',
+  totalLiabEquity: 'Total Passive',
+  byDivision: 'Nach Sparte',
+  divClub: 'Verein',
+  divVb: 'Volleyball',
+  divBb: 'Basketball',
+  colAccount: 'Konto',
+
   colDate: 'Datum',
   colText: 'Beschriibig',
   colDebit: 'Soll',
