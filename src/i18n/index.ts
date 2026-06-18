@@ -34,6 +34,7 @@ import broadcast from './locales/en/broadcast'
 import fines from './locales/en/fines'
 import pwa from './locales/en/pwa'
 import forms from './locales/en/forms'
+import finance from './locales/en/finance'
 
 import deCommon from './locales/de/common'
 import deNav from './locales/de/nav'
@@ -68,6 +69,7 @@ import deBroadcast from './locales/de/broadcast'
 import deFines from './locales/de/fines'
 import dePwa from './locales/de/pwa'
 import deForms from './locales/de/forms'
+import deFinance from './locales/de/finance'
 
 import frCommon from './locales/fr/common'
 import frNav from './locales/fr/nav'
@@ -100,6 +102,7 @@ import frMessaging from './locales/fr/messaging'
 import frBroadcast from './locales/fr/broadcast'
 import frFines from './locales/fr/fines'
 import frPwa from './locales/fr/pwa'
+import frFinance from './locales/fr/finance'
 
 import itCommon from './locales/it/common'
 import itNav from './locales/it/nav'
@@ -132,6 +135,7 @@ import itMessaging from './locales/it/messaging'
 import itBroadcast from './locales/it/broadcast'
 import itFines from './locales/it/fines'
 import itPwa from './locales/it/pwa'
+import itFinance from './locales/it/finance'
 
 import gswCommon from './locales/gsw/common'
 import gswNav from './locales/gsw/nav'
@@ -165,6 +169,7 @@ import gswMessaging from './locales/gsw/messaging'
 import gswBroadcast from './locales/gsw/broadcast'
 import gswFines from './locales/gsw/fines'
 import gswPwa from './locales/gsw/pwa'
+import gswFinance from './locales/gsw/finance'
 
 function getInitialLanguage(): string {
   if (typeof window === 'undefined') return 'de'
@@ -220,6 +225,7 @@ i18n.use(initReactI18next).init({
     'fines',
     'pwa',
     'forms',
+    'finance',
   ],
   defaultNS: 'common',
   resources: {
@@ -257,6 +263,7 @@ i18n.use(initReactI18next).init({
       fines,
       pwa,
       forms,
+      finance,
     },
     de: {
       common: deCommon,
@@ -292,6 +299,7 @@ i18n.use(initReactI18next).init({
       fines: deFines,
       pwa: dePwa,
       forms: deForms,
+      finance: deFinance,
     },
     fr: {
       common: frCommon,
@@ -325,6 +333,7 @@ i18n.use(initReactI18next).init({
       broadcast: frBroadcast,
       fines: frFines,
       pwa: frPwa,
+      finance: frFinance,
     },
     it: {
       common: itCommon,
@@ -358,6 +367,7 @@ i18n.use(initReactI18next).init({
       broadcast: itBroadcast,
       fines: itFines,
       pwa: itPwa,
+      finance: itFinance,
     },
     gsw: {
       common: gswCommon,
@@ -392,6 +402,7 @@ i18n.use(initReactI18next).init({
       broadcast: gswBroadcast,
       fines: gswFines,
       pwa: gswPwa,
+      finance: gswFinance,
     },
   },
   interpolation: {

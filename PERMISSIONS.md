@@ -104,6 +104,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | forms | `FORMS_VISIBLE` — `status _in {open, closed}` AND (`audience = club_wide` OR an attached team I'm a member of). Frontend resolves visibility via the two-step junction fetch (`useUserVisibleFormIds`); the policy walk of `forms.teams` is why the frontend must NOT also deep-filter it (M2M-deep-filter + policy-walk silent-`[]` landmine) | `*` | **086 / 087** |
 | forms_teams | none | `*` — junction read for the forms M2M | **086 / 087** |
 | form_submissions | `member.user = $CURRENT_USER` (own only) | `*` | **086 / 087** |
+| finance_invoices | `member.user = $CURRENT_USER` (own dues only) | `MEMBER_INVOICE_FIELDS` (16 dues cols + `member`; no `source`/`import_batch`/`cd_*`/`recipient_*` mirror plumbing) | **114** |
 
 ### Reads (intentionally cross-club)
 
@@ -186,7 +187,9 @@ Inherits everything from Member. Adds:
 
 Inherits Member. Adds read-all on operational collections — board oversight role:
 
-`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, tasks, task_templates, poll_votes, team_requests, push_subscriptions, game_scheduling_seasons, game_scheduling_slots, game_scheduling_opponents, game_scheduling_bookings, announcements, fines, fine_rules, scheduling_blocks`.
+`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, tasks, task_templates, poll_votes, team_requests, push_subscriptions, game_scheduling_seasons, game_scheduling_slots, game_scheduling_opponents, game_scheduling_bookings, announcements, fines, fine_rules, scheduling_blocks, finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports`.
+
+**Finance (migration 114)** — the 7 `finance_*` collections are the full board finance dashboard (ClubDesk Finanz read-only mirror, Scope A). Vorstand reads all; Members read only their own `finance_invoices` (above). No policy-layer writes — the ClubDesk import runs on the system connection.
 
 **Plus full CRUD on Forms** — `forms`, `forms_teams`, `form_submissions` (decision 2026-06-05: create/edit/delete any form club-wide + read all submissions, exactly like a global admin). This is the one exception to the otherwise read-only board role.
 
@@ -273,6 +276,8 @@ ORDER BY table_name;
 
 <details>
 <summary>Older reconciliation notes (archival — the full audit ledger lives in SECURITY.md + git).</summary>
+
+> **2026-06-18 — Finance module (Scope A, migration 114).** Added 7 `finance_*` collections — a read-only mirror of ClubDesk Finanz, schema built so a future native finance (Scope C) just adds write paths. Member gets read-only `finance_invoices` scoped to own dues (`member.user = $CURRENT_USER`, `MEMBER_INVOICE_FIELDS` whitelist — AHV/IBAN/address deliberately not mirrored); Vorstand gets read-all on all 7. No write perms — the ClubDesk scraper/import writes via the system connection, not the items API. Applied + verified on dev via the `directus_permissions` query (smoke skipped — dev member token dead); prod pending.
 
 > **2026-05-23 — Restored public `events` + `news` for kscw-website.** Migration 035 dropped Public read on `events` on the mistaken assumption the website didn't consume it, silently emptying the homepage events + `/weiteres/kalender`; `news` had never been granted (homepage News showed "no news"). Re-added both to Public as field-scoped reads (`PUBLIC_EVENT_FIELDS` / `PUBLIC_NEWS_FIELDS`, non-PII); `news` limited to published, non-future posts. RSVP junctions (`events_teams` / `participations`) stay private — 035's privacy fix is intact. Applied dev→prod via `db:setup-perms`; smoke green.
 

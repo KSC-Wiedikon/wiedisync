@@ -41,9 +41,12 @@ import FormsPage from './modules/forms/FormsPage'
 import FormBuilderPage from './modules/forms/FormBuilderPage'
 import PublicFormPage from './modules/forms/PublicFormPage'
 import FinesPage from './modules/fines/FinesPage'
+import FinancePage from './modules/finance/FinancePage'
+import FinanceDuesPage from './modules/finance/FinanceDuesPage'
 import DatenschutzPage from './modules/legal/DatenschutzPage'
 import ImpressumPage from './modules/legal/ImpressumPage'
 import AuthRoute from './components/AuthRoute'
+import VorstandRoute from './components/VorstandRoute'
 import ScorerAssignPage from './modules/scorer/ScorerAssignPage'
 import AdminSetupPage from './modules/gameScheduling/pages/AdminSetupPage'
 import AdminDashboardPage from './modules/gameScheduling/pages/AdminDashboardPage'
@@ -167,6 +170,7 @@ export default function App() {
             <Route path="forms/new" element={<AuthRoute><FormBuilderPage /></AuthRoute>} />
             <Route path="forms/:formId/edit" element={<AuthRoute><FormBuilderPage /></AuthRoute>} />
             <Route path="fines" element={<AuthRoute><FinesPage /></AuthRoute>} />
+            <Route path="finance/dues" element={<AuthRoute><FinanceDuesPage /></AuthRoute>} />
             <Route path="datenschutz" element={<DatenschutzPage />} />
             <Route path="impressum" element={<ImpressumPage />} />
             <Route path="feedback" element={<FeedbackPage />} />
@@ -182,6 +186,7 @@ export default function App() {
             <Route path="admin/terminplanung/dashboard" element={<AdminOrSpielplanerRoute><AdminDashboardPage /></AdminOrSpielplanerRoute>} />
             <Route path="admin/scorer-assign" element={<AdminRoute><ScorerAssignPage /></AdminRoute>} />
             <Route path="admin/referee-expenses" element={<AdminRoute><RefereeExpensesPage /></AdminRoute>} />
+            <Route path="admin/finance" element={<VorstandRoute><FinancePage /></VorstandRoute>} />
             <Route path="admin/club-stats" element={<AdminRoute><ClubStatsPage /></AdminRoute>} />
             <Route path="admin/volley-feedback" element={<AdminRoute><VolleyFeedbackPage /></AdminRoute>} />
             <Route path="admin/anmeldungen" element={<AdminRoute><AnmeldungenPage /></AdminRoute>} />
