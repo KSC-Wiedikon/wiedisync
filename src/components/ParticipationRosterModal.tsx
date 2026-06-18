@@ -21,7 +21,7 @@ import { useCollection } from '../lib/query'
 import { fetchAllItems } from '../lib/api'
 import { getFileUrl } from '../utils/fileUrl'
 import type { Participation, Absence, Member, Team, EventSession } from '../types'
-import { asObj, flattenMemberIds } from '../utils/relations'
+import { asObj, flattenMemberIds, disambiguateFirstNames } from '../utils/relations'
 import { formatDate, getDeadlineDate, formatRelativeTime, formatDateTimeCompact } from '../utils/dateHelpers'
 import { absenceCoversActivity } from '../utils/absenceHelpers'
 import { getPositionI18nKey } from '../utils/memberPositions'
@@ -987,42 +987,11 @@ export default function ParticipationRosterModal({
     }
   }, [exporting, exportRows, exportMeta, t])
 
-  // Compute short display names: first name only, disambiguate with last-name initials
-  const displayNames = useMemo(() => {
-    const names = new Map<string, string>()
-    const allMembers = [...memberList, ...staffMembers]
-
-    // Group by first name
-    const byFirstName = new Map<string, typeof allMembers>()
-    for (const m of allMembers) {
-      const key = m.first_name ?? ''
-      if (!byFirstName.has(key)) byFirstName.set(key, [])
-      byFirstName.get(key)!.push(m)
-    }
-
-    for (const [firstName, group] of byFirstName) {
-      if (group.length === 1) {
-        names.set(String(group[0].id), firstName)
-      } else {
-        for (const m of group) {
-          const others = group.filter(o => String(o.id) !== String(m.id))
-          const lastName = m.last_name ?? ''
-          let len = 1
-          while (len < lastName.length) {
-            const prefix = lastName.slice(0, len).toLowerCase()
-            if (!others.some(o => (o.last_name ?? '').slice(0, len).toLowerCase() === prefix)) break
-            len++
-          }
-          if (len >= lastName.length) {
-            names.set(String(m.id), `${firstName} ${lastName}`)
-          } else {
-            names.set(String(m.id), `${firstName} ${lastName.slice(0, len)}.`)
-          }
-        }
-      }
-    }
-    return names
-  }, [memberList, staffMembers])
+  // Short display names: first name only, disambiguated with last-name initials.
+  const displayNames = useMemo(
+    () => disambiguateFirstNames([...memberList, ...staffMembers]),
+    [memberList, staffMembers],
+  )
 
   const statusColors: Record<string, string> = {
     confirmed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
