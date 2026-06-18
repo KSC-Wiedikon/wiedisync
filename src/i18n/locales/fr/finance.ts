@@ -44,6 +44,14 @@ export default {
   typeInvoices: 'Factures',
   typeBookings: 'Écritures',
 
+  // Arbre des comptes
+  tabAccounts: 'Comptes',
+  catClosing: 'Clôture',
+  selectAccount: 'Sélectionnez un compte pour voir ses écritures.',
+  colGegenkonto: 'Contrepartie',
+  colSaldo: 'Solde',
+  noBookings: 'Aucune écriture sur cette période.',
+
   colDate: 'Date',
   colText: 'Description',
   colDebit: 'Débit',

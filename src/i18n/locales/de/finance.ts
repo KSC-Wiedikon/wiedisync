@@ -44,6 +44,14 @@ export default {
   typeInvoices: 'Rechnungen',
   typeBookings: 'Buchungen',
 
+  // Kontenbaum
+  tabAccounts: 'Konten',
+  catClosing: 'Abschluss',
+  selectAccount: 'Wähle ein Konto, um seine Buchungen zu sehen.',
+  colGegenkonto: 'Gegenkonto',
+  colSaldo: 'Saldo',
+  noBookings: 'Keine Buchungen in diesem Zeitraum.',
+
   colDate: 'Datum',
   colText: 'Beschreibung',
   colDebit: 'Soll',

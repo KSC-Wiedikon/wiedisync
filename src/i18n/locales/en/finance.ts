@@ -45,6 +45,14 @@ export default {
   typeInvoices: 'Invoices',
   typeBookings: 'Bookings',
 
+  // Accounts tree
+  tabAccounts: 'Accounts',
+  catClosing: 'Closing',
+  selectAccount: 'Select an account to see its bookings.',
+  colGegenkonto: 'Contra account',
+  colSaldo: 'Balance',
+  noBookings: 'No bookings in this period.',
+
   // Ledger table
   colDate: 'Date',
   colText: 'Description',
