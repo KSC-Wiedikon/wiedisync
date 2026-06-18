@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, X, User } from 'lucide-react'
 import type { Task, TaskCategory } from '../../types'
+import { disambiguateFirstNames } from '../../utils/relations'
 
 interface TaskCardProps {
   task: Task
@@ -36,6 +38,8 @@ export default function TaskCard({
   const claimedMember = members?.find((m) => m.id === task.claimed_by)
   const assignedMember = members?.find((m) => m.id === task.assigned_to)
   const displayMember = claimedMember || assignedMember
+  // Disambiguate across the task list's members so two "Luca"s read "Luca C."
+  const displayNames = useMemo(() => disambiguateFirstNames(members ?? []), [members])
   const isClaimed = !!task.claimed_by
   const isClaimedByMe = task.claimed_by === currentUserId
 
@@ -90,7 +94,7 @@ export default function TaskCard({
           title={`${displayMember.first_name} ${displayMember.last_name}`}
         >
           <User className="h-3 w-3" />
-          {displayMember.first_name}
+          {displayNames.get(String(displayMember.id)) ?? displayMember.first_name}
         </span>
       ) : isClaimed ? (
         // Claimed by someone not in the members list

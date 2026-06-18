@@ -39,10 +39,10 @@ export function memberName(m: { first_name?: string; last_name?: string } | null
  * ParticipationRosterModal.
  */
 export function disambiguateFirstNames(
-  members: Array<{ id: string | number; first_name?: string; last_name?: string }>,
+  members: Array<{ id: string | number; first_name?: string | null; last_name?: string | null }>,
 ): Map<string, string> {
   const labels = new Map<string, string>()
-  const byFirst = new Map<string, Array<{ id: string | number; first_name?: string; last_name?: string }>>()
+  const byFirst = new Map<string, Array<{ id: string | number; first_name?: string | null; last_name?: string | null }>>()
   for (const m of members) {
     const key = (m.first_name ?? '').trim()
     const arr = byFirst.get(key)

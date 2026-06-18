@@ -10,6 +10,7 @@ import GroupDmMenu from './GroupDmMenu'
 import Avatar, { AvatarGroup } from './Avatar'
 import { Bell, BellOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { disambiguateFirstNames } from '../../../utils/relations'
 import type { ConversationSummary, MessageRow } from '../api/types'
 
 type Props = {
@@ -54,10 +55,15 @@ export default function ThreadView({ conversation, onMarkRead, onToggleMute, hea
   const displayTitle = (() => {
     if (title) return title
     if (isGroupDm) {
-      return conversation.title
-        || (members.length > 0
-          ? members.map(m => `${m.first_name ?? ''}`.trim()).filter(Boolean).slice(0, 3).join(', ')
-          : t('groupChat.defaultName'))
+      if (conversation.title) return conversation.title
+      if (members.length === 0) return t('groupChat.defaultName')
+      // Disambiguate so two "Luca"s read "Luca C." instead of "Luca, …, Luca"
+      const labels = disambiguateFirstNames(members)
+      return members
+        .map(m => labels.get(String(m.id)) ?? (m.first_name ?? '').trim())
+        .filter(Boolean)
+        .slice(0, 3)
+        .join(', ')
     }
     if (isDmLike) {
       const other = members.find(m => String(m.id) !== String(user?.id))
