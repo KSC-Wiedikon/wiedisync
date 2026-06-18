@@ -2741,7 +2741,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         DIRECTUS_URL: 'http://127.0.0.1:8055',
         DIRECTUS_TOKEN: token,
       }
-      const output = await new Promise((resolve, reject) => {
+      const result = await new Promise((resolve, reject) => {
         const child = spawn('node', ['/directus/scripts/vm-sync-check.mjs'], { env })
         let stdout = ''
         let stderr = ''
@@ -2753,13 +2753,29 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         }, 600_000)
         child.on('close', (code) => {
           clearTimeout(timer)
-          if (code === 0) resolve(stdout)
+          // 0 = full sync, 75 = soft defer (transient VM unavailability), other =
+          // hard failure. Resolve 0/75 so only real failures reach the catch
+          // (which alerts); reject everything else.
+          if (code === 0 || code === 75) resolve({ code, stdout })
           else reject(Object.assign(new Error(`VM sync exited ${code}: ${stderr.slice(-500)}`), { status: code }))
         })
         child.on('error', (err) => { clearTimeout(timer); reject(err) })
       })
-      log.info(`VM sync cron (${reason}): ${output.split('\n').slice(-6).join(' | ')}`)
-      await logCronRun(database, 'vm_sync', { status: 'ok', durationMs: Date.now() - startedAt })
+      if (result.code === 75) {
+        // Transient VM unavailability — a group was deferred. Record `deferred`
+        // (NOT `error`, so no alert) with an attempt counter parsed from the
+        // prior row; the watchdog retries up to a cap, then backs off.
+        const prior = await database('sync_runs').where({ source: 'vm_sync' }).first().catch(() => null)
+        const priorN = prior && prior.status === 'deferred'
+          ? parseInt(String(prior.error_message || '').match(/attempt (\d+)/)?.[1] || '0', 10)
+          : 0
+        const attempt = priorN + 1
+        log.info(`VM sync cron (${reason}): deferred attempt ${attempt} — ${result.stdout.split('\n').slice(-4).join(' | ')}`)
+        await logCronRun(database, 'vm_sync', { status: 'deferred', durationMs: Date.now() - startedAt, errorMessage: `deferred (attempt ${attempt}): VM temporarily unavailable` })
+      } else {
+        log.info(`VM sync cron (${reason}): ${result.stdout.split('\n').slice(-6).join(' | ')}`)
+        await logCronRun(database, 'vm_sync', { status: 'ok', durationMs: Date.now() - startedAt })
+      }
     } catch (err) {
       log.error({ msg: `VM sync cron (${reason}): ${err.message}`, exitCode: err.status, event: 'cron.vm_sync' })
       logCronError('vm_sync', new Error(err.message))
@@ -2771,21 +2787,32 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   schedule('0 4 * * 1', () => runVmSync('weekly'))
 
-  // ── 10b². Watchdog: retry VM sync every 30 min while it's failing ──
-  // VM intermittently 403s (2026-06-08). If the last vm_sync recorded `error`,
-  // re-run every 30 min until it succeeds (status flips to `ok` → the watchdog
-  // goes quiet on its own). Bounded: skip the <25min just-ran/in-progress
-  // window so it never races the weekly run, and give up after 12h so a
-  // genuinely-down VM isn't hammered until the next weekly cycle.
+  // ── 10b². Watchdog: retry VM sync every 30 min while it's failing/deferred ──
+  // VM's indoor data API intermittently 403s/stalls (2026-06-08, 2026-06-18).
+  // Two retry-worthy states, both quiet once it recovers (status flips to `ok`):
+  //   • `error`  — a hard failure: retry every 30 min until it succeeds.
+  //   • `deferred` — a transient VM bad window (no alert): retry up to
+  //     DEFER_RETRY_CAP times to catch a healthy window, then back off to the
+  //     weekly run so a long outage doesn't hammer volleyball.ch all week.
+  // Bounded: skip the <25min just-ran/in-progress window so it never races the
+  // weekly run, and the 12h ceiling guards the `error` case.
+  const DEFER_RETRY_CAP = 6
   schedule('*/30 * * * *', async () => {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
     try {
       const row = await database('sync_runs').where({ source: 'vm_sync' }).first()
-      if (!row || row.status !== 'error' || !row.last_run_at) return
+      if (!row || !row.last_run_at) return
       const ageMin = (Date.now() - new Date(row.last_run_at).getTime()) / 60000
       if (ageMin < 25 || ageMin > 720) return
-      log.info(`VM sync watchdog: last run errored ~${Math.round(ageMin)}min ago — retrying`)
-      await runVmSync('watchdog-retry')
+      if (row.status === 'error') {
+        log.info(`VM sync watchdog: last run errored ~${Math.round(ageMin)}min ago — retrying`)
+        await runVmSync('watchdog-retry')
+      } else if (row.status === 'deferred') {
+        const attempt = parseInt(String(row.error_message || '').match(/attempt (\d+)/)?.[1] || '0', 10)
+        if (attempt >= DEFER_RETRY_CAP) return  // backed off — wait for the weekly run
+        log.info(`VM sync watchdog: last run deferred (attempt ${attempt}) ~${Math.round(ageMin)}min ago — retrying`)
+        await runVmSync('watchdog-deferred-retry')
+      }
     } catch (err) {
       log.error({ msg: `VM sync watchdog: ${err.message}`, event: 'cron.vm_sync_watchdog' })
     }
