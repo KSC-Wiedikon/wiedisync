@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
-import { formatDateCompactZurich } from '../../utils/dateHelpers'
+import { formatDateCompactZurich, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import {
-  useFinanceAccounts, useFinanceFiscalYears, useFinanceTransactions, useFinanceInvoices,
+  useFinanceAccounts, useFinanceFiscalYears, useFinanceTransactions, useFinanceInvoices, useFinanceImports,
   toNum, formatChf, isOpenInvoice,
 } from '../../hooks/useFinance'
 import type { FinanceAccount } from './types'
 
-type Tab = 'overview' | 'income' | 'balance'
+type Tab = 'overview' | 'income' | 'balance' | 'sync'
 type AcctRow = FinanceAccount & { bal: number }
 
 /** KPI tile. */
@@ -89,6 +89,8 @@ export default function FinancePage() {
   const transactions = txRaw ?? []
   const { data: invoicesRaw } = useFinanceInvoices()
   const invoices = invoicesRaw ?? []
+  const { data: importsRaw } = useFinanceImports()
+  const imports = importsRaw ?? []
 
   // Per-account debit/credit totals from the ledger (keyed by account number).
   const accountStats = useMemo(() => {
@@ -139,6 +141,7 @@ export default function FinancePage() {
   const recent = transactions.slice(0, 50)
   const empty = !isLoading && transactions.length === 0 && invoices.length === 0
   const divLabel = (d: string) => d === 'vb' ? t('divVb') : d === 'bb' ? t('divBb') : t('divClub')
+  const importTypeLabel = (ty: string) => ty === 'invoices' ? t('typeInvoices') : ty === 'bookings' ? t('typeBookings') : ty
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
@@ -169,6 +172,7 @@ export default function FinancePage() {
             <TabBtn active={tab === 'overview'} label={t('tabOverview')} onClick={() => setTab('overview')} />
             <TabBtn active={tab === 'income'} label={t('tabIncome')} onClick={() => setTab('income')} />
             <TabBtn active={tab === 'balance'} label={t('tabBalance')} onClick={() => setTab('balance')} />
+            <TabBtn active={tab === 'sync'} label={t('tabSync')} onClick={() => setTab('sync')} />
           </div>
 
           {/* ── Overview ─────────────────────────────────────────── */}
@@ -256,6 +260,48 @@ export default function FinancePage() {
             <div className="space-y-5">
               <StatementTable title={t('assets')} rows={assetRows} total={totalAssets} totalLabel={t('totalAssets')} accLabel={t('colAccount')} amtLabel={t('colAmount')} />
               <StatementTable title={t('liabilitiesEquity')} rows={liabEqRows} total={totalLiabEq} totalLabel={t('totalLiabEquity')} accLabel={t('colAccount')} amtLabel={t('colAmount')} />
+            </div>
+          )}
+
+          {/* ── Sync status ──────────────────────────────────────── */}
+          {tab === 'sync' && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                <div className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('lastSync')}</div>
+                <div className="mt-1 text-lg font-semibold tabular-nums text-gray-900 dark:text-gray-100">{imports[0] ? formatDateTimeCompactZurich(imports[0].imported_at) : '–'}</div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('autoSyncNote')}</div>
+              </div>
+              {imports.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('noSyncs')}</div>
+              ) : (
+                <section>
+                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('syncHistory')}</h3>
+                  <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
+                          <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colWhen')}</TableHead>
+                          <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colType')}</TableHead>
+                          <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colBy')}</TableHead>
+                          <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colRows')}</TableHead>
+                          <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colPeriod')}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {imports.slice(0, 30).map((im) => (
+                          <TableRow key={im.id} className="border-gray-200 dark:border-gray-700">
+                            <TableCell className="whitespace-nowrap text-gray-900 dark:text-gray-100">{formatDateTimeCompactZurich(im.imported_at)}</TableCell>
+                            <TableCell className="text-gray-700 dark:text-gray-300">{importTypeLabel(im.import_type)}</TableCell>
+                            <TableCell className="hidden sm:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">{im.imported_by_name || '–'}</TableCell>
+                            <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{im.row_count ?? '–'}</TableCell>
+                            <TableCell className="hidden sm:table-cell text-gray-600 dark:text-gray-400">{im.fiscal_year_label || '–'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </section>
+              )}
             </div>
           )}
 

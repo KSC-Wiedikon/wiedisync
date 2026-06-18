@@ -31,6 +31,20 @@ export default {
   divBb: 'Basketball',
   colAccount: 'Account',
 
+  // Sync status
+  tabSync: 'Sync',
+  lastSync: 'Last sync',
+  autoSyncNote: 'Finances sync automatically from ClubDesk every night at 04:00.',
+  syncHistory: 'Sync history',
+  noSyncs: 'No syncs yet.',
+  colWhen: 'When',
+  colType: 'Type',
+  colBy: 'By',
+  colRows: 'Rows',
+  colPeriod: 'Period',
+  typeInvoices: 'Invoices',
+  typeBookings: 'Bookings',
+
   // Ledger table
   colDate: 'Date',
   colText: 'Description',

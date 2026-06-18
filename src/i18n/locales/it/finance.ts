@@ -30,6 +30,20 @@ export default {
   divBb: 'Basketball',
   colAccount: 'Conto',
 
+  // Stato sincronizzazione
+  tabSync: 'Sync',
+  lastSync: 'Ultima sincronizzazione',
+  autoSyncNote: 'Le finanze si sincronizzano automaticamente da ClubDesk ogni notte alle 04:00.',
+  syncHistory: 'Cronologia sincronizzazioni',
+  noSyncs: 'Nessuna sincronizzazione finora.',
+  colWhen: 'Quando',
+  colType: 'Tipo',
+  colBy: 'Da',
+  colRows: 'Righe',
+  colPeriod: 'Periodo',
+  typeInvoices: 'Fatture',
+  typeBookings: 'Registrazioni',
+
   colDate: 'Data',
   colText: 'Descrizione',
   colDebit: 'Dare',
