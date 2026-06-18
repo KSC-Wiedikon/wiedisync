@@ -13,6 +13,23 @@ export default {
   noData: 'Ancora nessun dato finanziario. Avvia una sincronizzazione ClubDesk.',
   mirrorNote: 'Copia in sola lettura da ClubDesk – sincronizzata, non modificata qui.',
 
+  // Reporting (schede + conti)
+  tabOverview: 'Panoramica',
+  tabIncome: 'Conto economico',
+  tabBalance: 'Bilancio',
+  totalIncome: 'Totale entrate',
+  totalExpenses: 'Totale uscite',
+  netResult: 'Risultato',
+  assets: 'Attivi',
+  liabilitiesEquity: 'Passivi',
+  totalAssets: 'Totale attivi',
+  totalLiabEquity: 'Totale passivi',
+  byDivision: 'Per sezione',
+  divClub: 'Club',
+  divVb: 'Volleyball',
+  divBb: 'Basketball',
+  colAccount: 'Conto',
+
   colDate: 'Data',
   colText: 'Descrizione',
   colDebit: 'Dare',
