@@ -7,8 +7,9 @@ import {
   toNum, formatChf, isOpenInvoice,
 } from '../../hooks/useFinance'
 import type { FinanceAccount, FinanceTransaction } from './types'
+import AccountExplorer from './AccountExplorer'
 
-type Tab = 'overview' | 'income' | 'balance' | 'sync'
+type Tab = 'overview' | 'income' | 'balance' | 'accounts' | 'sync'
 
 /** Aggregate debit/credit totals per account number from a set of transactions. */
 function statsFrom(rows: FinanceTransaction[]) {
@@ -181,6 +182,7 @@ export default function FinancePage() {
             <TabBtn active={tab === 'overview'} label={t('tabOverview')} onClick={() => setTab('overview')} />
             <TabBtn active={tab === 'income'} label={t('tabIncome')} onClick={() => setTab('income')} />
             <TabBtn active={tab === 'balance'} label={t('tabBalance')} onClick={() => setTab('balance')} />
+            <TabBtn active={tab === 'accounts'} label={t('tabAccounts')} onClick={() => setTab('accounts')} />
             <TabBtn active={tab === 'sync'} label={t('tabSync')} onClick={() => setTab('sync')} />
           </div>
 
@@ -271,6 +273,9 @@ export default function FinancePage() {
               <StatementTable title={t('liabilitiesEquity')} rows={liabEqRows} total={totalLiabEq} totalLabel={t('totalLiabEquity')} accLabel={t('colAccount')} amtLabel={t('colAmount')} />
             </div>
           )}
+
+          {/* ── Accounts (drill-down tree) ───────────────────────── */}
+          {tab === 'accounts' && <AccountExplorer accounts={accounts} transactions={transactions} />}
 
           {/* ── Sync status ──────────────────────────────────────── */}
           {tab === 'sync' && (

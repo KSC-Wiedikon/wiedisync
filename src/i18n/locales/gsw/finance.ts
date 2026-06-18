@@ -44,6 +44,14 @@ export default {
   typeInvoices: 'Rächnige',
   typeBookings: 'Buechige',
 
+  // Kontebaum
+  tabAccounts: 'Konte',
+  catClosing: 'Abschluss',
+  selectAccount: 'Wähl es Konto us, zum sini Buechige gseh.',
+  colGegenkonto: 'Gegekonto',
+  colSaldo: 'Saldo',
+  noBookings: 'Kei Buechige i dem Ziitruum.',
+
   colDate: 'Datum',
   colText: 'Beschriibig',
   colDebit: 'Soll',

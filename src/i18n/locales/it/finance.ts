@@ -44,6 +44,14 @@ export default {
   typeInvoices: 'Fatture',
   typeBookings: 'Registrazioni',
 
+  // Albero dei conti
+  tabAccounts: 'Conti',
+  catClosing: 'Chiusura',
+  selectAccount: 'Seleziona un conto per vedere le sue registrazioni.',
+  colGegenkonto: 'Contropartita',
+  colSaldo: 'Saldo',
+  noBookings: 'Nessuna registrazione in questo periodo.',
+
   colDate: 'Data',
   colText: 'Descrizione',
   colDebit: 'Dare',
