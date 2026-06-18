@@ -14,6 +14,11 @@ export function escHtml(str) {
 export const FRONTEND_URL = process.env.FRONTEND_URL
   || (process.env.PUBLIC_URL?.includes('directus-dev') ? 'https://wiedisync.pages.dev' : 'https://wiedisync.kscw.ch')
 
+// Game scheduling lives on its own subdomain; opponent + scheduling-dashboard
+// links point here (auto-detected dev vs prod from PUBLIC_URL, like FRONTEND_URL).
+export const SCHEDULING_URL = process.env.SCHEDULING_URL
+  || (process.env.PUBLIC_URL?.includes('directus-dev') ? 'https://spielplanung-dev.kscw.ch' : 'https://spielplanung.wiedisync.kscw.ch')
+
 const LOGO_URL = `${FRONTEND_URL}/wiedisync_logo.svg`
 
 const VB_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="44" height="44" fill="none" stroke-linecap="round" stroke-linejoin="round">' +

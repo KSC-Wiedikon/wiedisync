@@ -7,7 +7,7 @@
 import crypto from 'crypto'
 import nodemailer from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer/index.js'
-import { FRONTEND_URL, buildEmailLayout, buildInfoCard, escHtml } from './email-template.js'
+import { SCHEDULING_URL, buildEmailLayout, buildInfoCard, escHtml } from './email-template.js'
 import { VALID_LANGS, schedEmail, inviteEmail } from './terminplanung-emails.js'
 import { writeUserLog } from './activity-log.js'
 
@@ -239,7 +239,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
       // Send confirmation email (branded HTML + plain-text fallback).
       try {
-        const accessUrl = `${FRONTEND_URL}/terminplanung/${token}`
+        const accessUrl = `${SCHEDULING_URL}/terminplanung/${token}`
         const text = `Hallo ${contact_name},\n\nDein Zugangslink zur Spielplanung:\n${accessUrl}\n\nDieser Link ist 30 Tage gültig.\n\nKSC Wiedikon`
         const html = buildEmailLayout(
           `<p style="font-size:14px;color:#e2e8f0;line-height:1.6;margin:0 0 12px">Dein Zugangslink zur Spielplanung ist bereit. Der Link ist 30 Tage gültig.</p>`,
@@ -2148,13 +2148,13 @@ export function registerGameScheduling(router, { database, logger, services, get
           contact: proposer.name || opponent.contact_name || '', kscw, opp, list, slots: slotRowsMail,
         })
         await sendSchedulingMail(proposer.email, subject, text, opponent.contact_email || null, html)
-        const adminText = `${opp} hat Heimspiel-Slots vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${FRONTEND_URL}/admin/terminplanung/dashboard`
+        const adminText = `${opp} hat Heimspiel-Slots vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${SCHEDULING_URL}/admin/terminplanung/dashboard`
         const adminHtml = adminNotifyHtml({
           title: 'Heim-Slot-Vorschläge',
           lead: `${opp} hat Heimspiel-Slots vorgeschlagen (${kscw}):`,
           infoRows: slotRowsMail.map((r, i) => ({ label: `Slot ${i + 1}`, value: `${r.date}, ${r.time}${r.hall ? `, ${r.hall}` : ''}` })),
           ctaText: 'Bitte im Dashboard einen Slot bestätigen.',
-          ctaUrl: `${FRONTEND_URL}/admin/terminplanung/dashboard`,
+          ctaUrl: `${SCHEDULING_URL}/admin/terminplanung/dashboard`,
         })
         await sendSchedulingMail(SCHEDULING_REPLY_TO, `Heim-Slot-Vorschläge – ${opp} (${kscw})`, adminText, null, adminHtml)
       } catch (mailErr) {
@@ -2585,13 +2585,13 @@ export function registerGameScheduling(router, { database, logger, services, get
           contact: proposer.name || opponent.contact_name || '', kscw, opp, list, slots: slotRowsMail,
         })
         await sendSchedulingMail(proposer.email, subject, text, opponent.contact_email || null, html)
-        const adminText = `${opp} hat Auswärts-Termine vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${FRONTEND_URL}/admin/terminplanung/dashboard`
+        const adminText = `${opp} hat Auswärts-Termine vorgeschlagen (${kscw}):\n${list}\n\nBitte im Dashboard einen bestätigen:\n${SCHEDULING_URL}/admin/terminplanung/dashboard`
         const adminHtml = adminNotifyHtml({
           title: 'Auswärts-Terminvorschläge',
           lead: `${opp} hat Auswärts-Termine vorgeschlagen (${kscw}):`,
           infoRows: slotRowsMail.map((r, i) => ({ label: `Termin ${i + 1}`, value: `${r.date}${r.time ? `, ${r.time}` : ''}` })),
           ctaText: 'Bitte im Dashboard einen Termin bestätigen.',
-          ctaUrl: `${FRONTEND_URL}/admin/terminplanung/dashboard`,
+          ctaUrl: `${SCHEDULING_URL}/admin/terminplanung/dashboard`,
         })
         await sendSchedulingMail(SCHEDULING_REPLY_TO, `Auswärts-Terminvorschläge – ${opp} (${kscw})`, adminText, null, adminHtml)
       } catch (mailErr) {
@@ -4434,7 +4434,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       const failed = []
       let sent = 0
       for (const row of rows) {
-        const url = `${FRONTEND_URL}/terminplanung/${row.token}`
+        const url = `${SCHEDULING_URL}/terminplanung/${row.token}`
         const { subject, text, html } = inviteEmail({
           contact: row.contact_name || '',
           kscw: teamNameById.get(row.kscw_team) || kscw_team_name,
@@ -4539,7 +4539,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         const homeMiss = Math.max(0, homeTotal - (homeConf.get(o.id) || 0))
         const awayMiss = Math.max(0, awayTotal - (awayConf.get(o.id) || 0))
         if (homeMiss === 0 && awayMiss === 0) { skipped_complete++; continue } // fully scheduled — never remind
-        const url = `${FRONTEND_URL}/terminplanung/${o.token}`
+        const url = `${SCHEDULING_URL}/terminplanung/${o.token}`
         const { subject, text, html } = inviteEmail({
           kscw: teamNameById.get(o.kscw_team) || '',
           opponent: o.team_name || '',
@@ -5423,7 +5423,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         const team = await database('teams').where('id', opponent.kscw_team).first()
         const kscw = `KSCW ${team?.name || ''}`.trim()
         const opp = opponent.club_name || opponent.team_name || ''
-        const url = `${FRONTEND_URL}/terminplanung/${opponent.token}`
+        const url = `${SCHEDULING_URL}/terminplanung/${opponent.token}`
         const { subject, text, html } = schedEmail(opponent.language, 'home_reproposal_request', {
           contact: opponent.contact_name || '', kscw, opp, url,
         })

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { SCHEDULING_ORIGIN } from './lib/api'
 import { Toaster } from 'sonner'
 import { QueryProvider } from './lib/query'
 import { AuthProvider } from './hooks/useAuth'
@@ -10,10 +11,7 @@ import { TourProvider } from './modules/guide/TourProvider'
 import Layout from './components/Layout'
 import AdminRoute from './components/AdminRoute'
 import SuperAdminRoute from './components/SuperAdminRoute'
-import SpielplanerOrAdminRoute from './components/SpielplanerOrAdminRoute'
-import AdminOrSpielplanerRoute from './components/AdminOrSpielplanerRoute'
 import GamesPage from './modules/games/GamesPage'
-import SpielplanungPage from './modules/spielplanung/SpielplanungPage'
 import TrainingsPage from './modules/trainings/TrainingsPage'
 import AbsencesPage from './modules/absences/AbsencesPage'
 import ScorerPage from './modules/scorer/ScorerPage'
@@ -48,8 +46,6 @@ import ImpressumPage from './modules/legal/ImpressumPage'
 import AuthRoute from './components/AuthRoute'
 import VorstandRoute from './components/VorstandRoute'
 import ScorerAssignPage from './modules/scorer/ScorerAssignPage'
-import AdminSetupPage from './modules/gameScheduling/pages/AdminSetupPage'
-import AdminDashboardPage from './modules/gameScheduling/pages/AdminDashboardPage'
 import BugfixDashboardPage from './modules/admin/BugfixDashboardPage'
 import StatusPage from './modules/admin/StatusPage'
 import ExplorePage from './modules/admin/ExplorePage'
@@ -60,8 +56,6 @@ import NewsArchivePage from './modules/news/NewsArchivePage'
 
 import JoinPage from './modules/auth/JoinPage'
 import SetPasswordPage from './modules/auth/SetPasswordPage'
-import PublicTerminplanungPage from './modules/gameScheduling/pages/PublicTerminplanungPage'
-import OpponentFlowPage from './modules/gameScheduling/pages/OpponentFlowPage'
 import FeedbackPage from './modules/feedback/FeedbackPage'
 import ChangelogPage from './modules/changelog/ChangelogPage'
 import { SentryErrorBoundary } from './lib/sentry'
@@ -129,6 +123,26 @@ function SentryFallback({ error }: { error?: unknown } = {}) {
   )
 }
 
+// Game scheduling moved to its own subdomain (SCHEDULING_ORIGIN). These old
+// member-app routes redirect there — seamless via the shared .kscw.ch session
+// cookie (SSO), and old opponent invite links keep working. On localhost / when
+// SCHEDULING_ORIGIN is unset it equals the current origin → show a notice rather
+// than loop.
+function SchedulingRedirect() {
+  if (typeof window !== 'undefined') {
+    const base = SCHEDULING_ORIGIN.replace(/\/$/, '')
+    if (base !== window.location.origin) {
+      window.location.replace(base + window.location.pathname + window.location.search)
+      return null
+    }
+  }
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background p-8 text-center text-foreground">
+      <p className="text-muted-foreground">Game scheduling has moved to its own app.</p>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <SentryErrorBoundary fallback={({ error }) => <SentryFallback error={error} />}>
@@ -148,8 +162,8 @@ export default function App() {
 
           <Route path="join/:token" element={<JoinPage />} />
           <Route path="set-password" element={<SetPasswordPage />} />
-          <Route path="terminplanung" element={<PublicTerminplanungPage />} />
-          <Route path="terminplanung/:token" element={<OpponentFlowPage />} />
+          <Route path="terminplanung" element={<SchedulingRedirect />} />
+          <Route path="terminplanung/:token" element={<SchedulingRedirect />} />
           <Route path="f/:slug" element={<PublicFormPage />} />
 
           <Route element={<Layout />}>
@@ -178,10 +192,10 @@ export default function App() {
             <Route path="inbox" element={<AuthRoute><Suspense fallback={null}><InboxPage /></Suspense></AuthRoute>} />
             <Route path="inbox/:conversationId" element={<AuthRoute><Suspense fallback={null}><ConversationPage /></Suspense></AuthRoute>} />
             <Route path="options/messaging" element={<AuthRoute><Suspense fallback={null}><MessagingSettingsPage /></Suspense></AuthRoute>} />
-            <Route path="admin/spielplanung" element={<SpielplanerOrAdminRoute><SpielplanungPage /></SpielplanerOrAdminRoute>} />
+            <Route path="admin/spielplanung" element={<SchedulingRedirect />} />
             <Route path="admin/hallenplan" element={<AdminRoute><HallenplanPage /></AdminRoute>} />
-            <Route path="admin/terminplanung" element={<AdminOrSpielplanerRoute><AdminSetupPage /></AdminOrSpielplanerRoute>} />
-            <Route path="admin/terminplanung/dashboard" element={<AdminOrSpielplanerRoute><AdminDashboardPage /></AdminOrSpielplanerRoute>} />
+            <Route path="admin/terminplanung" element={<SchedulingRedirect />} />
+            <Route path="admin/terminplanung/dashboard" element={<SchedulingRedirect />} />
             <Route path="admin/scorer-assign" element={<AdminRoute><ScorerAssignPage /></AdminRoute>} />
             <Route path="admin/referee-expenses" element={<AdminRoute><RefereeExpensesPage /></AdminRoute>} />
             <Route path="admin/finance" element={<VorstandRoute><FinancePage /></VorstandRoute>} />
