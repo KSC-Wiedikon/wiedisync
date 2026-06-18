@@ -2762,16 +2762,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         child.on('error', (err) => { clearTimeout(timer); reject(err) })
       })
       if (result.code === 75) {
-        // Transient VM unavailability — a group was deferred. Record `deferred`
-        // (NOT `error`, so no alert) with an attempt counter parsed from the
-        // prior row; the watchdog retries up to a cap, then backs off.
+        // Transient VM unavailability — a group was deferred. sync_runs.status is
+        // constrained to ok|error, so record status `ok` (no alert) and carry the
+        // defer signal + attempt counter in error_message. The watchdog reads the
+        // counter to retry a few times, then backs off; a later full success
+        // clears error_message → the watchdog goes quiet.
         const prior = await database('sync_runs').where({ source: 'vm_sync' }).first().catch(() => null)
-        const priorN = prior && prior.status === 'deferred'
-          ? parseInt(String(prior.error_message || '').match(/attempt (\d+)/)?.[1] || '0', 10)
-          : 0
+        const priorN = prior ? parseInt(String(prior.error_message || '').match(/deferred \(attempt (\d+)\)/)?.[1] || '0', 10) : 0
         const attempt = priorN + 1
         log.info(`VM sync cron (${reason}): deferred attempt ${attempt} — ${result.stdout.split('\n').slice(-4).join(' | ')}`)
-        await logCronRun(database, 'vm_sync', { status: 'deferred', durationMs: Date.now() - startedAt, errorMessage: `deferred (attempt ${attempt}): VM temporarily unavailable` })
+        await logCronRun(database, 'vm_sync', { status: 'ok', durationMs: Date.now() - startedAt, errorMessage: `deferred (attempt ${attempt}): VM temporarily unavailable` })
       } else {
         log.info(`VM sync cron (${reason}): ${result.stdout.split('\n').slice(-6).join(' | ')}`)
         await logCronRun(database, 'vm_sync', { status: 'ok', durationMs: Date.now() - startedAt })
@@ -2804,11 +2804,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!row || !row.last_run_at) return
       const ageMin = (Date.now() - new Date(row.last_run_at).getTime()) / 60000
       if (ageMin < 25 || ageMin > 720) return
+      // A soft defer is recorded as status `ok` + an error_message carrying the
+      // attempt count (sync_runs.status is constrained to ok|error). A full
+      // success clears error_message to null → no deferred-retry.
+      const deferMatch = String(row.error_message || '').match(/deferred \(attempt (\d+)\)/)
       if (row.status === 'error') {
         log.info(`VM sync watchdog: last run errored ~${Math.round(ageMin)}min ago — retrying`)
         await runVmSync('watchdog-retry')
-      } else if (row.status === 'deferred') {
-        const attempt = parseInt(String(row.error_message || '').match(/attempt (\d+)/)?.[1] || '0', 10)
+      } else if (deferMatch) {
+        const attempt = parseInt(deferMatch[1], 10)
         if (attempt >= DEFER_RETRY_CAP) return  // backed off — wait for the weekly run
         log.info(`VM sync watchdog: last run deferred (attempt ${attempt}) ~${Math.round(ageMin)}min ago — retrying`)
         await runVmSync('watchdog-deferred-retry')

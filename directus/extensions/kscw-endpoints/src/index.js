@@ -783,7 +783,7 @@ export default {
       })
       child.on('close', (code) => {
         if (code === 0) { log.info(`${source} manual sync ok`); finish('ok') }
-        else if (code === 75) { log.info(`${source} manual sync deferred — VM temporarily unavailable`); finish('deferred', 'deferred (attempt 1): VM temporarily unavailable') }
+        else if (code === 75) { log.info(`${source} manual sync deferred — VM temporarily unavailable`); finish('ok', 'deferred (attempt 1): VM temporarily unavailable') }
         else { log.error({ msg: `${source} manual sync exited ${code}: ${stderr.slice(-300)}`, endpoint: `admin/${source}` }); finish('error', stderr.slice(-300) || `exited ${code}`) }
       })
       return { started: true }
