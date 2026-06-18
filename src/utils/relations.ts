@@ -27,6 +27,53 @@ export function memberName(m: { first_name?: string; last_name?: string } | null
 }
 
 /**
+ * Build minimal unique display labels for a set of members so the reader can
+ * tell apart people who share a first name.
+ *   - First name alone when it's unique in the set ("Luca").
+ *   - Else first name + the shortest last-name prefix that disambiguates
+ *     ("Luca C.", extended to "Luca Ca." etc. — as many letters as needed).
+ *   - If two members share an identical full name, both fall back to the full
+ *     name (nothing more can distinguish them).
+ *   - Members with no last name fall back to the bare first name.
+ * Returns a Map keyed by String(id). Reference impl previously inline in
+ * ParticipationRosterModal.
+ */
+export function disambiguateFirstNames(
+  members: Array<{ id: string | number; first_name?: string; last_name?: string }>,
+): Map<string, string> {
+  const labels = new Map<string, string>()
+  const byFirst = new Map<string, Array<{ id: string | number; first_name?: string; last_name?: string }>>()
+  for (const m of members) {
+    const key = (m.first_name ?? '').trim()
+    const arr = byFirst.get(key)
+    if (arr) arr.push(m)
+    else byFirst.set(key, [m])
+  }
+  for (const [first, group] of byFirst) {
+    if (group.length === 1) {
+      labels.set(String(group[0].id), first || (group[0].last_name ?? '').trim())
+      continue
+    }
+    for (const m of group) {
+      const last = (m.last_name ?? '').trim()
+      if (!last) {
+        labels.set(String(m.id), first)
+        continue
+      }
+      const others = group.filter((o) => String(o.id) !== String(m.id))
+      let len = 1
+      while (len < last.length) {
+        const prefix = last.slice(0, len).toLowerCase()
+        if (!others.some((o) => (o.last_name ?? '').trim().slice(0, len).toLowerCase() === prefix)) break
+        len++
+      }
+      labels.set(String(m.id), len >= last.length ? `${first} ${last}` : `${first} ${last.slice(0, len)}.`)
+    }
+  }
+  return labels
+}
+
+/**
  * Extract member IDs from a Directus M2M junction field (coach, team_responsible).
  *
  * DANGER: bare ID arrays like `[5, 10]` are interpreted as member IDs but in

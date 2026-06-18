@@ -10,7 +10,7 @@ import {
 } from '../../../utils/dateUtils'
 import { format, isBefore, isAfter, isSameDay, max as maxDate, min as minDate } from 'date-fns'
 import { formatTime, getDayOfWeek } from '../../../utils/dateHelpers'
-import { asObj, relId, memberName } from '../../../utils/relations'
+import { asObj, relId, memberName, disambiguateFirstNames } from '../../../utils/relations'
 import { isAuthenticated } from '../../../lib/api'
 
 interface UseCalendarDataOptions {
@@ -411,19 +411,29 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       // By default, hide unavailabilities (weekly) and non-blocking absences —
       // they clutter the calendar and don't affect the rest of the team.
       const showHidden = filters.showHiddenAbsences === true
-      for (const a of absences) {
-        if (!showHidden && (a.type === 'weekly' || (a as { blocking?: boolean }).blocking === false)) continue
+      const shownAbsences = absences.filter((a) => {
+        if (!showHidden && (a.type === 'weekly' || (a as { blocking?: boolean }).blocking === false)) return false
         // Skip if team filter active and member not in selected teams
-        if (teamMemberIds && !teamMemberIds.has(relId(a.member))) continue
+        if (teamMemberIds && !teamMemberIds.has(relId(a.member))) return false
         // Also check affects field: skip if affects specific teams that don't match
         const affects = (a as Record<string, unknown>).affects as string[] | undefined
-        if (teamIdSet && affects && affects.length > 0 && !affects.includes('all') && !affects.some((id) => teamIdSet.has(id))) continue
-        const m = asObj<{ first_name: string; last_name: string }>(a.member)
-        const firstName = m?.first_name || memberName(m) || '?'
+        if (teamIdSet && affects && affects.length > 0 && !affects.includes('all') && !affects.some((id) => teamIdSet.has(id))) return false
+        return true
+      })
+      // Disambiguate first names across the shown absentees so two "Luca"s read
+      // "Luca C." / "Luca Ca." instead of both showing "Luca".
+      const nameLabels = disambiguateFirstNames(
+        shownAbsences
+          .map((a) => asObj<{ id: string | number; first_name: string; last_name: string }>(a.member))
+          .filter((m): m is { id: string | number; first_name: string; last_name: string } => !!m),
+      )
+      for (const a of shownAbsences) {
+        const m = asObj<{ id: string | number; first_name: string; last_name: string }>(a.member)
+        const label = (m && nameLabels.get(String(m.id))) || m?.first_name || memberName(m) || '?'
         if (a.type === 'weekly') {
-          all.push(...weeklyAbsenceToEntries(a, firstName, rangeStart, rangeEnd))
+          all.push(...weeklyAbsenceToEntries(a, label, rangeStart, rangeEnd))
         } else {
-          all.push(absenceToEntry(a, firstName))
+          all.push(absenceToEntry(a, label))
         }
       }
     }
