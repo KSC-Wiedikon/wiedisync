@@ -791,13 +791,20 @@ async function syncToMembers(rows) {
 async function main() {
   const t0 = Date.now();
   const failures = [];
+  const warnings = [];
 
-  // Login + CSRF bootstrap — retried. Volleymanager intermittently 403s here
-  // (observed 2026-06-08); a fresh session per attempt clears it. If login
-  // itself can't succeed there's nothing to sync, so this stays fatal.
+  // Login + CSRF bootstrap — retried. Volleymanager intermittently 403s; a fresh
+  // session per attempt clears it. Bootstrap the CSRF token from the STABLE
+  // /game/index page (svrz_sync hits it daily and it never 403s) rather than
+  // /indoorwriter/index — the club-admin pages (writer/referee) flap with 403s
+  // (observed 2026-06-08 and again ~2026-06-13) and must NOT gate the whole sync.
+  // The Neos CSRF token + window-unique-id are session-wide, so this single token
+  // drives every resource search below (verified live against writer, referee,
+  // player and team). If login itself can't succeed there's nothing to sync, so
+  // this stays fatal.
   const { jar, csrf, wuid } = await retry('login+csrf', async () => {
     const jar = await vmLogin({ username: VM_USERNAME, password: VM_PASSWORD });
-    const { csrf, wuid } = await csrfFromPage(jar, '/sportmanager.indoorvolleyball/indoorwriter/index');
+    const { csrf, wuid } = await csrfFromPage(jar, '/sportmanager.indoorvolleyball/game/index');
     return { jar, csrf, wuid };
   });
   console.log('✓ Logged in to Volleymanager\n');
@@ -835,8 +842,22 @@ async function main() {
     await upsertToDirectus(rows);
     memberSync = await syncToMembers(rows);
   } catch (e) {
-    failures.push(`person-data: ${e.message}`);
-    console.error(`✗ Person/sv_vm_check sync failed (skipped — nothing written/deleted): ${e.message}`);
+    // Person data is all-or-nothing (a partial merge would wipe writer/referee
+    // flags), so we still skip the whole group on any fetch error. But the
+    // club-admin endpoints (indoorwriter / clubreferee) flap with transient 403s
+    // while players/teams stay up — that's EXPECTED flakiness, not a failure.
+    // Treat a writer/referee 403 as a soft warning so the run finishes green
+    // (no alert, no 30-min watchdog retry storm); the deferred person-data
+    // refreshes next run. A real problem (players, team-members, a write error,
+    // or any non-403) still fails hard so it alerts and retries.
+    const transientClubAdmin = /indoorwriter|clubreferee/i.test(e.message) && /\b403\b/.test(e.message);
+    if (transientClubAdmin) {
+      warnings.push(`person-data deferred — club-admin endpoint 403 (${e.message})`);
+      console.warn(`⚠ Writer/referee endpoint 403 (transient) — person-data sync skipped this run; nothing written or deleted, will refresh next run.`);
+    } else {
+      failures.push(`person-data: ${e.message}`);
+      console.error(`✗ Person/sv_vm_check sync failed (skipped — nothing written/deleted): ${e.message}`);
+    }
   }
 
   // Summary
@@ -858,10 +879,16 @@ async function main() {
     console.log('Person data:    SKIPPED (fetch failed)');
   }
 
-  // Non-zero exit if any group failed so the cron records `error` and the
-  // 30-min watchdog retries — while the group(s) that DID succeed stay applied.
+  // Hard failures → throw so the cron records `error`, alerts, and the 30-min
+  // watchdog retries — while the group(s) that DID succeed stay applied. A
+  // writer/referee-only 403 is a soft WARNING: the run still exits 0 (cron logs
+  // OK), so a flaky upstream club-admin endpoint can't fail the whole sync or
+  // spam alerts. The warning text is captured in the cron's stdout log.
   if (failures.length) {
     throw new Error(failures.join(' | '));
+  }
+  if (warnings.length) {
+    console.warn(`\n⚠ Completed with warnings (sync OK): ${warnings.join(' | ')}`);
   }
 }
 
