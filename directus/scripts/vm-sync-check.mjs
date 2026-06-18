@@ -39,7 +39,7 @@ async function retry(label, fn, { attempts = 4, baseDelayMs = 2500 } = {}) {
     } catch (e) {
       lastErr = e;
       const msg = e?.message || '';
-      const transient = /HTTP (403|408|425|429|5\d\d)|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|network/i.test(msg);
+      const transient = /HTTP (403|408|425|429|5\d\d)|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|network|timed out|timeout|aborted/i.test(msg);
       if (i === attempts || !transient) throw e;
       const delay = baseDelayMs * i;
       console.warn(`  ⚠ ${label}: attempt ${i}/${attempts} failed (${msg.slice(0, 90)}); retry in ${delay}ms`);
@@ -47,6 +47,34 @@ async function retry(label, fn, { attempts = 4, baseDelayMs = 2500 } = {}) {
     }
   }
   throw lastErr;
+}
+
+// Bound any VM call so a stalled connection (Node `fetch` has no default
+// timeout) can't hang the whole sync until the cron's 600s SIGKILL — it becomes
+// a fast, retryable error instead. Belt-and-suspenders with vmSearch's
+// per-request AbortSignal: this wrapper also covers the login/csrf follows in
+// vm-client (which we don't modify here) and any future call path.
+const FETCH_TIMEOUT_MS = 90_000;
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label}: timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+// Volleymanager's whole indoor data API flaps together with transient 403s (and
+// connection stalls) for minutes at a time — observed across player, writer AND
+// referee endpoints in one bad window (2026-06-18). A transient VM failure
+// during a READ isn't actionable, so defer that group to the next run as a soft
+// WARNING (no alert, no watchdog storm). Only a non-transient error (unexpected
+// response shape, or our own Directus write failing) is a real failure.
+function isTransientVm(message = '') {
+  return /HTTP (403|408|425|429|5\d\d)|timed out|timeout|aborted|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|network/i.test(message);
+}
+function classifyGroupFailure(label, e, failures, warnings) {
+  if (isTransientVm(e?.message)) warnings.push(`${label} deferred — VM temporarily unavailable (${e.message})`);
+  else failures.push(`${label}: ${e.message}`);
 }
 
 // ─── Generic paginated search ────────────────────────────────────────
@@ -87,7 +115,7 @@ async function vmSearch(jar, csrf, wuid, resourcePath, properties, {
     params.set('__csrfToken', csrf);
 
     const json = await retry(`${resourcePath} (offset ${offset})`, async () => {
-      const r = await fetch(base, { method: 'POST', headers, body: params.toString() });
+      const r = await fetch(base, { method: 'POST', headers, body: params.toString(), signal: AbortSignal.timeout(45_000) });
       if (!r.ok) {
         const text = await r.text();
         const msg = text.match(/In path ([^:]+):/)?.[0] || `HTTP ${r.status}`;
@@ -802,61 +830,59 @@ async function main() {
   // drives every resource search below (verified live against writer, referee,
   // player and team). If login itself can't succeed there's nothing to sync, so
   // this stays fatal.
-  const { jar, csrf, wuid } = await retry('login+csrf', async () => {
+  const { jar, csrf, wuid } = await retry('login+csrf', () => withTimeout((async () => {
     const jar = await vmLogin({ username: VM_USERNAME, password: VM_PASSWORD });
     const { csrf, wuid } = await csrfFromPage(jar, '/sportmanager.indoorvolleyball/game/index');
     return { jar, csrf, wuid };
-  });
+  })(), FETCH_TIMEOUT_MS, 'login+csrf'));
   console.log('✓ Logged in to Volleymanager\n');
 
   // ── Group A: team metadata → `teams` (independent + non-destructive) ──
-  // Detached from person data so a player/writer/referee hiccup never blocks
-  // the source-of-truth team name/league sync (update-only, no deletes).
+  // Detached from person data so a person-data hiccup never blocks the
+  // source-of-truth team name/league sync (update-only, no deletes). A transient
+  // VM 403/timeout defers it (warn); a write/unexpected error fails hard.
   let teamSync = null, teamCount = 0;
   try {
-    const teams = await fetchTeams(jar, csrf, wuid);
+    const teams = await withTimeout(fetchTeams(jar, csrf, wuid), FETCH_TIMEOUT_MS, 'teams');
     teamCount = teams.length;
     teamSync = await syncToTeams(teams);
   } catch (e) {
-    failures.push(`teams: ${e.message}`);
-    console.error(`✗ Team metadata sync failed (skipped): ${e.message}`);
+    classifyGroupFailure('teams', e, failures, warnings);
+    console.error(`✗ Team metadata sync skipped: ${e.message}`);
   }
 
   // ── Group B: person data → `sv_vm_check` + members (all-or-nothing) ──
   // sv_vm_check rows are a MERGE of players+writers+referees+teamMembers, and
-  // upsertToDirectus deletes stale rows + overwrites flags. Partial data would
-  // therefore corrupt/delete, so all four must succeed before any write. All
-  // fetches complete before the first write, so a failure here aborts the group
-  // cleanly with nothing written (the watchdog re-runs in 30 min). teams is NOT
-  // an input to buildCheckTable, so Group A's outcome doesn't affect this.
-  let rows = null, memberSync = null;
+  // upsertToDirectus deletes stale rows + overwrites flags — a partial merge
+  // would corrupt/delete, so all four READS must succeed before any write.
+  // Volleymanager's indoor data API flaps as a whole (player + writer + referee
+  // all 403 in the same bad window — seen 2026-06-18), so don't single out the
+  // club-admin endpoints: ANY transient read failure defers the whole group as a
+  // soft WARNING (exit 0, no alert/watchdog storm; refreshes next run). The reads
+  // are kept separate from the WRITE so a Directus write failure stays a hard
+  // failure that alerts.
+  let rows = null, memberSync = null, vmReadOk = true;
+  let players, writers, referees, teamMembers;
   try {
-    const players = await fetchPlayers(jar, csrf, wuid);
-    const writers = await fetchWriters(jar, csrf, wuid);
-    const referees = await fetchReferees(jar, csrf, wuid);
-    const teamMembers = await fetchTeamMembers(jar, csrf, wuid);
-
-    console.log('\nMerging...');
-    rows = buildCheckTable(players, writers, referees, teamMembers, []);
-
-    await upsertToDirectus(rows);
-    memberSync = await syncToMembers(rows);
+    players = await withTimeout(fetchPlayers(jar, csrf, wuid), FETCH_TIMEOUT_MS, 'players');
+    teamMembers = await withTimeout(fetchTeamMembers(jar, csrf, wuid), FETCH_TIMEOUT_MS, 'team-members');
+    writers = await withTimeout(fetchWriters(jar, csrf, wuid), FETCH_TIMEOUT_MS, 'writers');
+    referees = await withTimeout(fetchReferees(jar, csrf, wuid), FETCH_TIMEOUT_MS, 'referees');
   } catch (e) {
-    // Person data is all-or-nothing (a partial merge would wipe writer/referee
-    // flags), so we still skip the whole group on any fetch error. But the
-    // club-admin endpoints (indoorwriter / clubreferee) flap with transient 403s
-    // while players/teams stay up — that's EXPECTED flakiness, not a failure.
-    // Treat a writer/referee 403 as a soft warning so the run finishes green
-    // (no alert, no 30-min watchdog retry storm); the deferred person-data
-    // refreshes next run. A real problem (players, team-members, a write error,
-    // or any non-403) still fails hard so it alerts and retries.
-    const transientClubAdmin = /indoorwriter|clubreferee/i.test(e.message) && /\b403\b/.test(e.message);
-    if (transientClubAdmin) {
-      warnings.push(`person-data deferred — club-admin endpoint 403 (${e.message})`);
-      console.warn(`⚠ Writer/referee endpoint 403 (transient) — person-data sync skipped this run; nothing written or deleted, will refresh next run.`);
-    } else {
-      failures.push(`person-data: ${e.message}`);
-      console.error(`✗ Person/sv_vm_check sync failed (skipped — nothing written/deleted): ${e.message}`);
+    vmReadOk = false;
+    classifyGroupFailure('person-data', e, failures, warnings);
+    console.warn(`⚠ Person-data read skipped (${e.message}) — nothing written or deleted, will refresh next run.`);
+  }
+  if (vmReadOk) {
+    try {
+      console.log('\nMerging...');
+      rows = buildCheckTable(players, writers, referees, teamMembers, []);
+      await upsertToDirectus(rows);
+      memberSync = await syncToMembers(rows);
+    } catch (e) {
+      // Failure writing to OUR Directus — a real problem → alert + retry.
+      failures.push(`person-data write: ${e.message}`);
+      console.error(`✗ Person-data write to Directus failed: ${e.message}`);
     }
   }
 
@@ -892,4 +918,11 @@ async function main() {
   }
 }
 
-main().catch(e => { console.error('✗ Fatal:', e.message); process.exit(1); });
+// Exit explicitly. A timed-out stage leaves its retry loop running in the
+// background (withTimeout stops waiting but can't cancel it), whose pending
+// timers + in-flight fetches keep the event loop alive — without an explicit
+// exit the process would linger long after the sync logically finished. On
+// success/warnings exit 0; a thrown (hard) failure exits 1 → cron alerts/retries.
+main()
+  .then(() => process.exit(0))
+  .catch(e => { console.error('✗ Fatal:', e.message); process.exit(1); });
