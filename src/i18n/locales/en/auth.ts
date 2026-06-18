@@ -16,9 +16,6 @@ export default {
   enterEmailFirst: 'Please enter your email first.',
   accountAlreadyExists: 'An account with this email already exists. Please sign in.',
   noAccountYet: 'Don\'t have an account?',
-  orContinueWith: 'or continue with',
-  signInWithGoogle: 'Sign in with Google',
-  oauthError: 'Sign in failed. Please try again.',
 
   // Profile
   editProfile: 'Edit Profile',

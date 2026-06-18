@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo, type ReactNode } from 'react'
 import { readMe } from '@directus/sdk'
-import { client, login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, API_URL, fetchItems, fetchAllItems } from '../lib/api'
+import { client, login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, fetchItems, fetchAllItems } from '../lib/api'
 import { queryClient } from '../lib/query'
 import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb } from '../lib/sentry'
 import i18n from '../i18n'
@@ -45,7 +45,6 @@ export interface AuthContextValue {
   isGuestIn: (teamId: string) => boolean
   isLoading: boolean
   login: (email: string, password: string, turnstileToken?: string) => Promise<void>
-  loginWithOAuth: (provider: string) => Promise<void>
   logout: () => void
   /** Re-derive team context (member/coach team ids etc.) after a membership
    *  change — e.g. leaving a team — without a full page reload. */
@@ -259,23 +258,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchMember, loadTeamContext])
 
-  const loginWithOAuth = useCallback(async (provider: string) => {
-    // Issue a freshness sentinel so the callback can reject token params that
-    // weren't preceded by an active OAuth attempt (CSRF: tricked-callback URL).
-    // The nonce is embedded into the redirect URL we hand to Directus; if
-    // Directus preserves our query string when it appends `?access_token=...`,
-    // the callback can bind the nonce. (If it strips, the TTL still narrows
-    // the window — documented residual gap in SECURITY.md.)
-    const nonce = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
-      ? crypto.randomUUID()
-      : String(Date.now()) + ':' + Math.random().toString(36).slice(2)
-    try {
-      sessionStorage.setItem('oauth_pending', JSON.stringify({ nonce, ts: Date.now(), provider }))
-    } catch { /* storage unavailable — degrade open */ }
-    const callbackUrl = `${window.location.origin}/auth/callback?state=${encodeURIComponent(nonce)}`
-    window.location.href = `${API_URL}/auth/login/${provider}?redirect=${encodeURIComponent(callbackUrl)}`
-  }, [])
-
   const logout = useCallback(() => {
     apiLogout()
     setCurrentMemberId(null)
@@ -367,7 +349,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isCoach, isCoachOf, canParticipateIn, isStaffOnly, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, is_spielplaner: isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
-    canViewTeam, isVorstand, getGuestLevel, isGuestIn, isLoading, login, loginWithOAuth, logout,
+    canViewTeam, isVorstand, getGuestLevel, isGuestIn, isLoading, login, logout,
     refreshTeamContext, refreshUser,
   }), [
     user, isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
@@ -375,7 +357,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isCoach, isCoachOf, canParticipateIn, isStaffOnly, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
-    canViewTeam, isVorstand, getGuestLevel, isGuestIn, isLoading, login, loginWithOAuth, logout,
+    canViewTeam, isVorstand, getGuestLevel, isGuestIn, isLoading, login, logout,
     refreshTeamContext, refreshUser,
   ])
 

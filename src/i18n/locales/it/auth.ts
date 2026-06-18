@@ -16,9 +16,6 @@ export default {
   enterEmailFirst: 'Inserisci prima la tua email.',
   accountAlreadyExists: 'Esiste già un account con questa email. Accedi.',
   noAccountYet: 'Non hai un account?',
-  orContinueWith: 'oppure continua con',
-  signInWithGoogle: 'Accedi con Google',
-  oauthError: 'Accesso fallito. Riprova.',
 
   // Profile
   editProfile: 'Modifica profilo',

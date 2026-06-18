@@ -348,13 +348,13 @@ export function captureApiError(
 }
 
 /**
- * Log an auth-related event (login failure, token refresh failure, OAuth error).
+ * Log an auth-related event (login failure, token refresh failure).
  */
 export function captureAuthError(
   error: unknown,
   context: {
-    action: string          // e.g. 'login', 'token_refresh', 'oauth_callback'
-    method?: string         // 'password', 'oauth', 'otp'
+    action: string          // e.g. 'login', 'token_refresh'
+    method?: string         // 'password', 'otp'
   },
 ) {
   const err = toError(error)

@@ -347,7 +347,7 @@ const CHANGELOG: ChangelogEntry[] = [
         title: 'Moved to Directus: roles, branded emails, push & live sync',
         items: [
           'Seven clear roles (Admin, Sport Admin, Coach, Team Responsible, Vorstand, Member, Public), each with its own view and capabilities, and new members are auto-approved into the right one.',
-          'Password-reset, invitation and one-time-code emails now carry KSCW branding, and you can sign in with Google.',
+          'Password-reset, invitation and one-time-code emails now carry KSCW branding.',
           'Web push notifications land on your device for new activities, RSVP changes and admin broadcasts — not just in-app.',
           'Daily automatic sync with Swiss Volley and Basketplan keeps your scoreboard and standings fresh.',
           'Behind the scenes: a faster, more reliable backend with uptime monitoring and security hardening.',
