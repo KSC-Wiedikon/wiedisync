@@ -12,7 +12,8 @@ export interface ExportRow {
   date: string
   time: string
   team: string
-  opponent: string
+  homeTeam: string
+  guestTeam: string
   hall: string
   type: string
   status: string
@@ -22,16 +23,17 @@ export interface ExportRow {
 }
 
 const COLUMNS: { header: string; key: keyof ExportRow; xlsxWidth: number; pdfWidth: number }[] = [
-  { header: 'Date', key: 'date', xlsxWidth: 12, pdfWidth: 18 },
-  { header: 'Time', key: 'time', xlsxWidth: 10, pdfWidth: 14 },
-  { header: 'KSCW team', key: 'team', xlsxWidth: 12, pdfWidth: 20 },
-  { header: 'Opponent', key: 'opponent', xlsxWidth: 26, pdfWidth: 40 },
-  { header: 'Hall / venue', key: 'hall', xlsxWidth: 22, pdfWidth: 36 },
-  { header: 'Type', key: 'type', xlsxWidth: 8, pdfWidth: 12 },
-  { header: 'Status', key: 'status', xlsxWidth: 11, pdfWidth: 18 },
-  { header: 'VM status', key: 'vm', xlsxWidth: 14, pdfWidth: 22 },
-  { header: 'Spielplaner', key: 'contact', xlsxWidth: 32, pdfWidth: 50 },
-  { header: 'Team responsibles', key: 'teamResponsible', xlsxWidth: 32, pdfWidth: 50 },
+  { header: 'Date', key: 'date', xlsxWidth: 12, pdfWidth: 16 },
+  { header: 'Time', key: 'time', xlsxWidth: 10, pdfWidth: 11 },
+  { header: 'KSCW team', key: 'team', xlsxWidth: 12, pdfWidth: 14 },
+  { header: 'Home team', key: 'homeTeam', xlsxWidth: 26, pdfWidth: 34 },
+  { header: 'Guest team', key: 'guestTeam', xlsxWidth: 26, pdfWidth: 34 },
+  { header: 'Hall / venue', key: 'hall', xlsxWidth: 22, pdfWidth: 30 },
+  { header: 'Type', key: 'type', xlsxWidth: 8, pdfWidth: 11 },
+  { header: 'Status', key: 'status', xlsxWidth: 11, pdfWidth: 15 },
+  { header: 'VM status', key: 'vm', xlsxWidth: 14, pdfWidth: 18 },
+  { header: 'Spielplaner', key: 'contact', xlsxWidth: 32, pdfWidth: 40 },
+  { header: 'Team responsibles', key: 'teamResponsible', xlsxWidth: 32, pdfWidth: 38 },
 ]
 // The Spielplaner (calendar contact) column is highlighted in the Excel export.
 const HIGHLIGHT_KEY: keyof ExportRow = 'contact'
@@ -109,7 +111,10 @@ export async function buildScheduleRows({ bookings, opponents, slots, teams, sea
       // Per-team report: drop everything not belonging to the requested team.
       if (teamFilter && (!opp || String(opp.kscw_team) !== teamFilter)) return null
       const team = opp ? (teamName.get(String(opp.kscw_team)) || '') : ''
-      const opponent = opp ? (opp.team_name || opp.club_name || '') : ''
+      // Fixture sides: the KSCW team renders as "KSC Wiedikon <name>"; which side
+      // it sits on (home vs guest) flips with the game type.
+      const kscwLabel = team ? `KSC Wiedikon ${team}` : 'KSC Wiedikon'
+      const opponentName = opp ? (opp.team_name || opp.club_name || '') : ''
       const contact = opp?.contact_email || ''
       const teamResponsible = opp ? (trByOpp.get(String(opp.id)) || '') : ''
       const status = statusLabel(b.status)
@@ -121,7 +126,7 @@ export async function buildScheduleRows({ bookings, opponents, slots, teams, sea
           _sort: slot.date,
           date: fmtDate(slot.date),
           time: homeGameTime(slot.date, slot.start_time),
-          team, opponent,
+          team, homeTeam: kscwLabel, guestTeam: opponentName,
           hall: hallName.get(String(slot.hall)) || '',
           type: 'Home', status, vm: vmLabel(b.vm_push_status as unknown as string), contact, teamResponsible,
         }
@@ -136,7 +141,7 @@ export async function buildScheduleRows({ bookings, opponents, slots, teams, sea
         _sort: dtDate(dt),
         date: fmtDate(dtDate(dt)),
         time: dtTime(dt),
-        team, opponent,
+        team, homeTeam: opponentName, guestTeam: kscwLabel,
         hall: place,
         type: 'Away', status, vm: '—', contact, teamResponsible,
       }
