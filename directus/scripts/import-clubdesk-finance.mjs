@@ -165,7 +165,20 @@ const bookingValues = bk.rows.map(r => {
     `${sql(amount(v('Betrag (CHF)')))})`
 }).join(',\n  ')
 
-const invoiceValues = inv.rows.map(r => {
+// Dedupe by ClubDesk [Id] — multi-position / collective invoices repeat the
+// invoice id across rows; finance_invoices is invoice-level (UNIQUE clubdesk_id),
+// and the columns we store are all invoice-level, so keeping the first row per id
+// is lossless. Skip rows with no [Id].
+const seenInvoiceIds = new Set()
+const invRows = inv.rows.filter((r) => {
+  const id = clean(g(inv, r, '[Id]'))
+  if (!id || seenInvoiceIds.has(id)) return false
+  seenInvoiceIds.add(id)
+  return true
+})
+const invDupCount = inv.rows.length - invRows.length
+
+const invoiceValues = invRows.map(r => {
   const v = (n) => g(inv, r, n)
   return `(${sql(clean(v('[Id]')))}, ${sql(clean(v('Nummer')) || null)}, ${sql(date(v('Rechnungsdatum')))}, ` +
     `${sql(clean(v('Betreff')))}, ${sql(amount(v('Betrag')))}, ${sql(clean(v('Status')))}, ` +
@@ -182,7 +195,11 @@ const accountValues = [...accounts.entries()].map(([num, nm]) =>
 const fyValues = [...fyMap.values()].map(f =>
   `(${sql(f.label)}, ${sql(f.starts_on)}, ${sql(f.ends_on)})`).join(',\n  ')
 
-const fyLabels = [...fyMap.keys()].join(', ')
+// finance_imports.fiscal_year_label is varchar(16): store a single label or a
+// compact "earliest–latest" range, never the full joined list (overflows on
+// multi-year invoice exports).
+const fyKeys = [...fyMap.keys()].sort()
+const fyLabels = (fyKeys.length <= 1 ? (fyKeys[0] || '') : `${fyKeys[0]}–${fyKeys[fyKeys.length - 1]}`).slice(0, 16)
 const invFile = basename(invoicesCsv).replace(/'/g, "''")
 const bkFile = basename(bookingsCsv).replace(/'/g, "''")
 
@@ -194,7 +211,7 @@ INSERT INTO finance_imports (import_type, filename, imported_by_name, imported_b
 VALUES ('bookings', ${sql(bkFile)}, ${sql(ACTOR_NAME)}, ${sql(ACTOR_EMAIL || null)}, ${bk.rows.length}, ${sql(fyLabels)})
 RETURNING id AS bookings_imp \\gset
 INSERT INTO finance_imports (import_type, filename, imported_by_name, imported_by_email, row_count, fiscal_year_label)
-VALUES ('invoices', ${sql(invFile)}, ${sql(ACTOR_NAME)}, ${sql(ACTOR_EMAIL || null)}, ${inv.rows.length}, ${sql(fyLabels)})
+VALUES ('invoices', ${sql(invFile)}, ${sql(ACTOR_NAME)}, ${sql(ACTOR_EMAIL || null)}, ${invRows.length}, ${sql(fyLabels)})
 RETURNING id AS invoices_imp \\gset
 
 -- 2. fiscal years (upsert)
@@ -265,7 +282,7 @@ UNION ALL SELECT 'invoices_matched_member', COUNT(*) FROM finance_invoices WHERE
 if (EMIT_SQL) {
   process.stdout.write(psqlInput, () => process.exit(0))
 } else {
-  console.error(`→ ${envName}/${env.database}: ${bk.rows.length} bookings, ${inv.rows.length} invoices, ${accounts.size} accounts, ${fyMap.size} fiscal year(s)…`)
+  console.error(`→ ${envName}/${env.database}: ${bk.rows.length} bookings, ${invRows.length} invoices (${invDupCount} dup rows collapsed), ${accounts.size} accounts, ${fyMap.size} fiscal year(s)…`)
   const dockerExec = ['sudo', 'docker', 'exec', '-i', env.container,
     'psql', '-U', env.user, '-d', env.database, '-X', '-v', 'ON_ERROR_STOP=1']
   const cmd = LOCAL ? dockerExec : ['ssh', 'hetzner', ...dockerExec]

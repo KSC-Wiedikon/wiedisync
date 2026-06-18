@@ -157,11 +157,18 @@ async function exportCurrentTable(page, label) {
 }
 
 /** Navigate to a Finanzen sub-table and wait for its Export action. */
-async function openFinanceTable(page, which) {
+async function openFinanceTable(page, which, leftNavFilter) {
   log(`Navigating to Finanzen → ${which}…`)
   await ensureFinanzenOpen(page)
   await clickVisible(page, which)
   await page.waitForTimeout(2500) // let the tab's grid + toolbar fully render
+  if (leftNavFilter) {
+    // Pick a left-nav filter before exporting — e.g. "Alle" = ALL invoices
+    // (drafts + issued + closed), not just the default "Entwürfe" (drafts) view.
+    const f = await waitVisible(page, leftNavFilter, 8000)
+    if (f) { await page.mouse.click(f.x, f.y); await page.waitForTimeout(2500); log(`Filter "${leftNavFilter}" selected.`) }
+    else log(`⚠ Filter "${leftNavFilter}" not found — exporting the current view.`)
+  }
   // Wait for the table toolbar (the Export action) to be ready.
   if (!(await waitVisible(page, 'Export', 20000))) {
     throw new Error(`Opened ${which} but no Export action appeared.`)
@@ -207,7 +214,7 @@ async function run() {
     log('Logged in.')
 
     // ── Rechnungen → export ───────────────────────────────────────────
-    await openFinanceTable(page, 'Rechnungen')
+    await openFinanceTable(page, 'Rechnungen', 'Alle') // "Alle" = all invoices, not just drafts
     const invDl = await exportCurrentTable(page, 'Rechnungen')
     await invDl.saveAs(OUT_INVOICES)
     log(`Downloaded Rechnungen via ${invDl.url()}`)
