@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '4.29.0'
+const APP_VERSION = '5.0.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '5.0.0',
+    date: '18.06.2026',
+    sections: [
+      {
+        title: 'Club finances',
+        items: [
+          'New Finances section: board members get a club finance dashboard — liquidity, income vs expenses, result, outstanding invoices and recent bookings. Every member can see their own dues under "Your dues".',
+          'The figures are a read-only mirror of ClubDesk — synced in, not edited here.',
+        ],
+      },
+    ],
+  },
   {
     version: '4.29.0',
     date: '12.06.2026',

@@ -381,6 +381,18 @@ const PUBLIC_NEWS_FIELDS = [
   'author', 'published_at', 'image', 'date_created',
 ]
 
+/**
+ * Fields a member sees on their OWN finance invoices (dues) — migration 114.
+ * Dues-relevant columns only; excludes the mirror plumbing (source,
+ * import_batch, cd_* timestamps, fiscal_year, recipient_*) a member needn't see.
+ */
+const MEMBER_INVOICE_FIELDS = [
+  'id', 'number', 'invoice_date', 'subject', 'amount', 'status',
+  'dunning_status', 'due_date', 'amount_paid', 'open_amount',
+  'overpaid_amount', 'written_off_amount', 'payment_method', 'reference',
+  'fee_category', 'closed_on', 'member',
+]
+
 // ── Main ──────────────────────────────────��──────────────────────
 
 async function main() {
@@ -835,6 +847,15 @@ async function main() {
   // trap (silent empty for non-admin). Blackout dates aren't sensitive (no PII),
   // so club-wide read is acceptable. Create/update/delete stay coach/TR-only.
   await setPermRead(MEMBER_POLICY, 'scheduling_blocks')
+
+  // Finance (migration 114) — members see ONLY their own invoices/dues
+  // (mirrored from ClubDesk), read-only, field-scoped to the dues columns.
+  // Filter walks finance_invoices.member.user → $CURRENT_USER (same shape as
+  // fines; the FE filters by `{ member: { _eq: myId } }`, a different alias, so
+  // the M2M double-walk trap doesn't apply). The ledger / accounts / all-invoices
+  // / budget stay board-only (Vorstand read-all below). No write perms — the
+  // ClubDesk import writes via the system connection, not the items API.
+  await setPermRead(MEMBER_POLICY, 'finance_invoices', { member: { user: { _eq: '$CURRENT_USER' } } }, MEMBER_INVOICE_FIELDS)
 
   // Files — create (upload profile pics)
   await setPerm(MEMBER_POLICY, 'directus_files', 'create')
@@ -1297,6 +1318,11 @@ async function main() {
     'fines', 'fine_rules',
     // Scheduling blocks (migration 085) — club-wide read for oversight.
     'scheduling_blocks',
+    // Finance (migration 114) — board gets the full finance dashboard:
+    // Kontenplan, ledger, invoices, budget, payments + import history. Read-only
+    // (Scope A mirror); the ClubDesk import writes via the system connection.
+    'finance_accounts', 'finance_fiscal_years', 'finance_budget_lines',
+    'finance_transactions', 'finance_invoices', 'finance_payments', 'finance_imports',
   ]
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)

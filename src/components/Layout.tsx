@@ -28,7 +28,7 @@ import { asObj } from '../utils/relations'
 import {
   Home, Calendar, Trophy, UserX, PenSquare, PartyPopper, Users,
   ClipboardList, Building2, CalendarClock, Activity,
-  HeartPulse, Settings, ChevronDown, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, GraduationCap, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel,
+  HeartPulse, Settings, ChevronDown, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, GraduationCap, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark,
 } from 'lucide-react'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 
@@ -73,6 +73,8 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
     { to: '/absences', label: t('absences'), icon: <UserX className={iconClass} /> },
     { to: '/scorer', label: t('scorer'), icon: <PenSquare className={iconClass} /> },
     { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
+    { to: '/finance/dues', label: t('finance:myDuesTitle'), icon: <Wallet className={iconClass} /> },
+    ...(isVorstand ? [{ to: '/admin/finance', label: t('finance:title'), icon: <Landmark className={iconClass} /> }] : []),
     ...(messagingFeatureEnabled(memberId)
       ? [{ to: '/inbox', label: t('inbox'), icon: <Inbox className={iconClass} /> }]
       : []),

@@ -1,7 +1,7 @@
 {
   "name": "wiedisync",
   "private": true,
-  "version": "4.29.0",
+  "version": "5.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -44,6 +44,11 @@
     "db:clubdesk:sync:prod": "node directus/scripts/clubdesk-scrape-export.mjs /tmp/clubdesk-export.csv && node directus/scripts/import-clubdesk-csv.mjs prod /tmp/clubdesk-export.csv && rm -f /tmp/clubdesk-export.csv",
     "db:clubdesk:diff:dev": "ssh hetzner 'sudo docker exec -i supabase-db-vek42jyj0owoutoouq29aisq psql -U supabase_admin -d directus_kscw_dev -X' < directus/scripts/clubdesk-diff-queries.sql",
     "db:clubdesk:diff:prod": "ssh hetzner 'sudo docker exec -i supabase-db-vek42jyj0owoutoouq29aisq psql -U supabase_admin -d postgres -X' < directus/scripts/clubdesk-diff-queries.sql",
+    "db:finance:scrape": "node directus/scripts/clubdesk-scrape-finance.mjs",
+    "db:finance:import:dev": "node directus/scripts/import-clubdesk-finance.mjs dev",
+    "db:finance:import:prod": "node directus/scripts/import-clubdesk-finance.mjs prod",
+    "db:finance:sync:dev": "node directus/scripts/clubdesk-scrape-finance.mjs /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && node directus/scripts/import-clubdesk-finance.mjs dev /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && rm -f /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv",
+    "db:finance:sync:prod": "node directus/scripts/clubdesk-scrape-finance.mjs /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && node directus/scripts/import-clubdesk-finance.mjs prod /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && rm -f /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv",
     "ext:deploy:dev": "rsync -avz --delete directus/extensions/ hetzner:/tmp/kscw-extensions/ && ssh hetzner \"sudo rsync -a --delete /tmp/kscw-extensions/ /opt/directus-kscw-dev/extensions/ && sudo docker restart directus-kscw-dev\"",
     "ext:deploy:prod": "rsync -avz --delete directus/extensions/ hetzner:/tmp/kscw-extensions/ && ssh hetzner \"sudo rsync -a --delete /tmp/kscw-extensions/ /opt/directus-kscw/extensions/ && sudo docker restart directus-kscw\"",
     "ext:deploy": "npm run ext:deploy:dev && npm run ext:deploy:prod",

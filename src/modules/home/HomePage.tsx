@@ -30,6 +30,7 @@ import RankingsTable from '../games/components/RankingsTable'
 import InstallBanner from '../guide/install/InstallBanner'
 import FormFillModal from '../forms/FormFillModal'
 import { useFillableForms, type FillableForm } from '../../hooks/useFillableForms'
+import YourDuesCard from '../finance/YourDuesCard'
 
 type ExpandedGame = Game & {
   kscw_team?: Team & BaseRecord | string
@@ -492,6 +493,9 @@ export default function HomePage() {
           onCancel={() => setFillItem(null)}
         />
       )}
+
+      {/* Your dues — member's open invoices (renders null when nothing is open) */}
+      {user && isApproved && <YourDuesCard />}
 
       {/* View toggle: unified appointments vs categorized sections */}
       {user && isApproved && (
