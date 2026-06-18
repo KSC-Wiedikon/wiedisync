@@ -60,3 +60,14 @@ export interface FinanceFiscalYear {
   ends_on: string
   status: string
 }
+
+export interface FinanceImport {
+  id: string
+  import_type: string
+  filename: string | null
+  imported_at: string
+  imported_by_name: string | null
+  imported_by_email: string | null
+  row_count: number | null
+  fiscal_year_label: string | null
+}

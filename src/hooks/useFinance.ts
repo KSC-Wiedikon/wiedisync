@@ -4,7 +4,7 @@
 import { useCollection } from '../lib/query'
 import { useAuth } from './useAuth'
 import type {
-  FinanceInvoice, FinanceTransaction, FinanceAccount, FinanceFiscalYear,
+  FinanceInvoice, FinanceTransaction, FinanceAccount, FinanceFiscalYear, FinanceImport,
 } from '../modules/finance/types'
 
 /** Coerce a Directus numeric (often a string) to a finite number, else 0. */
@@ -61,6 +61,15 @@ export function useFinanceAccounts(enabled = true) {
 export function useFinanceFiscalYears(enabled = true) {
   return useCollection<FinanceFiscalYear>('finance_fiscal_years', {
     sort: ['-starts_on'],
+    enabled,
+    all: true,
+  })
+}
+
+/** Import/sync provenance history, newest first (board only). */
+export function useFinanceImports(enabled = true) {
+  return useCollection<FinanceImport>('finance_imports', {
+    sort: ['-imported_at'],
     enabled,
     all: true,
   })
