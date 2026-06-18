@@ -14,24 +14,29 @@ import { captureApiError, captureAuthError } from './sentry'
 
 // ── Config ──────────────────────────────────────────────────────────
 
-const AUTH_KEY = 'directus_auth'
-const REMEMBER_KEY = 'wiedisync-remember-me'
-
-/** Detect standalone PWA mode (Add to Home Screen). */
-const isStandalone = typeof window !== 'undefined' && (
-  (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
-  window.matchMedia('(display-mode: standalone)').matches
-)
-
-function isRememberMe(): boolean {
-  return localStorage.getItem(REMEMBER_KEY) !== 'false'
+// Cookie-session auth (2026-06-18): the access + refresh token live in an
+// httpOnly cookie scoped to `.kscw.ch` (set by Directus), unreadable from JS.
+// We keep a NON-sensitive boolean "hint" in a readable cookie ALSO scoped to
+// `.kscw.ch` so the app can (a) synchronously decide whether a session likely
+// exists — gating the session-restore spinner, the 401-retry guard, realtime/
+// activity-log gating — and (b) SHARE that knowledge across the member +
+// scheduling subdomains (localStorage is per-origin and would break SSO; a
+// `.kscw.ch` cookie is shared, exactly like the real session cookie). The
+// cookie remains the only actual credential; the hint carries no secret.
+function authHintKey(): string {
+  // Distinct per backend env so a dev login and a prod login can coexist in one
+  // browser without the hint (or the real session cookie) colliding on .kscw.ch.
+  return API_URL.includes('directus-dev') ? 'wiedisync_auth_dev' : 'wiedisync_auth'
 }
-function getStorage(): Storage {
-  // In standalone PWA mode, sessionStorage is cleared when the app is
-  // backgrounded/killed by the OS (especially iOS). Always use localStorage
-  // so auth tokens survive app restarts.
-  if (isStandalone) return localStorage
-  return isRememberMe() ? localStorage : sessionStorage
+
+export function setAuthHint(present: boolean): void {
+  if (typeof document === 'undefined') return
+  // domain=.kscw.ch → shared across subdomains (rejected on localhost/pages.dev,
+  // where cookie-session auth doesn't work anyway). secure + lax mirrors the
+  // real session cookie.
+  const key = authHintKey()
+  const attrs = 'domain=.kscw.ch; path=/; secure; samesite=lax'
+  document.cookie = present ? `${key}=1; ${attrs}; max-age=604800` : `${key}=; ${attrs}; max-age=0`
 }
 
 const host = typeof window !== 'undefined' ? window.location.hostname : ''
@@ -78,45 +83,16 @@ export const SCHEDULING_ORIGIN: string =
 
 // ── Client ──────────────────────────────────────────────────────────
 
-// ACCEPTED RISK (2026-05-31 security audit — [Medium] "Access + refresh tokens
-// stored in localStorage/sessionStorage as plaintext"):
-// We use Directus `json` auth mode with a custom storage adapter that persists
-// the access_token + refresh_token to localStorage (or sessionStorage) under
-// `directus_auth`. This is XSS-exfiltratable in principle — a successful XSS or
-// a compromised dependency could read both tokens from web storage.
-// We keep this DELIBERATELY: standalone-PWA persistence requires localStorage
-// (iOS clears sessionStorage when a backgrounded standalone app is killed), and
-// switching to httpOnly-cookie session mode is an architectural change that
-// would break that persistence. The compensating control is the strict CSP
-// shipped in `public/_headers` — `script-src 'self' …` with no 'unsafe-inline'/
-// 'unsafe-eval', plus a tight `connect-src` allowlist that blocks exfiltration
-// to an arbitrary endpoint — together with DOMPurify on every HTML sink,
-// X-Frame-Options: DENY, nosniff and HSTS.
-// Never log the token payload (no console.* / Sentry of `data` below).
-// TODO: migrate to Directus cookie session mode (`authentication('session')`)
-//   so the refresh token lives in an httpOnly Secure SameSite cookie unreadable
-//   from JS, keeping only the short-lived access token in memory.
+// Cookie session mode (2026-06-18): the access + refresh token live in an
+// httpOnly, Secure, SameSite=Lax cookie scoped to `.kscw.ch` (Directus
+// SESSION_COOKIE_*), shared across the member + scheduling subdomains (SSO) and
+// unreadable from JS — this CLOSES the former localStorage-token accepted risk.
+// Every request must carry the cookie → `credentials: 'include'` on both the
+// auth composable (login/refresh) and rest (data). The browser persists the
+// cookie per its TTL, so this also removes the old iOS-PWA sessionStorage hack.
 export const client = createDirectus(API_URL)
-  .with(authentication('json', {
-    storage: {
-      get: () => {
-        const raw = getStorage().getItem(AUTH_KEY)
-        if (!raw) return null
-        try { return JSON.parse(raw) } catch { return null }
-      },
-      set: (data) => {
-        if (data) {
-          getStorage().setItem(AUTH_KEY, JSON.stringify(data))
-        } else {
-          // SDK calls set(null) on logout
-          localStorage.removeItem(AUTH_KEY)
-          sessionStorage.removeItem(AUTH_KEY)
-        }
-      },
-    },
-    autoRefresh: true,
-  }))
-  .with(rest())
+  .with(authentication('session', { credentials: 'include', autoRefresh: true }))
+  .with(rest({ credentials: 'include' }))
   .with(realtime({
     // The Directus SDK detects URL overrides with `'url' in config` — passing
     // `url: undefined` still hits that branch, then `new URL(undefined)`
@@ -155,7 +131,9 @@ if (typeof window !== 'undefined') {
 
 export async function login(email: string, password: string) {
   try {
-    return await client.login({ email, password })
+    const result = await client.login({ email, password })
+    setAuthHint(true)
+    return result
   } catch (err) {
     captureAuthError(err, { action: 'login', method: 'password' })
     throw err
@@ -164,8 +142,10 @@ export async function login(email: string, password: string) {
 
 export async function logout() {
   try { await client.logout() } catch { /* ignore */ }
-  localStorage.removeItem(AUTH_KEY)
-  sessionStorage.removeItem(AUTH_KEY)
+  setAuthHint(false)
+  // Clean up legacy token storage from the pre-cookie era + local caches.
+  localStorage.removeItem('directus_auth')
+  sessionStorage.removeItem('directus_auth')
   localStorage.removeItem('wiedisync-sql-history')
 }
 
@@ -185,14 +165,13 @@ export async function refreshAuth() {
   return _refreshPromise
 }
 
-export function getAccessToken(): string | null {
-  const raw = getStorage().getItem(AUTH_KEY)
-  if (!raw) return null
-  try { return JSON.parse(raw)?.access_token || null } catch { return null }
-}
-
 export function isAuthenticated(): boolean {
-  return !!getAccessToken()
+  // The session token is an httpOnly cookie (unreadable from JS); rely on the
+  // readable `.kscw.ch` hint cookie set on login / cleared on logout + failed
+  // restore. Shared across subdomains, so it reflects an SSO login on a sibling.
+  if (typeof document === 'undefined') return false
+  const key = authHintKey()
+  return document.cookie.split('; ').some((c) => c === `${key}=1`)
 }
 
 // ── Current member ID (for activity logging outside React context) ──
@@ -450,12 +429,11 @@ export async function deleteRecord(
  * already hold `directus_files.create` (profile photos / feedback screenshots).
  */
 export async function uploadFile(file: File): Promise<{ id: string; name: string }> {
-  const token = getAccessToken()
   const fd = new FormData()
   fd.append('file', file)
   const res = await fetch(`${API_URL}/files`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include', // session cookie carries auth (no Bearer header)
     body: fd,
   })
   if (!res.ok) throw new Error(`Upload failed (${res.status})`)
@@ -487,12 +465,16 @@ export async function kscwApi<T = unknown>(
   const anonymous = options?.anonymous === true
 
   const doFetch = async (): Promise<Response> => {
-    const token = anonymous ? null : getAccessToken()
     return fetch(`${API_URL}/kscw${path}`, {
       method,
+      // Authenticated calls send the `.kscw.ch` session cookie. Anonymous calls
+      // (token-in-URL opponent flow) MUST omit it — a logged-in admin's cookie
+      // hitting a public endpoint trips Directus' global auth middleware (401
+      // "Invalid link") before the public handler runs, the same first-load bug
+      // the Bearer-omitting `anonymous` flag originally guarded against.
+      credentials: anonymous ? 'omit' : 'include',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options?.headers,
       },
       ...(options?.body ? { body: JSON.stringify(options.body) } : {}),

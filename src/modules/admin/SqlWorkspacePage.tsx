@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Play, Loader2, AlertTriangle, History, Database, RefreshCw, X, FileDown, FileSpreadsheet, ClipboardCopy, Check, Sparkles } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover'
-import { API_URL, getAccessToken } from '../../lib/api'
+import { API_URL } from '../../lib/api'
 import CodeMirrorEditor, { type SqlSchemaTable } from './components/CodeMirrorEditor'
 import ResultsTable from './components/ResultsTable'
 import { toCSV, toXlsx, copyAsTable, downloadBlob, downloadText } from './utils/exportResults'
@@ -64,9 +64,7 @@ function saveRecent(list: RecentQuery[]) {
 }
 
 async function fetchSchema(): Promise<SchemaTable[]> {
-  const token = getAccessToken()
   const resp = await fetch(`${API_URL}/kscw/admin/sql/schema`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
     credentials: 'include',
   })
   if (!resp.ok) throw new Error(`schema fetch failed: ${resp.status}`)
@@ -75,12 +73,10 @@ async function fetchSchema(): Promise<SchemaTable[]> {
 }
 
 async function runQuery(sql: string, writeMode: boolean): Promise<ApiQueryResponse> {
-  const token = getAccessToken()
   const resp = await fetch(`${API_URL}/kscw/admin/sql`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     credentials: 'include',
     body: JSON.stringify({ sql, write_mode: writeMode }),
@@ -113,12 +109,10 @@ interface AskAiResponse {
 }
 
 async function askAi(prompt: string): Promise<AskAiResponse> {
-  const token = getAccessToken()
   const resp = await fetch(`${API_URL}/kscw/admin/sql/ask`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     credentials: 'include',
     body: JSON.stringify({ prompt }),

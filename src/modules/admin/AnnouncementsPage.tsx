@@ -5,7 +5,7 @@ import {
   Plus, Edit2, Trash2, Pin, Calendar, Send, Mail, Bell, Image as ImageIcon, X, Loader2,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
-import { fetchItems, createRecord, updateRecord, deleteRecord, assetUrl, API_URL, getAccessToken } from '../../lib/api'
+import { fetchItems, createRecord, updateRecord, deleteRecord, assetUrl, API_URL } from '../../lib/api'
 import { pickTranslation } from '../../hooks/useAnnouncements'
 import { isSafeAppLink } from '../../utils/sanitizeUrl'
 import { useConfirm } from '../../components/ConfirmProvider'
@@ -123,10 +123,9 @@ export default function AnnouncementsPage() {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const token = getAccessToken()
       const res = await fetch(`${API_URL}/files`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
         body: fd,
       })
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
