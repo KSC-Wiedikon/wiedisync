@@ -57,4 +57,12 @@ export default {
   icalFilterLabel: 'Was wotsch abonniere?',
   icalTeamFilter: 'Nach Team filtere',
   icalTeamHint: 'Leer = alli Teams',
+  icalGenerateLink: 'Abo-Link erstelle',
+  icalLinkReadyLabel: 'Abo-Link (i dini Kaländer-App kopiere):',
+  icalCopyLink: 'Kopiere',
+  icalLinkCopied: 'Kopiert!',
+  icalCopyFailed: 'Kopiere het nöd klappt — Link markiere und vo Hand kopiere',
+  icalOpenInApp: 'Oder direkt i dinere Kaländer-App ufmache',
+  icalSubscribeHint:
+    'Füeg de Link i dini Kaländer-App ii zum abonniere — er bliibt automatisch aktuell. Google Kaländer: Wytteri Kaländer → Per URL. Apple Kaländer: Ablag → Kaländerabo hinzuefüege.',
 } as const

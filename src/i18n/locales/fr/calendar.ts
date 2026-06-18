@@ -57,4 +57,12 @@ export default {
   icalFilterLabel: 'A quoi souhaitez-vous vous abonner ?',
   icalTeamFilter: 'Filtrer par equipe',
   icalTeamHint: 'Vide = toutes les equipes',
+  icalGenerateLink: 'Generer le lien d\'abonnement',
+  icalLinkReadyLabel: 'Lien d\'abonnement (a copier dans votre app de calendrier) :',
+  icalCopyLink: 'Copier',
+  icalLinkCopied: 'Copie !',
+  icalCopyFailed: 'Impossible de copier — selectionnez le lien et copiez-le manuellement',
+  icalOpenInApp: 'Ou ouvrir directement dans votre app de calendrier',
+  icalSubscribeHint:
+    'Collez ce lien dans votre application de calendrier pour vous abonner — il se met a jour automatiquement. Google Agenda : Autres agendas → A partir de l\'URL. Apple Calendrier : Fichier → Nouvel abonnement a un calendrier.',
 } as const

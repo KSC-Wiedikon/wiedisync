@@ -57,6 +57,14 @@ export default {
   icalFilterLabel: 'Was möchtest du abonnieren?',
   icalTeamFilter: 'Nach Team filtern',
   icalTeamHint: 'Leer = alle Teams',
+  icalGenerateLink: 'Abo-Link erstellen',
+  icalLinkReadyLabel: 'Abo-Link (in deine Kalender-App kopieren):',
+  icalCopyLink: 'Kopieren',
+  icalLinkCopied: 'Kopiert!',
+  icalCopyFailed: 'Kopieren fehlgeschlagen — Link markieren und manuell kopieren',
+  icalOpenInApp: 'Oder direkt in deiner Kalender-App öffnen',
+  icalSubscribeHint:
+    'Füge diesen Link in deine Kalender-App ein, um zu abonnieren — er bleibt automatisch aktuell. Google Kalender: Weitere Kalender → Per URL. Apple Kalender: Ablage → Kalenderabo hinzufügen.',
   // Table columns
   colType: 'Typ',
   colTitle: 'Titel',

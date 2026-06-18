@@ -57,4 +57,12 @@ export default {
   icalFilterLabel: 'A cosa vuoi abbonarti?',
   icalTeamFilter: 'Filtra per squadra',
   icalTeamHint: 'Vuoto = tutte le squadre',
+  icalGenerateLink: 'Genera link di abbonamento',
+  icalLinkReadyLabel: 'Link di abbonamento (copialo nella tua app calendario):',
+  icalCopyLink: 'Copia',
+  icalLinkCopied: 'Copiato!',
+  icalCopyFailed: 'Impossibile copiare — seleziona il link e copialo manualmente',
+  icalOpenInApp: 'Oppure apri direttamente nella tua app calendario',
+  icalSubscribeHint:
+    'Incolla questo link nella tua app calendario per abbonarti — si aggiorna automaticamente. Google Calendar: Altri calendari → Da URL. Apple Calendario: Archivio → Nuovo abbonamento calendario.',
 } as const

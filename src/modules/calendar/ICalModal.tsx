@@ -9,6 +9,7 @@ import { useAdminMode } from '../../hooks/useAdminMode'
 import { downloadICal } from '../../utils/icalGenerator'
 import type { CalendarEntry } from '../../types/calendar'
 import { API_URL } from '../../lib/api'
+import { toast } from 'sonner'
 
 
 const BASE_URL = API_URL
@@ -54,6 +55,19 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
     'events',
   ])
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([])
+  const [linkShown, setLinkShown] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  // iCal subscription URL — recomputed live as categories/teams change so the
+  // revealed link always matches the current selection.
+  const subscribeUrl = useMemo(() => {
+    const sources = selectedCategories.flatMap((cat) => categoryToSources[cat])
+    const params = new URLSearchParams()
+    if (sources.length > 0) params.set('source', sources.join(','))
+    if (selectedTeamIds.length > 0) params.set('team', selectedTeamIds.join(','))
+    return `${BASE_URL}/kscw/ical?${params.toString()}`
+  }, [selectedCategories, selectedTeamIds])
+  const webcalUrl = subscribeUrl.replace(/^https?:/, 'webcal:')
 
   const title = mode === 'subscribe' ? t('icalSubscribeTitle') : t('icalDownloadTitle')
 
@@ -80,42 +94,52 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
     )
   }
 
-  function handleConfirm() {
-    // Build combined sources from selected categories
-    const sources = selectedCategories.flatMap((cat) => categoryToSources[cat])
-
-    if (mode === 'subscribe') {
-      const params = new URLSearchParams()
-      if (sources.length > 0) {
-        params.set('source', sources.join(','))
-      }
-      if (selectedTeamIds.length > 0) {
-        params.set('team', selectedTeamIds.join(','))
-      }
-      const icalUrl = `${BASE_URL}/kscw/ical?${params.toString()}`
-      const webcalUrl = icalUrl.replace(/^https?:/, 'webcal:')
-      window.open(webcalUrl, '_self')
-    } else {
-      // Download: filter current entries client-side
-      let filtered = entries
-      if (selectedCategories.length < 3) {
-        filtered = entries.filter((e) => categoryMatchesEntry(selectedCategories, e))
-      }
-      if (selectedTeamIds.length > 0) {
-        filtered = filtered.filter((e) => {
-          // Games: check source.kscw_team; Trainings: check source.team
-          const src = e.source as Record<string, unknown>
-          const teamId = (src.kscw_team ?? src.team ?? '') as string
-          return !teamId || selectedTeamIds.includes(teamId)
-        })
-      }
-      downloadICal(filtered, 'wiedisync-kalender.ics')
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(subscribeUrl)
+      setCopied(true)
+      toast.success(t('icalLinkCopied'))
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error(t('icalCopyFailed'))
     }
+  }
+
+  function handleConfirm() {
+    if (mode === 'subscribe') {
+      // Reveal the subscription link + copy it to the clipboard. A direct
+      // webcal:// auto-open is unreliable on desktop browsers (Brave/Chrome
+      // silently ignore it), so we surface the link for the user to paste into
+      // their calendar app.
+      setLinkShown(true)
+      void copyLink()
+      return
+    }
+    // Download: filter current entries client-side
+    let filtered = entries
+    if (selectedCategories.length < 3) {
+      filtered = entries.filter((e) => categoryMatchesEntry(selectedCategories, e))
+    }
+    if (selectedTeamIds.length > 0) {
+      filtered = filtered.filter((e) => {
+        // Games: check source.kscw_team; Trainings: check source.team
+        const src = e.source as Record<string, unknown>
+        const teamId = (src.kscw_team ?? src.team ?? '') as string
+        return !teamId || selectedTeamIds.includes(teamId)
+      })
+    }
+    downloadICal(filtered, 'wiedisync-kalender.ics')
+    onClose()
+  }
+
+  function handleClose() {
+    setLinkShown(false)
+    setCopied(false)
     onClose()
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={title} size="sm">
+    <Modal open={open} onClose={handleClose} title={title} size="sm">
       <div className="space-y-5">
         {/* Category selection (checkboxes) */}
         <div>
@@ -182,8 +206,39 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
           disabled={selectedCategories.length === 0}
           className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 active:bg-brand-800 disabled:opacity-50"
         >
-          {mode === 'subscribe' ? t('subscribeICal') : t('exportICal')}
+          {mode === 'subscribe' ? t('icalGenerateLink') : t('exportICal')}
         </button>
+
+        {/* Subscription link — revealed after "Generate link" */}
+        {mode === 'subscribe' && linkShown && (
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('icalLinkReadyLabel')}
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={subscribeUrl}
+                onFocus={(e) => e.currentTarget.select()}
+                className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
+              />
+              <button
+                type="button"
+                onClick={copyLink}
+                className="shrink-0 rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-700 active:bg-brand-800"
+              >
+                {copied ? t('icalLinkCopied') : t('icalCopyLink')}
+              </button>
+            </div>
+            <a
+              href={webcalUrl}
+              className="inline-block text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+            >
+              {t('icalOpenInApp')}
+            </a>
+            <p className="text-xs text-gray-400 dark:text-gray-500">{t('icalSubscribeHint')}</p>
+          </div>
+        )}
       </div>
     </Modal>
   )

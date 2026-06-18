@@ -57,6 +57,14 @@ export default {
   icalFilterLabel: 'What do you want to subscribe to?',
   icalTeamFilter: 'Filter by team',
   icalTeamHint: 'Empty = all teams',
+  icalGenerateLink: 'Generate subscription link',
+  icalLinkReadyLabel: 'Subscription link (copy into your calendar app):',
+  icalCopyLink: 'Copy',
+  icalLinkCopied: 'Copied!',
+  icalCopyFailed: 'Could not copy — select the link and copy it manually',
+  icalOpenInApp: 'Or open directly in your calendar app',
+  icalSubscribeHint:
+    'Paste this link into your calendar app to subscribe — it stays up to date automatically. Google Calendar: Other calendars → From URL. Apple Calendar: File → New Calendar Subscription.',
   // Table columns
   colType: 'Type',
   colTitle: 'Title',
