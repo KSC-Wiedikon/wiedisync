@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.1.0 — 2026-06-19
+
+### Loading & polish
+- Pages now wait for all their data before showing — no more tables and cards popping in a moment after the screen appears.
+- A refreshed loading screen with the spinning club logo, a gold progress bar with a percentage, and a few playful messages while you wait.
+
 ## v1.0.0 — 2026-06-19
 
 First official release of Wiedisync — a fast, real-time web app for KSC Wiedikon, available in German, English, French, Italian and Swiss German. The sections below describe what the platform does at 1.0.

@@ -6,6 +6,7 @@ import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb } from 
 import i18n from '../i18n'
 import { backendLangToI18n } from '../utils/languageMap'
 import { getCurrentSeason } from '../utils/dateHelpers'
+import LoadingSpinner from '../components/LoadingSpinner'
 import type { Member, Team } from '../types'
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -367,12 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return (
       <AuthContext.Provider value={value}>
         <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-          <img
-            src="/wiedisync_logo.svg"
-            alt="Loading…"
-            className="h-24 w-24 animate-spin"
-            style={{ animationDuration: '2s' }}
-          />
+          <LoadingSpinner />
         </div>
       </AuthContext.Provider>
     )

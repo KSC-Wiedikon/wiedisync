@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.0.0'
+const APP_VERSION = '1.1.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.1.0',
+    date: '19.06.2026',
+    sections: [
+      {
+        title: 'Loading & polish',
+        items: [
+          'Pages now wait for all their data before showing — no more tables and cards popping in a moment after the screen appears.',
+          'A refreshed loading screen with the spinning club logo, a gold progress bar with a percentage, and a few playful messages while you wait.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.0.0',
     date: '19.06.2026',
