@@ -57,6 +57,8 @@ export default {
   payTwintHint: 'Mach TWINT uf, scann de Code und gib {{amount}} i.',
   payTwintNote: 'Din Saldo aktualisiert sich automatisch, sobald de Verein d Zahlig verbuecht.',
   cardPayHint: 'Tippe zum mit TWINT zahle',
+  payTapHint: 'Tippe unde uf e offeni Rächnig zum sie zahle.',
+  qrScanHint: 'Scann zum {{amount}} mit TWINT oder dinere Banking-App zahle',
 
   colDate: 'Datum',
   colText: 'Beschriibig',

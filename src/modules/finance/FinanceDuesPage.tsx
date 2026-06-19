@@ -1,13 +1,16 @@
-import { useMemo } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { useMyInvoices, toNum, formatChf, isOpenInvoice } from '../../hooks/useFinance'
+import InvoiceQrBill from './InvoiceQrBill'
 
 export default function FinanceDuesPage() {
   const { t } = useTranslation('finance')
   const { data: invoicesRaw, isLoading } = useMyInvoices()
   const invoices = invoicesRaw ?? []
+  const [payRow, setPayRow] = useState<string | null>(null)
 
   const openTotal = useMemo(
     () => invoices.filter(isOpenInvoice).reduce((acc, i) => acc + toNum(i.open_amount), 0),
@@ -30,18 +33,10 @@ export default function FinanceDuesPage() {
         {openTotal === 0 && invoices.length > 0 && (
           <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('allSettled')}</div>
         )}
+        {openTotal > 0 && (
+          <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">{t('payTapHint')}</div>
+        )}
       </div>
-
-      {/* Pay via TWINT — static club payee QR (no amount/reference): the member
-          enters the amount; the paid status flows back via the nightly ClubDesk sync. */}
-      {openTotal > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white p-4 text-center dark:border-gray-700 dark:bg-gray-800">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('payViaTwint')}</h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t('payTwintHint', { amount: formatChf(openTotal) })}</p>
-          <img src="/twint-kscw.png" alt="TWINT — KSC Wiedikon" className="mx-auto mt-3 w-40 sm:w-48" />
-          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t('payTwintNote')}</p>
-        </div>
-      )}
 
       {isLoading ? (
         <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">…</div>
@@ -65,36 +60,55 @@ export default function FinanceDuesPage() {
             <TableBody>
               {invoices.map((inv) => {
                 const open = toNum(inv.open_amount)
+                const payable = isOpenInvoice(inv)
+                const expanded = payRow === inv.id
                 return (
-                  <TableRow key={inv.id} className="border-gray-200 dark:border-gray-700">
-                    <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
-                      {inv.subject || inv.number || '–'}
-                      <span className="mt-0.5 block text-xs text-gray-400 sm:hidden">
-                        {inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : ''}
-                      </span>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">
-                      {inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">
-                      {inv.due_date ? formatDateCompactZurich(inv.due_date) : '–'}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(inv.amount)}</TableCell>
-                    <TableCell className={`text-right tabular-nums ${open > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}>
-                      {open > 0 ? formatChf(open) : '–'}
-                    </TableCell>
-                    <TableCell>
-                      {inv.status && (
-                        <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
-                          isOpenInvoice(inv)
-                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                            : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                        }`}>
-                          {inv.status}
+                  <Fragment key={inv.id}>
+                    <TableRow
+                      className={`border-gray-200 dark:border-gray-700 ${payable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}`}
+                      onClick={payable ? () => setPayRow((p) => (p === inv.id ? null : inv.id)) : undefined}
+                    >
+                      <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                        {payable && (
+                          <span className="mr-1 inline-block align-middle text-amber-500">
+                            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          </span>
+                        )}
+                        {inv.subject || inv.number || '–'}
+                        <span className="mt-0.5 block text-xs text-gray-400 sm:hidden">
+                          {inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : ''}
                         </span>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">
+                        {inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">
+                        {inv.due_date ? formatDateCompactZurich(inv.due_date) : '–'}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(inv.amount)}</TableCell>
+                      <TableCell className={`text-right tabular-nums ${open > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}>
+                        {open > 0 ? formatChf(open) : '–'}
+                      </TableCell>
+                      <TableCell>
+                        {inv.status && (
+                          <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
+                            payable
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                              : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                          }`}>
+                            {inv.status}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                    {expanded && (
+                      <TableRow className="border-gray-200 dark:border-gray-700">
+                        <TableCell colSpan={6} className="bg-amber-50/40 dark:bg-amber-900/10">
+                          <InvoiceQrBill invoice={inv} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
                 )
               })}
             </TableBody>

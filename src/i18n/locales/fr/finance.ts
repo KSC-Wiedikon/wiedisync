@@ -57,6 +57,8 @@ export default {
   payTwintHint: 'Ouvrez TWINT, scannez ce code et saisissez {{amount}}.',
   payTwintNote: 'Votre solde se met à jour automatiquement dès que le club enregistre le paiement.',
   cardPayHint: 'Touchez pour payer avec TWINT',
+  payTapHint: 'Touchez une facture ouverte ci-dessous pour la payer.',
+  qrScanHint: 'Scannez pour payer {{amount}} avec TWINT ou votre app bancaire',
 
   colDate: 'Date',
   colText: 'Description',
