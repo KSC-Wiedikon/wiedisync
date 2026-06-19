@@ -20,6 +20,8 @@ export default {
   admin: 'Admin',
   superadmin: 'Superadmin',
   memberTools: 'Mitglieder-Tools',
+  finance: 'Finanzen',
+  uploadInvoice: 'Rechnung hochladen',
   spielplanung: 'Spielplanung',
   more: 'Mehr',
   lightMode: 'Hell',

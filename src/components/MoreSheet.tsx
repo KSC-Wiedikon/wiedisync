@@ -8,7 +8,7 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, UserX, PenSquare, PartyPopper, ClipboardList, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel } from 'lucide-react'
+import { Bell, UserX, PenSquare, PartyPopper, ClipboardList, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
@@ -35,8 +35,8 @@ interface SheetItem { to: string; labelKey: string; icon: ReactNode; external?: 
 
 function buildSecondaryItems(
   memberId: number | string | undefined | null,
-  sched: { isAdmin: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[]; canManageForms: boolean },
-): { primary: SheetItem[]; memberTools: SheetItem[]; spielplaner: SheetItem[] } {
+  sched: { isAdmin: boolean; isVorstand: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[]; canManageForms: boolean },
+): { primary: SheetItem[]; memberTools: SheetItem[]; finance: SheetItem[]; spielplaner: SheetItem[] } {
   // Primary = items NOT already on the bottom tab bar (Home/Calendar/Games/
   // Trainings live there); shown ungrouped at the top of the sheet.
   const primary: SheetItem[] = [
@@ -55,6 +55,13 @@ function buildSecondaryItems(
     ...(sched.canManageForms ? [{ to: '/forms', labelKey: 'forms', icon: <ScrollText className={iconClass} /> }] : []),
     { to: '/news', labelKey: 'news', icon: <Newspaper className={iconClass} /> },
   ]
+  // Finance — own section (mirrors Layout.tsx): dues + expense upload (all
+  // members), board Finanzen dashboard (Vorstand only).
+  const finance: SheetItem[] = [
+    { to: '/finance/dues', labelKey: 'finance:myDuesTitle', icon: <Wallet className={iconClass} /> },
+    { to: '/finance/expense', labelKey: 'uploadInvoice', icon: <ReceiptText className={iconClass} /> },
+    ...(sched.isVorstand ? [{ to: '/admin/finance', labelKey: 'finance:title', icon: <Landmark className={iconClass} /> }] : []),
+  ]
   // Spielplaner tools — own role-gated section (mirrors Layout.tsx + route guards).
   // Game scheduling lives on its own subdomain; link out when SCHEDULING_ORIGIN
   // differs from the current origin (SSO makes it seamless), else stay in-app.
@@ -67,7 +74,7 @@ function buildSecondaryItems(
       ? [{ to: '/admin/terminplanung', href: `${SCHEDULING_ORIGIN}/admin/terminplanung`, external: schedExternal, labelKey: 'terminplanung', icon: <CalendarClock className={iconClass} /> }]
       : []),
   ]
-  return { primary, memberTools, spielplaner }
+  return { primary, memberTools, finance, spielplaner }
 }
 
 const adminItems = [
@@ -319,7 +326,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
             </>
           )}
           {(!user || !isApproved) ? null : (() => {
-            const groups = buildSecondaryItems(user.id, { isAdmin, is_spielplaner, spielplanerTeamIds, canManageForms })
+            const groups = buildSecondaryItems(user.id, { isAdmin, isVorstand, is_spielplaner, spielplanerTeamIds, canManageForms })
             const renderItem = (item: SheetItem) => (
               item.external ? (
                 <a
@@ -359,6 +366,15 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                       {t('memberTools')}
                     </p>
                     {groups.memberTools.map(renderItem)}
+                  </>
+                )}
+                {groups.finance.length > 0 && (
+                  <>
+                    <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
+                    <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                      {t('finance')}
+                    </p>
+                    {groups.finance.map(renderItem)}
                   </>
                 )}
                 {groups.spielplaner.length > 0 && (

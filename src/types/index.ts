@@ -163,6 +163,9 @@ export interface Member extends BaseRecord {
   licence_validation_date: string | null
   vm_email: string
   ahv_nummer: string
+  // Bank account IBAN for reimbursements (migration 117). Sensitive financial
+  // PII — scoped own-member + admin only server-side, like ahv_nummer.
+  iban: string | null
   beitragskategorie: string
 
   // Messaging
