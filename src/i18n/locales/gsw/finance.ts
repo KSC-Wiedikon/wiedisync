@@ -56,6 +56,7 @@ export default {
   payViaTwint: 'Mit TWINT zahle',
   payTwintHint: 'Mach TWINT uf, scann de Code und gib {{amount}} i.',
   payTwintNote: 'Din Saldo aktualisiert sich automatisch, sobald de Verein d Zahlig verbuecht.',
+  cardPayHint: 'Tippe zum mit TWINT zahle',
 
   colDate: 'Datum',
   colText: 'Beschriibig',

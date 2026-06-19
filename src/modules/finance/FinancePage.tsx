@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import {
@@ -8,6 +9,7 @@ import {
 } from '../../hooks/useFinance'
 import type { FinanceAccount, FinanceTransaction } from './types'
 import AccountExplorer from './AccountExplorer'
+import AccountLedger from './AccountLedger'
 
 type Tab = 'overview' | 'income' | 'balance' | 'accounts' | 'sync'
 
@@ -57,9 +59,11 @@ function TabBtn({ active, label, onClick }: { active: boolean; label: string; on
   )
 }
 
-/** A financial-statement section: account line items + a total row. */
-function StatementTable({ title, rows, total, totalLabel, accLabel, amtLabel }: {
+/** A financial-statement section: account line items + a total row. Rows drill into
+ *  the account ledger (inline) when onToggle + renderDetail are provided. */
+function StatementTable({ title, rows, total, totalLabel, accLabel, amtLabel, expandedNum, onToggle, renderDetail }: {
   title: string; rows: AcctRow[]; total: number; totalLabel: string; accLabel: string; amtLabel: string
+  expandedNum?: string | null; onToggle?: (n: string) => void; renderDetail?: (a: AcctRow) => ReactNode
 }) {
   return (
     <section>
@@ -74,12 +78,27 @@ function StatementTable({ title, rows, total, totalLabel, accLabel, amtLabel }: 
           </TableHeader>
           <TableBody>
             {rows.map((a) => (
-              <TableRow key={a.number} className="border-gray-200 dark:border-gray-700">
-                <TableCell className="whitespace-normal break-words text-gray-700 dark:text-gray-300">
-                  <span className="tabular-nums text-gray-400">{a.number}</span> {a.name}
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(a.bal)}</TableCell>
-              </TableRow>
+              <Fragment key={a.number}>
+                <TableRow
+                  className={`border-gray-200 dark:border-gray-700 ${onToggle ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}`}
+                  onClick={onToggle ? () => onToggle(a.number) : undefined}
+                >
+                  <TableCell className="whitespace-normal break-words text-gray-700 dark:text-gray-300">
+                    {onToggle && (
+                      <span className="mr-1 inline-block align-middle text-gray-400">
+                        {expandedNum === a.number ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      </span>
+                    )}
+                    <span className="tabular-nums text-gray-400">{a.number}</span> {a.name}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(a.bal)}</TableCell>
+                </TableRow>
+                {expandedNum === a.number && renderDetail && (
+                  <TableRow className="border-gray-200 dark:border-gray-700">
+                    <TableCell colSpan={2} className="bg-gray-50/60 p-2 dark:bg-gray-900/20">{renderDetail(a)}</TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
             ))}
             <TableRow className="border-t-2 border-gray-300 font-semibold dark:border-gray-600">
               <TableCell className="text-gray-900 dark:text-gray-100">{totalLabel}</TableCell>
@@ -95,6 +114,7 @@ function StatementTable({ title, rows, total, totalLabel, accLabel, amtLabel }: 
 export default function FinancePage() {
   const { t } = useTranslation('finance')
   const [tab, setTab] = useState<Tab>('overview')
+  const [expandedAcct, setExpandedAcct] = useState<string | null>(null)
 
   const { data: fiscalYearsRaw } = useFinanceFiscalYears()
   const fiscalYears = fiscalYearsRaw ?? []
@@ -114,8 +134,10 @@ export default function FinancePage() {
   // liquidity); plStats EXCLUDES year-end closing entries (typ 'Abschluss'), which
   // zero the income/expense accounts — without this a CLOSED fiscal year's P&L
   // reads as 0, because the closing offsets the whole year's nominal activity.
+  const nameByNum = useMemo(() => { const m = new Map<string, string>(); for (const a of accounts) m.set(a.number, a.name); return m }, [accounts])
+  const plTransactions = useMemo(() => transactions.filter((tx) => tx.typ !== 'Abschluss'), [transactions])
   const allStats = useMemo(() => statsFrom(transactions), [transactions])
-  const plStats = useMemo(() => statsFrom(transactions.filter((tx) => tx.typ !== 'Abschluss')), [transactions])
+  const plStats = useMemo(() => statsFrom(plTransactions), [plTransactions])
 
   /** Natural-sign balance. Income/expense (nominal) accounts read plStats so a
    *  closed year still shows its real P&L; balance-sheet accounts read allStats. */
@@ -152,6 +174,7 @@ export default function FinancePage() {
   const empty = !isLoading && transactions.length === 0 && invoices.length === 0
   const divLabel = (d: string) => d === 'vb' ? t('divVb') : d === 'bb' ? t('divBb') : t('divClub')
   const importTypeLabel = (ty: string) => ty === 'invoices' ? t('typeInvoices') : ty === 'bookings' ? t('typeBookings') : ty
+  const toggleAcct = (n: string) => setExpandedAcct((p) => (p === n ? null : n))
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
@@ -255,8 +278,10 @@ export default function FinancePage() {
           {/* ── Income statement (P&L) ───────────────────────────── */}
           {tab === 'income' && (
             <div className="space-y-5">
-              <StatementTable title={t('income')} rows={incomeRows} total={totalIncome} totalLabel={t('totalIncome')} accLabel={t('colAccount')} amtLabel={t('colAmount')} />
-              <StatementTable title={t('expense')} rows={expenseRows} total={totalExpense} totalLabel={t('totalExpenses')} accLabel={t('colAccount')} amtLabel={t('colAmount')} />
+              <StatementTable title={t('income')} rows={incomeRows} total={totalIncome} totalLabel={t('totalIncome')} accLabel={t('colAccount')} amtLabel={t('colAmount')}
+                expandedNum={expandedAcct} onToggle={toggleAcct} renderDetail={(a) => <AccountLedger account={a} transactions={plTransactions} nameByNum={nameByNum} />} />
+              <StatementTable title={t('expense')} rows={expenseRows} total={totalExpense} totalLabel={t('totalExpenses')} accLabel={t('colAccount')} amtLabel={t('colAmount')}
+                expandedNum={expandedAcct} onToggle={toggleAcct} renderDetail={(a) => <AccountLedger account={a} transactions={plTransactions} nameByNum={nameByNum} />} />
               <div className="rounded-lg border-2 border-gray-300 bg-white p-4 dark:border-gray-600 dark:bg-gray-800">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-gray-900 dark:text-gray-100">{t('netResult')}</span>
@@ -269,8 +294,10 @@ export default function FinancePage() {
           {/* ── Balance sheet ────────────────────────────────────── */}
           {tab === 'balance' && (
             <div className="space-y-5">
-              <StatementTable title={t('assets')} rows={assetRows} total={totalAssets} totalLabel={t('totalAssets')} accLabel={t('colAccount')} amtLabel={t('colAmount')} />
-              <StatementTable title={t('liabilitiesEquity')} rows={liabEqRows} total={totalLiabEq} totalLabel={t('totalLiabEquity')} accLabel={t('colAccount')} amtLabel={t('colAmount')} />
+              <StatementTable title={t('assets')} rows={assetRows} total={totalAssets} totalLabel={t('totalAssets')} accLabel={t('colAccount')} amtLabel={t('colAmount')}
+                expandedNum={expandedAcct} onToggle={toggleAcct} renderDetail={(a) => <AccountLedger account={a} transactions={transactions} nameByNum={nameByNum} />} />
+              <StatementTable title={t('liabilitiesEquity')} rows={liabEqRows} total={totalLiabEq} totalLabel={t('totalLiabEquity')} accLabel={t('colAccount')} amtLabel={t('colAmount')}
+                expandedNum={expandedAcct} onToggle={toggleAcct} renderDetail={(a) => <AccountLedger account={a} transactions={transactions} nameByNum={nameByNum} />} />
             </div>
           )}
 

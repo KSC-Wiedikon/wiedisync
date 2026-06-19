@@ -56,6 +56,7 @@ export default {
   payViaTwint: 'Mit TWINT bezahlen',
   payTwintHint: 'Öffne TWINT, scanne diesen Code und gib {{amount}} ein.',
   payTwintNote: 'Dein Saldo aktualisiert sich automatisch, sobald der Verein die Zahlung verbucht.',
+  cardPayHint: 'Tippen, um mit TWINT zu bezahlen',
 
   colDate: 'Datum',
   colText: 'Beschreibung',
