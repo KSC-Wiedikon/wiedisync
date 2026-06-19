@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { FormInput } from '@/components/FormField'
 import { OtpInput } from '../../components/OtpInput'
 import { SetPasswordForm } from '../../components/SetPasswordForm'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { kscwApi, logout as apiLogout } from '../../lib/api'
 
 interface InviteInfo {
@@ -133,11 +134,7 @@ export default function JoinPage() {
 
         <div className="rounded-xl bg-white p-6 shadow-lg sm:p-8 dark:bg-gray-800">
           {/* Loading */}
-          {phase === 'loading' && (
-            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-              {t('common:loading')}
-            </p>
-          )}
+          {phase === 'loading' && <LoadingSpinner size="sm" />}
 
           {/* Error — invalid / expired invite */}
           {phase === 'error' && (

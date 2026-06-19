@@ -11,6 +11,7 @@ import { useTeamAbsences } from '../../hooks/useTeamAbsences'
 import TeamMultiSelect from '../../components/TeamMultiSelect'
 import { teamNameToColorKey } from '../../utils/teamColors'
 import EmptyState from '../../components/EmptyState'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import AbsenceCard from './AbsenceCard'
 import AbsenceForm from './AbsenceForm'
@@ -101,7 +102,7 @@ export default function AbsencesPage() {
   }, [allTeams, coachTeamIds, effectiveIsAdmin, effectiveIsVorstand, is_spielplaner])
 
   // ── Personal absences (excludes weekly) ────────────────────────
-  const { data: myAbsencesRaw, refetch } = useCollection<Absence>('absences', {
+  const { data: myAbsencesRaw, refetch, isLoading: myAbsencesLoading } = useCollection<Absence>('absences', {
     filter: user ? { _and: [{ member: { _eq: user.id } }, { _or: [{ type: { _null: true } }, { type: { _neq: 'weekly' } }] }] } : { id: { _eq: -1 } },
     sort: ['-start_date'],
     limit: 50,
@@ -113,7 +114,7 @@ export default function AbsencesPage() {
   const pastAbsences = myAbsences.filter((a) => a.end_date && a.end_date < today)
 
   // ── Personal weeklies ──────────────────────────────────────────
-  const { data: myWeeklyRaw, refetch: refetchWeekly } = useCollection<Absence>('absences', {
+  const { data: myWeeklyRaw, refetch: refetchWeekly, isLoading: myWeeklyLoading } = useCollection<Absence>('absences', {
     filter: user ? { _and: [{ member: { _eq: user.id } }, { type: { _eq: 'weekly' } }] } : { id: { _eq: -1 } },
     sort: ['-start_date'],
     limit: 50,
@@ -165,6 +166,10 @@ export default function AbsencesPage() {
   const isCoachOrResponsible = coachTeamIds.length > 0 || effectiveIsCoach || effectiveIsAdmin || effectiveIsVorstand
   const canCreateForTeam = isTeamScope && isCoachOrResponsible
   const canEditOwn = (a: Absence) => relId(a.member) === String(user?.id) || isCoach || effectiveIsCoach
+
+  // Wait for the member's own absences + weeklies before rendering so the lists
+  // arrive fully formed rather than flashing empty then filling in.
+  if (myAbsencesLoading || myWeeklyLoading) return <LoadingSpinner />
 
   return (
     <div>
@@ -447,7 +452,7 @@ function TeamWeeklySection({
   )
 
   if (isLoading) {
-    return <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">{t('common:loading')}</div>
+    return <LoadingSpinner />
   }
   if (allWeeklies.length === 0) {
     return (

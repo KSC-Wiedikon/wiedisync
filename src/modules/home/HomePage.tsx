@@ -345,7 +345,7 @@ export default function HomePage() {
     <div className="min-w-0">
       <InstallBanner />
       {isInitialLoading ? (
-        <LoadingSpinner label={t('loading')} />
+        <LoadingSpinner />
       ) : (<>
 
       {/* Hero with sport icons flanking logo */}

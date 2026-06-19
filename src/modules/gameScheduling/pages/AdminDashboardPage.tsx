@@ -210,7 +210,7 @@ export default function AdminDashboardPage() {
   const { hasAdminAccessToSport, is_spielplaner } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
   const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, manualBooking, deleteBooking, blockSlot, finalizeNotify, vmPush, refetch } = useAdminBookings(season?.id)
-  const { data: teams } = useTeams()
+  const { data: teams, isLoading: teamsLoading } = useTeams()
   const confirm = useConfirm()
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
@@ -220,13 +220,18 @@ export default function AdminDashboardPage() {
   // Intra-club games (e.g. the H1↔H3 derby) — not bookings, so they don't come
   // through useAdminBookings. Surface them on the overview + per-team calendars.
   const [derbyGames, setDerbyGames] = useState<IntraClubGame[]>([])
+  // Tracks the first derby fetch so the page can wait for it before rendering
+  // (otherwise the intra-club games pop into the calendars after the spinner).
+  const [derbyLoaded, setDerbyLoaded] = useState(false)
   useEffect(() => {
-    if (!season?.season) { setDerbyGames([]); return }
+    if (!season?.season) { setDerbyGames([]); setDerbyLoaded(true); return }
     let cancelled = false
     fetchAllItems<IntraClubGame>('games', {
       filter: { season: { _eq: season.season }, home_team: { _starts_with: 'KSC Wiedikon' }, away_team: { _starts_with: 'KSC Wiedikon' } },
       fields: ['id', 'game_id', 'date', 'time', 'home_team', 'away_team', 'kscw_team', 'type'],
-    }).then((g) => { if (!cancelled) setDerbyGames(g) }).catch(() => { if (!cancelled) setDerbyGames([]) })
+    }).then((g) => { if (!cancelled) setDerbyGames(g) })
+      .catch(() => { if (!cancelled) setDerbyGames([]) })
+      .finally(() => { if (!cancelled) setDerbyLoaded(true) })
     return () => { cancelled = true }
   }, [season?.season])
 
@@ -421,7 +426,9 @@ export default function AdminDashboardPage() {
 
   // Only the very first load blanks to a spinner. After data has loaded once,
   // confirming a proposal refetches in the background without flashing the page.
-  if (seasonLoading || (isLoading && !hasLoaded)) return <LoadingSpinner />
+  // Wait for ALL the content data (season, bookings, teams, intra-club games) so
+  // the tables/cards render fully formed instead of popping in piecemeal.
+  if (seasonLoading || (isLoading && !hasLoaded) || teamsLoading || !derbyLoaded) return <LoadingSpinner />
 
   if (!season) {
     return (
