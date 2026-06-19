@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
-import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { toNum, formatChf } from '../../hooks/useFinance'
 import type { FinanceAccount, FinanceTransaction } from './types'
+import AccountLedger from './AccountLedger'
 
 /** Top-level categories by leading account digit (standard Swiss Verein layout). */
 const CATEGORY_ORDER = ['1', '2', '3', '4', '9'] as const
@@ -50,24 +49,6 @@ export default function AccountExplorer({ accounts, transactions }: {
   })).filter((g) => g.accounts.length > 0), [accounts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const selAccount = accounts.find((a) => a.number === selected) ?? null
-  const debitNormal = selAccount?.type === 'asset' || selAccount?.type === 'expense'
-
-  const ledger = useMemo(() => {
-    if (!selected) return []
-    const rows = transactions
-      .filter((tx) => tx.debit_account_number === selected || tx.credit_account_number === selected)
-      .sort((a, b) => (a.booking_date || '').localeCompare(b.booking_date || ''))
-    let run = 0
-    return rows.map((tx) => {
-      const amt = toNum(tx.amount_chf)
-      const isDebit = tx.debit_account_number === selected
-      const soll = isDebit ? amt : 0
-      const haben = isDebit ? 0 : amt
-      run += debitNormal ? soll - haben : haben - soll
-      const gegen = isDebit ? tx.credit_account_number : tx.debit_account_number
-      return { tx, soll, haben, gegen, saldo: run }
-    })
-  }, [selected, transactions, debitNormal])
 
   const toggle = (digit: string) =>
     setCollapsed((c) => { const n = new Set(c); if (n.has(digit)) n.delete(digit); else n.add(digit); return n })
@@ -122,42 +103,7 @@ export default function AccountExplorer({ accounts, transactions }: {
               </h3>
               <span className="tabular-nums text-sm font-semibold text-gray-900 dark:text-gray-100">{formatChf(balByNum.get(selAccount.number) ?? 0)}</span>
             </div>
-            {ledger.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('noBookings')}</div>
-            ) : (
-              <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                      <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDate')}</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colText')}</TableHead>
-                      <TableHead className="hidden md:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colGegenkonto')}</TableHead>
-                      <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDebit')}</TableHead>
-                      <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colCredit')}</TableHead>
-                      <TableHead className="hidden sm:table-cell text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colSaldo')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ledger.map((r) => (
-                      <TableRow key={r.tx.id} className="border-gray-200 dark:border-gray-700">
-                        <TableCell className="whitespace-nowrap text-gray-900 dark:text-gray-100">{r.tx.booking_date ? formatDateCompactZurich(r.tx.booking_date) : '–'}</TableCell>
-                        <TableCell className="whitespace-normal break-words text-gray-700 dark:text-gray-300">
-                          {r.tx.text || '–'}
-                          {r.tx.beleg && <span className="ml-1 text-xs text-gray-400">({r.tx.beleg})</span>}
-                          <span className="mt-0.5 block text-xs text-gray-400 md:hidden">{r.gegen} {nameByNum.get(r.gegen ?? '') ?? ''}</span>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">
-                          <span className="tabular-nums text-gray-400">{r.gegen || '–'}</span> {nameByNum.get(r.gegen ?? '') ?? ''}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{r.soll ? formatChf(r.soll) : ''}</TableCell>
-                        <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{r.haben ? formatChf(r.haben) : ''}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-right tabular-nums text-gray-600 dark:text-gray-400">{formatChf(r.saldo)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+            <AccountLedger account={selAccount} transactions={transactions} nameByNum={nameByNum} />
           </div>
         )}
       </div>

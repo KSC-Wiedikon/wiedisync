@@ -38,6 +38,7 @@ export default function YourDuesCard() {
           <div className="text-2xl font-bold tabular-nums text-amber-900 dark:text-amber-100">{formatChf(stats.total)}</div>
           <div className="text-xs text-amber-700/80 dark:text-amber-300/80">{t('cardOpenCount', { count: stats.count })}</div>
         </div>
+        <div className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">{t('cardPayHint')}</div>
       </Link>
     </div>
   )
