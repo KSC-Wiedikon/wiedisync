@@ -8,6 +8,7 @@ export default {
   tabResults: 'Resultats',
   tabRankings: 'Classements',
   tabScoreboard: 'Tableau d\'honneur',
+  tabDashboard: 'Tableau de bord coach',
 
   // Results sections
   sectionLeague: 'Championnat',

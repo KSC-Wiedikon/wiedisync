@@ -8,6 +8,7 @@ export default {
   tabResults: 'Resultat',
   tabRankings: 'Ranglischtä',
   tabScoreboard: 'Scoreboard',
+  tabDashboard: 'Coach-Dashboard',
 
   // Results sections
   sectionLeague: 'Meisterschaft',
