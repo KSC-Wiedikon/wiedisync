@@ -113,6 +113,8 @@ export default {
   birthdateVisibilityFull: 'Vollständig aazeige',
   birthdateVisibilityYearOnly: 'Nur Jahrgang',
   birthdateVisibilityHidden: 'Verstecke',
+  websiteNameOnly: 'Nur Vorname uf de Website zeige',
+  websiteNameOnlyHint: 'Uf de öffentliche Vereinswebsite wird din Nachname nur als Initiale azeigt (z. B. «Anna M.») und din Jahrgang versteckt.',
   hidden: 'Versteckt',
   yearOnly: 'Nur Jahrgang',
   websiteVisible: 'Website-Sichtbarkeit',

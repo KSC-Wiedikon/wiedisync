@@ -3022,7 +3022,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (ids.length > 0) {
       const rows = await database('members')
         .whereIn('id', ids)
-        .select('id', 'user', 'hide_phone', 'hide_email', 'birthdate_visibility')
+        .select('id', 'user', 'hide_phone', 'hide_email', 'birthdate_visibility', 'website_name_private')
       for (const row of rows) gateById.set(row.id, row)
     }
 
@@ -3053,6 +3053,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // Email visibility — fail closed (hide) when the flag can't be resolved.
       if (!gate || gate.hide_email === true) {
         if ('email' in item) item.email = null
+      }
+
+      // Website name-privacy (migration 116) — ANONYMOUS callers only. This is a
+      // website-scoped control, so logged-in members (who have a currentUser and
+      // never reach here unless reading someone else) keep full names; only the
+      // public website / raw public /items/members read is minimised. Mirrors the
+      // /public/team endpoint: surname → initial, birthdate dropped. Fail closed
+      // (abbreviate) when the gating flag can't be resolved for an anonymous read.
+      if (!currentUser && (!gate || gate.website_name_private === true)) {
+        if ('last_name' in item && item.last_name) {
+          const s = String(item.last_name).trim()
+          item.last_name = s ? s.charAt(0).toUpperCase() + '.' : ''
+        }
+        if ('birthdate' in item) item.birthdate = null
       }
 
       // AHV number — only visible to self and admins

@@ -113,6 +113,8 @@ export default {
   birthdateVisibilityFull: 'Afficher la date complete',
   birthdateVisibilityYearOnly: 'Annee uniquement',
   birthdateVisibilityHidden: 'Masquer',
+  websiteNameOnly: 'Afficher uniquement le prenom sur le site',
+  websiteNameOnlyHint: 'Sur le site public du club, votre nom de famille apparait sous forme d\'initiale (par ex. « Anna M. ») et votre annee de naissance est masquee.',
   hidden: 'Masque',
   yearOnly: 'Annee uniquement',
 

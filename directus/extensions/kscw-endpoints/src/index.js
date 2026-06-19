@@ -461,12 +461,14 @@ export default {
             .select('members.id', 'members.first_name', 'members.last_name',
               'members.number', 'members.position', 'members.photo',
               'members.birthdate', 'members.birthdate_visibility',
+              'members.website_visible', 'members.website_name_private',
               'member_teams.guest_level'),
           database('teams_coaches')
             .join('members', 'members.id', 'teams_coaches.members_id')
             .where('teams_coaches.teams_id', team.id)
             .select('members.id', 'members.first_name', 'members.last_name', 'members.photo',
-              'members.birthdate', 'members.birthdate_visibility'),
+              'members.birthdate', 'members.birthdate_visibility',
+              'members.website_visible', 'members.website_name_private'),
           database('games')
             .where('kscw_team', team.id).where('date', '>=', today)
             .where('status', '!=', 'cancelled')
@@ -527,25 +529,36 @@ export default {
           return m ? m[0] : null
         }
 
+        // Website name-privacy (migration 116): when a member opts in, their
+        // public surname collapses to an initial ("Müller" → "M.") and their
+        // year of birth is dropped. First name / number / position are kept.
+        // Website-scoped only — the internal app reads full names elsewhere.
+        const lastInitial = (lastName) => {
+          const s = (lastName || '').trim()
+          return s ? s.charAt(0).toUpperCase() + '.' : ''
+        }
+
         // Transform roster: expose yob (respecting birthdate_visibility) + guest_level,
-        // strip raw birthdate / visibility flag from the public payload.
+        // strip raw birthdate / visibility flag from the public payload. Photo is
+        // gated server-side by website_visible (default false = opt-in) so opted-out
+        // members never expose a photo id — the website renders the club logo instead.
         const rosterPublic = roster.map((m) => ({
           id: m.id,
           first_name: m.first_name,
-          last_name: m.last_name,
+          last_name: m.website_name_private ? lastInitial(m.last_name) : m.last_name,
           number: m.number,
           position: m.position,
-          photo: m.photo,
-          yob: extractYob(m.birthdate, m.birthdate_visibility),
+          photo: m.website_visible ? m.photo : null,
+          yob: m.website_name_private ? null : extractYob(m.birthdate, m.birthdate_visibility),
           guest_level: m.guest_level || 0,
         }))
 
         const coachesPublic = coaches.map((c) => ({
           id: c.id,
           first_name: c.first_name,
-          last_name: c.last_name,
-          photo: c.photo,
-          yob: extractYob(c.birthdate, c.birthdate_visibility),
+          last_name: c.website_name_private ? lastInitial(c.last_name) : c.last_name,
+          photo: c.website_visible ? c.photo : null,
+          yob: c.website_name_private ? null : extractYob(c.birthdate, c.birthdate_visibility),
         }))
 
         // ── Resolve officials (referees, scorers, BB officials) for each game.

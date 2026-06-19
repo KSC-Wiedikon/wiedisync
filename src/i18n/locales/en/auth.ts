@@ -113,6 +113,8 @@ export default {
   birthdateVisibilityFull: 'Show full date',
   birthdateVisibilityYearOnly: 'Year only',
   birthdateVisibilityHidden: 'Hide',
+  websiteNameOnly: 'Show only first name on the website',
+  websiteNameOnlyHint: "On the public club website your surname shows as an initial (e.g. 'Anna M.') and your year of birth is hidden.",
   hidden: 'Hidden',
   yearOnly: 'Year only',
   websiteVisible: 'Website visibility',

@@ -51,6 +51,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
   const [birthdateVisibility, setBirthdateVisibility] = useState<'full' | 'year_only' | 'hidden'>('full')
   const [language, setLanguage] = useState<BackendLanguage>('german')
   const [websiteVisible, setWebsiteVisible] = useState(true)
+  const [websiteNamePrivate, setWebsiteNamePrivate] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -82,6 +83,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       setHidePhone(user.hide_phone ?? false)
       setHideEmail(user.hide_email ?? false)
       setWebsiteVisible(user.website_visible ?? true)
+      setWebsiteNamePrivate(user.website_name_private ?? false)
       setBirthdateVisibility((user.birthdate_visibility as 'full' | 'year_only' | 'hidden') || 'hidden')
       setLanguage((user.language as BackendLanguage) || 'german')
       setSelectedPositions(coercePositions(user.position))
@@ -198,6 +200,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
         hide_email: hideEmail,
         birthdate_visibility: birthdateVisibility,
         website_visible: websiteVisible,
+        website_name_private: websiteNamePrivate,
         language,
         position: selectedPositions.length > 0 ? selectedPositions : ['other'],
       }
@@ -635,6 +638,13 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
                   </SelectContent>
                 </Select>
               </FormField>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <Switch checked={websiteNamePrivate} onCheckedChange={setWebsiteNamePrivate} />
+                <div>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{t('websiteNameOnly')}</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('websiteNameOnlyHint')}</p>
+                </div>
+              </label>
             </div>
           </div>
         )}
