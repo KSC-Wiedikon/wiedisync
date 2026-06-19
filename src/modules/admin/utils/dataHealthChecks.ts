@@ -1,16 +1,29 @@
 import { fetchAllItems, updateRecord, deleteRecord } from '../../../lib/api'
-import { getCurrentSeason } from '../../../utils/dateHelpers'
+import { getCurrentSeason, formatDateZurich } from '../../../utils/dateHelpers'
 
 export type IssueSeverity = 'error' | 'warning'
 
 export type FixAction = 'update' | 'delete'
+
+/**
+ * Stable, locale-independent issue identifier. Drives the translated label
+ * (resolved in the component via t()) and the grouping/sort — never group or
+ * label off a translated string, or grouping breaks per-locale.
+ */
+export type IssueKey =
+  | 'missingDate'
+  | 'missingAwayTeam'
+  | 'missingTime'
+  | 'nonPaddedTime'
+  | 'noTeamAssignment'
 
 export interface DataIssue {
   id: string
   collection: string
   field: string
   severity: IssueSeverity
-  label: string
+  issueKey: IssueKey
+  /** Data-specific descriptor (team/member names, IDs, times) — locale-neutral. */
   detail: string
   autoFixable: boolean
   fixValue?: string
@@ -53,19 +66,25 @@ async function checkGames(): Promise<CollectionHealth> {
     const date = g['date'] as string
     const time = g['time'] as string
     const awayTeam = g['away_team'] as string
+    const status = (g['status'] as string) || ''
     const label = gameLabel(g)
+    // Cancelled games may legitimately carry an empty date/time — don't flag them.
+    const isCancelled = status === 'cancelled'
 
-    // Missing date → delete the game (unscheduled placeholder)
-    if (!date) {
+    // Missing date → manual review only, NEVER auto-deleted. The Swiss Volley
+    // sync legitimately inserts real future fixtures with an empty date while
+    // the opponent's agreed date is still pending; deleting them destroys
+    // genuine games (and the next sync just re-creates them). Surface it so an
+    // admin can decide in the Games UI, but don't offer a destructive one-click.
+    if (!date && !isCancelled) {
       issues.push({
         id: String(g['id']),
         collection: 'games',
         field: 'date',
-        severity: 'error',
-        label: `Missing date`,
+        severity: 'warning',
+        issueKey: 'missingDate',
         detail: `${label} (${gameId})`,
-        autoFixable: true,
-        fixAction: 'delete',
+        autoFixable: false,
       })
     }
 
@@ -76,22 +95,22 @@ async function checkGames(): Promise<CollectionHealth> {
         collection: 'games',
         field: 'away_team',
         severity: 'error',
-        label: `Missing away team`,
-        detail: `home: ${g['home_team'] || '?'} (${gameId})`,
+        issueKey: 'missingAwayTeam',
+        detail: `${g['home_team'] || '?'} (${gameId})`,
         autoFixable: true,
         fixValue: 'Opponent TBD',
       })
     }
 
     // Missing time (when date exists) → set 00:00
-    if (date && (!time || !time.trim())) {
+    if (date && !isCancelled && (!time || !time.trim())) {
       issues.push({
         id: String(g['id']),
         collection: 'games',
         field: 'time',
         severity: 'warning',
-        label: `Missing time`,
-        detail: `${date} | ${label}`,
+        issueKey: 'missingTime',
+        detail: `${formatDateZurich(date)} · ${label}`,
         autoFixable: true,
         fixValue: '00:00',
       })
@@ -104,8 +123,8 @@ async function checkGames(): Promise<CollectionHealth> {
         collection: 'games',
         field: 'time',
         severity: 'warning',
-        label: `Non-padded time`,
-        detail: `${time} → ${padTime(time)} | ${label}`,
+        issueKey: 'nonPaddedTime',
+        detail: `${time} → ${padTime(time)} · ${label}`,
         autoFixable: true,
         fixValue: padTime(time),
       })
@@ -131,6 +150,11 @@ async function checkMembers(): Promise<CollectionHealth> {
   // "no team assignment" once teams exist only in the new (rolled-over) season.
   const season = getCurrentSeason()
 
+  // teams_coaches / teams_responsibles expose a real `members_id` column (not a
+  // junction-id alias), so these direct junction reads are correct. Do NOT wrap
+  // them in .catch(() => []) — a failed integrity query must surface (via the
+  // top-level toast), not silently masquerade as "these members have no team"
+  // and flood the page with false "No team assignment" warnings.
   const [memberTeams, teamCoaches, teamResponsibles] = await Promise.all([
     fetchAllItems<{ member: string | number }>('member_teams', {
       fields: ['member'],
@@ -138,10 +162,10 @@ async function checkMembers(): Promise<CollectionHealth> {
     }),
     fetchAllItems<{ members_id: string | number }>('teams_coaches', {
       fields: ['members_id'],
-    }).catch(() => [] as { members_id: string | number }[]),
+    }),
     fetchAllItems<{ members_id: string | number }>('teams_responsibles', {
       fields: ['members_id'],
-    }).catch(() => [] as { members_id: string | number }[]),
+    }),
   ])
 
   const assignedMemberIds = new Set<string>()
@@ -159,7 +183,7 @@ async function checkMembers(): Promise<CollectionHealth> {
         collection: 'members',
         field: 'member_teams',
         severity: 'warning',
-        label: `No team assignment`,
+        issueKey: 'noTeamAssignment',
         detail: name,
         autoFixable: false,
       })
@@ -188,17 +212,25 @@ export async function autoFix(issue: DataIssue): Promise<void> {
   })
 }
 
-export async function autoFixAll(issues: DataIssue[]): Promise<{ fixed: number; failed: number }> {
+export async function autoFixAll(
+  issues: DataIssue[],
+): Promise<{ fixed: number; failed: number; failedIds: string[] }> {
+  // Every remaining auto-fix is a non-destructive update on a distinct record,
+  // so they're safe to run in parallel. allSettled keeps one failure from
+  // aborting the rest and lets us report exactly which records still need help.
   const fixable = issues.filter((i) => i.autoFixable)
+  const results = await Promise.allSettled(fixable.map((i) => autoFix(i)))
+
   let fixed = 0
   let failed = 0
-  for (const issue of fixable) {
-    try {
-      await autoFix(issue)
+  const failedIds: string[] = []
+  results.forEach((r, idx) => {
+    if (r.status === 'fulfilled') {
       fixed++
-    } catch {
+    } else {
       failed++
+      failedIds.push(fixable[idx].id)
     }
-  }
-  return { fixed, failed }
+  })
+  return { fixed, failed, failedIds }
 }
