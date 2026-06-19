@@ -31,7 +31,6 @@ import InstallBanner from '../guide/install/InstallBanner'
 import FormFillModal from '../forms/FormFillModal'
 import { useFillableForms, type FillableForm } from '../../hooks/useFillableForms'
 import YourDuesCard from '../finance/YourDuesCard'
-import ProfileEditModal from '../auth/ProfileEditModal'
 
 type ExpandedGame = Game & {
   kscw_team?: Team & BaseRecord | string
@@ -59,7 +58,6 @@ export default function HomePage() {
   const [fillItem, setFillItem] = useState<FillableForm | null>(null)
   // IBAN nudge — finance needs every member's up-to-date IBAN. Show a dismissible
   // banner to members who haven't set one; the CTA opens the profile editor.
-  const [profileEditOpen, setProfileEditOpen] = useState(false)
   const [ibanNudgeDismissed, setIbanNudgeDismissed] = useState(() => {
     try { return localStorage.getItem('wiedisync_iban_nudge') === '1' } catch { return false }
   })
@@ -448,13 +446,12 @@ export default function HomePage() {
                   {t('ibanNudgeBody')}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setProfileEditOpen(true)}
+                  <Link
+                    to="/finance/dues"
                     className="inline-flex min-h-[36px] items-center rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-amber-950"
                   >
                     {t('ibanNudgeCta')}
-                  </button>
+                  </Link>
                   <button
                     type="button"
                     onClick={dismissIbanNudge}
@@ -691,7 +688,6 @@ export default function HomePage() {
         />
       )}
       </>)}
-      <ProfileEditModal open={profileEditOpen} onClose={() => setProfileEditOpen(false)} />
     </div>
   )
 }

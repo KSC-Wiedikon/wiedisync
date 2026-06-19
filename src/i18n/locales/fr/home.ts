@@ -18,7 +18,7 @@ export default {
   absencesAlertBody: 'Pour la planification des matchs de la saison prochaine : saisissez toutes vos absences connues d\'ici le 1er juin afin que les entraineurs puissent planifier.',
   absencesAlertCta: 'Ajouter des absences',
   ibanNudgeTitle: 'Ajoute ton IBAN',
-  ibanNudgeBody: 'Les finances ont besoin de ton IBAN le plus à jour pour rembourser les frais. Merci de l\'ajouter à ton profil.',
+  ibanNudgeBody: 'Les finances ont besoin de ton IBAN le plus à jour pour rembourser les frais. Ajoute-le ou vérifie-le dans «Finances».',
   ibanNudgeCta: 'Ajouter l\'IBAN',
   ibanNudgeDismiss: 'Plus tard',
 } as const

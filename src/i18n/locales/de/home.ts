@@ -23,7 +23,7 @@ export default {
   absencesAlertBody: 'Für die Spielplanung der nächsten Saison: Bitte trage alle bekannten Abwesenheiten bis am 1. Juni ein, damit die Trainer die Spiele entsprechend planen können.',
   absencesAlertCta: 'Abwesenheiten erfassen',
   ibanNudgeTitle: 'IBAN hinterlegen',
-  ibanNudgeBody: 'Die Finanzen brauchen deine aktuellste IBAN, um Spesen zurückzuerstatten. Bitte trage sie in deinem Profil ein.',
+  ibanNudgeBody: 'Die Finanzen brauchen deine aktuellste IBAN, um Spesen zurückzuerstatten. Trag sie unter «Finanzen» ein oder prüfe sie.',
   ibanNudgeCta: 'IBAN hinterlegen',
   ibanNudgeDismiss: 'Später',
 } as const

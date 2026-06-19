@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { useMyInvoices, toNum, formatChf, isOpenInvoice } from '../../hooks/useFinance'
 import InvoiceQrBill from './InvoiceQrBill'
+import PayoutIbanCard from './PayoutIbanCard'
 
 export default function FinanceDuesPage() {
   const { t } = useTranslation('finance')
@@ -23,6 +24,9 @@ export default function FinanceDuesPage() {
         <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('myDuesTitle')}</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('myDuesSubtitle')}</p>
       </div>
+
+      {/* Payout IBAN — the canonical add/edit/check place (was in profile editor) */}
+      <PayoutIbanCard />
 
       {/* Open balance summary */}
       <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
