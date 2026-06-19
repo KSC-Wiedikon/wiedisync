@@ -75,7 +75,6 @@ const MEMBER_FIELD_LABELS: Record<string, string> = {
   is_spielplaner: 'Is Spielplaner',
   // Licence (Swiss Volley / sport governing body)
   license_nr: 'Licence number',
-  licences: 'Licences (legacy JSON)',
   licence_activated: 'Licence activated',
   licence_validated: 'Licence validated',
   licence_category: 'Licence category',
@@ -147,7 +146,7 @@ const FIELD_GROUPS: FieldGroup[] = [
   {
     id: 'licences',
     label: 'Licences',
-    keys: ['license_nr', 'licences', 'licence_activated', 'licence_validated', 'licence_category', 'licence_activation_date', 'licence_validation_date', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb'],
+    keys: ['license_nr', 'licence_activated', 'licence_validated', 'licence_category', 'licence_activation_date', 'licence_validation_date', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb'],
   },
   {
     id: 'privacy',
@@ -205,7 +204,7 @@ function detectKind(key: string, value: unknown): FieldKind {
   if (key === 'birthdate' || key.endsWith('_date')) return 'date'
   if (key.endsWith('_at')) return 'datetime'
   // Heuristic: known long-text columns
-  if (['adresse', 'licences'].includes(key)) return 'longtext'
+  if (['adresse'].includes(key)) return 'longtext'
   return 'text'
 }
 

@@ -118,14 +118,8 @@ export interface Member extends BaseRecord {
   kscw_membership_active: boolean
   birthdate: string
 
-  /**
-   * Legacy JSON licence array. Kept for one release as a dual-read fallback
-   * while consumers migrate to the per-licence boolean columns below. Will be
-   * dropped by migration 069. New code should read the boolean columns
-   * directly or call `licencesOf(member)`.
-   */
-  licences: LicenceType[]
-  // 2026-05-20 migration 067: licences split into per-flag booleans.
+  // Per-licence boolean columns (migration 067). The legacy `licences` JSON
+  // array was removed in migration 119 — read these or call `licencesOf(member)`.
   scorer_vb: boolean
   referee_vb: boolean
   otr1_bb: boolean

@@ -60,6 +60,14 @@ export default {
   reason_legendsScorer: 'Legends Schreiber (+{{points}})',
   reason_weekendFree: 'Wochenende frei (+{{points}})',
 
+  // Basketball
+  subtitleBb: 'Automatische Zuteilung eines Einsatzteams zu jedem Basketball-Heimspiel.',
+  autoDutyTeam: 'Einsatzteam',
+  dutyTeamTag: 'Einsatz',
+  dutyCount: 'Einsätze',
+  reason_noOtr1: 'Kein OTR1-Offizieller',
+  reason_fullCrew: 'Komplettes Team (+{{points}})',
+
   // Override
   selectTeam: '— Team —',
 } as const

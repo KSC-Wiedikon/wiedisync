@@ -60,6 +60,14 @@ export default {
   reason_legendsScorer: 'Legends Schriiber (+{{points}})',
   reason_weekendFree: 'Wucheänd frei (+{{points}})',
 
+  // Basketball
+  subtitleBb: 'Automatischi Zueteilig vom Iisatz-Team zu jedem Basketball-Heimspiel.',
+  autoDutyTeam: 'Iisatz-Team',
+  dutyTeamTag: 'Iisatz',
+  dutyCount: 'Iisätz',
+  reason_noOtr1: 'Kä OTR1-Offizielle',
+  reason_fullCrew: 'Komplett-Team (+{{points}})',
+
   // Override
   selectTeam: '— Team —',
 } as const

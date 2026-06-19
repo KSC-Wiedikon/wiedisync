@@ -60,6 +60,14 @@ export default {
   reason_legendsScorer: 'Legends scorer (+{{points}})',
   reason_weekendFree: 'Weekend free (+{{points}})',
 
+  // Basketball
+  subtitleBb: 'Automatically assign a duty team to each basketball home game.',
+  autoDutyTeam: 'Duty team',
+  dutyTeamTag: 'Duty',
+  dutyCount: 'Duties',
+  reason_noOtr1: 'No OTR1 official',
+  reason_fullCrew: 'Full crew (+{{points}})',
+
   // Override
   selectTeam: '— Team —',
 } as const

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '5.1.0'
+const APP_VERSION = '5.2.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '5.2.0',
+    date: '19.06.2026',
+    sections: [
+      {
+        title: 'Basketball scorer-duty auto-assignment',
+        items: [
+          'The scorer-duty planner now works for basketball as well: pick the sport, auto-assign a duty team to every home game, move teams around by hand, and review a per-team summary of how many duties each team has.',
+          'Fixed volleyball duty assignment that was skipping teams which actually had a licensed scorer.',
+        ],
+      },
+    ],
+  },
   {
     version: '5.1.0',
     date: '19.06.2026',

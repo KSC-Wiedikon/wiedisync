@@ -108,7 +108,7 @@ export default function ScorerPage() {
     filter: { kscw_membership_active: { _eq: true } },
     sort: ['last_name', 'first_name'],
     all: true,
-    fields: ['id', 'first_name', 'last_name', 'licences', 'kscw_membership_active', 'phone', 'email'],
+    fields: ['id', 'first_name', 'last_name', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'kscw_membership_active', 'phone', 'email'],
   })
   const members = membersRaw ?? []
 

@@ -48,7 +48,7 @@ export default function RosterEditor() {
   const { teamSlug } = useParams<{ teamSlug: string }>()
   const { isCoachOf } = useAuth()
   const season = getCurrentSeason()
-  const { data: allMembersRaw } = useCollection<Member>('members', { filter: { kscw_membership_active: { _eq: true } }, all: true, sort: ['last_name'], fields: ['id', 'first_name', 'last_name', 'photo', 'number', 'position', 'licences'] })
+  const { data: allMembersRaw } = useCollection<Member>('members', { filter: { kscw_membership_active: { _eq: true } }, all: true, sort: ['last_name'], fields: ['id', 'first_name', 'last_name', 'photo', 'number', 'position'] })
   const allMembers = allMembersRaw ?? []
   const { create, remove } = useMutation<MemberTeam>('member_teams')
 

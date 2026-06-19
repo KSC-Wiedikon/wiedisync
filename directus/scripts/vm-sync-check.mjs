@@ -652,7 +652,7 @@ async function syncToMembers(rows) {
   const members = [];
   let page = 1;
   while (true) {
-    const url = `${DIRECTUS_URL}/items/members?fields=id,license_nr,sex,licences,scorer_vb,referee_vb,vm_email,email,first_name,last_name,birthdate,birthdate_visibility,licence_category,licence_activated,licence_validated&limit=250&page=${page}`;
+    const url = `${DIRECTUS_URL}/items/members?fields=id,license_nr,sex,scorer_vb,referee_vb,vm_email,email,first_name,last_name,birthdate,birthdate_visibility,licence_category,licence_activated,licence_validated&limit=250&page=${page}`;
     const res = await fetch(url, { headers });
     if (!res.ok) throw new Error(`Directus members list failed: ${res.status}`);
     const { data } = await res.json();
@@ -742,41 +742,24 @@ async function syncToMembers(rows) {
       changed = true;
     }
 
-    // Migration 067: licences is split into per-flag booleans. Dual-write
-    // (boolean + legacy JSON) through the cutover window — migration 069
-    // drops the JSON column and the `payload.licences = …` branches.
+    // Licences are per-flag booleans (migration 067; legacy `licences` json
+    // dropped in migration 119). sv_vm_check stays the source of truth.
     const hasScorer = member.scorer_vb === true;
     if (row.is_writer && !hasScorer) {
       payload.scorer_vb = true;
-      const currentLicences = Array.isArray(member.licences) ? [...member.licences] : [];
-      if (!currentLicences.includes('scorer_vb')) {
-        currentLicences.push('scorer_vb');
-        payload.licences = currentLicences;
-      }
       changed = true;
     } else if (!row.is_writer && hasScorer) {
       payload.scorer_vb = false;
-      const currentLicences = Array.isArray(member.licences) ? [...member.licences] : [];
-      payload.licences = currentLicences.filter(l => l !== 'scorer_vb');
       changed = true;
     }
 
-    // Referee licence (vb). Same dual-write (boolean + legacy JSON) as scorer.
-    // Read the licences base from payload first so a combined scorer+referee
-    // change doesn't clobber the scorer edit. Never touch referee_bb.
-    const licBase = () => (Array.isArray(payload.licences)
-      ? payload.licences
-      : (Array.isArray(member.licences) ? [...member.licences] : []));
+    // Referee licence (vb). Boolean column only. Never touch referee_bb.
     const hasReferee = member.referee_vb === true;
     if (row.is_referee && !hasReferee) {
       payload.referee_vb = true;
-      const lic = licBase();
-      if (!lic.includes('referee_vb')) lic.push('referee_vb');
-      payload.licences = lic;
       changed = true;
     } else if (!row.is_referee && hasReferee) {
       payload.referee_vb = false;
-      payload.licences = licBase().filter(l => l !== 'referee_vb');
       changed = true;
     }
 
