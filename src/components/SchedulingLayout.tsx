@@ -1,11 +1,17 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
 import { isAuthenticated } from '../lib/api'
 import LanguageDropdown from '@/components/LanguageDropdown'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import LoadingSpinner from './LoadingSpinner'
-import { CalendarClock, ClipboardList, LogOut, Moon, Sun } from 'lucide-react'
+import { CalendarClock, Check, ChevronDown, ClipboardList, LogOut, Moon, Sun } from 'lucide-react'
 
 /**
  * Minimal shell for the Spielplanung subdomain's admin pages — logo, the two
@@ -21,11 +27,18 @@ export default function SchedulingLayout() {
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
   const navigate = useNavigate()
+  const { pathname } = useLocation()
 
   if ((isLoading || teamsLoading) && isAuthenticated()) return <LoadingSpinner />
 
   const canTerminplanung = hasAdminAccessToSport('volleyball') || is_spielplaner
   const canPlanner = isAdmin || is_spielplaner || spielplanerTeamIds.length > 0
+
+  const navItems: { to: string; label: string; Icon: typeof CalendarClock }[] = [
+    ...(canTerminplanung ? [{ to: '/admin/terminplanung', label: t('terminplanung'), Icon: CalendarClock }] : []),
+    ...(canPlanner ? [{ to: '/admin/spielplanung', label: t('gameplan'), Icon: ClipboardList }] : []),
+  ]
+  const activeItem = navItems.find((item) => pathname.startsWith(item.to)) ?? navItems[0]
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
@@ -52,20 +65,44 @@ export default function SchedulingLayout() {
             <span className="hidden text-sm font-bold sm:inline">Spielplanung</span>
           </NavLink>
 
-          <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
-            {canTerminplanung && (
-              <NavLink to="/admin/terminplanung" className={linkClass}>
-                <CalendarClock className="h-4 w-4" />
-                <span className="whitespace-nowrap">{t('terminplanung')}</span>
+          {/* Desktop: inline tabs. Mobile: a dropdown so long labels never scroll horizontally. */}
+          <nav className="hidden flex-1 items-center gap-1 sm:flex">
+            {navItems.map((item) => (
+              <NavLink key={item.to} to={item.to} className={linkClass}>
+                <item.Icon className="h-4 w-4" />
+                <span className="whitespace-nowrap">{item.label}</span>
               </NavLink>
-            )}
-            {canPlanner && (
-              <NavLink to="/admin/spielplanung" className={linkClass}>
-                <ClipboardList className="h-4 w-4" />
-                <span className="whitespace-nowrap">{t('gameplan')}</span>
-              </NavLink>
-            )}
+            ))}
           </nav>
+
+          {navItems.length > 0 && activeItem && (
+            <div className="flex min-w-0 flex-1 sm:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 outline-none transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
+                    <activeItem.Icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{activeItem.label}</span>
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[200px]">
+                  {navItems.map((item) => (
+                    <DropdownMenuItem
+                      key={item.to}
+                      onClick={() => navigate(item.to)}
+                      className="flex cursor-pointer items-center gap-2.5"
+                    >
+                      <item.Icon className="h-4 w-4" />
+                      <span className="flex-1">{item.label}</span>
+                      {activeItem.to === item.to && (
+                        <Check className="h-4 w-4 text-brand-600 dark:text-gold-400" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
 
           <div className="flex shrink-0 items-center gap-1">
             <LanguageDropdown />
