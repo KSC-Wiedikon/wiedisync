@@ -52,6 +52,11 @@ export default {
   colSaldo: 'Saldo',
   noBookings: 'Keine Buchungen in diesem Zeitraum.',
 
+  // Mit TWINT bezahlen
+  payViaTwint: 'Mit TWINT bezahlen',
+  payTwintHint: 'Öffne TWINT, scanne diesen Code und gib {{amount}} ein.',
+  payTwintNote: 'Dein Saldo aktualisiert sich automatisch, sobald der Verein die Zahlung verbucht.',
+
   colDate: 'Datum',
   colText: 'Beschreibung',
   colDebit: 'Soll',
