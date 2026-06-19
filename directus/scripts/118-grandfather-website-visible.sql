@@ -1,4 +1,4 @@
--- Migration 117: grandfather existing photos into website_visible.
+-- Migration 118: grandfather existing photos into website_visible.
 --
 -- Companion to migration 116's enforcement. Until now the /public/team/:id
 -- endpoint returned every member's photo regardless of `website_visible`
