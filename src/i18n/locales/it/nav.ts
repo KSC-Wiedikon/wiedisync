@@ -20,6 +20,8 @@ export default {
   admin: 'Admin',
   superadmin: 'Superadmin',
   memberTools: 'Strumenti membri',
+  finance: 'Finanze',
+  uploadInvoice: 'Carica fattura',
   spielplanung: 'Pianificazione',
   more: 'Altro',
   lightMode: 'Modalità chiara',

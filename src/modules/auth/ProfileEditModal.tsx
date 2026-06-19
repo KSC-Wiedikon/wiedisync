@@ -12,6 +12,7 @@ import { coercePositions, getPositionI18nKey, getSelectablePositions } from '../
 import { backendLangToI18n } from '../../utils/languageMap'
 import { asObj, relId, memberName } from '../../utils/relations'
 import { getCurrentSeason } from '../../utils/dateHelpers'
+import { isValidIban, normalizeIban } from '../../utils/iban'
 import { LANGUAGES, type BackendLanguage } from '../../i18n/languageConfig'
 import deFlag from '../../assets/flags/de.svg'
 import gbFlag from '../../assets/flags/gb.svg'
@@ -70,6 +71,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
   const [nationalitaet, setNationalitaet] = useState('')
   const [sex, setSex] = useState('')
   const [ahvNummer, setAhvNummer] = useState('')
+  const [iban, setIban] = useState('')
   const [clubdeskOpen, setClubdeskOpen] = useState(false)
 
   useEffect(() => {
@@ -101,6 +103,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       setNationalitaet(user.nationalitaet ?? '')
       setSex(user.sex ?? '')
       setAhvNummer(user.ahv_nummer ?? '')
+      setIban(user.iban ?? '')
       setClubdeskOpen(false)
     }
   }, [user, open])
@@ -222,6 +225,13 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
         return
       }
 
+      // Validate IBAN if provided (ISO 13616 + mod-97 checksum)
+      if (iban.trim() && !isValidIban(iban)) {
+        setError(t('invalidIban'))
+        setLoading(false)
+        return
+      }
+
       // ClubDesk fields
       payload.anrede = anrede
       payload.adresse = adresse
@@ -230,6 +240,8 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       payload.nationalitaet = nationalitaet
       payload.sex = sex
       payload.ahv_nummer = ahvNummer
+      // Store the normalised (spaces-stripped, uppercased) IBAN, or null when cleared.
+      payload.iban = iban.trim() ? normalizeIban(iban) : null
 
       // Upload the photo to /files first (multipart), then set the FK in the
       // plain-JSON payload. Passing FormData straight to updateRecord() is a
@@ -575,6 +587,15 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
                   value={ahvNummer}
                   onChange={(e) => setAhvNummer(e.target.value)}
                   placeholder="756.XXXX.XXXX.XX"
+                />
+
+                {/* IBAN — for reimbursements. Sensitive: own-member + admin only. */}
+                <FormInput
+                  label={t('iban')}
+                  value={iban}
+                  onChange={(e) => setIban(e.target.value)}
+                  placeholder="CH00 0000 0000 0000 0000 0"
+                  helperText={t('ibanHint')}
                 />
 
                 {/* Read-only admin fields */}

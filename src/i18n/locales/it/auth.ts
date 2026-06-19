@@ -224,6 +224,9 @@ export default {
   clubdeskUpdateSent: 'Datenanpassung an Admin gesendet',
   invalidAhvFormat: 'AHV-Nummer muss das Format 756.XXXX.XXXX.XX haben',
   invalidPlz: 'PLZ muss eine 4-stellige Schweizer Postleitzahl sein',
+  iban: 'IBAN',
+  ibanHint: 'Il tuo conto bancario per i rimborsi. Le finanze hanno bisogno del tuo IBAN più aggiornato.',
+  invalidIban: 'Inserisci un IBAN valido',
   requiredProfileFields: 'Nome, cognome ed e-mail sono obbligatori',
   invalidEmail: 'Inserire un indirizzo e-mail valido',
 } as const

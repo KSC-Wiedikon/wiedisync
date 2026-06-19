@@ -17,4 +17,8 @@ export default {
   absencesAlertTitle: 'Bitte dini Abwäsenheite iitrage',
   absencesAlertBody: 'Für d Spielplanig vo dr nöchschte Saison: Trag bitte alli bekannte Abwäsenheite bis am 1. Juni i, damit d Trainer chönd plane.',
   absencesAlertCta: 'Abwäsenheite iitrage',
+  ibanNudgeTitle: 'IBAN hinterlege',
+  ibanNudgeBody: 'D Finanze bruuche dini aktuellsti IBAN, zum Spese zruggzahle. Trag sie bitte i dim Profil i.',
+  ibanNudgeCta: 'IBAN hinterlege',
+  ibanNudgeDismiss: 'Spöter',
 } as const

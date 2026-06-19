@@ -333,6 +333,11 @@ const MEMBER_EDITABLE_FIELDS = [
   'requested_team',
   // ClubDesk personal data fields
   'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'ahv_nummer',
+  // 2026-06-19 migration 117: member IBAN for reimbursements. Sensitive PII —
+  // own-member editable/readable + admin only, like ahv_nummer. Deliberately
+  // NOT in MEMBER_VISIBLE_FIELDS or LEADER_TEAM_MEMBER_FIELDS (which excludes
+  // ahv_nummer too) — other members and coaches must never see it.
+  'iban',
   // 2026-06-01 migration 077: per-member auto-confirm RSVP opt-in (profile toggles)
   'auto_confirm_trainings', 'auto_confirm_games', 'auto_confirm_events',
 ]
@@ -876,7 +881,8 @@ async function main() {
   // `MEMBER_VISIBLE_FIELDS` whitelist (no email/phone/PII). In-team members
   // are visible via this LEADER row with the contact fields coaches need
   // (email/phone/address/birthdate) but explicitly NOT `ahv_nummer` (Swiss
-  // social security — coaches have no operational need).
+  // social security) or `iban` (bank account) — sensitive financial PII coaches
+  // have no operational need for.
   const COACH_TEAM_MEMBERS = {
     member_teams: {
       team: {
@@ -889,7 +895,7 @@ async function main() {
   }
   const LEADER_TEAM_MEMBER_FIELDS = [
     ...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS]),
-  ].filter(f => f !== 'ahv_nummer')
+  ].filter(f => f !== 'ahv_nummer' && f !== 'iban')
   await setPermRead(LEADER_POLICY, 'members', COACH_TEAM_MEMBERS, LEADER_TEAM_MEMBER_FIELDS)
   // Members — update position + number (migration 036 scoped to my-team members).
   // `coach_approved_team` added 2026-05-19: migration 036 narrowed this list to

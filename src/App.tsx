@@ -41,6 +41,7 @@ import PublicFormPage from './modules/forms/PublicFormPage'
 import FinesPage from './modules/fines/FinesPage'
 import FinancePage from './modules/finance/FinancePage'
 import FinanceDuesPage from './modules/finance/FinanceDuesPage'
+import ExpenseUploadPage from './modules/finance/ExpenseUploadPage'
 import DatenschutzPage from './modules/legal/DatenschutzPage'
 import ImpressumPage from './modules/legal/ImpressumPage'
 import AuthRoute from './components/AuthRoute'
@@ -183,6 +184,7 @@ export default function App() {
             <Route path="forms/:formId/edit" element={<AuthRoute><FormBuilderPage /></AuthRoute>} />
             <Route path="fines" element={<AuthRoute><FinesPage /></AuthRoute>} />
             <Route path="finance/dues" element={<AuthRoute><FinanceDuesPage /></AuthRoute>} />
+            <Route path="finance/expense" element={<AuthRoute><ExpenseUploadPage /></AuthRoute>} />
             <Route path="datenschutz" element={<DatenschutzPage />} />
             <Route path="impressum" element={<ImpressumPage />} />
             <Route path="feedback" element={<FeedbackPage />} />

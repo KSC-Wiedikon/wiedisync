@@ -28,7 +28,7 @@ import { asObj } from '../utils/relations'
 import {
   Home, Calendar, Trophy, UserX, PenSquare, PartyPopper, Users,
   ClipboardList, Building2, CalendarClock, Activity,
-  HeartPulse, Settings, ChevronDown, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, GraduationCap, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark,
+  HeartPulse, Settings, ChevronDown, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, GraduationCap, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText,
 } from 'lucide-react'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 
@@ -73,13 +73,18 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
     { to: '/absences', label: t('absences'), icon: <UserX className={iconClass} /> },
     { to: '/scorer', label: t('scorer'), icon: <PenSquare className={iconClass} /> },
     { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
-    { to: '/finance/dues', label: t('finance:myDuesTitle'), icon: <Wallet className={iconClass} /> },
-    ...(isVorstand ? [{ to: '/admin/finance', label: t('finance:title'), icon: <Landmark className={iconClass} /> }] : []),
     ...(messagingFeatureEnabled(memberId)
       ? [{ to: '/inbox', label: t('inbox'), icon: <Inbox className={iconClass} /> }]
       : []),
     ...(canManageForms ? [{ to: '/forms', label: t('forms'), icon: <ScrollText className={iconClass} /> }] : []),
     { to: '/news', label: t('news'), icon: <Newspaper className={iconClass} /> },
+  ]
+  // Finance — own section: dues (all members), expense-reimbursement upload (all
+  // members), and the board Finanzen dashboard (Vorstand only).
+  const financeItems = [
+    { to: '/finance/dues', label: t('finance:myDuesTitle'), icon: <Wallet className={iconClass} /> },
+    { to: '/finance/expense', label: t('uploadInvoice'), icon: <ReceiptText className={iconClass} /> },
+    ...(isVorstand ? [{ to: '/admin/finance', label: t('finance:title'), icon: <Landmark className={iconClass} /> }] : []),
   ]
   // Spielplaner tools — their own role-gated section (NOT the Admin section).
   // Gated on ROLE, not the admin-mode toggle (matches the route guards: an admin
@@ -102,6 +107,7 @@ function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number
   return {
     navItems: isLoggedIn && isApproved ? [...publicItems, ...primaryAuthItems] : publicItems,
     memberToolsItems: isLoggedIn && isApproved ? memberToolsItems : [],
+    financeItems: isLoggedIn && isApproved ? financeItems : [],
     spielplanerItems,
     adminItems: [
       { to: '/admin/hallenplan', label: t('hallenplan'), icon: <Building2 className={iconClass} /> },
@@ -248,7 +254,7 @@ export default function Layout() {
   // scoping — the gold admin-mode banner is just noise there, so hide it on those
   // pages (the toggle itself stays on; only the banner is suppressed).
   const onScheduling = location.pathname.includes('/terminplanung')
-  const { navItems, memberToolsItems, spielplanerItems, adminItems, superadminItems } = useNavItems(!!user, isApproved, user?.id)
+  const { navItems, memberToolsItems, financeItems, spielplanerItems, adminItems, superadminItems } = useNavItems(!!user, isApproved, user?.id)
   const messagingOn = messagingFeatureEnabled(user?.id)
   const unreadMessages = useUnreadTotal()
 
@@ -437,6 +443,43 @@ export default function Layout() {
                         </li>
                       )
                     })}
+                  </ul>
+                </>
+              )}
+
+              {financeItems.length > 0 && (
+                <>
+                  <div className={`my-3 border-t ${
+                    theme === 'light' ? 'border-gray-200' : 'border-brand-800'
+                  }`} />
+                  <p className={`mb-1 px-3 text-xs font-semibold uppercase tracking-wider ${
+                    theme === 'light' ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    {t('finance')}
+                  </p>
+                  <ul className="space-y-1">
+                    {financeItems.map((item) => (
+                      <li key={item.to}>
+                        <NavLink
+                          to={item.to}
+                          onClick={() => setSidebarView('closed')}
+                          className={({ isActive }) =>
+                            `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                              theme === 'light'
+                                ? isActive
+                                  ? 'bg-brand-50 text-brand-700'
+                                  : 'text-gray-700 hover:bg-gray-100'
+                                : isActive
+                                  ? 'border-l-3 border-gold-400 bg-brand-800 text-gold-400'
+                                  : 'text-gray-300 hover:bg-brand-800 hover:text-white'
+                            }`
+                          }
+                        >
+                          {item.icon}
+                          {item.label}
+                        </NavLink>
+                      </li>
+                    ))}
                   </ul>
                 </>
               )}

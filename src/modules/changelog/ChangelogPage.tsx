@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '5.0.0'
+const APP_VERSION = '5.1.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,27 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '5.1.0',
+    date: '19.06.2026',
+    sections: [
+      {
+        title: 'Finance section + expense reimbursements',
+        items: [
+          'Finance now has its own menu section: your dues, the board dashboard, and a new "Upload invoice".',
+          'Paid for something for the club? Upload the receipt and we scan it automatically — amount, date and vendor are filled in for you. Check the details and send it to finance for reimbursement.',
+          'Add your IBAN in your profile so finance can pay you back — we now ask everyone for their most up-to-date one.',
+        ],
+      },
+      {
+        title: 'Finance dashboard + paying your dues',
+        items: [
+          'The board finance dashboard adds full income-statement and balance-sheet views, plus an accounts explorer — tap any account to drill into the bookings behind its balance.',
+          'Pay your dues from the app: open "Your dues", tap an open invoice and scan the Swiss QR code with TWINT or any banking app — the exact amount is filled in for you.',
+        ],
+      },
+    ],
+  },
   {
     version: '5.0.0',
     date: '18.06.2026',

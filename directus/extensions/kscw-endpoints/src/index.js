@@ -43,6 +43,7 @@ import { registerOpnform } from './opnform.js'
 import { registerWadmin } from './wadmin.js'
 import { registerSqlWorkspace } from './sql-workspace.js'
 import { registerSqlAi } from './sql-ai.js'
+import { registerExpenseUpload } from './expense-upload.js'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -424,10 +425,62 @@ export default {
       try {
         const teams = await database('teams')
           .where('active', true)
-          .select('id', 'name', 'full_name', 'sport', 'league', 'season', 'color',
+          // `team_id` (e.g. bb_1348) is the season-stable external id — the public
+          // website matches teams on it so its hardcoded defs survive the June-1
+          // rollover (numeric `id` is reassigned every season). See /public/team/:id.
+          .select('id', 'team_id', 'name', 'full_name', 'sport', 'league', 'season', 'color',
             'team_picture', 'team_picture_pos', 'social_url')
           .orderBy('name')
-        res.json({ data: teams })
+
+        // Attach a weekly training summary per team so the website team cards can
+        // show live hall slots instead of hardcoded times. We pull every active
+        // team's upcoming, non-cancelled, non-trial trainings in one query, resolve
+        // hall name/address (denormalized column first, halls FK as fallback — same
+        // as /public/team/:id), then collapse the dated rows into unique weekday +
+        // time + hall slots ordered Mon→Sun.
+        const today = new Date().toISOString().split('T')[0]
+        const teamIds = teams.map((t) => t.id)
+        const rawTrainings = teamIds.length
+          ? await database('trainings')
+              .whereIn('team', teamIds)
+              .where('date', '>=', today)
+              .where('cancelled', false)
+              .where('is_trial', false)
+              .select('team', 'date', 'start_time', 'end_time', 'hall', 'hall_name')
+              .orderBy('date')
+          : []
+
+        const slotHallIds = [...new Set(rawTrainings.map((t) => t.hall).filter((id) => id != null))]
+        const slotHallById = slotHallIds.length
+          ? new Map(
+              (await database('halls').whereIn('id', slotHallIds).select('id', 'name', 'address'))
+                .map((h) => [h.id, h])
+            )
+          : new Map()
+
+        const WEEKDAY = ['so', 'mo', 'di', 'mi', 'do', 'fr', 'sa'] // getUTCDay(): 0=Sun
+        const DAY_ORDER = { mo: 1, di: 2, mi: 3, do: 4, fr: 5, sa: 6, so: 7 }
+        const summaryByTeam = new Map()
+        for (const t of rawTrainings) {
+          const h = t.hall != null ? slotHallById.get(t.hall) : null
+          const hallName = t.hall_name || (h?.name ?? null)
+          const hallAddress = h?.address ?? null
+          const ymd = t.date instanceof Date ? t.date.toISOString().slice(0, 10) : String(t.date).slice(0, 10)
+          const day = WEEKDAY[new Date(`${ymd}T12:00:00Z`).getUTCDay()]
+          const start = String(t.start_time || '').slice(0, 5)
+          const end = String(t.end_time || '').slice(0, 5)
+          const key = `${day}|${start}|${end}|${hallName || ''}`
+          let slots = summaryByTeam.get(t.team)
+          if (!slots) { slots = new Map(); summaryByTeam.set(t.team, slots) }
+          if (!slots.has(key)) slots.set(key, { day, start, end, hall_name: hallName, hall_address: hallAddress })
+        }
+
+        const data = teams.map((t) => ({
+          ...t,
+          trainings: [...(summaryByTeam.get(t.id)?.values() ?? [])]
+            .sort((a, b) => DAY_ORDER[a.day] - DAY_ORDER[b.day] || a.start.localeCompare(b.start)),
+        }))
+        res.json({ data })
       } catch (err) {
         logEndpointError(log, 'public/teams', err, _req)
         res.status(500).json({ error: 'Internal error' })
@@ -2029,7 +2082,8 @@ export default {
     registerWadmin(router, ctx)
     registerSqlWorkspace(router, ctx)
     registerSqlAi(router, ctx)
+    registerExpenseUpload(router, ctx)
 
-    log.info('KSCW endpoints loaded: ~61 routes')
+    log.info('KSCW endpoints loaded: ~63 routes')
   },
 }
