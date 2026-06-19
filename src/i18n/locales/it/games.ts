@@ -8,6 +8,7 @@ export default {
   tabResults: 'Risultati',
   tabRankings: 'Classifiche',
   tabScoreboard: 'Tabellone',
+  tabDashboard: 'Dashboard coach',
 
   // Results sections
   sectionLeague: 'Campionato',
