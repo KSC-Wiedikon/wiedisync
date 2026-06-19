@@ -144,10 +144,10 @@ function AuditRow({ entry, onFilterCollection, onFilterActor, onFilterRecord }: 
           {entry.actor && entry.actor !== 'system' ? (
             <button
               onClick={(ev) => { ev.stopPropagation(); onFilterActor(entry.actor) }}
-              className="font-mono text-[10px] text-gray-400 hover:text-brand-600 dark:hover:text-brand-400"
+              className="text-xs text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
               title={entry.actor}
             >
-              {entry.actor.substring(0, 10)}…
+              {entry.actor}
             </button>
           ) : (
             <span className="text-[10px] text-gray-400">system</span>

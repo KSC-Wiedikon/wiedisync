@@ -313,12 +313,16 @@ export default function InfraHealthPage() {
       responseTime: cfWiedisync.ok ? cfWiedisync.ms : null,
     })
 
-    // CF Pages — kscw-website
+    // CF Pages — kscw-website. The prod alias 302-redirects to kscw.ch
+    // (ClubDesk) and is cross-origin, so the browser can't read the response;
+    // a CORS-blocked result means "reachable but unverifiable", not "down".
+    // Treat it as 'unknown' (grey) rather than a false red, matching the
+    // Directus prod card.
     const cfWebsite = await checkEndpoint('https://kscw-website.pages.dev/', true)
     svcResults.push({
       name: 'CF Pages (Website)',
-      status: cfWebsite.ok ? 'healthy' : 'down',
-      detail: cfWebsite.ok ? 'kscw-website.pages.dev' : 'Unreachable',
+      status: cfWebsite.ok ? 'healthy' : cfWebsite.cors ? 'unknown' : 'down',
+      detail: cfWebsite.ok ? 'kscw-website.pages.dev' : cfWebsite.cors ? 'Cross-origin (redirects to kscw.ch)' : 'Unreachable',
       responseTime: cfWebsite.ok ? cfWebsite.ms : null,
     })
 
@@ -476,9 +480,14 @@ export default function InfraHealthPage() {
       })
       if (vpsRes.ok) {
         const v = await vpsRes.json()
+        // loadavg is "1min / 5min / 15min". Judge health on the 5-minute
+        // average, not the 1-minute: a single cron tick momentarily pushes a
+        // 4-core box past 80% and flagged the card amber for transient load.
+        const loadParts = String(v.loadavg).split('/').map((s: string) => parseFloat(s.trim()))
+        const load5 = Number.isFinite(loadParts[1]) ? loadParts[1] : parseFloat(v.loadavg)
         vpsResults.push(
           { name: 'Uptime', status: 'healthy', detail: v.uptime, value: null },
-          { name: 'CPU Load', status: parseFloat(v.loadavg) > v.cpu_count * 0.8 ? 'stale' : 'healthy', detail: `${v.loadavg} (${v.cpu_count} cores)`, value: null },
+          { name: 'CPU Load', status: load5 > v.cpu_count * 0.8 ? 'stale' : 'healthy', detail: `${v.loadavg} (${v.cpu_count} cores)`, value: null },
           { name: 'Memory', status: v.memory.percent > 90 ? 'down' : v.memory.percent > 75 ? 'stale' : 'healthy', detail: `${v.memory.used} / ${v.memory.total}`, value: `${v.memory.percent}%` },
           { name: 'Disk', status: v.disk.percent > 90 ? 'down' : v.disk.percent > 75 ? 'stale' : 'healthy', detail: `${v.disk.used} / ${v.disk.total}`, value: `${v.disk.percent}%` },
         )
