@@ -1,5 +1,6 @@
 export default {
   home: 'Dihei',
+  activities: 'Aktivitäte',
   calendar: 'Kaländer',
   games: 'Spiel & Resultat',
   gamesShort: 'Spiel',
