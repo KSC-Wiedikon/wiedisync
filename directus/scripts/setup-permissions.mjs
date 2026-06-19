@@ -309,10 +309,8 @@ const OWN_PASSENGER = { passenger: { user: { _eq: '$CURRENT_USER' } } }
  */
 const MEMBER_VISIBLE_FIELDS = [
   'id', 'first_name', 'last_name', 'photo', 'number',
-  'position', 'licences', 'user',
-  // 2026-05-20 migration 067: licences (json) is being split into six booleans.
-  // Both forms are listed during the dual-read window. Migration 069 drops
-  // 'licences' (the json column) and this line should drop with it.
+  'position', 'user',
+  // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
   'coach_approved_team', 'role', 'language',
   'requested_team', 'birthdate_visibility', 'hide_phone', 'hide_email',
@@ -327,8 +325,8 @@ const MEMBER_VISIBLE_FIELDS = [
 const MEMBER_EDITABLE_FIELDS = [
   'first_name', 'last_name', 'phone', 'birthdate', 'email',
   'birthdate_visibility', 'hide_phone', 'hide_email', 'photo', 'language',
-  'position', 'number', 'licences', 'website_visible', 'website_name_private',
-  // 2026-05-20 migration 067: see MEMBER_VISIBLE_FIELDS comment above.
+  'position', 'number', 'website_visible', 'website_name_private',
+  // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
   'requested_team',
   // ClubDesk personal data fields

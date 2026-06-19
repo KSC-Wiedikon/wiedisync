@@ -79,7 +79,7 @@ function buildScorerTeams(members: Member[], memberTeams: MemberTeam[]): Set<str
 }
 
 /** Build lookup: date string → set of team IDs that have a game */
-function buildTeamGameDates(games: Game[]): Map<string, Set<string>> {
+export function buildTeamGameDates(games: Game[]): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>()
   for (const g of games) {
     if (!g.date || !g.kscw_team) continue
@@ -90,7 +90,7 @@ function buildTeamGameDates(games: Game[]): Map<string, Set<string>> {
 }
 
 /** Build lookup: "teamId|date" → true if team has training */
-function buildTrainingDates(trainings: Training[]): Set<string> {
+export function buildTrainingDates(trainings: Training[]): Set<string> {
   const set = new Set<string>()
   for (const tr of trainings) {
     if (tr.team && tr.date && !tr.cancelled) {
@@ -101,7 +101,7 @@ function buildTrainingDates(trainings: Training[]): Set<string> {
 }
 
 /** Build lookup: "date|hallId" → array of home games sorted by time */
-function buildGamesByDateHall(games: Game[]): Map<string, Game[]> {
+export function buildGamesByDateHall(games: Game[]): Map<string, Game[]> {
   const map = new Map<string, Game[]>()
   for (const g of games) {
     if (!g.date || !g.hall || g.type !== 'home') continue
@@ -116,7 +116,7 @@ function buildGamesByDateHall(games: Game[]): Map<string, Game[]> {
 }
 
 /** Get teams that play immediately before/after this game at the same hall */
-function getAdjacentTeams(game: Game, gamesByDateHall: Map<string, Game[]>): Set<string> {
+export function getAdjacentTeams(game: Game, gamesByDateHall: Map<string, Game[]>): Set<string> {
   const adjacent = new Set<string>()
   if (!game.date || !game.hall) return adjacent
 
@@ -235,7 +235,7 @@ function scoreTeam(
 }
 
 /** Track an assignment in running counters */
-function trackAssignment(
+export function trackAssignment(
   teamId: string,
   date: string,
   assignmentCounts: Map<string, number>,

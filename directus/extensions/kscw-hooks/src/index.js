@@ -3279,18 +3279,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!existingMember.sex && reg.geschlecht) updates.sex = normalizeSex(reg.geschlecht)
       if (!existingMember.ahv_nummer && reg.ahv_nummer) updates.ahv_nummer = reg.ahv_nummer
       if (!existingMember.beitragskategorie && reg.beitragskategorie) updates.beitragskategorie = reg.beitragskategorie
-      // Merge licences. Migration 067 split licences into per-flag booleans;
-      // we dual-write (booleans + legacy JSON) through the migration window
-      // so reconciliation scripts still see consistent state. Migration 069
-      // drops the JSON column and this `updates.licences = …` line with it.
-      const existingLicences = existingMember.licences || []
+      // Licences are per-flag booleans (migration 067; legacy `licences` json
+      // dropped in migration 119). Additive: only ever set a flag true here.
       const newLicences = mapLicences(reg.lizenz, reg.membership_type)
-      const mergedLicences = [...new Set([...existingLicences, ...newLicences])]
-      if (mergedLicences.length > existingLicences.length) {
-        updates.licences = JSON.stringify(mergedLicences)
-        for (const lic of newLicences) {
-          if (!existingMember[lic]) updates[lic] = true
-        }
+      for (const lic of newLicences) {
+        if (!existingMember[lic]) updates[lic] = true
       }
       if (Object.keys(updates).length) {
         await db('members').where('id', memberId).update(updates)
@@ -3314,8 +3307,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         sex: normalizeSex(reg.geschlecht),
         ahv_nummer: reg.ahv_nummer || null,
         beitragskategorie: reg.beitragskategorie || null,
-        // Dual-write through migration 067/069 cutover (see merge block above).
-        licences: JSON.stringify(licences),
+        // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
         scorer_vb: licences.includes('scorer_vb'),
         referee_vb: licences.includes('referee_vb'),
         otr1_bb: licences.includes('otr1_bb'),

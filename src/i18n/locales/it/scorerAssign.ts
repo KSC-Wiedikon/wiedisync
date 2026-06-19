@@ -60,6 +60,14 @@ export default {
   reason_legendsScorer: 'Legends segnapunti (+{{points}})',
   reason_weekendFree: 'Fine settimana libero (+{{points}})',
 
+  // Basketball
+  subtitleBb: 'Assegna automaticamente una squadra di servizio a ogni partita di basket in casa.',
+  autoDutyTeam: 'Squadra di servizio',
+  dutyTeamTag: 'Servizio',
+  dutyCount: 'Servizi',
+  reason_noOtr1: 'Nessun ufficiale OTR1',
+  reason_fullCrew: 'Squadra completa (+{{points}})',
+
   // Override
   selectTeam: '— Squadra —',
 } as const

@@ -209,10 +209,7 @@ const COLLECTIONS = [
       boolean('kscw_membership_active', { default: true }),
       date('birthdate'),
 
-      // Legacy JSON column — kept for one release as a dual-read fallback.
-      // Migration 069 (separate PR) drops this and the line below.
-      multiSelect('licences', ['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb']),
-      // 2026-05-20 migration 067: split licences (json) into six booleans.
+      // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
       boolean('scorer_vb'),
       boolean('referee_vb'),
       boolean('otr1_bb'),
