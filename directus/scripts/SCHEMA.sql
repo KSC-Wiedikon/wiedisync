@@ -4039,7 +4039,7 @@ CREATE TABLE public.members (
     coach_approved_team boolean DEFAULT false NOT NULL,
     language character varying(255) DEFAULT 'german'::character varying,
     hide_phone boolean DEFAULT false NOT NULL,
-    birthdate_visibility character varying(255) DEFAULT 'full'::character varying,
+    birthdate_visibility character varying(255) DEFAULT 'hidden'::character varying,
     website_visible boolean DEFAULT false NOT NULL,
     wiedisync_active boolean DEFAULT false NOT NULL,
     shell boolean DEFAULT false NOT NULL,
