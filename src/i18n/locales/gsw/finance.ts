@@ -52,6 +52,11 @@ export default {
   colSaldo: 'Saldo',
   noBookings: 'Kei Buechige i dem Ziitruum.',
 
+  // Mit TWINT zahle
+  payViaTwint: 'Mit TWINT zahle',
+  payTwintHint: 'Mach TWINT uf, scann de Code und gib {{amount}} i.',
+  payTwintNote: 'Din Saldo aktualisiert sich automatisch, sobald de Verein d Zahlig verbuecht.',
+
   colDate: 'Datum',
   colText: 'Beschriibig',
   colDebit: 'Soll',

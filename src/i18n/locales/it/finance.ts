@@ -52,6 +52,11 @@ export default {
   colSaldo: 'Saldo',
   noBookings: 'Nessuna registrazione in questo periodo.',
 
+  // Paga con TWINT
+  payViaTwint: 'Paga con TWINT',
+  payTwintHint: 'Apri TWINT, scansiona questo codice e inserisci {{amount}}.',
+  payTwintNote: 'Il tuo saldo si aggiorna automaticamente quando il club registra il pagamento.',
+
   colDate: 'Data',
   colText: 'Descrizione',
   colDebit: 'Dare',

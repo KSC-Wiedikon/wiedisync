@@ -32,6 +32,17 @@ export default function FinanceDuesPage() {
         )}
       </div>
 
+      {/* Pay via TWINT — static club payee QR (no amount/reference): the member
+          enters the amount; the paid status flows back via the nightly ClubDesk sync. */}
+      {openTotal > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4 text-center dark:border-gray-700 dark:bg-gray-800">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('payViaTwint')}</h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t('payTwintHint', { amount: formatChf(openTotal) })}</p>
+          <img src="/twint-kscw.png" alt="TWINT — KSC Wiedikon" className="mx-auto mt-3 w-40 sm:w-48" />
+          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t('payTwintNote')}</p>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">…</div>
       ) : invoices.length === 0 ? (

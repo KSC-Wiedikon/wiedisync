@@ -53,6 +53,11 @@ export default {
   colSaldo: 'Balance',
   noBookings: 'No bookings in this period.',
 
+  // Pay via TWINT
+  payViaTwint: 'Pay via TWINT',
+  payTwintHint: 'Open TWINT, scan this code and enter {{amount}}.',
+  payTwintNote: 'Your balance updates automatically once the club records your payment.',
+
   // Ledger table
   colDate: 'Date',
   colText: 'Description',
