@@ -109,4 +109,6 @@ export default {
   expenseInvalidIban: 'Bitte eine gültige IBAN eingeben.',
   expenseError: 'Senden fehlgeschlagen — bitte erneut versuchen.',
   expenseChangeFile: 'Andere Datei verwenden',
+  expenseVerifyFirst: 'Schliesse die Sicherheitsprüfung ab, um hochzuladen.',
+  expenseRateLimited: 'Du kannst bis zu 5 Belege pro Stunde scannen. Bitte versuche es später erneut.',
 }

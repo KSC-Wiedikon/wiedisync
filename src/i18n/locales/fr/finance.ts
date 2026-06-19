@@ -109,4 +109,6 @@ export default {
   expenseInvalidIban: 'Merci de saisir un IBAN valide.',
   expenseError: 'Échec de l\'envoi — merci de réessayer.',
   expenseChangeFile: 'Utiliser un autre fichier',
+  expenseVerifyFirst: 'Termine la vérification de sécurité pour téléverser.',
+  expenseRateLimited: 'Tu peux scanner jusqu\'à 5 reçus par heure. Réessaie plus tard.',
 }

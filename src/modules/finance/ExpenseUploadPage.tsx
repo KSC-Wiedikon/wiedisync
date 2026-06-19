@@ -1,12 +1,16 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { Upload, Loader2, FileText, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FormInput, FormTextarea } from '@/components/FormField'
 import { useAuth } from '../../hooks/useAuth'
 import { kscwApi, uploadFile } from '../../lib/api'
 import { isValidIban, normalizeIban } from '../../utils/iban'
+
+// Public Cloudflare Turnstile site key (same widget the sign-up + scheduling pages use).
+const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
 
 type Step = 'idle' | 'uploading' | 'scanning' | 'review' | 'submitting'
 
@@ -26,12 +30,14 @@ export default function ExpenseUploadPage() {
   const { t } = useTranslation('finance')
   const { user } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const turnstileRef = useRef<TurnstileInstance>(null)
 
   const [step, setStep] = useState<Step>('idle')
   const [fileId, setFileId] = useState<string | null>(null)
   const [fileName, setFileName] = useState('')
   const [scanFailed, setScanFailed] = useState(false)
   const [error, setError] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
 
   // Review form fields
   const [amount, setAmount] = useState('')
@@ -52,6 +58,8 @@ export default function ExpenseUploadPage() {
     setAmount(''); setCurrency('CHF'); setDate(''); setVendor('')
     setDescription(''); setReference(''); setPayToIban(''); setNote('')
     if (fileInputRef.current) fileInputRef.current.value = ''
+    turnstileRef.current?.reset()
+    setTurnstileToken('')
   }
 
   function prefill(ex: Extracted) {
@@ -77,14 +85,25 @@ export default function ExpenseUploadPage() {
       try {
         const { extracted } = await kscwApi<{ extracted: Extracted }>('/expenses/ocr', {
           method: 'POST',
-          body: { fileId: id },
+          body: { fileId: id, turnstile_token: turnstileToken },
         })
         prefill(extracted)
-      } catch {
-        // OCR is best-effort — fall back to manual entry.
+      } catch (ocrErr) {
+        // Rate-limited (5/hour): don't silently fall back — tell the member.
+        if ((ocrErr as { status?: number })?.status === 429) {
+          setError(t('expenseRateLimited'))
+          turnstileRef.current?.reset()
+          setTurnstileToken('')
+          setStep('idle')
+          return
+        }
+        // Otherwise OCR is best-effort — fall back to manual entry.
         setScanFailed(true)
         setPayToIban(user?.iban || '')
       }
+      // The Turnstile token is single-use; refresh it for any later scan.
+      turnstileRef.current?.reset()
+      setTurnstileToken('')
       setStep('review')
     } catch {
       setError(t('expenseError'))
@@ -156,7 +175,7 @@ export default function ExpenseUploadPage() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={busy}
+            disabled={busy || !turnstileToken}
             className="flex min-h-[140px] w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-50/40 disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-600 dark:hover:border-brand-500 dark:hover:bg-brand-900/20"
           >
             {busy ? (
@@ -174,6 +193,22 @@ export default function ExpenseUploadPage() {
               </>
             )}
           </button>
+          {/* Bot check — gates the OCR (vision) call. Button stays disabled until passed. */}
+          {!busy && (
+            <div className="mt-3 flex flex-col items-center gap-1">
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={TURNSTILE_SITE_KEY}
+                onSuccess={setTurnstileToken}
+                onExpire={() => setTurnstileToken('')}
+                onError={() => setTurnstileToken('')}
+                options={{ size: 'flexible' }}
+              />
+              {!turnstileToken && (
+                <span className="text-xs text-gray-400 dark:text-gray-500">{t('expenseVerifyFirst')}</span>
+              )}
+            </div>
+          )}
           {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
         </div>
       )}

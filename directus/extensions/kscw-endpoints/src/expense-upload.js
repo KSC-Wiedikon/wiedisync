@@ -22,11 +22,52 @@ import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, buildInfoCard, escHtml } from './email-template.js'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
-const OCR_MODEL = process.env.EXPENSE_OCR_MODEL || 'claude-sonnet-4-6'
+const OCR_MODEL = process.env.EXPENSE_OCR_MODEL || 'claude-haiku-4-5'
+const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 // Recipient for submitted reimbursements. Overridable per environment via env;
 // the default is the club finance inbox so a missing env var never drops the mail.
 const FINANCE_INBOX_EMAIL = process.env.FINANCE_INBOX_EMAIL || 'finance@mail.kscw.ch'
 const UPLOAD_DIR = process.env.STORAGE_LOCAL_ROOT || '/directus/uploads'
+// Abuse / cost guard: each member may scan (OCR) and submit at most 5 receipts
+// per rolling hour. In-memory sliding window keyed by Directus user id — fine
+// for the single-container deployment (resets on container restart, which is rare).
+const RATE_LIMIT_MAX = 5
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
+const rateBuckets = new Map()
+
+/** Verify a Cloudflare Turnstile token (same flow as contact-form.js). */
+async function verifyTurnstile(token) {
+  if (!TURNSTILE_SECRET) {
+    // Fail closed — a missing secret must not silently disable bot protection.
+    return false
+  }
+  if (!token) return false
+  try {
+    const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `secret=${encodeURIComponent(TURNSTILE_SECRET)}&response=${encodeURIComponent(token)}`,
+    })
+    return (await resp.json()).success === true
+  } catch {
+    return false
+  }
+}
+
+/** Sliding-window rate limit. Throws a 429 Error when the cap is exceeded. */
+function enforceRateLimit(bucket, userId) {
+  const key = `${bucket}:${userId}`
+  const now = Date.now()
+  const hits = (rateBuckets.get(key) || []).filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS)
+  if (hits.length >= RATE_LIMIT_MAX) {
+    const err = new Error(`Rate limit reached — max ${RATE_LIMIT_MAX} per hour. Please try again later.`)
+    err.status = 429
+    err.code = 'rate_limited'
+    throw err
+  }
+  hits.push(now)
+  rateBuckets.set(key, hits)
+}
 // 32MB request cap on the Anthropic side; keep our own limit well under that
 // once base64-expanded (~1.37x). 8MB of source bytes is plenty for a receipt.
 const MAX_FILE_BYTES = 8 * 1024 * 1024
@@ -117,6 +158,16 @@ export function registerExpenseUpload(router, { database, logger, services, getS
         err.status = 503
         throw err
       }
+      // Bot protection (Cloudflare Turnstile) — gates the costly vision call.
+      if (!(await verifyTurnstile(req.body?.turnstile_token))) {
+        const err = new Error('Security check failed — please try again')
+        err.status = 400
+        err.code = 'turnstile'
+        throw err
+      }
+      // Cost guard: max 5 OCR scans per member per hour.
+      enforceRateLimit('ocr', userId)
+
       const fileId = String(req.body?.fileId ?? '').trim()
       if (!fileId) return res.status(400).json({ error: 'fileId required' })
 
@@ -194,6 +245,8 @@ export function registerExpenseUpload(router, { database, logger, services, getS
     try {
       requireMember(req)
       const userId = req.accountability.user
+      // Cost/spam guard: max 5 reimbursement submissions per member per hour.
+      enforceRateLimit('submit', userId)
 
       const fileId = String(req.body?.fileId ?? '').trim()
       if (!fileId) return res.status(400).json({ error: 'fileId required' })
