@@ -11,7 +11,7 @@
  *   - trg_trainings_notify          (batch notifications on training CRUD)
  *   - trg_events_notify             (batch notifications on event CRUD)
  *   - trg_scorer_delegation_validate (same-team auto-accept)
- *   - Postgres DEFAULT values: members.language='german', birthdate_visibility='full'
+ *   - Postgres DEFAULT values: members.language='german', birthdate_visibility='hidden'
  *
  * This extension only handles logic that CANNOT run in Postgres:
  *   1. Auth hooks (wiedisync_active on login — needs Directus auth event)
