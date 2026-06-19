@@ -15,21 +15,21 @@ import { relId } from '../../utils/relations'
 
 export default function TeamsPage() {
   const { t } = useTranslation('teams')
-  const { canViewTeam, memberTeamIds, coachTeamIds, refreshTeamContext } = useAuth()
+  const { canViewTeam, memberTeamIds, coachTeamIds, refreshTeamContext, teamsLoading } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   const [joinOpen, setJoinOpen] = useState(false)
   const currentTeamIds = useMemo(
     () => Array.from(new Set([...memberTeamIds, ...coachTeamIds])),
     [memberTeamIds, coachTeamIds],
   )
-  const { data: teamsRaw, isLoading } = useCollection<Team>('teams', {
+  const { data: teamsRaw, isLoading: teamsListLoading } = useCollection<Team>('teams', {
     filter: { active: { _eq: true } },
     sort: ['name'],
     limit: 50,
   })
   const teams = teamsRaw ?? []
   const season = getCurrentSeason()
-  const { data: memberTeamsRaw, refetch: refetchMemberTeams } = useCollection<MemberTeam>('member_teams', {
+  const { data: memberTeamsRaw, isLoading: memberTeamsLoading, refetch: refetchMemberTeams } = useCollection<MemberTeam>('member_teams', {
     filter: { season: { _eq: season } },
     all: true,
   })
@@ -85,7 +85,7 @@ export default function TeamsPage() {
     return { vbTeams: vb, bbTeams: bb }
   }, [visibleTeams])
 
-  if (isLoading) {
+  if (teamsListLoading || memberTeamsLoading || teamsLoading) {
     return <LoadingSpinner />
   }
 

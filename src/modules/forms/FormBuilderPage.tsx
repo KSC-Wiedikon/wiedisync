@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import FormBuilder from './FormBuilder'
 import type { FormDef } from './types'
 
@@ -45,7 +46,7 @@ export default function FormBuilderPage() {
       <h1 className="mb-6 text-2xl font-bold">{isEdit ? t('editForm') : t('newForm')}</h1>
 
       {isEdit && isLoading ? (
-        <p className="text-sm text-muted-foreground">{t('loading')}</p>
+        <LoadingSpinner />
       ) : isEdit && !form ? (
         <p className="text-sm text-muted-foreground">{t('noManagedForms')}</p>
       ) : (

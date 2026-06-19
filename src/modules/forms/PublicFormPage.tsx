@@ -5,6 +5,7 @@ import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { API_URL } from '../../lib/api'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import FormFieldRenderer from './FormFieldRenderer'
 import type { FieldDef, AnswerValue } from './types'
 
@@ -104,6 +105,16 @@ export default function PublicFormPage() {
     turnstileRef.current?.reset()
   }
 
+  // Wait for the public form definition before rendering the card chrome — a
+  // standalone full-page spinner (public route, no app shell around it).
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-background">
+        <LoadingSpinner />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background px-4 py-10">
       <div className="mx-auto max-w-xl">
@@ -112,9 +123,6 @@ export default function PublicFormPage() {
         </p>
 
         <div className="rounded-xl border border-gray-200 bg-card p-6 shadow-sm dark:border-gray-700">
-          {status === 'loading' && (
-            <p className="py-8 text-center text-sm text-muted-foreground">{t('loading')}</p>
-          )}
           {status === 'notfound' && (
             <p className="py-8 text-center text-sm text-muted-foreground">{t('publicNotFound')}</p>
           )}

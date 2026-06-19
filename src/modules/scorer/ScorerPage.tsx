@@ -104,7 +104,7 @@ export default function ScorerPage() {
     }
   }
 
-  const { data: membersRaw } = useCollection<Member>('members', {
+  const { data: membersRaw, isLoading: membersLoading } = useCollection<Member>('members', {
     filter: { kscw_membership_active: { _eq: true } },
     sort: ['last_name', 'first_name'],
     all: true,
@@ -112,7 +112,7 @@ export default function ScorerPage() {
   })
   const members = membersRaw ?? []
 
-  const { data: teamsRaw } = useCollection<Team>('teams', {
+  const { data: teamsRaw, isLoading: teamsDataLoading } = useCollection<Team>('teams', {
     filter: { active: { _eq: true } },
     fields: ['id', 'name', 'sport'],
     sort: ['name'],
@@ -120,12 +120,17 @@ export default function ScorerPage() {
   })
   const teams = teamsRaw ?? []
 
-  const { data: allMemberTeamsRaw } = useCollection<MemberTeam>('member_teams', {
+  const { data: allMemberTeamsRaw, isLoading: memberTeamsLoading } = useCollection<MemberTeam>('member_teams', {
     fields: ['id', 'team', 'member', 'guest_level'],
     all: true,
     enabled: !!user,
   })
   const allMemberTeams = allMemberTeamsRaw ?? []
+
+  // Supporting data ScorerRow renders from (members/teams/member_teams). Both the
+  // upcoming and past sections gate on this in addition to games loading so rows
+  // never render against empty lookup maps.
+  const supportingLoading = membersLoading || teamsDataLoading || memberTeamsLoading
   const teamMemberIds = useMemo(() => {
     const map = new Map<string, Set<string>>()
     for (const mt of allMemberTeams) {
@@ -384,6 +389,11 @@ export default function ScorerPage() {
 
   const allGames = useMemo(() => [...upcomingGames, ...allPastGames], [upcomingGames, allPastGames])
 
+  // Each games section waits for its games query AND the supporting data its rows
+  // render from, so ScorerRow never paints against empty lookup maps.
+  const upcomingLoading = gamesLoading || supportingLoading
+  const pastGateLoading = pastLoading || supportingLoading
+
   const filterLabelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400'
 
   const renderScorerRow = (g: Game, isPast = false) => (
@@ -618,14 +628,14 @@ export default function ScorerPage() {
 
           {/* Upcoming games */}
           <div className="mt-6" data-tour="assignment-list">
-            {gamesLoading && <LoadingSpinner />}
-            {!gamesLoading && filteredGames.length === 0 && !showPast && (
+            {upcomingLoading && <LoadingSpinner />}
+            {!upcomingLoading && filteredGames.length === 0 && !showPast && (
               <div className="py-12 text-center text-gray-500 dark:text-gray-400">
                 <p>{t('noGames')}</p>
                 <p className="mt-1 text-sm">{t('noGamesDescription')}</p>
               </div>
             )}
-            {!gamesLoading && filteredGames.length > 0 && (
+            {!upcomingLoading && filteredGames.length > 0 && (
               <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">{filteredGames.map((g) => renderScorerRow(g))}</div>
             )}
           </div>
@@ -638,11 +648,11 @@ export default function ScorerPage() {
               </Button>
             ) : (
               <div className="mt-4">
-                {pastLoading && <LoadingSpinner />}
-                {!pastLoading && filteredPastGames.length === 0 && (
+                {pastGateLoading && <LoadingSpinner />}
+                {!pastGateLoading && filteredPastGames.length === 0 && (
                   <p className="py-4 text-center text-sm text-gray-400">{t('noGames')}</p>
                 )}
-                {!pastLoading && visiblePastGames.length > 0 && (
+                {!pastGateLoading && visiblePastGames.length > 0 && (
                   <>
                     <div className="grid gap-3 opacity-75 lg:grid-cols-2 2xl:grid-cols-3">{visiblePastGames.map((g) => renderScorerRow(g, true))}</div>
                     {pastVisible < filteredPastGames.length && (

@@ -8,6 +8,7 @@ import FinesDashboardCard from '../fines/FinesDashboardCard'
 import { todayLocal, mostRecent01June } from '../../utils/dateHelpers'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import type { Team } from '../../types'
 
 interface CoachDashboardProps {
@@ -17,7 +18,7 @@ interface CoachDashboardProps {
 export default function CoachDashboard({ teamId }: CoachDashboardProps) {
   const { t } = useTranslation('trainings')
 
-  const { data: teamRows } = useCollection<Team>('teams', {
+  const { data: teamRows, isLoading: teamLoading } = useCollection<Team>('teams', {
     filter: { id: { _eq: teamId } },
     fields: ['id', 'dashboard_range_from', 'dashboard_range_to', 'dashboard_league_only'],
     enabled: !!teamId,
@@ -74,8 +75,8 @@ export default function CoachDashboard({ teamId }: CoachDashboardProps) {
     })
   }
 
-  if (isLoading) {
-    return <div className="py-8 text-center text-gray-500 dark:text-gray-400">{t('common:loading')}</div>
+  if (isLoading || teamLoading) {
+    return <LoadingSpinner />
   }
 
   return (

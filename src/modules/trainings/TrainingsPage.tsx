@@ -203,7 +203,7 @@ export default function TrainingsPage() {
       <div className="mt-6">
         {activeTab === 'dashboard' && selectedTeam ? (
           <div data-tour="coach-dashboard"><CoachDashboard teamId={selectedTeam} /></div>
-        ) : isLoading ? (
+        ) : (teamsLoading || isLoading) ? (
           <LoadingSpinner />
         ) : trainings.length === 0 ? (
           <EmptyState

@@ -19,7 +19,7 @@ export default function GameCoachDashboard({ teamId }: Props) {
   const { t } = useTranslation('games')
   const { t: tTrainings } = useTranslation('trainings')
 
-  const { data: teamRows } = useCollection<Team>('teams', {
+  const { data: teamRows, isLoading: teamLoading } = useCollection<Team>('teams', {
     filter: teamId ? { id: { _eq: teamId } } : undefined,
     fields: ['id', 'dashboard_range_from', 'dashboard_range_to', 'dashboard_league_only'],
     enabled: !!teamId,
@@ -83,7 +83,7 @@ export default function GameCoachDashboard({ teamId }: Props) {
       />
     )
   }
-  if (isLoading) return <LoadingSpinner />
+  if (isLoading || teamLoading) return <LoadingSpinner />
 
   return (
     <div data-tour="game-coach-dashboard">

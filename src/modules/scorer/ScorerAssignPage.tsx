@@ -38,14 +38,14 @@ export default function ScorerAssignPage() {
   const allGames = useMemo(() => allGamesRaw ?? [], [allGamesRaw])
 
   // All active teams (both sports); each engine filters to its own sport.
-  const { data: teamsRaw } = useCollection<Team>('teams', {
+  const { data: teamsRaw, isLoading: teamsLoading } = useCollection<Team>('teams', {
     filter: { active: { _eq: true } },
     sort: ['name'],
     all: true,
   })
   const teams = useMemo(() => teamsRaw ?? [], [teamsRaw])
 
-  const { data: trainingsRaw } = useCollection<Training>('trainings', {
+  const { data: trainingsRaw, isLoading: trainingsLoading } = useCollection<Training>('trainings', {
     filter: { _and: [{ date: { _gte: seasonStart } }, { date: { _lte: seasonEnd } }, { cancelled: { _eq: false } }] },
     fields: ['id', 'team', 'date', 'start_time', 'end_time'],
     all: true,
@@ -54,24 +54,30 @@ export default function ScorerAssignPage() {
 
   // Fetch the per-flag licence booleans (migration 067) — the legacy
   // `licences` JSON array is no longer the source of truth.
-  const { data: membersRaw } = useCollection<Member>('members', {
+  const { data: membersRaw, isLoading: membersLoading } = useCollection<Member>('members', {
     filter: { kscw_membership_active: { _eq: true } },
     fields: ['id', 'first_name', 'last_name', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb'],
     all: true,
   })
   const members = membersRaw ?? []
 
-  const { data: memberTeamsRaw } = useCollection<MemberTeam>('member_teams', {
+  const { data: memberTeamsRaw, isLoading: memberTeamsLoading } = useCollection<MemberTeam>('member_teams', {
     all: true,
     enabled: !!user,
   })
   const memberTeams = memberTeamsRaw ?? []
 
   // Hall names (the Döltschi rule needs them; games carry only the hall id).
-  const { data: hallsRaw } = useCollection<Hall>('halls', {
+  const { data: hallsRaw, isLoading: hallsLoading } = useCollection<Hall>('halls', {
     fields: ['id', 'name'],
     all: true,
   })
+
+  // The auto-assign algorithm consumes games + teams + trainings + members +
+  // member_teams + halls. Gate the whole page on ALL of them so the spinner,
+  // "games loaded" banner, Run button and empty state never flash a half-loaded
+  // view (e.g. "0 games" before teams/halls land).
+  const dataLoading = gamesLoading || teamsLoading || trainingsLoading || membersLoading || memberTeamsLoading || hallsLoading
 
   // State
   const [sportTab, setSportTab] = useState<SportTab>(canVb ? 'volleyball' : 'basketball')
@@ -227,7 +233,7 @@ export default function ScorerAssignPage() {
           size="sm"
           onClick={handleRunAlgorithm}
           loading={running}
-          disabled={gamesLoading || homeGames.length === 0}
+          disabled={dataLoading || homeGames.length === 0}
         >
           {running ? t('running') : t('runAlgorithm')}
         </Button>
@@ -241,8 +247,8 @@ export default function ScorerAssignPage() {
 
       {/* Status messages */}
       <div className="mt-2 flex flex-wrap gap-2">
-        {gamesLoading && <LoadingSpinner />}
-        {!gamesLoading && homeGames.length > 0 && assignments.length === 0 && (
+        {dataLoading && <LoadingSpinner />}
+        {!dataLoading && homeGames.length > 0 && assignments.length === 0 && (
           <span className="text-sm text-gray-500">{t('gamesLoaded', { count: homeGames.length })}</span>
         )}
         {assignments.length > 0 && (
@@ -451,7 +457,7 @@ export default function ScorerAssignPage() {
       )}
 
       {/* Empty state */}
-      {!gamesLoading && homeGames.length === 0 && (
+      {!dataLoading && homeGames.length === 0 && (
         <div className="mt-12 py-12 text-center text-gray-500 dark:text-gray-400">
           <p>{t('noGames')}</p>
         </div>

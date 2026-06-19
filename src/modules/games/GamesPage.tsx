@@ -76,7 +76,7 @@ export default function GamesPage() {
   // Active teams only: after a rollover both the archived and the new team
   // share a name, and an arbitrary tie-break could resolve name→archived id,
   // making the games filter return nothing (games re-sync onto the active team).
-  const { data: allTeamsRaw } = useCollection<Team>('teams', { sort: ['name'], all: true, fields: ['id', 'name'], filter: { active: { _eq: true } } })
+  const { data: allTeamsRaw, isLoading: allTeamsLoading } = useCollection<Team>('teams', { sort: ['name'], all: true, fields: ['id', 'name'], filter: { active: { _eq: true } } })
   const allTeams = allTeamsRaw ?? []
   const teamNameToId = useMemo(() => {
     const map = new Map<string, string>()
@@ -290,7 +290,11 @@ export default function GamesPage() {
     return filtered
   }, [allRankings, effectiveTeams, sport])
 
-  const isLoading = (activeTab === 'rankings' || activeTab === 'scoreboard') ? rankingsLoading : gamesLoading
+  // Games tabs render from games + the active-teams map (name→id) + auth team
+  // context — gate on ALL of them so cards never pop in over a half-built view.
+  // Rankings/scoreboard keep their own loading flag.
+  const gamesGateLoading = gamesLoading || allTeamsLoading || teamsLoading
+  const isLoading = (activeTab === 'rankings' || activeTab === 'scoreboard') ? rankingsLoading : gamesGateLoading
   const showGames = activeTab !== 'rankings' && activeTab !== 'scoreboard' && !isLoading
 
   return (

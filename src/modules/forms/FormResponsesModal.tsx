@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { FileText, FileSpreadsheet, Braces, FileDown, BellRing, Users } from 'lucide-react'
 import { useCollection } from '../../lib/query'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { kscwApi, assetUrl } from '../../lib/api'
 import { toCSV, toJSON, toXlsx, downloadText, downloadBlob } from '../admin/utils/exportResults'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
@@ -206,7 +207,7 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
         </div>
 
         {isLoading ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">{t('loading')}</p>
+          <LoadingSpinner size="sm" />
         ) : !hasRows ? (
           <p className="py-8 text-center text-sm text-muted-foreground">{t('noResponses')}</p>
         ) : (
