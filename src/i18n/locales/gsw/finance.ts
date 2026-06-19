@@ -103,6 +103,7 @@ export default {
   expenseReviewHint: 'Mir hend die us dim Dokumänt vorgfüllt. Korrigier, was nöd stimmt.',
   expenseAmount: 'Betrag',
   expenseCurrency: 'Währig',
+  expenseCurrencySearch: 'Währig sueche…',
   expenseDate: 'Datum',
   expenseVendor: 'Aabiter',
   expenseDescription: 'Beschriibig',

@@ -103,6 +103,7 @@ export default {
   expenseReviewHint: 'Wir haben diese aus deinem Dokument vorausgefüllt. Korrigiere, was nicht stimmt.',
   expenseAmount: 'Betrag',
   expenseCurrency: 'Währung',
+  expenseCurrencySearch: 'Währung suchen…',
   expenseDate: 'Datum',
   expenseVendor: 'Anbieter',
   expenseDescription: 'Beschreibung',
