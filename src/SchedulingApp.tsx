@@ -74,15 +74,21 @@ export default function SchedulingApp() {
                           without flashing the shell (and no guard→/ redirect loop). */}
                       <Route index element={<SchedulingHome />} />
 
-                      {/* Admin scheduling — minimal shell */}
+                      {/* Admin scheduling — minimal shell. The dashboard is the
+                          section landing page; setup lives under /settings. */}
                       <Route element={<SchedulingLayout />}>
                         <Route
                           path="admin/terminplanung"
-                          element={<AdminOrSpielplanerRoute><AdminSetupPage /></AdminOrSpielplanerRoute>}
+                          element={<AdminOrSpielplanerRoute><AdminDashboardPage /></AdminOrSpielplanerRoute>}
                         />
                         <Route
+                          path="admin/terminplanung/settings"
+                          element={<AdminOrSpielplanerRoute><AdminSetupPage /></AdminOrSpielplanerRoute>}
+                        />
+                        {/* Back-compat: the old dashboard URL now lives at the section root. */}
+                        <Route
                           path="admin/terminplanung/dashboard"
-                          element={<AdminOrSpielplanerRoute><AdminDashboardPage /></AdminOrSpielplanerRoute>}
+                          element={<Navigate to="/admin/terminplanung" replace />}
                         />
                         <Route
                           path="admin/spielplanung"

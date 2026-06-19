@@ -15,6 +15,8 @@ export default {
   gameplan: 'Calendario partite manuali',
   hallenplan: 'Fasce palestra',
   terminplanung: 'Pianificazione partite',
+  dashboard: 'Pannello',
+  settings: 'Impostazioni',
   manageDb: 'Gestisci database',
   openInNewTab: 'Apri in una nuova scheda',
   admin: 'Admin',

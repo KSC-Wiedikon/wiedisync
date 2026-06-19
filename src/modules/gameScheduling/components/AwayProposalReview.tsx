@@ -11,11 +11,23 @@ export interface AwayVmCheck {
   vm: string | null
 }
 
+/** Away fixture VolleyManager has scheduled but we hold no confirmed booking. */
+export interface AwayVmUnbooked {
+  opponent_id: string
+  svrz_game_id: string
+  vm: string
+}
+
 interface Props {
   booking: GameSchedulingBooking
   onConfirm: (bookingId: string, proposalNumber: number, notes?: string) => Promise<void>
   /** VolleyManager cross-check for the confirmed away game (from away-vm-check). */
   vmCheck?: AwayVmCheck | null
+  /** Adopt VolleyManager's date/time (+gym) for this game. Rendered next to the
+   *  VM badge when the agreed slot diverges from VM (mismatch). */
+  onSyncVm?: () => Promise<void>
+  /** True while a VM sync for this game is in flight (disables the button). */
+  vmSyncing?: boolean
   /** Per-proposal decision context (absences + adjacent-game spacing). */
   health?: ProposalHealthEntry
   /** Delete a confirmed away game so it can be rescheduled (confirm lives in the
@@ -43,7 +55,7 @@ function fmtProposal(iso: string | null | undefined): string {
   return hh ? `${date} ${hh}:${mm}` : date
 }
 
-export default function AwayProposalReview({ booking, onConfirm, vmCheck, health, onDelete }: Props) {
+export default function AwayProposalReview({ booking, onConfirm, vmCheck, onSyncVm, vmSyncing, health, onDelete }: Props) {
   const { t } = useTranslation('gameScheduling')
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -106,7 +118,7 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck, health
         {proposedBy}
         {confirmedBy}
         {vmCheck && (
-          <div className="mt-auto flex min-h-7 items-center">
+          <div className="mt-auto flex min-h-7 flex-wrap items-center gap-2">
           <span
             className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${VM_CHECK_STYLE[vmCheck.status] || VM_CHECK_STYLE.no_vm}`}
             title={
@@ -122,6 +134,16 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck, health
             {t(`awayVm_${vmCheck.status}`)}
             {vmCheck.status === 'mismatch' && vmCheck.vm ? `: ${vmCheck.vm}` : ''}
           </span>
+          {vmCheck.status === 'mismatch' && onSyncVm && (
+            <button
+              type="button"
+              onClick={onSyncVm}
+              disabled={vmSyncing}
+              className="rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
+            >
+              {vmSyncing ? '…' : t('syncWithVm')}
+            </button>
+          )}
           </div>
         )}
         {onDelete && (

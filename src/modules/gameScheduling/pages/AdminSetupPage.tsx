@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '../../../hooks/useAuth'
 import { useConfirm } from '../../../components/ConfirmProvider'
@@ -143,20 +143,11 @@ export default function AdminSetupPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header — Dashboard ↔ Settings navigation lives in the shell nav. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">
           {t('setupTitle')}
         </h1>
-        {/* The dashboard (where away-proposals are confirmed) has no menu entry
-            of its own — this link is the only way to reach it from the UI. */}
-        <Link
-          to="/admin/terminplanung/dashboard"
-          className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:self-auto dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-        >
-          {t('dashboardTitle')}
-          <span aria-hidden>→</span>
-        </Link>
       </div>
 
       {/* Row 1: Season + Game Saturdays — two cards per row on desktop */}

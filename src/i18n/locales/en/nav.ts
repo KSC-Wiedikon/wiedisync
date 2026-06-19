@@ -15,6 +15,8 @@ export default {
   gameplan: 'Manual game calendar',
   hallenplan: 'Hall Slots',
   terminplanung: 'Match scheduling',
+  dashboard: 'Dashboard',
+  settings: 'Settings',
   manageDb: 'Manage Database',
   openInNewTab: 'Open in new tab',
   admin: 'Admin',
