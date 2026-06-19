@@ -137,6 +137,7 @@
     "simplex-noise": "^4.0.3",
     "sonner": "^2.0.7",
     "svg-dotted-map": "^2.0.1",
+    "swissqrbill": "^4.3.0",
     "tailwind-merge": "^3.5.0",
     "three": "^0.184.0",
     "three-globe": "^2.45.2",

@@ -58,6 +58,8 @@ export default {
   payTwintHint: 'Open TWINT, scan this code and enter {{amount}}.',
   payTwintNote: 'Your balance updates automatically once the club records your payment.',
   cardPayHint: 'Tap to pay via TWINT',
+  payTapHint: 'Tap an open invoice below to pay it.',
+  qrScanHint: 'Scan to pay {{amount}} with TWINT or your banking app',
 
   // Ledger table
   colDate: 'Date',
