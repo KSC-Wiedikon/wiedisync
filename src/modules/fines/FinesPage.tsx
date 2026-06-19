@@ -78,18 +78,24 @@ export default function FinesPage() {
   // only the IDs the table needs.
   const memberIds = [...new Set(fines.map((f) => String(f.member)))]
   const teamIds = [...new Set(fines.map((f) => String(f.team)))]
-  const { data: membersRaw } = useCollection<Member>('members', {
+  const { data: membersRaw, isLoading: membersLoading } = useCollection<Member>('members', {
     filter: memberIds.length ? { id: { _in: memberIds } } : undefined,
     fields: ['id', 'first_name', 'last_name'],
     enabled: memberIds.length > 0,
     all: true,
   })
-  const { data: teamsRaw } = useCollection<Team>('teams', {
+  const { data: teamsRaw, isLoading: teamsLoading } = useCollection<Team>('teams', {
     filter: teamIds.length ? { id: { _in: teamIds } } : undefined,
     fields: ['id', 'name'],
     enabled: teamIds.length > 0,
     all: true,
   })
+
+  // Wait for ALL primary data before rendering the table: fines, plus the
+  // chained members + teams lookups that feed the table cells + leader team
+  // picker. Disabled (enabled:false) queries report isLoading=false, so OR-ing
+  // is safe — they never hang the gate.
+  const pageLoading = isLoading || membersLoading || teamsLoading
   const memberMap = new Map((membersRaw ?? []).map((m) => [String(m.id), m]))
   const teamMap = new Map((teamsRaw ?? []).map((tm) => [String(tm.id), tm]))
 
@@ -181,7 +187,7 @@ export default function FinesPage() {
       </div>
 
       {/* Loading spinner, then table or empty state */}
-      {isLoading ? (
+      {pageLoading ? (
         <LoadingSpinner />
       ) : fines.length === 0 ? (
         <EmptyState

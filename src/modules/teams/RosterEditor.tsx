@@ -16,6 +16,7 @@ import TeamSponsorsEditor from './TeamSponsorsEditor'
 import TrainingForm from '../trainings/TrainingForm'
 import FinesSettings from '../fines/FinesSettings'
 import EmptyState from '../../components/EmptyState'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { getFileUrl } from '../../utils/fileUrl'
 import { getCurrentSeason } from '../../utils/dateHelpers'
 import type { Team, Member, MemberPosition, MemberTeam, TeamSettings } from '../../types'
@@ -227,7 +228,7 @@ export default function RosterEditor() {
   }
 
   if (!team || isLoading) {
-    return <div className="py-12 text-center text-gray-500 dark:text-gray-400">{t('common:loading')}</div>
+    return <LoadingSpinner />
   }
 
   return (

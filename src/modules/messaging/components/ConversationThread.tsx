@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MessageRow } from '../api/types'
 import MessageBubble from './MessageBubble'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 type Props = {
   messages: MessageRow[]
@@ -23,8 +24,8 @@ export default function ConversationThread({ messages, currentMemberId, isLoadin
 
   if (isLoading && messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-        {t('loading')}
+      <div className="flex-1 flex items-center justify-center">
+        <LoadingSpinner />
       </div>
     )
   }

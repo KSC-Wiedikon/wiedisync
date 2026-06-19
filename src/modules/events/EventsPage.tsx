@@ -137,13 +137,20 @@ export default function EventsPage() {
     return { _and: [{ activity_type: { _eq: 'event' } }, { activity_id: { _in: eventIds } }] }
   }, [eventIds])
 
-  const { data: allParticipationsRaw, refetch: refetchParticipations } = useCollection<Participation>('participations', {
+  const { data: allParticipationsRaw, isLoading: participationsLoading, refetch: refetchParticipations } = useCollection<Participation>('participations', {
     filter: participationFilter,
     fields: ['id', 'activity_id', 'activity_type', 'member', 'status', 'note', 'session_id', 'guest_count', 'is_staff', 'waitlisted_at', 'date_created', 'date_updated'],
     all: true,
     enabled: eventIds.length > 0,
   })
   const allParticipations = allParticipationsRaw ?? []
+
+  // Hold the full-page spinner until ALL primary data the cards render from has
+  // landed: team context, the resolved visible-event IDs, the events themselves,
+  // and the batched participations (RSVP counts on every card). The participations
+  // query is `enabled: eventIds.length > 0`, so when there are no events it's
+  // disabled and contributes `isLoading: false` — never hangs the gate.
+  const pageLoading = teamsLoading || (!effectiveIsAdmin && eventIdsLoading) || isLoading || participationsLoading
 
   useRealtime('participations', () => refetchParticipations())
 
@@ -216,7 +223,7 @@ export default function EventsPage() {
       )}
 
       <div className="mt-6">
-        {isLoading ? (
+        {pageLoading ? (
           <LoadingSpinner />
         ) : visibleEvents.length === 0 ? (
           <EmptyState

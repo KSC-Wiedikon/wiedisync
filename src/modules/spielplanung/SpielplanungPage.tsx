@@ -59,14 +59,20 @@ export default function SpielplanungPage() {
   const seasonStart = `${seasonYear}-09-01`
   const seasonEnd = `${seasonYear + 1}-05-31`
 
-  const { games, entries, closedDates, isLoading, error } = useSpielplanungData({
+  const { games, entries, closedDates, isLoading: dataLoading, error } = useSpielplanungData({
     filters,
     seasonStart,
     seasonEnd,
   })
 
-  const { data: teams } = useTeams()
-  const { seasons } = useAvailableSeasons()
+  const { data: teams, isLoading: teamsLoading } = useTeams()
+  const { seasons, isLoading: seasonsLoading } = useAvailableSeasons()
+
+  // Wait for ALL primary data before rendering the views: games/closures, the
+  // team list (feeds the list views + edit-permission map), and the season list
+  // (feeds the season dropdown). Avoids a pop-in where the calendar renders
+  // before teams/seasons resolve.
+  const isLoading = dataLoading || teamsLoading || seasonsLoading
 
   const filteredEntries = useMemo(() => entries, [entries])
 

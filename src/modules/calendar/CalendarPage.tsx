@@ -195,10 +195,14 @@ export default function CalendarPage() {
     enabled: needsData && teamsReady,
   })
 
-  // Only show full-page spinner on initial load, not on navigation
+  // Only show full-page spinner on initial load, not on navigation.
+  // While team context is still resolving, the data hook is disabled
+  // (`enabled: needsData && teamsReady`) so `isLoading` is false — without
+  // folding `!teamsReady` in, the empty grid would flash during that window.
+  // Don't mark "loaded once" until teams are actually ready and data has landed.
   const hasLoadedOnce = useRef(false)
-  if (!isLoading && needsData) hasLoadedOnce.current = true
-  const showSpinner = isLoading && !hasLoadedOnce.current
+  if (!isLoading && needsData && teamsReady) hasLoadedOnce.current = true
+  const showSpinner = needsData && (isLoading || !teamsReady) && !hasLoadedOnce.current
 
   function handleViewChange(v: string) {
     setViewMode(v as CalendarViewMode)

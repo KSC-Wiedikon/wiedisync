@@ -10,6 +10,7 @@ import { useFillableForms, type FillableForm } from '../../hooks/useFillableForm
 import { updateRecord, deleteRecord } from '../../lib/api'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { useConfirm } from '../../components/ConfirmProvider'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import FormFillModal from './FormFillModal'
 import FormResponsesModal from './FormResponsesModal'
 import type { FormDef, FormStatus } from './types'
@@ -59,7 +60,11 @@ export default function FormsPage() {
   const forms = formsRaw ?? []
 
   // Forms the current user can fill / edit (club-wide ∪ their player teams).
-  const { items: fillable, refetch: refetchFillable } = useFillableForms()
+  const { items: fillable, isLoading: fillableLoading, refetch: refetchFillable } = useFillableForms()
+
+  // Gate the whole page on BOTH primary data sources (managed forms + "open for
+  // you") so neither table pops in after the other.
+  const pageLoading = isLoading || fillableLoading
 
   const editable = (f: FormDef): boolean => {
     if (fullManager) return true
@@ -106,6 +111,8 @@ export default function FormsPage() {
     } catch { /* clipboard blocked — no-op */ }
   }
 
+  if (pageLoading) return <LoadingSpinner />
+
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-6">
       <div className="flex items-center justify-between">
@@ -120,9 +127,7 @@ export default function FormsPage() {
       {/* Open for you */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">{t('openForYou')}</h2>
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground">{t('loading')}</p>
-        ) : fillable.length === 0 ? (
+        {fillable.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('noOpenForms')}</p>
         ) : (
           <Table>

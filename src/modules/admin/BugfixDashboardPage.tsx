@@ -27,6 +27,7 @@ import {
 } from '../../components/ui/alert-dialog'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -495,12 +496,7 @@ export default function BugfixDashboardPage() {
 
       {/* Table */}
       <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50">
-        {isLoading && !issues && (
-          <div className="p-8 text-center text-sm text-gray-400">
-            <Loader2 className="mx-auto h-5 w-5 animate-spin mb-2" />
-            Loading...
-          </div>
-        )}
+        {isLoading && !issues && <LoadingSpinner size="sm" />}
 
         {issues && filtered.length === 0 && (
           <div className="p-8 text-center text-sm text-gray-400">{t('noIssues')}</div>

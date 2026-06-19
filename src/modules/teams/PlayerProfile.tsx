@@ -8,6 +8,7 @@ import { useAuth } from '../../hooks/useAuth'
 import TeamChip from '../../components/TeamChip'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions, getPositionI18nKey } from '../../utils/memberPositions'
 import { asObj, relId, memberName } from '../../utils/relations'
@@ -30,7 +31,7 @@ export default function PlayerProfile() {
   const [loading, setLoading] = useState(true)
   const [lightboxOpen, setLightboxOpen] = useState(false)
 
-  const { data: memberTeamsRaw } = useCollection<ExpandedMemberTeam>('member_teams', {
+  const { data: memberTeamsRaw, isLoading: memberTeamsLoading } = useCollection<ExpandedMemberTeam>('member_teams', {
     // Current-season only — otherwise archived same-name teams (e.g. old + new
     // "H3" after a rollover) render as duplicate badges.
     filter: memberId ? { _and: [{ member: { _eq: memberId } }, { season: { _eq: getCurrentSeason() } }] } : { id: { _eq: -1 } },
@@ -42,7 +43,7 @@ export default function PlayerProfile() {
   const season = getCurrentSeason()
   const { start, end } = getSeasonDateRange(season)
 
-  const { data: absencesRaw } = useCollection<Absence>('absences', {
+  const { data: absencesRaw, isLoading: absencesLoading } = useCollection<Absence>('absences', {
     filter: memberId ? { _and: [{ member: { _eq: memberId } }, { end_date: { _gte: todayLocal() } }] } : { id: { _eq: -1 } },
     sort: ['start_date'],
     limit: 20,
@@ -135,8 +136,8 @@ export default function PlayerProfile() {
       .catch(() => setGameStats(null))
   }, [memberId, memberTeams, start, end])
 
-  if (loading) {
-    return <div className="py-12 text-center text-gray-500 dark:text-gray-400">Loading...</div>
+  if (loading || memberTeamsLoading || absencesLoading) {
+    return <LoadingSpinner />
   }
 
   if (!member) {

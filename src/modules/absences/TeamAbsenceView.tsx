@@ -5,6 +5,7 @@ import { useTeamAbsences, type MemberTeamRef } from '../../hooks/useTeamAbsences
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import EmptyState from '../../components/EmptyState'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import AbsenceCard from './AbsenceCard'
 import TeamBlockModal from './TeamBlockModal'
 import TeamChip from '../../components/TeamChip'
@@ -459,7 +460,7 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
   }
 
   if (isLoading) {
-    return <div className="py-8 text-center text-gray-500 dark:text-gray-400">{t('common:loading')}</div>
+    return <LoadingSpinner />
   }
 
   return (

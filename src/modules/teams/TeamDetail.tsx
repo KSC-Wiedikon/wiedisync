@@ -12,6 +12,7 @@ import { useCollection } from '../../lib/query'
 import { Button } from '@/components/ui/button'
 import TeamChip from '../../components/TeamChip'
 import EmptyState from '../../components/EmptyState'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import VolleyballIcon from '../../components/VolleyballIcon'
 import BasketballIcon from '../../components/BasketballIcon'
@@ -362,7 +363,7 @@ export default function TeamDetail() {
   }, [teamSlug])
 
   if (loading || membersLoading) {
-    return <div className="py-12 text-center text-gray-500 dark:text-gray-400">{t('common:loading')}</div>
+    return <LoadingSpinner />
   }
 
   if (!team || !canViewTeam(team.id)) {

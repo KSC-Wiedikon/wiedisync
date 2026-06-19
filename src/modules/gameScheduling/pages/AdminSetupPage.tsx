@@ -34,8 +34,8 @@ export default function AdminSetupPage() {
   const confirm = useConfirm()
   const { hasAdminAccessToSport, isGlobalAdmin, is_spielplaner } = useAuth()
   const { season, allSeasons, isLoading, createSeason, updateSeason, setSeason, refetch: refetchSeasons } = useGameSchedulingSeason()
-  const { generateSlots, slots } = useAdminBookings(season?.id)
-  const { data: teams, refetch: refetchTeams } = useTeams()
+  const { generateSlots, slots, isLoading: slotsLoading } = useAdminBookings(season?.id)
+  const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams()
   const [generating, setGenerating] = useState(false)
   const [genResult, setGenResult] = useState<{ total_created: number } | null>(null)
 
@@ -43,11 +43,13 @@ export default function AdminSetupPage() {
     return <Navigate to="/" replace />
   }
 
-  // Only blank to a spinner on the very first load. Mutations (toggles,
-  // Spielsamstage save, status changes) refetch the season and flip isLoading
-  // back to true — without the `!season` guard that re-rendered the whole page
-  // to a spinner on every click, which read as a full page reload.
-  if (isLoading && !season) return <LoadingSpinner />
+  // Wait for ALL primary data on the very first load — season, slots, and the
+  // team list (slots + teams feed the slot-generation / team-config panels).
+  // Only blank to a spinner before the season exists: mutations (toggles,
+  // Spielsamstage save, status changes) refetch and flip these flags back to
+  // true — the `!season` guard keeps the page from re-blanking on every click,
+  // which read as a full page reload.
+  if ((isLoading || teamsLoading || slotsLoading) && !season) return <LoadingSpinner />
 
   const handleCreateSeason = async (name: string) => {
     await createSeason(name)
