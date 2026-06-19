@@ -15,6 +15,8 @@ export default {
   gameplan: 'Calendrier manuel des matchs',
   hallenplan: 'Plan de salle',
   terminplanung: 'Planification des matchs',
+  dashboard: 'Tableau de bord',
+  settings: 'Paramètres',
   manageDb: 'Gerer la base de donnees',
   openInNewTab: 'Ouvrir dans un nouvel onglet',
   admin: 'Admin',

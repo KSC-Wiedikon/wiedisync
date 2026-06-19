@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Link, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../../hooks/useAuth'
 import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
 import { useAdminBookings } from '../hooks/useAdminBookings'
 import { useTeams } from '../../../hooks/useTeams'
 import LoadingSpinner from '../../../components/LoadingSpinner'
-import AwayProposalReview, { type AwayVmCheck } from '../components/AwayProposalReview'
+import AwayProposalReview, { type AwayVmCheck, type AwayVmUnbooked } from '../components/AwayProposalReview'
 import HomeProposalReview from '../components/HomeProposalReview'
 import OpponentNotes from '../components/OpponentNotes'
 import ManualBookingForm, { type ManualFixtureOption } from '../components/ManualBookingForm'
@@ -233,12 +233,14 @@ export default function AdminDashboardPage() {
   // VolleyManager cross-check for confirmed away games (green/yellow/red), keyed
   // by booking id. Re-fetched when bookings change (e.g. after a confirm).
   const [awayVmChecks, setAwayVmChecks] = useState<Record<string, AwayVmCheck>>({})
+  // Away fixtures VolleyManager has scheduled but we hold no confirmed booking.
+  const [awayVmUnbooked, setAwayVmUnbooked] = useState<AwayVmUnbooked[]>([])
   useEffect(() => {
-    if (!season?.id) { setAwayVmChecks({}); return }
+    if (!season?.id) { setAwayVmChecks({}); setAwayVmUnbooked([]); return }
     let cancelled = false
-    kscwApi<{ checks: Record<string, AwayVmCheck> }>(`/admin/terminplanung/away-vm-check?season=${season.id}`)
-      .then((r) => { if (!cancelled) setAwayVmChecks(r.checks || {}) })
-      .catch(() => { if (!cancelled) setAwayVmChecks({}) })
+    kscwApi<{ checks: Record<string, AwayVmCheck>; unbooked?: AwayVmUnbooked[] }>(`/admin/terminplanung/away-vm-check?season=${season.id}`)
+      .then((r) => { if (!cancelled) { setAwayVmChecks(r.checks || {}); setAwayVmUnbooked(r.unbooked || []) } })
+      .catch(() => { if (!cancelled) { setAwayVmChecks({}); setAwayVmUnbooked([]) } })
     return () => { cancelled = true }
   }, [season?.id, bookings])
 
@@ -288,6 +290,28 @@ export default function AdminDashboardPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
       void refetch()
+    }
+  }
+
+  // Adopt VolleyManager's date/time (+gym) for one away game — overwrite an
+  // existing confirmed slot (bookingId) or create one from VM (opponentId +
+  // svrzGameId). refetch() updates `bookings`, which re-runs away-vm-check.
+  const [vmSyncing, setVmSyncing] = useState<string | null>(null)
+  const handleSyncFromVm = async (args: { key: string; bookingId?: string; opponentId?: string; svrzGameId?: string | null }) => {
+    setVmSyncing(args.key)
+    try {
+      await kscwApi('/admin/terminplanung/sync-away-from-vm', {
+        method: 'POST',
+        body: args.bookingId
+          ? { booking_id: args.bookingId }
+          : { opponent_id: args.opponentId, svrz_game_id: args.svrzGameId },
+      })
+      toast.success(t('vmSynced'))
+      await refetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setVmSyncing(null)
     }
   }
 
@@ -572,17 +596,29 @@ export default function AdminDashboardPage() {
     })
   })()
 
+  // Away fixtures VolleyManager has scheduled but we never confirmed a slot —
+  // shown in the same alert with a one-click "create from VM" Sync button.
+  const awayUnbooked = (() => {
+    if (!awayVmUnbooked.length) return []
+    const oppById = new Map(opponents.map((o) => [String(o.id), o]))
+    const teamNameById = new Map(volleyballTeams.map((tm) => [String(tm.id), tm.name]))
+    return awayVmUnbooked.map((u) => {
+      const opp = oppById.get(String(u.opponent_id))
+      return {
+        key: `${u.opponent_id}:${u.svrz_game_id}`,
+        opponentId: String(u.opponent_id),
+        svrzGameId: String(u.svrz_game_id),
+        opp: opp ? (opp.team_name || opp.club_name) : `#${u.opponent_id}`,
+        team: opp ? (teamNameById.get(String(opp.kscw_team)) || '') : '',
+        vm: u.vm,
+      }
+    })
+  })()
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <Link
-            to="/admin/terminplanung"
-            className="mb-1 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-          >
-            <span aria-hidden>←</span>
-            {t('setupTitle')}
-          </Link>
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('dashboardTitle')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{formatSeasonShort(season.season)}</p>
         </div>
@@ -621,19 +657,42 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Away games whose agreed date diverges from VolleyManager — red alert.
-          "VM not updated yet" (unset) is intentionally NOT flagged. */}
-      {awayMismatches.length > 0 && (
+      {/* Away games that diverge from VolleyManager (red) or that VM has scheduled
+          but we never booked (amber) — each with a one-click "Sync with VM".
+          "VM not updated yet" (unset/placeholder) is intentionally NOT flagged. */}
+      {(awayMismatches.length > 0 || awayUnbooked.length > 0) && (
         <div className="rounded-lg border border-red-300 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/30">
           <p className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
             <span aria-hidden>⚠</span>
-            {t('awayVmMismatchAlert', { count: awayMismatches.length })}
+            {t('awayVmMismatchAlert', { count: awayMismatches.length + awayUnbooked.length })}
           </p>
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-2 space-y-1.5">
             {awayMismatches.map((m) => (
-              <li key={m.bid} className="flex flex-wrap items-baseline gap-x-2 text-xs text-red-700 dark:text-red-300">
+              <li key={m.bid} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-red-700 dark:text-red-300">
                 <span className="font-medium">{[m.team, m.opp].filter(Boolean).join(' · ')}</span>
                 <span className="text-red-600/80 dark:text-red-400/80">{t('awayVmMismatchRow', { agreed: m.agreed || '—', vm: m.vm || '—' })}</span>
+                <button
+                  type="button"
+                  onClick={() => handleSyncFromVm({ key: `b:${m.bid}`, bookingId: m.bid })}
+                  disabled={vmSyncing === `b:${m.bid}`}
+                  className="rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
+                >
+                  {vmSyncing === `b:${m.bid}` ? '…' : t('syncWithVm')}
+                </button>
+              </li>
+            ))}
+            {awayUnbooked.map((u) => (
+              <li key={u.key} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-red-700 dark:text-red-300">
+                <span className="font-medium">{[u.team, u.opp].filter(Boolean).join(' · ')}</span>
+                <span className="text-red-600/80 dark:text-red-400/80">{t('awayVmUnbookedRow', { vm: u.vm })}</span>
+                <button
+                  type="button"
+                  onClick={() => handleSyncFromVm({ key: `u:${u.key}`, opponentId: u.opponentId, svrzGameId: u.svrzGameId })}
+                  disabled={vmSyncing === `u:${u.key}`}
+                  className="rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
+                >
+                  {vmSyncing === `u:${u.key}` ? '…' : t('syncWithVm')}
+                </button>
               </li>
             ))}
           </ul>
@@ -821,6 +880,9 @@ export default function AdminDashboardPage() {
                     emailsFor={(opp) => messagesForOpponentThread(mailbox.messages, opp, opponentContacts)}
                     onOpenMailbox={setMailboxFocus}
                     awayVmChecks={awayVmChecks}
+                    awayVmUnbooked={awayVmUnbooked}
+                    onSyncVm={handleSyncFromVm}
+                    vmSyncing={vmSyncing}
                   />
                 </div>
               )}
@@ -865,6 +927,9 @@ function TeamBookingsContent({
   emailsFor,
   onOpenMailbox,
   awayVmChecks,
+  awayVmUnbooked,
+  onSyncVm,
+  vmSyncing,
 }: {
   kscwTeamId: string
   kscwTeamName: string
@@ -892,8 +957,14 @@ function TeamBookingsContent({
   emailsFor: (opp: GameSchedulingOpponent) => MailboxMessage[]
   onOpenMailbox: (opp: GameSchedulingOpponent) => void
   awayVmChecks: Record<string, AwayVmCheck>
+  awayVmUnbooked: AwayVmUnbooked[]
+  onSyncVm: (args: { key: string; bookingId?: string; opponentId?: string; svrzGameId?: string | null }) => Promise<void>
+  vmSyncing: string | null
 }) {
   const { t } = useTranslation('gameScheduling')
+  // VM fixtures with a date but no booking, keyed `${opponent}:${svrz_game_id}`
+  // so an unbooked away leg can offer a one-click "create from VM".
+  const unbookedByKey = new Map(awayVmUnbooked.map((u) => [`${u.opponent_id}:${u.svrz_game_id}`, u]))
   const { data: halls } = useHalls()
   const hallsById = new Map((halls || []).map((h) => [String(h.id), h.name]))
 
@@ -1223,9 +1294,25 @@ function TeamBookingsContent({
                           booking={leg.booking}
                           onConfirm={onConfirmAway}
                           vmCheck={awayVmChecks[String(leg.booking.id)] ?? null}
+                          onSyncVm={() => onSyncVm({ key: `b:${leg.booking!.id}`, bookingId: String(leg.booking!.id) })}
+                          vmSyncing={vmSyncing === `b:${leg.booking.id}`}
                           health={healthByBooking.get(String(leg.booking.id))}
                           onDelete={() => onDeleteBooking(leg.booking!)}
                         />
+                      ) : unbookedByKey.has(`${opp.id}:${leg.svrzGameId}`) ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm text-amber-700 dark:text-amber-400">
+                            {t('awayVmUnbookedRow', { vm: unbookedByKey.get(`${opp.id}:${leg.svrzGameId}`)!.vm })}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => onSyncVm({ key: `u:${opp.id}:${leg.svrzGameId}`, opponentId: String(opp.id), svrzGameId: leg.svrzGameId })}
+                            disabled={vmSyncing === `u:${opp.id}:${leg.svrzGameId}`}
+                            className="rounded-md border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-300 dark:hover:bg-gray-700"
+                          >
+                            {vmSyncing === `u:${opp.id}:${leg.svrzGameId}` ? '…' : t('syncWithVm')}
+                          </button>
+                        </div>
                       ) : (
                         <span className="text-sm text-gray-400">{t('pending')}</span>
                       )}

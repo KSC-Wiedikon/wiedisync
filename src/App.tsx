@@ -197,6 +197,7 @@ export default function App() {
             <Route path="admin/spielplanung" element={<SchedulingRedirect />} />
             <Route path="admin/hallenplan" element={<AdminRoute><HallenplanPage /></AdminRoute>} />
             <Route path="admin/terminplanung" element={<SchedulingRedirect />} />
+            <Route path="admin/terminplanung/settings" element={<SchedulingRedirect />} />
             <Route path="admin/terminplanung/dashboard" element={<SchedulingRedirect />} />
             <Route path="admin/scorer-assign" element={<AdminRoute><ScorerAssignPage /></AdminRoute>} />
             <Route path="admin/referee-expenses" element={<AdminRoute><RefereeExpensesPage /></AdminRoute>} />

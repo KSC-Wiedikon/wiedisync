@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import LoadingSpinner from './LoadingSpinner'
-import { CalendarClock, Check, ChevronDown, ClipboardList, LogOut, Moon, Sun } from 'lucide-react'
+import { CalendarClock, Check, ChevronDown, ClipboardList, LayoutDashboard, LogOut, Moon, Settings, Sun } from 'lucide-react'
 
 /**
  * Minimal shell for the Spielplanung subdomain's admin pages — logo, the two
@@ -34,11 +34,20 @@ export default function SchedulingLayout() {
   const canTerminplanung = hasAdminAccessToSport('volleyball') || is_spielplaner
   const canPlanner = isAdmin || is_spielplaner || spielplanerTeamIds.length > 0
 
-  const navItems: { to: string; label: string; Icon: typeof CalendarClock }[] = [
-    ...(canTerminplanung ? [{ to: '/admin/terminplanung', label: t('terminplanung'), Icon: CalendarClock }] : []),
+  const navItems: { to: string; label: string; Icon: typeof CalendarClock; end?: boolean }[] = [
+    ...(canTerminplanung
+      ? [
+          { to: '/admin/terminplanung', label: t('dashboard'), Icon: LayoutDashboard, end: true },
+          { to: '/admin/terminplanung/settings', label: t('settings'), Icon: Settings },
+        ]
+      : []),
     ...(canPlanner ? [{ to: '/admin/spielplanung', label: t('gameplan'), Icon: ClipboardList }] : []),
   ]
-  const activeItem = navItems.find((item) => pathname.startsWith(item.to)) ?? navItems[0]
+  // Most-specific match wins so /settings doesn't light up the exact-match dashboard tab.
+  const activeItem =
+    navItems
+      .filter((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to)))
+      .sort((a, b) => b.to.length - a.to.length)[0] ?? navItems[0]
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
@@ -68,7 +77,7 @@ export default function SchedulingLayout() {
           {/* Desktop: inline tabs. Mobile: a dropdown so long labels never scroll horizontally. */}
           <nav className="hidden flex-1 items-center gap-1 sm:flex">
             {navItems.map((item) => (
-              <NavLink key={item.to} to={item.to} className={linkClass}>
+              <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
                 <item.Icon className="h-4 w-4" />
                 <span className="whitespace-nowrap">{item.label}</span>
               </NavLink>

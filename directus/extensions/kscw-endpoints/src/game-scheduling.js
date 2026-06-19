@@ -5017,9 +5017,14 @@ export function registerGameScheduling(router, { database, logger, services, get
           database.raw("to_char(g.starting_date_time AT TIME ZONE 'Europe/Zurich', 'DD.MM.YYYY HH24:MI') as vm_zurich"),
           database.raw("to_char((g.starting_date_time AT TIME ZONE 'Europe/Zurich')::date, 'YYYY-MM-DD') as vm_date_iso"))
 
-      const teamIds = [...new Set(rows.map((r) => r.kscw_team))]
-      const manageable = new Set()
-      for (const tId of teamIds) { if (await spielplanerCanManageTeam(req, tId)) manageable.add(tId) }
+      // Manageability is checked per team; cache so the unbooked scan below reuses
+      // the same verdicts instead of re-querying policy for every opponent.
+      const manageCache = new Map()
+      const canManage = async (teamId) => {
+        const k = String(teamId)
+        if (!manageCache.has(k)) manageCache.set(k, await spielplanerCanManageTeam(req, teamId))
+        return manageCache.get(k)
+      }
 
       // Confirmed proposal → lexical Zurich wall-clock dd.mm.yyyy HH:MM.
       const lexical = (s) => {
@@ -5028,16 +5033,174 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
       const out = {}
       for (const r of rows) {
-        if (!manageable.has(r.kscw_team)) continue
+        if (!(await canManage(r.kscw_team))) continue
         const agreed = lexical(r[`d${r.cp || 1}`])
         if (!r.vm_zurich) { out[r.id] = { status: 'no_vm', agreed, vm: null }; continue }
         if (r.vm_zurich === agreed) { out[r.id] = { status: 'match', agreed, vm: r.vm_zurich }; continue }
         const isPlaceholder = placeholderMax && r.vm_date_iso && r.vm_date_iso <= placeholderMax
         out[r.id] = { status: isPlaceholder ? 'unset' : 'mismatch', agreed, vm: r.vm_zurich }
       }
-      res.json({ checks: out })
+
+      // Away fixtures VolleyManager has actually scheduled (a real date past the
+      // placeholder) but where we hold NO confirmed booking — so the admin can
+      // pull them in with one click ("add it if no game was confirmed"). One
+      // opponentSvrzFixtures() pass per opponent; this endpoint is admin-rare.
+      const oppRows = await database('game_scheduling_opponents')
+        .where('season', season)
+        .select('id', 'kscw_team', 'team_name', 'club_name', 'season')
+      const confirmedAway = await database('game_scheduling_bookings')
+        .where({ season, type: 'away_proposal', status: 'confirmed' })
+        .select('opponent', 'svrz_game_id')
+      const bookedExact = new Set()     // `${opponent}:${svrz_game_id}`
+      const bookedFirstAway = new Set() // opponents whose first away fixture is held by a legacy NULL booking
+      for (const b of confirmedAway) {
+        if (b.svrz_game_id) bookedExact.add(`${b.opponent}:${b.svrz_game_id}`)
+        else bookedFirstAway.add(String(b.opponent))
+      }
+      const candidates = []
+      for (const opp of oppRows) {
+        if (!(await canManage(opp.kscw_team))) continue
+        const fixtures = await opponentSvrzFixtures(opp)
+        const awayFx = fixtures.filter((f) => !f.is_home_kscw && f.starting_date_time)
+        awayFx.forEach((f, idx) => {
+          if (bookedExact.has(`${opp.id}:${f.id}`)) return
+          if (idx === 0 && bookedFirstAway.has(String(opp.id))) return
+          candidates.push({ opponent_id: String(opp.id), svrz_game_id: String(f.id) })
+        })
+      }
+      const unbooked = []
+      if (candidates.length) {
+        const ids = [...new Set(candidates.map((c) => c.svrz_game_id))]
+        const vmRows = await database('svrz_games')
+          .whereIn('svrz_persistence_id', ids)
+          .select('svrz_persistence_id',
+            database.raw("to_char(starting_date_time AT TIME ZONE 'Europe/Zurich', 'DD.MM.YYYY HH24:MI') as vm_zurich"),
+            database.raw("to_char((starting_date_time AT TIME ZONE 'Europe/Zurich')::date, 'YYYY-MM-DD') as vm_date_iso"))
+        const vmById = new Map(vmRows.map((v) => [String(v.svrz_persistence_id), v]))
+        for (const c of candidates) {
+          const v = vmById.get(c.svrz_game_id)
+          if (!v || !v.vm_zurich) continue
+          if (placeholderMax && v.vm_date_iso && v.vm_date_iso <= placeholderMax) continue
+          unbooked.push({ opponent_id: c.opponent_id, svrz_game_id: c.svrz_game_id, vm: v.vm_zurich })
+        }
+      }
+      res.json({ checks: out, unbooked })
     } catch (err) {
       log.error({ msg: `away-vm-check: ${err.message}`, endpoint: 'admin/terminplanung/away-vm-check', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /admin/terminplanung/sync-away-from-vm — adopt VolleyManager's agreed
+  // date/time (and gym, if available) for ONE away game. The opponent owns the
+  // away hall, so THEY enter the date in VM; this is the admin's one-click "take
+  // what's in VM" for the divergent (red) and not-yet-booked rows the
+  // away-vm-check surfaces. Body is either:
+  //   { booking_id }                 → overwrite an existing confirmed away slot
+  //   { opponent_id, svrz_game_id }  → create a confirmed away booking from VM
+  // The synced date came FROM VM, so we deliberately do NOT push it back; the
+  // sv-sync guard then treats the booking as authoritative (date == VM ⇒ no drift).
+  router.post('/admin/terminplanung/sync-away-from-vm', async (req, res) => {
+    try {
+      const { booking_id, opponent_id, svrz_game_id } = req.body || {}
+      if (!booking_id && !(opponent_id && svrz_game_id)) {
+        return res.status(400).json({ error: 'booking_id or (opponent_id + svrz_game_id) required' })
+      }
+
+      // Resolve the target opponent + fixture from either entry point.
+      let booking = null
+      let opponent = null
+      let fixtureId = svrz_game_id ? String(svrz_game_id) : null
+      if (booking_id) {
+        booking = await database('game_scheduling_bookings').where('id', booking_id).first()
+        if (!booking || booking.type !== 'away_proposal') return res.status(404).json({ error: 'Away booking not found' })
+        opponent = await database('game_scheduling_opponents').where('id', booking.opponent).first()
+        fixtureId = booking.svrz_game_id ? String(booking.svrz_game_id) : null
+      } else {
+        opponent = await database('game_scheduling_opponents').where('id', opponent_id).first()
+      }
+      if (!opponent) return res.status(404).json({ error: 'Opponent not found' })
+      if (!(await spielplanerCanManageTeam(req, opponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      if (!fixtureId) return res.status(400).json({ error: 'No SVRZ fixture to sync from' })
+
+      // VolleyManager date/time (Zurich wall-clock) for this fixture, from the
+      // national feed mirror. proposed_datetime_* is stored as a naive wall-clock,
+      // so we format the same way (no tz suffix).
+      const vm = await database('svrz_games')
+        .where('svrz_persistence_id', fixtureId)
+        .first('svrz_number',
+          database.raw("to_char(starting_date_time AT TIME ZONE 'Europe/Zurich', 'YYYY-MM-DD\"T\"HH24:MI') as dt_naive"),
+          database.raw("to_char((starting_date_time AT TIME ZONE 'Europe/Zurich')::date, 'YYYY-MM-DD') as date_iso"))
+      if (!vm || !vm.dt_naive) return res.status(400).json({ error: 'VolleyManager has no date for this game yet' })
+
+      // Never adopt the league's unscheduled placeholder over a real slot.
+      const seasonRow = await database('game_scheduling_seasons').where('id', opponent.season).first()
+      const offerWindow = seasonOfferWindow(seasonRow)
+      if (offerWindow && vm.date_iso && vm.date_iso <= offerWindow.start) {
+        return res.status(400).json({ error: 'VolleyManager still shows the placeholder date — nothing to sync' })
+      }
+
+      // Gym: the opponent's hall, mirrored into games.away_hall_json by sv-sync
+      // (present once VM carries it). "Add the gym if available" → only set when found.
+      let place = ''
+      if (vm.svrz_number != null) {
+        const g = await database('games').where('game_id', `vb_${vm.svrz_number}`).first('away_hall_json')
+        if (g && g.away_hall_json) {
+          try {
+            const h = typeof g.away_hall_json === 'string' ? JSON.parse(g.away_hall_json) : g.away_hall_json
+            place = [h.name, h.address, h.city].filter(Boolean).join(', ').trim().slice(0, 200)
+          } catch { /* malformed hall json — leave the gym unset */ }
+        }
+      }
+
+      const actor = await resolveActingUser(req)
+      const seasonId = String(opponent.season)
+      let resultBookingId = booking_id || null
+
+      if (booking) {
+        // Overwrite the confirmed proposal's slot in place (keep the chosen number).
+        const cp = Number(booking.confirmed_proposal) || 1
+        const patch = {
+          status: 'confirmed', confirmed_proposal: cp,
+          [`proposed_datetime_${cp}`]: vm.dt_naive,
+          confirmed_by_name: actor.name, confirmed_by_email: actor.email, confirmed_at: database.fn.now(),
+        }
+        if (place) patch[`proposed_place_${cp}`] = place
+        await database('game_scheduling_bookings').where('id', booking.id).update(patch)
+      } else {
+        // Create from scratch — mirrors manual-booking's away leg.
+        const fixtures = await opponentSvrzFixtures(opponent)
+        const target = resolveTargetFixture(fixtures, false, fixtureId)
+        if (!target) return res.status(400).json({ error: 'Invalid away game for this opponent' })
+        await scopeToFixture(
+          database('game_scheduling_bookings').where({ opponent: opponent.id, type: 'away_proposal' }),
+          target,
+        ).del()
+        const ins = await database('game_scheduling_bookings').insert({
+          opponent: opponent.id, season: seasonId, type: 'away_proposal',
+          status: 'confirmed', confirmed_proposal: 1,
+          svrz_game_id: target.fixtureId,
+          proposed_datetime_1: vm.dt_naive, proposed_place_1: place || null,
+          admin_notes: 'Von VolleyManager übernommen',
+          confirmed_by_name: actor.name, confirmed_by_email: actor.email, confirmed_at: database.fn.now(),
+        }).returning('id')
+        resultBookingId = typeof ins[0] === 'object' ? ins[0].id : ins[0]
+        await database('game_scheduling_opponents').where('id', opponent.id).update({ status: 'booked' })
+      }
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: booking ? 'update' : 'create',
+        collection: 'game_scheduling_bookings', recordId: resultBookingId,
+        data: { kind: 'sync_away_from_vm', opponent: opponent.id, svrz_game_id: fixtureId, vm: vm.dt_naive },
+      })
+
+      // Mirror into `games` so member calendars reflect the synced date right away.
+      reconcileBookingsToGames(opponent.season).catch((e) => log.warn(`sync-away-from-vm reconcile failed: ${e.message}`))
+
+      res.json({ success: true })
+    } catch (err) {
+      if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.message })
+      log.error({ msg: `sync-away-from-vm: ${err.message}`, endpoint: 'admin/terminplanung/sync-away-from-vm', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
