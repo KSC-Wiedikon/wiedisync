@@ -68,9 +68,18 @@ export default {
   colCredit: 'Credit',
   colAmount: 'Amount',
 
-  // Member dues
-  myDuesTitle: 'Your dues',
-  myDuesSubtitle: 'Your invoices from the club',
+  // Member finance page (label "Finance" — hosts payout IBAN + invoices)
+  myDuesTitle: 'Finance',
+  myDuesSubtitle: 'Your invoices and payout details',
+  // Payout IBAN editor (moved here from the profile editor)
+  ibanCardTitle: 'Payout IBAN',
+  ibanCardSubtitle: 'Your bank account for reimbursements from the club.',
+  ibanCardEmpty: 'No IBAN saved yet — add it so we can reimburse you.',
+  ibanCardAdd: 'Add IBAN',
+  ibanCardPrivacy: 'Only finance and admins can see this.',
+  ibanInvalid: 'Please enter a valid IBAN.',
+  ibanSaved: 'IBAN saved.',
+  ibanSaveError: 'Could not save — please try again.',
   openBalance: 'Open balance',
   allSettled: 'All settled — nothing open.',
   noInvoices: 'You have no invoices.',

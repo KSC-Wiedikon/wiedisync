@@ -23,7 +23,7 @@ export default {
   absencesAlertBody: 'For next season\'s game scheduling: add all known absences by 1 June so coaches can plan accordingly.',
   absencesAlertCta: 'Add absences',
   ibanNudgeTitle: 'Add your IBAN',
-  ibanNudgeBody: 'Finance needs your most up-to-date IBAN to reimburse expenses. Please add it to your profile.',
+  ibanNudgeBody: 'Finance needs your most up-to-date IBAN to reimburse expenses. Add or check it under Finance.',
   ibanNudgeCta: 'Add IBAN',
   ibanNudgeDismiss: 'Not now',
 } as const
