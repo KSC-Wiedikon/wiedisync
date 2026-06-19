@@ -113,4 +113,6 @@ export default {
   expenseInvalidIban: 'Please enter a valid IBAN.',
   expenseError: 'Could not submit — please try again.',
   expenseChangeFile: 'Use a different file',
+  expenseVerifyFirst: 'Complete the security check to upload.',
+  expenseRateLimited: 'You can scan up to 5 receipts per hour. Please try again later.',
 }

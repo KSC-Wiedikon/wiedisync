@@ -109,4 +109,6 @@ export default {
   expenseInvalidIban: 'Inserisci un IBAN valido.',
   expenseError: 'Invio non riuscito — riprova.',
   expenseChangeFile: 'Usa un altro file',
+  expenseVerifyFirst: 'Completa la verifica di sicurezza per caricare.',
+  expenseRateLimited: 'Puoi scansionare fino a 5 ricevute all\'ora. Riprova più tardi.',
 }

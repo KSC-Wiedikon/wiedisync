@@ -109,4 +109,6 @@ export default {
   expenseInvalidIban: 'Bitte e gültigi IBAN iigä.',
   expenseError: 'Schicke het nöd klappt — bitte nomal versueche.',
   expenseChangeFile: 'Anderi Datei näh',
+  expenseVerifyFirst: 'Schliess d Sicherheitsprüefig ab zum hochlade.',
+  expenseRateLimited: 'Du chasch bis zu 5 Beläg pro Stund scanne. Bitte spöter nomal versueche.',
 }
