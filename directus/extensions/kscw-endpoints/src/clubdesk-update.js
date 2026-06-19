@@ -8,6 +8,12 @@ import { buildEmailLayout, buildInfoCard, bucketEmailsByLocale } from './email-t
 const OWNER_EMAIL = 'luca.canepa@gmail.com'
 const ADMIN_EMAIL = 'kontakt@kscw.ch'
 
+/** Current season in Wiedisync short form, e.g. '2025/26' (matches member_teams.season). June cutover — same as src/utils/dateHelpers.ts. */
+function getCurrentSeason() {
+  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth()
+  return m < 5 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
+}
+
 /** Per-locale display labels for DB field names */
 const FIELD_LABELS = {
   de: {
@@ -165,13 +171,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const { ItemsService, MailService } = services
       const mtService = new ItemsService('member_teams', { schema, knex: database })
       const memberTeams = await mtService.readByQuery({
-        filter: { member: { _eq: member_id } },
+        filter: { member: { _eq: member_id }, season: { _eq: getCurrentSeason() } },
         fields: ['team.name', 'team.sport'],
       })
-      const teamNames = memberTeams
-        .map(mt => mt.team?.name)
-        .filter(Boolean)
-        .join(', ')
+      // Dedupe by team name (defensive — a member can hold the same team across
+      // multiple seasons; the season filter already scopes to the current one).
+      const teamNames = [...new Set(
+        memberTeams.map(mt => mt.team?.name).filter(Boolean)
+      )].join(', ')
 
       // Determine sport for email accent
       const teamSports = memberTeams.map(mt => mt.team?.sport).filter(Boolean)
