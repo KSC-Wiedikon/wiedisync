@@ -108,6 +108,7 @@ export default {
   expenseReviewHint: 'We pre-filled these from your document. Correct anything that is off.',
   expenseAmount: 'Amount',
   expenseCurrency: 'Currency',
+  expenseCurrencySearch: 'Search currency…',
   expenseDate: 'Date',
   expenseVendor: 'Vendor',
   expenseDescription: 'Description',

@@ -103,6 +103,7 @@ export default {
   expenseReviewHint: 'Li abbiamo precompilati dal tuo documento. Correggi ciò che non va.',
   expenseAmount: 'Importo',
   expenseCurrency: 'Valuta',
+  expenseCurrencySearch: 'Cerca valuta…',
   expenseDate: 'Data',
   expenseVendor: 'Fornitore',
   expenseDescription: 'Descrizione',

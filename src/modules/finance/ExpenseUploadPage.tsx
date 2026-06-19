@@ -4,10 +4,13 @@ import { toast } from 'sonner'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { Upload, Loader2, FileText, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 import { FormInput, FormTextarea } from '@/components/FormField'
 import { useAuth } from '../../hooks/useAuth'
 import { kscwApi, uploadFile } from '../../lib/api'
 import { isValidIban, normalizeIban } from '../../utils/iban'
+import { formatAmountCH, parseAmount } from '../../utils/amount'
+import { CURRENCY_OPTIONS } from '../../utils/currencies'
 
 // Public Cloudflare Turnstile site key (same widget the sign-up + scheduling pages use).
 const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
@@ -63,7 +66,7 @@ export default function ExpenseUploadPage() {
   }
 
   function prefill(ex: Extracted) {
-    setAmount(ex.amount != null ? String(ex.amount) : '')
+    setAmount(formatAmountCH(ex.amount))
     setCurrency(ex.currency || 'CHF')
     setDate(ex.date || '')
     setVendor(ex.vendor || '')
@@ -119,8 +122,8 @@ export default function ExpenseUploadPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    const amountNum = Number(amount.replace(',', '.'))
-    if (!amount.trim() || Number.isNaN(amountNum) || amountNum <= 0) {
+    const amountNum = parseAmount(amount)
+    if (amountNum == null || amountNum <= 0) {
       setError(t('expenseAmountRequired'))
       return
     }
@@ -239,23 +242,32 @@ export default function ExpenseUploadPage() {
             )}
 
             <div className="mt-4 space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+                <div className="sm:col-span-3">
                   <FormInput
                     label={t('expenseAmount')}
                     type="text"
                     inputMode="decimal"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
+                    onBlur={() => {
+                      // Reformat to 1'398.98 on blur; leave unparseable text
+                      // untouched so the submit-time validation can flag it.
+                      const formatted = formatAmountCH(amount)
+                      if (formatted) setAmount(formatted)
+                    }}
                     placeholder="0.00"
                   />
                 </div>
-                <FormInput
-                  label={t('expenseCurrency')}
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value.toUpperCase().slice(0, 3))}
-                  maxLength={3}
-                />
+                <div className="sm:col-span-2">
+                  <SearchableSelect
+                    label={t('expenseCurrency')}
+                    options={CURRENCY_OPTIONS}
+                    value={currency}
+                    onChange={setCurrency}
+                    searchPlaceholder={t('expenseCurrencySearch')}
+                  />
+                </div>
               </div>
               <FormInput label={t('expenseDate')} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               <FormInput label={t('expenseVendor')} value={vendor} onChange={(e) => setVendor(e.target.value)} />
