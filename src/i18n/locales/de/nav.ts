@@ -1,5 +1,6 @@
 export default {
   home: 'Home',
+  activities: 'Aktivitäten',
   calendar: 'Kalender',
   games: 'Spiele & Resultate',
   gamesShort: 'Spiele',
