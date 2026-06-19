@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-16T10:58:03.582Z
+-- Generated:   2026-06-18T15:49:38.362Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -2687,6 +2687,373 @@ ALTER SEQUENCE public.feedback_id_seq OWNED BY public.feedback.id;
 
 
 --
+-- Name: finance_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_accounts (
+    id integer NOT NULL,
+    number character varying(16) NOT NULL,
+    name character varying(128) NOT NULL,
+    type character varying(16),
+    division character varying(8),
+    active boolean DEFAULT true NOT NULL,
+    source character varying(16) DEFAULT 'clubdesk'::character varying NOT NULL,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    user_updated uuid,
+    CONSTRAINT finance_accounts_division_check CHECK (((division IS NULL) OR ((division)::text = ANY ((ARRAY['club'::character varying, 'vb'::character varying, 'bb'::character varying])::text[])))),
+    CONSTRAINT finance_accounts_source_check CHECK (((source)::text = ANY ((ARRAY['clubdesk'::character varying, 'native'::character varying])::text[]))),
+    CONSTRAINT finance_accounts_type_check CHECK (((type IS NULL) OR ((type)::text = ANY ((ARRAY['asset'::character varying, 'liability'::character varying, 'equity'::character varying, 'income'::character varying, 'expense'::character varying, 'close'::character varying])::text[]))))
+);
+
+
+--
+-- Name: TABLE finance_accounts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_accounts IS 'Chart of accounts (Kontenplan), derived from distinct Soll/Haben accounts in the ClubDesk bookings export. type inferred from number range (1xxx asset, 2xxx liability/equity, 3xxx income, 4xxx expense, 9xxx close); division (vb/bb/club) inferred from the account name.';
+
+
+--
+-- Name: finance_accounts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_accounts_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_accounts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_accounts_id_seq OWNED BY public.finance_accounts.id;
+
+
+--
+-- Name: finance_budget_lines; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_budget_lines (
+    id integer NOT NULL,
+    fiscal_year integer NOT NULL,
+    account integer NOT NULL,
+    amount_budgeted numeric(12,2) DEFAULT 0 NOT NULL,
+    notes text,
+    source character varying(16) DEFAULT 'clubdesk'::character varying NOT NULL,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    user_updated uuid,
+    CONSTRAINT finance_budget_lines_source_check CHECK (((source)::text = ANY ((ARRAY['clubdesk'::character varying, 'native'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE finance_budget_lines; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_budget_lines IS 'Budgeted amount per (fiscal_year, account) for budget-vs-actual. Populated once a ClubDesk budget export is captured; until then the dashboard shows actuals only.';
+
+
+--
+-- Name: finance_budget_lines_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_budget_lines_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_budget_lines_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_budget_lines_id_seq OWNED BY public.finance_budget_lines.id;
+
+
+--
+-- Name: finance_fiscal_years; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_fiscal_years (
+    id integer NOT NULL,
+    label character varying(16) NOT NULL,
+    starts_on date NOT NULL,
+    ends_on date NOT NULL,
+    status character varying(16) DEFAULT 'open'::character varying NOT NULL,
+    source character varying(16) DEFAULT 'clubdesk'::character varying NOT NULL,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    user_updated uuid,
+    CONSTRAINT finance_fiscal_years_source_check CHECK (((source)::text = ANY ((ARRAY['clubdesk'::character varying, 'native'::character varying])::text[]))),
+    CONSTRAINT finance_fiscal_years_status_check CHECK (((status)::text = ANY ((ARRAY['open'::character varying, 'closed'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE finance_fiscal_years; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_fiscal_years IS 'Accounting periods. KSCW fiscal year runs June–May (e.g. 2025/26 = 01.06.2025–31.05.2026). Anchors budgets + reporting.';
+
+
+--
+-- Name: finance_fiscal_years_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_fiscal_years_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_fiscal_years_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_fiscal_years_id_seq OWNED BY public.finance_fiscal_years.id;
+
+
+--
+-- Name: finance_imports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_imports (
+    id integer NOT NULL,
+    import_type character varying(32) NOT NULL,
+    filename character varying(255),
+    imported_at timestamp with time zone DEFAULT now() NOT NULL,
+    imported_by_name character varying(255),
+    imported_by_email character varying(255),
+    row_count integer,
+    fiscal_year_label character varying(16),
+    source_checksum character varying(64),
+    notes text,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    CONSTRAINT finance_imports_type_check CHECK (((import_type)::text = ANY ((ARRAY['invoices'::character varying, 'bookings'::character varying, 'accounts'::character varying, 'budget'::character varying, 'payments'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE finance_imports; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_imports IS 'One row per ClubDesk finance sync/import. Records WHO (imported_by_*), WHAT (import_type), and how many rows — the finance equivalent of the audit-log actor capture for the raw-knex import path.';
+
+
+--
+-- Name: finance_imports_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_imports_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_imports_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_imports_id_seq OWNED BY public.finance_imports.id;
+
+
+--
+-- Name: finance_invoices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_invoices (
+    id integer NOT NULL,
+    clubdesk_id character varying(32) NOT NULL,
+    number character varying(32),
+    invoice_date date,
+    subject character varying(255),
+    amount numeric(12,2),
+    status character varying(32),
+    dunning_status character varying(32),
+    due_date date,
+    amount_paid numeric(12,2),
+    open_amount numeric(12,2),
+    overpaid_amount numeric(12,2),
+    written_off_amount numeric(12,2),
+    payment_method character varying(64),
+    reference character varying(64),
+    fee_category character varying(64),
+    closed_on date,
+    cd_created_at timestamp with time zone,
+    cd_changed_at timestamp with time zone,
+    recipient_name character varying(255),
+    recipient_email character varying(255),
+    cd_benutzer_id character varying(64),
+    member integer,
+    fiscal_year integer,
+    source character varying(16) DEFAULT 'clubdesk'::character varying NOT NULL,
+    import_batch integer,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    user_updated uuid,
+    CONSTRAINT finance_invoices_source_check CHECK (((source)::text = ANY ((ARRAY['clubdesk'::character varying, 'native'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE finance_invoices; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_invoices IS 'Member invoices/dues mirrored from the ClubDesk Rechnungen export. Invoice fields + a member link ONLY — AHV/IBAN/home address present in the source CSV are deliberately NOT mirrored (keep the finance module low-PII). number is NULL for draft (Entwurf) invoices; clubdesk_id ([Id]) is the stable upsert key. member matched on recipient_email, fallback cd_benutzer_id.';
+
+
+--
+-- Name: finance_invoices_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_invoices_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_invoices_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_invoices_id_seq OWNED BY public.finance_invoices.id;
+
+
+--
+-- Name: finance_payments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_payments (
+    id integer NOT NULL,
+    invoice integer,
+    payment_date date,
+    amount numeric(12,2),
+    method character varying(64),
+    camt_reference character varying(128),
+    source character varying(16) DEFAULT 'native'::character varying NOT NULL,
+    import_batch integer,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    user_updated uuid,
+    CONSTRAINT finance_payments_source_check CHECK (((source)::text = ANY ((ARRAY['clubdesk'::character varying, 'native'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE finance_payments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_payments IS 'Individual payments against invoices. Created now for Scope C (camt.053/054 reconciliation); stays empty under Scope A, where paid/open amounts are read directly off finance_invoices.';
+
+
+--
+-- Name: finance_payments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_payments_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_payments_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_payments_id_seq OWNED BY public.finance_payments.id;
+
+
+--
+-- Name: finance_transactions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_transactions (
+    id integer NOT NULL,
+    clubdesk_id character varying(32),
+    typ character varying(48),
+    beleg character varying(64),
+    booking_date date NOT NULL,
+    text text,
+    debit_account_number character varying(16),
+    debit_account_name character varying(128),
+    credit_account_number character varying(16),
+    credit_account_name character varying(128),
+    debit_account integer,
+    credit_account integer,
+    amount_chf numeric(12,2),
+    fiscal_year integer,
+    source character varying(16) DEFAULT 'clubdesk'::character varying NOT NULL,
+    import_batch integer,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    user_updated uuid,
+    CONSTRAINT finance_transactions_source_check CHECK (((source)::text = ANY ((ARRAY['clubdesk'::character varying, 'native'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE finance_transactions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_transactions IS 'Double-entry ledger mirrored from the ClubDesk Buchhaltung export. debit_/credit_account_number+name are the raw Soll/Haben values; debit_account/credit_account are the resolved finance_accounts FKs. typ ∈ Eröffnung/Abschluss/Rechnung/Rechnung (Sammel)/Rechnung (Sammelposition)/Standard (free text — ClubDesk may add more).';
+
+
+--
+-- Name: COLUMN finance_transactions.amount_chf; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_transactions.amount_chf IS 'Amount in CHF (nullable). ClubDesk exports Swiss-formatted (1''234.56) — the importer strips the apostrophe. NULL on collective-invoice header rows (Typ ''Rechnung (Sammel)''), which carry no amount; the postings are on the Sammelposition child rows.';
+
+
+--
+-- Name: finance_transactions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_transactions_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_transactions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_transactions_id_seq OWNED BY public.finance_transactions.id;
+
+
+--
 -- Name: fine_rules; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3032,7 +3399,10 @@ CREATE TABLE public.game_scheduling_bookings (
     vm_push_error text,
     svrz_game_id character varying(255),
     proposed_by_name text,
-    proposed_by_email text
+    proposed_by_email text,
+    confirmed_by_name text,
+    confirmed_by_email text,
+    confirmed_at timestamp with time zone
 );
 
 
@@ -5915,6 +6285,55 @@ ALTER TABLE ONLY public.feedback ALTER COLUMN id SET DEFAULT nextval('public.fee
 
 
 --
+-- Name: finance_accounts id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_accounts ALTER COLUMN id SET DEFAULT nextval('public.finance_accounts_id_seq'::regclass);
+
+
+--
+-- Name: finance_budget_lines id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_budget_lines ALTER COLUMN id SET DEFAULT nextval('public.finance_budget_lines_id_seq'::regclass);
+
+
+--
+-- Name: finance_fiscal_years id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_fiscal_years ALTER COLUMN id SET DEFAULT nextval('public.finance_fiscal_years_id_seq'::regclass);
+
+
+--
+-- Name: finance_imports id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_imports ALTER COLUMN id SET DEFAULT nextval('public.finance_imports_id_seq'::regclass);
+
+
+--
+-- Name: finance_invoices id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_invoices ALTER COLUMN id SET DEFAULT nextval('public.finance_invoices_id_seq'::regclass);
+
+
+--
+-- Name: finance_payments id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payments ALTER COLUMN id SET DEFAULT nextval('public.finance_payments_id_seq'::regclass);
+
+
+--
+-- Name: finance_transactions id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_transactions ALTER COLUMN id SET DEFAULT nextval('public.finance_transactions_id_seq'::regclass);
+
+
+--
 -- Name: fine_rules id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -6454,6 +6873,94 @@ ALTER TABLE ONLY public.events_teams
 
 ALTER TABLE ONLY public.feedback
     ADD CONSTRAINT feedback_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_accounts finance_accounts_number_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_accounts
+    ADD CONSTRAINT finance_accounts_number_unique UNIQUE (number);
+
+
+--
+-- Name: finance_accounts finance_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_accounts
+    ADD CONSTRAINT finance_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_budget_lines finance_budget_lines_fy_account_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_budget_lines
+    ADD CONSTRAINT finance_budget_lines_fy_account_unique UNIQUE (fiscal_year, account);
+
+
+--
+-- Name: finance_budget_lines finance_budget_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_budget_lines
+    ADD CONSTRAINT finance_budget_lines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_fiscal_years finance_fiscal_years_label_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_fiscal_years
+    ADD CONSTRAINT finance_fiscal_years_label_unique UNIQUE (label);
+
+
+--
+-- Name: finance_fiscal_years finance_fiscal_years_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_fiscal_years
+    ADD CONSTRAINT finance_fiscal_years_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_imports finance_imports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_imports
+    ADD CONSTRAINT finance_imports_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_invoices finance_invoices_clubdesk_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_invoices
+    ADD CONSTRAINT finance_invoices_clubdesk_id_unique UNIQUE (clubdesk_id);
+
+
+--
+-- Name: finance_invoices finance_invoices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_invoices
+    ADD CONSTRAINT finance_invoices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_payments finance_payments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payments
+    ADD CONSTRAINT finance_payments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_transactions finance_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_transactions
+    ADD CONSTRAINT finance_transactions_pkey PRIMARY KEY (id);
 
 
 --
@@ -7128,6 +7635,83 @@ CREATE INDEX events_created_by_index ON public.events USING btree (created_by);
 --
 
 CREATE INDEX events_hall_index ON public.events USING btree (hall);
+
+
+--
+-- Name: finance_budget_lines_fy_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_budget_lines_fy_idx ON public.finance_budget_lines USING btree (fiscal_year);
+
+
+--
+-- Name: finance_imports_type_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_imports_type_at_idx ON public.finance_imports USING btree (import_type, imported_at DESC);
+
+
+--
+-- Name: finance_invoices_due_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_invoices_due_idx ON public.finance_invoices USING btree (due_date);
+
+
+--
+-- Name: finance_invoices_member_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_invoices_member_status_idx ON public.finance_invoices USING btree (member, status);
+
+
+--
+-- Name: finance_invoices_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_invoices_status_idx ON public.finance_invoices USING btree (status);
+
+
+--
+-- Name: finance_payments_invoice_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_payments_invoice_idx ON public.finance_payments USING btree (invoice);
+
+
+--
+-- Name: finance_transactions_clubdesk_id_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX finance_transactions_clubdesk_id_uidx ON public.finance_transactions USING btree (clubdesk_id) WHERE (clubdesk_id IS NOT NULL);
+
+
+--
+-- Name: finance_transactions_credit_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_transactions_credit_idx ON public.finance_transactions USING btree (credit_account);
+
+
+--
+-- Name: finance_transactions_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_transactions_date_idx ON public.finance_transactions USING btree (booking_date);
+
+
+--
+-- Name: finance_transactions_debit_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_transactions_debit_idx ON public.finance_transactions USING btree (debit_account);
+
+
+--
+-- Name: finance_transactions_fy_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_transactions_fy_idx ON public.finance_transactions USING btree (fiscal_year);
 
 
 --
@@ -8522,6 +9106,94 @@ ALTER TABLE ONLY public.events_teams
 
 ALTER TABLE ONLY public.events_teams
     ADD CONSTRAINT events_teams_teams_id_foreign FOREIGN KEY (teams_id) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finance_budget_lines finance_budget_lines_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_budget_lines
+    ADD CONSTRAINT finance_budget_lines_account_fkey FOREIGN KEY (account) REFERENCES public.finance_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finance_budget_lines finance_budget_lines_fiscal_year_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_budget_lines
+    ADD CONSTRAINT finance_budget_lines_fiscal_year_fkey FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finance_invoices finance_invoices_fiscal_year_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_invoices
+    ADD CONSTRAINT finance_invoices_fiscal_year_fkey FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_invoices finance_invoices_import_batch_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_invoices
+    ADD CONSTRAINT finance_invoices_import_batch_fkey FOREIGN KEY (import_batch) REFERENCES public.finance_imports(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_invoices finance_invoices_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_invoices
+    ADD CONSTRAINT finance_invoices_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_payments finance_payments_import_batch_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payments
+    ADD CONSTRAINT finance_payments_import_batch_fkey FOREIGN KEY (import_batch) REFERENCES public.finance_imports(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_payments finance_payments_invoice_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payments
+    ADD CONSTRAINT finance_payments_invoice_fkey FOREIGN KEY (invoice) REFERENCES public.finance_invoices(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finance_transactions finance_transactions_credit_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_transactions
+    ADD CONSTRAINT finance_transactions_credit_account_fkey FOREIGN KEY (credit_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_transactions finance_transactions_debit_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_transactions
+    ADD CONSTRAINT finance_transactions_debit_account_fkey FOREIGN KEY (debit_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_transactions finance_transactions_fiscal_year_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_transactions
+    ADD CONSTRAINT finance_transactions_fiscal_year_fkey FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_transactions finance_transactions_import_batch_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_transactions
+    ADD CONSTRAINT finance_transactions_import_batch_fkey FOREIGN KEY (import_batch) REFERENCES public.finance_imports(id) ON DELETE SET NULL;
 
 
 --

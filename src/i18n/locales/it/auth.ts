@@ -113,6 +113,8 @@ export default {
   birthdateVisibilityFull: 'Mostra data completa',
   birthdateVisibilityYearOnly: 'Solo anno',
   birthdateVisibilityHidden: 'Nascondi',
+  websiteNameOnly: 'Mostra solo il nome sul sito',
+  websiteNameOnlyHint: 'Sul sito pubblico del club il tuo cognome appare come iniziale (es. «Anna M.») e il tuo anno di nascita è nascosto.',
   hidden: 'Nascosto',
   yearOnly: 'Solo anno',
 

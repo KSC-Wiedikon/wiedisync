@@ -327,7 +327,7 @@ const MEMBER_VISIBLE_FIELDS = [
 const MEMBER_EDITABLE_FIELDS = [
   'first_name', 'last_name', 'phone', 'birthdate', 'email',
   'birthdate_visibility', 'hide_phone', 'hide_email', 'photo', 'language',
-  'position', 'number', 'licences', 'website_visible',
+  'position', 'number', 'licences', 'website_visible', 'website_name_private',
   // 2026-05-20 migration 067: see MEMBER_VISIBLE_FIELDS comment above.
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
   'requested_team',

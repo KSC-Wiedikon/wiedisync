@@ -144,6 +144,10 @@ export interface Member extends BaseRecord {
   auto_confirm_events: boolean
   birthdate_visibility: 'full' | 'year_only' | 'hidden'
   website_visible: boolean
+  // Website-scoped name privacy (migration 116). When true, the public website
+  // roster shows the surname as an initial only ("Anna M.") and hides the year
+  // of birth. Internal app is unaffected. Enforced server-side.
+  website_name_private: boolean
   is_spielplaner: boolean
   wiedisync_active: boolean
   shell: boolean

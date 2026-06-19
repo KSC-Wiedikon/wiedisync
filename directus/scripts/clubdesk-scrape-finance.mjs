@@ -6,8 +6,7 @@
  * Sibling of clubdesk-scrape-export.mjs (the member/Kontakte scraper). Same
  * approach: ClubDesk has NO public API, so we drive the web UI and trigger the
  * same "Alle Spalten" CSV export a human would, capturing the
- * GET /clubdesk/reportstore?reportId=… download. Reuses the proven login +
- * export-dialog logic verbatim; adds Finanzen navigation.
+ * GET /clubdesk/reportstore?reportId=… download.
  *
  * Usage:
  *   CLUBDESK_USER=… CLUBDESK_PASS=… \
@@ -19,13 +18,12 @@
  * ⚠ ONE active session per ClubDesk account — this boots any human signed in on
  *   the SAME account. Use a DEDICATED service account for unattended runs.
  *
- * ⚠ CALIBRATION: the Finanzen navigation (openFinanceTable) is anchored on
- *   visible German text ('Finanzen', 'Rechnungen', 'Buchhaltung'), not on
- *   build-hashed GXT classes. The toolbar/app entry point may need one live
- *   calibration pass (like the member scraper's geometry constants were). Every
- *   step asserts loudly — a miscalibrated run FAILS rather than exporting the
- *   wrong table. App internals: ClubDesk GXT/ExtGWT, tenant m_15650, export via
- *   GET /clubdesk/reportstore?reportId=<uuid>.
+ * App internals (ClubDesk GXT/ExtGWT, tenant m_15650): the module launcher is a
+ * row of 7 icon-only buttons (~40×50 px at the top-left, no text labels) — the
+ * GXT classes are build-hashed, so we anchor on GEOMETRY + visible text, never
+ * on class names. Finanzen is found by clicking launcher icons until a VISIBLE
+ * "Rechnungen" tab appears (self-calibrating, survives icon reordering). Export
+ * delivers via GET /clubdesk/reportstore?reportId=<uuid>.
  */
 
 import { createRequire } from 'node:module'
@@ -50,36 +48,107 @@ if (!USER || !PASS) {
 const log = (...a) => console.log(`[${new Date().toISOString().slice(11, 19)}]`, ...a)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/** Rect (viewport coords) of the first zero-child element whose trimmed text equals `text`. */
-const leafRect = (page, text) =>
+/** Center of the SMALLEST visible element whose trimmed innerText === `text`.
+ *  Allows icon+text elements (GXT toolbar buttons render "<icon><text>"), so it
+ *  matches both tab labels (zero-child spans) and toolbar buttons like "Export". */
+const visibleLeafRect = (page, text) =>
   page.evaluate((t) => {
-    const el = [...document.querySelectorAll('*')]
-      .find((e) => e.childElementCount === 0 && (e.innerText || '').trim() === t)
-    if (!el) return null
-    const r = el.getBoundingClientRect()
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2, right: r.right, bottom: r.bottom }
+    let best = null, bestArea = Infinity
+    for (const e of document.querySelectorAll('*')) {
+      if ((e.innerText || '').trim() !== t) continue
+      if (e.getClientRects().length === 0) continue
+      const r = e.getBoundingClientRect()
+      if (r.width <= 0 || r.height <= 0) continue
+      const area = r.width * r.height
+      if (area < bestArea) { bestArea = area; best = r }
+    }
+    if (!best) return null
+    return { x: best.left + best.width / 2, y: best.top + best.height / 2, right: best.right, bottom: best.bottom }
   }, text)
 
-/** Open the Export dialog → "Alle Spalten" → OK, and return the captured download. */
-async function exportAllColumns(page, label) {
+/** Poll visibleLeafRect until found or timeout. */
+async function waitVisible(page, text, timeout = 20000) {
+  const deadline = Date.now() + timeout
+  for (;;) {
+    const r = await visibleLeafRect(page, text)
+    if (r) return r
+    if (Date.now() > deadline) return null
+    await sleep(400)
+  }
+}
+
+async function clickVisible(page, text, timeout = 20000) {
+  const r = await waitVisible(page, text, timeout)
+  if (!r) throw new Error(`"${text}" never became visible.`)
+  await page.mouse.click(r.x, r.y)
+  return r
+}
+
+/** Centers of the launcher icon buttons (top-left icon row), left→right. */
+const launcherIcons = (page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('div,button,a,td')]
+      .map((e) => e.getBoundingClientRect())
+      .filter((r) => r.top > 40 && r.top < 120 && r.left < 340 && r.width > 20 && r.width < 70 && r.height > 20 && r.height < 70)
+      .map((r) => ({ x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }))
+      .filter((b, i, a) => a.findIndex((x) => Math.abs(x.x - b.x) < 4 && Math.abs(x.y - b.y) < 4) === i)
+      .sort((a, b) => a.x - b.x))
+
+/** Ensure the Finanzen module is open (a visible "Rechnungen" tab is present). */
+async function ensureFinanzenOpen(page) {
+  if (await visibleLeafRect(page, 'Rechnungen')) return
+  log('Finding the Finanzen launcher icon…')
+  const icons = await launcherIcons(page)
+  if (icons.length < 3) throw new Error(`Launcher icon row not found (got ${icons.length} icons).`)
+  // Skip [0]=dashboard, [1]=Kontakte; click the rest until a finance tab appears.
+  for (let i = 2; i < icons.length; i++) {
+    await page.mouse.click(icons[i].x, icons[i].y)
+    await sleep(1800)
+    if (await visibleLeafRect(page, 'Rechnungen')) {
+      log(`Finanzen opened (launcher icon #${i}).`)
+      return
+    }
+  }
+  throw new Error('Clicked every launcher icon but no visible "Rechnungen" tab appeared — Finanzen not reachable for this account?')
+}
+
+/**
+ * Click Export, confirm whichever export dialog appears, return the download.
+ * ClubDesk uses two different dialogs in Finanzen:
+ *   • Rechnungen (table) → "Tabelle exportieren" — pick "Alle Spalten" first.
+ *   • Buchhaltung (ledger) → "Export Buchungen" — fixed columns; defaults are
+ *     already "Sämtliche Buchungen" + CSV, so just confirm with OK.
+ */
+async function exportCurrentTable(page, label) {
   log(`[${label}] Opening Export dialog…`)
-  await page.getByText('Export', { exact: true }).first().click()
-  await page.getByText('Tabelle exportieren', { exact: true }).waitFor({ timeout: 20000 })
-  await page.waitForTimeout(800)
+  let kind = null
+  for (let attempt = 0; attempt < 3 && !kind; attempt++) {
+    await clickVisible(page, 'Export')
+    const deadline = Date.now() + 7000
+    while (Date.now() < deadline && !kind) {
+      if (await visibleLeafRect(page, 'Tabelle exportieren')) kind = 'table'
+      else if (await visibleLeafRect(page, 'Export Buchungen')) kind = 'buchungen'
+      else await sleep(400)
+    }
+    if (!kind) await page.waitForTimeout(1000)
+  }
+  if (!kind) throw new Error(`[${label}] No export dialog ("Tabelle exportieren" / "Export Buchungen") opened.`)
+  await page.waitForTimeout(600)
 
-  // Open the "Spalten" combo (caret right of the "Spalten:" label) → "Alle Spalten".
-  const sp = await leafRect(page, 'Spalten:')
-  if (!sp) throw new Error(`[${label}] Export dialog opened but "Spalten:" row not found.`)
-  await page.mouse.click(sp.right + 120, sp.y)
-  await page.waitForTimeout(800)
-  const alle = page.getByText('Alle Spalten', { exact: true }).first()
-  if (!(await alle.count())) throw new Error(`[${label}] "Alle Spalten" option not found.`)
-  await alle.click()
-  await page.waitForTimeout(500)
+  if (kind === 'table') {
+    // Open the "Spalten" combo (caret right of the "Spalten:" label) → "Alle Spalten".
+    const sp = await visibleLeafRect(page, 'Spalten:')
+    if (!sp) throw new Error(`[${label}] "Spalten:" row not found in export dialog.`)
+    await page.mouse.click(sp.right + 120, sp.y)
+    await page.waitForTimeout(800)
+    await clickVisible(page, 'Alle Spalten', 8000)
+    await page.waitForTimeout(500)
+  }
+  // 'buchungen' dialog: defaults are "Sämtliche Buchungen" + CSV — confirm as-is.
 
-  const ok = await leafRect(page, 'OK')
+  log(`[${label}] Exporting (${kind})…`)
+  const ok = await waitVisible(page, 'OK', 8000)
   if (!ok) throw new Error(`[${label}] OK button not found in export dialog.`)
-  log(`[${label}] Exporting…`)
   const [download] = await Promise.all([
     page.waitForEvent('download', { timeout: 60000 }),
     page.mouse.click(ok.x, ok.y),
@@ -87,39 +156,24 @@ async function exportAllColumns(page, label) {
   return download
 }
 
-/**
- * Navigate to a Finanzen sub-table ('Rechnungen' | 'Buchhaltung') and wait for
- * its grid. CALIBRATION POINT — anchors on visible text; adjust here if a live
- * run can't find the Finanzen entry point or a sub-tab.
- */
-async function openFinanceTable(page, which) {
+/** Navigate to a Finanzen sub-table and wait for its Export action. */
+async function openFinanceTable(page, which, leftNavFilter) {
   log(`Navigating to Finanzen → ${which}…`)
-  // 1. Enter the Finanzen module (top-level app). Try the visible label first.
-  const finanzen = page.getByText('Finanzen', { exact: true }).first()
-  if (await finanzen.count()) {
-    await finanzen.click()
-  } else {
-    // Fallback: the apps toolbar is icon-only (the HAR showed a `bank-line` icon
-    // for Finanzen). Click the toolbar button bearing the bank glyph.
-    const bank = await page.evaluate(() => {
-      const img = [...document.querySelectorAll('img,svg,[style*="bank"]')]
-        .find((e) => /bank/i.test(e.getAttribute('src') || e.getAttribute('href') || e.outerHTML.slice(0, 200)))
-      if (!img) return null
-      const r = img.getBoundingClientRect()
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
-    })
-    if (!bank) throw new Error('Could not locate the Finanzen entry point (no "Finanzen" text, no bank icon).')
-    await page.mouse.click(bank.x, bank.y)
+  await ensureFinanzenOpen(page)
+  await clickVisible(page, which)
+  await page.waitForTimeout(2500) // let the tab's grid + toolbar fully render
+  if (leftNavFilter) {
+    // Pick a left-nav filter before exporting — e.g. "Alle" = ALL invoices
+    // (drafts + issued + closed), not just the default "Entwürfe" (drafts) view.
+    const f = await waitVisible(page, leftNavFilter, 8000)
+    if (f) { await page.mouse.click(f.x, f.y); await page.waitForTimeout(2500); log(`Filter "${leftNavFilter}" selected.`) }
+    else log(`⚠ Filter "${leftNavFilter}" not found — exporting the current view.`)
   }
-  await page.waitForTimeout(2000)
-
-  // 2. Open the sub-tab (Rechnungen / Buchhaltung).
-  const tab = page.getByText(which, { exact: true }).first()
-  await tab.waitFor({ timeout: 20000 })
-  await tab.click()
-  // 3. Assert the grid loaded — ClubDesk lists show a "(N Einträge)" count header.
-  await page.getByText(/\(\d+\s*Eintr/).first().waitFor({ timeout: 20000 })
-  await page.waitForTimeout(1500)
+  // Wait for the table toolbar (the Export action) to be ready.
+  if (!(await waitVisible(page, 'Export', 20000))) {
+    throw new Error(`Opened ${which} but no Export action appeared.`)
+  }
+  await page.waitForTimeout(800)
   log(`Finanzen → ${which} open.`)
 }
 
@@ -131,8 +185,7 @@ function assertCsv(path, label, mustHave) {
       throw new Error(`[${label}] Export looks wrong — header missing "${col}". Got: ${header.slice(0, 160)}…`)
     }
   }
-  const cols = header.split(';').length
-  log(`[${label}] ✓ ${path} — ${cols} columns.`)
+  log(`[${label}] ✓ ${path} — ${header.split(';').length} columns.`)
 }
 
 async function run() {
@@ -161,21 +214,20 @@ async function run() {
     log('Logged in.')
 
     // ── Rechnungen → export ───────────────────────────────────────────
-    await openFinanceTable(page, 'Rechnungen')
-    const invDl = await exportAllColumns(page, 'Rechnungen')
+    await openFinanceTable(page, 'Rechnungen', 'Alle') // "Alle" = all invoices, not just drafts
+    const invDl = await exportCurrentTable(page, 'Rechnungen')
     await invDl.saveAs(OUT_INVOICES)
     log(`Downloaded Rechnungen via ${invDl.url()}`)
     assertCsv(OUT_INVOICES, 'Rechnungen', ['[Id]', 'Betrag', 'Rechnungsdatum'])
 
     // ── Buchhaltung → export ──────────────────────────────────────────
     await openFinanceTable(page, 'Buchhaltung')
-    const bkDl = await exportAllColumns(page, 'Buchhaltung')
+    const bkDl = await exportCurrentTable(page, 'Buchhaltung')
     await bkDl.saveAs(OUT_BOOKINGS)
     log(`Downloaded Buchhaltung via ${bkDl.url()}`)
     assertCsv(OUT_BOOKINGS, 'Buchhaltung', ['Soll (Nummer)', 'Haben (Nummer)', 'Betrag (CHF)'])
 
     log(`✓ Done. Invoices → ${OUT_INVOICES}, Bookings → ${OUT_BOOKINGS}`)
-    // Last two lines = the paths, for shell chaining.
     console.log(OUT_INVOICES)
     console.log(OUT_BOOKINGS)
   } finally {
