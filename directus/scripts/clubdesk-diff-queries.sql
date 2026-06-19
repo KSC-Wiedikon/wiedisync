@@ -11,6 +11,12 @@
 --   1. lower(members.email) = lower(clubdesk.email)
 --   2. lower(members.email) = lower(clubdesk.email_alternativ)
 --   3. members.license_nr = clubdesk.lizenznummer  (both non-empty)
+--
+-- Licences: migration 119 dropped the legacy `members.licences` json column;
+-- the six boolean flags (scorer_vb / referee_vb / otr1_bb / otr2_bb / otn_bb /
+-- referee_bb) are the source of truth. The `member_licences` temp view below
+-- reconstructs the legacy jsonb-array view from the booleans so the `?` / `?|`
+-- membership checks below keep working unchanged.
 
 \timing off
 \pset border 2
@@ -32,6 +38,20 @@ JOIN clubdesk_basketball cb
   OR LOWER(NULLIF(m.email, ''))  = LOWER(NULLIF(cb.email_alternativ, ''))
   OR (NULLIF(m.license_nr, '') IS NOT NULL AND m.license_nr = NULLIF(cb.lizenznummer, ''));
 
+-- Legacy `licences` jsonb-array, reconstructed from the boolean columns
+-- (migration 067/119). `lic` is always a jsonb array (empty, never null).
+CREATE OR REPLACE TEMP VIEW member_licences AS
+SELECT id AS dx_id,
+       to_jsonb(ARRAY_REMOVE(ARRAY[
+         CASE WHEN scorer_vb  THEN 'scorer_vb'  END,
+         CASE WHEN referee_vb THEN 'referee_vb' END,
+         CASE WHEN otr1_bb    THEN 'otr1_bb'    END,
+         CASE WHEN otr2_bb    THEN 'otr2_bb'    END,
+         CASE WHEN otn_bb     THEN 'otn_bb'     END,
+         CASE WHEN referee_bb THEN 'referee_bb' END
+       ]::text[], NULL)) AS lic
+FROM members;
+
 -- ══════════════════════════════════════════════════════════════════════
 -- I. VOLLEYBALL
 -- ══════════════════════════════════════════════════════════════════════
@@ -51,8 +71,9 @@ ORDER BY cv.nachname, cv.vorname;
 \echo
 \echo === VB-2. Directus VB-linked members NOT in CD volleyball ===
 SELECT DISTINCT m.id, m.first_name, m.last_name, m.email, m.license_nr,
-       m.licences::jsonb AS licences, m.kscw_membership_active
+       ml.lic AS licences, m.kscw_membership_active
 FROM members m
+JOIN member_licences ml ON ml.dx_id = m.id
 JOIN member_teams mt ON mt.member = m.id
 JOIN teams t        ON t.id = mt.team
 LEFT JOIN cd_match_vb cm ON cm.dx_id = m.id
@@ -61,22 +82,24 @@ ORDER BY m.last_name, m.first_name;
 
 \echo
 \echo === VB-3. CD says scorer_vb, Directus does not ===
-SELECT m.id, m.first_name, m.last_name, m.email, m.licences,
+SELECT m.id, m.first_name, m.last_name, m.email, ml.lic AS licences,
        cv.offiziellen_lizenz AS cd_offliz
 FROM members m
+JOIN member_licences ml ON ml.dx_id = m.id
 JOIN clubdesk_volleyball cv ON cv.clubdesk_id = (SELECT cd_id FROM cd_match_vb WHERE dx_id = m.id LIMIT 1)
 WHERE cv.offiziellen_lizenz LIKE '%Volleyball Lizenz%'
-  AND NOT (COALESCE(m.licences::jsonb, '[]'::jsonb) ? 'scorer_vb')
+  AND NOT m.scorer_vb
 ORDER BY m.last_name;
 
 \echo
 \echo === VB-4. Directus has scorer_vb, CD says no ===
-SELECT m.id, m.first_name, m.last_name, m.email, m.licences,
+SELECT m.id, m.first_name, m.last_name, m.email, ml.lic AS licences,
        COALESCE(NULLIF(cv.offiziellen_lizenz, ''), '(empty)') AS cd_offliz
 FROM members m
+JOIN member_licences ml ON ml.dx_id = m.id
 JOIN clubdesk_volleyball cv ON cv.clubdesk_id = (SELECT cd_id FROM cd_match_vb WHERE dx_id = m.id LIMIT 1)
 WHERE COALESCE(cv.offiziellen_lizenz, '') NOT LIKE '%Volleyball Lizenz%'
-  AND COALESCE(m.licences::jsonb, '[]'::jsonb) ? 'scorer_vb'
+  AND m.scorer_vb
 ORDER BY m.last_name;
 
 \echo
@@ -110,8 +133,9 @@ ORDER BY cb.nachname, cb.vorname;
 \echo
 \echo === BB-2. Directus BB-linked members NOT in CD basketball ===
 SELECT DISTINCT m.id, m.first_name, m.last_name, m.email, m.license_nr,
-       m.licences::jsonb AS licences, m.kscw_membership_active
+       ml.lic AS licences, m.kscw_membership_active
 FROM members m
+JOIN member_licences ml ON ml.dx_id = m.id
 JOIN member_teams mt ON mt.member = m.id
 JOIN teams t        ON t.id = mt.team
 LEFT JOIN cd_match_bb cm ON cm.dx_id = m.id
@@ -123,21 +147,23 @@ ORDER BY m.last_name, m.first_name;
 SELECT m.id, m.first_name, m.last_name, m.email,
        cb.offiziellen_lizenz AS cd_offliz,
        clubdesk_offliz_to_dx(cb.offiziellen_lizenz) AS expected_dx_licence,
-       m.licences AS dx_licences
+       ml.lic AS dx_licences
 FROM members m
+JOIN member_licences ml ON ml.dx_id = m.id
 JOIN clubdesk_basketball cb ON cb.clubdesk_id = (SELECT cd_id FROM cd_match_bb WHERE dx_id = m.id LIMIT 1)
 WHERE clubdesk_offliz_to_dx(cb.offiziellen_lizenz) IS NOT NULL
-  AND NOT (COALESCE(m.licences::jsonb, '[]'::jsonb) ? clubdesk_offliz_to_dx(cb.offiziellen_lizenz))
+  AND NOT (ml.lic ? clubdesk_offliz_to_dx(cb.offiziellen_lizenz))
 ORDER BY m.last_name;
 
 \echo
 \echo === BB-4. Directus has BB official licence, CD does not ===
-SELECT m.id, m.first_name, m.last_name, m.email, m.licences,
+SELECT m.id, m.first_name, m.last_name, m.email, ml.lic AS licences,
        COALESCE(NULLIF(cb.offiziellen_lizenz, ''), '(empty)') AS cd_offliz
 FROM members m
+JOIN member_licences ml ON ml.dx_id = m.id
 JOIN clubdesk_basketball cb ON cb.clubdesk_id = (SELECT cd_id FROM cd_match_bb WHERE dx_id = m.id LIMIT 1)
 WHERE clubdesk_offliz_to_dx(cb.offiziellen_lizenz) IS NULL
-  AND (COALESCE(m.licences::jsonb, '[]'::jsonb) ?| ARRAY['otr1_bb','otr2_bb','otn_bb'])
+  AND (m.otr1_bb OR m.otr2_bb OR m.otn_bb)
 ORDER BY m.last_name;
 
 \echo
