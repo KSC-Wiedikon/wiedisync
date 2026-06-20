@@ -57,6 +57,8 @@
     "ext:deploy:dev": "npm run ext:install && rsync -avz --delete directus/extensions/ hetzner:/tmp/kscw-extensions/ && ssh hetzner \"sudo rsync -a --delete /tmp/kscw-extensions/ /opt/directus-kscw-dev/extensions/ && sudo docker restart directus-kscw-dev\" && npm run ext:smoke:dev",
     "ext:deploy:prod": "npm run ext:install && rsync -avz --delete directus/extensions/ hetzner:/tmp/kscw-extensions/ && ssh hetzner \"sudo rsync -a --delete /tmp/kscw-extensions/ /opt/directus-kscw/extensions/ && sudo docker restart directus-kscw\" && npm run ext:smoke:prod",
     "ext:deploy": "npm run ext:deploy:dev && npm run ext:deploy:prod",
+    "deploy:dev": "npm run db:deploy:dev && npm run ext:deploy:dev",
+    "deploy:prod": "npm run db:deploy:prod && npm run ext:deploy:prod",
     "scripts:deploy:dev": "rsync -avz directus/scripts/ hetzner:/tmp/kscw-scripts/ && ssh hetzner \"sudo rsync -a /tmp/kscw-scripts/ /opt/directus-kscw-dev/scripts/\"",
     "scripts:deploy:prod": "rsync -avz directus/scripts/ hetzner:/tmp/kscw-scripts/ && ssh hetzner \"sudo rsync -a /tmp/kscw-scripts/ /opt/directus-kscw/scripts/\"",
     "scripts:deploy": "npm run scripts:deploy:dev && npm run scripts:deploy:prod",
