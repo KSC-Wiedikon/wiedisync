@@ -333,7 +333,7 @@ export async function syncBpRankings(db, log, leagueHoldingIds = {}) {
           const pbTeamId = bpToPb[r.bpTeamId]
           if (pbTeamId) data.team = pbTeamId
 
-          const existing = await db('rankings').where('team_id', teamId).where('league', r.league).first()
+          const existing = await db('rankings').where('team_id', teamId).where('league', r.league).where('season', data.season).first()
           if (existing) { await db('rankings').where('id', existing.id).update({ ...data, date_updated: new Date() }); updated++ }
           else { await db('rankings').insert({ ...data, date_created: new Date(), date_updated: new Date() }); created++ }
         } catch (e) { errors++; log.warn(`[BP Sync] Ranking: ${e.message}`) }

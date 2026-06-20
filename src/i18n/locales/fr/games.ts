@@ -116,6 +116,7 @@ export default {
   noRecent: 'Aucun match recent',
   noResults: 'Aucun resultat',
   noRankings: 'Aucun classement',
+  rankingsUpcoming: 'Les données seront communiquées ultérieurement par Swiss Volley',
   noScoreboard: 'Aucune donnee de tableau d\'honneur',
   showMore: 'Afficher plus de matchs',
   participation: 'Participation',

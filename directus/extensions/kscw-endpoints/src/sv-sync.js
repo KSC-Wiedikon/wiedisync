@@ -239,13 +239,25 @@ export async function syncSvRankings(db, log) {
     headers: { Authorization: SV_API_KEY },
   })
   const captions = { groups: {}, leagues: {}, phases: {} }
+  // Season-year lookups (league.season is the start year as an int, e.g. 2025 = 2025/26).
+  // Used to label each ranking group with ITS OWN season rather than a single
+  // current-date guess — so a new season's rankings file under the right season
+  // string and never overwrite the prior season's archived rows.
+  const seasonYearByGroup = {}
+  const seasonYearByLeague = {}
   if (gamesRes.ok) {
     const gamesData = await gamesRes.json()
     if (Array.isArray(gamesData)) {
       for (const g of gamesData) {
-        if (g.league?.leagueId) captions.leagues[g.league.leagueId] = g.league.caption || ''
+        if (g.league?.leagueId) {
+          captions.leagues[g.league.leagueId] = g.league.caption || ''
+          if (typeof g.league.season === 'number') seasonYearByLeague[g.league.leagueId] = g.league.season
+        }
         if (g.phase?.phaseId) captions.phases[g.phase.phaseId] = g.phase.caption || ''
-        if (g.group?.groupId) captions.groups[g.group.groupId] = g.group.caption || ''
+        if (g.group?.groupId) {
+          captions.groups[g.group.groupId] = g.group.caption || ''
+          if (typeof g.league?.season === 'number') seasonYearByGroup[g.group.groupId] = g.league.season
+        }
       }
     }
   }
@@ -258,7 +270,10 @@ export async function syncSvRankings(db, log) {
   const now = new Date()
   const yr = now.getFullYear()
   const mo = now.getMonth()
-  const season = mo < 8 ? `${yr - 1}/${String(yr).slice(2)}` : `${yr}/${String(yr + 1).slice(2)}`
+  // Fallback only — used when a group has no matching game in the feed to read
+  // league.season from. Format a start-year int (2025) → short season ("2025/26").
+  const fmtSeason = (startYear) => `${startYear}/${String(startYear + 1).slice(2)}`
+  const fallbackSeason = mo < 8 ? `${yr - 1}/${String(yr).slice(2)}` : `${yr}/${String(yr + 1).slice(2)}`
   const nowStr = now.toISOString()
 
   let created = 0, updated = 0, errors = 0
@@ -266,6 +281,8 @@ export async function syncSvRankings(db, log) {
   for (const grp of relevantGroups) {
     const leagueStr = captions.groups[grp.groupId] || captions.phases[grp.phaseId] ||
       captions.leagues[grp.leagueId] || `Group ${grp.groupId}`
+    const seasonYear = seasonYearByGroup[grp.groupId] ?? seasonYearByLeague[grp.leagueId]
+    const season = typeof seasonYear === 'number' ? fmtSeason(seasonYear) : fallbackSeason
 
     for (const r of (grp.ranking || [])) {
       try {
@@ -294,6 +311,7 @@ export async function syncSvRankings(db, log) {
         const existing = await db('rankings')
           .where('team_id', teamId)
           .where('league', leagueStr)
+          .where('season', season)
           .first()
 
         if (existing) {

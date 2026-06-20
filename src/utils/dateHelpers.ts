@@ -214,6 +214,18 @@ export function getSeasonDateRange(season: string): { start: string; end: string
   }
 }
 
+/**
+ * Expand a short season string (`YYYY/YY`) to its full display form
+ * (`YYYY/YYYY`) — e.g. `2025/26` → `2025/2026`. Used by the rankings season
+ * selector so the dropdown reads in full years. Anything not in the expected
+ * short form is returned unchanged.
+ */
+export function formatSeasonLong(season: string): string {
+  const m = /^(\d{4})\/(\d{2})$/.exec(season)
+  if (!m) return season
+  return `${m[1]}/${m[1].slice(0, 2)}${m[2]}`
+}
+
 export function toISODate(date: Date): string {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
