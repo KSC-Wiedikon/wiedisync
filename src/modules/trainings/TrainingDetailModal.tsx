@@ -81,7 +81,7 @@ export default function TrainingDetailModal({ training, onClose }: TrainingDetai
 
   return (
     <>
-      <Modal open={!!training} onClose={onClose} title={t('title')} size="sm">
+      <Modal open={!!training} onClose={onClose} title={t('title')} size="sm" disableAutoFocus>
         <div className="space-y-4">
           {/* Team + Date header */}
           <div className="flex items-center gap-2">
