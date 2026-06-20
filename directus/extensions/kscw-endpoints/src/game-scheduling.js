@@ -4021,9 +4021,26 @@ export function registerGameScheduling(router, { database, logger, services, get
     if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const { season_uuid, season_name } = req.body || {}
-      const auth = req.headers?.authorization || ''
-      const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
-      if (!token) return res.status(401).json({ error: 'Missing bearer token' })
+      // The spielplanung app authenticates via the .kscw.ch session cookie
+      // (cookie-session SSO) — there is NO Authorization: Bearer header to
+      // forward. svrz-scheduling-sync.mjs requires a real bearer token
+      // (DIRECTUS_TOKEN, no email/password fallback), so mint a short-lived one
+      // from the sync service account here — same source the cron and the
+      // sibling /admin/svrz-sync route use. Never run the child on the caller's
+      // own token.
+      const syncEmail = process.env.DIRECTUS_SYNC_EMAIL
+      const syncPassword = process.env.DIRECTUS_SYNC_PASSWORD
+      if (!syncEmail || !syncPassword) return res.status(503).json({ error: 'Sync credentials not configured' })
+      let token = null
+      try {
+        const r = await fetch('http://127.0.0.1:8055/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: syncEmail, password: syncPassword }),
+        })
+        if (r.ok) { const { data } = await r.json(); token = data?.access_token || null }
+      } catch { /* token stays null → 502 below */ }
+      if (!token) return res.status(502).json({ error: 'Could not mint sync token' })
 
       // Derive defaults from the current date (Jun 1 cutover — Swiss Volley
       // publishes new-season fixtures in June). Look up the matching SVRZ UUID
