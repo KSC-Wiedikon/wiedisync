@@ -65,7 +65,13 @@ export default function RosterEditor() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const teamId = team?.id
-  const { members, isLoading, refetch } = useTeamMembers(teamId, season)
+  // Persist the position-normalization auto-heal only here, and only once the
+  // viewer is confirmed a coach of this team (the same gate as the redirect
+  // below). Read-only surfaces must not PATCH members.position — see
+  // useTeamMembers + the 2026-06-20 error-log audit.
+  const { members, isLoading, refetch } = useTeamMembers(teamId, season, {
+    persistNormalization: !!team && isCoachOf(team.id),
+  })
 
   useEffect(() => {
     if (!teamSlug) return
