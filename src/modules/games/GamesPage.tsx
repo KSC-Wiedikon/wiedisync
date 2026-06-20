@@ -9,9 +9,12 @@ import type { Game, Ranking, Team, Participation, ParticipationWithMember } from
 import { useCollection, useActivitiesWithParticipations } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
+import { useQuery } from '@tanstack/react-query'
 import { teamIds } from '../../utils/teamColors'
-import { todayLocal } from '../../utils/dateHelpers'
+import { todayLocal, getCurrentSeason, formatSeasonLong } from '../../utils/dateHelpers'
+import { fetchSeasons } from '../../lib/api'
 import { isCupGame } from '../../utils/leagueClassification'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import SportToggle from '../../components/SportToggle'
 import TeamFilterBar from './components/TeamFilterBar'
 import GameTabs from './components/GameTabs'
@@ -145,6 +148,25 @@ export default function GamesPage() {
   const effGameSeason = useEffectiveSeason('games')
   const effRankSeason = useEffectiveSeason('rankings')
 
+  // Rankings season selector. The list of seasons that actually have rows
+  // (shared cache with useEffectiveSeason) plus the current season, which is
+  // always offered even before Swiss Volley publishes its data — selecting it
+  // shows the "coming soon" placeholder until the sync lands real rows. User
+  // choice (rankSeason) overrides the auto-resolved latest-with-data default.
+  const { data: rankSeasonsRaw } = useQuery<string[]>({
+    queryKey: ['effective-season', 'rankings'],
+    queryFn: () => fetchSeasons('rankings'),
+    staleTime: 60_000,
+  })
+  const [rankSeason, setRankSeason] = useState<string | null>(null)
+  const selectedRankSeason = rankSeason ?? effRankSeason
+  const rankSeasonOptions = useMemo(() => {
+    const set = new Set<string>(rankSeasonsRaw ?? [])
+    set.add(getCurrentSeason())
+    set.add(selectedRankSeason)
+    return [...set].sort().reverse()
+  }, [rankSeasonsRaw, selectedRankSeason])
+
   // Build game filter/sort based on active tab
   const gameQuery = useMemo(() => {
     if (activeTab === 'rankings' || activeTab === 'scoreboard') return null
@@ -236,7 +258,7 @@ export default function GamesPage() {
 
   // Rankings — always fetch (small dataset), group client-side
   const { data: allRankingsRaw, isLoading: rankingsLoading } = useCollection<Ranking>('rankings', {
-    filter: { season: { _eq: effRankSeason } },
+    filter: { season: { _eq: selectedRankSeason } },
     sort: ['league', 'rank'],
     fields: ['id', 'league', 'rank', 'team_id', 'team_name', 'points', 'won', 'lost', 'wins_clear', 'wins_narrow', 'defeats_clear', 'defeats_narrow', 'sets_won', 'sets_lost', 'points_won', 'points_lost', 'played', 'season'],
     limit: 2000,
@@ -430,7 +452,27 @@ export default function GamesPage() {
         {/* Rankings */}
         {activeTab === 'rankings' && !rankingsLoading && (
           <>
-            {leagueGroups.size === 0 ? (
+            <div className="mb-4 flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('season')}</span>
+              <Select value={selectedRankSeason} onValueChange={setRankSeason}>
+                <SelectTrigger className="min-h-[44px] w-[160px]" aria-label={t('season')}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {rankSeasonOptions.map((s) => (
+                    <SelectItem key={s} value={s}>{formatSeasonLong(s)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {allRankings.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-gray-300 px-6 py-12 text-center dark:border-gray-700">
+                <Trophy className="mx-auto mb-3 h-10 w-10 text-gray-300 dark:text-gray-600" />
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{formatSeasonLong(selectedRankSeason)}</p>
+                <p className="mx-auto mt-1 max-w-xs text-sm text-gray-500 dark:text-gray-400">{t('rankingsUpcoming')}</p>
+              </div>
+            ) : leagueGroups.size === 0 ? (
               <EmptyState tab="rankings" />
             ) : (
               <div className="grid gap-6 lg:grid-cols-2" data-tour="game-rankings">

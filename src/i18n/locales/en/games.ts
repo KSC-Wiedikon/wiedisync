@@ -119,6 +119,7 @@ export default {
   noRecent: 'No recent games',
   noResults: 'No results',
   noRankings: 'No rankings',
+  rankingsUpcoming: 'Data to be shared later by Swiss Volley',
   noScoreboard: 'No scoreboard data',
   showMore: 'Show more games',
   participation: 'Participation',

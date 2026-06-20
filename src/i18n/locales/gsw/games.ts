@@ -119,6 +119,7 @@ export default {
   noRecent: 'Käni letschte Spiel',
   noResults: 'Käni Resultat',
   noRankings: 'Käni Ranglischtä',
+  rankingsUpcoming: 'D Date wärded spöter vo Swiss Volley zur Verfüegig gstellt',
   noScoreboard: 'Käni Scoreboard-Date',
   showMore: 'Meh Spiel aazeige',
   participation: 'Teilnahm',
