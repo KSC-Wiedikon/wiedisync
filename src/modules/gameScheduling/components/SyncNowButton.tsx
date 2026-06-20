@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '../../../components/ui/button'
+import InlineSpinner from '../../../components/InlineSpinner'
 import { kscwApi } from '../../../lib/api'
 import { useSyncProgress, type SyncRun } from '../../../hooks/useSyncProgress'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
@@ -104,10 +105,7 @@ export default function SyncNowButton({
     <Button size={size} variant={variant} onClick={start} disabled={isRunning} className={className}>
       {isRunning ? (
         <span className="flex items-center gap-2">
-          <span
-            className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
-            aria-hidden
-          />
+          <InlineSpinner />
           {t('syncInProgress')}
         </span>
       ) : (
