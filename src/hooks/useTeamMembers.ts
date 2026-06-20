@@ -6,7 +6,19 @@ import { asObj, relId } from '../utils/relations'
 
 export type ExpandedMemberTeam = Omit<MemberTeam, 'member'> & { member: (Member & { id: string }) | string }
 
-export function useTeamMembers(teamId: string | undefined, season?: string) {
+export function useTeamMembers(
+  teamId: string | undefined,
+  season?: string,
+  // Whether to PERSIST the sport-normalization of member positions. This hook
+  // runs on read-only surfaces (team detail, referee expenses) viewed by plain
+  // members, who lack the members.position update grant — so persisting the
+  // auto-heal from those surfaces fires a 403 per stale row (logged as an
+  // api_error; surfaced in the 2026-06-20 error-log audit). Only the
+  // leader-gated RosterEditor opts in; everywhere else we normalize for display
+  // only and never PATCH.
+  opts?: { persistNormalization?: boolean },
+) {
+  const persistNormalization = opts?.persistNormalization ?? false
   const [members, setMembers] = useState<ExpandedMemberTeam[]>([])
   // loadedKey is derived-state for isLoading: undefined = never loaded (initial),
   // null = loaded "no teamId" state, string = loaded data for that key.
@@ -50,7 +62,9 @@ export function useTeamMembers(teamId: string | undefined, season?: string) {
         const originalPositions = coercePositions(member.position)
         const safePositions = normalizePositionsForSport(member.position, team.sport)
         if (originalPositions.join('|') !== safePositions.join('|')) {
-          updates.push(updateRecord('members', member.id, { position: safePositions }))
+          if (persistNormalization) {
+            updates.push(updateRecord('members', member.id, { position: safePositions }))
+          }
           return {
             ...mt,
             member: { ...member, position: safePositions } as Member,
@@ -70,7 +84,7 @@ export function useTeamMembers(teamId: string | undefined, season?: string) {
     } finally {
       if (latestKeyRef.current === key) setLoadedKey(key)
     }
-  }, [safeTeamId, season])
+  }, [safeTeamId, season, persistNormalization])
 
   useEffect(() => {
     fetch()
