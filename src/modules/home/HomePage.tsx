@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
+import { fetchSeasons } from '../../lib/api'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useNotifications } from '../../hooks/useNotifications'
 import { useSportPreference } from '../../hooks/useSportPreference'
-import { formatDate, formatDateCompact, formatTime, formatWeekday, getCurrentSeason, todayLocal, toZurichDateString, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
+import { formatDate, formatDateCompact, formatTime, formatWeekday, getCurrentSeason, formatSeasonLong, todayLocal, toZurichDateString, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { asObj, relId, teamCoachIds } from '../../utils/relations'
 import TeamChip from '../../components/TeamChip'
 import StatusBadge from '../../components/StatusBadge'
@@ -52,6 +55,7 @@ export default function HomePage() {
   const { t } = useTranslation('home')
   const { t: tn } = useTranslation('notifications')
   const { t: tf } = useTranslation('forms')
+  const { t: tg } = useTranslation('games')
 
   const { user, isApproved, primarySport, coachTeamIds } = useAuth()
   const { items: fillableForms, refetch: refetchForms } = useFillableForms()
@@ -143,6 +147,25 @@ export default function HomePage() {
   // (falls back to the latest season with data in the gap before then).
   const effGameSeason = useEffectiveSeason('games')
   const effRankSeason = useEffectiveSeason('rankings')
+
+  // Rankings season selector (mirrors the Games tab): defaults to the latest
+  // season with data; the dropdown also offers the current season as a "coming
+  // soon" placeholder until Swiss Volley publishes it. homeRankSeason !== null
+  // means the user has actively picked a season — only then does the widget
+  // stay visible for an empty season (to show the placeholder).
+  const { data: homeRankSeasonsRaw } = useQuery<string[]>({
+    queryKey: ['effective-season', 'rankings'],
+    queryFn: () => fetchSeasons('rankings'),
+    staleTime: 60_000,
+  })
+  const [homeRankSeason, setHomeRankSeason] = useState<string | null>(null)
+  const selectedHomeSeason = homeRankSeason ?? effRankSeason
+  const homeRankSeasonOptions = useMemo(() => {
+    const set = new Set<string>(homeRankSeasonsRaw ?? [])
+    set.add(getCurrentSeason())
+    set.add(selectedHomeSeason)
+    return [...set].sort().reverse()
+  }, [homeRankSeasonsRaw, selectedHomeSeason])
 
   // Next 5 upcoming games (all) — only fetch when user toggled "show all" or has no teams
   const allGamesFilter = useMemo((): Record<string, unknown> => {
@@ -280,7 +303,7 @@ export default function HomePage() {
   // Step 1: fetch only the user's own ranking rows to discover their league names
   const { data: userRankingRowsRaw } = useCollection<Ranking>('rankings', {
     filter: hasTeams && userSvTeamIds.length > 0
-      ? { _and: [{ team_id: { _in: userSvTeamIds } }, { season: { _eq: effRankSeason } }] }
+      ? { _and: [{ team_id: { _in: userSvTeamIds } }, { season: { _eq: selectedHomeSeason } }] }
       : undefined,
     fields: ['id', 'league', 'team_id'],
     enabled: hasTeams && userSvTeamIds.length > 0,
@@ -299,7 +322,7 @@ export default function HomePage() {
   // Step 2: fetch full league tables only for the user's leagues
   const { data: leagueRankingsRaw } = useCollection<Ranking>('rankings', {
     filter: userLeagueNames.length > 0
-      ? { _and: [{ league: { _in: userLeagueNames } }, { season: { _eq: effRankSeason } }] }
+      ? { _and: [{ league: { _in: userLeagueNames } }, { season: { _eq: selectedHomeSeason } }] }
       : undefined,
     sort: ['league', 'rank'],
     fields: ['id', 'league', 'rank', 'team_id', 'team_name', 'points', 'won', 'lost', 'wins_clear', 'wins_narrow', 'defeats_clear', 'defeats_narrow', 'sets_won', 'sets_lost', 'points_won', 'points_lost', 'played', 'season'],
@@ -316,8 +339,6 @@ export default function HomePage() {
     }
     return grouped
   }, [leagueRankingsRaw])
-
-  const currentSeason = (leagueRankingsRaw ?? [])[0]?.season ?? ''
 
   // Bulk-fetch participation statuses for all displayed activities (2 queries total
   // instead of 2 per row) so banners appear together with everything else.
@@ -570,19 +591,34 @@ export default function HomePage() {
               getParticipationStatus={getParticipationStatus}
             />
           </div>
-          {userLeagueGroups.size > 0 && (
+          {hasTeams && userSvTeamIds.length > 0 && (userLeagueGroups.size > 0 || homeRankSeason !== null) && (
             <div className="hidden min-w-0 lg:block">
-              <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {t('rankings')}
-                {currentSeason && (
-                  <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">{currentSeason}</span>
-                )}
-              </h2>
-              <div className="space-y-4">
-                {[...userLeagueGroups.entries()].map(([league, rows]) => (
-                  <RankingsTable key={league} league={league} rankings={rows} compact />
-                ))}
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('rankings')}</h2>
+                <Select value={selectedHomeSeason} onValueChange={setHomeRankSeason}>
+                  <SelectTrigger className="h-9 w-[140px]" aria-label={tg('season')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {homeRankSeasonOptions.map((s) => (
+                      <SelectItem key={s} value={s}>{formatSeasonLong(s)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+              {userLeagueGroups.size > 0 ? (
+                <div className="space-y-4">
+                  {[...userLeagueGroups.entries()].map(([league, rows]) => (
+                    <RankingsTable key={league} league={league} rankings={rows} compact />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-300 px-6 py-10 text-center dark:border-gray-700">
+                  <Trophy className="mx-auto mb-3 h-8 w-8 text-gray-300 dark:text-gray-600" />
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{formatSeasonLong(selectedHomeSeason)}</p>
+                  <p className="mx-auto mt-1 max-w-xs text-sm text-gray-500 dark:text-gray-400">{tg('rankingsUpcoming')}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
