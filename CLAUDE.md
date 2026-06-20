@@ -79,7 +79,7 @@ If a future change tempts you to add a permission row in a numbered SQL file: st
 - `wiedisync.kscw.ch` — React prod, CF Pages `wiedisync` (`prod` branch) → `directus.kscw.ch`
 - `wiedisync.pages.dev` — React dev, CF Pages (`dev` branch) → `directus-dev.kscw.ch` (auto-detected in `src/lib/api.ts`)
 - `directus.kscw.ch` / `directus-dev.kscw.ch` — Directus API prod/dev (plain Docker on Hetzner, not Coolify)
-- `kscw-website.pages.dev` — Public static site. **Deploy to dev/preview only** until further notice.
+- `kscw-website.pages.dev` — Public static site. Dev-first like wiedisync (`dev` branch → preview, `prod` branch → live); promote `dev` → `prod` with user approval. (Prior "dev/preview only" hold lifted 2026-06-20.)
 - `kscw-push.lucanepa.workers.dev` — Web push CF Worker
 
 See `INFRA.md → Domains & Hosting Overview` for full map.
