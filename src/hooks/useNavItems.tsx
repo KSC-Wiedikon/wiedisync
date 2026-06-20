@@ -5,7 +5,7 @@ import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
   Home, Calendar, Trophy, UserX, PenSquare, PartyPopper, Users,
-  ClipboardList, Building2, CalendarClock, Activity,
+  Building2, CalendarClock, Activity,
   HeartPulse, MessageSquare, Inbox, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText,
 } from 'lucide-react'
 
@@ -83,19 +83,26 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
   // set), these jump there as external links (seamless via the shared .kscw.ch
   // session cookie / SSO); on localhost or when unset they stay in-app.
   const schedExternal = typeof window !== 'undefined' && SCHEDULING_ORIGIN.replace(/\/$/, '') !== window.location.origin
-  const spielplanerItems: NavItem[] = [
-    ...(isAdmin || is_spielplaner || spielplanerTeamIds.length > 0
-      ? [{ to: '/admin/spielplanung', href: `${SCHEDULING_ORIGIN}/admin/spielplanung`, external: schedExternal, label: t('gameplan'), icon: <ClipboardList className={iconClass} /> }]
-      : []),
-    ...(isAdmin || is_spielplaner
-      ? [{ to: '/admin/terminplanung', href: `${SCHEDULING_ORIGIN}/admin/terminplanung`, external: schedExternal, label: t('terminplanung'), icon: <CalendarClock className={iconClass} /> }]
-      : []),
-  ]
+  // The whole game-scheduling feature opens as ONE entry — it has its own in-app
+  // nav (dashboard / manual game calendar / settings) once you're in it. Full &
+  // club Spielplaner land on Match scheduling (the dashboard); a per-team
+  // Spielplaner who can't reach Terminplanung lands on the manual game calendar.
+  const hasSchedulingAccess = isAdmin || is_spielplaner || spielplanerTeamIds.length > 0
+  const schedTo = isAdmin || is_spielplaner ? '/admin/terminplanung' : '/admin/spielplanung'
+  const schedulingItem: NavItem | null = hasSchedulingAccess
+    ? {
+        to: schedTo,
+        href: schedExternal ? `${SCHEDULING_ORIGIN}${schedTo}` : undefined,
+        external: schedExternal,
+        label: t('spielplanung'),
+        icon: <CalendarClock className={iconClass} />,
+      }
+    : null
   return {
     navItems: isLoggedIn && isApproved ? [...publicItems, ...primaryAuthItems] : publicItems,
     memberToolsItems: isLoggedIn && isApproved ? memberToolsItems : [],
     financeItems: isLoggedIn && isApproved ? financeItems : [],
-    spielplanerItems,
+    schedulingItem,
     adminItems: [
       { to: '/admin/hallenplan', label: t('hallenplan'), icon: <Building2 className={iconClass} /> },
       { to: '/admin/referee-expenses', label: t('refereeExpenses'), icon: <Banknote className={iconClass} /> },

@@ -41,10 +41,11 @@ function pathMatches(pathname: string, to: string) {
 
 /** A grouped top-nav category that opens a dropdown of its items. */
 function NavCategory({
-  label, items, extra, extraLabel, messagingOn, unreadMessages,
+  label, items, leadingItem, extra, extraLabel, messagingOn, unreadMessages,
 }: {
   label: string
   items: NavItem[]
+  leadingItem?: NavItem | null
   extra?: NavItem[]
   extraLabel?: string
   messagingOn: boolean
@@ -52,7 +53,7 @@ function NavCategory({
 }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const all = extra ? [...items, ...extra] : items
+  const all = [...(leadingItem ? [leadingItem] : []), ...items, ...(extra ?? [])]
   const isActive = all.some((i) => i.to && pathMatches(location.pathname, i.to))
   const hasInboxBadge = messagingOn && unreadMessages > 0 && items.some((i) => i.to === '/inbox')
 
@@ -93,6 +94,12 @@ function NavCategory({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[14rem]">
+        {leadingItem && (
+          <>
+            {renderItem(leadingItem)}
+            <DropdownMenuSeparator />
+          </>
+        )}
         {items.map(renderItem)}
         {extra && extra.length > 0 && (
           <>
@@ -116,7 +123,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
   const messagingOn = messagingFeatureEnabled(user?.id)
   const unreadMessages = useUnreadTotal()
   const [optionsOpen, setOptionsOpen] = useState(false)
-  const { navItems, memberToolsItems, financeItems, spielplanerItems, adminItems, superadminItems } =
+  const { navItems, memberToolsItems, financeItems, schedulingItem, adminItems, superadminItems } =
     useNavItems(!!user, isApproved, user?.id)
 
   // navItems[0] is always Home — it stays a direct link; the rest (Calendar,
@@ -180,13 +187,32 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
         {financeItems.length > 0 && (
           <NavCategory label={t('finance')} items={financeItems} messagingOn={messagingOn} unreadMessages={unreadMessages} />
         )}
-        {spielplanerItems.length > 0 && (
-          <NavCategory label={t('spielplanung')} items={spielplanerItems} messagingOn={messagingOn} unreadMessages={unreadMessages} />
+        {/* Game scheduling: non-admin Spielplaner get a direct top-level button;
+            admins get it inside the Admin dropdown (leadingItem) instead. */}
+        {schedulingItem && !isAdmin && (
+          schedulingItem.external && schedulingItem.href ? (
+            <a
+              href={schedulingItem.href}
+              className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${TRIGGER_IDLE}`}
+            >
+              {schedulingItem.label}
+            </a>
+          ) : (
+            <NavLink
+              to={schedulingItem.to}
+              className={({ isActive }) =>
+                `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive ? TRIGGER_ACTIVE : TRIGGER_IDLE}`
+              }
+            >
+              {schedulingItem.label}
+            </NavLink>
+          )
         )}
         {isAdmin && (
           <NavCategory
             label={t('admin')}
             items={adminItems}
+            leadingItem={schedulingItem}
             extra={isSuperAdmin ? superadminItems : undefined}
             extraLabel={t('superadmin')}
             messagingOn={messagingOn}

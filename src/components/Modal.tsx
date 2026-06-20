@@ -25,6 +25,13 @@ interface ModalProps {
   hideClose?: boolean
   /** Optional node rendered in the upper-right of the header (e.g. action button). */
   headerAction?: ReactNode
+  /**
+   * When true, the dialog/drawer does NOT move focus onto its first control on
+   * open. Avoids the browser focus ring landing on (e.g.) an RSVP button and
+   * making it look pre-selected. Use for read-first detail modals; leave off for
+   * form modals that should focus their first input.
+   */
+  disableAutoFocus?: boolean
 }
 
 const sizeClasses = {
@@ -33,8 +40,12 @@ const sizeClasses = {
   lg: 'sm:max-w-2xl',
 }
 
-export default function Modal({ open, onClose, title, children, size = 'md', hideClose, headerAction }: ModalProps) {
+export default function Modal({ open, onClose, title, children, size = 'md', hideClose, headerAction, disableAutoFocus }: ModalProps) {
   const isDesktop = useMediaQuery('(min-width: 640px)')
+  // Opt-in: keep focus on the trigger when the modal opens (no control gets the
+  // browser focus ring). Radix Dialog (desktop) + vaul Drawer (mobile) both
+  // honour `onOpenAutoFocus`.
+  const focusProps = disableAutoFocus ? { onOpenAutoFocus: (e: Event) => e.preventDefault() } : {}
 
   if (isDesktop) {
     return (
@@ -50,6 +61,7 @@ export default function Modal({ open, onClose, title, children, size = 'md', hid
             if (hideClose) e.preventDefault()
           }}
           hideClose={hideClose}
+          {...focusProps}
         >
           <DialogHeader
             className={cn(
@@ -71,7 +83,7 @@ export default function Modal({ open, onClose, title, children, size = 'md', hid
 
   return (
     <Drawer open={open} onOpenChange={(o) => !o && !hideClose && onClose()}>
-      <DrawerContent>
+      <DrawerContent {...focusProps}>
         <DrawerHeader
           className={cn(headerAction && 'flex flex-row items-center gap-2 space-y-0 text-left')}
         >

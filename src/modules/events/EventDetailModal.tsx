@@ -118,7 +118,7 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
 
   return (
     <>
-      <Modal open={!!event} onClose={onClose} title={event.title} size="md" headerAction={headerBroadcast}>
+      <Modal open={!!event} onClose={onClose} title={event.title} size="md" headerAction={headerBroadcast} disableAutoFocus>
         <div className="space-y-4">
           {/* Type badge + teams */}
           <div className="flex flex-wrap items-center gap-2">
