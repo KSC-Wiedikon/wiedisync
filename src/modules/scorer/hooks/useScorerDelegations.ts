@@ -54,7 +54,10 @@ export function useScorerDelegations() {
         from_team: fromTeamId,
         to_team: toTeamId,
         same_team: sameTeam,
-        status: sameTeam ? 'accepted' : 'pending',
+        // Every delegation — teammate or external — must be accepted by the
+        // recipient. (DB trigger trg_scorer_delegation_validate no longer
+        // auto-accepts same-team either; migration 121.)
+        status: 'pending',
       })
       logActivity('create', 'scorer_delegations', record.id, { game: gameId, role, to_member: toMemberId, same_team: sameTeam })
       refetch()

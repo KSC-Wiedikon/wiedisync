@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, ArrowRight, Zap, Clock, X } from 'lucide-react'
+import { Search, ArrowRight, Clock, X } from 'lucide-react'
 import type { Member, Team, MemberTeam, LicenceType, ScorerDelegation } from '../../../types'
 
 interface DelegationModalProps {
@@ -145,17 +145,10 @@ export default function DelegationModal({
             <div className="text-xs text-gray-500 dark:text-gray-400">{teamNames.join(', ')}</div>
           )}
         </div>
-        {sameTeam ? (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
-            <Zap className="h-3 w-3" />
-            {t('delegateInstant')}
-          </span>
-        ) : (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-            <Clock className="h-3 w-3" />
-            {t('delegateNeedsConfirm')}
-          </span>
-        )}
+        <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+          <Clock className="h-3 w-3" />
+          {t('delegateNeedsConfirm')}
+        </span>
       </button>
     )
   }
@@ -193,9 +186,7 @@ export default function DelegationModal({
               {t('delegateConfirmTitle')}
             </h4>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              {selected.sameTeam
-                ? t('delegateConfirmInstant', { name: selectedName })
-                : t('delegateConfirmPending', { name: selectedName })}
+              {t('delegateConfirmPending', { name: selectedName })}
             </p>
             <div className="mt-4 flex gap-3">
               <button

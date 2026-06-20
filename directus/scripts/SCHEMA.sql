@@ -1488,12 +1488,9 @@ CREATE FUNCTION public.trg_scorer_delegation_validate() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-  -- Auto-set same_team flag
+  -- Keep the same_team flag (UI grouping only); every delegation stays 'pending'
+  -- until the recipient accepts it.
   NEW.same_team := (NEW.from_team = NEW.to_team);
-  -- Auto-accept same-team delegations
-  IF NEW.same_team = true AND (TG_OP = 'INSERT') THEN
-    NEW.status := 'accepted';
-  END IF;
   RETURN NEW;
 END;
 $$;
