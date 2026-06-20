@@ -591,11 +591,42 @@ export default {
           return s ? s.charAt(0).toUpperCase() + '.' : ''
         }
 
+        // ── Minor-protection (privacy / DSGVO): no personal data about an
+        // under-18 may leave the server via this public endpoint.
+        //  1. Teams underage *by definition* (every member is a minor — any
+        //     "U<=18" team, plus Mini) expose NO roster at all, even when some
+        //     birthdates are missing.
+        //  2. On every other team (U20/U23, seniors) each member is age-checked
+        //     against their birthdate and dropped if under 18. A missing or
+        //     unparseable birthdate is treated as a minor (hidden) — we only
+        //     expose someone we can prove is an adult.
+        // Coaches are intentionally kept (adult staff, already shown on cards).
+        // Website-scoped only — the internal app reads full rosters elsewhere.
+        const isUnderageTeam = (name) => {
+          const s = String(name || '')
+          if (/mini/i.test(s)) return true
+          const m = s.match(/U(\d{1,2})/i)
+          return m ? Number(m[1]) <= 18 : false
+        }
+        const nowMs = Date.now()
+        const isMinor = (birthdate) => {
+          if (!birthdate) return true
+          const d = birthdate instanceof Date ? birthdate : new Date(birthdate)
+          if (Number.isNaN(d.getTime())) return true
+          const now = new Date(nowMs)
+          let age = now.getFullYear() - d.getFullYear()
+          const md = now.getMonth() - d.getMonth()
+          if (md < 0 || (md === 0 && now.getDate() < d.getDate())) age -= 1
+          return age < 18
+        }
+
         // Transform roster: expose yob (respecting birthdate_visibility) + guest_level,
         // strip raw birthdate / visibility flag from the public payload. Photo is
         // gated server-side by website_visible (default false = opt-in) so opted-out
         // members never expose a photo id — the website renders the club logo instead.
-        const rosterPublic = roster.map((m) => ({
+        const rosterPublic = isUnderageTeam(team.name)
+          ? []
+          : roster.filter((m) => !isMinor(m.birthdate)).map((m) => ({
           id: m.id,
           first_name: m.first_name,
           last_name: m.website_name_private ? lastInitial(m.last_name) : m.last_name,
@@ -632,7 +663,7 @@ export default {
         const [memberRows, teamRows] = await Promise.all([
           memberIds.size
             ? database('members').whereIn('id', [...memberIds])
-                .select('id', 'first_name', 'last_name')
+                .select('id', 'first_name', 'last_name', 'birthdate')
             : Promise.resolve([]),
           teamIds.size
             ? database('teams').whereIn('id', [...teamIds]).select('id', 'name')
@@ -642,7 +673,11 @@ export default {
         const teamById = new Map(teamRows.map((t) => [t.id, t]))
         const memberName = (id) => {
           const m = memberById.get(id)
-          return m ? [m.first_name, m.last_name].filter(Boolean).join(' ') : null
+          // Minor-protection: never expose the name of an under-18 official
+          // (e.g. a youth scorer on a youth game). Missing birthdate = treated
+          // as a minor and suppressed, same rule as the roster above.
+          if (!m || isMinor(m.birthdate)) return null
+          return [m.first_name, m.last_name].filter(Boolean).join(' ') || null
         }
 
         const splitName = (full) => {

@@ -518,7 +518,18 @@ async function main() {
     // (the privacy flag was only honoured by the kscw-website frontend, not at
     // the permission layer — the whole roster was anonymously enumerable). Scope
     // the public read to opt-in members only and keep the minimal field set.
-    await setPermRead(PUBLIC_POLICY, 'members', { website_visible: { _eq: true } }, ['id', 'first_name', 'last_name', 'photo'])
+    //
+    // 2026-06-20 minor-protection: belt-and-suspenders so an under-18 can NEVER
+    // be returned here even if `website_visible` is set true by mistake. Only
+    // members we can prove are adults pass (birthdate at least 18 years ago);
+    // a NULL birthdate fails the `_lte` comparison and is therefore excluded —
+    // same "prove adult or hide" rule the /kscw/public/team/:id endpoint uses.
+    await setPermRead(
+      PUBLIC_POLICY,
+      'members',
+      { _and: [{ website_visible: { _eq: true } }, { birthdate: { _lte: '$NOW(-18 years)' } }] },
+      ['id', 'first_name', 'last_name', 'photo'],
+    )
 
     // Calendar: hall slots, closures, hall events, halls.
     // Migration 035 removed `slot_claims` from Public — internal hall booking
