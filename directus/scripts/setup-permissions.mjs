@@ -466,9 +466,16 @@ async function main() {
   // ── 4. Clear old permissions for idempotent re-run ─────────────
 
   console.log('\n4. Clearing old permissions...')
+  // Member + Team Responsible are cleared at the START of their own recreate
+  // sections (§6, §7 below), NOT here. Those are the policies every
+  // authenticated user holds, so clearing them up-front leaves them empty for
+  // the WHOLE run — during which a concurrent /users/me resolves the degraded
+  // role ['user'] and 403s across every collection (the 2026-06-19 permission
+  // "wall" the error-log audit traced to a deploy-window reconcile). The API
+  // model can't wrap clear+recreate in one transaction, so interleaving is the
+  // mitigation: each window shrinks to that policy's own (sub-second) section,
+  // and a Member is never empty while an unrelated policy is being rebuilt.
   if (PUBLIC_POLICY) await clearPolicyPermissions(PUBLIC_POLICY, 'Public')
-  await clearPolicyPermissions(MEMBER_POLICY, 'Member')
-  await clearPolicyPermissions(LEADER_POLICY, 'Team Responsible')
   await clearPolicyPermissions(VORSTAND_POLICY, 'Vorstand')
   await clearPolicyPermissions(SPORT_ADMIN_POLICY, 'Sport Admin')
   await clearPolicyPermissions(ADMIN_POLICY, 'Admin')
@@ -574,6 +581,10 @@ async function main() {
   // ── 6. Member permissions ──────────────────────────────────────
 
   console.log('\n6. Member permissions...')
+
+  // Cleared here (immediately before recreate), not in the up-front §4 block —
+  // see the note there. Keeps the Member empty-window to this section only.
+  await clearPolicyPermissions(MEMBER_POLICY, 'Member')
 
   // ── Unfiltered cross-club reads ─────────────────────────────
   // Truly directory-level info: club-public schedules and venue data.
@@ -879,6 +890,11 @@ async function main() {
   // ── 7. Team Responsible permissions (additive to Member) ────────────
 
   console.log('\n7. Team Responsible permissions...')
+
+  // Cleared here (immediately before recreate), not in the up-front §4 block —
+  // see the note there. A TR user keeps their Member-policy perms (rebuilt in
+  // §6) intact while only the additive TR layer is briefly empty.
+  await clearPolicyPermissions(LEADER_POLICY, 'Team Responsible')
 
   // Members — scoped full-field read for members on teams I coach or TR.
   // 2026-05-12 audit: replaced unfiltered `setPermRead(LEADER_POLICY, 'members')`

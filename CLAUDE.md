@@ -61,6 +61,7 @@ The "every audit pass breaks something" loop comes from treating permissions as 
 4. **Deploy command is one of these, not bespoke psql:**
    - `npm run db:deploy:dev` — runs `db:migrate:dev` → `db:setup-perms:dev` → `db:smoke:dev`
    - `npm run db:deploy:prod` — same on prod
+   - **When a change touches BOTH schema and extension code, deploy schema FIRST: `npm run deploy:dev` / `npm run deploy:prod` chain `db:deploy:*` → `ext:deploy:*`** so the migration that adds a column lands before the endpoint code that selects it restarts. Shipping `ext:deploy` ahead of its migration is what produced the 2026-06-19 `public/team` 500s (`column … does not exist`). Frontend still deploys separately on git push (CF Pages).
 5. **Smoke test is part of deploy.** `db:smoke` logs in as a non-admin Member and exercises every collection that `loadTeamContext` + the home page touch. Catches the silent `Promise.all` failure pattern (4.4.4) the same minute it ships.
 6. **Fresh installs use `SCHEMA.sql` + setup-permissions.mjs, not the migration journal.** Regenerate `directus/scripts/SCHEMA.sql` from prod via `npm run db:baseline:prod` after any schema migration and commit it. The journal stays as the audit trail.
 7. **PERMISSIONS.md and SECURITY.md are operational docs, not vibes.** When you change a permission row in `setup-permissions.mjs`, update PERMISSIONS.md the same commit. When you fix a security finding, append to SECURITY.md "Hardening completed". Reviewers diff both.
