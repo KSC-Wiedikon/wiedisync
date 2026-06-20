@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/table'
 import RichTextEditor from '../../../components/RichTextEditor'
+import InlineSpinner from '../../../components/InlineSpinner'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import {
   bestOpponentForMessage,
@@ -277,7 +278,14 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
                 {t('mailboxCompose')}
               </Button>
               <Button size="sm" variant="outline" onClick={() => void handleSync()} disabled={syncing}>
-                {syncing ? t('mailboxChecking') : t('mailboxCheckNow')}
+                {syncing ? (
+                  <span className="flex items-center gap-2">
+                    <InlineSpinner />
+                    {t('mailboxChecking')}
+                  </span>
+                ) : (
+                  t('mailboxCheckNow')
+                )}
               </Button>
             </div>
           )}

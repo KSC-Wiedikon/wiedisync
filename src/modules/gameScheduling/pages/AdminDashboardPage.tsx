@@ -13,6 +13,7 @@ import OpponentNotes from '../components/OpponentNotes'
 import ManualBookingForm, { type ManualFixtureOption } from '../components/ManualBookingForm'
 import ExcelExportButton from '../components/ExcelExportButton'
 import SyncNowButton from '../components/SyncNowButton'
+import InlineSpinner from '../../../components/InlineSpinner'
 import {
   buildScheduleRows, buildScheduleXlsx, buildSchedulePdf,
   bytesToBase64, exportFilename, XLSX_MIME, PDF_MIME,
@@ -667,7 +668,7 @@ export default function AdminDashboardPage() {
                   disabled={vmSyncing === `b:${m.bid}`}
                   className="rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
                 >
-                  {vmSyncing === `b:${m.bid}` ? '…' : t('syncWithVm')}
+                  {vmSyncing === `b:${m.bid}` ? <InlineSpinner /> : t('syncWithVm')}
                 </button>
               </li>
             ))}
@@ -681,7 +682,7 @@ export default function AdminDashboardPage() {
                   disabled={vmSyncing === `u:${u.key}`}
                   className="rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
                 >
-                  {vmSyncing === `u:${u.key}` ? '…' : t('syncWithVm')}
+                  {vmSyncing === `u:${u.key}` ? <InlineSpinner /> : t('syncWithVm')}
                 </button>
               </li>
             ))}
