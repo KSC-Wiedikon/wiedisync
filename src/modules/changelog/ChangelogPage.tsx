@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.1.0'
+const APP_VERSION = '1.2.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.2.0',
+    date: '20.06.2026',
+    sections: [
+      {
+        title: 'League standings by season',
+        items: [
+          'Rankings now have a season picker — see the current tables, look back at last season\'s final standings, and browse the archive.',
+          'Earlier seasons are kept instead of being overwritten when a new season starts, so the history stays put. Last season (2024/25) has been added back in.',
+          'For a season Swiss Volley hasn\'t published yet, the rankings show a short "Data to be shared later by Swiss Volley" note instead of an empty table.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.1.0',
     date: '19.06.2026',

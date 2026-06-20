@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.2.0 — 2026-06-20
+
+### League standings by season
+- Rankings now have a season picker — see the current tables, look back at last season's final standings, and browse the archive.
+- Earlier seasons are kept instead of being overwritten when a new season starts, so the history stays put. Last season (2024/25) has been added back in.
+- For a season Swiss Volley hasn't published yet, the rankings show a short "Data to be shared later by Swiss Volley" note instead of an empty table.
+
 ## v1.1.0 — 2026-06-19
 
 ### Loading & polish
