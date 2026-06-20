@@ -10,6 +10,7 @@ import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { SCHEDULING_URL, buildEmailLayout, buildInfoCard, escHtml } from './email-template.js'
 import { VALID_LANGS, schedEmail, inviteEmail } from './terminplanung-emails.js'
 import { writeUserLog } from './activity-log.js'
+import { logCronRun } from './error-log.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -97,6 +98,11 @@ function weekdayHomeTime(dateYmd, startTime) {
 
 export function registerGameScheduling(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'game-scheduling' })
+
+  // Guards a single in-flight manual SVRZ sync (the daily cron is separate).
+  // Prevents a double-click spawning two ~minutes-long syncs, and lets the
+  // route 409 a concurrent trigger instead of piling on.
+  let svrzManualSyncRunning = false
 
   // Fire-and-forget push of a confirmed HOME booking's date/time/hall into
   // VolleyManager (volleymanager.volleyball.ch) via scripts/vm-push-game.mjs.
@@ -4052,10 +4058,14 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where('season_name', defaultSeasonName).whereNotNull('season_uuid').first()
       const defaultSeasonUuid = known?.season_uuid || 'dcafddfe-8139-4e02-baad-d3f88ec00cd0'
 
+      if (svrzManualSyncRunning) {
+        return res.status(409).json({ status: 'skipped', reason: 'already-running' })
+      }
+
       const { spawn } = await import('node:child_process')
-      // Pipe child stdout + stderr to a persistent log so the detached run
-      // leaves a trail when it fails. Without this, stdio: 'ignore' would
-      // silently swallow all output and we'd never know why a sync failed.
+      // Pipe child stdout + stderr to a persistent log so the run leaves a
+      // trail when it fails. Without this, stdio: 'ignore' would silently
+      // swallow all output and we'd never know why a sync failed.
       const { openSync } = await import('node:fs')
       let logOut, logErr
       try {
@@ -4075,14 +4085,38 @@ export function registerGameScheduling(router, { database, logger, services, get
         SVRZ_SEASON_UUID: season_uuid || defaultSeasonUuid,
         SVRZ_SEASON_NAME: season_name || defaultSeasonName,
       }
+      // Managed (non-detached) spawn: respond 202 immediately, but keep a close
+      // listener so the run records a sync_runs heartbeat on completion — the
+      // same 'svrz_sync' source the daily cron and /admin/svrz-sync write. That
+      // heartbeat is what the admin "Sync now" UI polls for live progress
+      // (running → ✓/✗). A SIGKILL watchdog bounds a hung run at 15 min.
+      const startedAt = Date.now()
+      let settled = false
+      svrzManualSyncRunning = true
       const child = spawn('node', ['/directus/scripts/svrz-scheduling-sync.mjs'], {
         env,
-        detached: true,
         stdio: ['ignore', logOut, logErr],
       })
-      child.unref()
+      const watchdog = setTimeout(() => { try { child.kill('SIGKILL') } catch { /* already gone */ } }, 900_000)
+      const settle = async (status, errorMessage) => {
+        if (settled) return
+        settled = true
+        clearTimeout(watchdog)
+        svrzManualSyncRunning = false
+        await logCronRun(database, 'svrz_sync', { status, durationMs: Date.now() - startedAt, errorMessage: errorMessage || null }).catch(() => {})
+      }
+      child.on('error', (err) => {
+        log.error({ msg: `svrz-sync spawn error: ${err.message}`, endpoint: 'admin/terminplanung/svrz-sync' })
+        settle('error', err.message)
+      })
+      child.on('close', (code) => {
+        if (code === 0) settle('ok')
+        // Exit 75 = deferred (VM temporarily unavailable, transient) — not a failure.
+        else if (code === 75) settle('ok', 'deferred: VM temporarily unavailable')
+        else settle('error', `exited ${code}`)
+      })
       log.info({ msg: `svrz-sync spawned`, pid: child.pid, userId: req.accountability?.user })
-      res.json({ started: true, pid: child.pid })
+      res.status(202).json({ status: 'started', pid: child.pid })
     } catch (err) {
       log.error({ msg: `svrz-sync: ${err.message}`, endpoint: 'admin/terminplanung/svrz-sync', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })

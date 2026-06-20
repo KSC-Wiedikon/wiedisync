@@ -17,6 +17,7 @@ import { useInvites } from '../hooks/useInvites'
 import InviteRow from './InviteRow'
 import InvitesDrawer from './InvitesDrawer'
 import SendInvitesModal from './SendInvitesModal'
+import SyncNowButton from './SyncNowButton'
 
 interface Props {
   teams: Team[]
@@ -29,7 +30,6 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
   const [selectedTeamId, setSelectedTeamId] = useState<string | number | null>(teams[0]?.id ?? null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [sendOpen, setSendOpen] = useState(false)
-  const [syncing, setSyncing] = useState(false)
   const [svrz, setSvrz] = useState<SvrzStatus | null>(null)
   const selectedTeam = useMemo(() => teams.find((t) => String(t.id) === String(selectedTeamId)) ?? null, [teams, selectedTeamId])
   const api = useInvites(selectedTeamId, seasonId)
@@ -67,37 +67,12 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
   }, [seasonName])
   useEffect(() => { fetchSvrz() }, [fetchSvrz])
 
-  const handleSyncNow = async () => {
-    setSyncing(true)
-    try {
-      await kscwApi('/admin/terminplanung/svrz-sync', {
-        method: 'POST',
-        body: { season_name: seasonName },
-      })
-      // Also refresh VM team names/leagues (e.g. a junior team's Stärkeklasse
-      // rename DU23-1 → DU23-2). Admin-only + best-effort: a non-admin spielplaner
-      // gets 403 here, which we swallow so the SVRZ sync still counts as started.
-      try {
-        await kscwApi('/admin/vm-sync', { method: 'POST', body: {} })
-      } catch { /* non-admin or VM busy — SVRZ already started */ }
-      toast.success(t('svrzSyncStarted'))
-      // The sync runs in the background; refresh the summary once it's likely done.
-      setTimeout(fetchSvrz, 8000)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
-    } finally {
-      setSyncing(false)
-    }
-  }
-
   return (
     <>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle>{t('invites')}</CardTitle>
-          <Button size="sm" variant="outline" onClick={handleSyncNow} disabled={syncing}>
-            {t('syncSvrzNow')}
-          </Button>
+          <SyncNowButton seasonName={seasonName} onDone={fetchSvrz} />
         </CardHeader>
         <CardContent className="space-y-4">
           {/* SVRZ sync summary */}

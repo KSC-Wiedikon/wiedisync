@@ -12,6 +12,7 @@ import HomeProposalReview from '../components/HomeProposalReview'
 import OpponentNotes from '../components/OpponentNotes'
 import ManualBookingForm, { type ManualFixtureOption } from '../components/ManualBookingForm'
 import ExcelExportButton from '../components/ExcelExportButton'
+import SyncNowButton from '../components/SyncNowButton'
 import {
   buildScheduleRows, buildScheduleXlsx, buildSchedulePdf,
   bytesToBase64, exportFilename, XLSX_MIME, PDF_MIME,
@@ -320,25 +321,9 @@ export default function AdminDashboardPage() {
     }
   }
 
-  // One-click refresh: SVRZ fixtures/contacts + VM team names/leagues (e.g. a
-  // junior team's Stärkeklasse rename DU23-1 → DU23-2). VM call is admin-only +
-  // best-effort — a non-admin spielplaner gets 403 there, swallowed, so the SVRZ
-  // sync still starts. Same behaviour as the Invites panel "Sync now" button.
-  const [syncing, setSyncing] = useState(false)
-  const handleSyncNow = async () => {
-    setSyncing(true)
-    try {
-      await kscwApi('/admin/terminplanung/svrz-sync', { method: 'POST', body: { season_name: season?.season } })
-      try {
-        await kscwApi('/admin/vm-sync', { method: 'POST', body: {} })
-      } catch { /* non-admin or VM busy — SVRZ already started */ }
-      toast.success(t('svrzSyncStarted'))
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
-    } finally {
-      setSyncing(false)
-    }
-  }
+  // One-click refresh (SVRZ fixtures/contacts + VM team names/leagues) with live
+  // progress — see SyncNowButton / useSyncProgress. refetch() pulls the fresh
+  // bookings once the background sync settles.
 
   // Send a reminder invite to every opponent still missing a home/away game.
   // Two-step: a dry run lists who would be emailed (so the admin confirms the
@@ -630,9 +615,7 @@ export default function AdminDashboardPage() {
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{formatSeasonShort(season.season)}</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Button size="sm" variant="outline" onClick={handleSyncNow} disabled={syncing}>
-            {t('syncSvrzNow')}
-          </Button>
+          <SyncNowButton seasonName={season.season} onDone={refetch} />
           <Button size="sm" variant="outline" onClick={() => handleSendReminders()} disabled={reminding}>
             {reminding ? '…' : t('sendReminders')}
           </Button>
