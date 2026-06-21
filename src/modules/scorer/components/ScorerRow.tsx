@@ -7,7 +7,7 @@ import AssignmentEditor from './AssignmentEditor'
 import DelegationModal from './DelegationModal'
 import { downloadICal } from '../../../utils/icalGenerator'
 import type { CalendarEntry } from '../../../types/calendar'
-import { formatTime, formatDateTimeCompact } from '../../../utils/dateHelpers'
+import { formatTime, formatDateTimeCompact, toUtcIsoFromDatetimeLocal } from '../../../utils/dateHelpers'
 import { Calendar, MapPin, Clock, AlertTriangle } from 'lucide-react'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 
@@ -153,6 +153,17 @@ export default function ScorerRow({
   const hall = asObj<Hall>(expanded.hall)
   const dateStr = game.date ? getDateFormatter(i18n.language).format(new Date(game.date + 'T00:00:00')) : ''
   const gameNumber = game.game_id?.replace(/^(vb_|bb_)/, '') ?? ''
+
+  // A game is "past" once its Zurich kickoff has passed (covers same-day games
+  // already played — those still sit in the upcoming list). Used to hide the
+  // admin Undo-confirmation control on games that have already started.
+  const isGamePast = (() => {
+    if (!game.date || !game.time) return false
+    try {
+      const ms = new Date(toUtcIsoFromDatetimeLocal(`${String(game.date).slice(0, 10)}T${String(game.time).slice(0, 5)}`)).getTime()
+      return !Number.isNaN(ms) && ms < Date.now()
+    } catch { return false }
+  })()
 
   const vbSeparate = isVbSeparateMode(game)
   const vbCombined = isVbCombinedMode(game)
@@ -468,8 +479,8 @@ export default function ScorerRow({
           </p>
         )}
 
-        {/* Admin-only unconfirm button */}
-        {game.duty_confirmed && canEdit && (
+        {/* Admin-only unconfirm button — hidden once the game has started/passed */}
+        {game.duty_confirmed && canEdit && !isGamePast && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => onUpdate(game.id, { duty_confirmed: false })}
