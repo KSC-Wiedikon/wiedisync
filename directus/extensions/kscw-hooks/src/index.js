@@ -2057,6 +2057,33 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // Stamp WHO confirmed a game's scorekeeping duty and WHEN, in the SAME write
+  // that flips duty_confirmed (migration 122). A filter (not an action) so it
+  // rides the existing payload — a second raw write would re-fire
+  // trg_games_notify and double-notify the team. Writers are only LEADER/admins
+  // (games.update is ['*'] for them), so the injected fields pass field-level
+  // permission. Name only — games.read is ['*'] for members, so a confirmer's
+  // email must not ride along.
+  filter('games.items.update', async (payload, _meta, { accountability }) => {
+    if (!payload || !('duty_confirmed' in payload)) return payload
+    try {
+      if (payload.duty_confirmed === true) {
+        let name = null
+        if (accountability?.user) {
+          const m = await database('members').where('user', accountability.user).first('first_name', 'last_name')
+          if (m) name = [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null
+        }
+        return { ...payload, duty_confirmed_by_name: name, duty_confirmed_at: new Date().toISOString() }
+      }
+      if (payload.duty_confirmed === false) {
+        return { ...payload, duty_confirmed_by_name: null, duty_confirmed_at: null }
+      }
+    } catch (err) {
+      log.error({ msg: `[duty-confirm-actor] ${err.message}`, event: 'duty_confirm_actor', stack: err.stack })
+    }
+    return payload
+  })
+
   action('games.items.update', async ({ keys, payload }) => {
     if (payload && 'date' in payload) {
       try {

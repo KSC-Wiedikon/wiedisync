@@ -30,6 +30,7 @@ export default {
   statusConfirmed: 'Confirmed',
   statusAssigned: 'Assigned',
   statusOpen: 'Open',
+  confirmedBy: 'Confirmed by',
 
   // Filters
   filters: 'Filters',
