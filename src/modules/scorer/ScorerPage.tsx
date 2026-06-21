@@ -21,6 +21,7 @@ import ScorerRow, { hasAnyVbAssignment, hasAnyBbAssignment } from './components/
 import TeamOverview from './components/TeamOverview'
 import DelegationRequestBanner from './components/DelegationRequestBanner'
 import { useScorerDelegations } from './hooks/useScorerDelegations'
+import { useOfficialContacts } from './hooks/useOfficialContacts'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { Bell, BellOff, ChevronDown, ChevronUp, Filter, Info, Clock, AlertTriangle, ClipboardList, Lightbulb } from 'lucide-react'
 import { TourPageButton } from '../guide/TourPageButton'
@@ -36,7 +37,7 @@ const PAST_PAGE_SIZE = 5
 
 export default function ScorerPage() {
   const { t } = useTranslation('scorer')
-  const { user, isSuperAdmin, hasAdminAccessToSport } = useAuth()
+  const { user, isSuperAdmin, hasAdminAccessToSport, coachTeamIds, teamResponsibleIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
 
   const [tab, setTab] = useState<Tab>('games')
@@ -56,7 +57,11 @@ export default function ScorerPage() {
   const [pastVisible, setPastVisible] = useState(PAST_PAGE_SIZE)
   const [reminderToggling, setReminderToggling] = useState(false)
   const canEdit = effectiveIsAdmin && hasAdminAccessToSport(sportTab)
-  const showContact = effectiveIsAdmin && hasAdminAccessToSport(sportTab)
+  // Coaches / team-responsibles see the assigned official's contact for their
+  // own duty games (server-scoped per game via useOfficialContacts); admins see
+  // it for everything via the items API.
+  const isLeader = coachTeamIds.length > 0 || teamResponsibleIds.length > 0
+  const showContact = (effectiveIsAdmin && hasAdminAccessToSport(sportTab)) || isLeader
 
   const today = useMemo(() => todayLocal(), [])
 
@@ -112,6 +117,19 @@ export default function ScorerPage() {
   })
   const members = membersRaw ?? []
 
+  // Contact details (email/phone) for officials of the coach/TR's own duty games.
+  // Empty for admins (they read contacts via the items API) and non-leaders.
+  const officialContacts = useOfficialContacts()
+  const membersWithContact = useMemo(() => {
+    if (officialContacts.size === 0) return members
+    return members.map((m) => {
+      const c = officialContacts.get(m.id)
+      return c
+        ? { ...m, phone: c.phone ?? m.phone, email: c.email ?? m.email, hide_phone: c.hide_phone, hide_email: c.hide_email }
+        : m
+    })
+  }, [members, officialContacts])
+
   const { data: teamsRaw, isLoading: teamsDataLoading } = useCollection<Team>('teams', {
     filter: { active: { _eq: true } },
     fields: ['id', 'name', 'sport'],
@@ -157,6 +175,14 @@ export default function ScorerPage() {
     return ids
   }, [allMemberTeams, user])
 
+  // Teams whose duty games this user may see: teams they play in PLUS teams they
+  // coach / are responsible for (so a staff-only coach — not a roster member —
+  // still sees their team's duty games, and the assigned official's contact).
+  const myDutyTeamIds = useMemo(
+    () => [...new Set([...userTeamIds, ...coachTeamIds, ...teamResponsibleIds])],
+    [userTeamIds, coachTeamIds, teamResponsibleIds],
+  )
+
   const memberMap = useMemo(() => {
     const map = new Map<string, Member>()
     for (const m of members) map.set(m.id, m)
@@ -198,8 +224,8 @@ export default function ScorerPage() {
           ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member].includes(String(user.id))
           : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
         const teamHasDuty = sportTab === 'volleyball'
-          ? userTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team)
-          : userTeamIds.some((tid) => tid === (g.bb_scorer_duty_team || g.bb_duty_team) || tid === (g.bb_timekeeper_duty_team || g.bb_duty_team) || tid === (g.bb_24s_duty_team || g.bb_duty_team))
+          ? myDutyTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team)
+          : myDutyTeamIds.some((tid) => tid === (g.bb_scorer_duty_team || g.bb_duty_team) || tid === (g.bb_timekeeper_duty_team || g.bb_duty_team) || tid === (g.bb_24s_duty_team || g.bb_duty_team))
         if (!isPersonallyAssigned && !teamHasDuty) return false
       }
 
@@ -301,7 +327,7 @@ export default function ScorerPage() {
       if (a.time !== b.time) return (a.time || '') < (b.time || '') ? -1 : 1
       return 0
     })
-  }, [upcomingGames, sportTab, dutyScope, effectiveIsAdmin, effectiveIsVorstand, user, userTeamIds, dateFilter, dutyTeamFilter, dutyTypeFilter, unassignedFilter, searchAssignee, memberMap])
+  }, [upcomingGames, sportTab, dutyScope, effectiveIsAdmin, effectiveIsVorstand, user, myDutyTeamIds, dateFilter, dutyTeamFilter, dutyTypeFilter, unassignedFilter, searchAssignee, memberMap])
 
   const filteredPastGames = useMemo(() => allPastGames.filter((g) => {
     if (getGameSport(g) !== sportTab) return false
@@ -310,12 +336,12 @@ export default function ScorerPage() {
         ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member].includes(String(user.id))
         : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
       const teamHasDuty = sportTab === 'volleyball'
-        ? userTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team)
-        : userTeamIds.some((tid) => tid === (g.bb_scorer_duty_team || g.bb_duty_team) || tid === (g.bb_timekeeper_duty_team || g.bb_duty_team) || tid === (g.bb_24s_duty_team || g.bb_duty_team))
+        ? myDutyTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team)
+        : myDutyTeamIds.some((tid) => tid === (g.bb_scorer_duty_team || g.bb_duty_team) || tid === (g.bb_timekeeper_duty_team || g.bb_duty_team) || tid === (g.bb_24s_duty_team || g.bb_duty_team))
       if (!isPersonallyAssigned && !teamHasDuty) return false
     }
     return true
-  }), [allPastGames, sportTab, effectiveIsAdmin, effectiveIsVorstand, user, userTeamIds])
+  }), [allPastGames, sportTab, effectiveIsAdmin, effectiveIsVorstand, user, myDutyTeamIds])
   const visiblePastGames = useMemo(() => filteredPastGames.slice(0, pastVisible), [filteredPastGames, pastVisible])
 
   const hasActiveFilters = !!(dateFilter || dutyTeamFilter || dutyTypeFilter !== 'all' || unassignedFilter !== 'all' || searchAssignee)
@@ -400,7 +426,7 @@ export default function ScorerPage() {
     <ScorerRow
       key={g.id}
       game={g}
-      members={members}
+      members={membersWithContact}
       teams={teams}
       teamMemberIds={teamMemberIds}
       memberTeams={allMemberTeams}
