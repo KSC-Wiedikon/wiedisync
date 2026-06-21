@@ -8,7 +8,7 @@ import { useRealtime } from '../../hooks/useRealtime'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { logActivity } from '../../utils/logActivity'
-import { todayLocal } from '../../utils/dateHelpers'
+import { todayLocal, toUtcIsoFromDatetimeLocal } from '../../utils/dateHelpers'
 import { Button } from '@/components/ui/button'
 import { FormInput } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -35,6 +35,19 @@ type BbUnassignedFilter = 'all' | 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_offici
 
 const PAST_PAGE_SIZE = 5
 
+// Coaches/TR see an official's contact only around the game: 1h before kickoff
+// → 1h after. Same window the server enforces in /scorer/official-contacts.
+const CONTACT_WINDOW_MS = 60 * 60 * 1000
+function gameInContactWindow(g: Game): boolean {
+  if (!g.date || !g.time) return false
+  const local = `${String(g.date).slice(0, 10)}T${String(g.time).slice(0, 5)}`
+  let startMs: number
+  try { startMs = new Date(toUtcIsoFromDatetimeLocal(local)).getTime() } catch { return false }
+  if (Number.isNaN(startMs)) return false
+  const now = Date.now()
+  return now >= startMs - CONTACT_WINDOW_MS && now <= startMs + CONTACT_WINDOW_MS
+}
+
 export default function ScorerPage() {
   const { t } = useTranslation('scorer')
   const { user, isSuperAdmin, hasAdminAccessToSport, coachTeamIds, teamResponsibleIds } = useAuth()
@@ -57,11 +70,14 @@ export default function ScorerPage() {
   const [pastVisible, setPastVisible] = useState(PAST_PAGE_SIZE)
   const [reminderToggling, setReminderToggling] = useState(false)
   const canEdit = effectiveIsAdmin && hasAdminAccessToSport(sportTab)
-  // Coaches / team-responsibles see the assigned official's contact for their
-  // own duty games (server-scoped per game via useOfficialContacts); admins see
-  // it for everything via the items API.
+  // Admins see the assigned official's contact on any game (items API).
+  // Coaches / team-responsibles see it only for their own duty games AND only
+  // within the contact window (1h before kickoff → 1h after) — the per-game
+  // gate below; the data itself is server-scoped per game via useOfficialContacts.
+  const isSportAdmin = effectiveIsAdmin && hasAdminAccessToSport(sportTab)
   const isLeader = coachTeamIds.length > 0 || teamResponsibleIds.length > 0
-  const showContact = (effectiveIsAdmin && hasAdminAccessToSport(sportTab)) || isLeader
+  const showContactForGame = (g: Game): boolean =>
+    isSportAdmin || (isLeader && gameInContactWindow(g))
 
   const today = useMemo(() => todayLocal(), [])
 
@@ -433,7 +449,7 @@ export default function ScorerPage() {
       guestMemberIds={guestMemberIds}
       onUpdate={handleUpdate}
       canEdit={isPast ? false : canEdit}
-      showContact={showContact}
+      showContact={showContactForGame(g)}
       userId={user?.id}
       userTeamIds={userTeamIds}
       userLicences={user ? licencesOf(user) : []}
