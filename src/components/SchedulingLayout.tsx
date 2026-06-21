@@ -8,10 +8,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import LoadingSpinner from './LoadingSpinner'
-import { CalendarClock, Check, ChevronDown, ClipboardList, LayoutDashboard, LogOut, Moon, Settings, Sun } from 'lucide-react'
+import { CalendarClock, Check, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, LogOut, Moon, Settings, Sun } from 'lucide-react'
+
+const WIEDISYNC_URL = 'https://wiedisync.kscw.ch'
 
 /**
  * Minimal shell for the Spielplanung subdomain's admin pages — logo, the two
@@ -82,15 +85,21 @@ export default function SchedulingLayout() {
                 <span className="whitespace-nowrap">{item.label}</span>
               </NavLink>
             ))}
+            <a
+              href={WIEDISYNC_URL}
+              className="ml-auto flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              <ExternalLink className="h-4 w-4" />
+              <span className="whitespace-nowrap">Wiedisync</span>
+            </a>
           </nav>
 
           {navItems.length > 0 && activeItem && (
             <div className="flex min-w-0 flex-1 sm:hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 outline-none transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
-                    <activeItem.Icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{activeItem.label}</span>
+                  <button aria-label={activeItem.label} className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-gray-600 outline-none transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
+                    <activeItem.Icon className="h-5 w-5 shrink-0" />
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-400" />
                   </button>
                 </DropdownMenuTrigger>
@@ -108,6 +117,14 @@ export default function SchedulingLayout() {
                       )}
                     </DropdownMenuItem>
                   ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => { window.location.href = WIEDISYNC_URL }}
+                    className="flex cursor-pointer items-center gap-2.5"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    <span className="flex-1">Wiedisync</span>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
