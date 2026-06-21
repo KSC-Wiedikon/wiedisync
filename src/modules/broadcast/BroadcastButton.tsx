@@ -12,6 +12,8 @@ interface BroadcastButtonProps {
   size?: 'sm' | 'default' | 'lg'
   /** Optional override label (defaults to i18n `broadcast:button.label`). */
   label?: string
+  /** Show the text label at all breakpoints (default: hidden below md). */
+  labelAlwaysVisible?: boolean
   className?: string
 }
 
@@ -25,6 +27,7 @@ export default function BroadcastButton({
   variant = 'outline',
   size = 'sm',
   label,
+  labelAlwaysVisible = false,
   className,
 }: BroadcastButtonProps) {
   const { t } = useTranslation('broadcast')
@@ -43,8 +46,8 @@ export default function BroadcastButton({
         // Mobile-first: tap target ≥44px (size="sm" is 36px; we bump min via classes)
         className={`min-h-11 ${className ?? ''}`.trim()}
       >
-        <Send className="h-4 w-4 md:mr-1" />
-        <span className="hidden md:inline">{label ?? t('button.label')}</span>
+        <Send className={labelAlwaysVisible ? 'h-4 w-4 mr-1.5' : 'h-4 w-4 md:mr-1'} />
+        <span className={labelAlwaysVisible ? 'inline' : 'hidden md:inline'}>{label ?? t('button.label')}</span>
       </Button>
       {open && (
         <BroadcastDialog
