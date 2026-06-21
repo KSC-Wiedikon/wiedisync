@@ -200,48 +200,20 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:rounded-2xl dark:bg-gray-800"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b dark:border-gray-700 px-6 py-4">
-          <div className="flex items-center gap-2">
-            <span className="rounded bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-400">
-              {game.league}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {kscwTeam && <TeamChip team={kscwTeam} size="sm" />}
-            {game.status === 'scheduled' && (
-              <BroadcastButton
-                activity={{
-                  type: 'game',
-                  id: Number(game.id),
-                  title: `${homeLabel} vs ${awayLabel}`,
-                  start_date: game.date && game.time ? `${game.date}T${game.time}` : game.date,
-                  location: hall?.name ?? undefined,
-                  teamName: rawKscwTeam || undefined,
-                  sport: kscwSport ?? null,
-                  teamId: kscwTeamId ? Number(kscwTeamId) : undefined,
-                }}
-                member={user ? {
-                  id: user.id,
-                  role: user.role ?? null,
-                  isCoachOf: coachTeamIds,
-                  isResponsibleOf: teamResponsibleIds,
-                } : null}
-              />
-            )}
-            {(game.status === 'scheduled' || game.status === 'cancelled') && (
-              <CancelActivityButton
-                kind="game"
-                activityId={game.id}
-                isCancelled={game.status === 'cancelled'}
-                teamIds={kscwTeamId ? [kscwTeamId] : []}
-                variant="inline"
-                onDone={onClose}
-              />
-            )}
+        {/* Header — meta on row 1, actions on their own row so the top never
+            smushes on mobile (league name + chip + actions used to fight for space). */}
+        <div className="border-b dark:border-gray-700 px-6 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-400">
+                {game.league}
+              </span>
+              {kscwTeam && <TeamChip team={kscwTeam} size="sm" />}
+            </div>
             <button
               onClick={onClose}
-              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 sm:min-h-0 sm:min-w-0 sm:p-1 dark:hover:bg-gray-700"
+              aria-label={t('common:close', 'Close')}
+              className="-mr-2 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 sm:-mr-1 sm:min-h-0 sm:min-w-0 sm:p-1 dark:hover:bg-gray-700"
             >
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path
@@ -252,6 +224,42 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
             </svg>
             </button>
           </div>
+
+          {/* Actions row — hidden when the viewer can neither broadcast nor cancel
+              (both sub-components render null in that case → :empty). */}
+          {(game.status === 'scheduled' || game.status === 'cancelled') && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 empty:hidden">
+              {game.status === 'scheduled' && (
+                <BroadcastButton
+                  labelAlwaysVisible
+                  activity={{
+                    type: 'game',
+                    id: Number(game.id),
+                    title: `${homeLabel} vs ${awayLabel}`,
+                    start_date: game.date && game.time ? `${game.date}T${game.time}` : game.date,
+                    location: hall?.name ?? undefined,
+                    teamName: rawKscwTeam || undefined,
+                    sport: kscwSport ?? null,
+                    teamId: kscwTeamId ? Number(kscwTeamId) : undefined,
+                  }}
+                  member={user ? {
+                    id: user.id,
+                    role: user.role ?? null,
+                    isCoachOf: coachTeamIds,
+                    isResponsibleOf: teamResponsibleIds,
+                  } : null}
+                />
+              )}
+              <CancelActivityButton
+                kind="game"
+                activityId={game.id}
+                isCancelled={game.status === 'cancelled'}
+                teamIds={kscwTeamId ? [kscwTeamId] : []}
+                variant="inline"
+                onDone={onClose}
+              />
+            </div>
+          )}
         </div>
 
         {/* Teams & Score */}
@@ -393,7 +401,8 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                   })()}
                 </div>
             </div>
-            <div className="ml-auto">
+            {/* RSVP tallies on their own full-width row, centred under the buttons */}
+            <div className="flex w-full justify-center pt-1">
               <ParticipationSummary activityType="game" activityId={game.id} bars coachMemberIds={teamCoachIds(kscwTeamObj)} />
             </div>
             {/* Participation note */}
