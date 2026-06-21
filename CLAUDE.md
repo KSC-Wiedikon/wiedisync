@@ -112,6 +112,6 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
-- **2026-06-19** **v1.0.0 baseline** — consolidated the entire pre-1.0 history (internal v5.2.0) into a single official **v1.0.0**: `CHANGELOG.md` + the in-app "What's New" (`ChangelogPage.tsx`, `APP_VERSION`→`1.0.0`) collapsed to one launch entry, `package.json` `5.2.0`→`1.0.0`, DEVLOG reset to baseline with prior entries moved verbatim to `docs/DEVLOG-archive.md`. Docs + version metadata only — no code/schema/runtime change. See [`docs/DEVLOG.md`](docs/DEVLOG.md).
+- **2026-06-19** **v1.0.0 baseline** — consolidated the entire pre-1.0 history (internal v5.2.0) into a single official **v1.0.0**: `CHANGELOG.md` + the in-app "What's New" (`ChangelogPage.tsx`, `APP_VERSION`→`1.0.0`) collapsed to one launch entry, `package.json` `5.2.0`→`1.0.0`, DEVLOG reset to baseline with prior entries moved verbatim to `docs/DEVLOG-archive.md` (`kscw-website` re-baselined to `1.0.0` in the same pass). Docs + version metadata only — no code/schema/runtime change. See [`docs/DEVLOG.md`](docs/DEVLOG.md).
 
 **Older entries → [`docs/DEVLOG-archive.md`](docs/DEVLOG-archive.md)** (full pre-1.0 dev/deploy history).

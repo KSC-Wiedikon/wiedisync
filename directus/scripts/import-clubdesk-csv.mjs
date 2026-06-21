@@ -179,7 +179,48 @@ const psqlInput =
   '\\.\n' +
   `UPDATE clubdesk_export_meta SET last_import_at = NOW(), source_file = '${fileTag}', row_count = (SELECT COUNT(*) FROM clubdesk_export) WHERE id = 1;\n` +
   'COMMIT;\n' +
-  "SELECT 'rows', (SELECT COUNT(*) FROM clubdesk_export), 'volleyball', (SELECT COUNT(*) FROM clubdesk_volleyball), 'last_import', (SELECT last_import_at FROM clubdesk_export_meta WHERE id=1);\n"
+  "SELECT 'rows', (SELECT COUNT(*) FROM clubdesk_export), 'volleyball', (SELECT COUNT(*) FROM clubdesk_volleyball), 'last_import', (SELECT last_import_at FROM clubdesk_export_meta WHERE id=1);\n" +
+  // ── Apply ClubDesk birthdates to members (minor-protection dependency) ──
+  // members.birthdate gates public roster visibility: the public team API strips
+  // under-18s and treats a MISSING birthdate as a minor (hidden — see the public
+  // /kscw/public/team/:id endpoint + the public /items/members permission filter).
+  // ClubDesk is the source of truth, so fill NULL birthdates from clubdesk_export
+  // on every sync — otherwise new members regress to "hidden". Never overwrite an
+  // existing birthdate. Two unambiguous passes (each only applies a single distinct
+  // dob per member): (1) licence — lizenznummer is 1:1 per person, authoritative;
+  // (2) email guarded by a first-name token match, so a shared family email cannot
+  // cross-assign a birthdate. A failed/accented name match simply skips (the member
+  // stays hidden = fail-safe). Only well-formed, calendar-valid dd.mm.yyyy parses.
+  // Own transaction so a match hiccup never rolls back the staging load above.
+  'BEGIN;\n' +
+  'WITH cd AS (\n' +
+  "  SELECT lower(btrim(lizenznummer)) AS lic, to_date(geburtsdatum,'DD.MM.YYYY') AS dob\n" +
+  '  FROM clubdesk_export\n' +
+  "  WHERE geburtsdatum ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
+  "    AND to_char(to_date(geburtsdatum,'DD.MM.YYYY'),'DD.MM.YYYY') = geburtsdatum),\n" +
+  'lic_match AS (\n' +
+  '  SELECT m.id, min(cd.dob) AS dob FROM members m\n' +
+  "  JOIN cd ON cd.lic <> '' AND cd.lic = lower(btrim(m.license_nr))\n" +
+  "  WHERE m.birthdate IS NULL AND btrim(coalesce(m.license_nr,'')) <> ''\n" +
+  '  GROUP BY m.id HAVING count(DISTINCT cd.dob) = 1)\n' +
+  'UPDATE members m SET birthdate = lic_match.dob\n' +
+  '  FROM lic_match WHERE m.id = lic_match.id AND m.birthdate IS NULL;\n' +
+  'WITH cd AS (\n' +
+  '  SELECT lower(btrim(email)) AS email, lower(btrim(email_alternativ)) AS email_alt,\n' +
+  "         lower(split_part(btrim(vorname),' ',1)) AS vn1, to_date(geburtsdatum,'DD.MM.YYYY') AS dob\n" +
+  '  FROM clubdesk_export\n' +
+  "  WHERE geburtsdatum ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
+  "    AND to_char(to_date(geburtsdatum,'DD.MM.YYYY'),'DD.MM.YYYY') = geburtsdatum),\n" +
+  'email_match AS (\n' +
+  '  SELECT m.id, min(cd.dob) AS dob FROM members m\n' +
+  "  JOIN cd ON btrim(coalesce(m.email,'')) <> '' AND lower(btrim(m.email)) IN (cd.email, cd.email_alt)\n" +
+  "   AND lower(split_part(btrim(m.first_name),' ',1)) = cd.vn1\n" +
+  '  WHERE m.birthdate IS NULL\n' +
+  '  GROUP BY m.id HAVING count(DISTINCT cd.dob) = 1)\n' +
+  'UPDATE members m SET birthdate = email_match.dob\n' +
+  '  FROM email_match WHERE m.id = email_match.id AND m.birthdate IS NULL;\n' +
+  'COMMIT;\n' +
+  "SELECT 'members_missing_birthdate' AS metric, (SELECT count(*) FROM members WHERE birthdate IS NULL) AS value;\n"
 
 if (EMIT_SQL) {
   // Flush fully before exiting: process.exit() right after writing a large

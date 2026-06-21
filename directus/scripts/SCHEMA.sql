@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-18T15:49:38.362Z
+-- Generated:   2026-06-19T15:31:03.781Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -4077,6 +4077,8 @@ CREATE TABLE public.members (
     auto_confirm_trainings boolean DEFAULT false NOT NULL,
     auto_confirm_games boolean DEFAULT false NOT NULL,
     auto_confirm_events boolean DEFAULT false NOT NULL,
+    website_name_private boolean DEFAULT true NOT NULL,
+    iban character varying(34),
     CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin"]'::jsonb))
 );
 
@@ -4149,6 +4151,20 @@ COMMENT ON COLUMN public.members.auto_confirm_games IS 'When true, this member i
 --
 
 COMMENT ON COLUMN public.members.auto_confirm_events IS 'When true, this member is auto-confirmed on every new event they are eligible for (invited team / individual invite / club-wide), whole-event mode only. No team-level equivalent exists for events.';
+
+
+--
+-- Name: COLUMN members.website_name_private; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.website_name_private IS 'When true, the member''s public website roster entry shows the surname as an initial only ("Anna M.") and hides the year of birth. Website-scoped only — internal app shows full names. Enforced server-side in the /public/team/:id endpoint and the kscw-hooks Member Privacy filter (anonymous callers).';
+
+
+--
+-- Name: COLUMN members.iban; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.iban IS 'Member bank account IBAN (ISO 13616, max 34 chars), stored without spaces. Sensitive financial PII — scoped own-member + admin only in setup-permissions.mjs, like ahv_nummer; never exposed to other members or coaches. Used for expense reimbursements.';
 
 
 --
@@ -5156,6 +5172,8 @@ CREATE TABLE public.teams (
     dashboard_range_to date,
     dashboard_league_only boolean DEFAULT false NOT NULL,
     recruiting_positions jsonb,
+    waitlist_url character varying(500),
+    waitlist_label character varying(100),
     CONSTRAINT teams_season_format_check CHECK (((season IS NULL) OR ((season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text)))
 );
 

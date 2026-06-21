@@ -61,6 +61,14 @@ const SPORT_EMAILS = {
 }
 const GENERAL_EMAIL = process.env.CONTACT_EMAIL_GENERAL || 'kontakt@kscw.ch'
 
+// Basketball youth (U-)teams route to the dedicated youth coordinator instead
+// of the team's coaches/responsibles or the basketball@ alias.
+const BB_YOUTH_EMAIL = process.env.CONTACT_EMAIL_BB_YOUTH || 'anne.grimshaw@kscw.ch'
+
+// Youth team names carry a "U<number>" token (HU18, DU16, MU8 …). Same heuristic
+// used for junior detection in game-scheduling.js.
+const isYouthTeam = (name) => /u\d/i.test(String(name || ''))
+
 async function verifyTurnstile(token) {
   if (!TURNSTILE_SECRET) {
     console.error('[contact-form] TURNSTILE_SECRET not configured — rejecting request')
@@ -116,15 +124,21 @@ export function registerContactForm(router, { database, logger, services, getSch
             .where('teams_responsibles.teams_id', team_id)
             .whereNotNull('members.email')
             .select('members.email'),
-          database('teams').where('id', team_id).first('id', 'full_name', 'name'),
+          database('teams').where('id', team_id).first('id', 'full_name', 'name', 'sport'),
         ])
-        const recipients = [...coaches, ...trs]
-          .map(r => r.email).filter(e => e && !e.includes('@placeholder'))
-        // Dedupe — a member may be both coach and TR on the same team
-        const unique = Array.from(new Set(recipients))
-        if (unique.length > 0) toEmail = unique.join(',')
-        else if (sport && SPORT_EMAILS[sport]) toEmail = SPORT_EMAILS[sport]
         if (teamRow) teamName = teamRow.full_name || teamRow.name || null
+        if (teamRow && teamRow.sport === 'basketball' && isYouthTeam(teamRow.name)) {
+          // Basketball youth teams: always the youth coordinator, never the
+          // coaches/responsibles or the basketball@ alias.
+          toEmail = BB_YOUTH_EMAIL
+        } else {
+          const recipients = [...coaches, ...trs]
+            .map(r => r.email).filter(e => e && !e.includes('@placeholder'))
+          // Dedupe — a member may be both coach and TR on the same team
+          const unique = Array.from(new Set(recipients))
+          if (unique.length > 0) toEmail = unique.join(',')
+          else if (sport && SPORT_EMAILS[sport]) toEmail = SPORT_EMAILS[sport]
+        }
       } else if (sport && SPORT_EMAILS[sport]) {
         toEmail = SPORT_EMAILS[sport]
       }
