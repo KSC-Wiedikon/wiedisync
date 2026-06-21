@@ -7,7 +7,7 @@ import AssignmentEditor from './AssignmentEditor'
 import DelegationModal from './DelegationModal'
 import { downloadICal } from '../../../utils/icalGenerator'
 import type { CalendarEntry } from '../../../types/calendar'
-import { formatTime } from '../../../utils/dateHelpers'
+import { formatTime, formatDateTimeCompact } from '../../../utils/dateHelpers'
 import { Calendar, MapPin, Clock, AlertTriangle } from 'lucide-react'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 
@@ -459,6 +459,13 @@ export default function ScorerRow({
               </button>
             )}
           </>
+        )}
+
+        {/* Who confirmed the duty + when (set server-side, migration 122) */}
+        {game.duty_confirmed && (game.duty_confirmed_by_name || game.duty_confirmed_at) && (
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            {t('confirmedBy')}: {[game.duty_confirmed_by_name, game.duty_confirmed_at ? formatDateTimeCompact(game.duty_confirmed_at) : null].filter(Boolean).join(' · ')}
+          </p>
         )}
 
         {/* Admin-only unconfirm button */}

@@ -30,6 +30,7 @@ export default {
   statusConfirmed: 'Confermato',
   statusAssigned: 'Assegnato',
   statusOpen: 'Aperto',
+  confirmedBy: 'Confermato da',
 
   // Filters
   filters: 'Filtri',
