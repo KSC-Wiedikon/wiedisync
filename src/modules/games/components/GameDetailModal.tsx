@@ -15,7 +15,7 @@ import { useMutation } from '../../../hooks/useMutation'
 import { fetchItem } from '../../../lib/api'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
-import { formatDate, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLocal } from '../../../utils/dateHelpers'
+import { formatDate, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow } from '../../../utils/dateHelpers'
 import RefereeExpenseSection from './RefereeExpenseSection'
 import TasksSection from '../../tasks/TasksSection'
 import CarpoolSection from '../../carpool/CarpoolSection'
@@ -67,7 +67,7 @@ const dateFormatOptions: Intl.DateTimeFormatOptions = {
 
 export default function GameDetailModal({ game, onClose, readOnly }: GameDetailModalProps) {
   const { t, i18n } = useTranslation('games')
-  const { user, isCoachOf, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds } = useAuth()
+  const { user, isCoachOf, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds, hasAdminAccessToTeam } = useAuth()
   const [rosterOpen, setRosterOpen] = useState(false)
   const [editingDeadline, setEditingDeadline] = useState(false)
   const [deadlineValue, setDeadlineValue] = useState(() => {
@@ -183,7 +183,12 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   const sets = parseSets(game.sets_json)
   const intlLocale = i18n.language === 'gsw' ? 'de-CH' : i18n.language
   const dateStr = game.date ? new Intl.DateTimeFormat(intlLocale, dateFormatOptions).format(new Date(game.date)) : ''
-  const showScorerContact = isCoachOf(kscwTeamId)
+  // Scorer contact: admins (sport/global) anytime; coaches/TR of the team only
+  // within ±1h of kickoff — same rule as the scorer page (not the admin-mode
+  // toggle). isCoachOf alone leaked it to coaches at any time.
+  const showScorerContact = hasAdminAccessToTeam(kscwTeamId)
+    || ((coachTeamIds.includes(kscwTeamId) || teamResponsibleIds.includes(kscwTeamId))
+      && isWithinGameContactWindow(game.date, game.time))
   const homeWon = Number(game.home_score) > Number(game.away_score)
   const awayWon = Number(game.away_score) > Number(game.home_score)
   const kscwWon = game.type === 'home' ? homeWon : awayWon

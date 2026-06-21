@@ -19,6 +19,8 @@ interface ScorerRowProps {
   memberTeams: MemberTeam[]
   onUpdate: (gameId: string, fields: Partial<Game>) => void
   canEdit: boolean
+  /** Sport/global admin — gates admin-only metadata (who confirmed the duty). */
+  isAdmin?: boolean
   showContact: boolean
   userId?: string
   userTeamIds?: string[]
@@ -136,6 +138,7 @@ export default function ScorerRow({
   memberTeams,
   onUpdate,
   canEdit,
+  isAdmin = false,
   showContact,
   userId,
   userTeamIds = [],
@@ -472,8 +475,8 @@ export default function ScorerRow({
           </>
         )}
 
-        {/* Who confirmed the duty + when (set server-side, migration 122) */}
-        {game.duty_confirmed && (game.duty_confirmed_by_name || game.duty_confirmed_at) && (
+        {/* Who confirmed the duty + when (set server-side, migration 122) — admins only */}
+        {isAdmin && game.duty_confirmed && (game.duty_confirmed_by_name || game.duty_confirmed_at) && (
           <p className="text-xs text-gray-400 dark:text-gray-500">
             {t('confirmedBy')}: {[game.duty_confirmed_by_name, game.duty_confirmed_at ? formatDateTimeCompact(game.duty_confirmed_at) : null].filter(Boolean).join(' · ')}
           </p>
@@ -538,12 +541,14 @@ export default function ScorerRow({
                   />
                 </div>
 
-                {/* Warning: cannot delete */}
+                {/* Warning: final — delegation only */}
                 <div className="flex gap-3 rounded-lg bg-amber-50/80 px-3 py-2.5 dark:bg-amber-900/10">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
-                  <p className="text-sm leading-relaxed text-amber-700 dark:text-amber-400">
-                    {t('confirmSelfAssignWarning')}
-                  </p>
+                  {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
+                  <p
+                    className="text-sm leading-relaxed text-amber-700 dark:text-amber-400 [&_strong]:font-semibold"
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('confirmSelfAssignWarning')) }}
+                  />
                 </div>
               </div>
 

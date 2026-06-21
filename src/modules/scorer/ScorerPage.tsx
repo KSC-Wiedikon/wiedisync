@@ -8,7 +8,7 @@ import { useRealtime } from '../../hooks/useRealtime'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { logActivity } from '../../utils/logActivity'
-import { todayLocal, toUtcIsoFromDatetimeLocal } from '../../utils/dateHelpers'
+import { todayLocal, isWithinGameContactWindow } from '../../utils/dateHelpers'
 import { Button } from '@/components/ui/button'
 import { FormInput } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -34,19 +34,6 @@ type VbUnassignedFilter = 'all' | 'scorer' | 'scoreboard' | 'scorer_scoreboard' 
 type BbUnassignedFilter = 'all' | 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official' | 'any'
 
 const PAST_PAGE_SIZE = 5
-
-// Coaches/TR see an official's contact only around the game: 1h before kickoff
-// → 1h after. Same window the server enforces in /scorer/official-contacts.
-const CONTACT_WINDOW_MS = 60 * 60 * 1000
-function gameInContactWindow(g: Game): boolean {
-  if (!g.date || !g.time) return false
-  const local = `${String(g.date).slice(0, 10)}T${String(g.time).slice(0, 5)}`
-  let startMs: number
-  try { startMs = new Date(toUtcIsoFromDatetimeLocal(local)).getTime() } catch { return false }
-  if (Number.isNaN(startMs)) return false
-  const now = Date.now()
-  return now >= startMs - CONTACT_WINDOW_MS && now <= startMs + CONTACT_WINDOW_MS
-}
 
 export default function ScorerPage() {
   const { t } = useTranslation('scorer')
@@ -77,7 +64,7 @@ export default function ScorerPage() {
   const isSportAdmin = effectiveIsAdmin && hasAdminAccessToSport(sportTab)
   const isLeader = coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   const showContactForGame = (g: Game): boolean =>
-    isSportAdmin || (isLeader && gameInContactWindow(g))
+    isSportAdmin || (isLeader && isWithinGameContactWindow(g.date, g.time))
 
   const today = useMemo(() => todayLocal(), [])
 
@@ -449,6 +436,7 @@ export default function ScorerPage() {
       guestMemberIds={guestMemberIds}
       onUpdate={handleUpdate}
       canEdit={isPast ? false : canEdit}
+      isAdmin={isSportAdmin}
       showContact={showContactForGame(g)}
       userId={user?.id}
       userTeamIds={userTeamIds}
@@ -496,6 +484,8 @@ export default function ScorerPage() {
             <div>
               <h3 className="font-semibold text-red-600 dark:text-red-400">{t('infoWarningTitle')}</h3>
               <p className="mt-1 text-red-600/80 dark:text-red-400/80">{t('infoWarningFine')}</p>
+              {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
+              <p className="mt-1 text-red-600/80 dark:text-red-400/80 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('confirmSelfAssignWarning')) }} />
             </div>
           </div>
           <div className="flex gap-3">

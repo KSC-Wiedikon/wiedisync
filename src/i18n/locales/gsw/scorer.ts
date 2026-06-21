@@ -69,7 +69,7 @@ export default {
   confirmSelfAssignArrival_scoreboard: 'Du muäsch spötischtens <strong>10 Minute</strong> vor Spielbeginn i de Halle sii.',
   confirmSelfAssignArrival_scorer_scoreboard: 'Du muäsch spötischtens <strong>30 Minute</strong> vor Spielbeginn i de Halle sii.',
   confirmSelfAssignArrival_bb: 'Du muäsch spötischtens <strong>15 Minute</strong> vor Spielbeginn i de Halle sii.',
-  confirmSelfAssignWarning: 'Einmal bestätigt, cha de Iisatz nöd glöscht, aber a es anders Mitglied wiitergäh werde.',
+  confirmSelfAssignWarning: 'Die Wahl isch <strong>entgültig</strong>. Sobald du e Ufgab übernimmsch, chasch sie nüm abgäh — du chasch sie nur <strong>a es anders Mitglied delegiere</strong>.',
   cancelAction: 'Abbräche',
   confirmAction: 'Bestätige',
 

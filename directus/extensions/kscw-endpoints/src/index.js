@@ -1674,9 +1674,27 @@ export default {
           return res.status(403).json({ error: 'Not authorized — only the recipient can accept' })
         }
 
-        // Transfer: update game record with new member
-        const ROLE_MEMBER = { scorer: 'scorer_member', taefeler: 'taefeler_member', bb_anschreiber: 'bb_anschreiber', bb_zeitnehmer: 'bb_zeitnehmer', bb_24s: 'bb_24s' }
-        const ROLE_TEAM = { scorer: 'scorer_duty_team', taefeler: 'taefeler_duty_team', bb_anschreiber: 'bb_anschreiber_duty_team', bb_zeitnehmer: 'bb_zeitnehmer_duty_team', bb_24s: 'bb_24s_duty_team' }
+        // Transfer: update game record with new member. Role keys match the
+        // frontend's ScorerDelegation.role values and the real (English) games
+        // columns — the legacy German keys (taefeler/bb_anschreiber/…) pointed
+        // at non-existent columns, silently breaking scoreboard/BB/combined
+        // delegations (the game member was never transferred on accept).
+        const ROLE_MEMBER = {
+          scorer: 'scorer_member',
+          scoreboard: 'scoreboard_member',
+          scorer_scoreboard: 'scorer_scoreboard_member',
+          bb_scorer: 'bb_scorer_member',
+          bb_timekeeper: 'bb_timekeeper_member',
+          bb_24s_official: 'bb_24s_official',
+        }
+        const ROLE_TEAM = {
+          scorer: 'scorer_duty_team',
+          scoreboard: 'scoreboard_duty_team',
+          scorer_scoreboard: 'scorer_scoreboard_duty_team',
+          bb_scorer: 'bb_scorer_duty_team',
+          bb_timekeeper: 'bb_timekeeper_duty_team',
+          bb_24s_official: 'bb_24s_duty_team',
+        }
 
         const memberField = ROLE_MEMBER[d.role]
         const teamField = ROLE_TEAM[d.role]

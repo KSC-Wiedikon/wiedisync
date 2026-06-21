@@ -69,7 +69,7 @@ export default {
   confirmSelfAssignArrival_scoreboard: 'Devi essere in palestra almeno <strong>10 minuti</strong> prima dell\'inizio del gioco.',
   confirmSelfAssignArrival_scorer_scoreboard: 'Devi essere in palestra almeno <strong>30 minuti</strong> prima dell\'inizio del gioco.',
   confirmSelfAssignArrival_bb: 'Devi essere in palestra almeno <strong>15 minuti</strong> prima dell\'inizio del gioco.',
-  confirmSelfAssignWarning: 'Una volta confermata, l\'assegnazione non può essere eliminata, ma può essere delegata a un altro membro.',
+  confirmSelfAssignWarning: 'Questa scelta è <strong>definitiva</strong>. Una volta presa una mansione non puoi più lasciarla — l\'unico modo per cederla è <strong>delegarla a un altro membro</strong>.',
   cancelAction: 'Annulla',
   confirmAction: 'Conferma',
 
