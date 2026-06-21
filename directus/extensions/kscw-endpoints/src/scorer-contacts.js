@@ -4,7 +4,11 @@
  *
  * Returns email/phone of the officials (scorer / scoreboard / BB officials)
  * assigned to games where the CALLER's led team (coach or team-responsible)
- * holds the scorekeeping duty — and ONLY those.
+ * holds the scorekeeping duty — and ONLY those, AND only while the game is
+ * inside the contact window: 1h before kickoff → 1h after kickoff. A coach
+ * sees the official's contact around the game they're attending, not for the
+ * whole season. Window is computed against the TZ-naive Zurich date+time on
+ * the game row (the frontend gates the display on the same window).
  *
  * Why a custom endpoint instead of a Directus permission row:
  * the grant is "members who are assigned as officials on a game my team has
@@ -32,6 +36,37 @@ const BB_ROLES = [
   { duty: 'bb_24s_duty_team', member: 'bb_24s_official' },
 ]
 const ALL_DUTY_COLS = [...VB_ROLES.map((r) => r.duty), ...BB_ROLES.map((r) => r.duty), 'bb_duty_team']
+
+// Contact is visible from 1h before kickoff to 1h after.
+const CONTACT_WINDOW_MS = 60 * 60 * 1000
+
+// games.date is a TZ-naive date (knex returns a Date at UTC midnight on the
+// UTC container, or a string); games.time is "HH:MM[:SS]". Normalise to parts.
+const dateYMD = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
+
+// Offset (localZurich − UTC) in ms at a given UTC instant.
+function zurichOffsetMs(instantMs) {
+  const p = {}
+  const dtf = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  })
+  for (const x of dtf.formatToParts(new Date(instantMs))) p[x.type] = x.value
+  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - instantMs
+}
+
+// A Zurich wall-clock (date+time on a game row) → absolute UTC epoch ms.
+// Two-pass to settle the DST offset (mirrors dateHelpers.toUtcIsoFromDatetimeLocal).
+function gameStartMs(game) {
+  const ymd = dateYMD(game.date)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null
+  const [hh, mm] = String(game.time ?? '').split(':')
+  if (hh == null || mm == null || hh === '') return null
+  const [y, mo, d] = ymd.split('-').map(Number)
+  const guess = Date.UTC(y, mo - 1, d, Number(hh), Number(mm))
+  const corrected = guess - zurichOffsetMs(guess)
+  return guess - zurichOffsetMs(corrected)
+}
 
 export function registerScorerContacts(router, { database, logger }) {
   const log = logger.child({ endpoint: 'scorer-contacts' })
@@ -74,9 +109,15 @@ export function registerScorerContacts(router, { database, logger }) {
 
       // Collect the assigned-member id for each duty role the caller's team
       // actually owns — don't leak the official of a role another team is
-      // responsible for on the same game.
+      // responsible for on the same game. Skip games outside the contact
+      // window (1h before kickoff → 1h after) so contact is only exposed
+      // around the game itself.
+      const nowMs = Date.now()
       const officialIds = new Set()
       for (const g of games) {
+        const startMs = gameStartMs(g)
+        if (startMs == null) continue
+        if (nowMs < startMs - CONTACT_WINDOW_MS || nowMs > startMs + CONTACT_WINDOW_MS) continue
         for (const r of VB_ROLES) {
           if (g[r.member] && ledSet.has(Number(g[r.duty]))) officialIds.add(g[r.member])
         }
