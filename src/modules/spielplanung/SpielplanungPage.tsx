@@ -13,6 +13,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '../../components/ui/collapsible'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select'
 import { FileSpreadsheet, ChevronDown } from 'lucide-react'
 import { useSpielplanungData } from './hooks/useSpielplanungData'
 import { useAvailableSeasons } from './hooks/useAvailableSeasons'
@@ -165,16 +172,16 @@ export default function SpielplanungPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={currentSeasonLabel}
-            onChange={(e) => handleSeasonChange(e.target.value)}
-            aria-label={t('seasonPicker')}
-            className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gold-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-          >
-            {seasonOptions.map((s) => (
-              <option key={s} value={s} className="dark:bg-gray-800">{s}</option>
-            ))}
-          </select>
+          <Select value={currentSeasonLabel} onValueChange={handleSeasonChange}>
+            <SelectTrigger aria-label={t('seasonPicker')} className="h-9 w-[132px] rounded-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {seasonOptions.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div data-tour="view-toggle"><ViewToggle
             options={[
               { value: 'calendar', label: t('viewCalendar') },

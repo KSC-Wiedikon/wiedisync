@@ -43,10 +43,11 @@ export default function FilterChips({
   }
 
   const sizeClasses = compact
-    ? 'rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors'
-    : 'min-h-[44px] rounded-full border px-3 py-2 text-sm font-medium transition-colors sm:min-h-0 sm:py-1 sm:text-xs'
+    ? 'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-all'
+    : 'inline-flex items-center gap-1.5 min-h-[44px] rounded-full border px-3 py-2 text-sm font-medium transition-all active:scale-95 sm:min-h-0 sm:py-1.5 sm:text-xs'
 
-  const unselectedClasses = 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+  const unselectedClasses = 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-600 dark:hover:bg-gray-700/70'
+  const dotSize = compact ? 'h-1.5 w-1.5' : 'h-2 w-2'
 
   const allSelected = options.every((o) => selected.includes(o.value))
   const noneSelected = selected.length === 0
@@ -83,7 +84,8 @@ export default function FilterChips({
             <button
               key={option.value}
               onClick={() => handleClick(option.value)}
-              className={cn(sizeClasses, isSelected ? option.colorClasses : unselectedClasses)}
+              aria-pressed={isSelected}
+              className={cn(sizeClasses, isSelected ? cn(option.colorClasses, 'shadow-sm') : unselectedClasses)}
             >
               {option.label}
             </button>
@@ -95,19 +97,26 @@ export default function FilterChips({
           <button
             key={option.value}
             onClick={() => handleClick(option.value)}
-            className={cn(sizeClasses, !isSelected && unselectedClasses)}
+            aria-pressed={isSelected}
+            className={cn(sizeClasses, isSelected ? 'shadow-sm ring-1 ring-inset ring-white/25' : unselectedClasses)}
             style={
               isSelected
                 ? {
                     backgroundColor: teamColor.bg,
                     color: teamColor.text,
-                    borderWidth: '1px',
-                    borderStyle: 'solid',
                     borderColor: teamColor.border,
                   }
                 : undefined
             }
           >
+            {/* Team-colour dot keeps every team distinguishable even when unselected. */}
+            {!isSelected && (
+              <span
+                className={cn(dotSize, 'shrink-0 rounded-full ring-1 ring-black/5')}
+                style={{ backgroundColor: teamColor.bg }}
+                aria-hidden
+              />
+            )}
             {option.label}
           </button>
         )
