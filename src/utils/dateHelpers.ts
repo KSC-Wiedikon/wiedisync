@@ -157,6 +157,26 @@ function getZurichOffsetMs(instantMs: number): number {
   return shownMs - instantMs;
 }
 
+/**
+ * True when "now" is within ±windowMs of a game's Zurich kickoff (date
+ * 'YYYY-MM-DD' + time 'HH:MM[:SS]'). Shared by the scorer page and the game
+ * detail modal to gate coach/TR visibility of scorer contact to around the game.
+ */
+export const SCORER_CONTACT_WINDOW_MS = 60 * 60 * 1000;
+export function isWithinGameContactWindow(
+  date: string | null | undefined,
+  time: string | null | undefined,
+  windowMs: number = SCORER_CONTACT_WINDOW_MS,
+): boolean {
+  if (!date || !time) return false;
+  try {
+    const startMs = new Date(toUtcIsoFromDatetimeLocal(`${String(date).slice(0, 10)}T${String(time).slice(0, 5)}`)).getTime();
+    if (Number.isNaN(startMs)) return false;
+    const now = Date.now();
+    return now >= startMs - windowMs && now <= startMs + windowMs;
+  } catch { return false; }
+}
+
 /** Inverse: UTC ISO -> "YYYY-MM-DDTHH:MM" for datetime-local input, in Europe/Zurich. */
 export function toDatetimeLocalFromUtcIso(iso: string): string {
   const d = new Date(iso);

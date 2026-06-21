@@ -15,18 +15,20 @@ function tomorrowYMD() {
 
 function arrivalMinutes(role, sport) {
   if (sport === 'basketball') return 15
-  if (role === 'taefeler') return 10
+  if (role === 'scoreboard') return 10
   return 30 // scorer default
 }
 
+// Role keys aligned to the real `games` columns (English). Display labels stay
+// in the club's German (these are the user-facing email role names).
 const ROLE_LABELS = {
-  scorer: 'Scorer', taefeler: 'Täfeler',
-  bb_anschreiber: 'Anschreiber', bb_zeitnehmer: 'Zeitnehmer', bb_24s: '24s-Operator',
+  scorer: 'Scorer', scoreboard: 'Täfeler',
+  bb_scorer: 'Anschreiber', bb_timekeeper: 'Zeitnehmer', bb_24s_official: '24s-Operator',
 }
 
 const ROLE_MEMBER = {
-  scorer: 'scorer_member', taefeler: 'taefeler_member',
-  bb_anschreiber: 'bb_anschreiber', bb_zeitnehmer: 'bb_zeitnehmer', bb_24s: 'bb_24s',
+  scorer: 'scorer_member', scoreboard: 'scoreboard_member',
+  bb_scorer: 'bb_scorer_member', bb_timekeeper: 'bb_timekeeper_member', bb_24s_official: 'bb_24s_official',
 }
 
 export function registerScorerReminders(router, { database, logger, services, getSchema }) {
@@ -58,8 +60,8 @@ export function registerScorerReminders(router, { database, logger, services, ge
 
       // Find assigned roles
       const roles = sport === 'volleyball'
-        ? ['scorer', 'taefeler']
-        : ['bb_anschreiber', 'bb_zeitnehmer', 'bb_24s']
+        ? ['scorer', 'scoreboard']
+        : ['bb_scorer', 'bb_timekeeper', 'bb_24s_official']
 
       for (const role of roles) {
         const memberField = ROLE_MEMBER[role]
@@ -156,7 +158,7 @@ export function registerScorerReminders(router, { database, logger, services, ge
       const games = await database('games')
         .where('date', tomorrow).where('type', 'home')
         .whereIn('source', ['swiss_volley', 'basketplan'])
-        .select('id', 'home_team', 'away_team', 'date', 'time', 'scorer_member', 'taefeler_member')
+        .select('id', 'home_team', 'away_team', 'date', 'time', 'scorer_member', 'scoreboard_member')
 
       res.json({ status: 'ok', tomorrow, games })
     } catch (err) {

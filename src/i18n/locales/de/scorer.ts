@@ -69,7 +69,7 @@ export default {
   confirmSelfAssignArrival_scoreboard: 'Du musst spätestens <strong>10 Minuten</strong> vor Spielbeginn in der Halle sein.',
   confirmSelfAssignArrival_scorer_scoreboard: 'Du musst spätestens <strong>30 Minuten</strong> vor Spielbeginn in der Halle sein.',
   confirmSelfAssignArrival_bb: 'Du musst spätestens <strong>15 Minuten</strong> vor Spielbeginn in der Halle sein.',
-  confirmSelfAssignWarning: 'Einmal bestätigt, kann der Einsatz nicht gelöscht, aber an ein anderes Mitglied weitergegeben werden.',
+  confirmSelfAssignWarning: 'Diese Wahl ist <strong>endgültig</strong>. Sobald du eine Aufgabe übernimmst, kannst du sie nicht mehr abgeben — der einzige Weg ist, sie <strong>an ein anderes Mitglied zu delegieren</strong>.',
   cancelAction: 'Abbrechen',
   confirmAction: 'Bestätigen',
 

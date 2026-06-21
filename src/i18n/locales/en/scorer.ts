@@ -69,7 +69,7 @@ export default {
   confirmSelfAssignArrival_scoreboard: 'You must be in the hall at least <strong>10 minutes</strong> before the start of play.',
   confirmSelfAssignArrival_scorer_scoreboard: 'You must be in the hall at least <strong>30 minutes</strong> before the start of play.',
   confirmSelfAssignArrival_bb: 'You must be in the hall at least <strong>15 minutes</strong> before the start of play.',
-  confirmSelfAssignWarning: 'Once confirmed, the assignment cannot be deleted, but it can be delegated to another member.',
+  confirmSelfAssignWarning: 'This choice is <strong>final</strong>. Once you take a duty you cannot drop it — the only way to give it up is to <strong>delegate it to another member</strong>.',
   cancelAction: 'Cancel',
   confirmAction: 'Confirm',
 

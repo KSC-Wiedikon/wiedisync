@@ -69,7 +69,7 @@ export default {
   confirmSelfAssignArrival_scoreboard: 'Vous devez etre dans la salle au moins <strong>10 minutes</strong> avant le debut du match.',
   confirmSelfAssignArrival_scorer_scoreboard: 'Vous devez etre dans la salle au moins <strong>30 minutes</strong> avant le debut du match.',
   confirmSelfAssignArrival_bb: 'Vous devez etre dans la salle au moins <strong>15 minutes</strong> avant le debut du match.',
-  confirmSelfAssignWarning: 'Une fois confirmee, l\'attribution ne peut pas etre supprimee, mais elle peut etre deleguee a un autre membre.',
+  confirmSelfAssignWarning: 'Ce choix est <strong>définitif</strong>. Une fois une tâche acceptée, tu ne peux plus l\'abandonner — le seul moyen de t\'en défaire est de la <strong>déléguer à un autre membre</strong>.',
   cancelAction: 'Annuler',
   confirmAction: 'Confirmer',
 
