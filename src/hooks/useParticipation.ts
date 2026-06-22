@@ -77,7 +77,14 @@ export function useParticipation(
     } : {}
     try {
       if (participation) {
-        await update(participation.id, { status, note, guest_count: guestCount, is_staff: isStaff ?? false, ...posFields })
+        // Preserve the row's original is_staff classification on update — set it
+        // only on create (matches GameCard / TrainingCard / EventCard /
+        // ParticipationButton, which all omit is_staff on update). Writing it
+        // here clobbered an existing player RSVP to staff whenever the viewer's
+        // role context drifted (e.g. a season-lagged member_teams row makes
+        // isStaffOnly flip true), silently yanking the row out of the player
+        // tally so the participation bricks dropped to zero on every click.
+        await update(participation.id, { status, note, guest_count: guestCount, ...posFields })
       } else {
         await create({
           member: user.id,
