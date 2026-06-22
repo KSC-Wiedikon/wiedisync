@@ -18,7 +18,7 @@
  * Writes back onto the booking: vm_game_id, vm_pushed_at, vm_push_status,
  * vm_push_error. NEVER changes game status / finalizes (no validateGames).
  */
-import { vmLogin, csrfFromPage, VM_BASE, UA } from './vm-client.mjs';
+import { vmLogin, csrfFromPage, registerWindow, VM_BASE, UA } from './vm-client.mjs';
 
 const DIRECTUS_URL = process.env.DIRECTUS_URL || 'http://127.0.0.1:8055';
 const VM_CLUB_UUID = process.env.VM_CLUB_UUID || '956158d5-806f-4af9-8378-e7a9e19adeff';
@@ -271,6 +271,13 @@ async function main() {
     process.exit(0);
   }
 
+  // Register this editing window over socket.io immediately before the write —
+  // VM denies updates from an unregistered window with 403 "Access denied"
+  // (see vm-client.registerWindow). Kept right before the update so the
+  // Engine.IO session (~20s ping timeout) is still live when updateGame runs.
+  // Non-fatal: if registration fails the update surfaces the same 403 as before.
+  try { await registerWindow(jar, ctx.wuid); }
+  catch (e) { log(`window registration failed (continuing): ${e.message}`); }
   const codes = await vmValidate(pairs);
   await vmUpdate(pairs, codes);
 

@@ -76,6 +76,44 @@ export async function vmLogin({ username, password }) {
   return jar;
 }
 
+// ─── Socket.IO window registration (the write gate) ──────────────────
+// VolleyManager gates state-changing writes (updateGame) on the windowUniqueId
+// being a LIVE, registered editing window — the SPA establishes this over its
+// socket.io presence channel (:8443) on page load. A headless session that only
+// scrapes csrf + Window-Unique-Id never registers, so reads pass but writes are
+// denied at the security layer with a 403 "Access denied" HTML page. This
+// replicates the Engine.IO v4 polling handshake (open → namespace CONNECT)
+// carrying our windowUniqueId, marking the window active just before we write.
+// The Engine.IO session has a ~20s ping timeout, so call this immediately before
+// the update. Discovered via browser HAR 2026-06-22.
+export const VM_WS_BASE = 'https://volleymanager.volleyball.ch:8443';
+const randKey = (n) => {
+  const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let s = '';
+  for (let i = 0; i < n; i++) s += c[Math.floor(Math.random() * c.length)];
+  return s;
+};
+export async function registerWindow(jar, windowUniqueId) {
+  if (!windowUniqueId) throw new Error('registerWindow: windowUniqueId required');
+  const sessionKey = randKey(32);
+  const base = `${VM_WS_BASE}/socket.io/`;
+  const H = { 'User-Agent': UA, Cookie: jar.header(), Accept: '*/*', Origin: VM_BASE, Referer: `${VM_BASE}/sportmanager.indoorvolleyball/game/index` };
+  const qs = (extra = {}) => new URLSearchParams({ sessionKey, windowUniqueId, EIO: '4', transport: 'polling', t: Date.now().toString(36) + randKey(4), ...extra }).toString();
+  // 1. Engine.IO open → sid
+  const open = await fetch(`${base}?${qs()}`, { headers: H });
+  if (!open.ok) throw new Error(`socket.io open HTTP ${open.status}`);
+  const openTxt = await open.text();
+  const m = openTxt.match(/^0(\{[\s\S]*\})/);
+  const sid = m ? JSON.parse(m[1]).sid : null;
+  if (!sid) throw new Error(`socket.io: no sid in "${openTxt.slice(0, 80)}"`);
+  // 2. Socket.IO namespace CONNECT packet ("40")
+  const conn = await fetch(`${base}?${qs({ sid })}`, { method: 'POST', headers: { ...H, 'Content-Type': 'text/plain;charset=UTF-8' }, body: '40' });
+  if (!conn.ok) throw new Error(`socket.io connect HTTP ${conn.status}`);
+  // 3. Poll once for the namespace ack — the server registers the window here.
+  await fetch(`${base}?${qs({ sid })}`, { headers: H }).catch(() => {});
+  return { sessionKey, sid };
+}
+
 // ─── CSRF extraction ─────────────────────────────────────────────────
 export async function csrfFromPage(jar, pagePath) {
   const { response, body } = await follow(

@@ -7,9 +7,10 @@ import AssignmentEditor from './AssignmentEditor'
 import DelegationModal from './DelegationModal'
 import { downloadICal } from '../../../utils/icalGenerator'
 import type { CalendarEntry } from '../../../types/calendar'
-import { formatTime, toUtcIsoFromDatetimeLocal } from '../../../utils/dateHelpers'
-import { Calendar, MapPin, Clock, AlertTriangle } from 'lucide-react'
+import { formatTime, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow } from '../../../utils/dateHelpers'
+import { Calendar, MapPin, Clock, AlertTriangle, Users } from 'lucide-react'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
+import RosterModal from './RosterModal'
 
 interface ScorerRowProps {
   game: Game
@@ -183,6 +184,18 @@ export default function ScorerRow({
   const [delegateRole, setDelegateRole] = useState<AssignRole | null>(null)
   // 24s official toggle — auto-open if already assigned
   const [show24s, setShow24s] = useState(!!game.bb_24s_official)
+  // Home-team roster modal (Schreiber only, ±1h around kickoff)
+  const [showRoster, setShowRoster] = useState(false)
+
+  // The assigned Schreiber (scorer / scorer_scoreboard / bb_scorer — NOT the
+  // pure Täfeler/timekeeper roles) may view the home team's roster, but only
+  // from 1h before until 1h after the game. The endpoint re-checks both; this
+  // just gates the button. Matches ROSTER_ROLE_COLS in scorer-roster.js.
+  const canViewRoster = !!userId
+    && (sport === 'volleyball'
+      ? game.scorer_member === userId || game.scorer_scoreboard_member === userId
+      : game.bb_scorer_member === userId)
+    && isWithinGameContactWindow(game.date, game.time)
 
   // Can this user self-assign to a role? (A role is takeable only while it has
   // no person — per-role checks below; there is no game-level confirmed lock.)
@@ -367,6 +380,17 @@ export default function ScorerRow({
         >
           <Calendar className="h-4 w-4" />
         </button>
+        {canViewRoster && (
+          <button
+            onClick={() => setShowRoster(true)}
+            title={t('viewRoster')}
+            aria-label={t('viewRoster')}
+            className="flex min-h-[44px] items-center gap-1.5 rounded-lg bg-brand-50 px-3 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-100 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/50"
+          >
+            <Users className="h-4 w-4" />
+            {t('viewRoster')}
+          </button>
+        )}
       </div>
 
       {/* Assignment editors */}
@@ -561,6 +585,11 @@ export default function ScorerRow({
           onDelegate={handleDelegateConfirm}
           onClose={() => setDelegateRole(null)}
         />
+      )}
+
+      {/* Home-team roster (Schreiber only, ±1h around kickoff) */}
+      {showRoster && (
+        <RosterModal gameId={game.id} onClose={() => setShowRoster(false)} />
       )}
     </div>
   )

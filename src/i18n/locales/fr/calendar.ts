@@ -67,4 +67,13 @@ export default {
   icalOpenInApp: 'Ou ouvrir directement dans votre app de calendrier',
   icalSubscribeHint:
     'Collez ce lien dans votre application de calendrier pour vous abonner — il se met a jour automatiquement. Google Agenda : Autres agendas → A partir de l\'URL. Apple Calendrier : Fichier → Nouvel abonnement a un calendrier.',
+
+  // Engagements au marquage (personnels)
+  sourceScorerDuty: 'Mes engagements',
+  typeScorerDuty: 'Engagement au marquage',
+  icalDutiesTitle: 'Vos engagements au marquage',
+  icalDutiesHint: 'Abonnez-vous a un calendrier personnel qui ajoute automatiquement vos engagements de marqueur et de tableau.',
+  icalDutiesGenerate: 'Generer mon lien d\'engagements',
+  icalDutiesPrivacyHint: 'Lien personnel — gardez-le prive. Il n\'affiche que votre planning d\'engagements (aucune donnee personnelle).',
+  icalDutiesError: 'Impossible de creer votre lien personnel.',
 } as const

@@ -26,6 +26,7 @@ const dotColors: Record<string, string> = {
   event: 'bg-purple-500',
   hall: 'bg-cyan-500',
   absence: 'bg-gray-900 dark:bg-gray-100',
+  'scorer-duty': 'bg-indigo-500',
 }
 
 function colorKey(e: CalendarEntry): string {

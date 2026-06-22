@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CalendarEntry } from '../../../types/calendar'
 import { relId } from '../../../utils/relations'
-import { CalendarOff, TrafficCone, CircleX, Star } from 'lucide-react'
+import { CalendarOff, TrafficCone, CircleX, Star, ClipboardList } from 'lucide-react'
 import BasketballIcon from '../../../components/BasketballIcon'
 import VolleyballIcon from '../../../components/VolleyballIcon'
 import {
@@ -41,6 +41,9 @@ const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'voll
   if (type === 'absence') {
     return <CalendarOff className={`${ICON_CLASS} ${className}`} strokeWidth={2.5} />
   }
+  if (type === 'scorer-duty') {
+    return <ClipboardList className={`${ICON_CLASS} ${className}`} strokeWidth={2.5} />
+  }
   if (type === 'hall') {
     return <BasketballIcon className={ICON_CLASS} filled />
   }
@@ -59,6 +62,7 @@ const barColors: Record<string, { bg: string; text: string; darkBg: string; dark
   event:       { bg: 'bg-purple-200', text: 'text-purple-900', darkBg: 'dark:bg-purple-800', darkText: 'dark:text-purple-100' },
   hall:        { bg: 'bg-cyan-200', text: 'text-cyan-900', darkBg: 'dark:bg-cyan-800', darkText: 'dark:text-cyan-100' },
   absence:     { bg: 'bg-gray-900', text: 'text-white', darkBg: 'dark:bg-gray-100', darkText: 'dark:text-gray-900' },
+  'scorer-duty': { bg: 'bg-indigo-200', text: 'text-indigo-900', darkBg: 'dark:bg-indigo-800', darkText: 'dark:text-indigo-100' },
   blue:        { bg: 'bg-blue-200', text: 'text-blue-900', darkBg: 'dark:bg-blue-800', darkText: 'dark:text-blue-100' },
 }
 
@@ -82,6 +86,7 @@ const dotColors: Record<string, string> = {
   event: 'bg-purple-500',
   hall: 'bg-cyan-500',
   absence: 'bg-gray-900 dark:bg-gray-100',
+  'scorer-duty': 'bg-indigo-500',
   blue: 'bg-blue-500',
 }
 

@@ -46,6 +46,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
     event: t('typeEvent'),
     hall: t('typeHall'),
     absence: t('typeAbsence'),
+    'scorer-duty': t('typeScorerDuty'),
   }
 
   const typeBadgeStyles: Record<CalendarEntry['type'], string> = {
@@ -55,6 +56,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
     event: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
     hall: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300',
     absence: 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900',
+    'scorer-duty': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
   }
 
   const dateStr = formatDate(entry.date, 'EEEE, MMMM d, yyyy')

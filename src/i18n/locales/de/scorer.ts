@@ -129,4 +129,17 @@ export default {
   infoRequirementsArrival: 'In diesem Fall muss der Schreiber/Täfeler spätestens <strong>30 Minuten</strong> vor Spielbeginn in der Halle sein.',
   infoHowToTitle: 'So funktioniert\'s',
   infoHowTo: 'Klicke auf das Spiel, wähle deine Rolle aus, wähle dich im Dropdown aus und bestätige. Falls du dich nicht findest, kontaktiere Luca oder Thamy.',
+
+  // Aufstellung Heimteam (nur Schreiber, ±1h um das Spiel)
+  viewRoster: 'Aufstellung',
+  rosterTitle: 'Aufstellung Heimteam',
+  rosterColNumber: '#',
+  rosterColName: 'Name',
+  rosterColDob: 'Geburtsdatum',
+  rosterEmpty: 'Keine Spieler für dieses Team gefunden.',
+  rosterOutsideWindow: 'Die Aufstellung ist nur von 1 Stunde vor bis 1 Stunde nach dem Spiel verfügbar.',
+  rosterNotScorer: 'Nur der eingeteilte Schreiber kann die Aufstellung sehen.',
+  rosterNotHome: 'Die Aufstellung ist nur für Heimspiele verfügbar.',
+  rosterNoTime: 'Für dieses Spiel ist noch keine Zeit angesetzt.',
+  rosterError: 'Die Aufstellung konnte nicht geladen werden.',
 } as const

@@ -129,4 +129,17 @@ export default {
   infoRequirementsArrival: 'In questo caso, il segnapunti/tabellone deve essere in palestra almeno <strong>30 minuti</strong> prima dell\'inizio del gioco.',
   infoHowToTitle: 'Come funziona',
   infoHowTo: 'Clicca sulla partita, seleziona il tuo ruolo, selezionati nel menu a tendina e conferma. Se non ti trovi nel menu a tendina, contatta Luca o Thamy.',
+
+  // Formazione squadra di casa (solo segnapunti, ±1h attorno alla partita)
+  viewRoster: 'Formazione',
+  rosterTitle: 'Formazione squadra di casa',
+  rosterColNumber: '#',
+  rosterColName: 'Nome',
+  rosterColDob: 'Data di nascita',
+  rosterEmpty: 'Nessun giocatore trovato per questa squadra.',
+  rosterOutsideWindow: 'La formazione è disponibile solo da 1 ora prima a 1 ora dopo la partita.',
+  rosterNotScorer: 'Solo il segnapunti designato può vedere la formazione.',
+  rosterNotHome: 'La formazione è disponibile solo per le partite in casa.',
+  rosterNoTime: 'Questa partita non ha ancora un orario stabilito.',
+  rosterError: 'Impossibile caricare la formazione.',
 } as const

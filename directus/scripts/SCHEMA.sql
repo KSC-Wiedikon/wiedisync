@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-19T15:31:03.781Z
+-- Generated:   2026-06-22T07:43:17.696Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -1488,8 +1488,8 @@ CREATE FUNCTION public.trg_scorer_delegation_validate() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-  -- Keep the same_team flag (UI grouping only); every delegation stays 'pending'
-  -- until the recipient accepts it.
+  -- Keep the same_team flag (UI grouping only). Do NOT auto-accept: every
+  -- delegation stays 'pending' until the recipient accepts it.
   NEW.same_team := (NEW.from_team = NEW.to_team);
   RETURN NEW;
 END;
@@ -3718,7 +3718,19 @@ CREATE TABLE public.games (
     send_email_invite boolean DEFAULT false,
     svrz_push_status public.svrz_push_status_enum,
     additional_halls json,
-    auto_confirm_rsvp boolean
+    auto_confirm_rsvp boolean,
+    scorer_confirmed_by_name character varying(255),
+    scorer_confirmed_at timestamp with time zone,
+    scoreboard_confirmed_by_name character varying(255),
+    scoreboard_confirmed_at timestamp with time zone,
+    scorer_scoreboard_confirmed_by_name character varying(255),
+    scorer_scoreboard_confirmed_at timestamp with time zone,
+    bb_scorer_confirmed_by_name character varying(255),
+    bb_scorer_confirmed_at timestamp with time zone,
+    bb_timekeeper_confirmed_by_name character varying(255),
+    bb_timekeeper_confirmed_at timestamp with time zone,
+    bb_24s_confirmed_by_name character varying(255),
+    bb_24s_confirmed_at timestamp with time zone
 );
 
 
@@ -4079,6 +4091,7 @@ CREATE TABLE public.members (
     auto_confirm_events boolean DEFAULT false NOT NULL,
     website_name_private boolean DEFAULT true NOT NULL,
     iban character varying(34),
+    ical_token character varying(64),
     CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin"]'::jsonb))
 );
 
@@ -8302,6 +8315,13 @@ CREATE INDEX member_teams_team_index ON public.member_teams USING btree (team);
 
 
 --
+-- Name: members_ical_token_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX members_ical_token_key ON public.members USING btree (ical_token);
+
+
+--
 -- Name: members_requested_team_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8425,6 +8445,13 @@ CREATE INDEX push_subscriptions_member_index ON public.push_subscriptions USING 
 --
 
 CREATE INDEX rankings_team_index ON public.rankings USING btree (team);
+
+
+--
+-- Name: rankings_team_league_season_uniq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX rankings_team_league_season_uniq ON public.rankings USING btree (team_id, league, season);
 
 
 --

@@ -12,6 +12,7 @@ import { format, isBefore, isAfter, isSameDay, max as maxDate, min as minDate } 
 import { formatTime, getDayOfWeek } from '../../../utils/dateHelpers'
 import { asObj, relId, memberName, disambiguateFirstNames } from '../../../utils/relations'
 import { isAuthenticated } from '../../../lib/api'
+import { useAuth } from '../../../hooks/useAuth'
 
 interface UseCalendarDataOptions {
   filters: CalendarFilterState
@@ -94,6 +95,26 @@ function gameToEntry(game: Game & { kscw_team?: Team | string; hall?: { name: st
     gameType: game.type,
     opponent: game.type === 'home' ? game.away_team : game.home_team,
     sport: expandedTeam?.sport ?? (game.source === 'basketplan' ? 'basketball' : 'volleyball'),
+  }
+}
+
+/** A game the current member has a scorer/scoreboard duty on, rendered as its
+ *  own entry so it auto-appears on their in-app calendar (the in-app analogue of
+ *  the auto-accepted iCal duty event). */
+function scorerDutyToEntry(game: Game & { kscw_team?: Team | string; hall?: { name: string } | string }): CalendarEntry {
+  const expandedHall = asObj<{ name: string }>(game.hall)
+  return {
+    id: `duty-${game.id}`,
+    type: 'scorer-duty',
+    title: `${game.home_team} - ${game.away_team}`,
+    date: parseDate(game.date),
+    startTime: game.time ? formatTime(game.time) : null,
+    endTime: null,
+    allDay: false,
+    location: expandedHall?.name ?? '',
+    teamNames: [],
+    description: [game.league, game.round].filter(Boolean).join(' | '),
+    source: game,
   }
 }
 
@@ -251,6 +272,7 @@ function entryOverlapsRange(entry: CalendarEntry, rangeStart: Date, rangeEnd: Da
 
 export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true }: UseCalendarDataOptions) {
   const fetchRange = useFetchRange(rangeStart)
+  const { user } = useAuth()
 
   const authed = isAuthenticated()
   const wantHome = filters.sources.includes('game-home')
@@ -349,6 +371,36 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
   })
   const absences = absencesRaw ?? []
 
+  // Current member's own scorer/scoreboard duties (any role) — fetched by the
+  // member's id across the six duty FKs, independent of the team filter (a duty
+  // game is often another team's home game). Surfaces them on the calendar.
+  const wantScorerDuties = filters.sources.includes('scorer-duty')
+  const fetchScorerDuties = enabled && authed && wantScorerDuties && !!user
+  const { data: dutyGamesRaw, isLoading: dutyGamesLoading } = useCollection<Game>('games', {
+    enabled: fetchScorerDuties,
+    filter: fetchScorerDuties
+      ? {
+          _and: [
+            ...buildDateFilter('date', fetchRange.start, fetchRange.end),
+            {
+              _or: [
+                { scorer_member: { _eq: user!.id } },
+                { scoreboard_member: { _eq: user!.id } },
+                { scorer_scoreboard_member: { _eq: user!.id } },
+                { bb_scorer_member: { _eq: user!.id } },
+                { bb_timekeeper_member: { _eq: user!.id } },
+                { bb_24s_official: { _eq: user!.id } },
+              ],
+            },
+          ],
+        }
+      : { id: { _eq: -1 } },
+    fields: ['*', 'kscw_team.*', 'hall.*'],
+    sort: ['date', 'time'],
+    all: true,
+  })
+  const dutyGames = dutyGamesRaw ?? []
+
   const entries = useMemo(() => {
     const all: CalendarEntry[] = []
 
@@ -365,6 +417,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       }
     }
     if (fetchTrainings) all.push(...trainings.map(trainingToEntry))
+    if (fetchScorerDuties) all.push(...dutyGames.map(scorerDutyToEntry))
     if (fetchEvents) all.push(...events.map(eventToEntry))
     // Always compute closure-covered dates from hall_closures (even if not displayed)
     // so GCal "Halle geschlossen" entries can be suppressed when a named closure exists
@@ -450,7 +503,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
     })
 
     return filtered
-  }, [games, trainings, events, closuresRaw, hallEvents, absences, teamMemberLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds, filters.showHiddenAbsences])
+  }, [games, trainings, events, closuresRaw, hallEvents, absences, dutyGames, teamMemberLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, fetchScorerDuties, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds, filters.showHiddenAbsences])
 
   const closedDates = useMemo(() => {
     const dates = new Set<string>()
@@ -473,7 +526,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
   return {
     entries,
     closedDates,
-    isLoading: gamesLoading || trainingsLoading || closuresLoading || eventsLoading || hallEventsLoading || absencesLoading,
+    isLoading: gamesLoading || trainingsLoading || closuresLoading || eventsLoading || hallEventsLoading || absencesLoading || dutyGamesLoading,
     error: null,
   }
 }

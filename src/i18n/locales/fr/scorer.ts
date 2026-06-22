@@ -129,4 +129,17 @@ export default {
   infoRequirementsArrival: 'Dans ce cas, le marqueur/tableau doit etre dans la salle au moins <strong>30 minutes</strong> avant le debut du match.',
   infoHowToTitle: 'Mode d\'emploi',
   infoHowTo: 'Cliquez sur le match, selectionnez votre role, selectionnez-vous dans le menu deroulant et confirmez. Si vous ne vous trouvez pas dans le menu deroulant, contactez Luca ou Thamy.',
+
+  // Composition de l'equipe a domicile (marqueur uniquement, ±1h autour du match)
+  viewRoster: 'Composition',
+  rosterTitle: 'Composition de l\'equipe a domicile',
+  rosterColNumber: '#',
+  rosterColName: 'Nom',
+  rosterColDob: 'Date de naissance',
+  rosterEmpty: 'Aucun joueur trouve pour cette equipe.',
+  rosterOutsideWindow: 'La composition n\'est disponible que d\'une heure avant a une heure apres le match.',
+  rosterNotScorer: 'Seul le marqueur designe peut voir la composition.',
+  rosterNotHome: 'La composition n\'est disponible que pour les matchs a domicile.',
+  rosterNoTime: 'Ce match n\'a pas encore d\'horaire defini.',
+  rosterError: 'Impossible de charger la composition.',
 } as const
