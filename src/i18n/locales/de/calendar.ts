@@ -73,4 +73,13 @@ export default {
   colTime: 'Zeit',
   colLocation: 'Ort',
   colTeams: 'Teams',
+
+  // Schreibereinsätze (persönlich)
+  sourceScorerDuty: 'Meine Einsätze',
+  typeScorerDuty: 'Schreibereinsatz',
+  icalDutiesTitle: 'Deine Schreibereinsätze',
+  icalDutiesHint: 'Abonniere einen persönlichen Kalender, der deine Schreiber- und Täfeler-Einsätze automatisch einträgt.',
+  icalDutiesGenerate: 'Persönlichen Link erstellen',
+  icalDutiesPrivacyHint: 'Persönlicher Link — bitte privat halten. Er zeigt nur deinen Einsatzplan (keine persönlichen Daten).',
+  icalDutiesError: 'Persönlicher Link konnte nicht erstellt werden.',
 } as const

@@ -24,6 +24,7 @@ const barColors: Record<string, { bg: string; text: string; darkBg: string; dark
   event:       { bg: 'bg-purple-200', text: 'text-purple-900', darkBg: 'dark:bg-purple-800', darkText: 'dark:text-purple-100' },
   hall:        { bg: 'bg-cyan-200', text: 'text-cyan-900', darkBg: 'dark:bg-cyan-800', darkText: 'dark:text-cyan-100' },
   absence:     { bg: 'bg-gray-900', text: 'text-white', darkBg: 'dark:bg-gray-100', darkText: 'dark:text-gray-900' },
+  'scorer-duty': { bg: 'bg-indigo-200', text: 'text-indigo-900', darkBg: 'dark:bg-indigo-800', darkText: 'dark:text-indigo-100' },
 }
 
 function colorKey(e: CalendarEntry): string {

@@ -73,4 +73,13 @@ export default {
   colTime: 'Time',
   colLocation: 'Location',
   colTeams: 'Teams',
+
+  // Scorer duties (personal)
+  sourceScorerDuty: 'My duties',
+  typeScorerDuty: 'Scoring duty',
+  icalDutiesTitle: 'Your scoring duties',
+  icalDutiesHint: 'Subscribe to a personal calendar that auto-fills your scorer and scoreboard duties.',
+  icalDutiesGenerate: 'Generate my duties link',
+  icalDutiesPrivacyHint: 'Personal link — keep it private. It only shows your duty schedule (no personal data).',
+  icalDutiesError: 'Could not create your personal link.',
 } as const

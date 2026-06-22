@@ -22,7 +22,7 @@ import {
   endOfWeek,
   formatDate,
 } from '../../utils/dateUtils'
-import { SlidersHorizontal } from 'lucide-react'
+import { SlidersHorizontal, ClipboardList } from 'lucide-react'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import BasketballIcon from '../../components/BasketballIcon'
 import VolleyballIcon from '../../components/VolleyballIcon'
@@ -69,6 +69,9 @@ const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'voll
       </svg>
     )
   }
+  if (type === 'scorer-duty') {
+    return <ClipboardList className={`h-3 w-3 shrink-0 ${className}`} strokeWidth={2.5} />
+  }
   if (type === 'hall') {
     return <BasketballIcon className="h-3 w-3 shrink-0" filled />
   }
@@ -84,6 +87,7 @@ const iconColors: Record<string, string> = {
   event: 'text-purple-500',
   hall: 'text-cyan-500',
   absence: 'text-gray-900 dark:text-gray-100',
+  'scorer-duty': 'text-indigo-500',
 }
 
 function entryIconColor(entry: CalendarEntry): string {
@@ -98,7 +102,7 @@ export default function CalendarPage() {
   const isMobile = useIsMobile()
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month')
   const allSources: SourceFilter[] = user
-    ? ['game-home', 'game-away', 'training', 'event', 'closure', 'hall', 'absence']
+    ? ['game-home', 'game-away', 'training', 'event', 'closure', 'hall', 'absence', 'scorer-duty']
     : ['game-home', 'game-away', 'hall']
 
   // Combine member + coach teams for the user's "own teams"

@@ -6,6 +6,26 @@
  * Query: ?source=games-home,trainings,events,closures,hall&team=1,2,3
  */
 
+import { randomBytes } from 'node:crypto'
+import { writeUserLog } from './activity-log.js'
+
+// Frontend app base for the "view roster" deep-link on duty events. Overridable
+// per environment; defaults to prod.
+const APP_BASE = (process.env.PUBLIC_APP_URL || 'https://wiedisync.kscw.ch').replace(/\/$/, '')
+
+// Duty roles → assigned-member FK on `games`, with the German label shown in the
+// calendar and whether the role grants roster access (only the SCORER roles do).
+const DUTY_ROLES = [
+  { member: 'scorer_member', label: 'Schreiben', roster: true },
+  { member: 'scoreboard_member', label: 'Tafel', roster: false },
+  { member: 'scorer_scoreboard_member', label: 'Schreiben/Tafel', roster: true },
+  { member: 'bb_scorer_member', label: 'Anschreiben', roster: true },
+  { member: 'bb_timekeeper_member', label: 'Zeitnehmen', roster: false },
+  { member: 'bb_24s_official', label: '24-Sekunden', roster: false },
+]
+
+const newIcalToken = () => randomBytes(24).toString('hex') // 48 hex chars (≤ varchar(64))
+
 const pad = (n) => String(n).padStart(2, '0')
 const fmtUTC = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
 // Normalize date: Date objects → YYYY-MM-DD string, then strip dashes
@@ -62,7 +82,9 @@ export function registerICalFeed(router, { database, logger }) {
         .filter(Boolean)
 
       const ALL_SOURCES = ['games-home', 'games-away', 'trainings', 'events']
-      const VALID_SOURCES = new Set([...ALL_SOURCES, 'closures', 'hall'])
+      // `duties` is personal (token-scoped) and never part of `all` — it stays
+      // opt-in by name so the public team feed can't leak who has which duty.
+      const VALID_SOURCES = new Set([...ALL_SOURCES, 'closures', 'hall', 'duties'])
       const requested = toList(req.query.source)
       const resolved = requested.includes('all')
         ? ALL_SOURCES
@@ -236,6 +258,53 @@ export function registerICalFeed(router, { database, logger }) {
         }
       }
 
+      // Personal scorer/scoreboard duties — token-scoped to one member. The
+      // token IS the auth (the feed is public); it only exposes a duty schedule,
+      // never PII. Events are marked busy + confirmed so they auto-populate as
+      // accepted entries in a subscribed calendar (a feed has no RSVP step).
+      if (sources['duties']) {
+        const token = String(req.query.token || '').trim()
+        const dutyMember = token
+          ? await database('members').where('ical_token', token).first('id')
+          : null
+        if (dutyMember) {
+          const dutyGames = await database('games')
+            .where((qb) => { for (const r of DUTY_ROLES) qb.orWhere(r.member, dutyMember.id) })
+            .orderBy('date')
+          const hallNames = dutyGames.length
+            ? Object.fromEntries((await database('halls').select('id', 'name')).map((h) => [h.id, h.name]))
+            : {}
+          for (const g of dutyGames) {
+            if (!g.date) continue
+            const d = toISO(g.date)
+            for (const r of DUTY_ROLES) {
+              if (g[r.member] == null || Number(g[r.member]) !== Number(dutyMember.id)) continue
+              const matchup = `${g.home_team || ''} - ${g.away_team || ''}`
+              const summary = `Einsatz ${r.label}: ${matchup}`
+              const rosterUrl = `${APP_BASE}/scorer?roster=${g.id}`
+              lines.push('BEGIN:VEVENT', `UID:duty-${g.id}-${r.member}@kscw.ch`, `DTSTAMP:${now}`)
+              if (g.time) {
+                lines.push(`DTSTART;TZID=Europe/Zurich:${fmtLocal(d, g.time)}`)
+                lines.push(`DTEND;TZID=Europe/Zurich:${fmtOff(d, g.time, 2)}`)
+              } else {
+                lines.push(`DTSTART;VALUE=DATE:${fmtDate(d)}`, `DTEND;VALUE=DATE:${fmtDate(nextDay(d))}`)
+              }
+              lines.push(`SUMMARY:${esc(summary)}`)
+              if (g.hall && hallNames[g.hall]) lines.push(`LOCATION:${esc(hallNames[g.hall])}`)
+              const descParts = [g.league || '', matchup]
+              if (r.roster) descParts.push(`Aufstellung: ${rosterUrl}`)
+              lines.push(`DESCRIPTION:${esc(descParts.filter(Boolean).join('\n'))}`)
+              if (r.roster) lines.push(`URL:${rosterUrl}`)
+              // Auto-accepted / busy in subscribed calendar apps.
+              lines.push('STATUS:CONFIRMED', 'TRANSP:OPAQUE', 'X-MICROSOFT-CDO-BUSYSTATUS:BUSY')
+              // Remind 1h before (covers the 30-min arrival rule + travel).
+              lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(summary)}`, 'TRIGGER:-PT60M', 'END:VALARM')
+              lines.push('END:VEVENT')
+            }
+          }
+        }
+      }
+
       lines.push('END:VCALENDAR')
 
       const slug = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -262,4 +331,48 @@ export function registerICalFeed(router, { database, logger }) {
   router.get('/ical', (req, res) => handleFeed(req, res, null))
   router.get('/ical/volleyball', (req, res) => handleFeed(req, res, 'volleyball'))
   router.get('/ical/basketball', (req, res) => handleFeed(req, res, 'basketball'))
+
+  // Personal iCal token — the caller's own subscription secret. The app reads it
+  // to build the `?source=duties&token=…` link; lazily generated for members
+  // created after migration 125.
+  router.get('/me/ical-token', async (req, res) => {
+    try {
+      const userId = req.accountability?.user
+      if (!userId) return res.status(401).json({ error: 'Authentication required' })
+      const m = await database('members').where('user', userId).first('id', 'ical_token')
+      if (!m) return res.status(404).json({ error: 'No member for this account' })
+      let token = m.ical_token
+      if (!token) {
+        token = newIcalToken()
+        await database('members').where('id', m.id).update({ ical_token: token })
+      }
+      res.json({ data: { token } })
+    } catch (err) {
+      log.error({ msg: `me/ical-token: ${err.message}`, endpoint: 'me/ical-token', userId: req.accountability?.user || null, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // Rotate the token — invalidates the old subscription URL. Audit-logged.
+  router.post('/me/ical-token/rotate', async (req, res) => {
+    try {
+      const userId = req.accountability?.user
+      if (!userId) return res.status(401).json({ error: 'Authentication required' })
+      const m = await database('members').where('user', userId).first('id')
+      if (!m) return res.status(404).json({ error: 'No member for this account' })
+      const token = newIcalToken()
+      await database('members').where('id', m.id).update({ ical_token: token })
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'rotate',
+        collection: 'members',
+        recordId: m.id,
+        data: { what: 'ical_token_rotate' },
+      })
+      res.json({ data: { token } })
+    } catch (err) {
+      log.error({ msg: `me/ical-token/rotate: ${err.message}`, endpoint: 'me/ical-token/rotate', userId: req.accountability?.user || null, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
 }

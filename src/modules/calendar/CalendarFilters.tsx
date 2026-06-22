@@ -24,6 +24,7 @@ export default function CalendarFilters({ open, onClose, filters, onChange, allo
   const allSourceOptions = [
     { value: 'game-home', label: t('gameTypeHome'), color: { bg: '#4A55A2', text: '#ffffff', border: '#3b4590' }, group: t('filterGroupGames') },
     { value: 'game-away', label: t('gameTypeAway'), color: { bg: '#FFC832', text: '#78350f', border: '#e6b42d' }, group: t('filterGroupGames') },
+    { value: 'scorer-duty', label: t('sourceScorerDuty'), color: { bg: '#6366f1', text: '#ffffff', border: '#4f46e5' }, group: t('filterGroupGames') },
     { value: 'training', label: t('sourceTrainings'), color: { bg: '#16a34a', text: '#ffffff', border: '#15803d' }, group: t('filterGroupActivities') },
     { value: 'event', label: t('sourceEvents'), color: { bg: '#7e22ce', text: '#ffffff', border: '#6b21a8' }, group: t('filterGroupActivities') },
     { value: 'hall', label: t('sourceHallHW'), color: { bg: '#0891b2', text: '#ffffff', border: '#0e7490' }, group: t('filterGroupVenue') },

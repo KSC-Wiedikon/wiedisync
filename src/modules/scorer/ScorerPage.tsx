@@ -18,6 +18,7 @@ import TabBar from '../../components/TabBar'
 import SportToggle from '../../components/SportToggle'
 import type { SportView } from '../../hooks/useSportPreference'
 import ScorerRow, { hasAnyVbAssignment, hasAnyBbAssignment, isFullyAssigned } from './components/ScorerRow'
+import RosterModal from './components/RosterModal'
 import TeamOverview from './components/TeamOverview'
 import DelegationRequestBanner from './components/DelegationRequestBanner'
 import { useScorerDelegations } from './hooks/useScorerDelegations'
@@ -42,6 +43,18 @@ export default function ScorerPage() {
 
   const [tab, setTab] = useState<Tab>('games')
   const [sportTab, setSportTab] = useState<SportTab>('volleyball')
+
+  // Deep-link from a calendar duty event: /scorer?roster=<gameId> opens the
+  // home-team roster directly (the endpoint still enforces scorer + time window).
+  const [rosterGameId, setRosterGameId] = useState<string | null>(
+    () => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('roster')),
+  )
+  const closeRoster = useCallback(() => {
+    setRosterGameId(null)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('roster')
+    window.history.replaceState({}, '', url.toString())
+  }, [])
   const [dutyScope, setDutyScope] = useState<'all' | 'mine'>('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
 
@@ -710,6 +723,7 @@ export default function ScorerPage() {
         <div data-tour="open-slots"><TeamOverview games={upcomingGames} members={members} sport={sportTab} /></div>
       )}
 
+      {rosterGameId && <RosterModal gameId={rosterGameId} onClose={closeRoster} />}
     </div>
   )
 }

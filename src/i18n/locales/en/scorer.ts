@@ -129,4 +129,17 @@ export default {
   infoRequirementsArrival: 'In this case, the Scorer/Scoreboard must be in the hall at least <strong>30 minutes</strong> before the start of play.',
   infoHowToTitle: 'How to use',
   infoHowTo: 'Click on the game, select your role, select yourself in the dropdown, and confirm. If you don\'t find yourself in the dropdown, contact Luca or Thamy.',
+
+  // Home-team roster (Schreiber only, ±1h around the game)
+  viewRoster: 'Roster',
+  rosterTitle: 'Home team roster',
+  rosterColNumber: '#',
+  rosterColName: 'Name',
+  rosterColDob: 'Date of birth',
+  rosterEmpty: 'No players found for this team.',
+  rosterOutsideWindow: 'The roster is only available from 1 hour before until 1 hour after the game.',
+  rosterNotScorer: 'Only the assigned scorer can view the roster.',
+  rosterNotHome: 'The roster is only available for home games.',
+  rosterNoTime: 'This game has no scheduled time yet.',
+  rosterError: 'Could not load the roster.',
 } as const

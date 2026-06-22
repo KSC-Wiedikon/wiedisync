@@ -67,4 +67,13 @@ export default {
   icalOpenInApp: 'Oppure apri direttamente nella tua app calendario',
   icalSubscribeHint:
     'Incolla questo link nella tua app calendario per abbonarti — si aggiorna automaticamente. Google Calendar: Altri calendari → Da URL. Apple Calendario: Archivio → Nuovo abbonamento calendario.',
+
+  // Turni di segnapunti (personali)
+  sourceScorerDuty: 'I miei turni',
+  typeScorerDuty: 'Turno di segnapunti',
+  icalDutiesTitle: 'I tuoi turni di segnapunti',
+  icalDutiesHint: 'Abbonati a un calendario personale che aggiunge automaticamente i tuoi turni da segnapunti e tabellone.',
+  icalDutiesGenerate: 'Genera il mio link dei turni',
+  icalDutiesPrivacyHint: 'Link personale — tienilo privato. Mostra solo il tuo calendario dei turni (nessun dato personale).',
+  icalDutiesError: 'Impossibile creare il tuo link personale.',
 } as const
