@@ -798,7 +798,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             AND g.kscw_team IS NOT NULL
             AND COALESCE(g.status, '') NOT IN ('completed', 'postponed', 'cancelled')
             ${pgDowClause.replace(/d\.date/g, 'g.date')}
-            AND EXISTS (SELECT 1 FROM member_teams mt WHERE mt.team = g.kscw_team AND mt.member = ?::integer)
+            -- Guests (guest_level > 0) can never play league games — the
+            -- guest-block trigger forbids confirming and the UI hides RSVP
+            -- entirely. Auto-declining them creates rows that are excluded
+            -- from the game roster yet still inflate the card/modal RSVP
+            -- tallies (declined count drifts above the roster). Mirror the
+            -- auto-confirm guard (`mt.guest_level = 0`) so we never seed them.
+            AND EXISTS (SELECT 1 FROM member_teams mt WHERE mt.team = g.kscw_team AND mt.member = ?::integer AND mt.guest_level = 0)
             AND NOT EXISTS (
               SELECT 1 FROM participations p
               WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = ?::integer
