@@ -8,7 +8,7 @@ import { kscwApi } from '../../../lib/api'
 import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
 import { useAdminBookings } from '../hooks/useAdminBookings'
 import { useTeams } from '../../../hooks/useTeams'
-import LoadingSpinner from '../../../components/LoadingSpinner'
+import { useReportPageLoading } from '../../../hooks/usePageReady'
 import SeasonConfig from '../components/SeasonConfig'
 import { previousSeasonShort } from '../utils/formatSeason'
 import { isSchedulableTeam } from '../utils/schedulableTeams'
@@ -39,17 +39,22 @@ export default function AdminSetupPage() {
   const [generating, setGenerating] = useState(false)
   const [genResult, setGenResult] = useState<{ total_created: number } | null>(null)
 
+  // Wait for ALL primary data on the very first load — season, slots, and the
+  // team list (slots + teams feed the slot-generation / team-config panels).
+  // Only blank the page before the season exists: mutations (toggles,
+  // Spielsamstage save, status changes) refetch and flip these flags back to
+  // true — the `!season` guard keeps the page from re-blanking on every click,
+  // which read as a full page reload.
+  const isInitialLoading = (isLoading || teamsLoading || slotsLoading) && !season
+  // Report to the app boot gate — see usePageReady.tsx. Runs on every render
+  // (before the access early return) so the hook order stays stable.
+  useReportPageLoading(isInitialLoading)
+
   if (!hasAdminAccessToSport('volleyball') && !is_spielplaner) {
     return <Navigate to="/" replace />
   }
 
-  // Wait for ALL primary data on the very first load — season, slots, and the
-  // team list (slots + teams feed the slot-generation / team-config panels).
-  // Only blank to a spinner before the season exists: mutations (toggles,
-  // Spielsamstage save, status changes) refetch and flip these flags back to
-  // true — the `!season` guard keeps the page from re-blanking on every click,
-  // which read as a full page reload.
-  if ((isLoading || teamsLoading || slotsLoading) && !season) return <LoadingSpinner />
+  if (isInitialLoading) return null
 
   const handleCreateSeason = async (name: string) => {
     await createSeason(name)

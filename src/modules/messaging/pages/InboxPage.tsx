@@ -11,13 +11,18 @@ import ConsentModal from '../components/ConsentModal'
 import { Button } from '@/components/ui/button'
 import { messagingFeatureEnabled } from '../../../utils/messagingFeatureFlag'
 import { useAuth } from '../../../hooks/useAuth'
+import { useReportPageLoading } from '../../../hooks/usePageReady'
 
 export default function InboxPage() {
   const { t } = useTranslation('messaging')
   const { user } = useAuth()
-  const { conversations } = useConversations()
-  const { requests } = useMessageRequests()
+  const { conversations, isLoading: conversationsLoading } = useConversations()
+  const { requests, isLoading: requestsLoading } = useMessageRequests()
   const [newMsgOpen, setNewMsgOpen] = useState(false)
+
+  // Report to the app boot gate — see usePageReady.tsx. Runs before the
+  // feature-flag <Navigate> guard so the hook fires on every render (rules-of-hooks).
+  useReportPageLoading(conversationsLoading || requestsLoading)
 
   if (!messagingFeatureEnabled(user?.id)) return <Navigate to="/" replace />
 

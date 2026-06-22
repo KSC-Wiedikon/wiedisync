@@ -3,6 +3,7 @@ import { CheckCircle2, AlertTriangle, Loader2, Activity, Database, Calendar } fr
 import { usePublicStatus } from '../../hooks/useBugfixes'
 import { useInfraHealth } from '../../hooks/useInfraHealth'
 import { formatDateCompact } from '../../utils/dateHelpers'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type ServiceStatus = 'ok' | 'warn' | 'down' | 'loading'
 
@@ -39,6 +40,11 @@ export default function StatusPage() {
   const { t } = useTranslation('bugfixes')
   const { data, isLoading: fixesLoading } = usePublicStatus()
   const { services, syncs, isLoading: healthLoading } = useInfraHealth()
+
+  // Report to the app boot gate — see usePageReady.tsx. Gate on the primary
+  // recent-fixes list only; the service-health rows fill in progressively and
+  // would otherwise hang the overlay on the slowest probe.
+  useReportPageLoading(fixesLoading)
 
   const apiService = services[0]
   const apiStatus: ServiceStatus = !apiService ? 'loading'

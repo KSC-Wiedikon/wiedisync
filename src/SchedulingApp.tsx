@@ -6,6 +6,8 @@ import { AuthProvider } from './hooks/useAuth'
 import { ThemeProvider } from './hooks/useTheme'
 import { AdminModeProvider } from './hooks/useAdminMode'
 import { ConfirmProvider } from './components/ConfirmProvider'
+import { PageReadyProvider } from './hooks/usePageReady'
+import BootOverlay from './components/BootOverlay'
 import { TourProvider } from './modules/guide/TourProvider'
 import { SentryErrorBoundary } from './lib/sentry'
 import SchedulingLayout from './components/SchedulingLayout'
@@ -60,6 +62,8 @@ export default function SchedulingApp() {
               <ConfirmProvider>
                 <BrowserRouter>
                   <TourProvider>
+                  <PageReadyProvider>
+                    <BootOverlay />
                     <Routes>
                       {/* Public opponent flow — bare, no shell (as on the member app) */}
                       <Route path="terminplanung" element={<PublicTerminplanungPage />} />
@@ -98,6 +102,7 @@ export default function SchedulingApp() {
 
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
+                  </PageReadyProvider>
                   </TourProvider>
                 </BrowserRouter>
                 <Toaster richColors position="top-center" />

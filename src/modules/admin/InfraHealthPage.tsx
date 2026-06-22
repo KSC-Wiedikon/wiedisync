@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useInfraHealth } from '../../hooks/useInfraHealth'
 import { API_URL, fetchItems, countItems } from '../../lib/api'
 import { currentLocale } from '../../utils/dateHelpers'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 const PROD_URL = API_URL
 const DEV_URL = 'https://directus-dev.kscw.ch'
@@ -519,6 +520,11 @@ export default function InfraHealthPage() {
 
   // Run once on mount — no deps to avoid re-trigger loop
   useEffect(() => { runChecks() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Report to the app boot gate — see usePageReady.tsx. Gate on the initial
+  // check pass: `loading` is true from the on-mount runChecks() until every
+  // section has resolved, then the page's content reveals together.
+  useReportPageLoading(loading)
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-4">

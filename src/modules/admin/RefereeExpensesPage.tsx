@@ -8,6 +8,7 @@ import { teamNameToColorKey } from '../../utils/teamColors'
 import { formatDate } from '../../utils/dateHelpers'
 import { asObj } from '../../utils/relations'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type ExpandedExpense = RefereeExpense & {
   game: (Game & BaseRecord) | string
@@ -45,6 +46,9 @@ export default function RefereeExpensesPage() {
     all: true,
   })
   const expenses = expensesRaw ?? []
+
+  // Report to the app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading)
 
   // Extract unique seasons from game data
   const seasons = useMemo(() => {

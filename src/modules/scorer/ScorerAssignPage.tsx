@@ -15,6 +15,7 @@ import { runAssignment, getTeamCounts, type GameAssignment } from './components/
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
 import { updateRecord } from '../../lib/api'
 import { asObj } from '../../utils/relations'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import { TourPageButton } from '../guide/TourPageButton'
 
 type SportTab = 'volleyball' | 'basketball'
@@ -78,6 +79,9 @@ export default function ScorerAssignPage() {
   // "games loaded" banner, Run button and empty state never flash a half-loaded
   // view (e.g. "0 games" before teams/halls land).
   const dataLoading = gamesLoading || teamsLoading || trainingsLoading || membersLoading || memberTeamsLoading || hallsLoading
+
+  // Report to the app boot gate — see usePageReady.tsx
+  useReportPageLoading(dataLoading)
 
   // State
   const [sportTab, setSportTab] = useState<SportTab>(canVb ? 'volleyball' : 'basketball')

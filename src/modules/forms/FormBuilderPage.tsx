@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import FormBuilder from './FormBuilder'
 import type { FormDef } from './types'
 
@@ -31,6 +31,10 @@ export default function FormBuilderPage() {
   })
   const form = useMemo(() => (isEdit ? (formsRaw ?? [])[0] ?? null : null), [formsRaw, isEdit])
 
+  // Report to the app boot gate — see usePageReady.tsx. Only edit mode loads a
+  // form; "new" mode is a blank editor, so nothing to wait on there.
+  useReportPageLoading(isEdit && isLoading)
+
   if (!canManageForms) return <Navigate to="/forms" replace />
 
   const back = () => navigate('/forms')
@@ -46,7 +50,7 @@ export default function FormBuilderPage() {
       <h1 className="mb-6 text-2xl font-bold">{isEdit ? t('editForm') : t('newForm')}</h1>
 
       {isEdit && isLoading ? (
-        <LoadingSpinner />
+        null
       ) : isEdit && !form ? (
         <p className="text-sm text-muted-foreground">{t('noManagedForms')}</p>
       ) : (

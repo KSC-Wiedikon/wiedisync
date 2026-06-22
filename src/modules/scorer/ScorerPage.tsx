@@ -27,6 +27,7 @@ import LoadingSpinner from '../../components/LoadingSpinner'
 import { Bell, BellOff, ChevronDown, ChevronUp, Filter, Info, Clock, AlertTriangle, ClipboardList, Lightbulb } from 'lucide-react'
 import { TourPageButton } from '../guide/TourPageButton'
 import { updateRecord } from '../../lib/api'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type Tab = 'games' | 'overview'
 type SportTab = 'volleyball' | 'basketball'
@@ -438,6 +439,11 @@ export default function ScorerPage() {
   // render from, so ScorerRow never paints against empty lookup maps.
   const upcomingLoading = gamesLoading || supportingLoading
   const pastGateLoading = pastLoading || supportingLoading
+
+  // Report to the app boot gate — see usePageReady.tsx. Gate on the upcoming
+  // games + their supporting lookups (the page's primary content); past games
+  // are a secondary, user-triggered load and keep their own section spinner.
+  useReportPageLoading(upcomingLoading)
 
   const filterLabelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400'
 

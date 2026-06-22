@@ -19,6 +19,7 @@ import DeleteAccountModal from './DeleteAccountModal'
 import TeamRequestModal from './TeamRequestModal'
 import Modal from '@/components/Modal'
 import MessagingSettingsCard from '../messaging/pages/MessagingSettingsCard'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import type { MemberTeam, Team, Absence, LicenceType, Fine } from '../../types'
 import { formatFineAmount } from '../../hooks/useFines'
 import { licencesOf } from '../../types'
@@ -104,7 +105,7 @@ export default function ProfilePage() {
   const [leavingTeam, setLeavingTeam] = useState<{ id: string; name: string } | null>(null)
   const [leaving, setLeaving] = useState(false)
 
-  const { data: memberTeamsRaw, refetch: refetchMemberTeams } = useCollection<ExpandedMemberTeam>('member_teams', {
+  const { data: memberTeamsRaw, isLoading: memberTeamsLoading, refetch: refetchMemberTeams } = useCollection<ExpandedMemberTeam>('member_teams', {
     // Current-season only — archived same-name teams from prior seasons would
     // otherwise show as duplicate rows the user could "leave".
     filter: user ? { _and: [{ member: { _eq: user.id } }, { season: { _eq: getCurrentSeason() } }] } : undefined,
@@ -189,6 +190,10 @@ export default function ProfilePage() {
   })
   const openFines = openFinesRaw ?? []
   const openFineTotal = openFines.reduce((acc, f) => acc + (Number(f.amount) || 0), 0)
+
+  // Report to the app boot gate — see usePageReady.tsx. Must run on every render,
+  // so it sits BEFORE the <Navigate> guard below (rules-of-hooks / React #310).
+  useReportPageLoading(memberTeamsLoading)
 
   if (!user) return <Navigate to="/login" replace />
 

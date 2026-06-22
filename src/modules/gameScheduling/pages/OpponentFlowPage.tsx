@@ -6,8 +6,8 @@ import { gameStartForDate } from '../utils/slotTime'
 import type { BookingData, InviteGame } from '../hooks/useAvailableSlots'
 import HomeProposalForm from '../components/HomeProposalForm'
 import AwayProposalForm from '../components/AwayProposalForm'
-import LoadingSpinner from '../../../components/LoadingSpinner'
 import Modal from '../../../components/Modal'
+import { useReportPageLoading } from '../../../hooks/usePageReady'
 import { Badge } from '../../../components/ui/badge'
 import LanguageDropdown from '../../../components/LanguageDropdown'
 
@@ -141,16 +141,15 @@ export default function OpponentFlowPage() {
     setLanguage((i18n.language || '').split('-')[0].toLowerCase())
   }, [i18n.language, setLanguage])
 
-  // Only blank to a spinner on the very first load. Booking / proposing refetch
+  // Only blank the page on the very first load. Booking / proposing refetch
   // the slots (isLoading flips back to true) — without the `!opponent` guard the
-  // whole page flashed to a spinner on every submit, reading as a page reload.
-  if (isLoading && !opponent) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <LoadingSpinner />
-      </div>
-    )
-  }
+  // whole page flashed on every submit, reading as a page reload.
+  const isInitialLoading = isLoading && !opponent
+  // Report to the app boot gate — see usePageReady.tsx. Runs on every render
+  // (before the early returns below) so the hook order stays stable.
+  useReportPageLoading(isInitialLoading)
+
+  if (isInitialLoading) return null
 
   if (error || !opponent) {
     return (

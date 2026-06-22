@@ -9,6 +9,7 @@ import {
   AlertCircle, Info, AlertTriangle,
 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 interface AuditEntry {
   ts: string
@@ -190,6 +191,11 @@ export default function AuditLogPage() {
   const [result, setResult] = useState<AuditResponse | null>(null)
   const [stats, setStats] = useState<AuditStats | null>(null)
   const [availableCollections, setAvailableCollections] = useState<string[]>([])
+
+  // Report to the app boot gate — see usePageReady.tsx. Only the very first
+  // fetch (before any result exists) should hold the boot spinner; later
+  // refetches keep the page visible and use the inline refresh state.
+  useReportPageLoading(loading && !result)
 
   const fetchLogs = useCallback(async (p = 1) => {
     setLoading(true)

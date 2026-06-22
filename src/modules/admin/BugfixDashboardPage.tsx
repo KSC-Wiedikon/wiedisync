@@ -28,6 +28,7 @@ import {
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -416,6 +417,9 @@ export default function BugfixDashboardPage() {
   const lang = i18n.language
   const { data: issues, isLoading, refetch } = useBugfixIssues()
   const [tab, setTab] = useState<Tab>('active')
+
+  // Report to the app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading)
 
   const filterByTab = (issues: BugfixIssue[], t: Tab) => {
     switch (t) {

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useCollection } from '../../lib/query'
 import { formatDateZurich } from '../../utils/dateHelpers'
 import DashboardSection from './components/DashboardSection'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -104,6 +105,9 @@ export default function VolleyFeedbackPage() {
     'volley_feedback',
     { sort: ['-date_created'], all: true },
   )
+
+  // Report to the app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading)
 
   const averages = useMemo(() => computeAverages(items), [items])
   const anonCount = useMemo(() => items.filter(i => i.is_anonymous).length, [items])

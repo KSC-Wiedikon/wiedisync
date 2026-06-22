@@ -34,6 +34,7 @@ import { useCrossTeamConflicts } from './hooks/useCrossTeamConflicts'
 import { asObj } from '../../utils/relations'
 import { startOfMonth, getSeasonYear } from '../../utils/dateUtils'
 import { useIsMobile } from '../../hooks/useMediaQuery'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import type { ViewMode, SpielplanungFilterState } from '../../types/calendar'
 import type { Game } from '../../types'
@@ -84,6 +85,9 @@ export default function SpielplanungPage() {
   // (feeds the season dropdown). Avoids a pop-in where the calendar renders
   // before teams/seasons resolve.
   const isLoading = dataLoading || teamsLoading || seasonsLoading
+
+  // Report to the app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading)
 
   const filteredEntries = useMemo(() => entries, [entries])
 
