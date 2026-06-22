@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.4.0'
+const APP_VERSION = '1.5.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.5.0',
+    date: '22.06.2026',
+    sections: [
+      {
+        title: 'Smarter junior game slots',
+        items: [
+          'Junior (U-) teams can now choose Friday-evening slots as their 1st and 2nd home-game options once Saturdays and the Tuesday Döltschi slots are used up — previously Fridays were only ever a 3rd choice.',
+          'Sundays now work the same way, and the U-teams are steered to play together: once one U-team takes a Sunday, that Sunday becomes a strong option for the others.',
+          'New "Show cross-team conflicts" toggle on the planning calendar — pick a team and the calendar marks the days another team that shares its players already plays, i.e. the days that block a home game.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.4.0',
     date: '22.06.2026',
