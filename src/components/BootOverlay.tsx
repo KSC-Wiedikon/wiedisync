@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { isAuthenticated } from '../lib/api'
-import { usePageLoading, logBoot } from '../hooks/usePageReady'
+import { usePageLoading } from '../hooks/usePageReady'
 import LoadingSpinner from './LoadingSpinner'
 
 /**
@@ -35,20 +35,6 @@ export default function BootOverlay() {
     const t = setTimeout(() => setMounted(false), 250)
     return () => clearTimeout(t)
   }, [booting])
-
-  // TEMP diagnostics — should now report a SINGLE episode spanning both phases.
-  const episodes = useRef(0)
-  const prev = useRef(false)
-  useEffect(() => {
-    const flags = { authBooting, pageLoading, isLoading, teamsLoading }
-    if (booting && !prev.current) {
-      episodes.current += 1
-      logBoot(`SPINNER shown — episode #${episodes.current}`, flags)
-    } else if (!booting && prev.current) {
-      logBoot(`spinner hidden (after episode #${episodes.current})`, flags)
-    }
-    prev.current = booting
-  }, [booting, authBooting, pageLoading, isLoading, teamsLoading])
 
   if (!mounted) return null
   return (
