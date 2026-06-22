@@ -11,6 +11,7 @@ import { useUnreadTotal } from '../modules/messaging/hooks/useUnreadTotal'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { getFileUrl } from '../utils/fileUrl'
 import { asObj } from '../utils/relations'
+import { openExternalApp, handlePWAExternalClick } from '../utils/pwa'
 import type { MemberTeam, Team } from '../types'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 import NotificationBell from './NotificationBell'
@@ -58,7 +59,10 @@ function NavCategory({
   const hasInboxBadge = messagingOn && unreadMessages > 0 && items.some((i) => i.to === '/inbox')
 
   const go = (item: NavItem) => {
-    if (item.external && item.href) window.location.assign(item.href)
+    // External hops (e.g. the Spielplanung subdomain) break out of an installed
+    // PWA into the system browser instead of getting trapped in the standalone
+    // window; in a normal tab `openExternalApp` navigates in place.
+    if (item.external && item.href) openExternalApp(item.href)
     else navigate(item.to)
   }
 
@@ -193,6 +197,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
           schedulingItem.external && schedulingItem.href ? (
             <a
               href={schedulingItem.href}
+              onClick={(e) => handlePWAExternalClick(e, schedulingItem.href!)}
               className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${TRIGGER_IDLE}`}
             >
               {schedulingItem.label}

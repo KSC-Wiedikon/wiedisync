@@ -8,11 +8,12 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, UserX, PenSquare, PartyPopper, ClipboardList, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText } from 'lucide-react'
+import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { SCHEDULING_ORIGIN } from '../lib/api'
+import { handlePWAExternalClick } from '../utils/pwa'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 
 type ExpandedMemberTeam = MemberTeam & { team: Team | string }
@@ -62,18 +63,19 @@ function buildSecondaryItems(
     { to: '/finance/expense', labelKey: 'uploadInvoice', icon: <ReceiptText className={iconClass} /> },
     ...(sched.isVorstand ? [{ to: '/admin/finance', labelKey: 'finance:title', icon: <Landmark className={iconClass} /> }] : []),
   ]
-  // Spielplaner tools — own role-gated section (mirrors Layout.tsx + route guards).
-  // Game scheduling lives on its own subdomain; link out when SCHEDULING_ORIGIN
-  // differs from the current origin (SSO makes it seamless), else stay in-app.
+  // Spielplaner tools — the whole game-scheduling feature opens as ONE "Planning"
+  // entry (mirrors `useNavItems` / the desktop top nav); it has its own in-app
+  // nav once you're in it. Game scheduling lives on its own subdomain, so link
+  // out when SCHEDULING_ORIGIN differs from the current origin (SSO makes it
+  // seamless), else stay in-app. Full & club Spielplaner land on Match
+  // scheduling; a per-team Spielplaner who can't reach it lands on the manual
+  // game calendar.
   const schedExternal = typeof window !== 'undefined' && SCHEDULING_ORIGIN.replace(/\/$/, '') !== window.location.origin
-  const spielplaner: SheetItem[] = [
-    ...(sched.isAdmin || sched.is_spielplaner || sched.spielplanerTeamIds.length > 0
-      ? [{ to: '/admin/spielplanung', href: `${SCHEDULING_ORIGIN}/admin/spielplanung`, external: schedExternal, labelKey: 'gameplan', icon: <ClipboardList className={iconClass} /> }]
-      : []),
-    ...(sched.isAdmin || sched.is_spielplaner
-      ? [{ to: '/admin/terminplanung', href: `${SCHEDULING_ORIGIN}/admin/terminplanung`, external: schedExternal, labelKey: 'terminplanung', icon: <CalendarClock className={iconClass} /> }]
-      : []),
-  ]
+  const hasSchedulingAccess = sched.isAdmin || sched.is_spielplaner || sched.spielplanerTeamIds.length > 0
+  const schedTo = sched.isAdmin || sched.is_spielplaner ? '/admin/terminplanung' : '/admin/spielplanung'
+  const spielplaner: SheetItem[] = hasSchedulingAccess
+    ? [{ to: schedTo, href: `${SCHEDULING_ORIGIN}${schedTo}`, external: schedExternal, labelKey: 'spielplanung', icon: <CalendarClock className={iconClass} /> }]
+    : []
   return { primary, memberTools, finance, spielplaner }
 }
 
@@ -332,7 +334,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                 <a
                   key={item.to}
                   href={item.href}
-                  onClick={startClose}
+                  onClick={(e) => { handlePWAExternalClick(e, item.href!); startClose() }}
                   className="flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   {item.icon}
@@ -379,10 +381,9 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                 )}
                 {groups.spielplaner.length > 0 && (
                   <>
+                    {/* No section header — the single "Planning" item is already
+                        self-describing (a "Planning" header would just repeat it). */}
                     <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
-                    <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                      {t('spielplanung')}
-                    </p>
                     {groups.spielplaner.map(renderItem)}
                   </>
                 )}

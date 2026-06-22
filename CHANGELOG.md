@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.3.0 — 2026-06-22
+
+### Game planning, one tap away
+- The game-planning tools are now a single "Planning" entry in the menu — the separate "Manual game calendar" and "Match scheduling" tabs are gone.
+- Installed Wiedisync to your home screen? Opening Planning now launches it in your browser instead of getting stuck inside the app window.
+
 ## v1.2.0 — 2026-06-20
 
 ### League standings by season
