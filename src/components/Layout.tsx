@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
@@ -12,8 +12,6 @@ import MoreSheet from './MoreSheet'
 import NotificationPanel from './NotificationPanel'
 import TopNav from './TopNav'
 import { useCollection } from '../lib/query'
-import { usePageLoading, logBoot } from '../hooks/usePageReady'
-import LoadingSpinner from './LoadingSpinner'
 import ProfileEditModal from '../modules/auth/ProfileEditModal'
 import type { MemberTeam, Team } from '../types'
 
@@ -27,11 +25,6 @@ export default function Layout() {
   const { t } = useTranslation('nav')
   const isDesktop = useIsDesktop()
   const { isAdminMode } = useAdminMode()
-  // The active routed page reports whether its primary data is still loading
-  // (via useReportPageLoading). While true we keep ONE fullscreen spinner up,
-  // masking the chrome + content so they reveal together — no chrome-then-
-  // content flash, no second spinner inside the page. See usePageReady.tsx.
-  const pageLoading = usePageLoading()
   const location = useLocation()
   // Match-scheduling (Terminplanung) is a spielplaner tool with its own per-team
   // scoping — the gold admin-mode banner is just noise there, so hide it on those
@@ -51,68 +44,16 @@ export default function Layout() {
   })
   const memberTeams = memberTeamsRaw ?? []
 
-  // Two boot phases share ONE spinner: (1) auth + role context loading, then
-  // (2) the active page's own data loading. `authBooting` also gates the chrome
-  // + page from mounting until role context is ready (memberTeamIds/coachTeamIds,
-  // which the pages depend on). `booting` true ⇒ keep the overlay opaque.
+  // Gate the chrome + page from mounting until auth/role context is ready
+  // (memberTeamIds/coachTeamIds, which the pages depend on). The boot spinner
+  // itself is the app-level <BootOverlay/>; here we only decide whether to
+  // render the chrome underneath it.
   const authBooting = (isLoading || teamsLoading) && isAuthenticated()
-  const booting = authBooting || pageLoading
-
-  // Keep the overlay mounted briefly after booting ends, then fade it out — the
-  // page content (which mounts the instant loading clears) paints underneath
-  // before the spinner vanishes, killing the "spinner gone, data a beat later"
-  // flash. A single instance spans both phases (useReportPageLoading reports via
-  // useLayoutEffect, closing the sub-frame gap between phase 1 and phase 2), so
-  // the user never sees a second spinner.
-  const [overlayMounted, setOverlayMounted] = useState(booting)
-  // Mount immediately when booting starts — set-state-during-render is React's
-  // sanctioned way to derive state from a changed value (no effect lag).
-  if (booting && !overlayMounted) setOverlayMounted(true)
-  // Unmount 250ms after booting ends, once the fade-out has revealed the content
-  // beneath. setState lives in the async timeout, not the effect body.
-  useEffect(() => {
-    if (booting) return
-    const t = setTimeout(() => setOverlayMounted(false), 250)
-    return () => clearTimeout(t)
-  }, [booting])
-
-  // TEMP boot diagnostics — count how many times the spinner is shown (each
-  // false→true of `booting` is a distinct visible episode) and log what each
-  // phase is waiting on. If this logs episode #2, the spinner is genuinely
-  // showing twice; the flags tell us why (auth vs page, and which flag re-armed).
-  const spinnerEpisodes = useRef(0)
-  const prevBooting = useRef(false)
-  useEffect(() => {
-    const flags = { authBooting, pageLoading, isLoading, teamsLoading }
-    if (booting && !prevBooting.current) {
-      spinnerEpisodes.current += 1
-      logBoot(`SPINNER shown — episode #${spinnerEpisodes.current}`, flags)
-    } else if (!booting && prevBooting.current) {
-      logBoot(`spinner hidden (after episode #${spinnerEpisodes.current})`, flags)
-    }
-    prevBooting.current = booting
-  }, [booting, authBooting, pageLoading, isLoading, teamsLoading])
 
   return (
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-900">
-      {/* One continuous boot spinner spanning both the auth/team phase and the
-          page-data phase. It masks the chrome + content underneath, then fades
-          out (content already painted beneath) so everything reveals at once —
-          no second spinner, no chrome-then-content flash, no data-lag flicker.
-          Progress bar off: a simulated bar resetting between phases is exactly
-          what read as "two spinners". */}
-      {overlayMounted && (
-        <div
-          className={`fixed inset-0 z-[60] flex items-center justify-center bg-gray-50 transition-opacity duration-200 dark:bg-gray-900 ${
-            booting ? 'opacity-100' : 'pointer-events-none opacity-0'
-          }`}
-        >
-          <LoadingSpinner showProgress={false} />
-        </div>
-      )}
-
       {/* Chrome + page mount only once auth/team context is ready; while the
-          page's own data loads they render underneath the overlay (masked). */}
+          page's own data loads they render underneath <BootOverlay/> (masked). */}
       {!authBooting && (<>
       {/* Desktop top navbar (replaces the old side rail). Mobile keeps the
           bottom tab bar + More sheet below. */}

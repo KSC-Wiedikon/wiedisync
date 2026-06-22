@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react'
 import { readMe } from '@directus/sdk'
 import { client, login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, fetchItems, fetchAllItems } from '../lib/api'
 import { queryClient } from '../lib/query'
@@ -6,8 +6,6 @@ import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb } from 
 import i18n from '../i18n'
 import { backendLangToI18n } from '../utils/languageMap'
 import { getCurrentSeason } from '../utils/dateHelpers'
-import LoadingSpinner from '../components/LoadingSpinner'
-import { logBoot } from './usePageReady'
 import type { Member, Team } from '../types'
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -63,10 +61,6 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<MemberUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-
-  // Capture whether a token existed at mount time (synchronous, before effects).
-  // Stored in a ref so it never changes — used to gate the app during session restore.
-  const hadTokenRef = useRef(isAuthenticated())
 
   const [coachTeamIds, setCoachTeamIds] = useState<string[]>([])
   const [coachTeamNames, setCoachTeamNames] = useState<string[]>([])
@@ -363,24 +357,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshTeamContext, refreshUser,
   ])
 
-  // Block the entire app while restoring a previous session so no route
-  // (including public pages like HomePage) flashes unauthenticated content.
-  // This is "phase 0" of the boot sequence — it runs ABOVE Layout, so Layout's
-  // boot gate never sees it. To keep it from reading as a *separate* spinner
-  // before Layout's, it must render the SAME spinner as Layout's boot overlay:
-  // `showProgress={false}` (a progress bar here + none in Layout was the visible
-  // "two spinners" tell). Keep these two in sync.
-  if (isLoading && hadTokenRef.current) {
-    logBoot('AuthProvider session-restore spinner (phase 0, above Layout)')
-    return (
-      <AuthContext.Provider value={value}>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-          <LoadingSpinner showProgress={false} />
-        </div>
-      </AuthContext.Provider>
-    )
-  }
-
+  // The boot spinner now lives in a single <BootOverlay/> (rendered once at the
+  // top of the app) that masks the whole app during session restore AND page
+  // load — one continuous spinner instead of this block + Layout's separate one.
+  // BootOverlay's authBooting (isAuthenticated() && isLoading) covers the restore
+  // window, and Layout/AuthRoute gate their content on the same auth state, so
+  // nothing unauthenticated flashes underneath the overlay.
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

@@ -10,6 +10,7 @@ import { ConfirmProvider } from './components/ConfirmProvider'
 import { PageReadyProvider } from './hooks/usePageReady'
 import { TourProvider } from './modules/guide/TourProvider'
 import Layout from './components/Layout'
+import BootOverlay from './components/BootOverlay'
 import AdminRoute from './components/AdminRoute'
 import SuperAdminRoute from './components/SuperAdminRoute'
 import GamesPage from './modules/games/GamesPage'
@@ -156,6 +157,7 @@ export default function App() {
       <BrowserRouter>
       <TourProvider>
       <PageReadyProvider>
+        <BootOverlay />
         <Routes>
           {/* Standalone routes — no layout wrapper */}
           <Route path="embed/games" element={<EmbedGamesPage />} />
