@@ -19,7 +19,7 @@ export default function RichText({
 
   return (
     <div
-      className={`prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-1 prose-blockquote:my-1 prose-a:text-brand-600 dark:prose-a:text-brand-400 ${className}`}
+      className={`prose prose-sm max-w-none break-words [overflow-wrap:anywhere] dark:prose-invert prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-1 prose-blockquote:my-1 prose-a:text-brand-600 dark:prose-a:text-brand-400 ${className}`}
       dangerouslySetInnerHTML={{ __html: clean }}
     />
   )

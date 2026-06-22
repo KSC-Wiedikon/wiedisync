@@ -7,7 +7,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { fetchAllItems } from '../../../lib/api'
 import { toDateKey, getSeasonYear, formatDate } from '../../../utils/dateUtils'
 import { relId } from '../../../utils/relations'
-import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team, Absence, MemberTeam } from '../../../types'
+import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team, Absence, MemberTeam, SchedulingBlock } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 
 // Season-wide overview of the Terminplanung for all teams: confirmed + proposed
@@ -19,7 +19,9 @@ type EntryKind =
   | 'away_confirmed'
   | 'home_proposed'
   | 'away_proposed'
-  | 'blocked'
+  | 'blocked'      // a reserved KWI court (derby hall hold / BB Friday split)
+  | 'team_block'   // a scheduling_blocks "no games" period for the team
+  | 'team_event'   // a team event that blocks games that day
 
 /** An intra-club game (e.g. the H1↔H3 derby) — not a booking; comes from `games`.
  *  Rendered as a normal confirmed home/away game per the team's perspective. */
@@ -47,6 +49,9 @@ interface SchedEntry {
   opponent?: string
   /** Hall / venue name. */
   hallName?: string
+  /** Why this date is blocked (reserved-for reason, block reason, event title) —
+   *  shown in the chip tooltip + the day-detail "Not available" list. */
+  detail?: string
 }
 
 // One row in the day-detail modal table (games + open slots for a day).
@@ -107,7 +112,12 @@ const CHIP: Record<EntryKind, string> = {
   home_proposed: 'border border-dashed border-amber-500 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
   away_proposed: 'border border-dashed border-orange-500 bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
   blocked: 'bg-gray-300 text-gray-600 line-through dark:bg-gray-600 dark:text-gray-300',
+  team_block: 'bg-rose-200 text-rose-800 dark:bg-rose-900/50 dark:text-rose-200',
+  team_event: 'bg-purple-200 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
 }
+
+// Kinds that represent "a game can't happen here" rather than a game itself.
+const isBlockerKind = (k: EntryKind) => k === 'blocked' || k === 'team_block' || k === 'team_event'
 
 export default function SchedulingCalendar({ slots, bookings, teams, season, games = [], title, showAbsences }: Props) {
   const { t } = useTranslation('gameScheduling')
@@ -221,6 +231,64 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     return m
   }, [closures])
 
+  const teamIds = useMemo(() => teams.map((tm) => String(tm.id)), [teams])
+
+  // Team blocks (scheduling_blocks) — "no games" periods a coach/spielplaner set
+  // for a team (e.g. "Keine Spiele (Daniela Imhof)"). The backend hard-blocks
+  // every slot in the range, so without surfacing them here a date silently has
+  // no slots and it's impossible to see why. Members can read scheduling_blocks.
+  const [blocks, setBlocks] = useState<SchedulingBlock[]>([])
+  useEffect(() => {
+    if (teamIds.length === 0) return
+    let cancelled = false
+    fetchAllItems<SchedulingBlock>('scheduling_blocks', {
+      fields: ['id', 'team', 'start_date', 'end_date', 'reason'],
+      filter: { _and: [{ team: { _in: teamIds } }, { end_date: { _gte: `${startYear}-08-01` } }] },
+    })
+      .then((r) => { if (!cancelled) setBlocks(r) })
+      .catch(() => { if (!cancelled) setBlocks([]) })
+    return () => { cancelled = true }
+  }, [teamIds, startYear])
+
+  // Team events that block games (a tournament weekend, a team trip). The backend
+  // drops every slot whose date falls in a linked event, so they too vanish
+  // silently — surface them. M2M-safe: fetch the junction first (events_teams by
+  // teams_id), then the events by id (never walk the alias in a filter).
+  const [teamEvents, setTeamEvents] = useState<{ id: string; title: string; start_date: string; end_date?: string | null; teamId: string }[]>([])
+  useEffect(() => {
+    if (teamIds.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const links = await fetchAllItems<{ events_id: unknown; teams_id: unknown }>('events_teams', {
+          fields: ['events_id', 'teams_id'], filter: { teams_id: { _in: teamIds } },
+        })
+        const eventToTeams = new Map<string, Set<string>>()
+        for (const l of links) {
+          const eid = String(relId(l.events_id as never)); const tid = String(relId(l.teams_id as never))
+          if (!eid || eid === 'null') continue
+          const set = eventToTeams.get(eid) ?? new Set<string>(); set.add(tid); eventToTeams.set(eid, set)
+        }
+        const eventIds = [...eventToTeams.keys()]
+        if (eventIds.length === 0) { if (!cancelled) setTeamEvents([]); return }
+        const evs = await fetchAllItems<{ id: string; title: string; start_date: string; end_date?: string | null }>('events', {
+          fields: ['id', 'title', 'start_date', 'end_date'],
+          filter: { _and: [{ id: { _in: eventIds } }, { start_date: { _lte: `${startYear + 1}-04-30` } }, { start_date: { _gte: `${startYear}-08-01` } }] },
+        })
+        const flat: { id: string; title: string; start_date: string; end_date?: string | null; teamId: string }[] = []
+        for (const ev of evs) {
+          for (const tid of eventToTeams.get(String(ev.id)) ?? []) {
+            flat.push({ id: String(ev.id), title: ev.title, start_date: ev.start_date, end_date: ev.end_date, teamId: tid })
+          }
+        }
+        if (!cancelled) setTeamEvents(flat)
+      } catch {
+        if (!cancelled) setTeamEvents([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [teamIds, startYear])
+
   // slot id -> opponent label, from confirmed home bookings (so a booked slot
   // shows who it's against).
   const oppBySlot = useMemo(() => {
@@ -250,7 +318,9 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   // date key -> number of distinct team members unavailable that day (blocking
   // absences affecting games). Fetched per-team via a single-level junction walk
   // (member_teams → members) then absences by member, per the M2M-safe pattern.
-  const [absencesByDate, setAbsencesByDate] = useState<Map<string, number>>(new Map())
+  // date key -> sorted names of members unavailable that day (so a click/hover
+  // can show WHO, not just how many).
+  const [absencesByDate, setAbsencesByDate] = useState<Map<string, string[]>>(new Map())
   useEffect(() => {
     if (!absenceTeamId) { setAbsencesByDate(new Map()); return }
     let cancelled = false
@@ -263,10 +333,20 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         if (memberIds.length === 0) { if (!cancelled) setAbsencesByDate(new Map()); return }
         const winStart = `${startYear}-08-01`
         const winEnd = `${startYear + 1}-03-31`
-        const abs = await fetchAllItems<Absence & { member?: string | { id: string } }>('absences', {
-          fields: ['id', 'member', 'start_date', 'end_date', 'type', 'days_of_week', 'affects', 'blocking'],
-          filter: { _and: [{ member: { _in: memberIds } }, { end_date: { _gte: winStart } }, { start_date: { _lte: winEnd } }] },
-        })
+        const [members, abs] = await Promise.all([
+          fetchAllItems<{ id: string; first_name?: string; last_name?: string }>('members', {
+            fields: ['id', 'first_name', 'last_name'], filter: { id: { _in: memberIds } },
+          }),
+          fetchAllItems<Absence & { member?: string | { id: string } }>('absences', {
+            fields: ['id', 'member', 'start_date', 'end_date', 'type', 'days_of_week', 'affects', 'blocking'],
+            filter: { _and: [{ member: { _in: memberIds } }, { end_date: { _gte: winStart } }, { start_date: { _lte: winEnd } }] },
+          }),
+        ])
+        const nameById = new Map<string, string>()
+        for (const m of members) {
+          const nm = `${m.first_name || ''} ${m.last_name || ''}`.trim()
+          nameById.set(String(m.id), nm || String(m.id))
+        }
         const lo = new Date(startYear, 7, 1) // Aug 1
         const hi = new Date(startYear + 1, 2, 31) // Mar 31
         const byDate = new Map<string, Set<string>>()
@@ -290,9 +370,11 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
             add(toDateKey(d), mid)
           }
         }
-        const counts = new Map<string, number>()
-        for (const [k, set] of byDate) counts.set(k, set.size)
-        if (!cancelled) setAbsencesByDate(counts)
+        const names = new Map<string, string[]>()
+        for (const [k, set] of byDate) {
+          names.set(k, [...set].map((mid) => nameById.get(mid) || mid).sort((a, b) => a.localeCompare(b)))
+        }
+        if (!cancelled) setAbsencesByDate(names)
       } catch {
         if (!cancelled) setAbsencesByDate(new Map())
       }
@@ -342,8 +424,9 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       } else if (s.status === 'blocked') {
         // A blocked slot is either a derby hall reservation (the gym is held A+B for
         // an intra-club derby that evening) or the KWI VB/BB Friday alternation.
-        const lbl = derbyDates.has(toDateKey(d)) ? t('reservedForDerby') : t('reservedForBB')
-        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: lbl, teamId: tid, time: slotTime(d, s.start_time), hallName: hallName(s.hall), title: `${lbl} · ${team}` })
+        // Chip just says "Reserved"; the tooltip/detail says what it's reserved for.
+        const reason = derbyDates.has(toDateKey(d)) ? t('reservedForDerby') : t('reservedForBB')
+        out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: t('reserved'), teamId: tid, time: slotTime(d, s.start_time), hallName: hallName(s.hall), detail: reason, title: `${reason} · ${team}` })
       }
     }
 
@@ -391,8 +474,40 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         out.push({ id: `g-${g.id}`, date: d, kind: 'away_confirmed', label: me, teamId: String(g.kscw_team), time, opponent: opp, title: `${t('legendAwayConfirmed')}: ${me} @ ${opp}` })
       }
     }
+
+    // Team blocks (scheduling_blocks) — one chip per day in the range so the whole
+    // "no games" period is visible and the reason is one click/hover away.
+    for (const bl of blocks) {
+      const start = parseYmd(bl.start_date); const end = parseYmd(bl.end_date)
+      if (!start || !end) continue
+      const tid = String(bl.team)
+      const team = teamName(bl.team)
+      const reason = (bl.reason || '').trim()
+      for (let d = new Date(start), guard = 0; d <= end && guard < 400; d.setDate(d.getDate() + 1), guard++) {
+        out.push({
+          id: `blk-${bl.id}-${toDateKey(d)}`, date: new Date(d), kind: 'team_block', label: t('blockNoGames'),
+          teamId: tid, detail: reason || undefined,
+          title: `${t('blockNoGames')}${reason ? `: ${reason}` : ''} · ${team}`,
+        })
+      }
+    }
+
+    // Team events that block games (tournament weekend, team trip).
+    for (const ev of teamEvents) {
+      const start = parseYmd(ev.start_date); const end = parseYmd(ev.end_date || ev.start_date)
+      if (!start || !end) continue
+      const team = teamName(ev.teamId)
+      const ttl = (ev.title || '').trim()
+      for (let d = new Date(start), guard = 0; d <= end && guard < 400; d.setDate(d.getDate() + 1), guard++) {
+        out.push({
+          id: `ev-${ev.id}-${ev.teamId}-${toDateKey(d)}`, date: new Date(d), kind: 'team_event', label: ttl || t('teamEventLabel'),
+          teamId: ev.teamId, detail: ttl || undefined,
+          title: `${t('teamEventLabel')}${ttl ? `: ${ttl}` : ''} · ${team}`,
+        })
+      }
+    }
     return out
-  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games])
+  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, blocks, teamEvents])
 
   // Teams that actually appear in the calendar, for the filter chips.
   const filterableTeams = useMemo(() => {
@@ -441,24 +556,30 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     { kind: 'away_confirmed', label: t('legendAwayConfirmed') },
     { kind: 'home_proposed', label: t('legendHomeProposed') },
     { kind: 'away_proposed', label: t('legendAwayProposed') },
-    { kind: 'blocked', label: t('reservedForBB') },
+    { kind: 'blocked', label: t('reserved') },
+    { kind: 'team_block', label: t('blockNoGames') },
+    { kind: 'team_event', label: t('teamEventLabel') },
   ]
 
-  const KIND_LABEL: Record<EntryKind | 'open', string> = {
+  const KIND_LABEL = useMemo<Record<EntryKind | 'open', string>>(() => ({
     home_confirmed: t('legendHomeConfirmed'),
     away_confirmed: t('legendAwayConfirmed'),
     home_proposed: t('legendHomeProposed'),
     away_proposed: t('legendAwayProposed'),
-    blocked: t('reservedForBB'),
+    blocked: t('reserved'),
+    team_block: t('blockNoGames'),
+    team_event: t('teamEventLabel'),
     open: t('legendOpen'),
-  }
+  }), [t])
 
-  // Rows for the day-detail modal: the day's games (its teamFilter-applied
-  // entries) plus that day's still-open slots.
-  const dayRows = useMemo<{ games: DayRow[]; open: DayRow[] }>(() => {
-    if (!dayDetail) return { games: [], open: [] }
+  // Rows for the day-detail modal: the day's games, the things that block a game
+  // that day (reserved courts, team blocks, events), the still-open slots, and who
+  // is absent.
+  const dayRows = useMemo<{ games: DayRow[]; blockers: { id: string; team: string; label: string; detail: string }[]; open: DayRow[]; absent: string[] }>(() => {
+    if (!dayDetail) return { games: [], blockers: [], open: [], absent: [] }
     const key = toDateKey(dayDetail.date)
     const games: DayRow[] = dayDetail.entries
+      .filter((e) => !isBlockerKind(e.kind))
       .map((e) => {
         const team = teamName(e.teamId)
         const opp = e.opponent || ''
@@ -468,14 +589,18 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         return { id: e.id, time: e.time || '', team, match, hall: e.hallName || '', kind: e.kind }
       })
       .sort((a, b) => a.time.localeCompare(b.time))
+    const blockers = dayDetail.entries
+      .filter((e) => isBlockerKind(e.kind))
+      .map((e) => ({ id: e.id, team: teamName(e.teamId), label: KIND_LABEL[e.kind], detail: e.detail || '' }))
     const open: DayRow[] = slots
       .filter((s) => s.status === 'available'
         && (teamFilter.size === 0 || teamFilter.has(String(s.kscw_team)))
         && toDateKey(parseYmd(s.date) ?? new Date(0)) === key)
       .map((s) => { const team = teamName(s.kscw_team); return { id: `open-${s.id}`, time: slotTime(parseYmd(s.date), s.start_time), team, match: team, hall: hallName(s.hall), kind: 'open' as const } })
       .sort((a, b) => a.team.localeCompare(b.team) || a.time.localeCompare(b.time))
-    return { games, open }
-  }, [dayDetail, slots, teamFilter, teamName, hallName])
+    const absent = absencesByDate.get(key) || []
+    return { games, blockers, open, absent }
+  }, [dayDetail, slots, teamFilter, teamName, hallName, absencesByDate, KIND_LABEL])
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
@@ -579,7 +704,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         outOfSeasonLabel={t('outsideSeasonLabel')}
         onDayClick={(date, items) => {
           const open = openByDate.get(toDateKey(date)) || 0
-          if (items.length === 0 && open === 0) return
+          const absent = absencesByDate.get(toDateKey(date))?.length || 0
+          if (items.length === 0 && open === 0 && absent === 0) return
           setDayDetail({ date, entries: items })
         }}
         renderDayContent={(date, items) => {
@@ -587,7 +713,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
           const visible = items.slice(0, 3)
           const hidden = items.length - visible.length
           const open = openByDate.get(key) || 0
-          const absent = absencesByDate.get(key) || 0
+          const absentNames = absencesByDate.get(key) || []
           return (
             <div className="flex flex-col gap-0.5">
               {visible.map((e) => {
@@ -616,9 +742,9 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                   {t('openCount', { count: open })}
                 </span>
               )}
-              {absent > 0 && (
-                <span className="text-[10px] text-rose-500 dark:text-rose-400" title={t('absentCountHint')}>
-                  {t('absentCount', { count: absent })}
+              {absentNames.length > 0 && (
+                <span className="text-[10px] text-rose-500 dark:text-rose-400" title={t('absentPlayers', { names: absentNames.join(', ') })}>
+                  {t('absentCount', { count: absentNames.length })}
                 </span>
               )}
             </div>
@@ -663,6 +789,28 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
               </Table>
             ) : (
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('dayNoGames')}</p>
+            )}
+
+            {/* Anything that blocks a game that day: reserved courts, team blocks, events. */}
+            {dayRows.blockers.length > 0 && (
+              <div className="rounded-md border border-rose-200 bg-rose-50 p-3 dark:border-rose-900 dark:bg-rose-900/20">
+                <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">{t('blockedHeading')}</p>
+                <ul className="mt-1.5 space-y-1">
+                  {dayRows.blockers.map((b) => (
+                    <li key={b.id} className="flex flex-wrap items-baseline gap-x-2 text-xs text-rose-700 dark:text-rose-300">
+                      <span className="font-medium">{b.team}</span>
+                      <span>{b.label}{b.detail ? ` — ${b.detail}` : ''}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Who is unavailable that day (single-team calendars only). */}
+            {dayRows.absent.length > 0 && (
+              <div className="rounded-md border border-rose-200 bg-rose-50 p-3 dark:border-rose-900 dark:bg-rose-900/20">
+                <p className="text-xs font-medium text-rose-700 dark:text-rose-300">{t('absentPlayers', { names: dayRows.absent.join(', ') })}</p>
+              </div>
             )}
 
             {dayRows.open.length > 0 && (
