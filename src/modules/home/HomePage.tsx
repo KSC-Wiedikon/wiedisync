@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -29,7 +29,7 @@ import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Ranking, BaseRecord } from '../../types'
 import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, CalendarDays, LayoutGrid, List, ScrollText } from 'lucide-react'
 import { mdiWhistleOutline } from '@mdi/js'
-import { useReportPageLoading } from '../../hooks/usePageReady'
+import { useReportPageLoading, logBoot } from '../../hooks/usePageReady'
 import RankingsTable from '../games/components/RankingsTable'
 import InstallBanner from '../guide/install/InstallBanner'
 import FormFillModal from '../forms/FormFillModal'
@@ -367,6 +367,17 @@ export default function HomePage() {
   // own spinner. While true, Layout's single fullscreen spinner masks the chrome
   // + this content, so everything reveals together. See usePageReady.tsx.
   useReportPageLoading(isInitialLoading)
+
+  // TEMP boot diagnostics — trace which data the home page is waiting on. Watch
+  // for isInitialLoading going false → true again (a waterfall, e.g. bulkPart
+  // arming only after games/trainings/events land) which re-shows the spinner.
+  useEffect(() => {
+    logBoot('HomePage flags', {
+      isInitialLoading, hasTeams,
+      memberTeamsLoading, gamesLoading, resultsLoading,
+      trainingsLoading, eventIdsLoading, eventsLoading, bulkPartLoading,
+    })
+  }, [isInitialLoading, hasTeams, memberTeamsLoading, gamesLoading, resultsLoading, trainingsLoading, eventIdsLoading, eventsLoading, bulkPartLoading])
 
   return (
     <div className="min-w-0">
