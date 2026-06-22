@@ -41,7 +41,10 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none dark:prose-invert focus:outline-none px-3 py-2',
+        // break-words (overflow-wrap is inherited) so a long unbroken string —
+        // e.g. a pasted URL or "aaaa…" — wraps inside the box instead of
+        // overflowing past the right edge.
+        class: 'prose prose-sm max-w-none dark:prose-invert focus:outline-none px-3 py-2 break-words [overflow-wrap:anywhere]',
         style: `min-height: ${minHeight}`,
       },
     },
