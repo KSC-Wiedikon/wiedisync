@@ -1286,16 +1286,22 @@ export function registerGameScheduling(router, { database, logger, services, get
       })
       .filter(Boolean)
 
-    // Juniors: promote Friday Spielhalle to strict (pick 1 & 2) when the strict
-    // pool — own slot / Spielsamstag / Döltschi — has fewer than 2 distinct dates
-    // left (can't fill both picks). Mirrors GET slots/:token so the
-    // team-availability dialog shows the same tiering.
-    if (isJr && new Set(slots.filter((s) => s.strict).map((s) => s.date)).size < 2) {
-      for (const s of slots) {
-        if (s.source === 'spielhalle' && !isSunday(s.date) && s.abs_count === 0 && !committedHome.has(s.date)) {
-          s.strict = true
+    // Juniors: cascade-promote the last-resort tiers to strict (pick 1 & 2) when
+    // the strict pool — own slot / Spielsamstag / Döltschi — has fewer than 2
+    // distinct dates: Friday Spielhalle first, then Sundays. Mirrors GET
+    // slots/:token so the team-availability dialog shows the same tiering.
+    if (isJr) {
+      const strictDates = new Set(slots.filter((s) => s.strict).map((s) => s.date))
+      const promote = (match) => {
+        for (const s of slots) {
+          if (match(s) && s.abs_count === 0 && !committedHome.has(s.date)) {
+            s.strict = true
+            strictDates.add(s.date)
+          }
         }
       }
+      if (strictDates.size < 2) promote((s) => s.source === 'spielhalle' && !isSunday(s.date))
+      if (strictDates.size < 2) promote((s) => isSunday(s.date))
     }
 
     // Away blocked-date sets — same composition as slots/:token.
@@ -1761,21 +1767,26 @@ export function registerGameScheduling(router, { database, logger, services, get
         })
         .filter(Boolean)
 
-      // Juniors: Friday Spielhalle is normally last-resort (3rd home pick only).
-      // But when the strict pool — own slot / Spielsamstag / Döltschi — can't fill
-      // BOTH home picks 1 & 2 (fewer than 2 strict DATES left, e.g. the Döltschi
-      // season cap is reached and only the last Spielsamstag remains), promote
-      // Friday Spielhalle to strict so it can fill picks 1 & 2; Sundays stay the
-      // final fallback (never strict). Count distinct dates, not slot rows — two
-      // strict slots on one Saturday are still only one usable pick. The confirm
-      // guard recomputes the same signal so it accepts exactly what is offered.
-      if (isJr && new Set(slots.filter((s) => s.strict).map((s) => s.date)).size < 2) {
+      // Juniors: Friday Spielhalle, then Sundays, are last-resort home picks. When
+      // the strict pool (own slot / Spielsamstag / Döltschi) can't fill BOTH home
+      // picks 1 & 2 — fewer than 2 distinct strict DATES, e.g. the Döltschi season
+      // cap is reached and only the last Spielsamstag remains — promote the next
+      // tier(s) until two dates are strict: Friday Spielhalle first, then Sundays.
+      // Count distinct dates, not slot rows (two slots on one Saturday are still one
+      // usable pick). The confirm guard recomputes the same cascade.
+      if (isJr) {
         const absById = new Map(slotRows.map((r) => [r.id, Number(r.abs_count || 0)]))
-        for (const s of slots) {
-          if (s.source === 'spielhalle' && !isSunday(s.date) && absById.get(s.id) === 0 && !committedHome.has(s.date)) {
-            s.strict = true
+        const strictDates = new Set(slots.filter((s) => s.strict).map((s) => s.date))
+        const promote = (match) => {
+          for (const s of slots) {
+            if (match(s) && absById.get(s.id) === 0 && !committedHome.has(s.date)) {
+              s.strict = true
+              strictDates.add(s.date)
+            }
           }
         }
+        if (strictDates.size < 2) promote((s) => s.source === 'spielhalle' && !isSunday(s.date)) // Friday
+        if (strictDates.size < 2) promote((s) => isSunday(s.date))                               // Sundays
       }
 
       const bookings = await database('game_scheduling_bookings')
@@ -2045,12 +2056,14 @@ export function registerGameScheduling(router, { database, logger, services, get
       const satCapHome = await teamSaturdayCap(homeTeam)
       const satDatesHome = await committedSaturdayDates(opponent.kscw_team, database, opponent.season)
 
-      // Friday Spielhalle is normally a junior team's last-resort (3rd pick only).
-      // GET slots/:token promotes it to a strict (pick 1 & 2) option when the
-      // strict pool — own slot / Spielsamstag / Döltschi — has fewer than 2 distinct
-      // dates left (can't fill both picks). This guard must accept exactly what that
-      // endpoint offered, so recompute the same signal. Sundays stay last-resort.
-      let homeStrictPoolShort = false
+      // Friday Spielhalle, then Sundays, are a junior team's last-resort picks.
+      // GET slots/:token cascade-promotes them to strict (pick 1 & 2) when the
+      // strict pool can't fill both picks: Friday when the strict pool (own slot /
+      // Spielsamstag / Döltschi) has fewer than 2 distinct dates; Sundays when the
+      // strict pool + Friday fallback still has fewer than 2. This guard must accept
+      // exactly what that endpoint offered, so recompute the same per-tier counts.
+      let homeFridayPromoted = false
+      let homeSundayPromoted = false
       if (homeIsJr) {
         const dHallIds = await database('halls')
           .whereRaw("LOWER(name) LIKE '%döltschi%' OR LOWER(name) LIKE '%doltschi%'").pluck('id')
@@ -2101,21 +2114,26 @@ export function registerGameScheduling(router, { database, logger, services, get
             'AND a.start_date::date <= game_scheduling_slots.date AND a.end_date::date >= game_scheduling_slots.date ' +
             "AND (a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')) as abs_count",
             [opponent.kscw_team]))
-        const strictDates = new Set()
+        // Count distinct offerable dates per tier: tier1 = strict pool (own slot /
+        // Spielsamstag / Döltschi), fri = Friday Spielhalle fallback. Sundays are
+        // the final fallback and never count toward either.
+        const tier1Dates = new Set()
+        const friDates = new Set()
         for (const r of candRows) {
           const d = String(r.d).slice(0, 10)
-          if (r.source === 'spielhalle' || isSunday(d)) continue // last-resort, not strict pool
           if (Number(r.abs_count || 0) !== 0) continue
           if (committedHome.has(d)) continue
           if (xDates.has(d)) continue
           if (blockedDates.has(d)) continue
           if (derbyDateBlocked(d, homeDerbyAnchors, homeRueckStart)) continue
+          if (isSunday(d)) continue                                  // final fallback, not tier1/fri
+          if (r.source === 'spielhalle') { friDates.add(d); continue } // Friday fallback
           if (dHallIds.includes(r.hall) && (doltschiFull || doltschiTaken.has(d))) continue
           if (isSaturday(d) && !satDatesHome.has(d) && satDatesHome.size >= satCapHome) continue
-          strictDates.add(d) // distinct dates — same day twice is one usable pick
-          if (strictDates.size >= 2) break
+          tier1Dates.add(d)
         }
-        homeStrictPoolShort = strictDates.size < 2
+        homeFridayPromoted = tier1Dates.size < 2
+        homeSundayPromoted = (tier1Dates.size + friDates.size) < 2
       }
 
       for (let i = 0; i < ids.length; i++) {
@@ -2142,11 +2160,14 @@ export function registerGameScheduling(router, { database, logger, services, get
           const xNames = await database('teams').whereIn('id', xConflict).pluck('name')
           return res.status(400).json({ error: `Slot ${i + 1} is on a day a team sharing a player/coach already plays (${xNames.join(', ')}) — please pick another.` })
         }
-        // Juniors: Sundays are always last-resort (3rd pick only). Friday Spielhalle
-        // is too, UNLESS the strict pool (own slot / Spielsamstag / Döltschi) has
-        // fewer than 2 dates left — then it is promoted to a pick-1/2 option
-        // (mirrors the strict flag in GET slots/:token via homeStrictPoolShort).
-        if (homeIsJr && i < 2 && ids.length === 3 && (isSunday(day) || (slot.source === 'spielhalle' && !homeStrictPoolShort))) {
+        // Juniors: Friday Spielhalle and Sundays are last-resort home picks, allowed
+        // at picks 1 & 2 only when the strict pool can't fill both — Friday when
+        // promoted (strict pool < 2 dates), Sundays when promoted (strict pool +
+        // Friday < 2). Mirrors the cascade in GET slots/:token.
+        if (homeIsJr && i < 2 && ids.length === 3 && (
+          (isSunday(day) && !homeSundayPromoted) ||
+          (slot.source === 'spielhalle' && !homeFridayPromoted)
+        )) {
           return res.status(400).json({ error: `Slot ${i + 1} must be the own slot, Spielsamstag or Döltschi — Friday Spielhalle and Sundays are only allowed as your 3rd choice.` })
         }
         const eventCover = await database('events as e')
