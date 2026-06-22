@@ -371,9 +371,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
               {canParticipate && (
                 <GameCardParticipation game={game} existingParticipation={myParticipation} onSaved={onParticipationSaved} />
               )}
-              {participations && participations.length > 0 && (
-                <ParticipationSummary activityType="game" activityId={game.id} bars participations={participations} coachMemberIds={teamCoachIds(kscwTeamObj)} />
-              )}
+              <ParticipationSummary activityType="game" activityId={game.id} bars alwaysShow participations={participations ?? []} coachMemberIds={teamCoachIds(kscwTeamObj)} />
             </div>
           )}
         </div>

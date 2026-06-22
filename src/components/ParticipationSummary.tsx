@@ -21,6 +21,8 @@ interface ParticipationSummaryProps {
   participations?: Participation[]
   /** Coach/captain/TR member IDs — used to detect "Coach present" for player-coaches */
   coachMemberIds?: string[]
+  /** Render the counters even when there are no participations yet (shows 0/0/0 instead of hiding) */
+  alwaysShow?: boolean
 }
 
 export default function ParticipationSummary({
@@ -32,6 +34,7 @@ export default function ParticipationSummary({
   hideExtras = false,
   participations: prefetched,
   coachMemberIds,
+  alwaysShow = false,
 }: ParticipationSummaryProps) {
   const { t } = useTranslation('participation')
 
@@ -105,9 +108,10 @@ export default function ParticipationSummary({
   const confirmedTotal = confirmed + allGuests + extraConfirmed
   const hasGuestBreakdown = allGuests > 0
 
-  // Don't hide during loading — only hide when fetch completed with no data
-  if (data.length === 0 && extraConfirmed === 0 && !isLoading) return null
-  if (data.length === 0 && extraConfirmed === 0) return <span className="text-xs text-gray-400">…</span>
+  // Don't hide during loading — only hide when fetch completed with no data.
+  // `alwaysShow` keeps the counters visible (0/0/0) even for empty activities.
+  if (!alwaysShow && data.length === 0 && extraConfirmed === 0 && !isLoading) return null
+  if (!alwaysShow && data.length === 0 && extraConfirmed === 0) return <span className="text-xs text-gray-400">…</span>
 
   if (bars) {
     return (
