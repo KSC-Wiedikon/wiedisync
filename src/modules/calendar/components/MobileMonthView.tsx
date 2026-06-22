@@ -33,6 +33,34 @@ function colorKey(e: CalendarEntry): string {
   return e.type
 }
 
+/** Synthetic-entry id prefix for a collapsed multi-absence row (non-clickable). */
+const ABSENCE_GROUP_PREFIX = 'absence-group:'
+
+/**
+ * Collapse 2+ absences on a day into a single "Absence: A, B, C" row (names are
+ * carried in each absence's `title` as "Absence · Name"). A single absence is
+ * left untouched (still opens its detail on tap).
+ */
+function collapseAbsences(entries: CalendarEntry[], label: string, dayKey: string): CalendarEntry[] {
+  const absences = entries.filter((e) => e.type === 'absence')
+  if (absences.length <= 1) return entries
+  const names = absences
+    .map((a) => { const i = a.title.indexOf(' · '); return i >= 0 ? a.title.slice(i + 3) : '' })
+    .filter(Boolean)
+  const combined: CalendarEntry = {
+    ...absences[0],
+    id: `${ABSENCE_GROUP_PREFIX}${dayKey}`,
+    title: names.length ? `${label}: ${names.join(', ')}` : label,
+  }
+  let inserted = false
+  const result: CalendarEntry[] = []
+  for (const e of entries) {
+    if (e.type === 'absence') { if (!inserted) { result.push(combined); inserted = true } }
+    else result.push(e)
+  }
+  return result
+}
+
 /* ── component ───────────────────────────────────────────── */
 
 interface MobileMonthViewProps {
@@ -97,6 +125,7 @@ export default function MobileMonthView({
 
   // Entries for selected day
   const selectedEntries = selectedDay ? (entriesByDate.get(selectedDay) ?? []) : []
+  const displayEntries = selectedDay ? collapseAbsences(selectedEntries, t('typeAbsence'), selectedDay) : selectedEntries
 
   function handleDayTap(dateKey: string) {
     if (selectedDay === dateKey) {
@@ -206,31 +235,44 @@ export default function MobileMonthView({
             </h3>
           </div>
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {selectedEntries.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => onEntryClick?.(entry)}
-                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-gray-50 dark:active:bg-gray-700"
-              >
-                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dotColors[colorKey(entry)]}`} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {entry.title}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {entry.allDay
-                      ? t('common:allDay')
-                      : entry.startTime
-                        ? entry.endTime
-                          ? `${entry.startTime} – ${entry.endTime}`
-                          : entry.startTime
-                        : ''}
-                    {entry.location ? ` · ${entry.location}` : ''}
-                  </p>
+            {displayEntries.map((entry) => {
+              const grouped = entry.id.startsWith(ABSENCE_GROUP_PREFIX)
+              const body = (
+                <>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dotColors[colorKey(entry)]}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-sm font-medium text-gray-900 dark:text-gray-100 ${grouped ? 'break-words' : 'truncate'}`}>
+                      {entry.title}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {entry.allDay
+                        ? t('common:allDay')
+                        : entry.startTime
+                          ? entry.endTime
+                            ? `${entry.startTime} – ${entry.endTime}`
+                            : entry.startTime
+                          : ''}
+                      {entry.location ? ` · ${entry.location}` : ''}
+                    </p>
+                  </div>
+                </>
+              )
+              // Collapsed multi-absence row is informational (no single detail to open).
+              return grouped ? (
+                <div key={entry.id} className="flex w-full items-start gap-2.5 px-3 py-2.5 text-left">
+                  {body}
                 </div>
-              </button>
-            ))}
+              ) : (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => onEntryClick?.(entry)}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-gray-50 dark:active:bg-gray-700"
+                >
+                  {body}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}

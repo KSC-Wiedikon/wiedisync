@@ -208,21 +208,11 @@ export default function CalendarPage() {
     setViewMode(v as CalendarViewMode)
   }
 
-  const subtitles: Record<CalendarViewMode, string> = {
-    hallenplan: t('subtitleHall'),
-    month: t('subtitleMonth'),
-    week: t('subtitleWeek'),
-    schedule: t('subtitleSchedule'),
-  }
-
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-4">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
-          <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">{subtitles[viewMode]}</p>
-        </div>
+        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
         <div className="flex items-center gap-2">
           {needsData && (
             <>
