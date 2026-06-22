@@ -20,7 +20,9 @@ import type { CalendarEntry } from '../../types/calendar'
 import type { Game } from '../../types'
 import { opponentName } from './gameChipUtils'
 import AbsenceBadge from './AbsenceBadge'
+import CrossTeamBadge from './CrossTeamBadge'
 import type { AbsentMember } from './utils/absencesByDate'
+import type { CrossTeamConflict } from './hooks/useCrossTeamConflicts'
 import {
   getWeekDays,
   getBlockPixelPosition,
@@ -47,6 +49,8 @@ interface WeekViewProps {
   onMove?: (move: WeekViewMove) => void
   /** date key (yyyy-MM-dd) -> members unavailable for games that day. */
   absencesByDate?: Map<string, AbsentMember[]>
+  /** date key (yyyy-MM-dd) -> roster-sharing teams playing that day. */
+  crossTeamByDate?: Map<string, CrossTeamConflict[]>
 }
 
 export default function WeekView({
@@ -57,6 +61,7 @@ export default function WeekView({
   canEdit,
   onMove,
   absencesByDate,
+  crossTeamByDate,
 }: WeekViewProps) {
   const { t } = useTranslation('spielplanung')
   const days = useMemo(() => getWeekDays(weekStart), [weekStart])
@@ -155,6 +160,7 @@ export default function WeekView({
             {days.map((d) => {
               const isToday = isSameDay(d, today)
               const absent = absencesByDate?.get(toDateKey(d)) ?? []
+              const crossTeam = crossTeamByDate?.get(toDateKey(d)) ?? []
               return (
                 <div
                   key={d.toISOString()}
@@ -169,9 +175,10 @@ export default function WeekView({
                   <div className={cn('text-sm font-semibold', isToday && 'text-accent-foreground')}>
                     {formatDate(d, 'd')}
                   </div>
-                  {absent.length > 0 && (
-                    <div className="mt-0.5 flex justify-center">
-                      <AbsenceBadge absent={absent} />
+                  {(absent.length > 0 || crossTeam.length > 0) && (
+                    <div className="mt-0.5 flex justify-center gap-1">
+                      {crossTeam.length > 0 && <CrossTeamBadge conflicts={crossTeam} />}
+                      {absent.length > 0 && <AbsenceBadge absent={absent} />}
                     </div>
                   )}
                 </div>

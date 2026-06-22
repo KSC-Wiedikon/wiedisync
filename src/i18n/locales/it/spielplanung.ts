@@ -30,6 +30,19 @@ export default {
     aria: 'Assenze: {{count}}',
   },
 
+  showCrossTeam: 'Mostra conflitti tra squadre',
+  crossTeamNeedsTeam: 'Seleziona prima una squadra per vedere i suoi conflitti tra squadre',
+  crossTeamBadge: {
+    title: 'Conflitti tra squadre: {{count}}',
+    aria: 'Conflitti tra squadre: {{count}}',
+    hint: 'Una squadra con giocatori in comune gioca questo giorno — blocca uno slot casalingo qui.',
+    kind: {
+      game: 'Partita',
+      home: 'Partita in casa',
+      away: 'Partita in trasferta',
+    },
+  },
+
   // Day overflow popover (month view)
   overflow: {
     more: '+{{count}} altre',

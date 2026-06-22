@@ -67,6 +67,18 @@ export default function SpielplanungFilters({ filters, onChange }: SpielplanungF
         <Switch checked={filters.showAbsences} onCheckedChange={(checked) => onChange({ ...filters, showAbsences: checked })} />
         {t('showAbsences')}
       </div>
+
+      <div
+        className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+        title={filters.selectedTeamIds.length === 0 ? t('crossTeamNeedsTeam') : undefined}
+      >
+        <Switch
+          checked={filters.showCrossTeam}
+          disabled={filters.selectedTeamIds.length === 0}
+          onCheckedChange={(checked) => onChange({ ...filters, showCrossTeam: checked })}
+        />
+        {t('showCrossTeam')}
+      </div>
     </div>
   )
 }

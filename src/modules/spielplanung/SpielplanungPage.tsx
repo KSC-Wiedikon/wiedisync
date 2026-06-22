@@ -30,6 +30,7 @@ import { useTeamAbsences } from '../../hooks/useTeamAbsences'
 import { useAuth } from '../../hooks/useAuth'
 import { useMutation } from '../../hooks/useMutation'
 import { buildAbsencesByDate, type AbsentMember } from './utils/absencesByDate'
+import { useCrossTeamConflicts } from './hooks/useCrossTeamConflicts'
 import { asObj } from '../../utils/relations'
 import { startOfMonth, getSeasonYear } from '../../utils/dateUtils'
 import { useIsMobile } from '../../hooks/useMediaQuery'
@@ -54,6 +55,7 @@ export default function SpielplanungPage() {
     selectedTeamIds: [],
     gameType: 'all',
     showAbsences: false,
+    showCrossTeam: false,
   })
   const [month, setMonth] = useState<Date>(getInitialMonth)
   const [weekAnchor, setWeekAnchor] = useState<Date>(() => new Date())
@@ -113,6 +115,16 @@ export default function SpielplanungPage() {
         : new Map<string, AbsentMember[]>(),
     [filters.showAbsences, absences, memberTeams, seasonStart, seasonEnd],
   )
+
+  // ── Cross-team overlay ───────────────────────────────────────────────
+  // Days a roster-sharing team plays (those block this team's home slots).
+  // Scoped to the picked team(s) — cross-team is inherently per-team, so it needs
+  // at least one selected; the hook no-ops on an empty id list.
+  const crossTeamTeamIds = useMemo(
+    () => (filters.showCrossTeam ? filters.selectedTeamIds : []),
+    [filters.showCrossTeam, filters.selectedTeamIds],
+  )
+  const { byDate: crossTeamByDate } = useCrossTeamConflicts(crossTeamTeamIds)
 
   function canEditGame(game: Game | null): boolean {
     if (!game) return false
@@ -259,6 +271,7 @@ export default function SpielplanungPage() {
               onGameClick={setSelectedGame}
               onEmptyDayClick={canCreateManualGames ? setCreateFor : undefined}
               absencesByDate={absencesByDate}
+              crossTeamByDate={crossTeamByDate}
             />
           )}
           {viewMode === 'week' && (
@@ -270,6 +283,7 @@ export default function SpielplanungPage() {
               canEdit={canEditGame}
               onMove={handleWeekMove}
               absencesByDate={absencesByDate}
+              crossTeamByDate={crossTeamByDate}
             />
           )}
           {viewMode === 'list-date' && (

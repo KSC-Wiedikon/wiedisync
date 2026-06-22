@@ -30,6 +30,19 @@ export default {
     aria: 'Absences: {{count}}',
   },
 
+  showCrossTeam: 'Show cross-team conflicts',
+  crossTeamNeedsTeam: 'Pick a team first to see its cross-team conflicts',
+  crossTeamBadge: {
+    title: 'Cross-team conflicts: {{count}}',
+    aria: 'Cross-team conflicts: {{count}}',
+    hint: 'A team sharing players plays this day — it blocks a home slot here.',
+    kind: {
+      game: 'Game',
+      home: 'Home game',
+      away: 'Away game',
+    },
+  },
+
   // Day overflow popover (month view)
   overflow: {
     more: '+{{count}} more',

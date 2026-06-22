@@ -41,6 +41,9 @@ export interface SpielplanungFilterState {
   selectedTeamIds: string[]
   gameType: GameTypeFilter
   showAbsences: boolean
+  /** Overlay days a roster-sharing team plays (those block home slots). Scoped to
+   *  the selected team(s); needs at least one team picked. */
+  showCrossTeam: boolean
 }
 
 export interface CalendarFilterState {
