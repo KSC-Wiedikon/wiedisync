@@ -28,7 +28,6 @@ import { useBulkParticipationStatuses } from '../../hooks/useBulkParticipationSt
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Ranking, BaseRecord } from '../../types'
 import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, CalendarDays, LayoutGrid, List, ScrollText } from 'lucide-react'
-import Icon from '@mdi/react'
 import { mdiWhistleOutline } from '@mdi/js'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import RankingsTable from '../games/components/RankingsTable'
@@ -978,9 +977,15 @@ function TrainingConeIcon({ className = '' }: { className?: string }) {
 
 /** Inline whistle SVG for game icon */
 function WhistleIcon({ className = '' }: { className?: string }) {
-  // Material Design Icons "whistle-outline" (@mdi/js, Apache-2.0). Icon inherits
-  // size from className (h-/w-) and fill from the parent's text color.
-  return <Icon path={mdiWhistleOutline} className={className} />
+  // Material Design Icons "whistle-outline" path (@mdi/js, Apache-2.0) rendered
+  // as a plain inline SVG. NOTE: do NOT use @mdi/react's <Icon> — its default
+  // export resolves to an object (not a component) in the prod bundle, which
+  // crashed the home page with React #130. The path string is interop-safe.
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d={mdiWhistleOutline} />
+    </svg>
+  )
 }
 
 /** Single appointment row with participation banner */
