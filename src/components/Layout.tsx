@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
@@ -51,24 +51,52 @@ export default function Layout() {
   })
   const memberTeams = memberTeamsRaw ?? []
 
-  // Block rendering until auth + role context fully loads (prevents flash
-  // where pages render before memberTeamIds/coachTeamIds are available)
-  if ((isLoading || teamsLoading) && isAuthenticated()) {
-    return <LoadingSpinner />
-  }
+  // Two boot phases share ONE spinner: (1) auth + role context loading, then
+  // (2) the active page's own data loading. `authBooting` also gates the chrome
+  // + page from mounting until role context is ready (memberTeamIds/coachTeamIds,
+  // which the pages depend on). `booting` true ⇒ keep the overlay opaque.
+  const authBooting = (isLoading || teamsLoading) && isAuthenticated()
+  const booting = authBooting || pageLoading
+
+  // Keep the overlay mounted briefly after booting ends, then fade it out — the
+  // page content (which mounts the instant loading clears) paints underneath
+  // before the spinner vanishes, killing the "spinner gone, data a beat later"
+  // flash. A single instance spans both phases (useReportPageLoading reports via
+  // useLayoutEffect, closing the sub-frame gap between phase 1 and phase 2), so
+  // the user never sees a second spinner.
+  const [overlayMounted, setOverlayMounted] = useState(booting)
+  // Mount immediately when booting starts — set-state-during-render is React's
+  // sanctioned way to derive state from a changed value (no effect lag).
+  if (booting && !overlayMounted) setOverlayMounted(true)
+  // Unmount 250ms after booting ends, once the fade-out has revealed the content
+  // beneath. setState lives in the async timeout, not the effect body.
+  useEffect(() => {
+    if (booting) return
+    const t = setTimeout(() => setOverlayMounted(false), 250)
+    return () => clearTimeout(t)
+  }, [booting])
 
   return (
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-900">
-      {/* Unified boot spinner. The chrome + page stay mounted underneath (so
-          the page can load its data and report readiness); this overlay masks
-          them until the page's primary data lands, then lifts to reveal header,
-          footer and content together. */}
-      {pageLoading && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-          <LoadingSpinner />
+      {/* One continuous boot spinner spanning both the auth/team phase and the
+          page-data phase. It masks the chrome + content underneath, then fades
+          out (content already painted beneath) so everything reveals at once —
+          no second spinner, no chrome-then-content flash, no data-lag flicker.
+          Progress bar off: a simulated bar resetting between phases is exactly
+          what read as "two spinners". */}
+      {overlayMounted && (
+        <div
+          className={`fixed inset-0 z-[60] flex items-center justify-center bg-gray-50 transition-opacity duration-200 dark:bg-gray-900 ${
+            booting ? 'opacity-100' : 'pointer-events-none opacity-0'
+          }`}
+        >
+          <LoadingSpinner showProgress={false} />
         </div>
       )}
 
+      {/* Chrome + page mount only once auth/team context is ready; while the
+          page's own data loads they render underneath the overlay (masked). */}
+      {!authBooting && (<>
       {/* Desktop top navbar (replaces the old side rail). Mobile keeps the
           bottom tab bar + More sheet below. */}
       {isDesktop && (
@@ -108,6 +136,7 @@ export default function Layout() {
           unreadNotifications={unreadCount}
         />
       )}
+      </>)}
 
       {/* More sheet */}
       {moreOpen && (
