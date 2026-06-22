@@ -68,16 +68,21 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
         if (!cancelled) setExisting(null)
       })
 
+    // CRITICAL: coach/team_responsible are M2M aliases — `coach.*` returns the
+    // junction rows (teams_coaches), NOT members, so first_name/last_name are
+    // undefined (the "undefined undefined" dropdown entries). Expand through
+    // `members_id.*` and pull the member object out of each junction row.
     const fetchCoaches = fetchItem<Team & BaseRecord>(
-        'teams', teamId, { fields: ['id', 'coach.*', 'team_responsible.*'] }
+        'teams', teamId, { fields: ['id', 'coach.members_id.*', 'team_responsible.members_id.*'] }
       )
       .then((team) => {
         if (cancelled) return
-        const t = team as Team & BaseRecord & { coach?: (Member & BaseRecord)[] | string[]; team_responsible?: (Member & BaseRecord)[] | string[] }
-        // Filter to only expanded objects (not raw ID strings)
-        const coachObjs = (Array.isArray(t.coach) ? t.coach : []).filter((c) => typeof c === 'object' && c !== null) as (Member & BaseRecord)[]
-        const trObjs = (Array.isArray(t.team_responsible) ? t.team_responsible : []).filter((c) => typeof c === 'object' && c !== null) as (Member & BaseRecord)[]
-        const all = [...coachObjs, ...trObjs]
+        const t = team as Team & BaseRecord & { coach?: unknown[]; team_responsible?: unknown[] }
+        const extractMembers = (junctions: unknown): (Member & BaseRecord)[] =>
+          (Array.isArray(junctions) ? junctions : [])
+            .map((j) => asObj<Member & BaseRecord>((j as { members_id?: (Member & BaseRecord) | string })?.members_id))
+            .filter((m): m is Member & BaseRecord => m != null && !!m.id)
+        const all = [...extractMembers(t.coach), ...extractMembers(t.team_responsible)]
         // Deduplicate by id
         const seen = new Set<string>()
         setCoaches(all.filter((m) => { if (seen.has(m.id)) return false; seen.add(m.id); return true }))
@@ -154,8 +159,8 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
     ? `${paidByMemberObj.first_name} ${paidByMemberObj.last_name}`
     : existing?.paid_by_other || ''
 
-  // Auto-open when editing or when form needs to show for first entry
-  const effectiveOpen = open || isFormMode
+  // Collapsed by default; open on click, or stay open while editing an existing record
+  const effectiveOpen = open || editing
 
   return (
     <div className="space-y-3">
