@@ -1286,6 +1286,18 @@ export function registerGameScheduling(router, { database, logger, services, get
       })
       .filter(Boolean)
 
+    // Juniors: promote Friday Spielhalle to strict (pick 1 & 2) when the strict
+    // pool — own slot / Spielsamstag / Döltschi — has fewer than 2 distinct dates
+    // left (can't fill both picks). Mirrors GET slots/:token so the
+    // team-availability dialog shows the same tiering.
+    if (isJr && new Set(slots.filter((s) => s.strict).map((s) => s.date)).size < 2) {
+      for (const s of slots) {
+        if (s.source === 'spielhalle' && !isSunday(s.date) && s.abs_count === 0 && !committedHome.has(s.date)) {
+          s.strict = true
+        }
+      }
+    }
+
     // Away blocked-date sets — same composition as slots/:token.
     const eventSet = new Set()
     const addRange = (s, e) => {
@@ -1749,6 +1761,23 @@ export function registerGameScheduling(router, { database, logger, services, get
         })
         .filter(Boolean)
 
+      // Juniors: Friday Spielhalle is normally last-resort (3rd home pick only).
+      // But when the strict pool — own slot / Spielsamstag / Döltschi — can't fill
+      // BOTH home picks 1 & 2 (fewer than 2 strict DATES left, e.g. the Döltschi
+      // season cap is reached and only the last Spielsamstag remains), promote
+      // Friday Spielhalle to strict so it can fill picks 1 & 2; Sundays stay the
+      // final fallback (never strict). Count distinct dates, not slot rows — two
+      // strict slots on one Saturday are still only one usable pick. The confirm
+      // guard recomputes the same signal so it accepts exactly what is offered.
+      if (isJr && new Set(slots.filter((s) => s.strict).map((s) => s.date)).size < 2) {
+        const absById = new Map(slotRows.map((r) => [r.id, Number(r.abs_count || 0)]))
+        for (const s of slots) {
+          if (s.source === 'spielhalle' && !isSunday(s.date) && absById.get(s.id) === 0 && !committedHome.has(s.date)) {
+            s.strict = true
+          }
+        }
+      }
+
       const bookings = await database('game_scheduling_bookings')
         .where('opponent', opponent.id)
         .select('*')
@@ -2016,6 +2045,79 @@ export function registerGameScheduling(router, { database, logger, services, get
       const satCapHome = await teamSaturdayCap(homeTeam)
       const satDatesHome = await committedSaturdayDates(opponent.kscw_team, database, opponent.season)
 
+      // Friday Spielhalle is normally a junior team's last-resort (3rd pick only).
+      // GET slots/:token promotes it to a strict (pick 1 & 2) option when the
+      // strict pool — own slot / Spielsamstag / Döltschi — has fewer than 2 distinct
+      // dates left (can't fill both picks). This guard must accept exactly what that
+      // endpoint offered, so recompute the same signal. Sundays stay last-resort.
+      let homeStrictPoolShort = false
+      if (homeIsJr) {
+        const dHallIds = await database('halls')
+          .whereRaw("LOWER(name) LIKE '%döltschi%' OR LOWER(name) LIKE '%doltschi%'").pluck('id')
+        const bookedD = dHallIds.length
+          ? await database('game_scheduling_slots').where('season', opponent.season)
+              .where('status', 'booked').whereIn('hall', dHallIds)
+              .select(database.raw('date::text as d'))
+          : []
+        const doltschiFull = bookedD.length >= 10
+        const doltschiTaken = new Set(bookedD.map((r) => String(r.d).slice(0, 10)))
+        // Cross-team committed dates (shared player/coach) — mirror slots/:token.
+        const xDates = new Set()
+        if (sharedTeamsHome.length) {
+          ;(await database('games').whereIn('kscw_team', sharedTeamsHome).whereNotNull('date')
+            .select(database.raw('date::text as d'))).forEach((r) => xDates.add(String(r.d).slice(0, 10)))
+          ;(await database('game_scheduling_slots').whereIn('kscw_team', sharedTeamsHome).where('status', 'booked')
+            .select(database.raw('date::text as d'))).forEach((r) => xDates.add(String(r.d).slice(0, 10)))
+          ;(await database('game_scheduling_bookings as bk')
+            .join('game_scheduling_opponents as o', 'o.id', 'bk.opponent')
+            .whereIn('o.kscw_team', sharedTeamsHome).where('bk.type', 'away_proposal').where('bk.status', 'confirmed')
+            .select('bk.confirmed_proposal as n', database.raw('bk.proposed_datetime_1::text as d1'), database.raw('bk.proposed_datetime_2::text as d2'), database.raw('bk.proposed_datetime_3::text as d3')))
+            .forEach((r) => { const d = r[`d${r.n}`]; if (d) xDates.add(String(d).slice(0, 10)) })
+        }
+        // Event + team-block date ranges that cover home slots.
+        const blockedDates = new Set()
+        const addRange = (s, e) => {
+          if (!s) return
+          const d = new Date(`${s}T00:00:00Z`); const end = new Date(`${e || s}T00:00:00Z`)
+          for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) blockedDates.add(d.toISOString().slice(0, 10))
+        }
+        ;(await database('events as e').join('events_teams as et', 'et.events_id', 'e.id')
+          .where('et.teams_id', opponent.kscw_team)
+          .select(database.raw("(e.start_date AT TIME ZONE 'Europe/Zurich')::date::text as s"),
+            database.raw("(COALESCE(e.end_date, e.start_date) AT TIME ZONE 'Europe/Zurich')::date::text as e")))
+          .forEach((r) => addRange(r.s, r.e))
+        ;(await database('scheduling_blocks').where('team', opponent.kscw_team)
+          .select(database.raw('start_date::text as s'), database.raw('end_date::text as e')))
+          .forEach((r) => addRange(r.s, r.e))
+        // Scan available non-Friday/non-Sunday slots for a surviving strict pick.
+        const candRows = await database('game_scheduling_slots')
+          .where('kscw_team', opponent.kscw_team).where('status', 'available')
+          .modify((q) => { if (homeWindow) q.whereBetween('date', [homeWindow.start, homeWindow.end]) })
+          .select('hall', 'source', database.raw('date::text as d'), database.raw(
+            '(SELECT count(DISTINCT a.member) FROM absences a ' +
+            'JOIN member_teams mt ON mt.member = a.member ' +
+            'WHERE mt.team = ? AND (mt.guest_level = 0 OR mt.guest_level IS NULL) ' +
+            "AND a.type IS DISTINCT FROM 'weekly' AND a.blocking IS NOT FALSE " +
+            'AND a.start_date::date <= game_scheduling_slots.date AND a.end_date::date >= game_scheduling_slots.date ' +
+            "AND (a.affects::jsonb @> '\"all\"' OR a.affects::jsonb @> '\"games\"')) as abs_count",
+            [opponent.kscw_team]))
+        const strictDates = new Set()
+        for (const r of candRows) {
+          const d = String(r.d).slice(0, 10)
+          if (r.source === 'spielhalle' || isSunday(d)) continue // last-resort, not strict pool
+          if (Number(r.abs_count || 0) !== 0) continue
+          if (committedHome.has(d)) continue
+          if (xDates.has(d)) continue
+          if (blockedDates.has(d)) continue
+          if (derbyDateBlocked(d, homeDerbyAnchors, homeRueckStart)) continue
+          if (dHallIds.includes(r.hall) && (doltschiFull || doltschiTaken.has(d))) continue
+          if (isSaturday(d) && !satDatesHome.has(d) && satDatesHome.size >= satCapHome) continue
+          strictDates.add(d) // distinct dates — same day twice is one usable pick
+          if (strictDates.size >= 2) break
+        }
+        homeStrictPoolShort = strictDates.size < 2
+      }
+
       for (let i = 0; i < ids.length; i++) {
         const slot = await database('game_scheduling_slots').where('id', ids[i]).first()
         if (!slot || slot.kscw_team !== opponent.kscw_team) {
@@ -2040,9 +2142,11 @@ export function registerGameScheduling(router, { database, logger, services, get
           const xNames = await database('teams').whereIn('id', xConflict).pluck('name')
           return res.status(400).json({ error: `Slot ${i + 1} is on a day a team sharing a player/coach already plays (${xNames.join(', ')}) — please pick another.` })
         }
-        // Juniors: the Friday Spielhalle pool and Sundays are last-resort — only
-        // allowed as the 3rd pick (picks 1 & 2 = own slot / Spielsamstag / Döltschi).
-        if (homeIsJr && i < 2 && ids.length === 3 && (isSunday(day) || slot.source === 'spielhalle')) {
+        // Juniors: Sundays are always last-resort (3rd pick only). Friday Spielhalle
+        // is too, UNLESS the strict pool (own slot / Spielsamstag / Döltschi) has
+        // fewer than 2 dates left — then it is promoted to a pick-1/2 option
+        // (mirrors the strict flag in GET slots/:token via homeStrictPoolShort).
+        if (homeIsJr && i < 2 && ids.length === 3 && (isSunday(day) || (slot.source === 'spielhalle' && !homeStrictPoolShort))) {
           return res.status(400).json({ error: `Slot ${i + 1} must be the own slot, Spielsamstag or Döltschi — Friday Spielhalle and Sundays are only allowed as your 3rd choice.` })
         }
         const eventCover = await database('events as e')
