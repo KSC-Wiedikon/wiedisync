@@ -765,7 +765,21 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           WHERE t.date >= ?::date AND t.date <= ?::date
             AND t.cancelled = false
             ${trainingDowClause}
-            AND EXISTS (SELECT 1 FROM member_teams mt WHERE mt.team = t.team AND mt.member = ?::integer)
+            -- Respect the per-training guest toggle (excluded_guest_levels):
+            -- a member at an excluded guest level can't attend that training,
+            -- so the roster drops them. Auto-declining them would inflate the
+            -- RSVP tallies above the roster — the same drift guests caused on
+            -- games. Mirror autoConfirmTraining's exclusion. (Unlike games the
+            -- excluded set is per-training, so it is correlated to the training
+            -- row here rather than a hard guest_level = 0.)
+            AND EXISTS (
+              SELECT 1 FROM member_teams mt
+              WHERE mt.team = t.team AND mt.member = ?::integer
+                AND NOT EXISTS (
+                  SELECT 1 FROM jsonb_array_elements_text(COALESCE(t.excluded_guest_levels, '[]'::jsonb)) ex(val)
+                  WHERE ex.val::int = mt.guest_level
+                )
+            )
             AND NOT EXISTS (
               SELECT 1 FROM participations p
               WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = ?::integer
@@ -803,7 +817,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             -- entirely. Auto-declining them creates rows that are excluded
             -- from the game roster yet still inflate the card/modal RSVP
             -- tallies (declined count drifts above the roster). Mirror the
-            -- auto-confirm guard (`mt.guest_level = 0`) so we never seed them.
+            -- auto-confirm guard (guest_level = 0) so we never seed them.
             AND EXISTS (SELECT 1 FROM member_teams mt WHERE mt.team = g.kscw_team AND mt.member = ?::integer AND mt.guest_level = 0)
             AND NOT EXISTS (
               SELECT 1 FROM participations p
