@@ -21,9 +21,12 @@ import { buildManualGamePayload } from './utils/manualGamePayload'
 import { getSeasonYear, toDateKey } from '../../utils/dateUtils'
 import { asObj } from '../../utils/relations'
 import type { Hall, Team, ManualGameInput, Game, HallSlot } from '../../types'
+import type { SportFilter, GameTypeFilter } from '../../types/calendar'
 import { cn } from '../../lib/utils'
 
 const HALL_COMBO_AB = 'combo:A+B'
+
+type SportChoice = 'all' | 'volleyball' | 'basketball'
 
 interface ManualGameModalProps {
   open: boolean
@@ -34,6 +37,12 @@ interface ManualGameModalProps {
   initialDate?: Date | null
   /** When set, the modal opens in edit mode preloaded with this game's values. */
   editingGame?: Game | null
+  /** Main-page sport filter — seeds the sport selector (create mode only). */
+  initialSport?: SportFilter
+  /** Main-page home/away filter — seeds the H/A toggle (create mode only). */
+  initialGameType?: GameTypeFilter
+  /** Main-page team filter — when exactly one is selected, prefills the team (create mode only). */
+  initialSelectedTeamIds?: string[]
 }
 
 function defaultTime(): string {
@@ -51,6 +60,9 @@ export default function ManualGameModal({
   editableTeamIds,
   initialDate,
   editingGame,
+  initialSport,
+  initialGameType,
+  initialSelectedTeamIds,
 }: ManualGameModalProps) {
   const { t } = useTranslation('spielplanung')
   const { data: allTeams } = useTeams('all')
@@ -68,7 +80,15 @@ export default function ManualGameModal({
   )
 
   // ── Form state ─────────────────────────────────────────────────────
+  // Sport gates the team dropdown — 'all' shows every editable team.
+  const [sport, setSport] = useState<SportChoice>('all')
   const [teamId, setTeamId] = useState<string>('')
+
+  // Teams the dropdown offers, narrowed by the chosen sport.
+  const sportFilteredTeams = useMemo(
+    () => (sport === 'all' ? editableTeams : editableTeams.filter((t) => t.sport === sport)),
+    [editableTeams, sport],
+  )
   const [type, setType] = useState<'home' | 'away'>('home')
   const [opponent, setOpponent] = useState('')
   const [date, setDate] = useState<string>(() =>
@@ -95,6 +115,7 @@ export default function ManualGameModal({
     if (!open || !editingGame) return
     const teamRel = asObj<Team>(editingGame.kscw_team)
     setTeamId(String(teamRel?.id ?? editingGame.kscw_team ?? ''))
+    setSport(teamRel?.sport === 'basketball' || teamRel?.sport === 'volleyball' ? teamRel.sport : 'all')
     setType(editingGame.type)
     setOpponent(
       editingGame.type === 'home'
@@ -136,16 +157,43 @@ export default function ManualGameModal({
     setTeamAutoConfirmDefault(fe?.game_auto_confirm === true)
   }, [open, teamId, allTeams])
 
-  // Auto-select the single editable team when there's only one
+  // Seed sport + home/away from the main-page filters on open (create mode).
+  // Runs only when those inputs change, so it never clobbers a manual edit.
   useEffect(() => {
-    if (open && !teamId && editableTeams.length === 1) {
+    if (!open || editingGame) return
+    setSport(initialSport === 'volleyball' || initialSport === 'basketball' ? initialSport : 'all')
+    if (initialGameType === 'home' || initialGameType === 'away') setType(initialGameType)
+  }, [open, editingGame, initialSport, initialGameType])
+
+  // Prefill the team: prefer the main-page team filter (exactly one selected &
+  // editable), else fall back to the single editable team when there's only one.
+  useEffect(() => {
+    if (!open || teamId || editingGame) return
+    if (initialSelectedTeamIds && initialSelectedTeamIds.length === 1) {
+      const tid = String(initialSelectedTeamIds[0])
+      if (editableTeams.some((t) => String(t.id) === tid)) {
+        setTeamId(tid)
+        return
+      }
+    }
+    if (editableTeams.length === 1) {
       setTeamId(String(editableTeams[0]!.id))
     }
-  }, [open, editableTeams, teamId])
+  }, [open, editableTeams, teamId, editingGame, initialSelectedTeamIds])
+
+  // Drop the team if it no longer belongs to the newly-chosen sport.
+  function handleSportChange(next: SportChoice) {
+    setSport(next)
+    if (next !== 'all' && teamId) {
+      const tm = editableTeams.find((t) => String(t.id) === teamId)
+      if (tm && tm.sport !== next) setTeamId('')
+    }
+  }
 
   // Reset form on close
   useEffect(() => {
     if (!open) {
+      setSport('all')
       setTeamId('')
       setType('home')
       setOpponent('')
@@ -164,11 +212,12 @@ export default function ManualGameModal({
 
   // ── Conflict check ────────────────────────────────────────────────
   const selectedTeam = editableTeams.find((t) => String(t.id) === teamId) as Team | undefined
-  const isBasketball = selectedTeam?.sport === 'basketball'
   const kwiA = useMemo(() => (halls ?? []).find((h) => h.name === 'KWI A'), [halls])
   const kwiB = useMemo(() => (halls ?? []).find((h) => h.name === 'KWI B'), [halls])
   const kwiC = useMemo(() => (halls ?? []).find((h) => h.name === 'KWI C'), [halls])
-  const canOfferCombo = isBasketball && !!kwiA && !!kwiB
+  // KWI A+B combo books both halls at once — offered for any sport so a single
+  // booking blocks A and B and trips the hall-overlap conflict check on either.
+  const canOfferCombo = !!kwiA && !!kwiB
 
   // Saturday training slot lookup (volleyball teams only — drives the hint)
   const isSaturday = useMemo(() => {
@@ -320,6 +369,21 @@ export default function ManualGameModal({
       <form onSubmit={handleSubmit} className="space-y-4">
         {!isEditMode && <p className="text-sm text-muted-foreground">{t('manualGame.subtitle')}</p>}
 
+        {/* Sport — gates the team dropdown */}
+        <div>
+          <Label htmlFor="sport">{t('manualGame.sport')}</Label>
+          <Select value={sport} onValueChange={(v) => handleSportChange(v as SportChoice)}>
+            <SelectTrigger id="sport">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('filterAll')}</SelectItem>
+              <SelectItem value="volleyball">{t('filterVolleyball')}</SelectItem>
+              <SelectItem value="basketball">{t('filterBasketball')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Team */}
         <div>
           <Label htmlFor="team">{t('manualGame.team')} *</Label>
@@ -328,7 +392,7 @@ export default function ManualGameModal({
               <SelectValue placeholder={t('manualGame.teamPlaceholder')} />
             </SelectTrigger>
             <SelectContent>
-              {editableTeams.map((team) => (
+              {sportFilteredTeams.map((team) => (
                 <SelectItem key={team.id} value={String(team.id)}>
                   {team.name}
                 </SelectItem>

@@ -26,8 +26,10 @@ import { useAvailableSeasons } from './hooks/useAvailableSeasons'
 import { checkConflicts } from './utils/gameConflicts'
 import { toast } from 'sonner'
 import { useTeams } from '../../hooks/useTeams'
+import { useTeamAbsences } from '../../hooks/useTeamAbsences'
 import { useAuth } from '../../hooks/useAuth'
 import { useMutation } from '../../hooks/useMutation'
+import { buildAbsencesByDate, type AbsentMember } from './utils/absencesByDate'
 import { asObj } from '../../utils/relations'
 import { startOfMonth, getSeasonYear } from '../../utils/dateUtils'
 import { useIsMobile } from '../../hooks/useMediaQuery'
@@ -89,6 +91,28 @@ export default function SpielplanungPage() {
   }, [isAdmin, is_spielplaner, spielplanerTeamIds, teams])
 
   const canCreateManualGames = editableTeamIds.length > 0
+
+  // ── Absence overlay ──────────────────────────────────────────────────
+  // Scope absences to whatever the calendar is currently showing: the picked
+  // teams, else all teams of the picked sport, else every team. Only fetch when
+  // the toggle is on (the hook no-ops on an empty id list).
+  const absenceTeamIds = useMemo(() => {
+    if (!filters.showAbsences) return []
+    if (filters.selectedTeamIds.length > 0) return filters.selectedTeamIds
+    const pool = teams ?? []
+    const scoped = filters.sport === 'all' ? pool : pool.filter((t) => t.sport === filters.sport)
+    return scoped.map((t) => String(t.id))
+  }, [filters.showAbsences, filters.selectedTeamIds, filters.sport, teams])
+
+  const { absences, memberTeams } = useTeamAbsences(absenceTeamIds, seasonStart, seasonEnd)
+
+  const absencesByDate = useMemo(
+    () =>
+      filters.showAbsences
+        ? buildAbsencesByDate(absences, memberTeams, seasonStart, seasonEnd)
+        : new Map<string, AbsentMember[]>(),
+    [filters.showAbsences, absences, memberTeams, seasonStart, seasonEnd],
+  )
 
   function canEditGame(game: Game | null): boolean {
     if (!game) return false
@@ -234,6 +258,7 @@ export default function SpielplanungPage() {
               onMonthChange={setMonth}
               onGameClick={setSelectedGame}
               onEmptyDayClick={canCreateManualGames ? setCreateFor : undefined}
+              absencesByDate={absencesByDate}
             />
           )}
           {viewMode === 'week' && (
@@ -244,6 +269,7 @@ export default function SpielplanungPage() {
               onGameClick={setSelectedGame}
               canEdit={canEditGame}
               onMove={handleWeekMove}
+              absencesByDate={absencesByDate}
             />
           )}
           {viewMode === 'list-date' && (
@@ -277,6 +303,9 @@ export default function SpielplanungPage() {
         initialDate={createFor}
         editingGame={editingGame}
         editableTeamIds={editableTeamIds}
+        initialSport={filters.sport}
+        initialGameType={filters.gameType}
+        initialSelectedTeamIds={filters.selectedTeamIds}
       />
     </div>
   )

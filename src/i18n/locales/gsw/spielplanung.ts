@@ -24,6 +24,12 @@ export default {
   filterAway: 'Uswärts',
   showAbsences: 'Absänze aazeige',
 
+  // Absence overlay badge (calendar day cells)
+  absenceBadge: {
+    title: '{{count}} abwäsend',
+    aria: 'Absänze: {{count}}',
+  },
+
   // Day overflow popover (month view)
   overflow: {
     more: '+{{count}} meh',
@@ -33,6 +39,7 @@ export default {
   manualGame: {
     title: 'Manuells Spiel erfasse',
     subtitle: 'Übergoht de Ilade-Flow — Admin / Spielplaner setzt alli Details sälber.',
+    sport: 'Sportart',
     team: 'Team',
     teamPlaceholder: 'Team usläse',
     homeAway: 'Heim / Uswärts',

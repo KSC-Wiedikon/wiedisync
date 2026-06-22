@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.3.0'
+const APP_VERSION = '1.4.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.4.0',
+    date: '22.06.2026',
+    sections: [
+      {
+        title: 'Smoother game planning',
+        items: [
+          'Adding a manual game now picks up the calendar filters you already set — the sport, team and home/away carry straight into the dialog.',
+          'A new sport picker in the dialog narrows the team list to volleyball or basketball.',
+          'The "KWI A + B" double-hall booking is now available for every team, not just basketball — and it warns you if either half is already taken.',
+          'The "Show absences" toggle works again: calendar days show a badge with how many players are unavailable for games that day. Hover or tap it to see who.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.3.0',
     date: '22.06.2026',

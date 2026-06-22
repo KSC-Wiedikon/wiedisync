@@ -24,6 +24,12 @@ export default {
   filterAway: 'Away',
   showAbsences: 'Show absences',
 
+  // Absence overlay badge (calendar day cells)
+  absenceBadge: {
+    title: '{{count}} absent',
+    aria: 'Absences: {{count}}',
+  },
+
   // Day overflow popover (month view)
   overflow: {
     more: '+{{count}} more',
@@ -68,6 +74,7 @@ export default {
   manualGame: {
     title: 'Add manual game',
     subtitle: 'Skips the opponent-invite flow — admin / Spielplaner sets all details.',
+    sport: 'Sport',
     team: 'Team',
     teamPlaceholder: 'Select team',
     homeAway: 'Home / Away',
@@ -79,7 +86,7 @@ export default {
     time: 'Time',
     hall: 'Hall',
     hallPlaceholder: 'Select hall',
-    hallComboAB: 'KWI A + B (basketball)',
+    hallComboAB: 'KWI A + B',
     saturdayHint: 'Prefilled: {{hall}} — Saturday prefers KWI C / own training over A/B',
     awayVenue: 'Away venue',
     venueName: 'Venue name',
