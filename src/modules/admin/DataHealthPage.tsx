@@ -7,10 +7,10 @@ import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight,
   Wrench, XCircle, RefreshCcw, ScrollText,
 } from 'lucide-react'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '../../components/ui/table'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import {
   runAllChecks, autoFix, autoFixAll,
   type CollectionHealth, type DataIssue, type IssueKey,
@@ -273,6 +273,9 @@ export default function DataHealthPage() {
 
   const initialScan = loading && results.length === 0
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(initialScan)
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-4">
       {/* Header */}
@@ -313,9 +316,7 @@ export default function DataHealthPage() {
       </div>
 
       {/* Initial scan — branded "load everything then render" spinner */}
-      {initialScan ? (
-        <LoadingSpinner />
-      ) : (
+      {initialScan ? null : (
         <>
           {/* Summary (live region announces scan result to screen readers) */}
           {results.length > 0 && (

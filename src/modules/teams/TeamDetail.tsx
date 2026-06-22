@@ -12,7 +12,6 @@ import { useCollection } from '../../lib/query'
 import { Button } from '@/components/ui/button'
 import TeamChip from '../../components/TeamChip'
 import EmptyState from '../../components/EmptyState'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import VolleyballIcon from '../../components/VolleyballIcon'
 import BasketballIcon from '../../components/BasketballIcon'
@@ -31,6 +30,7 @@ import { messagingFeatureEnabled } from '../../utils/messagingFeatureFlag'
 import TeamMessagesTab from '../messaging/components/TeamMessagesTab'
 import { useConversations } from '../messaging/hooks/useConversations'
 import { createRecord, fetchAllItems, fetchItems, updateRecord } from '../../lib/api'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type SortKey = 'name' | 'number' | 'position' | 'email' | 'phone' | 'birthdate' | 'role'
 type SortDir = 'asc' | 'desc'
@@ -362,8 +362,11 @@ export default function TeamDetail() {
       .finally(() => setLoading(false))
   }, [teamSlug])
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(loading || membersLoading)
+
   if (loading || membersLoading) {
-    return <LoadingSpinner />
+    return null
   }
 
   if (!team || !canViewTeam(team.id)) {

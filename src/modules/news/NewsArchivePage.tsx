@@ -9,7 +9,7 @@ import { stripHtml } from '../../components/RichText'
 import { assetUrl } from '../../lib/api'
 import { formatRelativeTimeZurich } from '../../utils/dateHelpers'
 import AnnouncementDetailModal from '../home/components/AnnouncementDetailModal'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import { Table, TableBody, TableCell, TableRow } from '../../components/ui/table'
 import type { Announcement, Notification } from '../../types'
 
@@ -57,6 +57,9 @@ export default function NewsArchivePage() {
   const visible = items.slice(0, (page + 1) * PAGE_SIZE)
   const hasMore = items.length > visible.length
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading && items.length === 0)
+
   if (!user || !isApproved) {
     return (
       <div className="mx-auto max-w-2xl py-8 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -78,9 +81,7 @@ export default function NewsArchivePage() {
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{tn('news')}</h1>
       </div>
 
-      {isLoading && items.length === 0 ? (
-        <LoadingSpinner />
-      ) : items.length === 0 ? (
+      {isLoading && items.length === 0 ? null : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 px-6 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           {tn('noNotifications')}
         </div>

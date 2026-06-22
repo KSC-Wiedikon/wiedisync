@@ -16,7 +16,6 @@ import TeamSponsorsEditor from './TeamSponsorsEditor'
 import TrainingForm from '../trainings/TrainingForm'
 import FinesSettings from '../fines/FinesSettings'
 import EmptyState from '../../components/EmptyState'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import { getFileUrl } from '../../utils/fileUrl'
 import { getCurrentSeason } from '../../utils/dateHelpers'
 import type { Team, Member, MemberPosition, MemberTeam, TeamSettings } from '../../types'
@@ -24,6 +23,7 @@ import { Button } from '../../components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { fetchAllItems, fetchItems, updateRecord, uploadFile } from '../../lib/api'
 import { asObj, relId } from '../../utils/relations'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type LeadershipRole = 'coach' | 'captain' | 'team_responsible'
 
@@ -72,6 +72,10 @@ export default function RosterEditor() {
   const { members, isLoading, refetch } = useTeamMembers(teamId, season, {
     persistNormalization: !!team && isCoachOf(team.id),
   })
+
+  // Report to app boot gate — see usePageReady.tsx. Must run on every render, so
+  // it sits above the early Navigate/spinner returns below.
+  useReportPageLoading(!team || isLoading)
 
   useEffect(() => {
     if (!teamSlug) return
@@ -234,7 +238,7 @@ export default function RosterEditor() {
   }
 
   if (!team || isLoading) {
-    return <LoadingSpinner />
+    return null
   }
 
   return (

@@ -11,8 +11,8 @@ import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import EmptyState from '../../components/EmptyState'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import TabBar from '../../components/TabBar'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import WaiveFineModal from './WaiveFineModal'
 import type { Fine, FineStatus, Member, Team } from '../../types'
 
@@ -96,6 +96,10 @@ export default function FinesPage() {
   // picker. Disabled (enabled:false) queries report isLoading=false, so OR-ing
   // is safe — they never hang the gate.
   const pageLoading = isLoading || membersLoading || teamsLoading
+
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(pageLoading)
+
   const memberMap = new Map((membersRaw ?? []).map((m) => [String(m.id), m]))
   const teamMap = new Map((teamsRaw ?? []).map((tm) => [String(tm.id), tm]))
 
@@ -187,9 +191,7 @@ export default function FinesPage() {
       </div>
 
       {/* Loading spinner, then table or empty state */}
-      {pageLoading ? (
-        <LoadingSpinner />
-      ) : fines.length === 0 ? (
+      {pageLoading ? null : fines.length === 0 ? (
         <EmptyState
           icon={<Gavel className="h-10 w-10" />}
           title={scope === 'mine' ? t('fines:emptyMember') : t('fines:empty')}

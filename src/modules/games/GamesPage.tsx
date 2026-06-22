@@ -24,13 +24,13 @@ import RankingsTable from './components/RankingsTable'
 import KscwScoreboard from './components/KscwScoreboard'
 import GameDetailModal from './components/GameDetailModal'
 import GameCoachDashboard from './components/GameCoachDashboard'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import SharedEmptyState from '../../components/EmptyState'
 import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { getGameWarnings, type Warning } from '../../utils/participationWarnings'
 import { Calendar, Trophy, BarChart3, LayoutGrid } from 'lucide-react'
 import { TourPageButton } from '../guide/TourPageButton'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 function buildTeamFilter(teamPbIds: string[]): Record<string, unknown> | null {
   if (teamPbIds.length === 0) return null
@@ -319,6 +319,9 @@ export default function GamesPage() {
   const isLoading = (activeTab === 'rankings' || activeTab === 'scoreboard') ? rankingsLoading : gamesGateLoading
   const showGames = activeTab !== 'rankings' && activeTab !== 'scoreboard' && !isLoading
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading)
+
   return (
     <div className="min-w-0">
       <div className="flex items-center gap-2">
@@ -341,7 +344,7 @@ export default function GamesPage() {
       </div>
 
       <div className="mt-6">
-        {isLoading && <LoadingSpinner />}
+        {isLoading && null}
 
         {/* Upcoming: card grid, split by league vs Cup */}
         {showGames && activeTab === 'upcoming' && (

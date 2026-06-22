@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { kscwApi } from '../../lib/api'
 import { formatDateZurich } from '../../utils/dateHelpers'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import DashboardSection from './components/DashboardSection'
 import TeamChip from '../../components/TeamChip'
 
@@ -293,6 +294,9 @@ export default function ClubStatsPage() {
     }
   }, [filtered, sportFilter, isVB])
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(!filtered && !error)
+
   if (error) {
     return (
       <div className="p-6">
@@ -303,20 +307,8 @@ export default function ClubStatsPage() {
     )
   }
 
-  if (!filtered) {
-    return (
-      <div className="p-6">
-        <h1 className="text-xl font-bold mb-4">{t('clubStatsTitle')}</h1>
-        <div className="animate-pulse space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-20 bg-muted rounded-lg" />
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // Full-page loading — Layout's app boot gate shows the spinner instead.
+  if (!filtered) return null
 
   const ms = memStats!
 

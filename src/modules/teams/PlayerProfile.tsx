@@ -8,7 +8,6 @@ import { useAuth } from '../../hooks/useAuth'
 import TeamChip from '../../components/TeamChip'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions, getPositionI18nKey } from '../../utils/memberPositions'
 import { asObj, relId, memberName } from '../../utils/relations'
@@ -17,6 +16,7 @@ import ImageLightbox from '../../components/ImageLightbox'
 import type { Member, MemberTeam, Team, Absence, Participation } from '../../types'
 import { fetchAllItems, fetchItem } from '../../lib/api'
 import StartDmButton from '../messaging/components/StartDmButton'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 
@@ -136,8 +136,11 @@ export default function PlayerProfile() {
       .catch(() => setGameStats(null))
   }, [memberId, memberTeams, start, end])
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(loading || memberTeamsLoading || absencesLoading)
+
   if (loading || memberTeamsLoading || absencesLoading) {
-    return <LoadingSpinner />
+    return null
   }
 
   if (!member) {

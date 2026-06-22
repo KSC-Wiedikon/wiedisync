@@ -7,6 +7,7 @@ import { AuthProvider } from './hooks/useAuth'
 import { ThemeProvider } from './hooks/useTheme'
 import { AdminModeProvider } from './hooks/useAdminMode'
 import { ConfirmProvider } from './components/ConfirmProvider'
+import { PageReadyProvider } from './hooks/usePageReady'
 import { TourProvider } from './modules/guide/TourProvider'
 import Layout from './components/Layout'
 import AdminRoute from './components/AdminRoute'
@@ -154,6 +155,7 @@ export default function App() {
       <ConfirmProvider>
       <BrowserRouter>
       <TourProvider>
+      <PageReadyProvider>
         <Routes>
           {/* Standalone routes — no layout wrapper */}
           <Route path="embed/games" element={<EmbedGamesPage />} />
@@ -218,6 +220,7 @@ export default function App() {
             <Route path="status" element={<AuthRoute><StatusPage /></AuthRoute>} />
           </Route>
         </Routes>
+      </PageReadyProvider>
       </TourProvider>
       </BrowserRouter>
       <Toaster richColors position="top-center" />

@@ -10,7 +10,7 @@ import { useFillableForms, type FillableForm } from '../../hooks/useFillableForm
 import { updateRecord, deleteRecord } from '../../lib/api'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { useConfirm } from '../../components/ConfirmProvider'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import FormFillModal from './FormFillModal'
 import FormResponsesModal from './FormResponsesModal'
 import type { FormDef, FormStatus } from './types'
@@ -111,7 +111,10 @@ export default function FormsPage() {
     } catch { /* clipboard blocked — no-op */ }
   }
 
-  if (pageLoading) return <LoadingSpinner />
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(pageLoading)
+
+  if (pageLoading) return null
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-6">

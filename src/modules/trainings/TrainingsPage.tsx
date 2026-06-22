@@ -17,7 +17,6 @@ import RecurringEditDialog from './RecurringEditDialog'
 import type { RecurringEditScope } from './RecurringEditDialog'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import CoachDashboard from './CoachDashboard'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import TabBar from '../../components/TabBar'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,6 +28,7 @@ import {
 import type { Training, Team, Hall, Member, Participation } from '../../types'
 import { asObj, relId } from '../../utils/relations'
 import { TourPageButton } from '../guide/TourPageButton'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type TrainingExpanded = Training & {
   team: Team | string
@@ -148,6 +148,9 @@ export default function TrainingsPage() {
     refetch()
   }
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(teamsLoading || isLoading)
+
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -204,7 +207,7 @@ export default function TrainingsPage() {
         {activeTab === 'dashboard' && selectedTeam ? (
           <div data-tour="coach-dashboard"><CoachDashboard teamId={selectedTeam} /></div>
         ) : (teamsLoading || isLoading) ? (
-          <LoadingSpinner />
+          null
         ) : trainings.length === 0 ? (
           <EmptyState
             icon={
