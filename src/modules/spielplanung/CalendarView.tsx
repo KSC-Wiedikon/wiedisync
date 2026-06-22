@@ -3,9 +3,11 @@ import CalendarGrid from '../../components/CalendarGrid'
 import GameChip from './GameChip'
 import DayOverflowPopover from './DayOverflowPopover'
 import AbsenceBadge from './AbsenceBadge'
+import CrossTeamBadge from './CrossTeamBadge'
 import type { CalendarEntry } from '../../types/calendar'
 import type { Game } from '../../types'
 import type { AbsentMember } from './utils/absencesByDate'
+import type { CrossTeamConflict } from './hooks/useCrossTeamConflicts'
 import { toDateKey, getSeasonMonths, getSeasonYear, formatDate } from '../../utils/dateUtils'
 
 interface CalendarViewProps {
@@ -17,9 +19,11 @@ interface CalendarViewProps {
   onEmptyDayClick?: (date: Date) => void
   /** date key (yyyy-MM-dd) -> members unavailable for games that day. */
   absencesByDate?: Map<string, AbsentMember[]>
+  /** date key (yyyy-MM-dd) -> roster-sharing teams playing that day. */
+  crossTeamByDate?: Map<string, CrossTeamConflict[]>
 }
 
-export default function CalendarView({ entries, closedDates, month, onMonthChange, onGameClick, onEmptyDayClick, absencesByDate }: CalendarViewProps) {
+export default function CalendarView({ entries, closedDates, month, onMonthChange, onGameClick, onEmptyDayClick, absencesByDate, crossTeamByDate }: CalendarViewProps) {
   // seasonMonths drives the season-month pill strip below. We intentionally
   // stopped passing min/maxMonth to CalendarGrid so the prev/next arrows can
   // cross season boundaries freely.
@@ -80,12 +84,14 @@ export default function CalendarView({ entries, closedDates, month, onMonthChang
           const visible = items.slice(0, 3)
           const hidden = items.slice(3)
           const absent = absencesByDate?.get(toDateKey(date)) ?? []
+          const crossTeam = crossTeamByDate?.get(toDateKey(date)) ?? []
 
           return (
             <>
-              {absent.length > 0 && (
-                <div className="flex justify-end">
-                  <AbsenceBadge absent={absent} />
+              {(absent.length > 0 || crossTeam.length > 0) && (
+                <div className="flex justify-end gap-1">
+                  {crossTeam.length > 0 && <CrossTeamBadge conflicts={crossTeam} />}
+                  {absent.length > 0 && <AbsenceBadge absent={absent} />}
                 </div>
               )}
               {visible.map((entry) => (

@@ -1163,6 +1163,85 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // ── Cross-team conflicts for the spielplanung calendar overlay ────────────
+  // For the given KSCW team(s), the dates a roster-sharing team (shared player or
+  // coach, via sharedPlayerTeams) already plays — a real game, a booked home slot,
+  // or a confirmed away proposal. These are the exact days the cross-team same-day
+  // rule blocks a home slot on (see the slots/:token + confirm guards), surfaced on
+  // the calendar so a planner can SEE why a date is unavailable. Read-only.
+  router.get('/terminplanung/admin/cross-team-conflicts', async (req, res) => {
+    try {
+      if (!req.accountability?.user && !req.accountability?.admin) {
+        return res.status(401).json({ error: 'Authentication required' })
+      }
+      const teamIds = String(req.query.teams || '').split(',')
+        .map((x) => Number(x)).filter((x) => Number.isFinite(x))
+      if (!teamIds.length) return res.json({ conflicts: [] })
+
+      // Map each roster-sharing team → the selected team(s) it affects.
+      const sharedToSelected = new Map()
+      for (const tid of teamIds) {
+        for (const s of await sharedPlayerTeams(tid)) {
+          if (!sharedToSelected.has(s)) sharedToSelected.set(s, new Set())
+          sharedToSelected.get(s).add(tid)
+        }
+      }
+      const sharedIds = [...sharedToSelected.keys()]
+      if (!sharedIds.length) return res.json({ conflicts: [] })
+
+      const nameById = new Map((await database('teams')
+        .whereIn('id', [...new Set([...teamIds, ...sharedIds])]).select('id', 'name'))
+        .map((t) => [t.id, t.name]))
+
+      // date 'YYYY-MM-DD' -> conflict items. One row per (date, shared team): a real
+      // game wins over a booked slot / away proposal for the same fixture.
+      const byDate = new Map()
+      const seen = new Set()
+      const add = (date, sharedTeamId, extra) => {
+        const d = String(date || '').slice(0, 10)
+        if (!d) return
+        const k = `${d}|${sharedTeamId}`
+        if (seen.has(k)) return
+        seen.add(k)
+        const affects = [...(sharedToSelected.get(sharedTeamId) || [])]
+          .map((id) => nameById.get(id)).filter(Boolean).sort()
+        let arr = byDate.get(d)
+        if (!arr) { arr = []; byDate.set(d, arr) }
+        arr.push({
+          team_id: sharedTeamId,
+          team_name: nameById.get(sharedTeamId) || String(sharedTeamId),
+          affects,
+          ...extra,
+        })
+      }
+
+      // Real games carry home/away text for a readable matchup.
+      ;(await database('games').whereIn('kscw_team', sharedIds).whereNotNull('date')
+        .select('kscw_team', database.raw('date::text as d'), 'home_team', 'away_team'))
+        .forEach((g) => add(g.d, g.kscw_team, {
+          matchup: [g.home_team, g.away_team].filter(Boolean).join(' – ') || null, kind: 'game',
+        }))
+      // Booked home slots (fixture decided, game row may not exist yet).
+      ;(await database('game_scheduling_slots').whereIn('kscw_team', sharedIds)
+        .where('status', 'booked').select('kscw_team', database.raw('date::text as d')))
+        .forEach((s) => add(s.d, s.kscw_team, { matchup: null, kind: 'home' }))
+      // Confirmed away proposals.
+      ;(await database('game_scheduling_bookings as b')
+        .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
+        .whereIn('o.kscw_team', sharedIds).where('b.type', 'away_proposal').where('b.status', 'confirmed')
+        .select('o.kscw_team as t', 'b.confirmed_proposal as n',
+          database.raw('b.proposed_datetime_1::text as d1'), database.raw('b.proposed_datetime_2::text as d2'), database.raw('b.proposed_datetime_3::text as d3')))
+        .forEach((b) => { const d = b[`d${b.n}`]; if (d) add(d, b.t, { matchup: null, kind: 'away' }) })
+
+      const conflicts = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, items]) => ({ date, items: items.sort((x, y) => x.team_name.localeCompare(y.team_name)) }))
+      return res.json({ conflicts })
+    } catch (err) {
+      log.error({ msg: `cross-team-conflicts: ${err.message}`, endpoint: 'terminplanung/admin/cross-team-conflicts', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      return res.status(500).json({ error: 'Failed to load cross-team conflicts' })
+    }
+  })
+
   // ── Admin: full availability picture for one team ─────────────────────────
   // Mirrors the offer computation of GET /terminplanung/slots/:token (keep the
   // two in sync!) but with no opponent context: every pending first-proposal

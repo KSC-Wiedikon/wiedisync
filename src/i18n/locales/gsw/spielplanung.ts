@@ -30,6 +30,19 @@ export default {
     aria: 'Absänze: {{count}}',
   },
 
+  showCrossTeam: 'Team-Konflikt aazeige',
+  crossTeamNeedsTeam: 'Zerscht es Team uswähle, zum d Team-Konflikt gseh',
+  crossTeamBadge: {
+    title: 'Team-Konflikt: {{count}}',
+    aria: 'Team-Konflikt: {{count}}',
+    hint: 'Es Team mit gmeinsame Spiler spilt a dem Tag — das blockiert da en Heimslot.',
+    kind: {
+      game: 'Spiel',
+      home: 'Heimspiel',
+      away: 'Uswärtsspiel',
+    },
+  },
+
   // Day overflow popover (month view)
   overflow: {
     more: '+{{count}} meh',
