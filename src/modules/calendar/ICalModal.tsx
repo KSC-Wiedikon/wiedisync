@@ -61,10 +61,19 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
   // iCal subscription URL — recomputed live as categories/teams change so the
   // revealed link always matches the current selection.
   const subscribeUrl = useMemo(() => {
-    const sources = selectedCategories.flatMap((cat) => categoryToSources[cat])
     const params = new URLSearchParams()
-    if (sources.length > 0) params.set('source', sources.join(','))
-    if (selectedTeamIds.length > 0) params.set('team', selectedTeamIds.join(','))
+    // Clean URL: `source=all` when every category is selected, otherwise one
+    // `&source=` per value (no encoded-comma soup, e.g. ?source=games-home&source=trainings).
+    // `team` likewise repeats per id. The feed still accepts the legacy comma form.
+    const allCategories: SourceCategory[] = ['trainings', 'games', 'events']
+    if (allCategories.every((c) => selectedCategories.includes(c))) {
+      params.append('source', 'all')
+    } else {
+      for (const s of selectedCategories.flatMap((cat) => categoryToSources[cat])) {
+        params.append('source', s)
+      }
+    }
+    for (const id of selectedTeamIds) params.append('team', id)
     return `${BASE_URL}/kscw/ical?${params.toString()}`
   }, [selectedCategories, selectedTeamIds])
   const webcalUrl = subscribeUrl.replace(/^https?:/, 'webcal:')

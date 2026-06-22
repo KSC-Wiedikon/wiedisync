@@ -51,14 +51,30 @@ export function registerICalFeed(router, { database, logger }) {
 
   async function handleFeed(req, res, sportFilter) {
     try {
-      const sourceParam = req.query.source || ''
-      const teamParam = req.query.team || ''
+      // `source` and `team` accept three shapes, in any mix:
+      //   • repeated params   ?source=games-home&source=trainings   (Express → array)
+      //   • comma list        ?source=games-home,trainings          (legacy — existing subscriptions)
+      //   • the `all` keyword  ?source=all  → every event-type source (games + trainings
+      //                        + events). The admin-ish closures/hall stay opt-in by name.
+      const toList = (v) => (Array.isArray(v) ? v : v != null ? [v] : [])
+        .flatMap((s) => String(s).split(','))
+        .map((s) => s.trim())
+        .filter(Boolean)
 
-      const VALID_SOURCES = new Set(['games-home', 'games-away', 'trainings', 'events', 'closures', 'hall'])
-      const sources = sourceParam
-        ? Object.fromEntries(sourceParam.split(',').map(s => s.trim()).filter(s => VALID_SOURCES.has(s)).map(s => [s, true]))
+      const ALL_SOURCES = ['games-home', 'games-away', 'trainings', 'events']
+      const VALID_SOURCES = new Set([...ALL_SOURCES, 'closures', 'hall'])
+      const requested = toList(req.query.source)
+      const resolved = requested.includes('all')
+        ? ALL_SOURCES
+        : requested.filter((s) => VALID_SOURCES.has(s))
+      const sources = resolved.length
+        ? Object.fromEntries(resolved.map((s) => [s, true]))
         : { 'games-home': true, 'games-away': true }
-      let teamIds = teamParam ? teamParam.split(',').map(s => s.trim()).filter(s => /^\d+$/.test(s)) : []
+      let teamIds = toList(req.query.team).filter((s) => /^\d+$/.test(s))
+      // Capture the user's explicit team selection BEFORE the sport filter below
+      // expands an empty selection to every team — the calendar name should only
+      // name teams the subscriber actually asked for.
+      const explicitTeamIds = [...teamIds]
 
       // Sport filter
       if (sportFilter) {
@@ -67,7 +83,18 @@ export function registerICalFeed(router, { database, logger }) {
         teamIds = teamIds.length ? teamIds.filter(id => sportIds.has(id)) : [...sportIds]
       }
 
-      const calName = sportFilter === 'volleyball' ? 'KSCW - Volleyball' : sportFilter === 'basketball' ? 'KSCW - Basketball' : 'KSCW - Kalender'
+      // Friendlier calendar name — full club name, plus the team(s) when the
+      // subscriber filtered to one, so their calendar app shows e.g.
+      // "KSC Wiedikon – H1" instead of a generic "KSCW - Kalender".
+      let teamLabel = ''
+      if (explicitTeamIds.length) {
+        const rows = await database('teams').whereIn('id', explicitTeamIds).select('name')
+        teamLabel = rows.map((r) => r.name).filter(Boolean).join(', ')
+      }
+      const sportLabel = sportFilter === 'volleyball' ? 'Volleyball' : sportFilter === 'basketball' ? 'Basketball' : ''
+      let calName = 'KSC Wiedikon'
+      if (sportLabel) calName += ` – ${sportLabel}`
+      if (teamLabel) calName += ` – ${teamLabel}`
       const now = fmtUTC(new Date())
       const lines = [
         'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//KSCW//Calendar//EN',
@@ -211,7 +238,11 @@ export function registerICalFeed(router, { database, logger }) {
 
       lines.push('END:VCALENDAR')
 
-      const fname = sportFilter ? `kscw-${sportFilter}` : 'kscw'
+      const slug = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      const fnameParts = ['kscw']
+      if (sportFilter) fnameParts.push(sportFilter)
+      if (explicitTeamIds.length === 1 && teamLabel) fnameParts.push(slug(teamLabel))
+      const fname = fnameParts.join('-')
       res.set('Content-Type', 'text/calendar; charset=utf-8')
       res.set('Content-Disposition', `inline; filename="${fname}.ics"`)
       res.set('Cache-Control', 'public, max-age=3600')
