@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { FormInput } from '@/components/FormField'
 import type { Team } from '../../../types'
 import { fetchAllItems, kscwApi } from '../../../lib/api'
+import { useReportPageLoading } from '../../../hooks/usePageReady'
 
 const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
 
@@ -52,6 +53,11 @@ export default function PublicTerminplanungPage() {
     }
     load()
   }, [searchParams])
+
+  // Report to the app boot gate — see usePageReady.tsx. The initial fetch
+  // (teams + season status) is in flight while seasonOpen is still null; it
+  // resolves to true/false on success or error.
+  useReportPageLoading(seasonOpen === null)
 
   // Filter teams by gender prefix
   const filteredTeams = teams.filter(team => {

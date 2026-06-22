@@ -6,7 +6,7 @@ import { useAuth } from '../../../hooks/useAuth'
 import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
 import { useAdminBookings } from '../hooks/useAdminBookings'
 import { useTeams } from '../../../hooks/useTeams'
-import LoadingSpinner from '../../../components/LoadingSpinner'
+import { useReportPageLoading } from '../../../hooks/usePageReady'
 import AwayProposalReview, { type AwayVmCheck, type AwayVmUnbooked } from '../components/AwayProposalReview'
 import HomeProposalReview from '../components/HomeProposalReview'
 import OpponentNotes from '../components/OpponentNotes'
@@ -438,15 +438,20 @@ export default function AdminDashboardPage() {
   // (e.g. 10.02.2026 for a 2026/27 season).
   const manualDateWindow = useMemo(() => computeSeasonWindow(season), [season])
 
+  // Only the very first load blanks the page. After data has loaded once,
+  // confirming a proposal refetches in the background without flashing the page.
+  // Wait for ALL the content data (season, bookings, teams, intra-club games) so
+  // the tables/cards render fully formed instead of popping in piecemeal.
+  const isInitialLoading = seasonLoading || (isLoading && !hasLoaded) || teamsLoading || !derbyLoaded
+  // Report to the app boot gate — see usePageReady.tsx. Runs on every render
+  // (before the access early return) so the hook order stays stable.
+  useReportPageLoading(isInitialLoading)
+
   if (!hasAdminAccessToSport('volleyball') && !is_spielplaner) {
     return <Navigate to="/" replace />
   }
 
-  // Only the very first load blanks to a spinner. After data has loaded once,
-  // confirming a proposal refetches in the background without flashing the page.
-  // Wait for ALL the content data (season, bookings, teams, intra-club games) so
-  // the tables/cards render fully formed instead of popping in piecemeal.
-  if (seasonLoading || (isLoading && !hasLoaded) || teamsLoading || !derbyLoaded) return <LoadingSpinner />
+  if (isInitialLoading) return null
 
   if (!season) {
     return (

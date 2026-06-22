@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { currentLocale } from '../../utils/dateHelpers'
 import { useAuth } from '../../hooks/useAuth'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import { useExplorerCache } from './hooks/useExplorerCache'
 import { getExplorerScope, type BucketKey } from './components/explorerHelpers'
 import ExplorerSearch from './components/ExplorerSearch'
@@ -31,6 +32,11 @@ export default function ExplorePage() {
     [auth.isGlobalAdmin, auth.isVorstand, auth.isVbAdmin, auth.isBbAdmin],
   )
   const { data, isLoading, error, refresh } = useExplorerCache(scope)
+
+  // Report to the app boot gate — see usePageReady.tsx. Only the initial load
+  // (before any cache lands) holds the boot spinner; refreshes keep the page
+  // visible and use the inline refresh state.
+  useReportPageLoading(isLoading && !data.loadedAt)
 
   const [params, setParams] = useSearchParams()
   const rawType = params.get('t')

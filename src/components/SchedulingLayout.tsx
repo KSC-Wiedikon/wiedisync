@@ -11,7 +11,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import LoadingSpinner from './LoadingSpinner'
 import { CalendarClock, Check, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, LogOut, Moon, Settings, Sun } from 'lucide-react'
 
 const WIEDISYNC_URL = 'https://wiedisync.kscw.ch'
@@ -32,7 +31,9 @@ export default function SchedulingLayout() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
-  if ((isLoading || teamsLoading) && isAuthenticated()) return <LoadingSpinner />
+  // Don't render the shell with incomplete role context; the app-level
+  // <BootOverlay/> (in SchedulingApp) shows the single boot spinner meanwhile.
+  if ((isLoading || teamsLoading) && isAuthenticated()) return null
 
   const canTerminplanung = hasAdminAccessToSport('volleyball') || is_spielplaner
   const canPlanner = isAdmin || is_spielplaner || spielplanerTeamIds.length > 0

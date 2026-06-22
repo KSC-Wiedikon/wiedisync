@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink } from 'lucide-react'
 import { useCollection, useUpdate } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import { assetUrl } from '../../lib/api'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import TeamChip from '../../components/TeamChip'
@@ -172,6 +173,9 @@ export default function AnmeldungenPage() {
     all: true,
   })
   const registrations = registrationsRaw ?? []
+
+  // Report to the app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading)
 
   // Group by sport
   const grouped = useMemo(() => {

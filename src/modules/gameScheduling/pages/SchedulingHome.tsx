@@ -2,8 +2,8 @@ import { Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
-import LoadingSpinner from '@/components/LoadingSpinner'
 import { isAuthenticated } from '@/lib/api'
+import { useReportPageLoading } from '../../../hooks/usePageReady'
 
 /**
  * Root dispatcher for the Spielplanung subdomain. Deliberately UNGUARDED so it
@@ -22,7 +22,11 @@ export default function SchedulingHome() {
   const { theme } = useTheme()
   const { t } = useTranslation('gameScheduling')
 
-  if ((isLoading || teamsLoading) && isAuthenticated()) return <LoadingSpinner />
+  // Report to the app boot gate — see usePageReady.tsx
+  const isInitialLoading = (isLoading || teamsLoading) && isAuthenticated()
+  useReportPageLoading(isInitialLoading)
+
+  if (isInitialLoading) return null
   if (!user) return <Navigate to="/login" replace />
 
   const canTerminplanung = hasAdminAccessToSport('volleyball') || is_spielplaner

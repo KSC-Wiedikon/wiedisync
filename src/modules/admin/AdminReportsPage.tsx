@@ -4,6 +4,7 @@ import { formatDistanceToNowStrict } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useReports } from '../messaging/hooks/useReports'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import type { ReportRow } from '../messaging/api/types'
 
 type Tab = 'open' | 'resolved' | 'dismissed'
@@ -12,6 +13,9 @@ export default function AdminReportsPage() {
   const { t } = useTranslation('messaging')
   const { reports, openCount, resolve, dismiss, resolveWithDelete, resolveWithBan, isLoading } = useReports()
   const [tab, setTab] = useState<Tab>('open')
+
+  // Report to the app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading)
 
   const filtered = useMemo(() => reports.filter(r => r.status === tab), [reports, tab])
 

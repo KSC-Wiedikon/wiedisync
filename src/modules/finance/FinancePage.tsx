@@ -7,6 +7,7 @@ import {
   useFinanceAccounts, useFinanceFiscalYears, useFinanceTransactions, useFinanceInvoices, useFinanceImports,
   toNum, formatChf, isOpenInvoice,
 } from '../../hooks/useFinance'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import type { FinanceAccount, FinanceTransaction } from './types'
 import AccountExplorer from './AccountExplorer'
 import AccountLedger from './AccountLedger'
@@ -129,6 +130,9 @@ export default function FinancePage() {
   const invoices = invoicesRaw ?? []
   const { data: importsRaw } = useFinanceImports()
   const imports = importsRaw ?? []
+
+  // Report to the app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading)
 
   // Per-account debit/credit totals. allStats = every booking (balance sheet +
   // liquidity); plStats EXCLUDES year-end closing entries (typ 'Abschluss'), which

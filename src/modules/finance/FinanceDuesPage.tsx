@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { useMyInvoices, toNum, formatChf, isOpenInvoice } from '../../hooks/useFinance'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import InvoiceQrBill from './InvoiceQrBill'
 import PayoutIbanCard from './PayoutIbanCard'
 
@@ -12,6 +13,9 @@ export default function FinanceDuesPage() {
   const { data: invoicesRaw, isLoading } = useMyInvoices()
   const invoices = invoicesRaw ?? []
   const [payRow, setPayRow] = useState<string | null>(null)
+
+  // Report to the app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading)
 
   const openTotal = useMemo(
     () => invoices.filter(isOpenInvoice).reduce((acc, i) => acc + toNum(i.open_amount), 0),
