@@ -8,9 +8,9 @@ import { useMutation } from '../../hooks/useMutation'
 import { useUserVisibleEventIds } from '../../hooks/useUserVisibleEventIds'
 import { todayLocal } from '../../utils/dateHelpers'
 import { useRealtime } from '../../hooks/useRealtime'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import EmptyState from '../../components/EmptyState'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import TeamFilter from '../../components/TeamFilter'
 import EventCard from './EventCard'
@@ -152,6 +152,9 @@ export default function EventsPage() {
   // disabled and contributes `isLoading: false` — never hangs the gate.
   const pageLoading = teamsLoading || (!effectiveIsAdmin && eventIdsLoading) || isLoading || participationsLoading
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(pageLoading)
+
   useRealtime('participations', () => refetchParticipations())
 
   const { participationsByEvent, myParticipationByEvent } = useMemo(() => {
@@ -223,9 +226,7 @@ export default function EventsPage() {
       )}
 
       <div className="mt-6">
-        {pageLoading ? (
-          <LoadingSpinner />
-        ) : visibleEvents.length === 0 ? (
+        {pageLoading ? null : visibleEvents.length === 0 ? (
           <EmptyState
             icon={<PartyPopper className="h-10 w-10" />}
             title={t('noEvents')}

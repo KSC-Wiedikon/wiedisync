@@ -10,8 +10,8 @@ import ThreadView from '../components/ThreadView'
 import RequestCard from '../components/RequestCard'
 import ConsentModal from '../components/ConsentModal'
 import { resolveRequestHeader } from '../utils/resolveRequestHeader'
+import { useReportPageLoading } from '../../../hooks/usePageReady'
 import { Button } from '@/components/ui/button'
-import LoadingSpinner from '@/components/LoadingSpinner'
 import { ChevronLeft } from 'lucide-react'
 
 function BackToInbox() {
@@ -53,13 +53,17 @@ export default function ConversationPage() {
     request,
   )
 
+  // Report to app boot gate — see usePageReady.tsx. The initial full-page
+  // conversation spinner only shows when messaging is enabled, the user exists,
+  // and the conversation hasn't resolved yet — report exactly that condition.
+  useReportPageLoading(messagingFeatureEnabled(user?.id) && !!user && !conv)
+
   if (!messagingFeatureEnabled(user?.id)) return null
   if (!user) return null
   if (!conv) {
     return (
       <div className="max-w-2xl mx-auto p-4">
         <BackToInbox />
-        <LoadingSpinner />
       </div>
     )
   }

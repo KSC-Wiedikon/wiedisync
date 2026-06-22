@@ -27,6 +27,7 @@ import WeeklyDayHeaderCells from './WeeklyDayHeaderCells'
 import TabBar from '../../components/TabBar'
 import type { Absence, Member, Team } from '../../types'
 import { TourPageButton } from '../guide/TourPageButton'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type ViewType = 'absences' | 'weekly'
 type Scope = 'mine' | 'team'
@@ -169,7 +170,9 @@ export default function AbsencesPage() {
 
   // Wait for the member's own absences + weeklies before rendering so the lists
   // arrive fully formed rather than flashing empty then filling in.
-  if (myAbsencesLoading || myWeeklyLoading) return <LoadingSpinner />
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(myAbsencesLoading || myWeeklyLoading)
+  if (myAbsencesLoading || myWeeklyLoading) return null
 
   return (
     <div>

@@ -12,6 +12,7 @@ import MoreSheet from './MoreSheet'
 import NotificationPanel from './NotificationPanel'
 import TopNav from './TopNav'
 import { useCollection } from '../lib/query'
+import { usePageLoading } from '../hooks/usePageReady'
 import LoadingSpinner from './LoadingSpinner'
 import ProfileEditModal from '../modules/auth/ProfileEditModal'
 import type { MemberTeam, Team } from '../types'
@@ -26,6 +27,11 @@ export default function Layout() {
   const { t } = useTranslation('nav')
   const isDesktop = useIsDesktop()
   const { isAdminMode } = useAdminMode()
+  // The active routed page reports whether its primary data is still loading
+  // (via useReportPageLoading). While true we keep ONE fullscreen spinner up,
+  // masking the chrome + content so they reveal together — no chrome-then-
+  // content flash, no second spinner inside the page. See usePageReady.tsx.
+  const pageLoading = usePageLoading()
   const location = useLocation()
   // Match-scheduling (Terminplanung) is a spielplaner tool with its own per-team
   // scoping — the gold admin-mode banner is just noise there, so hide it on those
@@ -53,6 +59,16 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-900">
+      {/* Unified boot spinner. The chrome + page stay mounted underneath (so
+          the page can load its data and report readiness); this overlay masks
+          them until the page's primary data lands, then lifts to reveal header,
+          footer and content together. */}
+      {pageLoading && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <LoadingSpinner />
+        </div>
+      )}
+
       {/* Desktop top navbar (replaces the old side rail). Mobile keeps the
           bottom tab bar + More sheet below. */}
       {isDesktop && (

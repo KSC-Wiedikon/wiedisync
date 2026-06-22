@@ -11,8 +11,8 @@ import { isSafeAppLink } from '../../utils/sanitizeUrl'
 import { useConfirm } from '../../components/ConfirmProvider'
 import Modal from '../../components/Modal'
 import RichTextEditor from '../../components/RichTextEditor'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import { stripHtml } from '../../components/RichText'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import { formatDate, toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso } from '../../utils/dateHelpers'
 import type { Announcement, AnnouncementLocale, AnnouncementTranslation, AnnouncementAudienceType } from '../../types'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
@@ -241,6 +241,9 @@ export default function AnnouncementsPage() {
     [form.translations],
   )
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading)
+
   return (
     <div className="mx-auto max-w-4xl">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -254,9 +257,7 @@ export default function AnnouncementsPage() {
         </button>
       </div>
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : items.length === 0 ? (
+      {isLoading ? null : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 px-6 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           {t('empty')}
         </div>

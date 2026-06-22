@@ -23,7 +23,6 @@ import {
   formatDate,
 } from '../../utils/dateUtils'
 import { SlidersHorizontal, ClipboardList } from 'lucide-react'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import BasketballIcon from '../../components/BasketballIcon'
 import VolleyballIcon from '../../components/VolleyballIcon'
 import type { CalendarViewMode, CalendarFilterState, SourceFilter, CalendarEntry } from '../../types/calendar'
@@ -31,6 +30,7 @@ import type { Game, Team } from '../../types'
 import { useCollection } from '../../lib/query'
 import { isSchedulableTeam } from '../gameScheduling/utils/schedulableTeams'
 import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalendar'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 /** Inline type icon for the overflow modal */
 const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'volleyball' | 'basketball'; className?: string }) => {
@@ -208,6 +208,9 @@ export default function CalendarPage() {
   if (!isLoading && needsData && teamsReady) hasLoadedOnce.current = true
   const showSpinner = needsData && (isLoading || !teamsReady) && !hasLoadedOnce.current
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(showSpinner)
+
   function handleViewChange(v: string) {
     setViewMode(v as CalendarViewMode)
   }
@@ -291,7 +294,7 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {needsData && showSpinner && <LoadingSpinner />}
+      {needsData && showSpinner && null}
 
       {needsData && !showSpinner && (
         <div className="flex flex-1 flex-col">

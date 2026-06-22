@@ -9,9 +9,9 @@ import { Button } from '../../components/ui/button'
 import TeamRequestModal from '../auth/TeamRequestModal'
 import TeamCard from './TeamCard'
 import type { Team, MemberTeam } from '../../types'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import { getCurrentSeason } from '../../utils/dateHelpers'
 import { relId } from '../../utils/relations'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 
 export default function TeamsPage() {
   const { t } = useTranslation('teams')
@@ -85,8 +85,11 @@ export default function TeamsPage() {
     return { vbTeams: vb, bbTeams: bb }
   }, [visibleTeams])
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(teamsListLoading || memberTeamsLoading || teamsLoading)
+
   if (teamsListLoading || memberTeamsLoading || teamsLoading) {
-    return <LoadingSpinner />
+    return null
   }
 
   if (visibleTeams.length === 0) {

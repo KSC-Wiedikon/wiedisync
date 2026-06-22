@@ -16,9 +16,9 @@ import SummaryView from './components/SummaryView'
 import VirtualSlotDetailModal from './components/VirtualSlotDetailModal'
 import ClaimModal from './components/ClaimModal'
 import ClaimDetailModal from './components/ClaimDetailModal'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import type { HallSlot, HallClosure, SlotClaim, Team, Hall, Training } from '../../types'
 import { fetchItem, fetchItems, flattenM2MTeams } from '../../lib/api'
+import { useReportPageLoading } from '../../hooks/usePageReady'
 import { TourPageButton } from '../guide/TourPageButton'
 
 export type SportFilter = 'all' | 'vb' | 'bb'
@@ -225,6 +225,9 @@ export default function HallenplanPage() {
     refetch()
   }
 
+  // Report to app boot gate — see usePageReady.tsx
+  useReportPageLoading(isLoading)
+
   return (
     <div>
       <div className="mb-4">
@@ -261,9 +264,7 @@ export default function HallenplanPage() {
             onFreedSlotClick={handleSlotClick}
           />
 
-          {isLoading ? (
-            <LoadingSpinner />
-          ) : showSummary ? (
+          {isLoading ? null : showSummary ? (
             <SummaryView slots={filteredSlots} closures={closures} weekDays={weekDays} halls={halls} teams={teams} />
           ) : (
             <DaySlotView
@@ -300,9 +301,7 @@ export default function HallenplanPage() {
             onFreedSlotClick={handleSlotClick}
           />
 
-          {isLoading ? (
-            <LoadingSpinner />
-          ) : (
+          {isLoading ? null : (
             <WeekSlotView
               slots={filteredSlots}
               closures={closures}
