@@ -17,6 +17,23 @@
 
 import { createContext, useContext, useLayoutEffect, useState, type ReactNode } from 'react'
 
+/**
+ * TEMP boot diagnostics. Logs to the console on every non-prod host (dev
+ * preview, *.pages.dev, localhost) and stays silent on wiedisync.kscw.ch.
+ * Used to trace how many times the boot spinner shows and what data each phase
+ * is waiting on. Remove once the double-spinner is diagnosed.
+ */
+export function logBoot(label: string, data?: Record<string, unknown>) {
+  if (typeof window === 'undefined') return
+  // Always on for dev preview / *.pages.dev / localhost. Silent on the prod host
+  // unless explicitly enabled via `localStorage.bootdebug = '1'` (so prod users
+  // never see spam, but you can flip it on in the prod console when needed).
+  if (window.location.hostname === 'wiedisync.kscw.ch' && !localStorage.getItem('bootdebug')) return
+  const t = Math.round(performance.now())
+  if (data) console.log(`%c[boot +${t}ms] ${label}`, 'color:#b8860b', data)
+  else console.log(`%c[boot +${t}ms] ${label}`, 'color:#b8860b')
+}
+
 interface PageReadyContextValue {
   pageLoading: boolean
   setPageLoading: (loading: boolean) => void
@@ -50,6 +67,7 @@ export function usePageLoading() {
 export function useReportPageLoading(loading: boolean) {
   const { setPageLoading } = useContext(PageReadyContext)
   useLayoutEffect(() => {
+    logBoot(`page reports loading=${loading}`, { path: window.location.pathname })
     setPageLoading(loading)
     return () => setPageLoading(false)
   }, [loading, setPageLoading])

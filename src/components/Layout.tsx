@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
@@ -12,7 +12,7 @@ import MoreSheet from './MoreSheet'
 import NotificationPanel from './NotificationPanel'
 import TopNav from './TopNav'
 import { useCollection } from '../lib/query'
-import { usePageLoading } from '../hooks/usePageReady'
+import { usePageLoading, logBoot } from '../hooks/usePageReady'
 import LoadingSpinner from './LoadingSpinner'
 import ProfileEditModal from '../modules/auth/ProfileEditModal'
 import type { MemberTeam, Team } from '../types'
@@ -75,6 +75,23 @@ export default function Layout() {
     const t = setTimeout(() => setOverlayMounted(false), 250)
     return () => clearTimeout(t)
   }, [booting])
+
+  // TEMP boot diagnostics — count how many times the spinner is shown (each
+  // false→true of `booting` is a distinct visible episode) and log what each
+  // phase is waiting on. If this logs episode #2, the spinner is genuinely
+  // showing twice; the flags tell us why (auth vs page, and which flag re-armed).
+  const spinnerEpisodes = useRef(0)
+  const prevBooting = useRef(false)
+  useEffect(() => {
+    const flags = { authBooting, pageLoading, isLoading, teamsLoading }
+    if (booting && !prevBooting.current) {
+      spinnerEpisodes.current += 1
+      logBoot(`SPINNER shown — episode #${spinnerEpisodes.current}`, flags)
+    } else if (!booting && prevBooting.current) {
+      logBoot(`spinner hidden (after episode #${spinnerEpisodes.current})`, flags)
+    }
+    prevBooting.current = booting
+  }, [booting, authBooting, pageLoading, isLoading, teamsLoading])
 
   return (
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-900">
