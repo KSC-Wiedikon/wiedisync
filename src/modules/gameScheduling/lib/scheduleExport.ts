@@ -1,5 +1,5 @@
 import { fetchAllItems, kscwApi } from '../../../lib/api'
-import type { GameSchedulingBooking, GameSchedulingOpponent, GameSchedulingSeason, GameSchedulingSlot, Team } from '../../../types'
+import type { Derby, GameSchedulingBooking, GameSchedulingOpponent, GameSchedulingSeason, GameSchedulingSlot, Team } from '../../../types'
 
 // Shared schedule-export engine. Used by:
 //  - the all-teams export bar (ExcelExportButton, no teamId)
@@ -18,25 +18,22 @@ export interface ExportRow {
   type: string
   status: string
   vm: string
-  contact: string
-  teamResponsible: string
 }
 
+// Contact columns (Spielplaner / Team responsibles) were intentionally dropped
+// from the export — the schedule report is shared with teams/coaches who don't
+// need the scheduler/TR contact details.
 const COLUMNS: { header: string; key: keyof ExportRow; xlsxWidth: number; pdfWidth: number }[] = [
-  { header: 'Date', key: 'date', xlsxWidth: 12, pdfWidth: 16 },
-  { header: 'Time', key: 'time', xlsxWidth: 10, pdfWidth: 11 },
-  { header: 'KSCW team', key: 'team', xlsxWidth: 12, pdfWidth: 14 },
-  { header: 'Home team', key: 'homeTeam', xlsxWidth: 26, pdfWidth: 34 },
-  { header: 'Guest team', key: 'guestTeam', xlsxWidth: 26, pdfWidth: 34 },
-  { header: 'Hall / venue', key: 'hall', xlsxWidth: 22, pdfWidth: 30 },
-  { header: 'Type', key: 'type', xlsxWidth: 8, pdfWidth: 11 },
-  { header: 'Status', key: 'status', xlsxWidth: 11, pdfWidth: 15 },
-  { header: 'VM status', key: 'vm', xlsxWidth: 14, pdfWidth: 18 },
-  { header: 'Spielplaner', key: 'contact', xlsxWidth: 32, pdfWidth: 40 },
-  { header: 'Team responsibles', key: 'teamResponsible', xlsxWidth: 32, pdfWidth: 38 },
+  { header: 'Date', key: 'date', xlsxWidth: 12, pdfWidth: 18 },
+  { header: 'Time', key: 'time', xlsxWidth: 10, pdfWidth: 13 },
+  { header: 'KSCW team', key: 'team', xlsxWidth: 12, pdfWidth: 16 },
+  { header: 'Home team', key: 'homeTeam', xlsxWidth: 26, pdfWidth: 44 },
+  { header: 'Guest team', key: 'guestTeam', xlsxWidth: 26, pdfWidth: 44 },
+  { header: 'Hall / venue', key: 'hall', xlsxWidth: 22, pdfWidth: 40 },
+  { header: 'Type', key: 'type', xlsxWidth: 8, pdfWidth: 14 },
+  { header: 'Status', key: 'status', xlsxWidth: 11, pdfWidth: 18 },
+  { header: 'VM status', key: 'vm', xlsxWidth: 14, pdfWidth: 22 },
 ]
-// The Spielplaner (calendar contact) column is highlighted in the Excel export.
-const HIGHLIGHT_KEY: keyof ExportRow = 'contact'
 
 // YYYY-MM-DD → dd.mm.yyyy (Swiss). Empty if unparseable.
 const fmtDate = (ymd: string | null | undefined): string => {
@@ -78,15 +75,17 @@ interface BuildArgs {
 export async function buildScheduleRows({ bookings, opponents, slots, teams, season, teamId }: BuildArgs): Promise<ExportRow[]> {
   const teamFilter = teamId != null && teamId !== '' ? String(teamId) : null
   const halls = await fetchAllItems<{ id: number; name: string }>('halls', { fields: ['id', 'name'] }).catch(() => [])
-  // Team responsibles per opponent (resolved from the SVRZ feed), for the
-  // dedicated column — separate from the saved Spielplan contact (contact_email).
-  const trByOpp = new Map<string, string>()
+  // Intra-club derbies (Art. 27 SVRZ) live ONLY as anchored leg dates in
+  // game_scheduling_derbies — they never become a booking or an opponent, so the
+  // booking→opponent projection below can't see them. Pull them in separately and
+  // synthesise a row per fixed leg, otherwise H1/H3-style head-to-heads are
+  // silently missing from the export.
+  let derbies: Derby[] = []
   if (season?.id) {
     try {
-      const resp = await kscwApi<{ contacts: Record<string, { calendar: string; team_responsibles: string }> }>(
-        `/admin/terminplanung/opponent-contacts?season=${season.id}`)
-      for (const [id, v] of Object.entries(resp.contacts || {})) trByOpp.set(String(id), v.team_responsibles || '')
-    } catch { /* feed unavailable — leave the column blank */ }
+      const resp = await kscwApi<{ derbies: Derby[] }>(`/admin/terminplanung/derbies?season=${season.id}`)
+      derbies = resp.derbies || []
+    } catch { /* feed unavailable — derbies simply absent from the export */ }
   }
   const teamName = new Map(teams.map(tm => [String(tm.id), tm.name]))
   const oppById = new Map(opponents.map(o => [String(o.id), o]))
@@ -104,7 +103,7 @@ export async function buildScheduleRows({ bookings, opponents, slots, teams, sea
     return ref && typeof ref === 'object' ? (ref as GameSchedulingSlot) : slotById.get(String(ref))
   }
 
-  return bookings
+  const bookingRows = bookings
     .filter(b => b.status === 'confirmed' || b.status === 'pending')
     .map((b): (ExportRow & { _sort: string }) | null => {
       const opp = resolveOpp(b)
@@ -115,8 +114,6 @@ export async function buildScheduleRows({ bookings, opponents, slots, teams, sea
       // it sits on (home vs guest) flips with the game type.
       const kscwLabel = team ? `KSC Wiedikon ${team}` : 'KSC Wiedikon'
       const opponentName = opp ? (opp.team_name || opp.club_name || '') : ''
-      const contact = opp?.contact_email || ''
-      const teamResponsible = opp ? (trByOpp.get(String(opp.id)) || '') : ''
       const status = statusLabel(b.status)
 
       if (b.type === 'home_slot_pick') {
@@ -128,7 +125,7 @@ export async function buildScheduleRows({ bookings, opponents, slots, teams, sea
           time: homeGameTime(slot.date, slot.start_time),
           team, homeTeam: kscwLabel, guestTeam: opponentName,
           hall: hallName.get(String(slot.hall)) || '',
-          type: 'Home', status, vm: vmLabel(b.vm_push_status as unknown as string), contact, teamResponsible,
+          type: 'Home', status, vm: vmLabel(b.vm_push_status as unknown as string),
         }
       }
       // Away — confirmed uses the chosen proposal, pending shows the 1st.
@@ -143,10 +140,44 @@ export async function buildScheduleRows({ bookings, opponents, slots, teams, sea
         time: dtTime(dt),
         team, homeTeam: opponentName, guestTeam: kscwLabel,
         hall: place,
-        type: 'Away', status, vm: '—', contact, teamResponsible,
+        type: 'Away', status, vm: '—',
       }
     })
     .filter((r): r is ExportRow & { _sort: string } => r !== null)
+
+  // Derby legs → export rows. A leg surfaces once the spielplaner has fixed its
+  // date. In a per-team report it shows for BOTH KSCW sides (the team appears
+  // whether it's the home or the away side); in the all-teams report it lists
+  // once under the host. No booking/opponent exists for these, so hall is unknown.
+  const derbyRows: (ExportRow & { _sort: string })[] = []
+  for (const d of derbies) {
+    for (const leg of d.legs) {
+      const ymd = leg.date ? String(leg.date).slice(0, 10) : ''
+      if (!ymd) continue
+      const homeId = String(leg.home_team.id)
+      const awayId = String(leg.away_team.id)
+      let sideId: string
+      if (teamFilter) {
+        if (teamFilter !== homeId && teamFilter !== awayId) continue
+        sideId = teamFilter
+      } else {
+        sideId = homeId
+      }
+      derbyRows.push({
+        _sort: ymd,
+        date: fmtDate(ymd),
+        // Weekday home games start at 20:00; weekends fall back to the feed time.
+        time: homeGameTime(ymd, dtTime(leg.feed_datetime)),
+        team: teamName.get(sideId) || (sideId === awayId ? leg.away_team.name : leg.home_team.name),
+        homeTeam: `KSC Wiedikon ${leg.home_team.name}`,
+        guestTeam: `KSC Wiedikon ${leg.away_team.name}`,
+        hall: '',
+        type: 'Derby', status: d.confirmed ? 'Confirmed' : 'Pending', vm: '—',
+      })
+    }
+  }
+
+  return [...bookingRows, ...derbyRows]
     .sort((a, b) => a._sort.localeCompare(b._sort))
     .map(({ _sort, ...row }) => row)
 }
@@ -160,11 +191,6 @@ export async function buildScheduleXlsx(rows: ExportRow[]): Promise<Uint8Array> 
   ws.getRow(1).font = { bold: true }
   ws.views = [{ state: 'frozen', ySplit: 1 }]
   rows.forEach(r => ws.addRow(r))
-  // Highlight the Spielplaner column (header + cells) so it's distinct from the
-  // new Team responsibles column.
-  ws.getColumn(HIGHLIGHT_KEY).eachCell((cell) => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } }
-  })
   const buffer = await wb.xlsx.writeBuffer()
   return new Uint8Array(buffer as ArrayBuffer)
 }
