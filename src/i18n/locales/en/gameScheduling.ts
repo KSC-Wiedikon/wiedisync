@@ -362,6 +362,12 @@ export default {
   homeVmMismatchRow: 'Scheduled {{agreed}} · VM {{vm}}',
   repushVm: 'Re-push to VM',
   vmRepushQueued: 'Re-push to VolleyManager queued',
+  // Stale-duplicate guard: confirmed games on an opponent record that matches no
+  // SVRZ fixture (leftover after an SVRZ rename) — can't be pushed to VM.
+  orphanFixtureAlert: 'Confirmed games with no SVRZ fixture: {{count}}',
+  orphanFixtureHint: 'These opponents have agreed games but match no SVRZ fixture — usually a stale duplicate left after the team was renamed in SVRZ. Re-enter the games on the correct record via "Enter an agreed game manually", then delete this one.',
+  orphanFixtureSuggest: 'Real fixtures are under "{{sibling}}"',
+  orphanFixtureNoSibling: 'No fixtured record found — check SVRZ',
   svrzSyncStarted: 'SVRZ sync started',
   svrzSynced: 'SVRZ synced {{date}} · {{total}} games ({{home}} home / {{away}} away)',
   syncInProgress: 'Sync in progress…',
