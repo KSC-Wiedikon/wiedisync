@@ -7,6 +7,7 @@ import i18n from '../i18n'
 import { backendLangToI18n } from '../utils/languageMap'
 import { getCurrentSeason } from '../utils/dateHelpers'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { logBoot } from './usePageReady'
 import type { Member, Team } from '../types'
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -364,11 +365,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Block the entire app while restoring a previous session so no route
   // (including public pages like HomePage) flashes unauthenticated content.
+  // This is "phase 0" of the boot sequence — it runs ABOVE Layout, so Layout's
+  // boot gate never sees it. To keep it from reading as a *separate* spinner
+  // before Layout's, it must render the SAME spinner as Layout's boot overlay:
+  // `showProgress={false}` (a progress bar here + none in Layout was the visible
+  // "two spinners" tell). Keep these two in sync.
   if (isLoading && hadTokenRef.current) {
+    logBoot('AuthProvider session-restore spinner (phase 0, above Layout)')
     return (
       <AuthContext.Provider value={value}>
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-          <LoadingSpinner />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <LoadingSpinner showProgress={false} />
         </div>
       </AuthContext.Provider>
     )
