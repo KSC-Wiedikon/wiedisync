@@ -779,8 +779,10 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Season overview calendar — all proposed/confirmed/blocked slots */}
-      <SchedulingCalendar slots={slots} bookings={bookings} teams={volleyballTeams} season={season} games={derbyGames} showAbsences />
+      {/* Season overview calendar — all proposed/confirmed/blocked slots. No
+          showAbsences: absences/blocks/wishes are per-team, shown in each team's
+          own calendar below, not on this all-teams overview. */}
+      <SchedulingCalendar slots={slots} bookings={bookings} teams={volleyballTeams} season={season} games={derbyGames} />
 
       {/* Search across all teams: opponent / club / contact / booking dates */}
       <div className="flex flex-wrap items-center gap-2">

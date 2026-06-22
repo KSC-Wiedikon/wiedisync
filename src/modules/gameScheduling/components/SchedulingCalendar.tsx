@@ -75,9 +75,9 @@ interface Props {
   // Heading text — defaults to the season-wide overview title. Pass a
   // team-scoped title when rendering this inside a single team's panel.
   title?: string
-  // Show a per-day absent-player count (dashboard only). Renders when a single
-  // team is in scope: teams=[one] (per-team calendar) or exactly one team
-  // selected in the filter (summary calendar).
+  // Show per-day absent players (dashboard only). Per-team concern, so it only
+  // renders on a single-team calendar (teams=[one]) — never on the all-teams
+  // season overview, even when filtered to one team.
   showAbsences?: boolean
 }
 
@@ -239,7 +239,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   // no slots and it's impossible to see why. Members can read scheduling_blocks.
   const [blocks, setBlocks] = useState<SchedulingBlock[]>([])
   useEffect(() => {
-    if (teamIds.length === 0) return
+    // Per-team only — never on the all-teams overview (teamIds.length > 1).
+    if (teamIds.length !== 1) return
     let cancelled = false
     fetchAllItems<SchedulingBlock>('scheduling_blocks', {
       fields: ['id', 'team', 'start_date', 'end_date', 'reason'],
@@ -256,7 +257,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   // teams_id), then the events by id (never walk the alias in a filter).
   const [teamEvents, setTeamEvents] = useState<{ id: string; title: string; start_date: string; end_date?: string | null; teamId: string }[]>([])
   useEffect(() => {
-    if (teamIds.length === 0) return
+    // Per-team only — never on the all-teams overview (teamIds.length > 1).
+    if (teamIds.length !== 1) return
     let cancelled = false
     ;(async () => {
       try {
@@ -311,9 +313,14 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   const absenceTeamId = useMemo(() => {
     if (!showAbsences) return null
     if (teams.length === 1) return String(teams[0].id)
-    if (teamFilter.size === 1) return [...teamFilter][0]
     return null
-  }, [showAbsences, teams, teamFilter])
+  }, [showAbsences, teams])
+
+  // Per-team blockers (team blocks "no games", team events, absences, wishes) are
+  // ONLY meaningful on a single team's calendar — showing them on the all-teams
+  // season overview is misleading noise. True only when this calendar is scoped
+  // to exactly one team (the per-team admin panel + the member team calendar).
+  const isTeamScoped = teams.length === 1
 
   // date key -> number of distinct team members unavailable that day (blocking
   // absences affecting games). Fetched per-team via a single-level junction walk
@@ -557,8 +564,12 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     { kind: 'home_proposed', label: t('legendHomeProposed') },
     { kind: 'away_proposed', label: t('legendAwayProposed') },
     { kind: 'blocked', label: t('reserved') },
-    { kind: 'team_block', label: t('blockNoGames') },
-    { kind: 'team_event', label: t('teamEventLabel') },
+    // "No games" + event blockers are per-team only — keep them out of the
+    // all-teams overview legend too.
+    ...(isTeamScoped ? [
+      { kind: 'team_block' as EntryKind, label: t('blockNoGames') },
+      { kind: 'team_event' as EntryKind, label: t('teamEventLabel') },
+    ] : []),
   ]
 
   const KIND_LABEL = useMemo<Record<EntryKind | 'open', string>>(() => ({
