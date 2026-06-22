@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.2.0'
+const APP_VERSION = '1.3.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.3.0',
+    date: '22.06.2026',
+    sections: [
+      {
+        title: 'Game planning, one tap away',
+        items: [
+          'The game-planning tools are now a single "Planning" entry in the menu — the separate "Manual game calendar" and "Match scheduling" tabs are gone.',
+          'Installed Wiedisync to your home screen? Opening Planning now launches it in your browser instead of getting stuck inside the app window.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.2.0',
     date: '20.06.2026',
