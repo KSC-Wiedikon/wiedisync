@@ -23,12 +23,27 @@ import { createContext, useContext, useLayoutEffect, useState, type ReactNode } 
  * Used to trace how many times the boot spinner shows and what data each phase
  * is waiting on. Remove once the double-spinner is diagnosed.
  */
+// Enabled when: we're on a non-prod host (dev preview / *.pages.dev / localhost),
+// OR the URL has `?bootdebug=1` (survives a hard reload — more robust than
+// localStorage, which gets wiped on this host), OR `localStorage.bootdebug` is
+// set. Evaluated once and cached so it stays on even after the router strips the
+// query param post-load.
+let bootDebug: boolean | null = null
+function bootDebugOn(): boolean {
+  if (bootDebug !== null) return bootDebug
+  if (typeof window === 'undefined') return false
+  let on = window.location.hostname !== 'wiedisync.kscw.ch'
+  try {
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('bootdebug')) on = params.get('bootdebug') !== '0'
+    else if (localStorage.getItem('bootdebug')) on = true
+  } catch { /* storage blocked — leave `on` as the host default */ }
+  bootDebug = on
+  return on
+}
+
 export function logBoot(label: string, data?: Record<string, unknown>) {
-  if (typeof window === 'undefined') return
-  // Always on for dev preview / *.pages.dev / localhost. Silent on the prod host
-  // unless explicitly enabled via `localStorage.bootdebug = '1'` (so prod users
-  // never see spam, but you can flip it on in the prod console when needed).
-  if (window.location.hostname === 'wiedisync.kscw.ch' && !localStorage.getItem('bootdebug')) return
+  if (!bootDebugOn()) return
   const t = Math.round(performance.now())
   if (data) console.log(`%c[boot +${t}ms] ${label}`, 'color:#b8860b', data)
   else console.log(`%c[boot +${t}ms] ${label}`, 'color:#b8860b')
