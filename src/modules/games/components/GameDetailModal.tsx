@@ -437,6 +437,21 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
           )
         )}
 
+        {/* Show roster — directly beneath the RSVP tallies, visible for any
+            scheduled game (also for guests / non-participants, who don't see
+            the Attending? block above). */}
+        {game.status === 'scheduled' && (
+          <div className="border-t dark:border-gray-700 px-6 py-3">
+            <Button
+              variant="outline"
+              onClick={() => setRosterOpen(true)}
+              className="w-full"
+            >
+              {t('participationRoster')}
+            </Button>
+          </div>
+        )}
+
         {/* Game info */}
         <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -589,8 +604,11 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
           </div>
         )}
 
-        {/* Participation details (roster, deadline — coach only) */}
-        {game.status === 'scheduled' && (
+        {/* Participation details (respond-by deadline — coach only). The roster
+            button moved up beneath the RSVP tallies; this section now renders
+            only when it has content (a deadline to show, or a coach who can
+            set one) so it never leaves an empty bordered strip. */}
+        {game.status === 'scheduled' && (game.respond_by || (!readOnly && isCoachOf(kscwTeamId))) && (
           <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
             {game.respond_by && !editingDeadline && (
               <DetailRow label={t('respondBy')} value={`${formatDate(game.respond_by)}${(() => { const p = parseRespondByTime(game.respond_by, game.time); return p?.time ? `, ${p.time}` : '' })()}`} />
@@ -639,13 +657,6 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                 </button>
               )
             )}
-            <Button
-              variant="outline"
-              onClick={() => setRosterOpen(true)}
-              className="w-full"
-            >
-              {t('participationRoster')}
-            </Button>
           </div>
         )}
       </div>
