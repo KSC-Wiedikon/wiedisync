@@ -12,7 +12,15 @@ import { API_URL, kscwApi } from '../../lib/api'
 import { toast } from 'sonner'
 
 
-const BASE_URL = API_URL
+// iCal feeds are served from THIS origin (the wiedisync host) via the
+// /kscw/ical Pages Function, so subscribers only ever see the on-brand URL.
+// Localhost has no Function, so fall back to the Directus API origin there.
+const isLocalhostIcal =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.endsWith('.local'))
+const BASE_URL = isLocalhostIcal ? API_URL : window.location.origin
 
 type ICalMode = 'subscribe' | 'download'
 
