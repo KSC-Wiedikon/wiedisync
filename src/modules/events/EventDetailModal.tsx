@@ -5,6 +5,7 @@ import StatusBadge from '../../components/StatusBadge'
 import TeamChip from '../../components/TeamChip'
 import RichText from '../../components/RichText'
 import ParticipationSummary from '../../components/ParticipationSummary'
+import { rsvpButtonClass } from '../../utils/participationColors'
 import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import SessionParticipationSheet from '../../components/SessionParticipationSheet'
 import { useAuth } from '../../hooks/useAuth'
@@ -373,17 +374,6 @@ function EventParticipation({ event, isStaff, isStaffParticipant }: { event: Eve
             .filter((s) => s !== 'tentative' || allowMaybe)
             .map((status) => {
             const labels = { confirmed: t('yes'), tentative: t('maybe'), declined: t('no') }
-            const colors = {
-              confirmed: effectiveStatus === 'confirmed'
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-green-900/30 dark:hover:text-green-400',
-              tentative: effectiveStatus === 'tentative'
-                ? 'bg-yellow-500 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-yellow-100 hover:text-yellow-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-yellow-900/30 dark:hover:text-yellow-400',
-              declined: effectiveStatus === 'declined'
-                ? 'bg-red-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-red-900/30 dark:hover:text-red-400',
-            }
             return (
               <button
                 key={status}
@@ -400,7 +390,7 @@ function EventParticipation({ event, isStaff, isStaffParticipant }: { event: Eve
                   setPositionsRequiredError(false)
                   setStatus(status, noteText, guestCount, showPositions ? { position_1: pos1 || null, position_2: pos2 || null, position_3: pos3 || null } : undefined)
                 }}
-                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${colors[status]}`}
+                className={`rounded-full px-3 py-1 text-sm font-medium transition ${rsvpButtonClass(status, effectiveStatus === status)}`}
               >
                 {labels[status]}
               </button>
