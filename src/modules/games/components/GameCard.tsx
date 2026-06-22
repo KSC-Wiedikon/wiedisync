@@ -11,6 +11,7 @@ import BasketballIcon from '../../../components/BasketballIcon'
 import ParticipationSummary from '../../../components/ParticipationSummary'
 import ParticipationWarningBadge from '../../../components/ParticipationWarningBadge'
 import type { Warning } from '../../../utils/participationWarnings'
+import { rsvpButtonClass } from '../../../utils/participationColors'
 import { useAuth } from '../../../hooks/useAuth'
 import { useAdminMode } from '../../../hooks/useAdminMode'
 import { useMutation } from '../../../hooks/useMutation'
@@ -495,18 +496,13 @@ function GameCardParticipation({ game, existingParticipation, onSaved }: { game:
           .filter((s) => !isLocked || displayStatus === s)
           .map((status) => {
             const active = displayStatus === status
-            const colorMap = {
-              confirmed: active ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-green-900/30 dark:hover:text-green-400',
-              tentative: active ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-yellow-100 hover:text-yellow-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-yellow-900/30 dark:hover:text-yellow-400',
-              declined: active ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-red-900/30 dark:hover:text-red-400',
-            }
             const label = { confirmed: t('yes'), tentative: t('maybe'), declined: t('no') }
             return (
               <button
                 key={status}
                 onClick={(e) => { e.stopPropagation(); if (!isLocked) setStatus(status) }}
                 disabled={isLocked}
-                className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${isLocked ? 'cursor-not-allowed' : ''} ${colorMap[status]}`}
+                className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition ${isLocked ? 'cursor-not-allowed' : ''} ${rsvpButtonClass(status, active)}`}
               >
                 {label[status]}
               </button>

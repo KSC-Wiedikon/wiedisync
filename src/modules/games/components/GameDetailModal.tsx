@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import TeamChip from '../../../components/TeamChip'
 import { teamNameToColorKey } from '../../../utils/teamColors'
 import ParticipationSummary from '../../../components/ParticipationSummary'
+import { rsvpButtonClass } from '../../../utils/participationColors'
 import ParticipationRosterModal from '../../../components/ParticipationRosterModal'
 import { useAuth } from '../../../hooks/useAuth'
 import { useParticipation } from '../../../hooks/useParticipation'
@@ -362,31 +363,19 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                 <div className="relative flex gap-2">
                   <button
                     onClick={() => setStatus('confirmed', noteText)}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                      effectiveStatus === 'confirmed'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-green-900/30 dark:hover:text-green-400'
-                    }`}
+                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${rsvpButtonClass('confirmed', effectiveStatus === 'confirmed')}`}
                   >
                     {t('participation:yes')}
                   </button>
                   <button
                     onClick={() => setStatus('tentative', noteText)}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                      effectiveStatus === 'tentative'
-                        ? 'bg-yellow-500 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-yellow-100 hover:text-yellow-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-yellow-900/30 dark:hover:text-yellow-400'
-                    }`}
+                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${rsvpButtonClass('tentative', effectiveStatus === 'tentative')}`}
                   >
                     {t('participation:maybe')}
                   </button>
                   <button
                     onClick={() => setStatus('declined', noteText)}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                      effectiveStatus === 'declined'
-                        ? 'bg-red-600 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-red-900/30 dark:hover:text-red-400'
-                    }`}
+                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${rsvpButtonClass('declined', effectiveStatus === 'declined')}`}
                   >
                     {t('participation:no')}
                   </button>
