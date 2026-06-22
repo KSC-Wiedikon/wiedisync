@@ -2057,31 +2057,80 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
-  // Stamp WHO confirmed a game's scorekeeping duty and WHEN, in the SAME write
-  // that flips duty_confirmed (migration 122). A filter (not an action) so it
-  // rides the existing payload — a second raw write would re-fire
-  // trg_games_notify and double-notify the team. Writers are only LEADER/admins
-  // (games.update is ['*'] for them), so the injected fields pass field-level
-  // permission. Name only — games.read is ['*'] for members, so a confirmer's
-  // email must not ride along.
+  // Per-duty confirmation actor (migration 123). A duty is "confirmed" iff it
+  // has a person; so when a role's member FK is set we stamp WHO did it + WHEN,
+  // and when it's cleared we wipe them. A filter (not an action) rides the
+  // existing payload — a second raw write would re-fire trg_games_notify and
+  // double-notify the team. Writers are only LEADER/admins (games.update is
+  // ['*'] for them), so the injected fields pass field-level permission. Name
+  // only — games.read is ['*'] for members; the actor line is admin-only client-side.
+  const DUTY_CONFIRM_ROLES = [
+    { member: 'scorer_member', name: 'scorer_confirmed_by_name', at: 'scorer_confirmed_at' },
+    { member: 'scoreboard_member', name: 'scoreboard_confirmed_by_name', at: 'scoreboard_confirmed_at' },
+    { member: 'scorer_scoreboard_member', name: 'scorer_scoreboard_confirmed_by_name', at: 'scorer_scoreboard_confirmed_at' },
+    { member: 'bb_scorer_member', name: 'bb_scorer_confirmed_by_name', at: 'bb_scorer_confirmed_at' },
+    { member: 'bb_timekeeper_member', name: 'bb_timekeeper_confirmed_by_name', at: 'bb_timekeeper_confirmed_at' },
+    { member: 'bb_24s_official', name: 'bb_24s_confirmed_by_name', at: 'bb_24s_confirmed_at' },
+  ]
   filter('games.items.update', async (payload, _meta, { accountability }) => {
-    if (!payload || !('duty_confirmed' in payload)) return payload
+    if (!payload) return payload
+    const touched = DUTY_CONFIRM_ROLES.filter((r) => r.member in payload)
+    if (touched.length === 0) return payload
     try {
-      if (payload.duty_confirmed === true) {
-        let name = null
-        if (accountability?.user) {
-          const m = await database('members').where('user', accountability.user).first('first_name', 'last_name')
-          if (m) name = [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null
-        }
-        return { ...payload, duty_confirmed_by_name: name, duty_confirmed_at: new Date().toISOString() }
+      let actorName = null
+      if (touched.some((r) => payload[r.member]) && accountability?.user) {
+        const m = await database('members').where('user', accountability.user).first('first_name', 'last_name')
+        if (m) actorName = [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null
       }
-      if (payload.duty_confirmed === false) {
-        return { ...payload, duty_confirmed_by_name: null, duty_confirmed_at: null }
+      const nowIso = new Date().toISOString()
+      const out = { ...payload }
+      for (const r of touched) {
+        if (payload[r.member]) { out[r.name] = actorName; out[r.at] = nowIso }
+        else { out[r.name] = null; out[r.at] = null }
       }
+      return out
     } catch (err) {
       log.error({ msg: `[duty-confirm-actor] ${err.message}`, event: 'duty_confirm_actor', stack: err.stack })
     }
     return payload
+  })
+
+  // Delegation transfer (fixes the live items-API path that only set status):
+  // when a scorer-duty delegation becomes 'accepted' — on UPDATE (cross-team,
+  // recipient accepts) or on CREATE (same-team, auto-accepted by
+  // trg_scorer_delegation_validate) — move the duty's member (and duty team for
+  // cross-team) to the recipient on the game, and re-stamp that role's
+  // confirmed-by to the new person. Raw knex (bypasses perms — a plain member
+  // accepting can't write games via the items API). Role keys are the English
+  // ScorerDelegation.role values.
+  const DELEG_ROLE_MEMBER = {
+    scorer: { member: 'scorer_member', team: 'scorer_duty_team', name: 'scorer_confirmed_by_name', at: 'scorer_confirmed_at' },
+    scoreboard: { member: 'scoreboard_member', team: 'scoreboard_duty_team', name: 'scoreboard_confirmed_by_name', at: 'scoreboard_confirmed_at' },
+    scorer_scoreboard: { member: 'scorer_scoreboard_member', team: 'scorer_scoreboard_duty_team', name: 'scorer_scoreboard_confirmed_by_name', at: 'scorer_scoreboard_confirmed_at' },
+    bb_scorer: { member: 'bb_scorer_member', team: 'bb_scorer_duty_team', name: 'bb_scorer_confirmed_by_name', at: 'bb_scorer_confirmed_at' },
+    bb_timekeeper: { member: 'bb_timekeeper_member', team: 'bb_timekeeper_duty_team', name: 'bb_timekeeper_confirmed_by_name', at: 'bb_timekeeper_confirmed_at' },
+    bb_24s_official: { member: 'bb_24s_official', team: 'bb_24s_duty_team', name: 'bb_24s_confirmed_by_name', at: 'bb_24s_confirmed_at' },
+  }
+  async function transferDelegatedDuty(delegationId) {
+    const d = await database('scorer_delegations').where('id', delegationId).first()
+    if (!d || d.status !== 'accepted' || !d.game || !d.to_member) return
+    const cols = DELEG_ROLE_MEMBER[d.role]
+    if (!cols) { log.warn(`[delegation-transfer] unknown role ${d.role} on delegation ${delegationId}`); return }
+    const updates = { [cols.member]: d.to_member }
+    if (cols.team && !d.same_team && d.to_team) updates[cols.team] = d.to_team
+    const m = await database('members').where('id', d.to_member).first('first_name', 'last_name')
+    updates[cols.name] = m ? ([m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null) : null
+    updates[cols.at] = new Date().toISOString()
+    await database('games').where('id', d.game).update(updates)
+  }
+  action('scorer_delegations.items.create', async ({ key }) => {
+    try { if (key != null) await transferDelegatedDuty(key) }
+    catch (err) { log.error({ msg: `[delegation-transfer] create: ${err.message}`, stack: err.stack }) }
+  })
+  action('scorer_delegations.items.update', async ({ keys, payload }) => {
+    if (!payload || payload.status !== 'accepted') return
+    try { for (const k of keys) await transferDelegatedDuty(k) }
+    catch (err) { log.error({ msg: `[delegation-transfer] update: ${err.message}`, stack: err.stack }) }
   })
 
   action('games.items.update', async ({ keys, payload }) => {

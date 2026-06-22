@@ -326,9 +326,20 @@ export interface Game extends BaseRecord {
   bb_timekeeper_duty_team: string
   bb_24s_duty_team: string
   duty_confirmed: boolean
-  /** Who confirmed the scorekeeping duty + when (set by the games.items.update hook, migration 122). */
-  duty_confirmed_by_name: string | null
-  duty_confirmed_at: string | null
+  /** Per-duty confirmation actor + time (set by the games.items.update hook, migration 123).
+   *  A duty is "confirmed" iff it has a person; these record who put them there and when. */
+  scorer_confirmed_by_name: string | null
+  scorer_confirmed_at: string | null
+  scoreboard_confirmed_by_name: string | null
+  scoreboard_confirmed_at: string | null
+  scorer_scoreboard_confirmed_by_name: string | null
+  scorer_scoreboard_confirmed_at: string | null
+  bb_scorer_confirmed_by_name: string | null
+  bb_scorer_confirmed_at: string | null
+  bb_timekeeper_confirmed_by_name: string | null
+  bb_timekeeper_confirmed_at: string | null
+  bb_24s_confirmed_by_name: string | null
+  bb_24s_confirmed_at: string | null
   referees_json: Array<{ name: string; id?: number }>
   source: 'swiss_volley' | 'manual' | 'basketplan'
   svrz_push_status: 'pending' | 'pushed' | 'failed' | null

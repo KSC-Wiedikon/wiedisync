@@ -7,7 +7,7 @@ import AssignmentEditor from './AssignmentEditor'
 import DelegationModal from './DelegationModal'
 import { downloadICal } from '../../../utils/icalGenerator'
 import type { CalendarEntry } from '../../../types/calendar'
-import { formatTime, formatDateTimeCompact, toUtcIsoFromDatetimeLocal } from '../../../utils/dateHelpers'
+import { formatTime, toUtcIsoFromDatetimeLocal } from '../../../utils/dateHelpers'
 import { Calendar, MapPin, Clock, AlertTriangle } from 'lucide-react'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 
@@ -83,21 +83,15 @@ export function isFullyAssigned(game: Game, sport: 'volleyball' | 'basketball'):
 
 export function DutyStatus({ game, sport }: { game: Game; sport: 'volleyball' | 'basketball' }) {
   const { t } = useTranslation('scorer')
-  if (game.duty_confirmed) {
+  // A duty is confirmed once it has a person; the game badge is "Confirmed" only
+  // when every applicable duty is filled, otherwise "Open". No "Assigned" state.
+  if (isFullyAssigned(game, sport)) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
         <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
         {t('statusConfirmed')}
-      </span>
-    )
-  }
-  const hasAssignment = sport === 'basketball' ? hasAnyBbAssignment(game) : hasAnyVbAssignment(game)
-  if (hasAssignment) {
-    return (
-      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-        {t('statusAssigned')}
       </span>
     )
   }
@@ -130,6 +124,16 @@ type VbAssignRole = 'scorer' | 'scoreboard' | 'scorer_scoreboard'
 type BbAssignRole = 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official'
 type AssignRole = VbAssignRole | BbAssignRole
 
+// Per-role "confirmed by"/at columns (migration 123), keyed by assign role.
+const CONFIRM_COLS: Record<AssignRole, { byName: keyof Game; at: keyof Game }> = {
+  scorer: { byName: 'scorer_confirmed_by_name', at: 'scorer_confirmed_at' },
+  scoreboard: { byName: 'scoreboard_confirmed_by_name', at: 'scoreboard_confirmed_at' },
+  scorer_scoreboard: { byName: 'scorer_scoreboard_confirmed_by_name', at: 'scorer_scoreboard_confirmed_at' },
+  bb_scorer: { byName: 'bb_scorer_confirmed_by_name', at: 'bb_scorer_confirmed_at' },
+  bb_timekeeper: { byName: 'bb_timekeeper_confirmed_by_name', at: 'bb_timekeeper_confirmed_at' },
+  bb_24s_official: { byName: 'bb_24s_confirmed_by_name', at: 'bb_24s_confirmed_at' },
+}
+
 export default function ScorerRow({
   game,
   members,
@@ -158,8 +162,8 @@ export default function ScorerRow({
   const gameNumber = game.game_id?.replace(/^(vb_|bb_)/, '') ?? ''
 
   // A game is "past" once its Zurich kickoff has passed (covers same-day games
-  // already played — those still sit in the upcoming list). Used to hide the
-  // admin Undo-confirmation control on games that have already started.
+  // already played — those still sit in the upcoming list). Past games are
+  // read-only: admins can't re-assign / de-confirm a duty after the game starts.
   const isGamePast = (() => {
     if (!game.date || !game.time) return false
     try {
@@ -167,8 +171,10 @@ export default function ScorerRow({
       return !Number.isNaN(ms) && ms < Date.now()
     } catch { return false }
   })()
+  // Admins assign/clear duties via the dropdowns; clearing a person de-confirms
+  // that one duty. Disabled once the game has started.
+  const effectiveCanEdit = canEdit && !isGamePast
 
-  const vbSeparate = isVbSeparateMode(game)
   const vbCombined = isVbCombinedMode(game)
 
   // Self-assign confirmation state
@@ -178,9 +184,10 @@ export default function ScorerRow({
   // 24s official toggle — auto-open if already assigned
   const [show24s, setShow24s] = useState(!!game.bb_24s_official)
 
-  // Can this user self-assign to a role?
+  // Can this user self-assign to a role? (A role is takeable only while it has
+  // no person — per-role checks below; there is no game-level confirmed lock.)
   function canSelfAssign(role: AssignRole): boolean {
-    if (!userId || game.duty_confirmed) return false
+    if (!userId) return false
 
     if (sport === 'volleyball') {
       const vbRole = role as VbAssignRole
@@ -222,44 +229,20 @@ export default function ScorerRow({
       if (vbRole === 'scorer') fields.scorer_member = userId
       else if (vbRole === 'scoreboard') fields.scoreboard_member = userId
       else fields.scorer_scoreboard_member = userId
-
-      if (vbRole === 'scorer' && game.scoreboard_member) fields.duty_confirmed = true
-      if (vbRole === 'scoreboard' && game.scorer_member) fields.duty_confirmed = true
-      if (vbRole === 'scorer_scoreboard') fields.duty_confirmed = true
     } else {
       const bbRole = role as BbAssignRole
       fields[bbRole] = userId
-
-      const nextScorer = bbRole === 'bb_scorer' ? userId : game.bb_scorer_member
-      const nextTimekeeper = bbRole === 'bb_timekeeper' ? userId : game.bb_timekeeper_member
-      if (nextScorer && nextTimekeeper) fields.duty_confirmed = true
     }
 
+    // Confirmation is per-duty and derived from member presence; the hook stamps
+    // who/when from this write. No game-level duty_confirmed flag to set.
     onUpdate(game.id, fields)
     setConfirmRole(null)
   }
 
   function handleAdminUpdate(gameId: string, fields: Partial<Game>) {
-    if (sport === 'volleyball') {
-      if (vbSeparate) {
-        const nextScorer = 'scorer_member' in fields ? fields.scorer_member : game.scorer_member
-        const nextScoreboard = 'scoreboard_member' in fields ? fields.scoreboard_member : game.scoreboard_member
-        if (nextScorer && nextScoreboard && !game.duty_confirmed) {
-          fields.duty_confirmed = true
-        }
-      } else if (vbCombined) {
-        const nextMember = 'scorer_scoreboard_member' in fields ? fields.scorer_scoreboard_member : game.scorer_scoreboard_member
-        if (nextMember && !game.duty_confirmed) {
-          fields.duty_confirmed = true
-        }
-      }
-    } else {
-      const nextBbScorer = 'bb_scorer_member' in fields ? fields.bb_scorer_member : game.bb_scorer_member
-      const nextBbTimekeeper = 'bb_timekeeper_member' in fields ? fields.bb_timekeeper_member : game.bb_timekeeper_member
-      if (nextBbScorer && nextBbTimekeeper && !game.duty_confirmed) {
-        fields.duty_confirmed = true
-      }
-    }
+    // Assigning/clearing a role's member is the confirm/de-confirm; the hook
+    // stamps (or wipes) that role's actor + time. Nothing else to compute here.
     onUpdate(gameId, fields)
   }
 
@@ -329,16 +312,19 @@ export default function ScorerRow({
       teamMemberIds={teamMemberIds}
       onTeamChange={(v) => handleAdminUpdate(game.id, { [teamField]: v })}
       onPersonChange={(v) => handleAdminUpdate(game.id, { [personField]: v })}
-      disabled={!canEdit}
+      disabled={!effectiveCanEdit}
       showContact={showContact}
       selfAssignButton={canSelfAssign(role)}
       onSelfAssign={() => setConfirmRole(role)}
       guestMemberIds={guestMemberIds}
-      canEdit={canEdit}
+      canEdit={effectiveCanEdit}
       isCurrentUserAssigned={isUserAssigned(role)}
       onDelegate={onDelegate ? () => setDelegateRole(role) : undefined}
       pendingDelegationName={pendingNameForRole(role)}
-      dutyConfirmed={game.duty_confirmed}
+      dutyConfirmed={!!game[personField]}
+      confirmedByName={game[CONFIRM_COLS[role].byName] as string | null}
+      confirmedAt={game[CONFIRM_COLS[role].at] as string | null}
+      showConfirmedBy={isAdmin}
     />
   )
 
@@ -406,16 +392,19 @@ export default function ScorerRow({
               teamMemberIds={teamMemberIds}
               onTeamChange={(v) => handleAdminUpdate(game.id, { bb_scorer_duty_team: v })}
               onPersonChange={(v) => handleAdminUpdate(game.id, { bb_scorer_member: v })}
-              disabled={!canEdit}
+              disabled={!effectiveCanEdit}
               showContact={showContact}
               selfAssignButton={canSelfAssign('bb_scorer')}
               onSelfAssign={() => setConfirmRole('bb_scorer')}
               guestMemberIds={guestMemberIds}
-              canEdit={canEdit}
+              canEdit={effectiveCanEdit}
               isCurrentUserAssigned={isUserAssigned('bb_scorer')}
               onDelegate={onDelegate ? () => setDelegateRole('bb_scorer') : undefined}
               pendingDelegationName={pendingNameForRole('bb_scorer')}
-              dutyConfirmed={game.duty_confirmed}
+              dutyConfirmed={!!game.bb_scorer_member}
+              confirmedByName={game.bb_scorer_confirmed_by_name}
+              confirmedAt={game.bb_scorer_confirmed_at}
+              showConfirmedBy={isAdmin}
             />
             <AssignmentEditor
               label={t('bbTimekeeper')}
@@ -427,16 +416,19 @@ export default function ScorerRow({
               teamMemberIds={teamMemberIds}
               onTeamChange={(v) => handleAdminUpdate(game.id, { bb_timekeeper_duty_team: v })}
               onPersonChange={(v) => handleAdminUpdate(game.id, { bb_timekeeper_member: v })}
-              disabled={!canEdit}
+              disabled={!effectiveCanEdit}
               showContact={showContact}
               selfAssignButton={canSelfAssign('bb_timekeeper')}
               onSelfAssign={() => setConfirmRole('bb_timekeeper')}
               guestMemberIds={guestMemberIds}
-              canEdit={canEdit}
+              canEdit={effectiveCanEdit}
               isCurrentUserAssigned={isUserAssigned('bb_timekeeper')}
               onDelegate={onDelegate ? () => setDelegateRole('bb_timekeeper') : undefined}
               pendingDelegationName={pendingNameForRole('bb_timekeeper')}
-              dutyConfirmed={game.duty_confirmed}
+              dutyConfirmed={!!game.bb_timekeeper_member}
+              confirmedByName={game.bb_timekeeper_confirmed_by_name}
+              confirmedAt={game.bb_timekeeper_confirmed_at}
+              showConfirmedBy={isAdmin}
             />
             {show24s ? (
               <AssignmentEditor
@@ -449,16 +441,19 @@ export default function ScorerRow({
                 teamMemberIds={teamMemberIds}
                 onTeamChange={(v) => handleAdminUpdate(game.id, { bb_24s_duty_team: v })}
                 onPersonChange={(v) => handleAdminUpdate(game.id, { bb_24s_official: v })}
-                disabled={!canEdit}
+                disabled={!effectiveCanEdit}
                 showContact={showContact}
                 selfAssignButton={canSelfAssign('bb_24s_official')}
                 onSelfAssign={() => setConfirmRole('bb_24s_official')}
                 guestMemberIds={guestMemberIds}
-                canEdit={canEdit}
+                canEdit={effectiveCanEdit}
                 isCurrentUserAssigned={isUserAssigned('bb_24s_official')}
                 onDelegate={onDelegate ? () => setDelegateRole('bb_24s_official') : undefined}
                 pendingDelegationName={pendingNameForRole('bb_24s_official')}
-                dutyConfirmed={game.duty_confirmed}
+                dutyConfirmed={!!game.bb_24s_official}
+                confirmedByName={game.bb_24s_confirmed_by_name}
+                confirmedAt={game.bb_24s_confirmed_at}
+                showConfirmedBy={isAdmin}
                 onHide={!game.bb_24s_official ? () => setShow24s(false) : undefined}
               />
             ) : (
@@ -475,29 +470,9 @@ export default function ScorerRow({
           </>
         )}
 
-        {/* Who confirmed the duty + when (set server-side, migration 122) — admins only */}
-        {isAdmin && game.duty_confirmed && (game.duty_confirmed_by_name || game.duty_confirmed_at) && (
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            {t('confirmedBy')}: {[game.duty_confirmed_by_name, game.duty_confirmed_at ? formatDateTimeCompact(game.duty_confirmed_at) : null].filter(Boolean).join(' · ')}
-          </p>
-        )}
-
-        {/* Admin-only unconfirm button — hidden once the game has started/passed */}
-        {game.duty_confirmed && canEdit && !isGamePast && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onUpdate(game.id, { duty_confirmed: false })}
-              className="flex min-h-[44px] items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-              title={t('unconfirm')}
-              aria-label={t('unconfirm')}
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              {t('unconfirm')}
-            </button>
-          </div>
-        )}
+        {/* Per-duty "Confirmed by … · time" is shown inside each AssignmentEditor
+            (admins only). De-confirming a duty = clearing its person dropdown
+            (disabled on past games via effectiveCanEdit). */}
       </div>
 
       {/* Self-assign confirmation popup */}
