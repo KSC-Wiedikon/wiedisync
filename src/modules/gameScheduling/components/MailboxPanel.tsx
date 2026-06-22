@@ -252,6 +252,46 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
     </Table>
   )
 
+  // Stacked thread layout for the per-opponent focus dialog: date + correspondent
+  // on the first line, then subject and preview each on their own full-width line
+  // below. The shared table (renderRows) overflows the narrower dialog because the
+  // snippet cell is nowrap — stacking keeps everything wide and wrap-friendly, no
+  // horizontal scroll.
+  const renderThread = (list: MailboxMessage[]) => (
+    <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+      {list.map((msg) => {
+        const isUnread = msg.direction === 'in' && !msg.read_at
+        const when = msg.date_sent ? formatDateTimeCompact(msg.date_sent) : '—'
+        const who = correspondent(msg)
+        return (
+          <li key={msg.id}>
+            <button
+              type="button"
+              onClick={() => void openMessage(msg.id)}
+              className="flex w-full flex-col gap-0.5 px-1 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50"
+            >
+              {/* Line 1: date + correspondent */}
+              <div className="flex items-baseline gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <span className="whitespace-nowrap">{when}</span>
+                <span className="min-w-0 flex-1 truncate">{who}</span>
+                {isUnread && <span aria-hidden className="h-2 w-2 flex-shrink-0 self-center rounded-full bg-brand-600" />}
+              </div>
+              {/* Line 2: subject — full width, wraps */}
+              <div className={`flex items-center gap-1.5 text-sm ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}`}>
+                <span className="min-w-0 break-words">{msg.subject || t('mailboxNoSubject')}</span>
+                {msg.has_attachments && <span aria-hidden title={t('mailboxAttachments')}>📎</span>}
+              </div>
+              {/* Line 3: preview — full width, clamped to 2 lines */}
+              {msg.snippet && (
+                <div className="line-clamp-2 break-words text-xs text-gray-400 dark:text-gray-500">{msg.snippet}</div>
+              )}
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+
   // When a search is active, `results` (server-side: subject + sender/recipient
   // + full body) replaces the cached list; otherwise show the cached list with
   // the show-all collapse. Search results are shown in full (no collapse).
@@ -346,7 +386,7 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
               <div className="max-h-[50vh] overflow-y-auto">
                 {focusMessages.length === 0
                   ? <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxEmpty')}</p>
-                  : renderRows(focusMessages, false)}
+                  : renderThread(focusMessages)}
               </div>
               <div>
                 <Button size="sm" onClick={() => focusOpponent && composeForOpponent(focusOpponent)}>
