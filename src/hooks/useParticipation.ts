@@ -47,8 +47,14 @@ export function useParticipation(
     }
   })
 
-  // Optimistic status: shown immediately while API call is in-flight
-  const [optimisticStatus, setOptimisticStatus] = useState<Participation['status'] | null>(null)
+  // Optimistic status: shown immediately while the API call is in-flight.
+  // Scoped to the current activity via `activityKey` so a previously-opened
+  // activity's optimistic RSVP can't bleed into a freshly-opened one — the
+  // detail modals are a single persistent instance whose activityId prop
+  // changes WITHOUT remounting, so plain state would survive the switch and
+  // show a phantom "Yes" on a game the user never touched.
+  const activityKey = `${activityType}|${activityId}|${sessionId ?? ''}`
+  const [optimistic, setOptimistic] = useState<{ key: string; status: Participation['status'] } | null>(null)
   const [saveConfirmed, setSaveConfirmed] = useState(false)
 
   const participation = participations[0] ?? null
@@ -68,7 +74,7 @@ export function useParticipation(
   ) => {
     if (!user) return
     // Optimistic update — show status immediately
-    setOptimisticStatus(status)
+    setOptimistic({ key: activityKey, status })
     setSaveConfirmed(false)
     const posFields = positions ? {
       position_1: positions.position_1 || null,
@@ -102,26 +108,29 @@ export function useParticipation(
       // Skip explicit refetch — realtime subscription handles data sync
     } catch {
       // Revert optimistic update on failure
-      setOptimisticStatus(null)
+      setOptimistic(null)
     }
-  }, [user, participation, activityType, activityId, isStaff, sessionId, create, update])
+  }, [user, participation, activityType, activityId, activityKey, isStaff, sessionId, create, update])
 
   const clearStatus = useCallback(async () => {
     if (participation) {
-      setOptimisticStatus(null)
+      setOptimistic(null)
       setSaveConfirmed(false)
       try {
         await remove(participation.id)
         // Skip explicit refetch — realtime subscription handles data sync
       } catch {
         // Revert — restore the original status
-        setOptimisticStatus(participation.status)
+        setOptimistic({ key: activityKey, status: participation.status })
       }
     }
-  }, [participation, remove])
+  }, [participation, activityKey, remove])
 
-  // Clear optimistic status once server data catches up
+  // Optimistic status only applies to the activity it was set for; once the
+  // user switches activities its key no longer matches and we fall back to the
+  // server value (null for an untouched activity).
   const serverStatus = participation?.status ?? null
+  const optimisticStatus = optimistic && optimistic.key === activityKey ? optimistic.status : null
   const displayStatus = optimisticStatus ?? serverStatus
 
   return {
