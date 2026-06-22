@@ -24,6 +24,12 @@ export default {
   filterAway: 'Auswärts',
   showAbsences: 'Absenzen anzeigen',
 
+  // Absence overlay badge (calendar day cells)
+  absenceBadge: {
+    title: '{{count}} abwesend',
+    aria: 'Absenzen: {{count}}',
+  },
+
   // Day overflow popover (month view)
   overflow: {
     more: '+{{count}} weitere',
@@ -68,6 +74,7 @@ export default {
   manualGame: {
     title: 'Manuelles Spiel erfassen',
     subtitle: 'Überspringt den Einlade-Flow — Admin / Spielplaner setzt alle Details selbst.',
+    sport: 'Sportart',
     team: 'Team',
     teamPlaceholder: 'Team auswählen',
     homeAway: 'Heim / Auswärts',
@@ -79,7 +86,7 @@ export default {
     time: 'Zeit',
     hall: 'Halle',
     hallPlaceholder: 'Halle auswählen',
-    hallComboAB: 'KWI A + B (Basketball)',
+    hallComboAB: 'KWI A + B',
     saturdayHint: 'Vorbelegt: {{hall}} — Samstag empfohlen vor KWI A/B',
     awayVenue: 'Auswärts-Spielort',
     venueName: 'Name der Halle',

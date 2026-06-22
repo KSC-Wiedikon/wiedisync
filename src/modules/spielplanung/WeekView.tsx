@@ -19,6 +19,8 @@ import { formatTime } from '../../utils/dateHelpers'
 import type { CalendarEntry } from '../../types/calendar'
 import type { Game } from '../../types'
 import { opponentName } from './gameChipUtils'
+import AbsenceBadge from './AbsenceBadge'
+import type { AbsentMember } from './utils/absencesByDate'
 import {
   getWeekDays,
   getBlockPixelPosition,
@@ -43,6 +45,8 @@ interface WeekViewProps {
   /** When provided, manual games owned by the caller become draggable. */
   canEdit?: (game: Game) => boolean
   onMove?: (move: WeekViewMove) => void
+  /** date key (yyyy-MM-dd) -> members unavailable for games that day. */
+  absencesByDate?: Map<string, AbsentMember[]>
 }
 
 export default function WeekView({
@@ -52,6 +56,7 @@ export default function WeekView({
   onGameClick,
   canEdit,
   onMove,
+  absencesByDate,
 }: WeekViewProps) {
   const { t } = useTranslation('spielplanung')
   const days = useMemo(() => getWeekDays(weekStart), [weekStart])
@@ -149,6 +154,7 @@ export default function WeekView({
             <div className="border-b border-r border-gray-200 bg-muted/30 dark:border-gray-700" />
             {days.map((d) => {
               const isToday = isSameDay(d, today)
+              const absent = absencesByDate?.get(toDateKey(d)) ?? []
               return (
                 <div
                   key={d.toISOString()}
@@ -163,6 +169,11 @@ export default function WeekView({
                   <div className={cn('text-sm font-semibold', isToday && 'text-accent-foreground')}>
                     {formatDate(d, 'd')}
                   </div>
+                  {absent.length > 0 && (
+                    <div className="mt-0.5 flex justify-center">
+                      <AbsenceBadge absent={absent} />
+                    </div>
+                  )}
                 </div>
               )
             })}

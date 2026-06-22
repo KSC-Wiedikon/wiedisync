@@ -24,6 +24,12 @@ export default {
   filterAway: 'Exterieur',
   showAbsences: 'Afficher les absences',
 
+  // Absence overlay badge (calendar day cells)
+  absenceBadge: {
+    title: '{{count}} absent(s)',
+    aria: 'Absences : {{count}}',
+  },
+
   // Day overflow popover (month view)
   overflow: {
     more: '+{{count}} autres',
@@ -33,6 +39,7 @@ export default {
   manualGame: {
     title: 'Ajouter un match manuel',
     subtitle: 'Contourne le flux d\'invitation — l\'admin / Spielplaner saisit tout.',
+    sport: 'Sport',
     team: 'Equipe',
     teamPlaceholder: 'Choisir une equipe',
     homeAway: 'Domicile / Exterieur',

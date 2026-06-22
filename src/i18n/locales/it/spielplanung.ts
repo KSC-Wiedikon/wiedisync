@@ -24,6 +24,12 @@ export default {
   filterAway: 'Trasferta',
   showAbsences: 'Mostra assenze',
 
+  // Absence overlay badge (calendar day cells)
+  absenceBadge: {
+    title: '{{count}} assenti',
+    aria: 'Assenze: {{count}}',
+  },
+
   // Day overflow popover (month view)
   overflow: {
     more: '+{{count}} altre',
@@ -33,6 +39,7 @@ export default {
   manualGame: {
     title: 'Aggiungi partita manuale',
     subtitle: 'Salta il flusso di invito — admin / Spielplaner imposta tutto.',
+    sport: 'Sport',
     team: 'Squadra',
     teamPlaceholder: 'Seleziona squadra',
     homeAway: 'Casa / Trasferta',

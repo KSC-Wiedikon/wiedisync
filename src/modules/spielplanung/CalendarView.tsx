@@ -2,8 +2,10 @@ import { useMemo } from 'react'
 import CalendarGrid from '../../components/CalendarGrid'
 import GameChip from './GameChip'
 import DayOverflowPopover from './DayOverflowPopover'
+import AbsenceBadge from './AbsenceBadge'
 import type { CalendarEntry } from '../../types/calendar'
 import type { Game } from '../../types'
+import type { AbsentMember } from './utils/absencesByDate'
 import { toDateKey, getSeasonMonths, getSeasonYear, formatDate } from '../../utils/dateUtils'
 
 interface CalendarViewProps {
@@ -13,9 +15,11 @@ interface CalendarViewProps {
   onMonthChange: (month: Date) => void
   onGameClick?: (game: Game) => void
   onEmptyDayClick?: (date: Date) => void
+  /** date key (yyyy-MM-dd) -> members unavailable for games that day. */
+  absencesByDate?: Map<string, AbsentMember[]>
 }
 
-export default function CalendarView({ entries, closedDates, month, onMonthChange, onGameClick, onEmptyDayClick }: CalendarViewProps) {
+export default function CalendarView({ entries, closedDates, month, onMonthChange, onGameClick, onEmptyDayClick, absencesByDate }: CalendarViewProps) {
   // seasonMonths drives the season-month pill strip below. We intentionally
   // stopped passing min/maxMonth to CalendarGrid so the prev/next arrows can
   // cross season boundaries freely.
@@ -72,12 +76,18 @@ export default function CalendarView({ entries, closedDates, month, onMonthChang
         closedDates={closedDates}
         highlightedDates={highlightedDates}
         onEmptyDayClick={onEmptyDayClick}
-        renderDayContent={(_date, items) => {
+        renderDayContent={(date, items) => {
           const visible = items.slice(0, 3)
           const hidden = items.slice(3)
+          const absent = absencesByDate?.get(toDateKey(date)) ?? []
 
           return (
             <>
+              {absent.length > 0 && (
+                <div className="flex justify-end">
+                  <AbsenceBadge absent={absent} />
+                </div>
+              )}
               {visible.map((entry) => (
                 <GameChip
                   key={entry.id}
