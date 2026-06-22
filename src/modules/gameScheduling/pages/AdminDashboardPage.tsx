@@ -1085,6 +1085,9 @@ function TeamBookingsContent({
   // this team's accordion expands. Matched to opponent rows by normalised team
   // name. Best-effort: a hiccup just hides the "N games" buttons.
   const [gamesByName, setGamesByName] = useState<Map<string, OpponentGame[]>>(new Map())
+  // True only after the fixtures fetch succeeded — guards the orphan-fixture flag
+  // below from firing on every opponent while the map is still empty (mid-load).
+  const [fixturesLoaded, setFixturesLoaded] = useState(false)
   const [gamesFor, setGamesFor] = useState<{ label: string; games: OpponentGame[] } | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -1098,6 +1101,7 @@ function TeamBookingsContent({
           if (c.club_name) map.set(normName(c.club_name), c.games || [])
         }
         setGamesByName(map)
+        setFixturesLoaded(true)
       } catch { /* games disclosure just won't show */ }
     })()
     return () => { cancelled = true }
@@ -1151,12 +1155,60 @@ function TeamBookingsContent({
   const healthByBooking = new Map<string, ProposalHealthEntry>()
   for (const h of proposalHealth) healthByBooking.set(String(h.booking_id), h)
 
+  // Stale-duplicate guard ("games with actual fixtures"): an opponent with
+  // confirmed games but NO matching SVRZ fixture is almost always a leftover from
+  // an SVRZ rename — e.g. a provisional "VBC Limmattal 1" that became "VBC
+  // Limmattal DU23-2" once fixtures were published. Such games can't be pushed to
+  // VM (no fixture) and never reach the calendar, yet the card looks "done"
+  // (green). Flag them so the spielplaner re-homes the games onto the real record
+  // and deletes the duplicate. Only after fixtures actually loaded.
+  const oppFixtures = (o: GameSchedulingOpponent) =>
+    gamesByName.get(normName(o.team_name)) || gamesByName.get(normName(o.club_name)) || []
+  const clubKey = (o: GameSchedulingOpponent) =>
+    normName(o.team_name || o.club_name).split(/\s+/).slice(0, 2).join(' ')
+  const orphanAlerts = fixturesLoaded
+    ? teamOpponents.flatMap((o) => {
+        if (oppFixtures(o).length > 0) return []
+        const hasConfirmed = allBookings.some((b) => oppIdOf(b) === String(o.id) && b.status === 'confirmed')
+        if (!hasConfirmed) return []
+        // Likely correct record: a sibling with the same club name that DOES carry fixtures.
+        const sibling = teamOpponents.find(
+          (s) => String(s.id) !== String(o.id) && oppFixtures(s).length > 0 && clubKey(s) === clubKey(o),
+        )
+        return [{ opp: o, sibling }]
+      })
+    : []
+
   if (teamOpponents.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t('noBookingsYet')}</p>
   }
 
   return (
     <>
+    {/* Stale-duplicate guard: confirmed games on an opponent record that matches
+        no SVRZ fixture (leftover after an SVRZ rename) — flagged so the games get
+        re-homed onto the real fixtured record. */}
+    {orphanAlerts.length > 0 && (
+      <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/30">
+        <p className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+          <span aria-hidden>⚠</span>
+          {t('orphanFixtureAlert', { count: orphanAlerts.length })}
+        </p>
+        <p className="mt-1 text-xs text-amber-700/90 dark:text-amber-300/90">{t('orphanFixtureHint')}</p>
+        <ul className="mt-2 space-y-1.5">
+          {orphanAlerts.map(({ opp, sibling }) => (
+            <li key={opp.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-700 dark:text-amber-300">
+              <span className="font-medium">{opp.team_name || opp.club_name}</span>
+              <span className="text-amber-600/80 dark:text-amber-400/80">
+                {sibling
+                  ? t('orphanFixtureSuggest', { sibling: sibling.team_name || sibling.club_name })
+                  : t('orphanFixtureNoSibling')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       {teamOpponents.map(opp => {
         const oppBookings = allBookings.filter(b => {
