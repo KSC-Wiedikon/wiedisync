@@ -9,6 +9,8 @@ import { toDateKey, getSeasonYear, formatDate } from '../../../utils/dateUtils'
 import { relId } from '../../../utils/relations'
 import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team, Absence, MemberTeam, SchedulingBlock } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
+import CrossTeamBadge from '../../spielplanung/CrossTeamBadge'
+import { useCrossTeamConflicts } from '../../spielplanung/hooks/useCrossTeamConflicts'
 
 // Season-wide overview of the Terminplanung for all teams: confirmed + proposed
 // home and away games, blocked slots, and a count of remaining open home slots,
@@ -315,6 +317,13 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     if (teams.length === 1) return String(teams[0].id)
     return null
   }, [showAbsences, teams])
+
+  // Roster-sharing teams that already play a given day block a home slot for this
+  // team — surfaced per-day as a sky badge, exactly like absences. Same gate as
+  // absences (single team-scoped calendar); the hook no-ops on an empty id list,
+  // so the season overview never fetches.
+  const crossTeamIds = useMemo(() => (absenceTeamId ? [absenceTeamId] : []), [absenceTeamId])
+  const { byDate: crossTeamByDate } = useCrossTeamConflicts(crossTeamIds)
 
   // Per-team blockers (team blocks "no games", team events, absences, wishes) are
   // ONLY meaningful on a single team's calendar — showing them on the all-teams
@@ -725,6 +734,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
           const hidden = items.length - visible.length
           const open = openByDate.get(key) || 0
           const absentNames = absencesByDate.get(key) || []
+          const crossTeam = crossTeamByDate.get(key) || []
           return (
             <div className="flex flex-col gap-0.5">
               {visible.map((e) => {
@@ -757,6 +767,11 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                 <span className="text-[10px] text-rose-500 dark:text-rose-400" title={t('absentPlayers', { names: absentNames.join(', ') })}>
                   {t('absentCount', { count: absentNames.length })}
                 </span>
+              )}
+              {crossTeam.length > 0 && (
+                <div className="flex">
+                  <CrossTeamBadge conflicts={crossTeam} />
+                </div>
               )}
             </div>
           )
