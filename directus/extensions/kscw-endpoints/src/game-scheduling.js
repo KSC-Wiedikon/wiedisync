@@ -5142,6 +5142,67 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // GET /admin/terminplanung/home-vm-check?season= — the HOME counterpart of
+  // away-vm-check. WE own the home hall, so WE push the date into VolleyManager;
+  // this surfaces confirmed home games that are NOT in VM (never pushed / push
+  // failed) or whose VM date/time DRIFTED from our slot after we pushed it.
+  // Keyed by booking id:
+  //   not_pushed (alert) — confirmed but not successfully pushed (failed / no_fixture / needs_pick / queued / never).
+  //   mismatch   (alert) — pushed, but VM was re-scraped AFTER our push and now shows a different date/time.
+  //   match      (ok)    — pushed and VM equals our slot (or VM not re-scraped since the push → trust our push).
+  //   no_vm      (ok)    — pushed but no linked VM fixture / no VM datetime to compare.
+  // The weekday→20:00 rule (weekdayHomeTime) is applied to the slot so a
+  // correctly-pushed weekday game (slot 19:30 → game 20:00) is NOT mis-flagged.
+  router.get('/admin/terminplanung/home-vm-check', async (req, res) => {
+    try {
+      const { season } = req.query
+      if (!season) return res.status(400).json({ error: 'season required' })
+
+      const rows = await database('game_scheduling_bookings as b')
+        .join('game_scheduling_opponents as o', 'o.id', 'b.opponent')
+        .join('game_scheduling_slots as s', 's.id', 'b.slot')
+        .leftJoin('svrz_games as g', 'g.svrz_persistence_id', 'b.svrz_game_id')
+        .where('o.season', season).where('b.type', 'home_slot_pick').where('b.status', 'confirmed')
+        .select('b.id', 'o.kscw_team', 'b.vm_push_status as vps', 'b.vm_pushed_at as pushed_at',
+          database.raw('s.date::text as slot_date'),
+          database.raw('s.start_time::text as slot_st'),
+          database.raw("to_char(g.starting_date_time AT TIME ZONE 'Europe/Zurich', 'DD.MM.YYYY HH24:MI') as vm_zurich"),
+          'g.last_synced_at as vm_synced_at')
+
+      const manageCache = new Map()
+      const canManage = async (teamId) => {
+        const k = String(teamId)
+        if (!manageCache.has(k)) manageCache.set(k, await spielplanerCanManageTeam(req, teamId))
+        return manageCache.get(k)
+      }
+
+      // Our scheduled slot → lexical dd.mm.yyyy HH:MM with the weekday-20:00 rule.
+      const fmtAgreed = (dateYmd, st) => {
+        const m = String(dateYmd || '').match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (!m) return ''
+        const time = weekdayHomeTime(dateYmd, st)
+        return `${m[3]}.${m[2]}.${m[1]}${time ? ` ${time}` : ''}`
+      }
+      const PUSHED = new Set(['pushed', 'pushed_no_hall'])
+      const out = {}
+      for (const r of rows) {
+        if (!(await canManage(r.kscw_team))) continue
+        const agreed = fmtAgreed(r.slot_date, r.slot_st)
+        if (!PUSHED.has(r.vps)) { out[r.id] = { status: 'not_pushed', agreed, vm: r.vm_zurich || null, push: r.vps || null }; continue }
+        if (!r.vm_zurich) { out[r.id] = { status: 'no_vm', agreed, vm: null, push: r.vps }; continue }
+        if (r.vm_zurich === agreed) { out[r.id] = { status: 'match', agreed, vm: r.vm_zurich, push: r.vps }; continue }
+        // VM differs from our slot — only a genuine drift if VM was re-scraped
+        // AFTER we pushed (else svrz_games is just lagging our own push).
+        const drifted = r.vm_synced_at && r.pushed_at && new Date(r.vm_synced_at) > new Date(r.pushed_at)
+        out[r.id] = { status: drifted ? 'mismatch' : 'match', agreed, vm: r.vm_zurich, push: r.vps }
+      }
+      res.json({ checks: out })
+    } catch (err) {
+      log.error({ msg: `home-vm-check: ${err.message}`, endpoint: 'admin/terminplanung/home-vm-check', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // POST /admin/terminplanung/sync-away-from-vm — adopt VolleyManager's agreed
   // date/time (and gym, if available) for ONE away game. The opponent owns the
   // away hall, so THEY enter the date in VM; this is the admin's one-click "take
