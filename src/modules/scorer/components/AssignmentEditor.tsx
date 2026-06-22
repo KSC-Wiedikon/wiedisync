@@ -4,6 +4,7 @@ import type { Member, Team, LicenceType } from '../../../types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Phone, Mail, Hand, ArrowRightLeft, Clock, Check } from 'lucide-react'
 import TeamSelect from '../../../components/TeamSelect'
+import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 
 interface AssignmentEditorProps {
   label: string
@@ -31,6 +32,11 @@ interface AssignmentEditorProps {
   pendingDelegationName?: string
   /** Whether the game's duty is confirmed */
   dutyConfirmed?: boolean
+  /** Who confirmed this duty + when (migration 123) — shown only when showConfirmedBy. */
+  confirmedByName?: string | null
+  confirmedAt?: string | null
+  /** Admins only: reveal the "Confirmed by …" line. */
+  showConfirmedBy?: boolean
   /** Callback to hide/collapse this assignment row */
   onHide?: () => void
 }
@@ -55,6 +61,9 @@ export default function AssignmentEditor({
   onDelegate,
   pendingDelegationName,
   dutyConfirmed,
+  confirmedByName,
+  confirmedAt,
+  showConfirmedBy,
   onHide,
 }: AssignmentEditorProps) {
   const { t, i18n } = useTranslation('scorer')
@@ -224,6 +233,13 @@ export default function AssignmentEditor({
             </a>
           )}
         </div>
+      )}
+
+      {/* Who took this duty + when — admins only (migration 123) */}
+      {showConfirmedBy && assignedPerson && (confirmedByName || confirmedAt) && (
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          {t('confirmedBy')}: {[confirmedByName, confirmedAt ? formatDateTimeCompact(confirmedAt) : null].filter(Boolean).join(' · ')}
+        </p>
       )}
     </div>
   )

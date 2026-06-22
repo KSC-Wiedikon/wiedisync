@@ -17,7 +17,7 @@ import TeamSelect from '../../components/TeamSelect'
 import TabBar from '../../components/TabBar'
 import SportToggle from '../../components/SportToggle'
 import type { SportView } from '../../hooks/useSportPreference'
-import ScorerRow, { hasAnyVbAssignment, hasAnyBbAssignment } from './components/ScorerRow'
+import ScorerRow, { hasAnyVbAssignment, hasAnyBbAssignment, isFullyAssigned } from './components/ScorerRow'
 import TeamOverview from './components/TeamOverview'
 import DelegationRequestBanner from './components/DelegationRequestBanner'
 import { useScorerDelegations } from './hooks/useScorerDelegations'
@@ -318,10 +318,13 @@ export default function ScorerPage() {
     }).sort((a, b) => {
       // Primary: sort by date ascending
       if (a.date !== b.date) return a.date < b.date ? -1 : 1
-      // Secondary: unconfirmed games first
-      if (a.duty_confirmed !== b.duty_confirmed) return a.duty_confirmed ? 1 : -1
-      // Among unconfirmed: unassigned before partially assigned
-      if (!a.duty_confirmed && !b.duty_confirmed) {
+      // Secondary: not-fully-confirmed games first (a duty is confirmed once it
+      // has a person; "fully assigned" = every applicable duty filled).
+      const aFull = isFullyAssigned(a, sportTab)
+      const bFull = isFullyAssigned(b, sportTab)
+      if (aFull !== bFull) return aFull ? 1 : -1
+      // Among incomplete: fully-open before partially assigned
+      if (!aFull && !bFull) {
         const aAssigned = sportTab === 'volleyball' ? hasAnyVbAssignment(a) : hasAnyBbAssignment(a)
         const bAssigned = sportTab === 'volleyball' ? hasAnyVbAssignment(b) : hasAnyBbAssignment(b)
         if (aAssigned !== bAssigned) return aAssigned ? 1 : -1
