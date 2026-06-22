@@ -251,6 +251,21 @@ export default function AdminDashboardPage() {
     return () => { cancelled = true }
   }, [season?.id, bookings])
 
+  // VolleyManager PUSH cross-check for confirmed HOME games — those not (yet) in
+  // VM (never pushed / push failed) or whose VM date drifted from our slot after
+  // we pushed. Keyed by booking id. Re-fetched when bookings change (a re-push
+  // updates vm_push_status, which flips a row out of the alert).
+  type HomeVmCheck = { status: 'not_pushed' | 'mismatch' | 'match' | 'no_vm'; agreed: string; vm: string | null; push: string | null }
+  const [homeVmChecks, setHomeVmChecks] = useState<Record<string, HomeVmCheck>>({})
+  useEffect(() => {
+    if (!season?.id) { setHomeVmChecks({}); return }
+    let cancelled = false
+    kscwApi<{ checks: Record<string, HomeVmCheck> }>(`/admin/terminplanung/home-vm-check?season=${season.id}`)
+      .then((r) => { if (!cancelled) setHomeVmChecks(r.checks || {}) })
+      .catch(() => { if (!cancelled) setHomeVmChecks({}) })
+    return () => { cancelled = true }
+  }, [season?.id, bookings])
+
   const [mailboxFocus, setMailboxFocus] = useState<GameSchedulingOpponent | null>(null)
 
   // Wrap confirm so a rejected booking (Saturday cap, cross-team, gap, Döltschi,
@@ -319,6 +334,23 @@ export default function AdminDashboardPage() {
       toast.error(err instanceof Error ? err.message : String(err))
     } finally {
       setVmSyncing(null)
+    }
+  }
+
+  // Re-push ONE confirmed home game to VolleyManager — the home alert's action,
+  // for games we never pushed / whose push failed, or that drifted from VM. The
+  // push is fire-and-forget on the backend; vmPush() refetches now + after ~6s so
+  // the alert clears once the worker writes back vm_push_status.
+  const [vmRepushing, setVmRepushing] = useState<string | null>(null)
+  const handleRepushVm = async (bid: string) => {
+    setVmRepushing(bid)
+    try {
+      await vmPush(bid)
+      toast.success(t('vmRepushQueued'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setVmRepushing(null)
     }
   }
 
@@ -608,6 +640,31 @@ export default function AdminDashboardPage() {
     })
   })()
 
+  // Confirmed home games not (yet) in VolleyManager — never pushed / push failed
+  // (not_pushed) — or whose VM date drifted from our slot after we pushed
+  // (mismatch). Each gets a one-click "Re-push to VM". The home-vm-check endpoint
+  // already scopes this to the teams the user manages.
+  const homeVmAlerts = (() => {
+    const entries = Object.entries(homeVmChecks).filter(([, c]) => c.status === 'not_pushed' || c.status === 'mismatch')
+    if (!entries.length) return []
+    const oppById = new Map(opponents.map((o) => [String(o.id), o]))
+    const teamNameById = new Map(volleyballTeams.map((tm) => [String(tm.id), tm.name]))
+    const bookingById = new Map(bookings.map((b) => [String(b.id), b]))
+    return entries.map(([bid, c]) => {
+      const b = bookingById.get(bid)
+      const oid = b ? String(typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent) : ''
+      const opp = oid ? oppById.get(oid) : null
+      return {
+        bid,
+        opp: opp ? (opp.team_name || opp.club_name) : `#${bid}`,
+        team: opp ? (teamNameById.get(String(opp.kscw_team)) || '') : '',
+        status: c.status,
+        agreed: c.agreed,
+        vm: c.vm,
+      }
+    })
+  })()
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -683,6 +740,38 @@ export default function AdminDashboardPage() {
                   className="rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
                 >
                   {vmSyncing === `u:${u.key}` ? <InlineSpinner /> : t('syncWithVm')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Home games missing from VolleyManager (never pushed / push failed) or
+          whose VM date drifted from our slot after we pushed — each with a
+          one-click "Re-push to VM". WE own the home hall, so WE push the date. */}
+      {homeVmAlerts.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/30">
+          <p className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+            <span aria-hidden>⚠</span>
+            {t('homeVmAlert', { count: homeVmAlerts.length })}
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {homeVmAlerts.map((m) => (
+              <li key={m.bid} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-700 dark:text-amber-300">
+                <span className="font-medium">{[m.team, m.opp].filter(Boolean).join(' · ')}</span>
+                <span className="text-amber-600/80 dark:text-amber-400/80">
+                  {m.status === 'mismatch'
+                    ? t('homeVmMismatchRow', { agreed: m.agreed || '—', vm: m.vm || '—' })
+                    : t('homeVmNotPushedRow', { agreed: m.agreed || '—' })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleRepushVm(m.bid)}
+                  disabled={vmRepushing === m.bid}
+                  className="rounded-md border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-300 dark:hover:bg-gray-700"
+                >
+                  {vmRepushing === m.bid ? <InlineSpinner /> : t('repushVm')}
                 </button>
               </li>
             ))}
