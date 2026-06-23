@@ -11,12 +11,15 @@ import RichTextEditor from '../../../components/RichTextEditor'
 import InlineSpinner from '../../../components/InlineSpinner'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import {
-  bestOpponentForMessage,
+  chipOpponentForMessage,
+  classifyMessages,
   downloadMailboxAttachment,
-  messagesForOpponentThread,
+  messagesForOwner,
+  threadIdsForMessage,
   type MailboxAttachment,
   type MailboxMessage,
   type MailboxMessageFull,
+  type MessageClassification,
   type OpponentContacts,
   type UseMailboxReturn,
 } from '../hooks/useMailbox'
@@ -99,10 +102,15 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
   const [detailLoading, setDetailLoading] = useState(false)
   const [compose, setCompose] = useState<ComposeState | null>(null)
 
-  const opponentForMessage = (msg: MailboxMessage): GameSchedulingOpponent | null =>
-    bestOpponentForMessage(msg, opponentContacts)
+  // Classify the whole list once: contact match + KSCW team code / opponent
+  // name, with thread inheritance for forwarded/stripped replies. Drives both
+  // the row chip and the per-opponent thread so they always agree.
+  const classification = useMemo(() => classifyMessages(messages, opponentContacts), [messages, opponentContacts])
 
-  const focusMessages = focusOpponent ? messagesForOpponentThread(messages, focusOpponent, opponentContacts) : []
+  const opponentForMessage = (msg: MailboxMessage): GameSchedulingOpponent | null =>
+    chipOpponentForMessage(classification.get(msg.id), opponentContacts)
+
+  const focusMessages = focusOpponent ? messagesForOwner(messages, focusOpponent.id, classification) : []
 
   const openMessage = async (id: number) => {
     setDetailLoading(true)
@@ -426,6 +434,22 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
                 </div>
               )}
               <MailboxAttachments message={detail} />
+              <MailboxAssign
+                message={detail}
+                opponentContacts={opponentContacts}
+                classification={classification}
+                onAssign={async (oppId) => {
+                  const ids = threadIdsForMessage(messages, detail.id)
+                  try {
+                    await mailbox.assignThread(ids, oppId)
+                    setDetail((d) => (d && d.id === detail.id ? { ...d, assigned_opponent: oppId } : d))
+                    toast.success(t(oppId == null ? 'mailboxAssignCleared' : 'mailboxAssignDone'))
+                  } catch (err) {
+                    const body = (err as { body?: { error?: string } })?.body
+                    toast.error(body?.error || t('mailboxAssignFailed'))
+                  }
+                }}
+              />
               <div>
                 <Button size="sm" onClick={() => replyTo(detail)}>{t('mailboxReply')}</Button>
               </div>
@@ -520,6 +544,73 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+/**
+ * Manual classification override. Auto-classification handles the vast majority,
+ * but for genuinely ambiguous chains (shared club contact, forwarded mail with
+ * no KSCW marker) a spielplaner can pin the whole chain to the right opponent.
+ * Pinning applies to the entire thread; "Auto-detected" clears it.
+ */
+function MailboxAssign({
+  message,
+  opponentContacts,
+  classification,
+  onAssign,
+}: {
+  message: MailboxMessageFull
+  opponentContacts: OpponentContacts[]
+  classification: Map<number, MessageClassification>
+  onAssign: (opponentId: number | null) => Promise<void>
+}) {
+  const { t } = useTranslation('gameScheduling')
+  const [saving, setSaving] = useState(false)
+  const isPinned = message.assigned_opponent != null
+  const ownerId = classification.get(message.id)?.ownerId ?? null
+
+  const labelFor = (oc: OpponentContacts) => oc.opp.team_name || oc.opp.club_name || `#${oc.opp.id}`
+  // Group the picker by KSCW team (the alias), so "DU23-1 · VBC Limmattal …"
+  // sits under its team — the disambiguation that matters when codes repeat.
+  const groups = useMemo(() => {
+    const m = new Map<string, OpponentContacts[]>()
+    for (const oc of opponentContacts) {
+      const key = oc.aliases?.[0] || '—'
+      if (!m.has(key)) m.set(key, [])
+      m.get(key)!.push(oc)
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  }, [opponentContacts])
+
+  const ownerLabel = useMemo(() => {
+    if (!ownerId) return null
+    const oc = opponentContacts.find((o) => String(o.opp.id) === ownerId)
+    if (!oc) return null
+    return `${oc.aliases?.[0] ? `${oc.aliases[0]} · ` : ''}${labelFor(oc)}`
+  }, [ownerId, opponentContacts])
+
+  if (opponentContacts.length === 0) return null
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-900/50">
+      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxAssignLabel')}</span>
+      <select
+        value={String(message.assigned_opponent ?? '')}
+        disabled={saving}
+        onChange={(e) => { setSaving(true); void onAssign(e.target.value ? Number(e.target.value) : null).finally(() => setSaving(false)) }}
+        className="min-h-9 min-w-[12rem] flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+      >
+        <option value="">{`${t('mailboxAssignAuto')}${ownerLabel ? ` · ${ownerLabel}` : ''}`}</option>
+        {groups.map(([team, list]) => (
+          <optgroup key={team} label={team}>
+            {list.map((oc) => (
+              <option key={String(oc.opp.id)} value={String(oc.opp.id)}>{labelFor(oc)}</option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      {isPinned && <Badge variant="neutral" size="sm">{t('mailboxAssignPinned')}</Badge>}
+    </div>
   )
 }
 
