@@ -23,6 +23,8 @@
  *      by email (recipient E-Mail → members.email), fiscal_year by date.
  *   5b. Re-apply finance_invoice_member_overrides (migration 129) so treasurer
  *      member-links survive the delete+reinsert.
+ *   5c. Auto-confirm native invoices (Scope C) whose ClubDesk counterpart is
+ *      paid, matched strictly by the native invoice number.
  *
  * Pure mirror: native rows (source='native', Scope C) are never touched. Re-runs
  * are idempotent (delete-clubdesk-then-insert for the two ledgers; upsert for the
@@ -289,6 +291,27 @@ DO $$ BEGIN
         AND fi.clubdesk_id = o.match_clubdesk_id;
   END IF;
 END $$;
+
+-- 5c. Phase 2: auto-confirm native invoices whose ClubDesk counterpart is paid.
+-- ClubDesk is the source of truth for payment. A native invoice carries a number
+-- (N-YYYY-NNNN) the treasurer reuses as the ClubDesk invoice Nummer or
+-- Referenznummer; when that ClubDesk row imports as settled (Status 'Bezahlt' or
+-- open_amount 0), flip the native invoice pending_confirmation/open -> paid
+-- (confirmed_via='sync'). Match STRICTLY on number — never amount alone, which
+-- would risk confirming the wrong invoice. Unmatched native invoices stay
+-- pending until the treasurer confirms them manually. Idempotent: paid rows are
+-- excluded by the status filter.
+UPDATE finance_invoices n SET
+  status = 'paid', amount_paid = n.amount, open_amount = 0,
+  closed_on = COALESCE(cd.closed_on, CURRENT_DATE),
+  confirmed_at = now(), confirmed_via = 'sync', date_updated = now()
+FROM finance_invoices cd
+WHERE n.source = 'native'
+  AND n.status IN ('pending_confirmation', 'open')
+  AND nullif(btrim(n.number), '') IS NOT NULL
+  AND cd.source = 'clubdesk'
+  AND (n.number = cd.number OR n.number = cd.reference)
+  AND (lower(btrim(coalesce(cd.status, ''))) = 'bezahlt' OR coalesce(cd.open_amount, cd.amount, 0) <= 0);
 
 COMMIT;
 
