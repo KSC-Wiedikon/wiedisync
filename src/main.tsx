@@ -4,6 +4,19 @@ import { initSentry } from './lib/sentry'
 import './i18n'
 import './index.css'
 
+// A deploy rotates the hashed lazy-chunk filenames; a tab still running an older
+// bundle then fails to import a now-missing chunk (CF Pages serves index.html for
+// the gone path → "Expected a JS module … got text/html"). This bit notably
+// every Excel/PDF export, which lazy-loads exceljs/jspdf. Vite fires
+// `vite:preloadError` for these — reload once to pick up the current bundle. The
+// 10s window lets a later deploy recover too while preventing a reload loop.
+window.addEventListener('vite:preloadError', () => {
+  const last = Number(sessionStorage.getItem('chunkReloadAt') || 0)
+  if (Date.now() - last < 10_000) return
+  sessionStorage.setItem('chunkReloadAt', String(Date.now()))
+  window.location.reload()
+})
+
 initSentry()
 
 const root = createRoot(document.getElementById('root')!)
