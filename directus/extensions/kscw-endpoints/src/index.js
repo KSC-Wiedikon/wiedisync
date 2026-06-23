@@ -46,6 +46,7 @@ import { registerWadmin } from './wadmin.js'
 import { registerSqlWorkspace } from './sql-workspace.js'
 import { registerSqlAi } from './sql-ai.js'
 import { registerExpenseUpload } from './expense-upload.js'
+import { registerFinance } from './finance.js'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -2140,6 +2141,7 @@ export default {
     registerSqlWorkspace(router, ctx)
     registerSqlAi(router, ctx)
     registerExpenseUpload(router, ctx)
+    registerFinance(router, ctx)
 
     log.info('KSCW endpoints loaded: ~63 routes')
   },

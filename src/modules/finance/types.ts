@@ -23,9 +23,24 @@ export interface FinanceInvoice {
   fee_category: string | null
   closed_on: string | null
   recipient_name?: string | null
+  recipient_email?: string | null
   member?: string | null
   fiscal_year?: string | null
+  // Native-invoice fields (migrations 128/129). source distinguishes a native
+  // (created-in-wiedisync) invoice from a ClubDesk mirror row.
+  source?: 'clubdesk' | 'native' | string | null
+  team?: string | null
+  team_name?: string | null
+  reported_paid_at?: string | null
+  reported_paid_method?: string | null
+  reported_paid_by?: string | null
+  confirmed_at?: string | null
+  confirmed_via?: 'sync' | 'manual' | string | null
+  cancelled_at?: string | null
 }
+
+/** Native-invoice lifecycle (rides the shared `status` column when source='native'). */
+export type NativeStatus = 'open' | 'pending_confirmation' | 'paid' | 'cancelled'
 
 export interface FinanceTransaction {
   id: string

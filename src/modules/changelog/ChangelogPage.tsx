@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.5.0'
+const APP_VERSION = '1.6.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,22 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.6.0',
+    date: '23.06.2026',
+    sections: [
+      {
+        title: 'Finances: invoices you can pay in the app',
+        items: [
+          'The Fines page now lives in one Finances menu, alongside My finances, Upload invoice and Club finances (for the board).',
+          'The board can create an invoice for a member or a whole team — for example a Swiss Volley fine — right in Club finances.',
+          'You pay invoices in the app: open one under My finances, scan the QR-bill with TWINT or your banking app, then tap "I\'ve paid". It shows as pending until the treasurer confirms the money arrived.',
+          'Team invoices appear for the team\'s coach, captain and responsible.',
+          'The board can link ClubDesk invoices that weren\'t matched to the right member (e.g. billed to a parent\'s email), and the link sticks across syncs.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.5.0',
     date: '22.06.2026',

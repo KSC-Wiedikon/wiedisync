@@ -1351,9 +1351,14 @@ async function main() {
     'scheduling_blocks',
     // Finance (migration 114) — board gets the full finance dashboard:
     // Kontenplan, ledger, invoices, budget, payments + import history. Read-only
-    // (Scope A mirror); the ClubDesk import writes via the system connection.
+    // here; native-invoice writes (create/confirm/cancel) + member-link overrides
+    // (migrations 128/129) go through the /kscw/finance/* endpoints (system
+    // connection, Vorstand-gated in code), NOT the items API — so the board can
+    // never edit ClubDesk-mirror rows directly. The override table is read-only
+    // for admin visibility/audit.
     'finance_accounts', 'finance_fiscal_years', 'finance_budget_lines',
     'finance_transactions', 'finance_invoices', 'finance_payments', 'finance_imports',
+    'finance_invoice_member_overrides',
   ]
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)

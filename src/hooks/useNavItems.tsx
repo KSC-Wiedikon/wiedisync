@@ -62,17 +62,17 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
     { to: '/teams', label: t(showTeamsPlural ? 'teams' : 'team'), icon: <Users className={iconClass} /> },
     { to: '/absences', label: t('absences'), icon: <UserX className={iconClass} /> },
     { to: '/scorer', label: t('scorer'), icon: <PenSquare className={iconClass} /> },
-    { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
     ...(messagingFeatureEnabled(memberId)
       ? [{ to: '/inbox', label: t('inbox'), icon: <Inbox className={iconClass} /> }]
       : []),
     ...(canManageForms ? [{ to: '/forms', label: t('forms'), icon: <ScrollText className={iconClass} /> }] : []),
     { to: '/news', label: t('news'), icon: <Newspaper className={iconClass} /> },
   ]
-  // Finance — own section: dues (all members), expense-reimbursement upload (all
-  // members), and the board Finanzen dashboard (Vorstand only).
+  // Finance — own section: personal dues, fines, expense-reimbursement upload (all
+  // members), and the board club-finances dashboard (Vorstand only).
   const financeItems: NavItem[] = [
     { to: '/finance/dues', label: t('finance:myDuesTitle'), icon: <Wallet className={iconClass} /> },
+    { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
     { to: '/finance/expense', label: t('uploadInvoice'), icon: <ReceiptText className={iconClass} /> },
     ...(isVorstand ? [{ to: '/admin/finance', label: t('finance:title'), icon: <Landmark className={iconClass} /> }] : []),
   ]

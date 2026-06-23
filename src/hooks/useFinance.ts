@@ -1,8 +1,10 @@
 // Finance data hooks (migration 114). Read-only mirror of ClubDesk Finanz.
 // Members read only their OWN invoices (policy-enforced); Vorstand reads all.
 
+import { useQuery } from '@tanstack/react-query'
 import { useCollection } from '../lib/query'
 import { useAuth } from './useAuth'
+import { kscwApi } from '../lib/api'
 import type {
   FinanceInvoice, FinanceTransaction, FinanceAccount, FinanceFiscalYear, FinanceImport,
 } from '../modules/finance/types'
@@ -18,16 +20,49 @@ export function formatChf(v: unknown): string {
   return `CHF ${toNum(v).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-/** The current member's own invoices/dues. Empty for guests. */
+/**
+ * The current member's payable invoices: their own (ClubDesk + native) PLUS
+ * native invoices billed to a team they lead (coach/captain/TR). Served by the
+ * /finance/my-invoices endpoint — a server-side union that sidesteps the M2M
+ * policy-walk-returns-empty trap a Directus filter would hit.
+ */
 export function useMyInvoices() {
   const { user } = useAuth()
-  return useCollection<FinanceInvoice>('finance_invoices', {
-    filter: user ? { member: { _eq: user.id } } : { id: { _eq: -1 } },
-    sort: ['-invoice_date'],
+  const q = useQuery({
+    queryKey: ['finance', 'my-invoices', user?.id ?? null],
+    queryFn: () => kscwApi<{ invoices: FinanceInvoice[]; member_id: number }>('/finance/my-invoices'),
     enabled: !!user,
-    all: true,
+    select: (r) => r.invoices,
   })
+  return q
 }
+
+// ── Native-invoice write actions (all hit the Vorstand/recipient-gated endpoints) ──
+
+export interface CreateInvoiceInput {
+  recipient_type: 'member' | 'team'
+  member?: number
+  team?: number
+  amount: number
+  subject: string
+  due_date?: string | null
+  fee_category?: string | null
+}
+export const createNativeInvoice = (input: CreateInvoiceInput) =>
+  kscwApi<{ invoice: FinanceInvoice }>('/finance/invoices', { method: 'POST', body: input })
+export const reportInvoicePaid = (id: string | number, method?: string | null) =>
+  kscwApi<{ invoice: FinanceInvoice }>(`/finance/invoices/${id}/report-paid`, { method: 'POST', body: { method: method ?? null } })
+export const confirmInvoice = (id: string | number) =>
+  kscwApi<{ invoice: FinanceInvoice }>(`/finance/invoices/${id}/confirm`, { method: 'POST' })
+export const cancelInvoice = (id: string | number) =>
+  kscwApi<{ invoice: FinanceInvoice }>(`/finance/invoices/${id}/cancel`, { method: 'POST' })
+export const linkInvoiceMember = (id: string | number, member: number, scope: 'email' | 'invoice' = 'email') =>
+  kscwApi<{ ok: true; scope: string; affected: number }>(`/finance/invoices/${id}/link-member`, { method: 'POST', body: { member, scope } })
+export const unlinkInvoiceMember = (id: string | number) =>
+  kscwApi<{ ok: true; removed: number; cleared: number }>(`/finance/invoices/${id}/link-member`, { method: 'DELETE' })
+
+/** True for a native invoice (created in wiedisync) vs a ClubDesk mirror row. */
+export const isNativeInvoice = (inv: FinanceInvoice): boolean => inv.source === 'native'
 
 /** All invoices (board only — gated by the Vorstand read policy). */
 export function useFinanceInvoices(enabled = true) {
@@ -75,8 +110,14 @@ export function useFinanceImports(enabled = true) {
   })
 }
 
-/** True for an invoice that still owes money (open balance > 0, not cancelled). */
+/**
+ * True for an invoice that still owes money and is payable right now.
+ * Native invoices are payable only while status='open' (once self-reported they
+ * move to pending_confirmation and shouldn't be paid again); ClubDesk rows use
+ * the open balance + not-cancelled rule.
+ */
 export function isOpenInvoice(inv: FinanceInvoice): boolean {
+  if (inv.source === 'native') return (inv.status ?? '') === 'open'
   const status = (inv.status ?? '').toLowerCase()
   if (status.includes('storn') || status.includes('cancel')) return false
   return toNum(inv.open_amount) > 0
