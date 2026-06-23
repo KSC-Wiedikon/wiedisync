@@ -459,18 +459,28 @@ function renderTeam(
         {renderHallSlotsTable(slotState?.data ?? [], t, tCommon)}
       </ExplorerSectionCard>
 
-      {/* Members table (current active roster, from page-load cache) */}
+      {/* Members table (current active roster, from page-load cache). The Role
+          column derives each member's capacity on THIS team from the coach/TR
+          junctions + captain FK already loaded — so a player-coach reads
+          "Player, Coach" instead of looking like a plain player. */}
       <ExplorerSectionCard title={t('explorerSectionMembers')} count={members.length} lazy={false}>
         <CompactTable
           cols={[
             { key: 'name', label: t('explorerColName') },
             { key: 'nr', label: t('explorerColNumber') },
+            { key: 'role', label: t('explorerColRole') },
           ]}
           rows={members.map((mem) => {
             const memAny = mem as unknown as { number?: number }
+            const mid = String(mem.id)
+            const roles = [t('explorerRelationPlayer')]
+            if (coachIds.includes(mid)) roles.push(t('explorerFieldCoach'))
+            if (trIds.includes(mid)) roles.push(t('explorerFieldTeamResponsible'))
+            if (captainIds.includes(mid)) roles.push(t('explorerFieldCaptain'))
             return [
-              <NavBtn type="members" id={String(mem.id)} label={memberLabel(mem)} onClick={onNavigate} />,
+              <NavBtn type="members" id={mid} label={memberLabel(mem)} onClick={onNavigate} />,
               memAny.number != null ? String(memAny.number) : '—',
+              roles.join(', '),
             ]
           })}
         />
