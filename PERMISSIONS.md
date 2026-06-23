@@ -187,9 +187,11 @@ Inherits everything from Member. Adds:
 
 Inherits Member. Adds read-all on operational collections — board oversight role:
 
-`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, tasks, task_templates, poll_votes, team_requests, push_subscriptions, game_scheduling_seasons, game_scheduling_slots, game_scheduling_opponents, game_scheduling_bookings, announcements, fines, fine_rules, scheduling_blocks, finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports`.
+`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, tasks, task_templates, poll_votes, team_requests, push_subscriptions, game_scheduling_seasons, game_scheduling_slots, game_scheduling_opponents, game_scheduling_bookings, announcements, fines, fine_rules, scheduling_blocks, finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides`.
 
-**Finance (migration 114)** — the 7 `finance_*` collections are the full board finance dashboard (ClubDesk Finanz read-only mirror, Scope A). Vorstand reads all; Members read only their own `finance_invoices` (above). No policy-layer writes — the ClubDesk import runs on the system connection.
+**Finance (migration 114)** — the `finance_*` collections are the full board finance dashboard (ClubDesk Finanz read-only mirror, Scope A). Vorstand reads all; Members read only their own `finance_invoices` (above). No policy-layer writes.
+
+**Native invoices + member-link overrides (migrations 128/129)** — still **read-only at the policy layer**. Native-invoice writes (create / report-paid / confirm / cancel) and the `finance_invoice_member_overrides` link tool all go through the `/kscw/finance/*` endpoints on the system connection, Vorstand-gated **in code** (so the board can never edit ClubDesk-mirror rows via the items API). Members never get item-API write — their "I've paid" self-report is an endpoint call. `finance_invoice_member_overrides` is Vorstand read-only here for admin visibility/audit.
 
 **Plus full CRUD on Forms** — `forms`, `forms_teams`, `form_submissions` (decision 2026-06-05: create/edit/delete any form club-wide + read all submissions, exactly like a global admin). This is the one exception to the otherwise read-only board role.
 
@@ -276,6 +278,8 @@ ORDER BY table_name;
 
 <details>
 <summary>Older reconciliation notes (archival — the full audit ledger lives in SECURITY.md + git).</summary>
+
+> **2026-06-23 — Native invoices + member-link overrides (migrations 128/129).** Added native-invoice write columns to `finance_invoices` and a new `finance_invoice_member_overrides` table. No new item-API write perms: all native-invoice writes (create / report-paid / confirm / cancel) and the orphan member-link tool run through the `/kscw/finance/*` endpoints (system connection, Vorstand-gated in code; member self-report endpoint-gated to the recipient). Vorstand gains read-only on `finance_invoice_member_overrides` for admin visibility. Members still read-only on own `finance_invoices`. Applied dev; prod pending.
 
 > **2026-06-18 — Finance module (Scope A, migration 114).** Added 7 `finance_*` collections — a read-only mirror of ClubDesk Finanz, schema built so a future native finance (Scope C) just adds write paths. Member gets read-only `finance_invoices` scoped to own dues (`member.user = $CURRENT_USER`, `MEMBER_INVOICE_FIELDS` whitelist — AHV/IBAN/address deliberately not mirrored); Vorstand gets read-all on all 7. No write perms — the ClubDesk scraper/import writes via the system connection, not the items API. Applied + verified on dev via the `directus_permissions` query (smoke skipped — dev member token dead); prod pending.
 

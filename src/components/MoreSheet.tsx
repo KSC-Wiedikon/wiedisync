@@ -49,17 +49,17 @@ function buildSecondaryItems(
     { to: '/teams', labelKey: 'teams', icon: <Users className={iconClass} /> },
     { to: '/absences', labelKey: 'absences', icon: <UserX className={iconClass} /> },
     { to: '/scorer', labelKey: 'scorer', icon: <PenSquare className={iconClass} /> },
-    { to: '/fines', labelKey: 'fines', icon: <Gavel className={iconClass} /> },
     ...(messagingFeatureEnabled(memberId)
       ? [{ to: '/inbox', labelKey: 'inbox', icon: <Inbox className={iconClass} /> }]
       : []),
     ...(sched.canManageForms ? [{ to: '/forms', labelKey: 'forms', icon: <ScrollText className={iconClass} /> }] : []),
     { to: '/news', labelKey: 'news', icon: <Newspaper className={iconClass} /> },
   ]
-  // Finance — own section (mirrors Layout.tsx): dues + expense upload (all
-  // members), board Finanzen dashboard (Vorstand only).
+  // Finance — own section (mirrors useNavItems): personal dues, fines, expense
+  // upload (all members), board club-finances dashboard (Vorstand only).
   const finance: SheetItem[] = [
     { to: '/finance/dues', labelKey: 'finance:myDuesTitle', icon: <Wallet className={iconClass} /> },
+    { to: '/fines', labelKey: 'fines', icon: <Gavel className={iconClass} /> },
     { to: '/finance/expense', labelKey: 'uploadInvoice', icon: <ReceiptText className={iconClass} /> },
     ...(sched.isVorstand ? [{ to: '/admin/finance', labelKey: 'finance:title', icon: <Landmark className={iconClass} /> }] : []),
   ]

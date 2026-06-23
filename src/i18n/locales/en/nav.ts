@@ -23,7 +23,7 @@ export default {
   admin: 'Admin',
   superadmin: 'Superadmin',
   memberTools: 'Member tools',
-  finance: 'Finance',
+  finance: 'Finances',
   uploadInvoice: 'Upload invoice',
   spielplanung: 'Planning',
   more: 'More',

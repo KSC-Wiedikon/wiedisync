@@ -21,6 +21,8 @@
  *      resolving debit/credit account FKs by number + fiscal_year by date.
  *   5. finance_invoices — DELETE source='clubdesk' then re-insert, matching member
  *      by email (recipient E-Mail → members.email), fiscal_year by date.
+ *   5b. Re-apply finance_invoice_member_overrides (migration 129) so treasurer
+ *      member-links survive the delete+reinsert.
  *
  * Pure mirror: native rows (source='native', Scope C) are never touched. Re-runs
  * are idempotent (delete-clubdesk-then-insert for the two ledgers; upsert for the
@@ -269,6 +271,24 @@ FROM (VALUES
 ) AS v(clubdesk_id, number, invoice_date, subject, amount, status, dunning_status, due_date,
        amount_paid, open_amount, overpaid, written_off, payment_method, reference, fee_category,
        closed_on, cd_created, cd_changed, recipient_name, recipient_email, cd_benutzer_id);
+
+-- 5b. Re-apply treasurer member-link overrides (migration 129). The delete+
+-- reinsert above wipes any hand-set member FK on clubdesk rows, so re-pin them
+-- from finance_invoice_member_overrides. Guarded so the import still works if
+-- the migration hasn't been applied yet. Email overrides first (link all of a
+-- recipient's invoices), then per-invoice overrides.
+DO $$ BEGIN
+  IF to_regclass('public.finance_invoice_member_overrides') IS NOT NULL THEN
+    UPDATE finance_invoices fi SET member = o.member
+      FROM finance_invoice_member_overrides o
+      WHERE fi.source = 'clubdesk' AND o.match_email IS NOT NULL
+        AND lower(fi.recipient_email) = lower(o.match_email);
+    UPDATE finance_invoices fi SET member = o.member
+      FROM finance_invoice_member_overrides o
+      WHERE fi.source = 'clubdesk' AND o.match_clubdesk_id IS NOT NULL
+        AND fi.clubdesk_id = o.match_clubdesk_id;
+  END IF;
+END $$;
 
 COMMIT;
 
