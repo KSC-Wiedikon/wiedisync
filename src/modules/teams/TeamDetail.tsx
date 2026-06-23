@@ -58,8 +58,8 @@ export default function TeamDetail() {
   const teamRequests = teamRequestsRaw ?? []
 
   const [teamSponsors, setTeamSponsors] = useState<Sponsor[]>([])
-  // Coaches attached only via teams_coaches (no member_teams row) — fetched
-  // separately so they still appear in the Coaches section.
+  // Staff (coaches + team responsibles) attached only via the M2M aliases with no
+  // member_teams row — fetched separately so they still appear in the Staff section.
   const [extraCoaches, setExtraCoaches] = useState<ExpandedMemberTeam[]>([])
 
   useEffect(() => {
@@ -69,12 +69,14 @@ export default function TeamDetail() {
       .catch(() => {})
   }, [team?.id])
 
-  // Fetch coach member records that have no member_teams row for this team, so
-  // the Coaches section is complete even for staff-only coaches.
+  // Fetch staff member records (coaches + team responsibles) that have no
+  // member_teams row for this team, so the Staff section is complete even for
+  // non-playing staff who never appear on the roster.
   useEffect(() => {
     if (!team) { setExtraCoaches([]); return }
     const presentIds = new Set(members.map((mt) => String(asObj<Member>(mt.member)?.id ?? mt.member)))
-    const missing = flattenMemberIds(team.coach).filter((id) => !presentIds.has(id))
+    const staffIds = [...new Set([...flattenMemberIds(team.coach), ...flattenMemberIds(team.team_responsible)])]
+    const missing = staffIds.filter((id) => !presentIds.has(id))
     if (missing.length === 0) { setExtraCoaches([]); return }
     let cancelled = false
     fetchAllItems<Member>('members', { filter: { id: { _in: missing } }, fields: ['*'] })
@@ -216,31 +218,35 @@ export default function TeamDetail() {
     return sorted
   }, [sortKey, sortDir, team])
 
-  // A coach with no real playing position is non-playing staff and must NOT be
-  // listed among the players. Player-coaches (a coach who also has a playing
-  // position) stay in the roster, flagged by their coach role badge.
-  const coachIdSet = useMemo(() => new Set(flattenMemberIds(team?.coach)), [team])
-  const isPureCoach = useCallback((mt: ExpandedMemberTeam) => {
+  // Staff = coaches + team responsibles. A staff member with no real playing
+  // position is non-playing staff and must NOT be listed among the players.
+  // Player-staff (a coach/TR who also has a playing position) are intentionally
+  // shown in BOTH the staff section and the roster, flagged by their role badge.
+  const staffIdSet = useMemo(
+    () => new Set([...flattenMemberIds(team?.coach), ...flattenMemberIds(team?.team_responsible)]),
+    [team],
+  )
+  const isPureStaff = useCallback((mt: ExpandedMemberTeam) => {
     const member = asObj<Member>(mt.member)
     if (!member) return false
-    if (!coachIdSet.has(String(member.id))) return false
+    if (!staffIdSet.has(String(member.id))) return false
     return coercePositions(member.position).filter((p) => p !== 'other').length === 0
-  }, [coachIdSet])
+  }, [staffIdSet])
 
-  const rosterMembers = useMemo(() => sortMembers(members.filter(mt => (Number(mt.guest_level) || 0) === 0 && !isPureCoach(mt))), [members, sortMembers, isPureCoach])
-  const guestMembers = useMemo(() => sortMembers(members.filter(mt => (Number(mt.guest_level) || 0) > 0 && !isPureCoach(mt))), [members, sortMembers, isPureCoach])
-  // Coaches section: EVERY member in team.coach — non-playing staff coaches
-  // AND player-coaches who also appear in the roster (they show in both places,
-  // hence "also a coach"). Plus staff-only coaches fetched separately. Deduped.
+  const rosterMembers = useMemo(() => sortMembers(members.filter(mt => (Number(mt.guest_level) || 0) === 0 && !isPureStaff(mt))), [members, sortMembers, isPureStaff])
+  const guestMembers = useMemo(() => sortMembers(members.filter(mt => (Number(mt.guest_level) || 0) > 0 && !isPureStaff(mt))), [members, sortMembers, isPureStaff])
+  // Staff section: every coach + team responsible. Player-staff who also appear
+  // in the roster are shown in both places (hence duplicated, by design); staff
+  // with no roster row are fetched separately above. Deduped.
   const coachMembers = useMemo(() => {
     const fromRoster = members.filter((mt) => {
       const m = asObj<Member>(mt.member)
-      return !!m && coachIdSet.has(String(m.id))
+      return !!m && staffIdSet.has(String(m.id))
     })
     const seen = new Set(fromRoster.map((mt) => String(asObj<Member>(mt.member)?.id ?? mt.member)))
     const extras = extraCoaches.filter((mt) => !seen.has(String(asObj<Member>(mt.member)?.id ?? mt.member)))
     return sortMembers([...fromRoster, ...extras])
-  }, [members, extraCoaches, coachIdSet, sortMembers])
+  }, [members, extraCoaches, staffIdSet, sortMembers])
 
   // Busy guards — prevent mobile double-tap / re-render from firing twice.
   const inFlightApprove = useRef<Set<string>>(new Set())
@@ -620,7 +626,7 @@ export default function TeamDetail() {
       {(coachMembers.length > 0 || (effectiveIsAdmin && hasAdminAccessToTeam(team.id))) && (
         <div className="mt-8">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('coaches')} ({coachMembers.length})</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('staff')} ({coachMembers.length})</h2>
             {effectiveIsAdmin && hasAdminAccessToTeam(team.id) && (
               <Button variant="outline" size="sm" onClick={() => setManageStaffOpen(true)}>
                 {t('manageStaff')}
@@ -633,7 +639,7 @@ export default function TeamDetail() {
               <thead>
                 <tr className="border-b bg-gray-50 dark:bg-gray-900 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                   <SortHeader label={t('playerCol')} sortKey="name" current={sortKey} dir={sortDir} onClick={handleSort} />
-                  <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={handleSort} />
+                  <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={handleSort} className="text-center" />
                   <SortHeader label={t('positionCol')} sortKey="position" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden sm:table-cell" />
                   {canManage && <SortHeader label={t('emailCol')} sortKey="email" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
                   {canManage && <SortHeader label={t('phoneCol')} sortKey="phone" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
@@ -651,6 +657,7 @@ export default function TeamDetail() {
                     team={team}
                     canEdit={canManage}
                     isAdmin={effectiveIsAdmin && hasAdminAccessToTeam(team.id)}
+                    canEditRole={false}
                     showContact={canManage}
                     onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
                   />
@@ -687,7 +694,7 @@ export default function TeamDetail() {
               <thead>
                 <tr className="border-b bg-gray-50 dark:bg-gray-900 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                   <SortHeader label={t('playerCol')} sortKey="name" current={sortKey} dir={sortDir} onClick={handleSort} />
-                  <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={handleSort} />
+                  <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={handleSort} className="text-center" />
                   <SortHeader label={t('positionCol')} sortKey="position" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden sm:table-cell" />
                   {canManage && <SortHeader label={t('emailCol')} sortKey="email" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
                   {canManage && <SortHeader label={t('phoneCol')} sortKey="phone" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
@@ -725,7 +732,7 @@ export default function TeamDetail() {
                 <tr className="border-b bg-gray-50 dark:bg-gray-900 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                   <SortHeader label={t('playerCol')} sortKey="name" current={sortKey} dir={sortDir} onClick={handleSort} />
                   <th className="px-4 py-3">{t('guestCol')}</th>
-                  <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={handleSort} />
+                  <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={handleSort} className="text-center" />
                   <SortHeader label={t('positionCol')} sortKey="position" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden sm:table-cell" />
                   {canManage && <SortHeader label={t('emailCol')} sortKey="email" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
                   {canManage && <SortHeader label={t('phoneCol')} sortKey="phone" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}

@@ -21,6 +21,9 @@ interface MemberRowProps {
   team?: Team | null
   canEdit?: boolean
   isAdmin?: boolean
+  /** When false, the role column renders a read-only badge (no inline dropdown) — e.g. the coaches
+   * table, where staff roles are managed via the "Manage staff" modal instead. Defaults to true. */
+  canEditRole?: boolean
   showContact?: boolean
   /** Render a dedicated guest-level column (used by the Guests table) so the badge lines up. */
   showGuestColumn?: boolean
@@ -52,7 +55,7 @@ export function getMemberRole(memberId: string | number, team?: Team | null): st
   return null
 }
 
-export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team, canEdit, isAdmin, showContact = true, showGuestColumn = false, onTeamUpdate, onExtendShell, isEditing }: MemberRowProps) {
+export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team, canEdit, isAdmin, canEditRole = true, showContact = true, showGuestColumn = false, onTeamUpdate, onExtendShell, isEditing }: MemberRowProps) {
   const { t } = useTranslation('teams')
   const member = asObj<Member>(memberTeam.member)
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -212,7 +215,7 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
       )}
 
       {/* Number — editable by coach, hidden for non-playing staff */}
-      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+      <td className="px-4 py-3 text-center text-sm text-gray-500 dark:text-gray-400">
         {nonPlaying ? (
           <span>—</span>
         ) : canEdit && editingField === 'number' ? (
@@ -298,9 +301,9 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
         </td>
       )}
 
-      {/* Role — editable by admin only */}
+      {/* Role — editable by admin only (read-only badge in the coaches table; managed via Manage staff) */}
       <td className="px-4 py-3">
-        {isAdmin ? (
+        {isAdmin && canEditRole ? (
           <div className="relative">
             <button
               onClick={() => setEditingField(editingField === 'role' ? null : 'role')}
