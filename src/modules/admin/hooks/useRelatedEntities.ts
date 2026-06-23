@@ -8,6 +8,8 @@ export type SectionKey =
   | 'absences'
   | 'refereeExpenses'
   | 'scorerDelegations'
+  | 'hallSlots'
+  | 'inactiveMembers'
 
 interface CachedEntry {
   data: unknown[]
@@ -75,6 +77,22 @@ const QUERIES: Record<
     collection: 'scorer_delegations',
     filter: { game: { _eq: id } },
     fields: ['id', 'game', 'from_member', 'to_member', 'status', 'role', 'date_created'],
+  }),
+  // Recurring hall slots assigned to a team (M2M via hall_slots_teams). Matches
+  // the proven TrainingForm filter so the same junction walk applies.
+  hallSlots: (_parent, id) => ({
+    collection: 'hall_slots',
+    filter: { teams: { teams_id: { _eq: id } } },
+    fields: ['id', 'day_of_week', 'start_time', 'end_time', 'slot_type', 'label', 'hall.name'],
+    sort: ['day_of_week', 'start_time'],
+  }),
+  // Deactivated members who still hold a member_teams row for this team. The
+  // page-load cache only loads active members, so these never show otherwise.
+  inactiveMembers: (_parent, id) => ({
+    collection: 'member_teams',
+    filter: { _and: [{ team: { _eq: id } }, { member: { kscw_membership_active: { _eq: false } } }] },
+    fields: ['id', 'guest_level', 'member.id', 'member.first_name', 'member.last_name', 'member.number'],
+    sort: ['member.last_name'],
   }),
 }
 

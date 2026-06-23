@@ -29,6 +29,7 @@ function capitalize(s: string | null | undefined): string {
 export default function ExplorerDetail({ cache, type, id, onSelect, onBack }: Props) {
   const onNavigate = onSelect
   const { t } = useTranslation('admin')
+  const { t: tCommon } = useTranslation('common')
   const related = useRelatedEntities()
   const { isGlobalAdmin, isVorstand } = useAuth()
   const showRestrictedSections = isGlobalAdmin || isVorstand
@@ -96,7 +97,7 @@ export default function ExplorerDetail({ cache, type, id, onSelect, onBack }: Pr
 
       {/* Fields + sections per type */}
       {type === 'members' && renderMember(entity as never, cache, onNavigate, related, t, showRestrictedSections, canEditMember)}
-      {type === 'teams' && renderTeam(entity as never, cache, onNavigate, t)}
+      {type === 'teams' && renderTeam(entity as never, cache, onNavigate, related, t, tCommon)}
       {type === 'events' && renderEvent(entity as never, cache, onNavigate, related, t)}
       {type === 'trainings' && renderTraining(entity as never, cache, onNavigate, related, t)}
       {type === 'games' && renderGame(entity as never, cache, onNavigate, related, t, showRestrictedSections)}
@@ -227,6 +228,8 @@ function renderMember(
     absences: 'explorerSectionAbsences',
     refereeExpenses: 'explorerSectionRefereeExpenses',
     scorerDelegations: 'explorerSectionScorerDelegations',
+    hallSlots: 'explorerSectionHallSlots',
+    inactiveMembers: 'explorerSectionInactiveMembers',
   }
 
   const teamName = (tid: string) => cache.teams.find((x) => String(x.id) === tid)?.name ?? tid
@@ -381,33 +384,82 @@ function renderRefereeExpensesTable(rows: unknown[], t: TFn) {
 }
 
 // ── Team ──────────────────────────────────────────────────────────────
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
+
 function renderTeam(
   tm: Record<string, unknown> & { id: string | number },
   cache: CacheShape,
   onNavigate: Props['onSelect'],
+  related: ReturnType<typeof useRelatedEntities>,
   t: TFn,
+  tCommon: TFn,
 ) {
   const tmId = String(tm.id)
   const members = cache.members.filter((m) =>
     (cache.memberTeams.get(String(m.id)) ?? []).includes(tmId),
   )
-  const trainings = cache.trainings.filter((tr) => String((tr as unknown as { team?: unknown }).team) === String(tm.id))
+  const trainings = cache.trainings.filter((tr) => String((tr as unknown as { team?: unknown }).team) === tmId)
   const games = cache.games.filter((g) =>
-    String((g as unknown as { home_team?: unknown }).home_team) === String(tm.id) ||
-    String((g as unknown as { away_team?: unknown }).away_team) === String(tm.id),
+    String((g as unknown as { home_team?: unknown }).home_team) === tmId ||
+    String((g as unknown as { away_team?: unknown }).away_team) === tmId,
   )
 
   const teamName = (tid: string) => cache.teams.find((x) => String(x.id) === tid)?.name ?? tid
 
+  // Staff from the page-load junctions (teams_coaches / teams_responsibles).
+  // Reverse-lookup so player-coaches surface here too, regardless of roster.
+  const coachIds = [...cache.memberCoachTeams.entries()]
+    .filter(([, tids]) => tids.includes(tmId))
+    .map(([mid]) => mid)
+  const trIds = [...cache.memberTrTeams.entries()]
+    .filter(([, tids]) => tids.includes(tmId))
+    .map(([mid]) => mid)
+  const captainRaw = (tm as unknown as { captain?: unknown }).captain
+  const captainIds = (Array.isArray(captainRaw) ? captainRaw : captainRaw != null ? [captainRaw] : [])
+    .map((c) => String(c))
+    .filter((c) => c && c !== 'null')
+
+  const memberChips = (ids: string[]): React.ReactNode => {
+    if (ids.length === 0) return '—'
+    return (
+      <span className="inline-flex flex-wrap gap-x-2 gap-y-0.5">
+        {ids.map((mid) => {
+          const mem = cache.members.find((x) => String(x.id) === mid)
+          return mem
+            ? <NavBtn key={mid} type="members" id={mid} label={memberLabel(mem)} onClick={onNavigate} />
+            : <span key={mid}>#{mid}</span>
+        })}
+      </span>
+    )
+  }
+
+  const slotState = related.get('teams', tmId, 'hallSlots')
+  const inactiveState = related.get('teams', tmId, 'inactiveMembers')
+
   return (
     <>
       <div className="mb-4">
-        <Field label={t('explorerFieldSport')}>{String(tm.sport ?? '—')}</Field>
+        <Field label={t('explorerFieldSport')}>{capitalize(String(tm.sport ?? ''))}</Field>
+        <Field label={t('explorerFieldLeague')}>{String(tm.league || '—')}</Field>
         <Field label={t('explorerFieldSeason')}>{String(tm.season ?? '—')}</Field>
         <Field label={t('explorerFieldActive')}>{tm.active ? '✓' : '—'}</Field>
+        <Field label={t('explorerFieldCoach')}>{memberChips(coachIds)}</Field>
+        <Field label={t('explorerFieldTeamResponsible')}>{memberChips(trIds)}</Field>
+        <Field label={t('explorerFieldCaptain')}>{memberChips(captainIds)}</Field>
       </div>
 
-      {/* Members table */}
+      {/* Hall slots (lazy) */}
+      <ExplorerSectionCard
+        title={t('explorerSectionHallSlots')}
+        count={slotState?.data.length ?? null}
+        onExpand={() => related.load('teams', tmId, 'hallSlots')}
+        isLoading={slotState?.loading}
+        error={slotState?.error}
+      >
+        {renderHallSlotsTable(slotState?.data ?? [], t, tCommon)}
+      </ExplorerSectionCard>
+
+      {/* Members table (current active roster, from page-load cache) */}
       <ExplorerSectionCard title={t('explorerSectionMembers')} count={members.length} lazy={false}>
         <CompactTable
           cols={[
@@ -422,6 +474,17 @@ function renderTeam(
             ]
           })}
         />
+      </ExplorerSectionCard>
+
+      {/* Inactive members (lazy) — deactivated members still on the roster */}
+      <ExplorerSectionCard
+        title={t('explorerSectionInactiveMembers')}
+        count={inactiveState?.data.length ?? null}
+        onExpand={() => related.load('teams', tmId, 'inactiveMembers')}
+        isLoading={inactiveState?.loading}
+        error={inactiveState?.error}
+      >
+        {renderInactiveMembersTable(inactiveState?.data ?? [], t)}
       </ExplorerSectionCard>
 
       {/* Trainings table */}
@@ -479,6 +542,62 @@ function renderTeam(
         />
       </ExplorerSectionCard>
     </>
+  )
+}
+
+function renderHallSlotsTable(rows: unknown[], t: TFn, tCommon: TFn) {
+  if (rows.length === 0) return <div className="text-xs text-muted-foreground">—</div>
+  return (
+    <CompactTable
+      cols={[
+        { key: 'day', label: t('explorerColDay') },
+        { key: 'time', label: t('explorerFieldTime') },
+        { key: 'hall', label: t('explorerFieldHall') },
+        { key: 'type', label: t('explorerColType') },
+      ]}
+      rows={rows.map((row) => {
+        const r = row as {
+          day_of_week?: number; start_time?: string; end_time?: string
+          slot_type?: string; hall?: { name?: string } | string | null
+        }
+        const dayIdx = Number(r.day_of_week)
+        const dayLabel = dayIdx >= 0 && dayIdx <= 6 ? tCommon(DAY_KEYS[dayIdx]) : '—'
+        const start = (r.start_time ?? '').slice(0, 5)
+        const end = (r.end_time ?? '').slice(0, 5)
+        const time = start || end ? `${start}–${end}` : '—'
+        const hallName = (r.hall && typeof r.hall === 'object' ? r.hall.name : undefined) ?? '—'
+        return [dayLabel, time, hallName, capitalize(r.slot_type)]
+      })}
+    />
+  )
+}
+
+function renderInactiveMembersTable(rows: unknown[], t: TFn) {
+  if (rows.length === 0) return <div className="text-xs text-muted-foreground">—</div>
+  // Inactive members aren't in the page-load cache, so render as plain text —
+  // navigating to them would land on an empty detail panel.
+  return (
+    <CompactTable
+      cols={[
+        { key: 'name', label: t('explorerColName') },
+        { key: 'nr', label: t('explorerColNumber') },
+      ]}
+      rows={rows.map((row) => {
+        const r = row as {
+          member?: { first_name?: string; last_name?: string; number?: number } | string | null
+          guest_level?: number
+        }
+        const mem = r.member && typeof r.member === 'object' ? r.member : null
+        const name = mem
+          ? `${mem.last_name ?? ''}, ${mem.first_name ?? ''}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, '')
+          : '—'
+        const guest = Number(r.guest_level) > 0 ? ` (G${Number(r.guest_level)})` : ''
+        return [
+          <span>{name || '—'}{guest && <span className="text-muted-foreground">{guest}</span>}</span>,
+          mem?.number != null ? String(mem.number) : '—',
+        ]
+      })}
+    />
   )
 }
 
@@ -580,6 +699,8 @@ function renderTraining(
     absences: 'explorerSectionAbsences',
     refereeExpenses: 'explorerSectionRefereeExpenses',
     scorerDelegations: 'explorerSectionScorerDelegations',
+    hallSlots: 'explorerSectionHallSlots',
+    inactiveMembers: 'explorerSectionInactiveMembers',
   }
 
   return (
@@ -632,6 +753,8 @@ function renderGame(
     absences: 'explorerSectionAbsences',
     refereeExpenses: 'explorerSectionRefereeExpenses',
     scorerDelegations: 'explorerSectionScorerDelegations',
+    hallSlots: 'explorerSectionHallSlots',
+    inactiveMembers: 'explorerSectionInactiveMembers',
   }
 
   // Scoring duties — fields on the game record itself
