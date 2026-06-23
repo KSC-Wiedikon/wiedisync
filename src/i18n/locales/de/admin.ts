@@ -362,6 +362,11 @@ export default {
   // Sections
   explorerSectionTeams: 'Teams',
   explorerSectionMembers: 'Mitglieder',
+  explorerFieldLeague: 'Liga',
+  explorerSectionHallSlots: 'Hallenzeiten',
+  explorerSectionInactiveMembers: 'Inaktive Mitglieder',
+  explorerColDay: 'Tag',
+  explorerColType: 'Typ',
   explorerSectionParticipations: 'Teilnahmen',
   explorerSectionAbsences: 'Absenzen',
   explorerSectionRefereeExpenses: 'Schiedsrichter-Spesen',

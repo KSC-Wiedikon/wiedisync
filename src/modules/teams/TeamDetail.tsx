@@ -229,14 +229,18 @@ export default function TeamDetail() {
 
   const rosterMembers = useMemo(() => sortMembers(members.filter(mt => (Number(mt.guest_level) || 0) === 0 && !isPureCoach(mt))), [members, sortMembers, isPureCoach])
   const guestMembers = useMemo(() => sortMembers(members.filter(mt => (Number(mt.guest_level) || 0) > 0 && !isPureCoach(mt))), [members, sortMembers, isPureCoach])
-  // Coaches section: non-playing coaches with a member_teams row + staff-only
-  // coaches fetched separately. Deduped by member id.
+  // Coaches section: EVERY member in team.coach — non-playing staff coaches
+  // AND player-coaches who also appear in the roster (they show in both places,
+  // hence "also a coach"). Plus staff-only coaches fetched separately. Deduped.
   const coachMembers = useMemo(() => {
-    const fromRoster = members.filter(isPureCoach)
+    const fromRoster = members.filter((mt) => {
+      const m = asObj<Member>(mt.member)
+      return !!m && coachIdSet.has(String(m.id))
+    })
     const seen = new Set(fromRoster.map((mt) => String(asObj<Member>(mt.member)?.id ?? mt.member)))
     const extras = extraCoaches.filter((mt) => !seen.has(String(asObj<Member>(mt.member)?.id ?? mt.member)))
     return sortMembers([...fromRoster, ...extras])
-  }, [members, extraCoaches, isPureCoach, sortMembers])
+  }, [members, extraCoaches, coachIdSet, sortMembers])
 
   // Busy guards — prevent mobile double-tap / re-render from firing twice.
   const inFlightApprove = useRef<Set<string>>(new Set())
