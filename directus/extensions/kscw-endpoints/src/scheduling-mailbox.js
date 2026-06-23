@@ -33,6 +33,7 @@ import { simpleParser } from 'mailparser'
 import nodemailer from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { escHtml } from './email-template.js'
+import { writeUserLog } from './activity-log.js'
 import { SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT } from './scheduling-signature.js'
 
 const IMAP_HOST = process.env.SCHEDULING_IMAP_HOST || 'imap.migadu.com'
@@ -293,7 +294,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       // wildcards in the term are escaped so they're matched literally.
       const search = String(req.query.search || '').trim().slice(0, 100)
       let q = database('scheduling_emails')
-        .select('id', 'direction', 'from_address', 'from_name', 'to_addresses', 'cc_addresses', 'subject', 'date_sent', 'read_at', 'has_attachments', 'in_reply_to', 'message_id',
+        .select('id', 'direction', 'from_address', 'from_name', 'to_addresses', 'cc_addresses', 'subject', 'date_sent', 'read_at', 'has_attachments', 'in_reply_to', 'message_id', 'assigned_opponent',
           database.raw('left(coalesce(body_text, \'\'), 160) as snippet'))
       if (search.length >= 2) {
         const like = `%${search.replace(/[\\%_]/g, '\\$&')}%`
@@ -327,6 +328,42 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       }
       res.json({ message: row })
     } catch (err) { fail(res, 'admin/terminplanung/mailbox/message', err, req) }
+  })
+
+  // POST /kscw/admin/terminplanung/mailbox/assign — manual opponent override.
+  // Body: { ids: number[], opponent_id: number|null }. Pins a whole email chain
+  // to one opponent row (the frontend computes the thread's message ids); pass
+  // opponent_id:null to clear back to auto-classification. Actor-logged per the
+  // audit rule (raw-knex write bypasses the items-API audit hook).
+  router.post('/admin/terminplanung/mailbox/assign', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const body = req.body || {}
+      const ids = Array.isArray(body.ids)
+        ? [...new Set(body.ids.map((n) => Number(n)).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 500)
+        : []
+      if (ids.length === 0) return res.status(400).json({ error: 'No message ids' })
+
+      // null / 0 / '' → clear the override. Otherwise the opponent must exist
+      // (soft reference, so we validate here instead of via an FK).
+      let opponentId = null
+      if (body.opponent_id != null && String(body.opponent_id) !== '') {
+        opponentId = Number(body.opponent_id)
+        if (!Number.isInteger(opponentId) || opponentId <= 0) return res.status(400).json({ error: 'Invalid opponent_id' })
+        const opp = await database('game_scheduling_opponents').where('id', opponentId).first('id')
+        if (!opp) return res.status(404).json({ error: 'Opponent not found' })
+      }
+
+      const updated = await database('scheduling_emails').whereIn('id', ids).update({ assigned_opponent: opponentId })
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'update',
+        collection: 'scheduling_emails',
+        recordId: ids.join(','),
+        data: { kind: 'mailbox_assign', opponent: opponentId, count: updated },
+      })
+      res.json({ success: true, updated })
+    } catch (err) { fail(res, 'admin/terminplanung/mailbox/assign', err, req) }
   })
 
   // POST /kscw/admin/terminplanung/mailbox/sync — pull now (also the cron's

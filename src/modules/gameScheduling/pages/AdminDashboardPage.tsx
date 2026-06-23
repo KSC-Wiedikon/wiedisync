@@ -21,7 +21,7 @@ import {
 import TeamAvailabilityDialog from '../components/TeamAvailabilityDialog'
 import SchedulingCalendar, { type IntraClubGame } from '../components/SchedulingCalendar'
 import MailboxPanel from '../components/MailboxPanel'
-import { useMailbox, messagesForOpponentThread, contactAddressSet, type MailboxMessage, type OpponentContacts } from '../hooks/useMailbox'
+import { useMailbox, classifyMessages, messagesForOwner, contactAddressSet, type MailboxMessage, type OpponentContacts } from '../hooks/useMailbox'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
@@ -432,6 +432,15 @@ export default function AdminDashboardPage() {
       return { opp: o, contacts: contactAddressSet(o), aliases: team?.name ? [team.name] : [] }
     }),
     [opponents, teams],
+  )
+
+  // Classify every synced message to an opponent row once per render (contact
+  // match + KSCW team code / opponent name + thread inheritance), so the
+  // per-opponent "N emails" thread is computed without re-scanning the list for
+  // every opponent card.
+  const mailClassification = useMemo(
+    () => classifyMessages(mailbox.messages, opponentContacts),
+    [mailbox.messages, opponentContacts],
   )
 
   // Selectable date window for manual bookings — guards against date typos
@@ -964,7 +973,7 @@ export default function AdminDashboardPage() {
                     dateWindow={manualDateWindow}
                     onBlockSlot={blockSlot}
                     mailboxConfigured={mailbox.configured === true}
-                    emailsFor={(opp) => messagesForOpponentThread(mailbox.messages, opp, opponentContacts)}
+                    emailsFor={(opp) => messagesForOwner(mailbox.messages, opp.id, mailClassification)}
                     onOpenMailbox={setMailboxFocus}
                     awayVmChecks={awayVmChecks}
                     awayVmUnbooked={awayVmUnbooked}
