@@ -30,6 +30,7 @@ export default {
   roleTeamResponsible: 'Responsabile di squadra',
 
   coaches: 'Allenatori',
+  staff: 'Staff',
 
   // Table headers
   playerCol: 'Giocatore',
