@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.6.0 — 2026-06-23
+
+### Finances: invoices you can pay in the app
+- The Fines page now lives in one **Finances** menu, alongside My finances, Upload invoice and Club finances (for the board).
+- The board can create an invoice for a member or a whole team — for example a Swiss Volley fine — right in Club finances.
+- You pay invoices in the app: open one under My finances, scan the QR-bill with TWINT or your banking app, then tap "I've paid". It shows as pending until the treasurer confirms the money arrived.
+- Team invoices appear for the team's coach, captain and responsible.
+- The board can link ClubDesk invoices that weren't matched to the right member (e.g. billed to a parent's email), and the link sticks across syncs.
+
 ## v1.5.0 — 2026-06-22
 
 ### Smarter junior game slots
