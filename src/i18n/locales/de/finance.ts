@@ -167,4 +167,21 @@ export default {
   linkScopeInvoice: 'Nur diese Rechnung verknüpfen',
   linkCta: 'Verknüpfen',
   noEmail: 'Keine E-Mail',
+
+  // ── Bankabgleich (camt.053/.054) ──
+  reconcileTitle: 'Bankabgleich (camt)',
+  reconcileHint: 'Lade einen camt.053/.054-Export von UBS hoch — native Rechnungen mit passender Referenz werden automatisch bestätigt; andere Gutschriften werden mit ClubDesk abgeglichen.',
+  camtChoose: 'camt-Datei auswählen',
+  camtImporting: 'Importieren…',
+  camtError: 'Datei konnte nicht importiert werden.',
+  camtSummary: '{{auto}} automatisch bestätigt · {{guess}} ClubDesk-Treffer · {{unmatched}} ohne Zuordnung · {{dup}} Duplikate',
+  colPayer: 'Zahler',
+  colDetail: 'Detail',
+  sAutoConfirmed: 'Automatisch bestätigt',
+  sClubdeskMatch: 'ClubDesk-Treffer (Nummer)',
+  sClubdeskGuess: 'ClubDesk-Vermutung',
+  sUnmatched: 'Ohne Zuordnung',
+  sPartial: 'Teilzahlung',
+  sAlreadySettled: 'Bereits beglichen',
+  sSkipped: 'Übersprungen',
 }

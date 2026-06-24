@@ -47,6 +47,7 @@ import { registerSqlWorkspace } from './sql-workspace.js'
 import { registerSqlAi } from './sql-ai.js'
 import { registerExpenseUpload } from './expense-upload.js'
 import { registerFinance } from './finance.js'
+import { registerFinanceCamt } from './finance-camt.js'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -2142,6 +2143,7 @@ export default {
     registerSqlAi(router, ctx)
     registerExpenseUpload(router, ctx)
     registerFinance(router, ctx)
+    registerFinanceCamt(router, ctx)
 
     log.info('KSCW endpoints loaded: ~63 routes')
   },

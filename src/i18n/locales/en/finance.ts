@@ -172,4 +172,21 @@ export default {
   linkScopeInvoice: 'Link only this invoice',
   linkCta: 'Link',
   noEmail: 'No email',
+
+  // ── Bank reconciliation (camt.053/.054) ──
+  reconcileTitle: 'Bank reconciliation (camt)',
+  reconcileHint: 'Upload a camt.053/.054 export from UBS — native invoices with a matching reference confirm automatically; other credits are cross-checked against ClubDesk.',
+  camtChoose: 'Choose camt file',
+  camtImporting: 'Importing…',
+  camtError: 'Could not import the file.',
+  camtSummary: '{{auto}} auto-confirmed · {{guess}} ClubDesk matches · {{unmatched}} unmatched · {{dup}} duplicates',
+  colPayer: 'Payer',
+  colDetail: 'Detail',
+  sAutoConfirmed: 'Auto-confirmed',
+  sClubdeskMatch: 'ClubDesk match (by number)',
+  sClubdeskGuess: 'ClubDesk guess',
+  sUnmatched: 'Unmatched',
+  sPartial: 'Partial',
+  sAlreadySettled: 'Already settled',
+  sSkipped: 'Skipped',
 }

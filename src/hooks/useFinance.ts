@@ -64,6 +64,14 @@ export const unlinkInvoiceMember = (id: string | number) =>
 /** True for a native invoice (created in wiedisync) vs a ClubDesk mirror row. */
 export const isNativeInvoice = (inv: FinanceInvoice): boolean => inv.source === 'native'
 
+export interface CamtImportResult {
+  summary: { type: string; credits: number; auto_confirmed: number; clubdesk_guesses: number; unmatched: number; duplicates: number; skipped: number }
+  details: Array<{ status: string; invoice?: string | null; recipient?: string | null; invoiceStatus?: string | null; amount?: number | null; debtor?: string | null; reference?: string | null; date?: string | null; reason?: string | null }>
+}
+/** Upload a camt.053/.054 export → reconcile (Vorstand). */
+export const importCamt = (xml: string) =>
+  kscwApi<CamtImportResult>('/finance/camt-import', { method: 'POST', body: { xml } })
+
 /** All invoices (board only — gated by the Vorstand read policy). */
 export function useFinanceInvoices(enabled = true) {
   return useCollection<FinanceInvoice>('finance_invoices', {

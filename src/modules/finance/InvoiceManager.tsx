@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Search, Check, X, Link2, Loader2 } from 'lucide-react'
+import { Plus, Search, Check, X, Link2, Loader2, Upload } from 'lucide-react'
 import Modal from '../../components/Modal'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { useCollection } from '../../lib/query'
@@ -9,6 +9,7 @@ import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
   useFinanceInvoices, formatChf, isNativeInvoice,
   createNativeInvoice, confirmInvoice, cancelInvoice, linkInvoiceMember,
+  importCamt, type CamtImportResult,
 } from '../../hooks/useFinance'
 import type { FinanceInvoice } from './types'
 import type { Member, Team } from '../../types'
@@ -216,6 +217,94 @@ function LinkMemberModal({ invoice, onClose, onDone }: { invoice: FinanceInvoice
   )
 }
 
+const STATUS_TONE: Record<string, string> = {
+  auto_confirmed: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+  clubdesk_match: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  clubdesk_guess: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  unmatched: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+  native_partial: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  native_already_settled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  skipped: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
+}
+
+/** Bank reconciliation — upload a camt.053/.054 export → native invoices auto-confirm, ClubDesk credits are cross-checked. */
+function CamtReconcile({ onImported }: { onImported: () => void }) {
+  const { t } = useTranslation('finance')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [result, setResult] = useState<CamtImportResult | null>(null)
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file
+    if (!file) return
+    setBusy(true); setError(''); setResult(null)
+    try {
+      const xml = await file.text()
+      const r = await importCamt(xml)
+      setResult(r)
+      onImported()
+    } catch (err) {
+      const body = (err as { body?: { error?: string } })?.body
+      setError(body?.error || t('camtError'))
+    } finally { setBusy(false) }
+  }
+
+  const statusLabel = (s: string) => {
+    const map: Record<string, string> = {
+      auto_confirmed: t('sAutoConfirmed'), clubdesk_match: t('sClubdeskMatch'), clubdesk_guess: t('sClubdeskGuess'), unmatched: t('sUnmatched'),
+      native_partial: t('sPartial'), native_already_settled: t('sAlreadySettled'), skipped: t('sSkipped'),
+    }
+    return map[s] ?? s
+  }
+
+  return (
+    <section>
+      <h2 className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{t('reconcileTitle')}</h2>
+      <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">{t('reconcileHint')}</p>
+      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        {busy ? t('camtImporting') : t('camtChoose')}
+        <input type="file" accept=".xml,text/xml,application/xml" className="hidden" onChange={onFile} disabled={busy} />
+      </label>
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {result && (
+        <div className="mt-3">
+          <p className="mb-2 text-sm text-gray-700 dark:text-gray-300">
+            {t('camtSummary', { auto: result.summary.auto_confirmed, guess: result.summary.clubdesk_guesses, unmatched: result.summary.unmatched, dup: result.summary.duplicates })}
+          </p>
+          {result.details.length > 0 && (
+            <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
+                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
+                    <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colPayer')}</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDetail')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {result.details.map((d, i) => (
+                    <TableRow key={i} className="border-gray-200 dark:border-gray-700">
+                      <TableCell><span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_TONE[d.status] ?? STATUS_TONE.unmatched}`}>{statusLabel(d.status)}</span></TableCell>
+                      <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{d.amount != null ? formatChf(d.amount) : '–'}</TableCell>
+                      <TableCell className="whitespace-normal break-words text-gray-600 dark:text-gray-400">{d.debtor || '–'}</TableCell>
+                      <TableCell className="whitespace-normal break-words text-gray-600 dark:text-gray-400">
+                        {d.invoice ? `${d.invoice}${d.recipient ? ` · ${d.recipient}` : ''}${d.invoiceStatus ? ` (${d.invoiceStatus})` : ''}` : (d.reference || d.reason || '–')}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 const ORPHAN_CAP = 100
 
 export default function InvoiceManager() {
@@ -312,6 +401,9 @@ export default function InvoiceManager() {
           </div>
         )}
       </section>
+
+      {/* ── Bank reconciliation (camt.053/.054) ──────────────────── */}
+      <CamtReconcile onImported={() => refetch()} />
 
       {/* ── Unmatched ClubDesk invoices ──────────────────────────── */}
       <section>

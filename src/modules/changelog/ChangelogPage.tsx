@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.6.1'
+const APP_VERSION = '1.7.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.7.0',
+    date: '24.06.2026',
+    sections: [
+      {
+        title: 'Finances',
+        items: [
+          'Invoices you pay through the app now reconcile automatically with club accounting — the payment carries the invoice number in the standard format, so no manual matching is needed.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.6.1',
     date: '24.06.2026',

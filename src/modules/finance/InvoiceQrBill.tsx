@@ -27,19 +27,28 @@ export default function InvoiceQrBill({ invoice }: { invoice: FinanceInvoice }) 
   const open = toNum(invoice.open_amount)
   const amount = Math.round((open > 0 ? open : toNum(invoice.amount)) * 100) / 100
 
+  // Replicate ClubDesk's QR-bill message ("Rechnungsnummer: 3089" + subject) so an
+  // in-app payment reconciles identically in ClubDesk, which matches on the invoice
+  // number in this Mitteilung. Same format for native invoices (they also carry the
+  // SCOR reference below).
   const message = useMemo(() => {
-    const parts = [invoice.number ? `Rechnung ${invoice.number}` : null, invoice.subject].filter(Boolean)
-    return parts.join(' · ').slice(0, 140) || undefined
+    const parts = [invoice.number ? `Rechnungsnummer: ${invoice.number}` : null, invoice.subject].filter(Boolean)
+    return parts.join('\n').slice(0, 140) || undefined
   }, [invoice.number, invoice.subject])
+
+  // Native invoices carry a SCOR (ISO-11649 "RF…") reference so the payment can
+  // be auto-reconciled later from camt.054. Valid on the regular IBAN; ClubDesk
+  // mirror rows stay reference-less (unstructured message only).
+  const reference = invoice.reference_type === 'SCOR' && invoice.reference ? invoice.reference : undefined
 
   const svg = useMemo(() => {
     if (!(amount >= 0.01)) return null
     try {
-      return new SwissQRCode({ currency: 'CHF', amount, creditor: { ...CREDITOR }, message }).toString()
+      return new SwissQRCode({ currency: 'CHF', amount, creditor: { ...CREDITOR }, message, ...(reference ? { reference } : {}) }).toString()
     } catch {
       return null
     }
-  }, [amount, message])
+  }, [amount, message, reference])
 
   if (!svg) return null
 

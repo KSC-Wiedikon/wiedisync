@@ -167,4 +167,21 @@ export default {
   linkScopeInvoice: 'Collega solo questa fattura',
   linkCta: 'Collega',
   noEmail: 'Nessuna e-mail',
+
+  // ── Riconciliazione bancaria (camt.053/.054) ──
+  reconcileTitle: 'Riconciliazione bancaria (camt)',
+  reconcileHint: 'Carica un export camt.053/.054 di UBS — le fatture native con riferimento corrispondente vengono confermate automaticamente; gli altri accrediti vengono confrontati con ClubDesk.',
+  camtChoose: 'Scegli file camt',
+  camtImporting: 'Importazione…',
+  camtError: 'Impossibile importare il file.',
+  camtSummary: '{{auto}} confermate · {{guess}} corrispondenze ClubDesk · {{unmatched}} senza corrispondenza · {{dup}} duplicati',
+  colPayer: 'Pagatore',
+  colDetail: 'Dettaglio',
+  sAutoConfirmed: 'Confermata auto.',
+  sClubdeskMatch: 'Corrispondenza ClubDesk (numero)',
+  sClubdeskGuess: 'Ipotesi ClubDesk',
+  sUnmatched: 'Senza corrispondenza',
+  sPartial: 'Pagamento parziale',
+  sAlreadySettled: 'Già saldata',
+  sSkipped: 'Ignorata',
 }

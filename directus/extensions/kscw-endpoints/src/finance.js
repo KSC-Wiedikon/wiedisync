@@ -28,6 +28,22 @@ import { writeUserLog } from './activity-log.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
+/**
+ * ISO-11649 Creditor Reference (SCOR) — "RF" + 2 check digits + body. Valid on a
+ * REGULAR IBAN (no QR-IBAN needed), and carried in the QR-bill so a later
+ * camt.054 import can match the payment back to this invoice. Body = numeric
+ * invoice id. Check via ISO 7064 mod-97-10 (append "RF00", letters→A=10…Z=35).
+ */
+function scorReference(idNum) {
+  const body = String(idNum)
+  let rem = 0
+  for (const ch of body + 'RF00') {
+    const token = /[0-9]/.test(ch) ? ch : String(ch.charCodeAt(0) - 55) // A=10 … Z=35
+    for (const d of token) rem = (rem * 10 + (d.charCodeAt(0) - 48)) % 97
+  }
+  return `RF${String(98 - rem).padStart(2, '0')}${body}`
+}
+
 export function registerFinance(router, { database, logger }) {
   const log = logger.child({ extension: 'kscw-endpoints', module: 'finance' })
 
@@ -128,8 +144,18 @@ export function registerFinance(router, { database, logger }) {
         created_by_email: mem?.email || null,
       }).returning('*')
 
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_invoices', recordId: row.id, data: { kind: 'native_invoice', recipient_type: recipientType, member: memberId, team: teamId, amount, number } })
-      return res.json({ invoice: row })
+      // Stamp a SCOR reference (id-derived) for camt reconciliation. Best-effort:
+      // a generation hiccup must not fail invoice creation.
+      let invoice = row
+      try {
+        const reference = scorReference(row.id)
+        const [updated] = await database('finance_invoices').where('id', row.id)
+          .update({ reference, reference_type: 'SCOR', date_updated: new Date() }).returning('*')
+        if (updated) invoice = updated
+      } catch (e) { log.warn?.({ msg: `scor reference gen failed: ${e.message}`, id: row.id }) }
+
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_invoices', recordId: invoice.id, data: { kind: 'native_invoice', recipient_type: recipientType, member: memberId, team: teamId, amount, number } })
+      return res.json({ invoice })
     } catch (e) { return err(res, req, 'create', e) }
   })
 
@@ -152,7 +178,7 @@ export function registerFinance(router, { database, logger }) {
         .select(
           'fi.id', 'fi.clubdesk_id', 'fi.number', 'fi.invoice_date', 'fi.subject', 'fi.amount',
           'fi.status', 'fi.dunning_status', 'fi.due_date', 'fi.amount_paid', 'fi.open_amount',
-          'fi.overpaid_amount', 'fi.written_off_amount', 'fi.payment_method', 'fi.reference',
+          'fi.overpaid_amount', 'fi.written_off_amount', 'fi.payment_method', 'fi.reference', 'fi.reference_type',
           'fi.fee_category', 'fi.closed_on', 'fi.recipient_name', 'fi.member', 'fi.team',
           'fi.source', 'fi.reported_paid_at', 'fi.reported_paid_method', 'fi.reported_paid_by',
           'fi.confirmed_at', 'fi.confirmed_via', 'fi.cancelled_at', 't.name as team_name',
