@@ -300,6 +300,7 @@ export default {
   sqlWorkspaceError: 'Requête échouée',
   sqlWorkspaceExportCsv: 'CSV',
   sqlWorkspaceExportXlsx: 'Excel',
+  sqlWorkspaceExportFailed: 'Échec de l’export Excel. Réessayez — si cela persiste, rechargez la page.',
   sqlWorkspaceCopyTable: 'Copier le tableau',
   sqlWorkspaceCopyTableHint: 'Copier en tableau HTML + TSV (pour docs, tableurs, chat)',
   sqlWorkspaceCopied: 'Copié',

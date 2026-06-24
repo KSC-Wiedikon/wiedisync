@@ -529,6 +529,7 @@ export default {
   sqlWorkspaceError: 'Query failed',
   sqlWorkspaceExportCsv: 'CSV',
   sqlWorkspaceExportXlsx: 'Excel',
+  sqlWorkspaceExportFailed: 'Excel export failed. Try again — if it persists, reload the page.',
   sqlWorkspaceCopyTable: 'Copy table',
   sqlWorkspaceCopyTableHint: 'Copy as HTML table + TSV (paste into docs, sheets, chat)',
   sqlWorkspaceCopied: 'Copied',

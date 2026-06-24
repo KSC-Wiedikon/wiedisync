@@ -467,6 +467,7 @@ export default {
   sqlWorkspaceError: 'Query gscheiteret',
   sqlWorkspaceExportCsv: 'CSV',
   sqlWorkspaceExportXlsx: 'Excel',
+  sqlWorkspaceExportFailed: 'Excel-Export het nöd klappt. Nochmal probiere – wenns blibt, Site neu lade.',
   sqlWorkspaceCopyTable: 'Tabelle kopiere',
   sqlWorkspaceCopyTableHint: 'Als HTML-Tabelle + TSV kopiere (für Docs, Sheets, Chat)',
   sqlWorkspaceCopied: 'Kopiert',
