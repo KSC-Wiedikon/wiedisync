@@ -27,9 +27,13 @@ export default function InvoiceQrBill({ invoice }: { invoice: FinanceInvoice }) 
   const open = toNum(invoice.open_amount)
   const amount = Math.round((open > 0 ? open : toNum(invoice.amount)) * 100) / 100
 
+  // Replicate ClubDesk's QR-bill message ("Rechnungsnummer: 3089" + subject) so an
+  // in-app payment reconciles identically in ClubDesk, which matches on the invoice
+  // number in this Mitteilung. Same format for native invoices (they also carry the
+  // SCOR reference below).
   const message = useMemo(() => {
-    const parts = [invoice.number ? `Rechnung ${invoice.number}` : null, invoice.subject].filter(Boolean)
-    return parts.join(' · ').slice(0, 140) || undefined
+    const parts = [invoice.number ? `Rechnungsnummer: ${invoice.number}` : null, invoice.subject].filter(Boolean)
+    return parts.join('\n').slice(0, 140) || undefined
   }, [invoice.number, invoice.subject])
 
   // Native invoices carry a SCOR (ISO-11649 "RF…") reference so the payment can
