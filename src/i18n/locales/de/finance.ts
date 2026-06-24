@@ -232,4 +232,11 @@ export default {
   docDeleteError: 'Dokument konnte nicht entfernt werden.',
   docOpenError: 'Dokument konnte nicht geöffnet werden.',
   docTooBig: 'Datei zu gross (max. {{mb}} MB).',
+  payoutQrTitle: 'Auszahlungs-QR',
+  payoutQrShow: 'Auszahlungs-QR anzeigen',
+  payoutQrHide: 'Ausblenden',
+  payoutQrHint: 'In der Banking-App scannen, um das Mitglied zurückzuerstatten — dann Betrag eingeben.',
+  payoutQrNeedsAddress: 'PLZ + Ort des Mitglieds erfassen, um den QR zu erstellen.',
+  payoutQrNonCh: 'Auszahlungs-QR braucht eine Schweizer (CH/LI) IBAN.',
+  payoutQrError: 'QR konnte nicht erstellt werden — IBAN und Adresse prüfen.',
 }

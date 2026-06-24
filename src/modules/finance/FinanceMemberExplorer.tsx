@@ -21,6 +21,7 @@ import {
 } from '../../hooks/useFinance'
 import { updateRecord, createRecord, deleteRecord, uploadFile, openPrivateAsset } from '../../lib/api'
 import { logActivity } from '../../utils/logActivity'
+import MemberPayoutQrBill from './MemberPayoutQrBill'
 import type { FinanceInvoice } from './types'
 
 const MAX_DOC_MB = 15
@@ -260,6 +261,9 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
           </div>
         </div>
       </section>
+
+      {/* Pay-out QR — reimburse this member by scanning (their IBAN) */}
+      <MemberPayoutQrBill member={member} />
 
       {/* Billing contact */}
       <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">

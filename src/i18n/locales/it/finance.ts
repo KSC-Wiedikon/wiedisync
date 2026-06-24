@@ -232,4 +232,11 @@ export default {
   docDeleteError: 'Impossibile rimuovere il documento.',
   docOpenError: 'Impossibile aprire il documento.',
   docTooBig: 'File troppo grande (max {{mb}} MB).',
+  payoutQrTitle: 'QR di pagamento',
+  payoutQrShow: 'Mostra QR di pagamento',
+  payoutQrHide: 'Nascondi',
+  payoutQrHint: "Scansiona nell'app bancaria per rimborsare il membro — poi inserisci l'importo.",
+  payoutQrNeedsAddress: 'Aggiungi CAP + località del membro per generare il QR.',
+  payoutQrNonCh: 'Il QR di pagamento richiede un IBAN svizzero (CH/LI).',
+  payoutQrError: "Impossibile generare il QR — controlla IBAN e indirizzo.",
 }
