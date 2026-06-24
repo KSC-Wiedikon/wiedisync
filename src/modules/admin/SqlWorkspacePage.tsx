@@ -1,6 +1,7 @@
 // src/modules/admin/SqlWorkspacePage.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Play, Loader2, AlertTriangle, History, Database, RefreshCw, X, FileDown, FileSpreadsheet, ClipboardCopy, Check, Sparkles } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover'
 import { API_URL } from '../../lib/api'
@@ -251,10 +252,16 @@ export default function SqlWorkspacePage() {
     try {
       const blob = await toXlsx(result.columns, result.rows)
       downloadBlob(blob, exportFilename('xlsx'))
+    } catch (e) {
+      // Was silently swallowed before — surface it so a failed export isn't a
+      // dead button. exceljs is lazy-loaded, so a stale chunk after a deploy
+      // can also land here.
+      console.error('[sql-workspace] xlsx export failed:', e)
+      toast.error(t('sqlWorkspaceExportFailed'))
     } finally {
       setExporting(null)
     }
-  }, [result, exportFilename])
+  }, [result, exportFilename, t])
 
   const handleAskAi = useCallback(async () => {
     const text = aiPrompt.trim()

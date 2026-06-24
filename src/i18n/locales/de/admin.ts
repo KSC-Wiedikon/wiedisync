@@ -535,6 +535,7 @@ export default {
   sqlWorkspaceError: 'Query fehlgeschlagen',
   sqlWorkspaceExportCsv: 'CSV',
   sqlWorkspaceExportXlsx: 'Excel',
+  sqlWorkspaceExportFailed: 'Excel-Export fehlgeschlagen. Erneut versuchen – wenn es weiterhin auftritt, Seite neu laden.',
   sqlWorkspaceCopyTable: 'Tabelle kopieren',
   sqlWorkspaceCopyTableHint: 'Als HTML-Tabelle + TSV kopieren (für Docs, Sheets, Chat)',
   sqlWorkspaceCopied: 'Kopiert',

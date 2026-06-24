@@ -70,11 +70,21 @@ export async function toXlsx(
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('Results')
   ws.addRow(columns)
+  ws.getRow(1).font = { bold: true }
   for (const row of rows) {
     ws.addRow(row.map(serializeCell))
   }
   const buffer = await wb.xlsx.writeBuffer()
-  return new Blob([buffer], { type: 'application/octet-stream' })
+  // Normalise exceljs's writeBuffer() output to a native Uint8Array before
+  // wrapping it in a Blob. In the browser build writeBuffer() can hand back a
+  // Buffer-polyfill object that the Blob constructor stringifies instead of
+  // treating as binary → a corrupt .xlsx that won't open. new Uint8Array(...)
+  // forces a real typed array (this is what the working scheduleExport path
+  // does). Use the official spreadsheet MIME so the OS opens it in Excel rather
+  // than as a generic octet-stream download.
+  return new Blob([new Uint8Array(buffer as ArrayBuffer)], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
 }
 
 export function downloadBlob(blob: Blob, filename: string): void {
@@ -84,8 +94,10 @@ export function downloadBlob(blob: Blob, filename: string): void {
   a.download = filename
   document.body.appendChild(a)
   a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  a.remove()
+  // Defer the revoke: tearing down the object URL synchronously can abort the
+  // download of a larger binary blob in some browsers before it has started.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
 export function downloadText(
