@@ -170,7 +170,7 @@ export default {
   opponentCount_other: '{{count}} Gegner',
   saturdayCounter: 'Sa H{{home}} · A{{away}}',
   saturdayCounterHint: 'Samstigsspiel — Heim · Uswärts',
-  homeAwayCounter: 'H {{hc}}/{{total}} · A {{ac}}/{{total}}',
+  homeAwayCounter: 'H {{hc}}/{{ht}} · A {{ac}}/{{at}}',
   homeAwayCounterHint: 'Heim- / Uswärtsspiel bestätigt (vo total)',
   summaryHome: 'Heimspiel',
   summaryAway: 'Uswärtsspiel',

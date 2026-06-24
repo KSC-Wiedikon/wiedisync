@@ -266,6 +266,23 @@ export default function AdminDashboardPage() {
     return () => { cancelled = true }
   }, [season?.id, bookings])
 
+  // Fixture-aware home/away tallies (server resolves SVRZ fixtures per opponent;
+  // the page only knows opponents+bookings). Drives the top cards and the
+  // per-team header counter so a multi-game pairing (2H+1A etc.) counts every
+  // leg instead of assuming one home + one away per opponent. Re-fetched on
+  // bookings change (a confirm flips a leg). Falls back to the booking-based
+  // client counts until it lands. Keyed by team id.
+  type SideTally = { homeConfirmed: number; homeTotal: number; awayConfirmed: number; awayTotal: number }
+  const [fixtureSummary, setFixtureSummary] = useState<{ totals: SideTally; byTeam: Record<string, SideTally> } | null>(null)
+  useEffect(() => {
+    if (!season?.id) { setFixtureSummary(null); return }
+    let cancelled = false
+    kscwApi<{ totals: SideTally; byTeam: Record<string, SideTally> }>(`/admin/terminplanung/season-summary?season=${season.id}`)
+      .then((r) => { if (!cancelled) setFixtureSummary(r) })
+      .catch(() => { if (!cancelled) setFixtureSummary(null) })
+    return () => { cancelled = true }
+  }, [season?.id, bookings])
+
   const [mailboxFocus, setMailboxFocus] = useState<GameSchedulingOpponent | null>(null)
 
   // Wrap confirm so a rejected booking (Saturday cap, cross-team, gap, Döltschi,
@@ -695,18 +712,21 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Season summary — confirmed home/away vs total, plus what's outstanding */}
+      {/* Season summary — confirmed home/away vs total, plus what's outstanding.
+          Home/away totals are fixture-aware (server) so multi-game pairings count
+          every leg; until that lands we fall back to the booking-based client
+          counts (one leg per opponent). */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('summaryHome')}</p>
           <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400 tabular-nums">
-            {summary.homeConfirmed}<span className="text-base font-medium text-gray-400 dark:text-gray-500">/{summary.gamesTotal}</span>
+            {fixtureSummary?.totals.homeConfirmed ?? summary.homeConfirmed}<span className="text-base font-medium text-gray-400 dark:text-gray-500">/{fixtureSummary?.totals.homeTotal ?? summary.gamesTotal}</span>
           </p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('summaryAway')}</p>
           <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400 tabular-nums">
-            {summary.awayConfirmed}<span className="text-base font-medium text-gray-400 dark:text-gray-500">/{summary.gamesTotal}</span>
+            {fixtureSummary?.totals.awayConfirmed ?? summary.awayConfirmed}<span className="text-base font-medium text-gray-400 dark:text-gray-500">/{fixtureSummary?.totals.awayTotal ?? summary.gamesTotal}</span>
           </p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
@@ -861,11 +881,22 @@ export default function AdminDashboardPage() {
                   )}
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-3 text-xs text-gray-600 sm:text-sm dark:text-gray-400">
-                  {stats.gamesTotal > 0 && (
-                    <span className="hidden whitespace-nowrap sm:inline" title={t('homeAwayCounterHint')}>
-                      {t('homeAwayCounter', { hc: stats.homeConfirmed, ac: stats.awayConfirmed, total: stats.gamesTotal })}
-                    </span>
-                  )}
+                  {stats.gamesTotal > 0 && (() => {
+                    // Fixture-aware per-side totals (multi-game pairings); fall
+                    // back to the booking-based client counts until the server
+                    // tally lands.
+                    const tally = fixtureSummary?.byTeam[String(team.id)]
+                    return (
+                      <span className="hidden whitespace-nowrap sm:inline" title={t('homeAwayCounterHint')}>
+                        {t('homeAwayCounter', {
+                          hc: tally?.homeConfirmed ?? stats.homeConfirmed,
+                          ht: tally?.homeTotal ?? stats.gamesTotal,
+                          ac: tally?.awayConfirmed ?? stats.awayConfirmed,
+                          at: tally?.awayTotal ?? stats.gamesTotal,
+                        })}
+                      </span>
+                    )
+                  })()}
                   {stats.satTotal > 0 && (
                     <span className="whitespace-nowrap" title={t('saturdayCounterHint')}>
                       {t('saturdayCounter', { home: stats.homeSat, away: stats.awaySat })}
