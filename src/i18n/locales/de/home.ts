@@ -26,4 +26,7 @@ export default {
   ibanNudgeBody: 'Die Finanzen brauchen deine aktuellste IBAN, um Spesen zurückzuerstatten. Trag sie unter «Finanzen» ein oder prüfe sie.',
   ibanNudgeCta: 'IBAN hinterlegen',
   ibanNudgeDismiss: 'Später',
+  ibanConfirmNudgeTitle: 'IBAN bestätigen',
+  ibanConfirmNudgeBody: 'Wir haben eine IBAN für dich hinterlegt — bitte bestätige unter Finanzen, dass sie stimmt (oder ändere sie), damit Rückerstattungen ankommen.',
+  ibanConfirmNudgeCta: 'In Finanzen bestätigen',
 } as const

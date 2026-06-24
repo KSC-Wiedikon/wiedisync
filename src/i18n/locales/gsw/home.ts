@@ -21,4 +21,7 @@ export default {
   ibanNudgeBody: 'D Finanze bruuche dini aktuellsti IBAN, zum Spese zruggzahle. Trag sie unter «Finanze» i oder prüef sie.',
   ibanNudgeCta: 'IBAN hinterlege',
   ibanNudgeDismiss: 'Spöter',
+  ibanConfirmNudgeTitle: 'IBAN bestätige',
+  ibanConfirmNudgeBody: 'Mir hend e IBAN für di hinterleit — bitte bestätig under Finanze, dass si stimmt (oder änder si), damit Rückerstattige aachömed.',
+  ibanConfirmNudgeCta: 'In Finanze bestätige',
 } as const

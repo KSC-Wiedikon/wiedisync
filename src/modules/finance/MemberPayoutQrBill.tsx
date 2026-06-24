@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SwissQRCode } from 'swissqrbill/svg'
 import { QrCode, ShieldAlert } from 'lucide-react'
+import { isValidIban } from '../../utils/iban'
 import type { FinanceMember } from '../../hooks/useFinance'
 
 /**
@@ -15,7 +16,10 @@ import type { FinanceMember } from '../../hooks/useFinance'
  *
  * Only renders for a valid CH/LI IBAN + address (Swiss QR-bill requirement).
  */
-const isChLiIban = (iban: string) => /^(CH|LI)\d{2}[0-9A-Z]{15}$/.test(iban)
+// Swiss QR-bills require a CH/LI creditor IBAN. isValidIban handles the correct
+// length + mod-97 check (CH/LI IBANs are 21 chars — a hand-rolled length was the
+// bug that rejected valid accounts).
+const isChLiIban = (iban: string) => /^(CH|LI)/.test(iban) && isValidIban(iban)
 const fmtIban = (iban: string) => iban.replace(/(.{4})/g, '$1 ').trim()
 const cleanIban = (s?: string | null) => (s ?? '').replace(/\s/g, '').toUpperCase()
 
