@@ -219,6 +219,7 @@ function LinkMemberModal({ invoice, onClose, onDone }: { invoice: FinanceInvoice
 
 const STATUS_TONE: Record<string, string> = {
   auto_confirmed: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+  clubdesk_match: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
   clubdesk_guess: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   unmatched: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
   native_partial: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
@@ -251,7 +252,7 @@ function CamtReconcile({ onImported }: { onImported: () => void }) {
 
   const statusLabel = (s: string) => {
     const map: Record<string, string> = {
-      auto_confirmed: t('sAutoConfirmed'), clubdesk_guess: t('sClubdeskGuess'), unmatched: t('sUnmatched'),
+      auto_confirmed: t('sAutoConfirmed'), clubdesk_match: t('sClubdeskMatch'), clubdesk_guess: t('sClubdeskGuess'), unmatched: t('sUnmatched'),
       native_partial: t('sPartial'), native_already_settled: t('sAlreadySettled'), skipped: t('sSkipped'),
     }
     return map[s] ?? s

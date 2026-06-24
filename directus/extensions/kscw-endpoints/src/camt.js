@@ -116,3 +116,19 @@ export function invoiceIdFromScor(reference) {
   if (!r || !/^RF\d{2}\d+$/.test(r)) return null
   return Number(r.slice(4))
 }
+
+/**
+ * Candidate invoice NUMBERS carried in the unstructured message ("Mitteilung") —
+ * how ClubDesk itself reconciles ("Rechnungsnummer: 3089"). Returns explicit
+ * matches first (native N-YYYY-NNNN, "Rechnung(snummer) 3089"), then bare numbers
+ * as a fallback — callers validate against real finance_invoices.number (+ amount).
+ */
+export function invoiceNumbersFromMessage(msg) {
+  if (!msg) return []
+  const s = String(msg)
+  const explicit = [], bare = []
+  for (const m of s.matchAll(/\bN-\d{4}-\d{3,}\b/gi)) explicit.push(m[0].toUpperCase())
+  for (const m of s.matchAll(/rechnung(?:s)?(?:[-\s]*nummer|[-\s]*nr\.?)?[:\s#]*([0-9]{2,})/gi)) explicit.push(m[1])
+  for (const m of s.matchAll(/\b(\d{3,8})\b/g)) bare.push(m[1])
+  return [...new Set([...explicit, ...bare])]
+}

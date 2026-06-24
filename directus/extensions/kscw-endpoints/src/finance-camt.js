@@ -12,7 +12,7 @@
  *
  * Validated against the ISO-20022 shape; re-verify against a real UBS export before prod.
  */
-import { parseCamt, invoiceIdFromScor } from './camt.js'
+import { parseCamt, invoiceIdFromScor, invoiceNumbersFromMessage } from './camt.js'
 import { writeUserLog } from './activity-log.js'
 
 export function registerFinanceCamt(router, { database, logger }) {
@@ -79,6 +79,22 @@ export function registerFinanceCamt(router, { database, logger }) {
       const summary = { type: parsed.type, credits: parsed.credits.length, auto_confirmed: 0, clubdesk_guesses: 0, unmatched: 0, duplicates: 0, skipped: 0 }
       const details = []
 
+      // Auto-confirm a matched NATIVE invoice (by SCOR ref or by message number).
+      const applyNative = async (inv, c) => {
+        await database('finance_payments').insert(payRow(c, importId, { invoice: inv.id, match_status: 'native' }))
+        const settles = c.amount + 1e-9 >= Number(inv.amount)
+        if (settles && ['open', 'pending_confirmation'].includes(inv.status)) {
+          await database('finance_invoices').where('id', inv.id).update({
+            status: 'paid', amount_paid: inv.amount, open_amount: 0, closed_on: todayISO(),
+            confirmed_at: new Date(), confirmed_by_name: 'camt import', confirmed_via: 'camt', date_updated: new Date(),
+          })
+          summary.auto_confirmed++
+          details.push({ status: 'auto_confirmed', invoice: inv.number, ...slim(c) })
+        } else {
+          details.push({ status: settles ? 'native_already_settled' : 'native_partial', invoice: inv.number, invoiceAmount: Number(inv.amount), ...slim(c) })
+        }
+      }
+
       for (const c of parsed.credits) {
         if (!(c.amount > 0)) { summary.skipped++; continue }
         if (c.currency && c.currency !== 'CHF') { summary.skipped++; details.push({ status: 'skipped', reason: 'non-CHF', ...slim(c) }); continue }
@@ -88,23 +104,29 @@ export function registerFinanceCamt(router, { database, logger }) {
         const invId = invoiceIdFromScor(c.reference)
         let matched = invId ? await database('finance_invoices').where('id', invId).andWhere('source', 'native').first() : null
         if (matched && norm(matched.reference) !== norm(c.reference)) matched = null
-        if (matched) {
-          await database('finance_payments').insert(payRow(c, importId, { invoice: matched.id, match_status: 'native' }))
-          const settles = c.amount + 1e-9 >= Number(matched.amount)
-          if (settles && ['open', 'pending_confirmation'].includes(matched.status)) {
-            await database('finance_invoices').where('id', matched.id).update({
-              status: 'paid', amount_paid: matched.amount, open_amount: 0, closed_on: todayISO(),
-              confirmed_at: new Date(), confirmed_by_name: 'camt import', confirmed_via: 'camt', date_updated: new Date(),
-            })
-            summary.auto_confirmed++
-            details.push({ status: 'auto_confirmed', invoice: matched.number, ...slim(c) })
-          } else {
-            details.push({ status: settles ? 'native_already_settled' : 'native_partial', invoice: matched.number, invoiceAmount: Number(matched.amount), ...slim(c) })
+        if (matched) { await applyNative(matched, c); continue }
+
+        // 2) match by invoice NUMBER in the Mitteilung — exactly how ClubDesk reconciles.
+        //    Validate candidates against real numbers + amount (guards bare-number noise).
+        const cands = invoiceNumbersFromMessage([c.reference, c.unstructured].filter(Boolean).join(' '))
+        if (cands.length) {
+          const hits = await database('finance_invoices').whereIn('number', cands)
+            .orderByRaw("CASE WHEN source='native' THEN 0 ELSE 1 END")
+            .limit(8).select('id', 'number', 'amount', 'open_amount', 'status', 'recipient_name', 'source')
+          const pick = hits.find((r) => Math.abs(Number(r.amount) - c.amount) < 0.005) || (hits.length === 1 ? hits[0] : null)
+          if (pick && pick.source === 'native') {
+            const inv = await database('finance_invoices').where('id', pick.id).first()
+            await applyNative(inv, c); continue
           }
-          continue
+          if (pick) { // ClubDesk invoice matched by number — confident cross-check, never mutate ClubDesk
+            await database('finance_payments').insert(payRow(c, importId, { invoice: null, match_status: 'clubdesk_match', clubdesk_guess: pick.id }))
+            summary.clubdesk_guesses++
+            details.push({ status: 'clubdesk_match', invoice: pick.number, recipient: pick.recipient_name, invoiceStatus: pick.status, ...slim(c) })
+            continue
+          }
         }
 
-        // 2) fuzzy ClubDesk guess (flag only) / 3) unmatched
+        // 3) fuzzy ClubDesk guess (amount + payer name, flag only) / 4) unmatched
         const guess = await fuzzyClubdesk(c)
         await database('finance_payments').insert(payRow(c, importId, { invoice: null, match_status: guess ? 'clubdesk_guess' : 'unmatched', clubdesk_guess: guess?.id ?? null }))
         if (guess) { summary.clubdesk_guesses++; details.push({ status: 'clubdesk_guess', invoice: guess.number, recipient: guess.recipient_name, invoiceStatus: guess.status, ...slim(c) }) }
