@@ -200,6 +200,7 @@ export default {
   memberCount_other: '{{count}} members',
   colMember: 'Member',
   colCategory: 'Category',
+  colSport: 'Sport',
   membershipActive: 'Active',
   membershipInactive: 'Inactive',
   billingSeparate: 'Separate billing',

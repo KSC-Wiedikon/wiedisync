@@ -195,6 +195,7 @@ export default {
   memberCount_other: '{{count}} membri',
   colMember: 'Membro',
   colCategory: 'Categoria',
+  colSport: 'Sport',
   membershipActive: 'Attivo',
   membershipInactive: 'Inattivo',
   billingSeparate: 'Fatturazione separata',
