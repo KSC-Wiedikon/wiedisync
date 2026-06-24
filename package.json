@@ -128,6 +128,7 @@
     "lucide-react": "^1.14.0",
     "mini-svg-data-uri": "^1.4.4",
     "motion": "^12.39.0",
+    "pdfkit": "^0.15.2",
     "qrcode.react": "^4.2.0",
     "qss": "^3.0.0",
     "radix-ui": "^1.4.3",
