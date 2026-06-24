@@ -228,4 +228,12 @@ export default {
   invoicesSection: 'Invoices',
   totalOpen: 'Total open',
   noMemberInvoices: 'No invoices for this member.',
+  attachPdf: 'Attach PDF',
+  viewPdf: 'View',
+  docDelete: 'Remove document',
+  docUploaded: 'Document attached.',
+  docUploadError: 'Could not attach the document.',
+  docDeleteError: 'Could not remove the document.',
+  docOpenError: 'Could not open the document.',
+  docTooBig: 'File too large (max {{mb}} MB).',
 }

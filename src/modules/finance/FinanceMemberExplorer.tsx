@@ -4,20 +4,26 @@
 // Table of members) ⇄ full-width member detail. Read for board + finance; the
 // billing edit is gated on canEdit (finance role / admin) so a read-only board
 // member never hits a 403 on save.
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Search, Save, Loader2, Mail, Phone, MapPin, CreditCard, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Search, Save, Loader2, Mail, Phone, MapPin, CreditCard, ChevronRight, Paperclip, FileText, X } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { useAuth } from '../../hooks/useAuth'
-import { useFinanceInvoices, useFinanceMembers, toNum, formatChf, isOpenInvoice, type FinanceMember } from '../../hooks/useFinance'
-import { updateRecord } from '../../lib/api'
+import {
+  useFinanceInvoices, useFinanceMembers, useFinanceInvoiceDocuments,
+  toNum, formatChf, isOpenInvoice, FINANCE_INVOICE_FOLDER,
+  type FinanceMember, type FinanceInvoiceDocument,
+} from '../../hooks/useFinance'
+import { updateRecord, createRecord, deleteRecord, uploadFile, openPrivateAsset } from '../../lib/api'
 import { logActivity } from '../../utils/logActivity'
 import type { FinanceInvoice } from './types'
+
+const MAX_DOC_MB = 15
 
 const BILLING_FIELDS = ['billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone'] as const
 
@@ -82,15 +88,71 @@ function fieldInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   )
 }
 
-function MemberDetail({ member, invoices, canEdit, onBack, onSaved }: {
+function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, onDocsChanged }: {
   member: FinanceMember
   invoices: FinanceInvoice[]
+  documents: FinanceInvoiceDocument[]
   canEdit: boolean
   onBack: () => void
   onSaved: () => void
+  onDocsChanged: () => void
 }) {
   const { t } = useTranslation('finance')
+  const { user } = useAuth()
   const statusPill = useStatusPill()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const attachTarget = useRef<FinanceInvoice | null>(null)
+  const [busyInvoice, setBusyInvoice] = useState<string | null>(null)
+
+  // Docs for an invoice: ClubDesk rows key on clubdesk_id (sync-safe), native on the invoice id.
+  const docsFor = useCallback((inv: FinanceInvoice) => documents.filter((d) =>
+    (inv.source !== 'native' && inv.clubdesk_id && d.match_clubdesk_id === inv.clubdesk_id) ||
+    (d.invoice != null && String(d.invoice) === String(inv.id)),
+  ), [documents])
+
+  const pickFile = (inv: FinanceInvoice) => { attachTarget.current = inv; fileRef.current?.click() }
+
+  const onFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-picking the same file
+    const inv = attachTarget.current
+    if (!file || !inv) return
+    if (file.size > MAX_DOC_MB * 1024 * 1024) { toast.error(t('docTooBig', { mb: MAX_DOC_MB })); return }
+    setBusyInvoice(String(inv.id))
+    try {
+      const up = await uploadFile(file, FINANCE_INVOICE_FOLDER)
+      const key = (inv.source !== 'native' && inv.clubdesk_id)
+        ? { match_clubdesk_id: inv.clubdesk_id }
+        : { invoice: inv.id }
+      await createRecord('finance_invoice_documents', {
+        file: up.id, ...key, label: up.name,
+        uploaded_by_name: [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim() || null,
+        uploaded_by_email: user?.email ?? null,
+      })
+      logActivity('create', 'finance_invoice_documents', undefined, { invoice: inv.number, ...key })
+      toast.success(t('docUploaded'))
+      onDocsChanged()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('docUploadError'))
+    } finally {
+      setBusyInvoice(null)
+    }
+  }
+
+  const removeDoc = async (doc: FinanceInvoiceDocument) => {
+    try {
+      await deleteRecord('finance_invoice_documents', doc.id)
+      logActivity('delete', 'finance_invoice_documents', String(doc.id), null)
+      onDocsChanged()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('docDeleteError'))
+    }
+  }
+
+  const viewDoc = async (doc: FinanceInvoiceDocument) => {
+    try { await openPrivateAsset(doc.file) }
+    catch { toast.error(t('docOpenError')) }
+  }
   // Billing draft — component is keyed by member.id in the parent, so this
   // initializer reseeds whenever a different member is opened.
   const [draft, setDraft] = useState({
@@ -143,6 +205,9 @@ function MemberDetail({ member, invoices, canEdit, onBack, onSaved }: {
 
   return (
     <div className="space-y-5">
+      {canEdit && (
+        <input ref={fileRef} type="file" accept=".pdf,image/*,application/pdf" className="hidden" onChange={onFilePicked} />
+      )}
       <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
         <ArrowLeft className="h-4 w-4" /> {t('back')}
       </button>
@@ -254,6 +319,31 @@ function MemberDetail({ member, invoices, canEdit, onBack, onSaved }: {
                         <span className="font-medium">{inv.number || '—'}</span>
                         <span className="mt-0.5 block text-xs text-gray-400">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : ''}</span>
                         <span className="mt-0.5 block text-xs text-gray-500 sm:hidden">{inv.subject}</span>
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {docsFor(inv).map((d) => (
+                            <span key={d.id} className="inline-flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-700">
+                              <button type="button" onClick={() => viewDoc(d)} title={d.label ?? t('viewPdf')} className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline dark:text-brand-300">
+                                <FileText className="h-3 w-3" />{t('viewPdf')}
+                              </button>
+                              {canEdit && (
+                                <button type="button" onClick={() => removeDoc(d)} aria-label={t('docDelete')} className="text-gray-400 hover:text-red-600">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              )}
+                            </span>
+                          ))}
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => pickFile(inv)}
+                              disabled={busyInvoice === String(inv.id)}
+                              className="inline-flex items-center gap-1 rounded border border-dashed border-gray-300 px-1.5 py-0.5 text-xs text-gray-500 hover:border-brand-400 hover:text-brand-600 disabled:opacity-50 dark:border-gray-600 dark:text-gray-400"
+                            >
+                              {busyInvoice === String(inv.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
+                              {t('attachPdf')}
+                            </button>
+                          )}
+                        </span>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">{inv.subject || '—'}</TableCell>
                       <TableCell><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${pill.cls}`}>{pill.label}</span></TableCell>
@@ -277,8 +367,10 @@ export default function FinanceMemberExplorer() {
   const qc = useQueryClient()
   const { data: membersRaw, isLoading } = useFinanceMembers()
   const { data: invoicesRaw } = useFinanceInvoices()
+  const { data: documentsRaw } = useFinanceInvoiceDocuments()
   const members = useMemo(() => membersRaw ?? [], [membersRaw])
   const invoices = useMemo(() => invoicesRaw ?? [], [invoicesRaw])
+  const documents = useMemo(() => documentsRaw ?? [], [documentsRaw])
 
   const [query, setQuery] = useState('')
   const [onlyActive, setOnlyActive] = useState(true)
@@ -321,9 +413,11 @@ export default function FinanceMemberExplorer() {
         key={selected.id}
         member={selected}
         invoices={invoicesByMember.get(String(selected.id)) ?? []}
+        documents={documents}
         canEdit={isFinance}
         onBack={() => setSelectedId(null)}
         onSaved={() => { qc.invalidateQueries({ queryKey: ['finance', 'members'] }) }}
+        onDocsChanged={() => { qc.invalidateQueries({ queryKey: ['finance', 'invoice-documents'] }) }}
       />
     )
   }

@@ -418,6 +418,10 @@ const FINANCE_MEMBER_BILLING_FIELDS = [
   'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone',
 ]
 
+/** Private folder for invoice PDFs (migration 134). Members can't read this folder
+ *  (their directus_files read is folder-less-only); finance + board get a scoped read. */
+const FINANCE_INVOICE_FOLDER = 'f1a0d0c5-0000-4000-8000-000000000001'
+
 // ── Main ──────────────────────────────────��──────────────────────
 
 async function main() {
@@ -631,12 +635,19 @@ async function main() {
     'referee_expenses', 'carpools', 'carpool_passengers', 'polls',
     // Junctions
     'teams_coaches', 'teams_responsibles', 'teams_sponsors', 'events_teams', 'events_members',
-    // Files
-    'directus_files',
   ]
   for (const col of MEMBER_READ_ALL) {
     await setPermRead(MEMBER_POLICY, col)
   }
+  // Files: everything EXCEPT the private finance-invoice folder (migration 134,
+  // 2026-06-24). Invoice PDFs contain a member's billing details and must not be
+  // member-readable via /assets. SURGICAL exclusion (not folder-less-only) so all
+  // existing member file access is unchanged — folder-less photos AND the feedback
+  // screenshots that Vorstand/Sport Admin review still load. Null-folder files don't
+  // match a bare _neq, hence the _or. Finance + board re-add the folder below.
+  await setPermRead(MEMBER_POLICY, 'directus_files', {
+    _or: [{ folder: { _null: true } }, { folder: { _neq: FINANCE_INVOICE_FOLDER } }],
+  })
 
   // ── Team-scoped reads (migration 032 / 033) ─────────────────
   // trainings: only my teams. events: own + club-wide + my-teams + invited.
@@ -1390,10 +1401,15 @@ async function main() {
     'finance_accounts', 'finance_fiscal_years', 'finance_budget_lines',
     'finance_transactions', 'finance_invoices', 'finance_payments', 'finance_imports',
     'finance_invoice_member_overrides',
+    // Invoice PDF attachment links (migration 134) — board read for oversight.
+    'finance_invoice_documents',
   ]
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)
   }
+  // Read the private invoice-PDF folder so the board can open attachments via
+  // /assets (members can't — their directus_files read is folder-less-only).
+  await setPermRead(VORSTAND_POLICY, 'directus_files', { folder: { _eq: FINANCE_INVOICE_FOLDER } })
 
   // Forms (migrations 086/087) — Vorstand has FULL management (decision
   // 2026-06-05): create/edit/delete any form club-wide + read all submissions,
@@ -1512,6 +1528,13 @@ async function main() {
   for (const col of FINANCE_READ_ALL) {
     await setPermRead(FINANCE_POLICY, col)
   }
+
+  // Invoice PDF attachments (migration 134). Finance uploads PDFs into the private
+  // folder + manages the link rows; the file is served via /assets (folder-scoped
+  // read below). finance_invoice_documents is the link table (clubdesk_id / native).
+  await setPermCRUD(FINANCE_POLICY, 'finance_invoice_documents')
+  await setPerm(FINANCE_POLICY, 'directus_files', 'create')
+  await setPermRead(FINANCE_POLICY, 'directus_files', { folder: { _eq: FINANCE_INVOICE_FOLDER } })
 
   console.log(`  ✓ Finance permissions set`)
 
