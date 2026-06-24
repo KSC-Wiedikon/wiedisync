@@ -5262,6 +5262,74 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // GET /admin/terminplanung/season-summary?season= — fixture-aware home/away
+  // tallies for the dashboard cards + per-team header counter. The page itself
+  // only knows opponents+bookings (fixtures load lazily per accordion), so it
+  // can't tell that a junior triple round-robin pairing carries 2 home + 1 away
+  // (or 1+2) legs — which is why the booking-count numerator was overshooting a
+  // one-leg-per-opponent denominator (e.g. away 75/74). Here we resolve each
+  // opponent's SVRZ fixtures and total per side, exactly like finalize-notify /
+  // invites/remind: homeTotal = home-side fixtures (1 fallback when an opponent
+  // has no synced fixtures). The total is floored at the confirmed count so a
+  // stale orphan booking on a dropped fixture can never read numerator>total.
+  // Scoped to the teams the caller may manage. Read-only → no actor logging.
+  router.get('/admin/terminplanung/season-summary', async (req, res) => {
+    try {
+      const { season } = req.query
+      if (!season) return res.status(400).json({ error: 'season required' })
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first('id')
+      if (!seasonRow) return res.status(404).json({ error: 'season not found' })
+
+      const allOpps = await database('game_scheduling_opponents')
+        .where('season', season).whereNotIn('status', ['revoked', 'expired'])
+        .select('id', 'kscw_team', 'team_name', 'club_name', 'season')
+
+      const allTeamIds = [...new Set(allOpps.map((o) => o.kscw_team))]
+      const manageable = new Set()
+      for (const tId of allTeamIds) { if (await spielplanerCanManageTeam(req, tId)) manageable.add(tId) }
+      const opps = allOpps.filter((o) => manageable.has(o.kscw_team))
+
+      // Confirmed bookings per opponent + side (mirrors finalize-notify counts).
+      const homeConf = new Map(); const awayConf = new Map()
+      if (opps.length) {
+        const confRows = await database('game_scheduling_bookings')
+          .whereIn('opponent', opps.map((o) => o.id)).where('status', 'confirmed')
+          .groupBy('opponent', 'type')
+          .select('opponent', 'type', database.raw('count(*) as c'))
+        for (const r of confRows) {
+          if (r.type === 'home_slot_pick') homeConf.set(r.opponent, Number(r.c))
+          else if (r.type === 'away_proposal') awayConf.set(r.opponent, Number(r.c))
+        }
+      }
+
+      const byTeam = {}
+      const bucket = (tid) => (byTeam[tid] || (byTeam[tid] = { homeConfirmed: 0, homeTotal: 0, awayConfirmed: 0, awayTotal: 0 }))
+      for (const o of opps) {
+        const fixtures = await opponentSvrzFixtures(o)
+        const homeFx = fixtures.length ? fixtures.filter((f) => f.is_home_kscw).length : 1
+        const awayFx = fixtures.length ? fixtures.filter((f) => !f.is_home_kscw).length : 1
+        const hc = homeConf.get(o.id) || 0
+        const ac = awayConf.get(o.id) || 0
+        const b = bucket(String(o.kscw_team))
+        b.homeConfirmed += hc
+        b.awayConfirmed += ac
+        b.homeTotal += Math.max(homeFx, hc) // floor at confirmed → never numerator>total
+        b.awayTotal += Math.max(awayFx, ac)
+      }
+
+      const totals = Object.values(byTeam).reduce((acc, b) => {
+        acc.homeConfirmed += b.homeConfirmed; acc.homeTotal += b.homeTotal
+        acc.awayConfirmed += b.awayConfirmed; acc.awayTotal += b.awayTotal
+        return acc
+      }, { homeConfirmed: 0, homeTotal: 0, awayConfirmed: 0, awayTotal: 0 })
+
+      res.json({ totals, byTeam })
+    } catch (err) {
+      log.error({ msg: `season-summary: ${err.message}`, endpoint: 'admin/terminplanung/season-summary', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // GET /admin/terminplanung/away-vm-check?season= — for each CONFIRMED away
   // game, compare the agreed date/time (the confirmed proposal, stored lexically
   // as Zurich wall-clock) against what's in VolleyManager (svrz_games
