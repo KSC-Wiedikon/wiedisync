@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { SwissQRCode } from 'swissqrbill/svg'
+import { SwissQRCode, SwissQRBill } from 'swissqrbill/svg'
 import { QrCode, ShieldAlert, Download, Loader2 } from 'lucide-react'
 import { isValidIban } from '../../utils/iban'
 import { formatChf } from '../../hooks/useFinance'
@@ -19,19 +19,19 @@ const fmtIban = (iban: string) => iban.replace(/(.{4})/g, '$1 ').trim()
 const cleanIban = (s?: string | null) => (s ?? '').replace(/\s/g, '').toUpperCase()
 
 /** Rasterise an SVG string to a white-background PNG data URL (for the PDF). */
-function svgToPng(svg: string, size = 1024): Promise<string> {
+function svgToPng(svg: string, w: number, h: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
     img.onload = () => {
       const canvas = document.createElement('canvas')
-      canvas.width = size
-      canvas.height = size
+      canvas.width = w
+      canvas.height = h
       const ctx = canvas.getContext('2d')
       if (!ctx) { URL.revokeObjectURL(url); reject(new Error('no ctx')); return }
       ctx.fillStyle = '#ffffff'
-      ctx.fillRect(0, 0, size, size)
-      ctx.drawImage(img, 0, 0, size, size)
+      ctx.fillRect(0, 0, w, h)
+      ctx.drawImage(img, 0, 0, w, h)
       URL.revokeObjectURL(url)
       resolve(canvas.toDataURL('image/png'))
     }
@@ -39,6 +39,9 @@ function svgToPng(svg: string, size = 1024): Promise<string> {
     img.src = url
   })
 }
+
+/** The club is the payer on a reimbursement — shown as "Payable by" on the slip. */
+const CLUB_DEBTOR = { name: 'Kantonsschulsportclub Wiedikon', address: 'Schrennengasse 7', zip: 8003, city: 'Zürich', country: 'CH' } as const
 
 export default function MemberPayoutQrBill({ member }: { member: FinanceMember }) {
   const { t } = useTranslation('finance')
@@ -78,20 +81,24 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
   }, [open, canRender, iban, name, street, zip, city, amount, message])
 
   async function downloadPdf() {
-    if (!svg) return
+    if (!canRender) return
     setPdfBusy(true)
     try {
-      const png = await svgToPng(svg)
+      // Official Swiss QR-bill payment part (Receipt + Payment part) via swissqrbill.
+      const billSvg = new SwissQRBill({
+        currency: 'CHF',
+        ...(amount ? { amount } : {}),
+        creditor: { account: iban, name, address: street || name, zip: Number(zip), city: city as string, country: 'CH' },
+        debtor: { ...CLUB_DEBTOR },
+        ...(message.trim() ? { message: message.trim().slice(0, 140) } : {}),
+      }, { language: 'DE' }).toString()
+      const png = await svgToPng(billSvg, 2100, 1050) // slip is 210×105 mm (2:1)
       const { jsPDF } = await import('jspdf')
       const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-      doc.setFontSize(15)
-      doc.text(t('payoutPdfTitle'), 20, 22)
-      doc.setFontSize(11)
-      doc.text(`${t('fieldName')}: ${name}`, 20, 33)
-      doc.text(`IBAN: ${fmtIban(iban)}`, 20, 40)
-      if (amount) doc.text(`${t('payoutAmount')}: ${formatChf(amount)}`, 20, 47)
-      if (message.trim()) doc.text(`${t('payoutMessage')}: ${message.trim()}`, 20, amount ? 54 : 47)
-      doc.addImage(png, 'PNG', 20, 62, 85, 85)
+      doc.setFontSize(14)
+      doc.text(`${t('payoutPdfTitle')} — ${name}`, 20, 22)
+      if (amount) { doc.setFontSize(11); doc.text(`${t('payoutAmount')}: ${formatChf(amount)}`, 20, 30) }
+      doc.addImage(png, 'PNG', 0, 192, 210, 105) // standard payment-part position at A4 bottom
       doc.save(`payout-${name.replace(/\s+/g, '-')}.pdf`)
     } catch {
       toastError()
@@ -148,7 +155,7 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
             >
               <QrCode className="h-4 w-4" /> {open ? t('payoutQrHide') : t('payoutQrShow')}
             </button>
-            {open && svg && (
+            {canRender && (
               <button
                 onClick={downloadPdf} disabled={pdfBusy}
                 className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 dark:bg-brand-500 dark:hover:bg-brand-400"
