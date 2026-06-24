@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { SwissQRCode, SwissQRBill } from 'swissqrbill/svg'
+import { SwissQRCode } from 'swissqrbill/svg'
 import { QrCode, ShieldAlert, Download, Loader2 } from 'lucide-react'
 import { isValidIban } from '../../utils/iban'
 import { formatChf } from '../../hooks/useFinance'
@@ -17,28 +17,6 @@ import type { FinanceMember } from '../../hooks/useFinance'
 const isChLiIban = (iban: string) => /^(CH|LI)/.test(iban) && isValidIban(iban)
 const fmtIban = (iban: string) => iban.replace(/(.{4})/g, '$1 ').trim()
 const cleanIban = (s?: string | null) => (s ?? '').replace(/\s/g, '').toUpperCase()
-
-/** Rasterise an SVG string to a white-background PNG data URL (for the PDF). */
-function svgToPng(svg: string, w: number, h: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = w
-      canvas.height = h
-      const ctx = canvas.getContext('2d')
-      if (!ctx) { URL.revokeObjectURL(url); reject(new Error('no ctx')); return }
-      ctx.fillStyle = '#ffffff'
-      ctx.fillRect(0, 0, w, h)
-      ctx.drawImage(img, 0, 0, w, h)
-      URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL('image/png'))
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('svg load failed')) }
-    img.src = url
-  })
-}
 
 /** The club is the payer on a reimbursement — shown as "Payable by" on the slip. */
 const CLUB_DEBTOR = { name: 'Kantonsschulsportclub Wiedikon', address: 'Schrennengasse 7', zip: 8003, city: 'Zürich', country: 'CH' } as const
@@ -84,22 +62,36 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
     if (!canRender) return
     setPdfBusy(true)
     try {
-      // Official Swiss QR-bill payment part (Receipt + Payment part) via swissqrbill.
-      const billSvg = new SwissQRBill({
+      const MM = 2.834645669 // mm → pt (pdfkit unit)
+      // pdfkit's self-contained browser bundle (fonts + zlib inlined → no node polyfills);
+      // swissqrbill draws the official payment part onto it as TRUE vector (selectable text).
+      const [pdfkitMod, swissMod] = await Promise.all([
+        import('pdfkit/js/pdfkit.standalone.js'),
+        import('swissqrbill/pdf'),
+      ])
+      const PDFDocument = ((pdfkitMod as { default?: unknown }).default ?? pdfkitMod) as new (o: unknown) => Record<string, (...a: unknown[]) => unknown> & { page: { height: number }; on: (e: string, cb: (c: BlobPart) => void) => void }
+      const SwissQRBill = (swissMod as { SwissQRBill: new (d: unknown, o?: unknown) => { attachTo: (doc: unknown) => void } }).SwissQRBill
+      const doc = new PDFDocument({ size: 'A4', margin: 0 })
+      const chunks: BlobPart[] = []
+      doc.on('data', (c: BlobPart) => chunks.push(c))
+      const done = new Promise<void>((resolve) => doc.on('end', () => resolve()))
+      ;(doc.fontSize as (n: number) => { text: (s: string, x: number, y: number) => void }).call(doc, 13).text(`${t('payoutPdfTitle')} — ${name}`, 20 * MM, 20 * MM)
+      if (amount) (doc.fontSize as (n: number) => { text: (s: string, x: number, y: number) => void }).call(doc, 10).text(`${t('payoutAmount')}: ${formatChf(amount)}`, 20 * MM, 28 * MM)
+      new SwissQRBill({
         currency: 'CHF',
         ...(amount ? { amount } : {}),
         creditor: { account: iban, name, address: street || name, zip: Number(zip), city: city as string, country: 'CH' },
         debtor: { ...CLUB_DEBTOR },
         ...(message.trim() ? { message: message.trim().slice(0, 140) } : {}),
-      }, { language: 'DE' }).toString()
-      const png = await svgToPng(billSvg, 2100, 1050) // slip is 210×105 mm (2:1)
-      const { jsPDF } = await import('jspdf')
-      const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-      doc.setFontSize(14)
-      doc.text(`${t('payoutPdfTitle')} — ${name}`, 20, 22)
-      if (amount) { doc.setFontSize(11); doc.text(`${t('payoutAmount')}: ${formatChf(amount)}`, 20, 30) }
-      doc.addImage(png, 'PNG', 0, 192, 210, 105) // standard payment-part position at A4 bottom
-      doc.save(`payout-${name.replace(/\s+/g, '-')}.pdf`)
+      }, { language: 'DE' }).attachTo(doc) // payment part at the A4 bottom (default position)
+      ;(doc.end as () => void).call(doc)
+      await done
+      const url = URL.createObjectURL(new Blob(chunks, { type: 'application/pdf' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `payout-${name.replace(/\s+/g, '-')}.pdf`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 30_000)
     } catch {
       toastError()
     } finally {
@@ -168,8 +160,11 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
 
           {open && svg && (
             <div className="mt-3">
-              {/* White card, QR centered — scannable contrast. SVG = controlled QR rects. */}
-              <div className="mx-auto flex max-w-xs items-center justify-center rounded-lg bg-white p-4 text-black [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />
+              {/* The QR SVG has a fixed 46mm size, so center the white card that hugs
+                  it (w-fit) rather than stretching the svg — black-on-white, scannable. */}
+              <div className="flex justify-center">
+                <div className="w-fit rounded-lg bg-white p-4 text-black" dangerouslySetInnerHTML={{ __html: svg }} />
+              </div>
               <p className="mt-2 text-center text-xs text-gray-400 dark:text-gray-500">
                 {amount ? t('payoutQrHintAmount', { amount: formatChf(amount) }) : t('payoutQrHint')}
               </p>
