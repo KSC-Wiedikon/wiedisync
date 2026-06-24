@@ -1,31 +1,51 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SwissQRCode } from 'swissqrbill/svg'
-import { QrCode, ShieldAlert } from 'lucide-react'
+import { QrCode, ShieldAlert, Download, Loader2 } from 'lucide-react'
 import { isValidIban } from '../../utils/iban'
+import { formatChf } from '../../hooks/useFinance'
 import type { FinanceMember } from '../../hooks/useFinance'
 
 /**
- * Per-member "pay-out" QR-bill: a Swiss QR with the payee as creditor, amount
- * BLANK — the treasurer scans it in e-banking to reimburse and types the amount.
- *
- * Payee = the billing contact (billing_iban + billing name/address) when "bill a
- * different contact" is on AND a billing IBAN is set (e.g. reimburse a minor's
- * guardian), otherwise the member's own reimbursement IBAN. A member's OWN IBAN
- * imported from ClubDesk is flagged until they confirm it (migration 136).
- *
- * Only renders for a valid CH/LI IBAN + address (Swiss QR-bill requirement).
+ * Per-member "pay-out" QR-bill: a Swiss QR with the payee as creditor. The
+ * treasurer can set the amount + message BEFORE generating (baked into the QR →
+ * scan-and-go), or leave the amount blank to type it when scanning. Renders on a
+ * white background (scannable contrast) and downloads as a PDF for upload to UBS
+ * e-banking. Payee = the billing contact (billing_iban + billing name/address)
+ * when billing_different + a billing IBAN is set, else the member's own IBAN.
  */
-// Swiss QR-bills require a CH/LI creditor IBAN. isValidIban handles the correct
-// length + mod-97 check (CH/LI IBANs are 21 chars — a hand-rolled length was the
-// bug that rejected valid accounts).
 const isChLiIban = (iban: string) => /^(CH|LI)/.test(iban) && isValidIban(iban)
 const fmtIban = (iban: string) => iban.replace(/(.{4})/g, '$1 ').trim()
 const cleanIban = (s?: string | null) => (s ?? '').replace(/\s/g, '').toUpperCase()
 
+/** Rasterise an SVG string to a white-background PNG data URL (for the PDF). */
+function svgToPng(svg: string, size = 1024): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { URL.revokeObjectURL(url); reject(new Error('no ctx')); return }
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, size, size)
+      ctx.drawImage(img, 0, 0, size, size)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/png'))
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('svg load failed')) }
+    img.src = url
+  })
+}
+
 export default function MemberPayoutQrBill({ member }: { member: FinanceMember }) {
   const { t } = useTranslation('finance')
   const [open, setOpen] = useState(false)
+  const [amountStr, setAmountStr] = useState('')
+  const [message, setMessage] = useState('')
+  const [pdfBusy, setPdfBusy] = useState(false)
 
   const memberName = [member.first_name, member.last_name].filter(Boolean).join(' ').trim()
   const useBilling = !!member.billing_different && !!cleanIban(member.billing_iban)
@@ -38,19 +58,50 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
   const canRender = isChLiIban(iban) && !!name && hasAddress
   const unconfirmed = !useBilling && !!member.iban && !member.iban_confirmed
 
+  const amount = useMemo(() => {
+    const n = Math.round(Number(amountStr.replace(',', '.')) * 100) / 100
+    return Number.isFinite(n) && n > 0 ? n : undefined
+  }, [amountStr])
+
   const svg = useMemo(() => {
     if (!open || !canRender) return null
     try {
       return new SwissQRCode({
         currency: 'CHF',
+        ...(amount ? { amount } : {}),
         creditor: { account: iban, name, address: street || name, zip: Number(zip), city: city as string, country: 'CH' },
+        ...(message.trim() ? { message: message.trim().slice(0, 140) } : {}),
       }).toString()
     } catch {
       return null
     }
-  }, [open, canRender, iban, name, street, zip, city])
+  }, [open, canRender, iban, name, street, zip, city, amount, message])
 
-  if (!iban) return null // no pay-out account on file
+  async function downloadPdf() {
+    if (!svg) return
+    setPdfBusy(true)
+    try {
+      const png = await svgToPng(svg)
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+      doc.setFontSize(15)
+      doc.text(t('payoutPdfTitle'), 20, 22)
+      doc.setFontSize(11)
+      doc.text(`${t('fieldName')}: ${name}`, 20, 33)
+      doc.text(`IBAN: ${fmtIban(iban)}`, 20, 40)
+      if (amount) doc.text(`${t('payoutAmount')}: ${formatChf(amount)}`, 20, 47)
+      if (message.trim()) doc.text(`${t('payoutMessage')}: ${message.trim()}`, 20, amount ? 54 : 47)
+      doc.addImage(png, 'PNG', 20, 62, 85, 85)
+      doc.save(`payout-${name.replace(/\s+/g, '-')}.pdf`)
+    } catch {
+      toastError()
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+  function toastError() { import('sonner').then(({ toast }) => toast.error(t('payoutQrError'))) }
+
+  if (!iban) return null
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
@@ -71,18 +122,51 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
         <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t('payoutQrNeedsAddress')}</p>
       ) : (
         <>
-          <button
-            onClick={() => setOpen((v) => !v)}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-          >
-            <QrCode className="h-4 w-4" /> {open ? t('payoutQrHide') : t('payoutQrShow')}
-          </button>
+          {/* Amount + message — set before generating so the scan is ready to pay. */}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('payoutAmount')}</span>
+              <input
+                inputMode="decimal" value={amountStr} onChange={(e) => setAmountStr(e.target.value)}
+                placeholder={t('payoutAmountPlaceholder')}
+                className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('payoutMessage')}</span>
+              <input
+                value={message} onChange={(e) => setMessage(e.target.value)} maxLength={140}
+                className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+              />
+            </label>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => setOpen((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              <QrCode className="h-4 w-4" /> {open ? t('payoutQrHide') : t('payoutQrShow')}
+            </button>
+            {open && svg && (
+              <button
+                onClick={downloadPdf} disabled={pdfBusy}
+                className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 dark:bg-brand-500 dark:hover:bg-brand-400"
+              >
+                {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {pdfBusy ? t('payoutGenerating') : t('payoutDownloadPdf')}
+              </button>
+            )}
+          </div>
+
           {open && svg && (
-            <>
-              {/* SVG built from controlled member data (QR rects only). */}
-              <div className="mt-3 flex justify-center [&>svg]:h-auto [&>svg]:w-full [&>svg]:max-w-xs" dangerouslySetInnerHTML={{ __html: svg }} />
-              <p className="mt-1 text-center text-xs text-gray-400 dark:text-gray-500">{t('payoutQrHint')}</p>
-            </>
+            <div className="mt-3">
+              {/* White card, QR centered — scannable contrast. SVG = controlled QR rects. */}
+              <div className="mx-auto flex max-w-xs items-center justify-center rounded-lg bg-white p-4 text-black [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />
+              <p className="mt-2 text-center text-xs text-gray-400 dark:text-gray-500">
+                {amount ? t('payoutQrHintAmount', { amount: formatChf(amount) }) : t('payoutQrHint')}
+              </p>
+            </div>
           )}
           {open && !svg && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{t('payoutQrError')}</p>}
         </>

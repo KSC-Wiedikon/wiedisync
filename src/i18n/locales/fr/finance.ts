@@ -247,4 +247,11 @@ export default {
   ibanConfirmPrompt: 'Nous avons cet IBAN via ClubDesk — est-ce là que les remboursements doivent aller ?',
   ibanConfirmYes: "Oui, c'est correct",
   ibanConfirmChange: 'Modifier',
+  payoutAmount: 'Montant (CHF)',
+  payoutAmountPlaceholder: 'Vide = saisir au scan',
+  payoutMessage: 'Communication',
+  payoutDownloadPdf: 'Télécharger le PDF',
+  payoutGenerating: 'Génération…',
+  payoutPdfTitle: 'Remboursement / versement',
+  payoutQrHintAmount: 'Scannez pour verser {{amount}} à ce membre.',
 }
