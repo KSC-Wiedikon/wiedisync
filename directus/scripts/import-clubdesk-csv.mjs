@@ -232,9 +232,9 @@ const psqlInput =
   'BEGIN;\n' +
   'WITH cd AS (\n' +
   '  SELECT lower(btrim(lizenznummer)) lic,\n' +
-  "         NULLIF(btrim(adresse),'') adresse, NULLIF(btrim(plz),'') plz, NULLIF(btrim(ort),'') ort,\n" +
-  "         NULLIF(btrim(beitragskategorie),'') categ, NULLIF(btrim(sektion),'') sektion,\n" +
-  "         COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')) phone\n" +
+  "         left(NULLIF(btrim(adresse),''),255) adresse, left(NULLIF(btrim(plz),''),10) plz, left(NULLIF(btrim(ort),''),100) ort,\n" +
+  "         left(NULLIF(btrim(beitragskategorie),''),100) categ, left(NULLIF(btrim(sektion),''),32) sektion,\n" +
+  "         left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255) phone\n" +
   "  FROM clubdesk_export WHERE NULLIF(btrim(lizenznummer),'') IS NOT NULL),\n" +
   'mt AS (\n' +
   '  SELECT DISTINCT ON (mm.id) mm.id, cd.adresse, cd.plz, cd.ort, cd.categ, cd.sektion, cd.phone\n' +
@@ -249,9 +249,9 @@ const psqlInput =
   'WITH cd AS (\n' +
   '  SELECT lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
   "         lower(split_part(btrim(vorname),' ',1)) vn1,\n" +
-  "         NULLIF(btrim(adresse),'') adresse, NULLIF(btrim(plz),'') plz, NULLIF(btrim(ort),'') ort,\n" +
-  "         NULLIF(btrim(beitragskategorie),'') categ, NULLIF(btrim(sektion),'') sektion,\n" +
-  "         COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')) phone\n" +
+  "         left(NULLIF(btrim(adresse),''),255) adresse, left(NULLIF(btrim(plz),''),10) plz, left(NULLIF(btrim(ort),''),100) ort,\n" +
+  "         left(NULLIF(btrim(beitragskategorie),''),100) categ, left(NULLIF(btrim(sektion),''),32) sektion,\n" +
+  "         left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255) phone\n" +
   '  FROM clubdesk_export),\n' +
   'mt AS (\n' +
   '  SELECT DISTINCT ON (mm.id) mm.id, cd.adresse, cd.plz, cd.ort, cd.categ, cd.sektion, cd.phone\n' +
