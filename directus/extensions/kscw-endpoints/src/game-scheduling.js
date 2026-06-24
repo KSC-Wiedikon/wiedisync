@@ -4409,36 +4409,71 @@ export function registerGameScheduling(router, { database, logger, services, get
     const team = await database('teams').where('id', opponent.kscw_team).first('id', 'name', 'team_id')
     const ourStaticId = staticIdFromTeamId(team?.team_id)
     const wantName = `ksc wiedikon ${String(team?.name || '').trim().toLowerCase()}`
-    const rows = await database('svrz_games')
+
+    // Base query: this season's still-schedulable fixtures in deterministic order
+    // (the FIRST fixture of a side also "owns" legacy NULL-svrz_game_id bookings).
+    const baseQuery = () => database('svrz_games')
       .whereIn('status', ['open', 'waitingForApproval'])
       .modify((q) => { if (svrzSeasonName) q.where('season_name', svrzSeasonName) })
-      .where(function () {
-        this.where(function () {
-          this.where('home_club_id', KSCW_SVRZ_CLUB_ID).where('away_team_name', opponent.team_name)
-        }).orWhere(function () {
-          this.where('away_club_id', KSCW_SVRZ_CLUB_ID).where('home_team_name', opponent.team_name)
-        })
-      })
       .orderBy([
         { column: 'starting_date_time', order: 'asc' },
         { column: 'svrz_persistence_id', order: 'asc' },
       ])
-    return rows
-      .filter((g) => {
-        const sid = kscwSideStaticId(g)
-        if (sid != null && ourStaticId != null) return sid === ourStaticId
-        const isHomeKscw = String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID)
-        return String((isHomeKscw ? g.home_team_name : g.away_team_name) || '').trim().toLowerCase() === wantName
+
+    // Keep only fixtures of THIS kscw_team: pin our side by the stable
+    // staticTeamIdentifier (VM owns the display name, so name-matching our own
+    // side is unreliable); fall back to the name label for rows lacking the id.
+    const keepOurs = (rows) => rows.filter((g) => {
+      const sid = kscwSideStaticId(g)
+      if (sid != null && ourStaticId != null) return sid === ourStaticId
+      const isHomeKscw = String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID)
+      return String((isHomeKscw ? g.home_team_name : g.away_team_name) || '').trim().toLowerCase() === wantName
+    })
+    const shape = (rows) => rows.map((g) => ({
+      id: g.svrz_persistence_id,
+      number: g.svrz_number ?? null,
+      display_name: g.display_name,
+      starting_date_time: g.starting_date_time,
+      is_home_kscw: String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID),
+      league: g.league_short,
+      status: g.status,
+    }))
+
+    // Fast path: opponent side matches the stored team_name exactly (the common
+    // case, kept verbatim so already-correct opponents never change behaviour).
+    const exact = keepOurs(await baseQuery().where(function () {
+      this.where(function () {
+        this.where('home_club_id', KSCW_SVRZ_CLUB_ID).where('away_team_name', opponent.team_name)
+      }).orWhere(function () {
+        this.where('away_club_id', KSCW_SVRZ_CLUB_ID).where('home_team_name', opponent.team_name)
       })
-      .map((g) => ({
-        id: g.svrz_persistence_id,
-        number: g.svrz_number ?? null,
-        display_name: g.display_name,
-        starting_date_time: g.starting_date_time,
-        is_home_kscw: String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID),
-        league: g.league_short,
-        status: g.status,
-      }))
+    }))
+    if (exact.length) return shape(exact)
+
+    // Robustness fallback: VM appends a team designation to the opponent name for
+    // multi-round groups ("VBC Limmattal" → "VBC Limmattal HU23-1"), which the
+    // exact match above silently drops → 0 fixtures → the tool falls back to a
+    // single home/away game and loses the extra fixtures (surfaced 2026-06-24 for
+    // Limmattal HU23, a Dreifachrunde with 2 home games). Re-fetch this team's
+    // season fixtures (KSCW on either side) and match the opponent by a
+    // suffix-tolerant, word-boundary name compare. keepOurs() already pins our
+    // side to THIS team via static id, so a loose opponent compare cannot leak
+    // another KSCW team's opponent in — it only re-attaches fixtures of the same
+    // opponent club whose VM label gained/lost a trailing designation.
+    const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ')
+    const want = norm(opponent.team_name)
+    if (!want) return []
+    const ours = keepOurs(await baseQuery().where(function () {
+      this.where('home_club_id', KSCW_SVRZ_CLUB_ID).orWhere('away_club_id', KSCW_SVRZ_CLUB_ID)
+    }))
+    const oppName = (g) => (String(g.home_club_id) === String(KSCW_SVRZ_CLUB_ID) ? g.away_team_name : g.home_team_name)
+    const matched = ours.filter((g) => {
+      const o = norm(oppName(g))
+      // Equal, or one is the other plus a trailing " <designation>" (the space
+      // boundary stops "VBC Limmattal" matching e.g. "VBC Limmattaler …").
+      return o === want || o.startsWith(`${want} `) || want.startsWith(`${o} `)
+    })
+    return shape(matched)
   }
 
   // Resolve + validate the fixture a proposal/booking targets on one side
