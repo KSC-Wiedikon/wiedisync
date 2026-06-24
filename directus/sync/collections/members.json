@@ -518,6 +518,10 @@
             {
               "text": "superuser",
               "value": "superuser"
+            },
+            {
+              "text": "finance",
+              "value": "finance"
             }
           ]
         },

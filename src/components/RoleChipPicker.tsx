@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 const ROLE_GROUPS = [
-  { key: 'globalRoles', roles: ['vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser'] },
+  { key: 'globalRoles', roles: ['vorstand', 'finance', 'admin', 'vb_admin', 'bb_admin', 'superuser'] },
   { key: 'teamRoles', roles: ['coach', 'team_responsible', 'captain'] },
   { key: 'licences', roles: ['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb'] },
   { key: 'functions', roles: ['is_spielplaner'] },

@@ -14,6 +14,7 @@ export default {
   role_vb_admin: 'VB Admin',
   role_bb_admin: 'BB Admin',
   role_superuser: 'Superuser',
+  role_finance: 'Finance',
   role_coach: 'Coach',
   role_team_responsible: 'Team Responsible',
   role_captain: 'Captain',

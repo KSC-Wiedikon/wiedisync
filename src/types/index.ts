@@ -114,7 +114,7 @@ export interface Member extends BaseRecord {
   number: number
   position: MemberPosition[]
   photo: string
-  role: ('user' | 'vorstand' | 'admin' | 'vb_admin' | 'bb_admin' | 'superuser')[]
+  role: ('user' | 'vorstand' | 'admin' | 'vb_admin' | 'bb_admin' | 'superuser' | 'finance')[]
   kscw_membership_active: boolean
   birthdate: string
 
@@ -165,6 +165,16 @@ export interface Member extends BaseRecord {
   // PII — scoped own-member + admin only server-side, like ahv_nummer.
   iban: string | null
   beitragskategorie: string
+  // Alternate billing contact (migration 133) — finance-managed. When
+  // billing_different is true, invoices bill the billing_* contact (e.g. a
+  // minor's parent/guardian or a paying company) instead of the member.
+  billing_different?: boolean
+  billing_name?: string | null
+  billing_email?: string | null
+  billing_address?: string | null
+  billing_plz?: string | null
+  billing_ort?: string | null
+  billing_phone?: string | null
 
   // Messaging
   communications_team_chat_enabled?: boolean

@@ -396,6 +396,28 @@ const MEMBER_INVOICE_FIELDS = [
   'fee_category', 'closed_on', 'member',
 ]
 
+/**
+ * Member fields the FINANCE role reads (migrations 132/133). A treasurer needs
+ * the full billing picture per member — contact + address + IBAN + membership
+ * category + the alternate billing contact. UNION-ed with MEMBER_VISIBLE_FIELDS
+ * at read time (additive policies), so this only WIDENS what finance sees on top
+ * of the club-public member fields. Granted unfiltered (club-wide), like Vorstand
+ * reads members — but field-scoped to the finance-relevant columns, not '*'.
+ */
+const FINANCE_MEMBER_FIELDS = [
+  'id', 'first_name', 'last_name', 'email', 'phone', 'number',
+  'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'birthdate',
+  'iban', 'ahv_nummer', 'beitragskategorie', 'kscw_membership_active', 'wiedisync_active',
+  'language', 'role', 'member_teams', 'date_created',
+  // Alternate billing contact (migration 133).
+  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone',
+]
+
+/** Billing-contact fields the FINANCE role may UPDATE on any member (migration 133). */
+const FINANCE_MEMBER_BILLING_FIELDS = [
+  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone',
+]
+
 // ── Main ──────────────────────────────────��──────────────────────
 
 async function main() {
@@ -430,6 +452,12 @@ async function main() {
   // (backfilled in section 12), so the unfiltered game_scheduling perms below are
   // gated purely by who holds the policy.
   const TERMINPLANUNG_POLICY = await findOrCreatePolicy('KSCW Terminplanung', { icon: 'event_available', app_access: true })
+  // Finance (orthogonal capability, migrations 132/133). Attached per-user to
+  // members with 'finance' in their role array (§13) + by the role-sync hook —
+  // NOT to a Directus role. Grants club-wide finance reads + member billing-field
+  // read/update on top of the member's base policy. Native-invoice WRITES still
+  // go through the /kscw/finance/* endpoints (gated in code via canManageFinance).
+  const FINANCE_POLICY = await findOrCreatePolicy('KSCW Finance', { icon: 'account_balance', app_access: true })
 
   console.log(`  Member policy: ${MEMBER_POLICY}`)
   console.log(`  Team Responsible policy: ${LEADER_POLICY}`)
@@ -480,6 +508,9 @@ async function main() {
   await clearPolicyPermissions(SPORT_ADMIN_POLICY, 'Sport Admin')
   await clearPolicyPermissions(ADMIN_POLICY, 'Admin')
   await clearPolicyPermissions(TERMINPLANUNG_POLICY, 'Terminplanung')
+  // Finance is held only by finance members (not every authenticated user), so
+  // clearing it here doesn't risk the universally-held-policy "permission wall".
+  await clearPolicyPermissions(FINANCE_POLICY, 'Finance')
 
   // ── 5. Public permissions ──────────────────────────────────────
 
@@ -1453,6 +1484,37 @@ async function main() {
 
   console.log(`  ✓ Terminplanung permissions set`)
 
+  // ── 9c. Finance permissions ────────────────────────────────────
+  //
+  // The 'finance' role (treasurer / finance team) = member permissions + the
+  // full club finance picture. Attached per-user to is-finance members (§13), so
+  // holding the policy IS the gate (no row filter on the finance reads — same
+  // model as Terminplanung). Read-only at the items layer; native-invoice writes
+  // (create/confirm/cancel/link/camt) go through /kscw/finance/* (canManageFinance).
+  //
+  // The ONE write here is members.update scoped to the billing-contact fields
+  // (migration 133) so finance can record a minor's/guardian's billing address
+  // in the member explorer. members READ is field-scoped + club-wide (additive
+  // with the member policy → widens finance's view to email/phone/IBAN/billing).
+
+  console.log('\n9c. Finance permissions...')
+
+  await setPermRead(FINANCE_POLICY, 'members', null, FINANCE_MEMBER_FIELDS)
+  await setPerm(FINANCE_POLICY, 'members', 'update', null, FINANCE_MEMBER_BILLING_FIELDS)
+  await setPermRead(FINANCE_POLICY, 'member_teams')
+
+  // Full club finance read (mirror VORSTAND_READ_ALL's finance subset).
+  const FINANCE_READ_ALL = [
+    'finance_accounts', 'finance_fiscal_years', 'finance_budget_lines',
+    'finance_transactions', 'finance_invoices', 'finance_payments', 'finance_imports',
+    'finance_invoice_member_overrides',
+  ]
+  for (const col of FINANCE_READ_ALL) {
+    await setPermRead(FINANCE_POLICY, col)
+  }
+
+  console.log(`  ✓ Finance permissions set`)
+
   // ── 10. Backfill user-level LEADER access for every coach/TR ───
   //
   // Permission gating must not depend on Directus role assignment. The
@@ -1562,6 +1624,54 @@ async function main() {
     }
   }
   if (tpStale.length > 0) console.log(`  ✓ Revoked TERMINPLANUNG policy from ${tpStale.length} ex-is_spielplaner user(s)`)
+
+  // ── 13. Backfill user-level FINANCE access for 'finance' members ───
+  //
+  // Attach the Finance policy directly to the directus user of every member with
+  // 'finance' in their role array. Same idempotent sync + stale-cleanup as the
+  // LEADER (§10) and TERMINPLANUNG (§12) backfills. The role-sync hook does the
+  // same attach/revoke the moment members.role changes, so this is the
+  // deploy-time reconcile (catches manual SQL edits / pre-hook grants).
+
+  console.log('\n13. Backfilling user-level FINANCE access for finance members...')
+
+  const allMembersForFinance = await api('GET', '/items/members?fields=user,role&limit=-1')
+  const financeUserIds = new Set(
+    (allMembersForFinance || [])
+      .filter(m => m.user && Array.isArray(m.role) && m.role.includes('finance'))
+      .map(m => m.user),
+  )
+
+  const existingFin = await api('GET', `/access?filter[policy][_eq]=${FINANCE_POLICY}&filter[user][_nnull]=true&fields=user&limit=-1`)
+  const haveFin = new Set((existingFin || []).map(a => a.user).filter(Boolean))
+
+  let finAttached = 0
+  let finSkipped = 0
+  for (const userId of financeUserIds) {
+    if (haveFin.has(userId)) { finSkipped++; continue }
+    try {
+      await api('POST', '/access', { user: userId, policy: FINANCE_POLICY })
+      finAttached++
+    } catch (e) {
+      if (!e.message.includes('RECORD_NOT_UNIQUE')) {
+        console.warn(`  ⚠ attach FINANCE to ${userId}: ${e.message.slice(0, 100)}`)
+      } else {
+        finSkipped++
+      }
+    }
+  }
+  console.log(`  ✓ Attached FINANCE policy to ${finAttached} user(s) (${finSkipped} already had it, ${financeUserIds.size} total finance)`)
+
+  const finAccessWithIds = await api('GET', `/access?filter[policy][_eq]=${FINANCE_POLICY}&filter[user][_nnull]=true&fields=id,user&limit=-1`)
+  const finStale = (finAccessWithIds || []).filter(a => a.user && !financeUserIds.has(a.user))
+  for (const row of finStale) {
+    try {
+      await api('DELETE', `/access/${row.id}`)
+    } catch (e) {
+      console.warn(`  ⚠ revoke FINANCE from ${row.user}: ${e.message.slice(0, 100)}`)
+    }
+  }
+  if (finStale.length > 0) console.log(`  ✓ Revoked FINANCE policy from ${finStale.length} ex-finance user(s)`)
 
   // ── 11. Admin policy (admin_access=true — bypasses all) ────────
 

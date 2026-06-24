@@ -4,7 +4,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useCollection } from '../lib/query'
 import { useAuth } from './useAuth'
-import { kscwApi } from '../lib/api'
+import { kscwApi, fetchAllItems } from '../lib/api'
 import type {
   FinanceInvoice, FinanceTransaction, FinanceAccount, FinanceFiscalYear, FinanceImport,
 } from '../modules/finance/types'
@@ -106,6 +106,58 @@ export function useFinanceFiscalYears(enabled = true) {
     sort: ['-starts_on'],
     enabled,
     all: true,
+  })
+}
+
+/**
+ * A member as seen by the finance member explorer (migrations 132/133). Contact +
+ * billing picture only — the FINANCE policy field-scopes the members read, so this
+ * is what a finance/board user gets back (NOT the full member record).
+ */
+export interface FinanceMember {
+  id: string | number
+  first_name: string
+  last_name: string
+  email?: string | null
+  phone?: string | null
+  number?: number | null
+  anrede?: string | null
+  adresse?: string | null
+  plz?: string | null
+  ort?: string | null
+  nationalitaet?: string | null
+  sex?: string | null
+  birthdate?: string | null
+  iban?: string | null
+  ahv_nummer?: string | null
+  beitragskategorie?: string | null
+  kscw_membership_active?: boolean
+  wiedisync_active?: boolean
+  billing_different?: boolean
+  billing_name?: string | null
+  billing_email?: string | null
+  billing_address?: string | null
+  billing_plz?: string | null
+  billing_ort?: string | null
+  billing_phone?: string | null
+}
+
+const FINANCE_MEMBER_FIELDS = [
+  'id', 'first_name', 'last_name', 'email', 'phone', 'number',
+  'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'birthdate',
+  'iban', 'ahv_nummer', 'beitragskategorie', 'kscw_membership_active', 'wiedisync_active',
+  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone',
+]
+
+/** All members with their finance/billing fields (finance + board; field-scoped by policy). */
+export function useFinanceMembers(enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'members'],
+    queryFn: () => fetchAllItems<FinanceMember>('members', {
+      fields: FINANCE_MEMBER_FIELDS,
+      sort: ['last_name', 'first_name'],
+    }),
+    enabled,
   })
 }
 

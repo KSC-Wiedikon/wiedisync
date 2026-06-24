@@ -12,8 +12,9 @@ import type { FinanceAccount, FinanceTransaction } from './types'
 import AccountExplorer from './AccountExplorer'
 import AccountLedger from './AccountLedger'
 import InvoiceManager from './InvoiceManager'
+import FinanceMemberExplorer from './FinanceMemberExplorer'
 
-type Tab = 'overview' | 'income' | 'balance' | 'accounts' | 'invoices' | 'sync'
+type Tab = 'overview' | 'income' | 'balance' | 'accounts' | 'invoices' | 'members' | 'sync'
 
 /** Aggregate debit/credit totals per account number from a set of transactions. */
 function statsFrom(rows: FinanceTransaction[]) {
@@ -212,11 +213,15 @@ export default function FinancePage() {
             <TabBtn active={tab === 'balance'} label={t('tabBalance')} onClick={() => setTab('balance')} />
             <TabBtn active={tab === 'accounts'} label={t('tabAccounts')} onClick={() => setTab('accounts')} />
             <TabBtn active={tab === 'invoices'} label={t('tabInvoices')} onClick={() => setTab('invoices')} />
+            <TabBtn active={tab === 'members'} label={t('tabMembers')} onClick={() => setTab('members')} />
             <TabBtn active={tab === 'sync'} label={t('tabSync')} onClick={() => setTab('sync')} />
           </div>
 
           {/* ── Invoices (native create/manage + orphan member-linking) ── */}
           {tab === 'invoices' && <InvoiceManager />}
+
+          {/* ── Members (per-member finance: contact, billing, invoices) ── */}
+          {tab === 'members' && <FinanceMemberExplorer />}
 
           {/* ── Overview ─────────────────────────────────────────── */}
           {tab === 'overview' && (

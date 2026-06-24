@@ -66,8 +66,12 @@ export function registerFinance(router, { database, logger }) {
       roles,
     }
   }
-  const isVorstand = (req, mem) =>
-    !!req.accountability?.admin || (!!mem && ['vorstand', 'admin', 'superuser'].some((r) => mem.roles.includes(r)))
+  // Finance management = board (Vorstand/admin/superuser) OR the dedicated
+  // 'finance' role (treasurer / finance team). All finance WRITE endpoints gate
+  // on this; the orthogonal 'finance' role grants the same finance powers without
+  // the rest of board-wide access. admin_access bypasses via accountability.admin.
+  const canManageFinance = (req, mem) =>
+    !!req.accountability?.admin || (!!mem && ['vorstand', 'admin', 'superuser', 'finance'].some((r) => mem.roles.includes(r)))
 
   /** Team ids the member leads (coach / captain / team-responsible). */
   async function ledTeamIds(memberId) {
@@ -93,7 +97,7 @@ export function registerFinance(router, { database, logger }) {
   router.post('/finance/invoices', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!isVorstand(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
 
       const b = req.body || {}
       const recipientType = b.recipient_type === 'team' ? 'team' : 'member'
@@ -227,7 +231,7 @@ export function registerFinance(router, { database, logger }) {
   router.post('/finance/invoices/:id/confirm', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!isVorstand(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
       if (!inv) return res.status(404).json({ error: 'Not found' })
@@ -252,7 +256,7 @@ export function registerFinance(router, { database, logger }) {
   router.post('/finance/invoices/:id/cancel', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!isVorstand(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
       if (!inv) return res.status(404).json({ error: 'Not found' })
@@ -272,7 +276,7 @@ export function registerFinance(router, { database, logger }) {
   router.post('/finance/invoices/:id/link-member', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!isVorstand(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       const inv = await database('finance_invoices').where('id', id).andWhere('source', 'clubdesk').first()
       if (!inv) return res.status(404).json({ error: 'Not found (ClubDesk invoice expected)' })
@@ -309,7 +313,7 @@ export function registerFinance(router, { database, logger }) {
   router.delete('/finance/invoices/:id/link-member', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!isVorstand(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       const inv = await database('finance_invoices').where('id', id).andWhere('source', 'clubdesk').first()
       if (!inv) return res.status(404).json({ error: 'Not found' })

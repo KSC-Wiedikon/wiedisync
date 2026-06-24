@@ -28,6 +28,10 @@ Canonical role × collection × action map. Reflects the live state through migr
 
 Inheritance (additive): `Sport Admin` → `Team Responsible` → `Member`. `Vorstand` → `Member`. Every member of a higher tier carries the lower tier's permissions on top of their own row.
 
+**Orthogonal policies** — attached per-user via `directus_access` (NOT base roles), layered on top of whatever base role the user holds:
+- `KSCW Terminplanung` — members with `is_spielplaner = true` (game-scheduling).
+- `KSCW Finance` — members with the `finance` app-role (treasurer / finance team). Reconciled by the role-sync hook on `members.role` change + `setup-permissions.mjs §13` on every deploy.
+
 ---
 
 ## Filter shorthand
@@ -199,6 +203,23 @@ Read-only on everything else by design (no CRU writes outside the Forms grant ab
 
 ---
 
+## KSCW Finance (orthogonal — `finance` app-role)
+
+Per-user policy (migrations 132/133), attached to members with `finance` in their role array — NOT a base Directus role. Layered on the member's base policy (so a `['finance']` member is a Directus *Member* + this policy). Gives the treasurer / finance team the full club-finance picture without the rest of board-wide access.
+
+| Collection | Action | Filter | Notes |
+|---|---|---|---|
+| members | read | none (club-wide) | `FINANCE_MEMBER_FIELDS` — contact + `adresse/plz/ort` + `iban` + `ahv_nummer` + `beitragskategorie` + membership + billing_*. UNION-ed with the member policy's `MEMBER_VISIBLE_FIELDS`, so this only widens finance's view |
+| members | update | none (club-wide) | `FINANCE_MEMBER_BILLING_FIELDS` only — the alternate billing contact (migration 133). No other member field is writable here |
+| member_teams | read | none | Team context |
+| finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides | read | none | Full club finance read (same set as Vorstand) |
+
+**Writes** — native-invoice create/report-paid/confirm/cancel/link + camt import are NOT item-API; they go through `/kscw/finance/*`, gated in code by `canManageFinance` (admin OR role ∈ {vorstand, admin, superuser, **finance**}). So a finance-role user is a full treasurer at the endpoint layer while staying read-only on the items API (except the billing-field write above).
+
+**Frontend** — `canAccessFinance = isVorstand || isFinance` gates the `/admin/finance` tab (`FinanceRoute`) + the per-member explorer (`FinancePage` → Members tab). Billing edit is shown editable only when `isFinance` (a pure board member sees it read-only — they lack the members-update grant).
+
+---
+
 ## KSCW Sport Admin
 
 Inherits Team Responsible (and via that, Member). Adds full CRUD on operational collections except:
@@ -278,6 +299,8 @@ ORDER BY table_name;
 
 <details>
 <summary>Older reconciliation notes (archival — the full audit ledger lives in SECURITY.md + git).</summary>
+
+> **2026-06-24 — Finance role + per-member explorer (migrations 132/133).** New orthogonal `finance` app-role (treasurer / finance team) = member permissions + a new `KSCW Finance` policy attached per-user (like `is_spielplaner`/Terminplanung), reconciled by the role-sync hook + `setup-permissions.mjs §13`. The policy grants club-wide finance reads (same `finance_*` set as Vorstand), a field-scoped `members` read (contact + IBAN + membership + billing), and a `members` UPDATE scoped to the new billing-contact fields only (migration 133 — alternate billing for minors/guardians/company-paid). Finance writes (native invoices + camt) widened from Vorstand-only to `canManageFinance` (adds `finance`). Migration 132 adds `finance` to the `members.role` CHECK; 133 adds `billing_*` columns + a one-time backfill from the latest differing invoice recipient. No change to any existing role. Applied dev; prod pending.
 
 > **2026-06-23 — Native invoices + member-link overrides (migrations 128/129).** Added native-invoice write columns to `finance_invoices` and a new `finance_invoice_member_overrides` table. No new item-API write perms: all native-invoice writes (create / report-paid / confirm / cancel) and the orphan member-link tool run through the `/kscw/finance/*` endpoints (system connection, Vorstand-gated in code; member self-report endpoint-gated to the recipient). Vorstand gains read-only on `finance_invoice_member_overrides` for admin visibility. Members still read-only on own `finance_invoices`. Applied dev; prod pending.
 

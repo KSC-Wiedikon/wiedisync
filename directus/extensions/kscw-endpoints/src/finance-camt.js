@@ -32,7 +32,7 @@ export function registerFinanceCamt(router, { database, logger }) {
     if (!m) return { ok: false }
     const roles = Array.isArray(m.role) ? m.role : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
     return {
-      ok: ['vorstand', 'admin', 'superuser'].some((r) => roles.includes(r)),
+      ok: ['vorstand', 'admin', 'superuser', 'finance'].some((r) => roles.includes(r)),
       name: [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null,
       email: m.email || null,
     }

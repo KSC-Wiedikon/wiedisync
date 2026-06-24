@@ -205,7 +205,7 @@ const COLLECTIONS = [
         'guest', 'other',
       ]),
       file('photo'),
-      multiSelect('role', ['user', 'vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser']),
+      multiSelect('role', ['user', 'vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser', 'finance']),
       boolean('kscw_membership_active', { default: true }),
       date('birthdate'),
 
