@@ -232,4 +232,11 @@ export default {
   docDeleteError: 'Impossible de supprimer le document.',
   docOpenError: 'Impossible d\'ouvrir le document.',
   docTooBig: 'Fichier trop volumineux (max {{mb}} Mo).',
+  payoutQrTitle: 'QR de versement',
+  payoutQrShow: 'Afficher le QR de versement',
+  payoutQrHide: 'Masquer',
+  payoutQrHint: "Scannez dans votre application bancaire pour rembourser ce membre — puis saisissez le montant.",
+  payoutQrNeedsAddress: 'Ajoutez le NPA + la localité du membre pour générer le QR.',
+  payoutQrNonCh: 'Le QR de versement nécessite un IBAN suisse (CH/LI).',
+  payoutQrError: "Impossible de générer le QR — vérifiez l'IBAN et l'adresse.",
 }

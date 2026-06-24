@@ -232,4 +232,11 @@ export default {
   docDeleteError: 'Dokumänt het nöd chöne entfernt wärde.',
   docOpenError: 'Dokumänt het nöd chöne uufgmacht wärde.',
   docTooBig: 'Datei z gross (max {{mb}} MB).',
+  payoutQrTitle: 'Uszahligs-QR',
+  payoutQrShow: 'Uszahligs-QR aazeige',
+  payoutQrHide: 'Usblände',
+  payoutQrHint: 'In de Banking-App scanne, zum s Mitglied zruggerstatte — denn de Betrag igäh.',
+  payoutQrNeedsAddress: 'PLZ + Ort vom Mitglied erfasse, zum de QR mache.',
+  payoutQrNonCh: 'De Uszahligs-QR brucht e Schwizer (CH/LI) IBAN.',
+  payoutQrError: 'QR het nöd chöne gmacht wärde — IBAN und Adrässe prüefe.',
 }

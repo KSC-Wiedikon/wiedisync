@@ -237,4 +237,11 @@ export default {
   docDeleteError: 'Could not remove the document.',
   docOpenError: 'Could not open the document.',
   docTooBig: 'File too large (max {{mb}} MB).',
+  payoutQrTitle: 'Pay-out QR',
+  payoutQrShow: 'Show pay-out QR',
+  payoutQrHide: 'Hide',
+  payoutQrHint: 'Scan in your banking app to reimburse this member — then enter the amount.',
+  payoutQrNeedsAddress: "Add the member's postal code + city to generate the QR.",
+  payoutQrNonCh: 'Pay-out QR needs a Swiss (CH/LI) IBAN.',
+  payoutQrError: 'Could not generate the QR — check the IBAN and address.',
 }
