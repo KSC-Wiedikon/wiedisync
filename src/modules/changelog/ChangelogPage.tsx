@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.7.0'
+const APP_VERSION = '1.8.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.8.0',
+    date: '24.06.2026',
+    sections: [
+      {
+        title: 'Finances: per-member explorer + a dedicated Finance role',
+        items: [
+          'New "Finance" role for the treasurer and finance team — the club-finance dashboard and the new per-member view, on top of normal member access, without full board permissions.',
+          'A Members tab in Club finances: search any member to see their contact details, IBAN, membership category and full invoice history with payment status, all in one place.',
+          'Record a separate billing contact per member — for a minor billed to a parent/guardian, or a company that pays — used when addressing invoices.',
+          'Attach the invoice PDF to any invoice and open it later. Documents are private to finance and the board, and stay correctly linked to their ClubDesk invoice across nightly syncs.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.7.0',
     date: '24.06.2026',
