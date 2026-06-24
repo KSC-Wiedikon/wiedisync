@@ -167,4 +167,20 @@ export default {
   linkScopeInvoice: 'Relier uniquement cette facture',
   linkCta: 'Relier',
   noEmail: 'Pas d\'e-mail',
+
+  // ── Rapprochement bancaire (camt.053/.054) ──
+  reconcileTitle: 'Rapprochement bancaire (camt)',
+  reconcileHint: 'Téléverse un export camt.053/.054 d\'UBS — les factures natives avec une référence correspondante sont confirmées automatiquement; les autres crédits sont recoupés avec ClubDesk.',
+  camtChoose: 'Choisir un fichier camt',
+  camtImporting: 'Importation…',
+  camtError: 'Impossible d\'importer le fichier.',
+  camtSummary: '{{auto}} confirmées · {{guess}} correspondances ClubDesk · {{unmatched}} sans correspondance · {{dup}} doublons',
+  colPayer: 'Payeur',
+  colDetail: 'Détail',
+  sAutoConfirmed: 'Confirmée auto.',
+  sClubdeskGuess: 'Correspondance ClubDesk',
+  sUnmatched: 'Sans correspondance',
+  sPartial: 'Paiement partiel',
+  sAlreadySettled: 'Déjà réglée',
+  sSkipped: 'Ignorée',
 }

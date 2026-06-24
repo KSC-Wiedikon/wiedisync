@@ -167,4 +167,20 @@ export default {
   linkScopeInvoice: 'Nur die Rächnig verbinde',
   linkCta: 'Verbinde',
   noEmail: 'Kei E-Mail',
+
+  // ── Bankabglich (camt.053/.054) ──
+  reconcileTitle: 'Bankabglich (camt)',
+  reconcileHint: 'Lad en camt.053/.054-Export vo UBS ufe — native Rächnige mit passender Referänz werdet automatisch bestätigt; anderi Gutschrifte werdet mit ClubDesk abgliche.',
+  camtChoose: 'camt-Datei uswähle',
+  camtImporting: 'Importiere…',
+  camtError: 'Datei het nöd chöne importiert werde.',
+  camtSummary: '{{auto}} automatisch bestätigt · {{guess}} ClubDesk-Träffer · {{unmatched}} ohni Zuordnig · {{dup}} Duplikat',
+  colPayer: 'Zahler',
+  colDetail: 'Detail',
+  sAutoConfirmed: 'Automatisch bestätigt',
+  sClubdeskGuess: 'ClubDesk-Träffer',
+  sUnmatched: 'Ohni Zuordnig',
+  sPartial: 'Teilzahlig',
+  sAlreadySettled: 'Scho begliche',
+  sSkipped: 'Übersprunge',
 }
