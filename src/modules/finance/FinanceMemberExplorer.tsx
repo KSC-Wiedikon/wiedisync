@@ -5,6 +5,7 @@
 // billing edit is gated on canEdit (finance role / admin) so a read-only board
 // member never hits a 403 on save.
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
@@ -409,7 +410,15 @@ export default function FinanceMemberExplorer() {
   const [onlyActive, setOnlyActive] = useState(true)
   const [onlyOpen, setOnlyOpen] = useState(false)
   const [sport, setSport] = useState<'all' | 'volleyball' | 'basketball'>('all')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Selected member lives in the URL (?m=) so a refresh keeps the open member.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedId = searchParams.get('m')
+  const setSelectedId = (id: string | null) => setSearchParams((prev) => {
+    const p = new URLSearchParams(prev)
+    if (id) p.set('m', id)
+    else p.delete('m')
+    return p
+  })
 
   // Per-member invoice index + open balance (single client-side pass).
   const { invoicesByMember, openByMember } = useMemo(() => {

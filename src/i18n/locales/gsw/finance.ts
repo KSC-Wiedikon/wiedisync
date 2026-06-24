@@ -247,4 +247,11 @@ export default {
   ibanConfirmPrompt: 'Die IBAN hämmer us ClubDesk — sölled Rückerstattige dahi go?',
   ibanConfirmYes: 'Ja, stimmt',
   ibanConfirmChange: 'Ändere',
+  payoutAmount: 'Betrag (CHF)',
+  payoutAmountPlaceholder: 'Leer = bim Scanne igäh',
+  payoutMessage: 'Mitteilig',
+  payoutDownloadPdf: 'PDF abelade',
+  payoutGenerating: 'Wird gmacht…',
+  payoutPdfTitle: 'Rückerstattig / Uszahlig',
+  payoutQrHintAmount: 'Scanne, zum {{amount}} a das Mitglied zahle.',
 }

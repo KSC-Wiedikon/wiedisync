@@ -252,4 +252,11 @@ export default {
   ibanConfirmPrompt: 'We have this IBAN from ClubDesk — is this where reimbursements should go?',
   ibanConfirmYes: "Yes, it's correct",
   ibanConfirmChange: 'Change it',
+  payoutAmount: 'Amount (CHF)',
+  payoutAmountPlaceholder: 'Blank = enter when scanning',
+  payoutMessage: 'Message',
+  payoutDownloadPdf: 'Download PDF',
+  payoutGenerating: 'Generating…',
+  payoutPdfTitle: 'Reimbursement / pay-out',
+  payoutQrHintAmount: 'Scan to pay {{amount}} to this member.',
 }

@@ -247,4 +247,11 @@ export default {
   ibanConfirmPrompt: 'Abbiamo questo IBAN da ClubDesk — è qui che devono andare i rimborsi?',
   ibanConfirmYes: 'Sì, è corretto',
   ibanConfirmChange: 'Modifica',
+  payoutAmount: 'Importo (CHF)',
+  payoutAmountPlaceholder: 'Vuoto = inserisci alla scansione',
+  payoutMessage: 'Messaggio',
+  payoutDownloadPdf: 'Scarica PDF',
+  payoutGenerating: 'Generazione…',
+  payoutPdfTitle: 'Rimborso / pagamento',
+  payoutQrHintAmount: 'Scansiona per pagare {{amount}} a questo membro.',
 }

@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
@@ -116,7 +117,17 @@ function StatementTable({ title, rows, total, totalLabel, accLabel, amtLabel, ex
 
 export default function FinancePage() {
   const { t } = useTranslation('finance')
-  const [tab, setTab] = useState<Tab>('overview')
+  // Tab lives in the URL (?tab=) so a refresh / shared link keeps the view.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const TABS: Tab[] = ['overview', 'income', 'balance', 'accounts', 'invoices', 'members', 'sync']
+  const tabParam = searchParams.get('tab') as Tab | null
+  const tab: Tab = tabParam && TABS.includes(tabParam) ? tabParam : 'overview'
+  const setTab = (next: Tab) => setSearchParams((prev) => {
+    const p = new URLSearchParams(prev)
+    p.set('tab', next)
+    if (next !== 'members') p.delete('m') // drop the selected-member param when leaving Members
+    return p
+  }, { replace: true })
   const [expandedAcct, setExpandedAcct] = useState<string | null>(null)
 
   const { data: fiscalYearsRaw } = useFinanceFiscalYears()

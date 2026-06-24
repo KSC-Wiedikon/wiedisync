@@ -247,4 +247,11 @@ export default {
   ibanConfirmPrompt: 'Diese IBAN haben wir aus ClubDesk — sollen Rückerstattungen hierhin gehen?',
   ibanConfirmYes: 'Ja, stimmt',
   ibanConfirmChange: 'Ändern',
+  payoutAmount: 'Betrag (CHF)',
+  payoutAmountPlaceholder: 'Leer = beim Scannen eingeben',
+  payoutMessage: 'Mitteilung',
+  payoutDownloadPdf: 'PDF herunterladen',
+  payoutGenerating: 'Wird erstellt…',
+  payoutPdfTitle: 'Rückerstattung / Auszahlung',
+  payoutQrHintAmount: 'Scannen, um {{amount}} an dieses Mitglied zu zahlen.',
 }
