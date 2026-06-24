@@ -925,6 +925,8 @@ async function main() {
   // / budget stay board-only (Vorstand read-all below). No write perms — the
   // ClubDesk import writes via the system connection, not the items API.
   await setPermRead(MEMBER_POLICY, 'finance_invoices', { member: { user: { _eq: '$CURRENT_USER' } } }, MEMBER_INVOICE_FIELDS)
+  // Pay-outs / reimbursements the club owes this member (migration 137) — own only.
+  await setPermRead(MEMBER_POLICY, 'finance_payouts', OWN_MEMBER)
 
   // Files — create (upload profile pics)
   await setPerm(MEMBER_POLICY, 'directus_files', 'create')
@@ -1405,6 +1407,8 @@ async function main() {
     'finance_invoice_member_overrides',
     // Invoice PDF attachment links (migration 134) — board read for oversight.
     'finance_invoice_documents',
+    // Member pay-outs / reimbursements (migration 137) — board read.
+    'finance_payouts',
   ]
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)
@@ -1537,6 +1541,8 @@ async function main() {
   await setPermCRUD(FINANCE_POLICY, 'finance_invoice_documents')
   await setPerm(FINANCE_POLICY, 'directus_files', 'create')
   await setPermRead(FINANCE_POLICY, 'directus_files', { folder: { _eq: FINANCE_INVOICE_FOLDER } })
+  // Member pay-outs / reimbursements (migration 137) — finance creates/deletes.
+  await setPermCRUD(FINANCE_POLICY, 'finance_payouts')
 
   console.log(`  ✓ Finance permissions set`)
 

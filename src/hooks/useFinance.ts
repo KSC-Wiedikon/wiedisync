@@ -190,6 +190,43 @@ export function useFinanceInvoiceDocuments(enabled = true) {
   })
 }
 
+/** A pay-out / reimbursement the club owes a member (migration 137). */
+export interface FinancePayout {
+  id: string | number
+  member?: string | number | null
+  amount?: number | string | null
+  currency?: string | null
+  message?: string | null
+  iban?: string | null
+  payee_name?: string | null
+  payee_address?: string | null
+  payee_zip?: string | null
+  payee_ort?: string | null
+  status?: string | null
+  created_by_name?: string | null
+  date_created?: string | null
+}
+const PAYOUT_FIELDS = ['id', 'member', 'amount', 'currency', 'message', 'iban', 'payee_name', 'payee_address', 'payee_zip', 'payee_ort', 'status', 'created_by_name', 'date_created']
+
+/** Pay-outs for one member (finance/board — explorer). */
+export function useMemberPayouts(memberId: string | number | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'payouts', 'member', memberId ?? null],
+    queryFn: () => fetchAllItems<FinancePayout>('finance_payouts', { filter: { member: { _eq: memberId } }, fields: PAYOUT_FIELDS, sort: ['-date_created'] }),
+    enabled: enabled && memberId != null,
+  })
+}
+
+/** The current member's own pay-outs (My finances; policy scopes to own). */
+export function useMyPayouts() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['finance', 'my-payouts', user?.id ?? null],
+    queryFn: () => fetchAllItems<FinancePayout>('finance_payouts', { fields: PAYOUT_FIELDS, sort: ['-date_created'] }),
+    enabled: !!user,
+  })
+}
+
 /** Import/sync provenance history, newest first (board only). */
 export function useFinanceImports(enabled = true) {
   return useCollection<FinanceImport>('finance_imports', {

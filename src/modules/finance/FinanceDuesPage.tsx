@@ -8,6 +8,7 @@ import { useReportPageLoading } from '../../hooks/usePageReady'
 import type { FinanceInvoice } from './types'
 import InvoiceQrBill from './InvoiceQrBill'
 import PayoutIbanCard from './PayoutIbanCard'
+import MyPayoutsCard from './MyPayoutsCard'
 
 /** Status pill: native invoices use the lifecycle labels; ClubDesk rows show the raw status. */
 function StatusBadge({ inv }: { inv: FinanceInvoice }) {
@@ -68,6 +69,9 @@ export default function FinanceDuesPage() {
 
       {/* Payout IBAN — the canonical add/edit/check place (was in profile editor) */}
       <PayoutIbanCard />
+
+      {/* Reimbursements the club is sending this member (migration 137) */}
+      <MyPayoutsCard />
 
       {/* Open balance summary */}
       <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">

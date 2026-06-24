@@ -254,4 +254,12 @@ export default {
   payoutGenerating: 'Generazione…',
   payoutPdfTitle: 'Rimborso / pagamento',
   payoutQrHintAmount: 'Scansiona per pagare {{amount}} a questo membro.',
+  payoutSaveDownload: 'Salva e scarica',
+  payoutNeedAmount: 'Inserisci un importo per salvare il pagamento.',
+  payoutSaved: 'Pagamento salvato.',
+  payoutDeleteError: 'Impossibile eliminare il pagamento.',
+  payoutsSaved: 'Pagamenti salvati',
+  payoutDelete: 'Elimina',
+  myPayoutsTitle: 'Rimborsi per te',
+  myPayoutsSubtitle: 'Pagamenti che il club ti invia. Scarica la QR-fattura se serve.',
 }

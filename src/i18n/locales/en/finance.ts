@@ -259,4 +259,12 @@ export default {
   payoutGenerating: 'Generating…',
   payoutPdfTitle: 'Reimbursement / pay-out',
   payoutQrHintAmount: 'Scan to pay {{amount}} to this member.',
+  payoutSaveDownload: 'Save & download',
+  payoutNeedAmount: 'Enter an amount to save the pay-out.',
+  payoutSaved: 'Pay-out saved.',
+  payoutDeleteError: 'Could not delete the pay-out.',
+  payoutsSaved: 'Saved pay-outs',
+  payoutDelete: 'Delete',
+  myPayoutsTitle: 'Reimbursements to you',
+  myPayoutsSubtitle: 'Pay-outs the club is sending you. Download the QR-bill if you need it.',
 }
