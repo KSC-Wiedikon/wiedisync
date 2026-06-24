@@ -407,7 +407,7 @@ const MEMBER_INVOICE_FIELDS = [
 const FINANCE_MEMBER_FIELDS = [
   'id', 'first_name', 'last_name', 'email', 'phone', 'number',
   'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'birthdate',
-  'iban', 'ahv_nummer', 'beitragskategorie', 'kscw_membership_active', 'wiedisync_active',
+  'iban', 'ahv_nummer', 'beitragskategorie', 'sektion', 'kscw_membership_active', 'wiedisync_active',
   'language', 'role', 'member_teams', 'date_created',
   // Alternate billing contact (migration 133).
   'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone',

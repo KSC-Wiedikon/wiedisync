@@ -131,6 +131,7 @@ export interface FinanceMember {
   iban?: string | null
   ahv_nummer?: string | null
   beitragskategorie?: string | null
+  sektion?: string | null
   kscw_membership_active?: boolean
   wiedisync_active?: boolean
   billing_different?: boolean
@@ -145,7 +146,7 @@ export interface FinanceMember {
 const FINANCE_MEMBER_FIELDS = [
   'id', 'first_name', 'last_name', 'email', 'phone', 'number',
   'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'birthdate',
-  'iban', 'ahv_nummer', 'beitragskategorie', 'kscw_membership_active', 'wiedisync_active',
+  'iban', 'ahv_nummer', 'beitragskategorie', 'sektion', 'kscw_membership_active', 'wiedisync_active',
   'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone',
 ]
 

@@ -8,7 +8,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Search, Save, Loader2, Mail, Phone, MapPin, CreditCard, ChevronRight, Paperclip, FileText, X } from 'lucide-react'
+import { ArrowLeft, Search, Save, Loader2, Mail, Phone, MapPin, CreditCard, ChevronRight, Paperclip, FileText, X, User2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
@@ -41,6 +41,17 @@ function ageOf(birthdate?: string | null): number | null {
 
 const fullName = (m: FinanceMember) => [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || '—'
 
+/** Member's sport: ClubDesk Sektion first, else the membership-category VB/BB prefix. */
+function sportOf(m: FinanceMember): 'volleyball' | 'basketball' | null {
+  const sek = (m.sektion ?? '').toLowerCase()
+  if (sek.includes('volley')) return 'volleyball'
+  if (sek.includes('basket')) return 'basketball'
+  const cat = (m.beitragskategorie ?? '').trim().toUpperCase()
+  if (cat.startsWith('VB')) return 'volleyball'
+  if (cat.startsWith('BB')) return 'basketball'
+  return null
+}
+
 /** Colour + label for an invoice status (native lifecycle + ClubDesk German). */
 function useStatusPill() {
   const { t } = useTranslation('finance')
@@ -68,13 +79,13 @@ function useStatusPill() {
 }
 
 /** A labelled read-only contact line (hidden when there's no value). */
-function InfoRow({ icon, label, value }: { icon?: React.ReactNode; label: string; value?: string | null }) {
-  if (!value) return null
+function InfoRow({ icon, label, value, always }: { icon?: React.ReactNode; label: string; value?: string | null; always?: boolean }) {
+  if (!value && !always) return null
   return (
     <div className="flex items-start gap-2 py-1 text-sm">
       {icon && <span className="mt-0.5 shrink-0 text-gray-400">{icon}</span>}
       <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{label}</span>
-      <span className="min-w-0 break-words font-medium text-gray-900 dark:text-gray-100">{value}</span>
+      <span className={`min-w-0 break-words ${value ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>{value || '—'}</span>
     </div>
   )
 }
@@ -215,6 +226,9 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
       {/* Header */}
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{fullName(member)}</h2>
+        {member.sektion && (
+          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">{member.sektion}</span>
+        )}
         {member.beitragskategorie && (
           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{member.beitragskategorie}</span>
         )}
@@ -233,12 +247,14 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('contactSection')}</h3>
         <div className="grid gap-x-6 sm:grid-cols-2">
           <div>
-            <InfoRow icon={<Mail className="h-3.5 w-3.5" />} label={t('fieldEmail')} value={member.email} />
-            <InfoRow icon={<Phone className="h-3.5 w-3.5" />} label={t('fieldPhone')} value={member.phone} />
-            <InfoRow icon={<MapPin className="h-3.5 w-3.5" />} label={t('fieldAddress')} value={addressLine || null} />
+            <InfoRow always icon={<User2 className="h-3.5 w-3.5" />} label={t('fieldName')} value={fullName(member)} />
+            <InfoRow always icon={<Mail className="h-3.5 w-3.5" />} label={t('fieldEmail')} value={member.email} />
+            <InfoRow always icon={<Phone className="h-3.5 w-3.5" />} label={t('fieldPhone')} value={member.phone} />
+            <InfoRow always icon={<MapPin className="h-3.5 w-3.5" />} label={t('fieldAddress')} value={addressLine || null} />
           </div>
           <div>
-            <InfoRow icon={<CreditCard className="h-3.5 w-3.5" />} label={t('fieldIban')} value={member.iban} />
+            <InfoRow always icon={<CreditCard className="h-3.5 w-3.5" />} label={t('fieldIban')} value={member.iban} />
+            <InfoRow always label={t('colCategory')} value={member.beitragskategorie} />
             <InfoRow label={t('fieldAhv')} value={member.ahv_nummer} />
             <InfoRow label={t('fieldBirthdate')} value={member.birthdate ? formatDateCompactZurich(member.birthdate) : null} />
           </div>
@@ -375,6 +391,7 @@ export default function FinanceMemberExplorer() {
   const [query, setQuery] = useState('')
   const [onlyActive, setOnlyActive] = useState(true)
   const [onlyOpen, setOnlyOpen] = useState(false)
+  const [sport, setSport] = useState<'all' | 'volleyball' | 'basketball'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   // Per-member invoice index + open balance (single client-side pass).
@@ -395,6 +412,7 @@ export default function FinanceMemberExplorer() {
     return members.filter((m) => {
       if (onlyActive && !m.kscw_membership_active) return false
       if (onlyOpen && !((openByMember.get(String(m.id)) ?? 0) > 0.005)) return false
+      if (sport !== 'all' && sportOf(m) !== sport) return false
       if (!q) return true
       return (
         fullName(m).toLowerCase().includes(q) ||
@@ -403,7 +421,7 @@ export default function FinanceMemberExplorer() {
         String(m.number ?? '').includes(q)
       )
     })
-  }, [members, query, onlyActive, onlyOpen, openByMember])
+  }, [members, query, onlyActive, onlyOpen, sport, openByMember])
 
   const selected = selectedId ? members.find((m) => String(m.id) === selectedId) ?? null : null
 
@@ -442,6 +460,13 @@ export default function FinanceMemberExplorer() {
           onClick={() => setOnlyOpen((v) => !v)}
           className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${onlyOpen ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}
         >{t('filterWithOpen')}</button>
+        {(['volleyball', 'basketball'] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => setSport((v) => (v === s ? 'all' : s))}
+            className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${sport === s ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}
+          >{s === 'volleyball' ? t('divVb') : t('divBb')}</button>
+        ))}
       </div>
 
       {isLoading ? (
@@ -456,6 +481,7 @@ export default function FinanceMemberExplorer() {
               <TableHeader>
                 <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
                   <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colMember')}</TableHead>
+                  <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colSport')}</TableHead>
                   <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colCategory')}</TableHead>
                   <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colOpen')}</TableHead>
                   <TableHead className="w-8" />
@@ -473,8 +499,9 @@ export default function FinanceMemberExplorer() {
                       <TableCell className="min-h-[44px] whitespace-normal break-words">
                         <span className="font-medium text-gray-900 dark:text-gray-100">{fullName(m)}</span>
                         {m.billing_different && <span className="ml-1.5 align-middle text-xs text-gray-400" title={t('billingSeparate')}>·  {t('billingSeparate')}</span>}
-                        <span className="mt-0.5 block text-xs text-gray-400 sm:hidden">{m.beitragskategorie || ''}{m.kscw_membership_active ? '' : ` · ${t('membershipInactive')}`}</span>
+                        <span className="mt-0.5 block text-xs text-gray-400 sm:hidden">{[m.sektion, m.beitragskategorie].filter(Boolean).join(' · ')}{m.kscw_membership_active ? '' : ` · ${t('membershipInactive')}`}</span>
                       </TableCell>
+                      <TableCell className="hidden sm:table-cell text-gray-600 dark:text-gray-400">{m.sektion || '—'}</TableCell>
                       <TableCell className="hidden sm:table-cell text-gray-600 dark:text-gray-400">{m.beitragskategorie || '—'}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {open > 0.005 ? <span className="font-semibold text-amber-700 dark:text-amber-400">{formatChf(open)}</span> : <span className="text-gray-400">—</span>}

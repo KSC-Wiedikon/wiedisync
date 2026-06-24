@@ -220,7 +220,52 @@ const psqlInput =
   'UPDATE members m SET birthdate = email_match.dob\n' +
   '  FROM email_match WHERE m.id = email_match.id AND m.birthdate IS NULL;\n' +
   'COMMIT;\n' +
-  "SELECT 'members_missing_birthdate' AS metric, (SELECT count(*) FROM members WHERE birthdate IS NULL) AS value;\n"
+  "SELECT 'members_missing_birthdate' AS metric, (SELECT count(*) FROM members WHERE birthdate IS NULL) AS value;\n" +
+  // ── Propagate ClubDesk contact fields to members (finance member explorer) ──
+  // The scrape stages address/category/sektion/phone for every member, but only
+  // birthdate was ever applied. Fill the rest so the finance Members view mirrors
+  // ClubDesk. ClubDesk-authoritative fields (beitragskategorie, sektion — members
+  // can't edit them) always update; member-editable ones (adresse/plz/ort/phone)
+  // fill only when empty so a member's own profile edit is never clobbered.
+  // Matched by licence (1:1) then email(+alt) with a first-name-token guard (same
+  // safe matching as the birthdate passes). Own transaction.
+  'BEGIN;\n' +
+  'WITH cd AS (\n' +
+  '  SELECT lower(btrim(lizenznummer)) lic,\n' +
+  "         NULLIF(btrim(adresse),'') adresse, NULLIF(btrim(plz),'') plz, NULLIF(btrim(ort),'') ort,\n" +
+  "         NULLIF(btrim(beitragskategorie),'') categ, NULLIF(btrim(sektion),'') sektion,\n" +
+  "         COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')) phone\n" +
+  "  FROM clubdesk_export WHERE NULLIF(btrim(lizenznummer),'') IS NOT NULL),\n" +
+  'mt AS (\n' +
+  '  SELECT DISTINCT ON (mm.id) mm.id, cd.adresse, cd.plz, cd.ort, cd.categ, cd.sektion, cd.phone\n' +
+  '  FROM members mm JOIN cd ON cd.lic = lower(btrim(mm.license_nr))\n' +
+  "  WHERE NULLIF(btrim(mm.license_nr),'') IS NOT NULL\n" +
+  '  ORDER BY mm.id, cd.categ NULLS LAST, cd.adresse NULLS LAST)\n' +
+  'UPDATE members t SET\n' +
+  '  beitragskategorie = COALESCE(mt.categ, t.beitragskategorie), sektion = COALESCE(mt.sektion, t.sektion),\n' +
+  "  adresse = COALESCE(NULLIF(btrim(t.adresse),''), mt.adresse), plz = COALESCE(NULLIF(btrim(t.plz),''), mt.plz),\n" +
+  "  ort = COALESCE(NULLIF(btrim(t.ort),''), mt.ort), phone = COALESCE(NULLIF(btrim(t.phone),''), mt.phone)\n" +
+  'FROM mt WHERE t.id = mt.id;\n' +
+  'WITH cd AS (\n' +
+  '  SELECT lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
+  "         lower(split_part(btrim(vorname),' ',1)) vn1,\n" +
+  "         NULLIF(btrim(adresse),'') adresse, NULLIF(btrim(plz),'') plz, NULLIF(btrim(ort),'') ort,\n" +
+  "         NULLIF(btrim(beitragskategorie),'') categ, NULLIF(btrim(sektion),'') sektion,\n" +
+  "         COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')) phone\n" +
+  '  FROM clubdesk_export),\n' +
+  'mt AS (\n' +
+  '  SELECT DISTINCT ON (mm.id) mm.id, cd.adresse, cd.plz, cd.ort, cd.categ, cd.sektion, cd.phone\n' +
+  "  FROM members mm JOIN cd ON NULLIF(btrim(mm.email),'') IS NOT NULL\n" +
+  '       AND lower(btrim(mm.email)) IN (cd.email, cd.email_alt)\n' +
+  "       AND lower(split_part(btrim(mm.first_name),' ',1)) = cd.vn1\n" +
+  '  ORDER BY mm.id, cd.categ NULLS LAST, cd.adresse NULLS LAST)\n' +
+  'UPDATE members t SET\n' +
+  '  beitragskategorie = COALESCE(mt.categ, t.beitragskategorie), sektion = COALESCE(mt.sektion, t.sektion),\n' +
+  "  adresse = COALESCE(NULLIF(btrim(t.adresse),''), mt.adresse), plz = COALESCE(NULLIF(btrim(t.plz),''), mt.plz),\n" +
+  "  ort = COALESCE(NULLIF(btrim(t.ort),''), mt.ort), phone = COALESCE(NULLIF(btrim(t.phone),''), mt.phone)\n" +
+  'FROM mt WHERE t.id = mt.id;\n' +
+  'COMMIT;\n' +
+  "SELECT 'members_with_address' AS metric, (SELECT count(*) FROM members WHERE NULLIF(btrim(adresse),'') IS NOT NULL) AS value;\n"
 
 if (EMIT_SQL) {
   // Flush fully before exiting: process.exit() right after writing a large
