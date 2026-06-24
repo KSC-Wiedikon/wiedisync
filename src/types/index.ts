@@ -164,10 +164,14 @@ export interface Member extends BaseRecord {
   // Bank account IBAN for reimbursements (migration 117). Sensitive financial
   // PII — scoped own-member + admin only server-side, like ahv_nummer.
   iban: string | null
+  // Member has verified their own reimbursement IBAN (migration 136). False for
+  // ClubDesk-backfilled IBANs until the member confirms on the My-finances card.
+  iban_confirmed?: boolean
   beitragskategorie: string
-  // Alternate billing contact (migration 133) — finance-managed. When
+  // Alternate billing contact (migrations 133/136) — finance-managed. When
   // billing_different is true, invoices bill the billing_* contact (e.g. a
-  // minor's parent/guardian or a paying company) instead of the member.
+  // minor's parent/guardian or a paying company) instead of the member, and
+  // pay-outs go to billing_iban.
   billing_different?: boolean
   billing_name?: string | null
   billing_email?: string | null
@@ -175,6 +179,7 @@ export interface Member extends BaseRecord {
   billing_plz?: string | null
   billing_ort?: string | null
   billing_phone?: string | null
+  billing_iban?: string | null
 
   // Messaging
   communications_team_chat_enabled?: boolean

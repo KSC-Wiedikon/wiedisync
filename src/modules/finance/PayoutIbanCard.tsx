@@ -45,13 +45,29 @@ export default function PayoutIbanCard() {
     setSaving(true)
     try {
       const iban = trimmed ? normalizeIban(trimmed) : null
-      await updateRecord('members', user.id, { iban })
+      // Saving your own IBAN counts as confirming it (migration 136).
+      await updateRecord('members', user.id, { iban, iban_confirmed: !!iban })
       logActivity('update', 'members', user.id, { iban: iban ? 'set' : 'cleared' })
       await refreshUser()
       toast.success(t('ibanSaved'))
       setEditing(false)
     } catch {
       setError(t('ibanSaveError'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function confirmIban() {
+    if (!user) return
+    setSaving(true)
+    try {
+      await updateRecord('members', user.id, { iban_confirmed: true })
+      logActivity('update', 'members', user.id, { iban: 'confirmed' })
+      await refreshUser()
+      toast.success(t('ibanConfirmed'))
+    } catch {
+      toast.error(t('ibanSaveError'))
     } finally {
       setSaving(false)
     }
@@ -100,7 +116,20 @@ export default function PayoutIbanCard() {
           ) : (
             <div className="mt-2.5">
               {current ? (
-                <p className="font-mono text-sm tabular-nums text-gray-900 dark:text-gray-100">{current}</p>
+                <>
+                  <p className="font-mono text-sm tabular-nums text-gray-900 dark:text-gray-100">{current}</p>
+                  {user.iban_confirmed === false && (
+                    <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-900/40 dark:bg-amber-900/20">
+                      <p className="text-xs text-amber-800 dark:text-amber-300">{t('ibanConfirmPrompt')}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button type="button" size="sm" onClick={confirmIban} loading={saving}>
+                          <Check className="mr-1.5 h-3.5 w-3.5" />{t('ibanConfirmYes')}
+                        </Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={startEdit}>{t('ibanConfirmChange')}</Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="text-sm text-amber-700 dark:text-amber-300">{t('ibanCardEmpty')}</p>
               )}

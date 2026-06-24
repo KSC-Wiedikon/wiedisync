@@ -21,12 +21,13 @@ import {
 } from '../../hooks/useFinance'
 import { updateRecord, createRecord, deleteRecord, uploadFile, openPrivateAsset } from '../../lib/api'
 import { logActivity } from '../../utils/logActivity'
+import { isValidIban, normalizeIban } from '../../utils/iban'
 import MemberPayoutQrBill from './MemberPayoutQrBill'
 import type { FinanceInvoice } from './types'
 
 const MAX_DOC_MB = 15
 
-const BILLING_FIELDS = ['billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone'] as const
+const BILLING_FIELDS = ['billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban'] as const
 
 /** Age in years from a yyyy-mm-dd birthdate, or null. */
 function ageOf(birthdate?: string | null): number | null {
@@ -175,6 +176,7 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
     billing_plz: member.billing_plz ?? '',
     billing_ort: member.billing_ort ?? '',
     billing_phone: member.billing_phone ?? '',
+    billing_iban: member.billing_iban ?? '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -195,12 +197,18 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
 
   const save = async () => {
     if (!dirty) return
+    const billIban = draft.billing_iban.trim()
+    if (billIban && !isValidIban(billIban)) { toast.error(t('ibanInvalid')); return }
     setSaving(true)
     try {
       const patch: Record<string, unknown> = {}
       for (const f of BILLING_FIELDS) {
         const orig = f === 'billing_different' ? !!member.billing_different : (member[f] ?? '')
-        if (draft[f] !== orig) patch[f] = f === 'billing_different' ? draft[f] : (String(draft[f]).trim() || null)
+        if (draft[f] !== orig) {
+          patch[f] = f === 'billing_different' ? draft[f]
+            : f === 'billing_iban' ? (billIban ? normalizeIban(billIban) : null)
+            : (String(draft[f]).trim() || null)
+        }
       }
       await updateRecord('members', member.id, patch)
       logActivity('update', 'members', String(member.id), patch)
@@ -287,6 +295,11 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
                 <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('fieldAddress')}</span>{fieldInput({ value: draft.billing_address, onChange: (e) => set('billing_address', e.target.value) })}</label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('fieldPlz')}</span>{fieldInput({ value: draft.billing_plz, onChange: (e) => set('billing_plz', e.target.value) })}</label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('fieldOrt')}</span>{fieldInput({ value: draft.billing_ort, onChange: (e) => set('billing_ort', e.target.value) })}</label>
+                <label className="block sm:col-span-2">
+                  <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('fieldBillingIban')}</span>
+                  {fieldInput({ value: draft.billing_iban, onChange: (e) => set('billing_iban', e.target.value), placeholder: 'CH..' })}
+                  <span className="mt-1 block text-xs text-gray-400 dark:text-gray-500">{t('billingIbanHint')}</span>
+                </label>
               </div>
             )}
             {!draft.billing_different && <p className="text-sm text-gray-500 dark:text-gray-400">{t('billsToSelf')}</p>}

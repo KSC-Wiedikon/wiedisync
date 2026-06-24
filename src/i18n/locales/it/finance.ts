@@ -239,4 +239,12 @@ export default {
   payoutQrNeedsAddress: 'Aggiungi CAP + località del membro per generare il QR.',
   payoutQrNonCh: 'Il QR di pagamento richiede un IBAN svizzero (CH/LI).',
   payoutQrError: "Impossibile generare il QR — controlla IBAN e indirizzo.",
+  payoutToBilling: 'Al contatto di fatturazione: {{name}}',
+  payoutUnconfirmed: 'Il membro non ha ancora confermato questo IBAN.',
+  fieldBillingIban: 'IBAN di fatturazione',
+  billingIbanHint: 'I rimborsi vanno qui quando «Fatturare a un altro contatto» è attivo.',
+  ibanConfirmed: 'IBAN confermato.',
+  ibanConfirmPrompt: 'Abbiamo questo IBAN da ClubDesk — è qui che devono andare i rimborsi?',
+  ibanConfirmYes: 'Sì, è corretto',
+  ibanConfirmChange: 'Modifica',
 }
