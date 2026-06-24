@@ -223,4 +223,12 @@ export default {
   invoicesSection: 'Factures',
   totalOpen: 'Total ouvert',
   noMemberInvoices: 'Aucune facture pour ce membre.',
+  attachPdf: 'Joindre un PDF',
+  viewPdf: 'Voir',
+  docDelete: 'Supprimer le document',
+  docUploaded: 'Document joint.',
+  docUploadError: 'Impossible de joindre le document.',
+  docDeleteError: 'Impossible de supprimer le document.',
+  docOpenError: 'Impossible d\'ouvrir le document.',
+  docTooBig: 'Fichier trop volumineux (max {{mb}} Mo).',
 }

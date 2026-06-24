@@ -428,8 +428,11 @@ export async function deleteRecord(
  * return its id + display name. Used by the `file` form-field type. Members
  * already hold `directus_files.create` (profile photos / feedback screenshots).
  */
-export async function uploadFile(file: File): Promise<{ id: string; name: string }> {
+export async function uploadFile(file: File, folder?: string): Promise<{ id: string; name: string }> {
   const fd = new FormData()
+  // Non-file fields must precede the file part for Directus to apply them as
+  // metadata — `folder` drops the upload straight into a (private) folder.
+  if (folder) fd.append('folder', folder)
   fd.append('file', file)
   const res = await fetch(`${API_URL}/files`, {
     method: 'POST',
@@ -439,6 +442,21 @@ export async function uploadFile(file: File): Promise<{ id: string; name: string
   if (!res.ok) throw new Error(`Upload failed (${res.status})`)
   const { data } = await res.json()
   return { id: String(data.id), name: data.filename_download || file.name }
+}
+
+/**
+ * Open a PRIVATE Directus asset (e.g. a finance invoice PDF in the private folder)
+ * in a new tab. A plain /assets link only carries the session cookie same-site, so
+ * fetch it credentialed → object URL → open. Caller should revoke the URL later or
+ * let the tab own it. Throws on 403 (no access) / network error.
+ */
+export async function openPrivateAsset(fileId: string): Promise<void> {
+  const res = await fetch(assetUrl(fileId), { credentials: 'include' })
+  if (!res.ok) throw new Error(`Asset ${res.status}`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank', 'noopener')
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 /** Get a Directus asset URL (images, files). */

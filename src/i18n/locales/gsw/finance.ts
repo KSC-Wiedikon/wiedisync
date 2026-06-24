@@ -223,4 +223,12 @@ export default {
   invoicesSection: 'Rächnige',
   totalOpen: 'Offe total',
   noMemberInvoices: 'Kei Rächnige für das Mitglied.',
+  attachPdf: 'PDF aahänge',
+  viewPdf: 'Aaluege',
+  docDelete: 'Dokumänt entferne',
+  docUploaded: 'Dokumänt aaghänkt.',
+  docUploadError: 'Dokumänt het nöd chöne aaghänkt wärde.',
+  docDeleteError: 'Dokumänt het nöd chöne entfernt wärde.',
+  docOpenError: 'Dokumänt het nöd chöne uufgmacht wärde.',
+  docTooBig: 'Datei z gross (max {{mb}} MB).',
 }

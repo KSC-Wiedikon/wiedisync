@@ -161,6 +161,32 @@ export function useFinanceMembers(enabled = true) {
   })
 }
 
+/** Private Directus folder invoice PDFs live in (migration 134). Members can't read it. */
+export const FINANCE_INVOICE_FOLDER = 'f1a0d0c5-0000-4000-8000-000000000001'
+
+/** An invoice PDF attachment (migration 134). Keyed by clubdesk_id (ClubDesk-mirror, sync-safe) OR invoice (native). */
+export interface FinanceInvoiceDocument {
+  id: string | number
+  file: string
+  match_clubdesk_id?: string | null
+  invoice?: string | number | null
+  label?: string | null
+  uploaded_by_name?: string | null
+  date_created?: string | null
+}
+
+/** All invoice PDF attachments (finance + board). Few rows → fetched whole + mapped client-side. */
+export function useFinanceInvoiceDocuments(enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'invoice-documents'],
+    queryFn: () => fetchAllItems<FinanceInvoiceDocument>('finance_invoice_documents', {
+      fields: ['id', 'file', 'match_clubdesk_id', 'invoice', 'label', 'uploaded_by_name', 'date_created'],
+      sort: ['-date_created'],
+    }),
+    enabled,
+  })
+}
+
 /** Import/sync provenance history, newest first (board only). */
 export function useFinanceImports(enabled = true) {
   return useCollection<FinanceImport>('finance_imports', {
