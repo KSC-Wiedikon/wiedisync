@@ -239,4 +239,12 @@ export default {
   payoutQrNeedsAddress: 'PLZ + Ort vom Mitglied erfasse, zum de QR mache.',
   payoutQrNonCh: 'De Uszahligs-QR brucht e Schwizer (CH/LI) IBAN.',
   payoutQrError: 'QR het nöd chöne gmacht wärde — IBAN und Adrässe prüefe.',
+  payoutToBilling: 'A Rächnigskontakt: {{name}}',
+  payoutUnconfirmed: 'S Mitglied het die IBAN no nöd bestätigt.',
+  fieldBillingIban: 'Rächnigs-IBAN',
+  billingIbanHint: 'Rückerstattige gönd dahi, wenn «En andere Kontakt verrächne» aktiv isch.',
+  ibanConfirmed: 'IBAN bestätigt.',
+  ibanConfirmPrompt: 'Die IBAN hämmer us ClubDesk — sölled Rückerstattige dahi go?',
+  ibanConfirmYes: 'Ja, stimmt',
+  ibanConfirmChange: 'Ändere',
 }

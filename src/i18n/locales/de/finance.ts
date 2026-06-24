@@ -239,4 +239,12 @@ export default {
   payoutQrNeedsAddress: 'PLZ + Ort des Mitglieds erfassen, um den QR zu erstellen.',
   payoutQrNonCh: 'Auszahlungs-QR braucht eine Schweizer (CH/LI) IBAN.',
   payoutQrError: 'QR konnte nicht erstellt werden — IBAN und Adresse prüfen.',
+  payoutToBilling: 'An Rechnungskontakt: {{name}}',
+  payoutUnconfirmed: 'Mitglied hat diese IBAN noch nicht bestätigt.',
+  fieldBillingIban: 'Rechnungs-IBAN',
+  billingIbanHint: 'Rückerstattungen gehen hierhin, wenn «Anderen Kontakt verrechnen» aktiv ist.',
+  ibanConfirmed: 'IBAN bestätigt.',
+  ibanConfirmPrompt: 'Diese IBAN haben wir aus ClubDesk — sollen Rückerstattungen hierhin gehen?',
+  ibanConfirmYes: 'Ja, stimmt',
+  ibanConfirmChange: 'Ändern',
 }

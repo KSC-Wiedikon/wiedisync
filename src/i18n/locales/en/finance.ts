@@ -244,4 +244,12 @@ export default {
   payoutQrNeedsAddress: "Add the member's postal code + city to generate the QR.",
   payoutQrNonCh: 'Pay-out QR needs a Swiss (CH/LI) IBAN.',
   payoutQrError: 'Could not generate the QR — check the IBAN and address.',
+  payoutToBilling: 'Paid to billing contact: {{name}}',
+  payoutUnconfirmed: "Member hasn't confirmed this IBAN yet.",
+  fieldBillingIban: 'Billing IBAN',
+  billingIbanHint: 'Reimbursements go here when "bill a different contact" is on.',
+  ibanConfirmed: 'IBAN confirmed.',
+  ibanConfirmPrompt: 'We have this IBAN from ClubDesk — is this where reimbursements should go?',
+  ibanConfirmYes: "Yes, it's correct",
+  ibanConfirmChange: 'Change it',
 }

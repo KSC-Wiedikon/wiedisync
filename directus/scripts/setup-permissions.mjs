@@ -336,6 +336,8 @@ const MEMBER_EDITABLE_FIELDS = [
   // NOT in MEMBER_VISIBLE_FIELDS or LEADER_TEAM_MEMBER_FIELDS (which excludes
   // ahv_nummer too) — other members and coaches must never see it.
   'iban',
+  // 2026-06-24 migration 136: member confirms their own (ClubDesk-backfilled) IBAN.
+  'iban_confirmed',
   // 2026-06-01 migration 077: per-member auto-confirm RSVP opt-in (profile toggles)
   'auto_confirm_trainings', 'auto_confirm_games', 'auto_confirm_events',
 ]
@@ -408,14 +410,14 @@ const FINANCE_MEMBER_FIELDS = [
   'id', 'first_name', 'last_name', 'email', 'phone', 'number',
   'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'birthdate',
   'iban', 'ahv_nummer', 'beitragskategorie', 'sektion', 'kscw_membership_active', 'wiedisync_active',
-  'language', 'role', 'member_teams', 'date_created',
-  // Alternate billing contact (migration 133).
-  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone',
+  'language', 'role', 'member_teams', 'date_created', 'iban_confirmed',
+  // Alternate billing contact (migrations 133/136).
+  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
 ]
 
-/** Billing-contact fields the FINANCE role may UPDATE on any member (migration 133). */
+/** Billing-contact fields the FINANCE role may UPDATE on any member (migrations 133/136). */
 const FINANCE_MEMBER_BILLING_FIELDS = [
-  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone',
+  'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
 ]
 
 /** Private folder for invoice PDFs (migration 134). Members can't read this folder
