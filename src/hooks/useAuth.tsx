@@ -41,6 +41,10 @@ export interface AuthContextValue {
   primarySport: 'volleyball' | 'basketball' | 'both'
   canViewTeam: (teamId: string) => boolean
   isVorstand: boolean
+  /** Member has the orthogonal 'finance' role (treasurer / finance team). */
+  isFinance: boolean
+  /** May open the club-finance dashboard — board OR finance role. */
+  canAccessFinance: boolean
   getGuestLevel: (teamId: string) => number
   isGuestIn: (teamId: string) => boolean
   isLoading: boolean
@@ -289,6 +293,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isApproved = user?.coach_approved_team === true || isAdmin || memberTeamIds.length > 0 || coachTeamIds.length > 0
   const isProfileComplete = !!user?.language && !!user?.first_name
   const isVorstand = roles.includes('vorstand') || isGlobalAdmin
+  // 'finance' is an orthogonal role (treasurer / finance team). Global admins
+  // implicitly have it; the finance dashboard opens for board OR finance.
+  const isFinance = roles.includes('finance') || isGlobalAdmin
+  const canAccessFinance = isVorstand || isFinance
   const isCoach = coachTeamIds.length > 0 || isGlobalAdmin
   const primarySport: 'volleyball' | 'basketball' | 'both' =
     memberSports.size === 1 ? [...memberSports][0] : 'both'
@@ -325,7 +333,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const matchesRole = useCallback((role: string): boolean => {
     if (!user) return false
-    if (['vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser'].includes(role)) {
+    if (['vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser', 'finance'].includes(role)) {
       return (user.role ?? []).includes(role as any)
     }
     if (role === 'coach') return coachTeamIds.length > 0
@@ -345,7 +353,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isCoach, isCoachOf, canParticipateIn, isStaffOnly, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, is_spielplaner: isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
-    canViewTeam, isVorstand, getGuestLevel, isGuestIn, isLoading, login, logout,
+    canViewTeam, isVorstand, isFinance, canAccessFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
     refreshTeamContext, refreshUser,
   }), [
     user, isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
@@ -353,7 +361,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isCoach, isCoachOf, canParticipateIn, isStaffOnly, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
-    canViewTeam, isVorstand, getGuestLevel, isGuestIn, isLoading, login, logout,
+    canViewTeam, isVorstand, isFinance, canAccessFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
     refreshTeamContext, refreshUser,
   ])
 

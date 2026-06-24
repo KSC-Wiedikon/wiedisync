@@ -25,7 +25,7 @@ export interface NavItem {
  */
 export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number | string | null) {
   const { t } = useTranslation('nav')
-  const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin, isVorstand, coachTeamIds, teamResponsibleIds } = useAuth()
+  const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin, isVorstand, canAccessFinance, coachTeamIds, teamResponsibleIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   // Forms authoring is a leadership tool — gated on ROLE (not the admin-mode
   // toggle), like the Spielplaner items below. Members reach forms-to-fill via
@@ -74,7 +74,7 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
     { to: '/finance/dues', label: t('finance:myDuesTitle'), icon: <Wallet className={iconClass} /> },
     { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
     { to: '/finance/expense', label: t('uploadInvoice'), icon: <ReceiptText className={iconClass} /> },
-    ...(isVorstand ? [{ to: '/admin/finance', label: t('finance:title'), icon: <Landmark className={iconClass} /> }] : []),
+    ...(canAccessFinance ? [{ to: '/admin/finance', label: t('finance:title'), icon: <Landmark className={iconClass} /> }] : []),
   ]
   // Spielplaner tools — their own role-gated section (NOT the Admin section).
   // Gated on ROLE, not the admin-mode toggle (matches the route guards: an admin

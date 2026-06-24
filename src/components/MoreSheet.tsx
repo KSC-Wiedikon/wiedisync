@@ -36,7 +36,7 @@ interface SheetItem { to: string; labelKey: string; icon: ReactNode; external?: 
 
 function buildSecondaryItems(
   memberId: number | string | undefined | null,
-  sched: { isAdmin: boolean; isVorstand: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[]; canManageForms: boolean },
+  sched: { isAdmin: boolean; isVorstand: boolean; canAccessFinance: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[]; canManageForms: boolean },
 ): { primary: SheetItem[]; memberTools: SheetItem[]; finance: SheetItem[]; spielplaner: SheetItem[] } {
   // Primary = items NOT already on the bottom tab bar (Home/Calendar/Games/
   // Trainings live there); shown ungrouped at the top of the sheet.
@@ -61,7 +61,7 @@ function buildSecondaryItems(
     { to: '/finance/dues', labelKey: 'finance:myDuesTitle', icon: <Wallet className={iconClass} /> },
     { to: '/fines', labelKey: 'fines', icon: <Gavel className={iconClass} /> },
     { to: '/finance/expense', labelKey: 'uploadInvoice', icon: <ReceiptText className={iconClass} /> },
-    ...(sched.isVorstand ? [{ to: '/admin/finance', labelKey: 'finance:title', icon: <Landmark className={iconClass} /> }] : []),
+    ...(sched.canAccessFinance ? [{ to: '/admin/finance', labelKey: 'finance:title', icon: <Landmark className={iconClass} /> }] : []),
   ]
   // Spielplaner tools — the whole game-scheduling feature opens as ONE "Planning"
   // entry (mirrors `useNavItems` / the desktop top nav); it has its own in-app
@@ -225,7 +225,7 @@ interface MoreSheetProps {
 }
 
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
-  const { user, isApproved, isAdmin, isSuperAdmin, isVorstand, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, logout } = useAuth()
+  const { user, isApproved, isAdmin, isSuperAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, logout } = useAuth()
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
@@ -328,7 +328,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
             </>
           )}
           {(!user || !isApproved) ? null : (() => {
-            const groups = buildSecondaryItems(user.id, { isAdmin, isVorstand, is_spielplaner, spielplanerTeamIds, canManageForms })
+            const groups = buildSecondaryItems(user.id, { isAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, canManageForms })
             const renderItem = (item: SheetItem) => (
               item.external ? (
                 <a

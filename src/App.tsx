@@ -47,7 +47,7 @@ import ExpenseUploadPage from './modules/finance/ExpenseUploadPage'
 import DatenschutzPage from './modules/legal/DatenschutzPage'
 import ImpressumPage from './modules/legal/ImpressumPage'
 import AuthRoute from './components/AuthRoute'
-import VorstandRoute from './components/VorstandRoute'
+import FinanceRoute from './components/FinanceRoute'
 import ScorerAssignPage from './modules/scorer/ScorerAssignPage'
 import BugfixDashboardPage from './modules/admin/BugfixDashboardPage'
 import StatusPage from './modules/admin/StatusPage'
@@ -205,7 +205,7 @@ export default function App() {
             <Route path="admin/terminplanung/dashboard" element={<SchedulingRedirect />} />
             <Route path="admin/scorer-assign" element={<AdminRoute><ScorerAssignPage /></AdminRoute>} />
             <Route path="admin/referee-expenses" element={<AdminRoute><RefereeExpensesPage /></AdminRoute>} />
-            <Route path="admin/finance" element={<VorstandRoute><FinancePage /></VorstandRoute>} />
+            <Route path="admin/finance" element={<FinanceRoute><FinancePage /></FinanceRoute>} />
             <Route path="admin/club-stats" element={<AdminRoute><ClubStatsPage /></AdminRoute>} />
             <Route path="admin/volley-feedback" element={<AdminRoute><VolleyFeedbackPage /></AdminRoute>} />
             <Route path="admin/anmeldungen" element={<AdminRoute><AnmeldungenPage /></AdminRoute>} />
