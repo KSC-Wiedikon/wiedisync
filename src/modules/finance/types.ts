@@ -29,6 +29,7 @@ export interface FinanceInvoice {
   // Native-invoice fields (migrations 128/129). source distinguishes a native
   // (created-in-wiedisync) invoice from a ClubDesk mirror row.
   source?: 'clubdesk' | 'native' | string | null
+  reference_type?: 'NON' | 'SCOR' | 'QRR' | string | null
   team?: string | null
   team_name?: string | null
   reported_paid_at?: string | null

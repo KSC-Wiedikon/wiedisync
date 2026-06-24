@@ -32,14 +32,19 @@ export default function InvoiceQrBill({ invoice }: { invoice: FinanceInvoice }) 
     return parts.join(' · ').slice(0, 140) || undefined
   }, [invoice.number, invoice.subject])
 
+  // Native invoices carry a SCOR (ISO-11649 "RF…") reference so the payment can
+  // be auto-reconciled later from camt.054. Valid on the regular IBAN; ClubDesk
+  // mirror rows stay reference-less (unstructured message only).
+  const reference = invoice.reference_type === 'SCOR' && invoice.reference ? invoice.reference : undefined
+
   const svg = useMemo(() => {
     if (!(amount >= 0.01)) return null
     try {
-      return new SwissQRCode({ currency: 'CHF', amount, creditor: { ...CREDITOR }, message }).toString()
+      return new SwissQRCode({ currency: 'CHF', amount, creditor: { ...CREDITOR }, message, ...(reference ? { reference } : {}) }).toString()
     } catch {
       return null
     }
-  }, [amount, message])
+  }, [amount, message, reference])
 
   if (!svg) return null
 
