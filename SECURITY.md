@@ -46,6 +46,10 @@ Tracked (must stay clean of secrets):
 
 Treat this as a deduplication shield: if a future audit finds something on this list, it's either a regression or a misunderstanding — verify before re-flagging.
 
+### 2026-06-24 — Finance role + invoice-PDF privacy (migrations 132–134)
+- **New orthogonal `finance` role** (treasurer / finance team) — member permissions + a per-user `KSCW Finance` policy (attached like `is_spielplaner`/Terminplanung, reconciled by the role-sync hook + `setup-permissions.mjs §13`). Least-privilege: club-wide finance reads + a field-scoped `members` read (contact/IBAN/membership/billing) + a `members` UPDATE scoped to the billing-contact fields ONLY — NOT the rest of Vorstand's board read-all. Finance writes (native invoices + camt) gated in code by `canManageFinance`. The `members.role` write is still stripped at the kscw-hooks filter for non-admin callers, so a finance user can't self-assign roles.
+- **Invoice PDFs are member-private.** Invoice PDFs contain a member's billing details. They upload into a private Directus folder; the **Member `directus_files` read was narrowed** from fully-unfiltered to exclude that folder (`{ _or: [{ folder: _null }, { folder: { _neq: <finance folder> } }] }`). Surgical — every pre-existing file (folder-less photos, feedback screenshots) stays member-readable; only the new private folder is excluded. Finance + Vorstand get a folder-scoped read, so `/assets` 403s the PDF for members while finance/board can open it. Verified on dev + prod (`directus_permissions` filter inspection).
+
 ### 2026-06-16 — Scheduling/forms/mailbox cycle reconciliation
 
 Doc-drift catch-up for the work landing 2026-06-10..06-15 after the deep-audit remediation below. No new security regression — recorded here as the security-relevant slice of a feature/schema cycle so a future audit doesn't re-flag it. Most of this cycle is features; only the slices below touch the security/permission surface.

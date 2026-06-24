@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.8.0 — 2026-06-24
+
+### Finances: per-member explorer + a dedicated Finance role
+- New **Finance** role for the treasurer / finance team — the club-finance dashboard and the new per-member view on top of normal member access, without full board permissions.
+- **Members tab** in Club finances: search a member to see their contact details, IBAN, membership category and full invoice history with payment status, all in one place.
+- Record a **separate billing contact** per member (e.g. a minor's parent/guardian, or a paying company), used when addressing invoices.
+- **Attach the invoice PDF** to any invoice and open it later — private to finance and the board, and the attachment stays linked to its ClubDesk invoice across nightly syncs.
+
 ## v1.7.0 — 2026-06-24
 
 ### Finances
