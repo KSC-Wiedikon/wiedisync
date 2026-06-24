@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.6.1 — 2026-06-24
+
+### Game scheduling: accurate dashboard counters
+- The Spielplanung dashboard's home/away game counters now count every leg of a pairing, so junior teams that play an opponent two or three times are tallied correctly — the totals no longer show more games confirmed than the season actually has.
+
 ## v1.6.0 — 2026-06-23
 
 ### Finances: invoices you can pay in the app

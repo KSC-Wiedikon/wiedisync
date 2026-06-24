@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.6.0'
+const APP_VERSION = '1.6.1'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.6.1',
+    date: '24.06.2026',
+    sections: [
+      {
+        title: 'Game scheduling: accurate dashboard counters',
+        items: [
+          'The Spielplanung dashboard\'s home/away game counters now count every leg of a pairing, so junior teams that play an opponent two or three times are tallied correctly — no more "more games confirmed than the season has".',
+        ],
+      },
+    ],
+  },
   {
     version: '1.6.0',
     date: '23.06.2026',
