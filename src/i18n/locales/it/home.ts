@@ -21,4 +21,7 @@ export default {
   ibanNudgeBody: 'Le finanze hanno bisogno del tuo IBAN più aggiornato per rimborsare le spese. Aggiungilo o verificalo in «Finanze».',
   ibanNudgeCta: 'Aggiungi IBAN',
   ibanNudgeDismiss: 'Più tardi',
+  ibanConfirmNudgeTitle: 'Conferma il tuo IBAN',
+  ibanConfirmNudgeBody: 'Abbiamo un IBAN registrato per te — conferma sotto Finanze che è corretto (o modificalo) affinché i rimborsi arrivino al conto giusto.',
+  ibanConfirmNudgeCta: 'Conferma in Finanze',
 } as const

@@ -458,24 +458,24 @@ export default function HomePage() {
       )}
 
       {/* IBAN nudge — finance needs everyone's up-to-date IBAN for reimbursements */}
-      {user && isApproved && !user.iban && !ibanNudgeDismissed && (
+      {user && isApproved && (!user.iban || user.iban_confirmed === false) && !ibanNudgeDismissed && (
         <div className="mb-6 lg:flex lg:flex-col lg:items-center">
           <div className="w-full rounded-xl border border-amber-300 bg-amber-50 p-4 lg:max-w-2xl dark:border-amber-700/60 dark:bg-amber-900/20">
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
               <div className="min-w-0 flex-1">
                 <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                  {t('ibanNudgeTitle')}
+                  {user.iban ? t('ibanConfirmNudgeTitle') : t('ibanNudgeTitle')}
                 </h3>
                 <p className="mt-1 text-sm text-amber-800 dark:text-amber-200/90">
-                  {t('ibanNudgeBody')}
+                  {user.iban ? t('ibanConfirmNudgeBody') : t('ibanNudgeBody')}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <Link
                     to="/finance/dues"
                     className="inline-flex min-h-[36px] items-center rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-amber-950"
                   >
-                    {t('ibanNudgeCta')}
+                    {user.iban ? t('ibanConfirmNudgeCta') : t('ibanNudgeCta')}
                   </Link>
                   <button
                     type="button"

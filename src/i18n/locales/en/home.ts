@@ -26,4 +26,7 @@ export default {
   ibanNudgeBody: 'Finance needs your most up-to-date IBAN to reimburse expenses. Add or check it under Finance.',
   ibanNudgeCta: 'Add IBAN',
   ibanNudgeDismiss: 'Not now',
+  ibanConfirmNudgeTitle: 'Confirm your IBAN',
+  ibanConfirmNudgeBody: "We have an IBAN on file for you — please confirm it's correct (or change it) under Finance, so reimbursements reach the right account.",
+  ibanConfirmNudgeCta: 'Confirm in Finance',
 } as const
