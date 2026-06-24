@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Pencil, ChevronDown, Check, Download, FileText, Image as ImageIcon, FileType } from 'lucide-react'
+import { Pencil, ChevronDown, Check, Download, FileText, Image as ImageIcon, FileType, X, HelpCircle, Hourglass, Minus } from 'lucide-react'
 import Modal from '@/components/Modal'
 import {
   DropdownMenu,
@@ -97,6 +97,55 @@ function RsvpTimestamp({ datetime, locale }: { datetime: string; locale: string 
       {showAbsolute ? formatDateTimeCompact(datetime) : capitalizeFirst(formatRelativeTime(datetime, locale))}
     </button>
   )
+}
+
+/** Colored status "brick" — a filled circle + glyph mirroring the
+ *  ParticipationSummary counters (green ✓ / yellow ? / red ✗ / orange ⧗) so a
+ *  coach can read RSVP state at a glance without a wide text badge. No-response
+ *  renders a muted gray circle with a dash. The full textual label rides along
+ *  in `title`/`aria-label` so the meaning isn't colour-only. */
+function RsvpBrick({ status, label }: { status: Participation['status'] | null; label: string }) {
+  const meta: Record<string, { bg: string; Icon: typeof Check }> = {
+    confirmed: { bg: 'bg-green-600 dark:bg-green-500', Icon: Check },
+    tentative: { bg: 'bg-yellow-500', Icon: HelpCircle },
+    declined: { bg: 'bg-red-600 dark:bg-red-500', Icon: X },
+    waitlisted: { bg: 'bg-orange-500', Icon: Hourglass },
+  }
+  const m = status ? meta[status] : undefined
+  if (!m) {
+    return (
+      <span
+        title={label}
+        aria-label={label}
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500"
+      >
+        <Minus className="h-3.5 w-3.5" />
+      </span>
+    )
+  }
+  const Icon = m.Icon
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white ${m.bg}`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </span>
+  )
+}
+
+/** Left-edge accent colour for a roster row, keyed to RSVP status (gray when
+ *  there's no response). Pairs with RsvpBrick so status reads from both the row
+ *  edge and the trailing glyph. */
+function statusBarClass(status: Participation['status'] | null): string {
+  switch (status) {
+    case 'confirmed': return 'border-l-green-500'
+    case 'tentative': return 'border-l-yellow-500'
+    case 'declined': return 'border-l-red-500'
+    case 'waitlisted': return 'border-l-orange-500'
+    default: return 'border-l-gray-300 dark:border-l-gray-600'
+  }
 }
 
 export default function ParticipationRosterModal({
@@ -993,13 +1042,6 @@ export default function ParticipationRosterModal({
     [memberList, staffMembers],
   )
 
-  const statusColors: Record<string, string> = {
-    confirmed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    tentative: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-    declined: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    waitlisted: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  }
-
   const statusLabels: Record<string, string> = {
     confirmed: t('confirmed'),
     tentative: t('tentative'),
@@ -1314,7 +1356,7 @@ export default function ParticipationRosterModal({
             return (
               <div
                 key={member.id}
-                className="border-b last:border-b-0 dark:border-gray-700"
+                className={`border-b border-b-gray-200 border-l-4 last:border-b-0 dark:border-b-gray-700 ${statusBarClass(status)}`}
               >
                 <div className="flex min-h-[44px] items-center gap-3 px-3 py-2 sm:min-h-0">
                 {/* Avatar */}
@@ -1332,7 +1374,7 @@ export default function ParticipationRosterModal({
 
                 {/* Name */}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-gray-900 dark:text-gray-100">
+                  <p className="break-words text-sm text-gray-900 dark:text-gray-100">
                     {displayNames.get(String(member.id)) ?? member.first_name}
                     {participation && (participation.guest_count ?? 0) > 0 && (
                       <span className="ml-1 text-xs text-brand-600 dark:text-brand-400">
@@ -1419,27 +1461,11 @@ export default function ParticipationRosterModal({
                     />
                   </div>
                 ) : (
-                  // Status badge + optional pencil icon
-                  <div className="flex min-w-[120px] shrink-0 items-center justify-end gap-1">
-                    {status ? (
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[status] ?? ''}`}>
-                        {/* Only flavour the badge as "Unavailable / Declined (Absence)"
-                            when the status is genuinely declined-by-absence —
-                            i.e. the row is missing or still carries the auto
-                            marker. A user who manually flipped to confirmed /
-                            tentative wants their literal status rendered. */}
-                        {(() => {
-                          const p = participations.find(pt => pt.member === member.id)
-                          const isAbsenceDecline = absentMemberIds.has(member.id) && status === 'declined' && (p == null || p.auto_declined_by != null)
-                          if (!isAbsenceDecline) return t(status)
-                          return t(coveringAbsenceByMember.get(String(member.id))?.type === 'weekly' ? 'declinedUnavailable' : 'declinedAbsence')
-                        })()}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-400 dark:text-gray-500">
-                        {t('notResponded')}
-                      </span>
-                    )}
+                  // RSVP brick + optional pencil. The textual status moved to the
+                  // note line beneath ("Reason: note"); the row's left bar mirrors
+                  // the same colour so status reads at a glance without a wide badge.
+                  <div className="flex w-16 shrink-0 items-center justify-end gap-1">
+                    <RsvpBrick status={status} label={statusLabelText(member.id, status)} />
                     {canEditRoster && !savingMemberIds.has(member.id) && (
                       <button
                         type="button"
@@ -1462,14 +1488,23 @@ export default function ParticipationRosterModal({
                 {(() => {
                   const absenceReason = getMemberAbsenceReason(member.id)
                   const customNote = participation?.note
-                  const note = customNote != null ? customNote : absenceReason
-                  if (!note) return null
-                  // Deduplicate: if note matches the positions string, don't show it again
-                  if (participation?.position_1) {
+                  // Explicit empty-string clear (staff removed the note) suppresses
+                  // both the note and the absence-reason fallback.
+                  if (customNote === '') return null
+                  let noteText = customNote ?? null
+                  // Don't echo the position-preferences string back as a note.
+                  if (noteText && participation?.position_1) {
                     const posStr = [participation.position_1, participation.position_2, participation.position_3].filter(Boolean).join(' > ')
-                    if (note === posStr) return null
+                    if (noteText === posStr) noteText = null
                   }
-                  return <p className="break-words px-3 pb-2 pl-14 text-xs italic text-gray-400">{note}</p>
+                  // Compose "Reason: note" — reason alone when there's no note, note
+                  // alone when there's no covering absence. The brick + left bar
+                  // already carry the status, so "Declined" isn't repeated here.
+                  const body = absenceReason && noteText
+                    ? `${absenceReason}: ${noteText}`
+                    : (absenceReason ?? noteText)
+                  if (!body) return null
+                  return <p className="break-words px-3 pb-2 pl-14 text-xs italic text-gray-400">{body}</p>
                 })()}
                 {/* Staff edit attribution (migration 047) — independent lines
                     for status and note edits. Each surfaces only when its
@@ -1510,7 +1545,7 @@ export default function ParticipationRosterModal({
                 return (
                   <div
                     key={wp.id}
-                    className="flex min-h-[44px] items-center gap-3 border-b px-3 py-2 last:border-b-0 dark:border-gray-700 sm:min-h-0"
+                    className="flex min-h-[44px] items-center gap-3 border-b border-b-gray-200 border-l-4 border-l-orange-500 px-3 py-2 last:border-b-0 dark:border-b-gray-700 sm:min-h-0"
                   >
                     <span className="w-5 shrink-0 text-center text-xs font-medium text-orange-500 dark:text-orange-400">
                       #{idx + 1}
@@ -1527,7 +1562,7 @@ export default function ParticipationRosterModal({
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-gray-900 dark:text-gray-100">
+                      <p className="break-words text-sm text-gray-900 dark:text-gray-100">
                         {displayNames.get(String(member.id)) ?? member.first_name}
                       </p>
                     </div>
@@ -1547,9 +1582,7 @@ export default function ParticipationRosterModal({
                         </select>
                       ) : (
                         <>
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors.waitlisted}`}>
-                            {statusLabels.waitlisted}
-                          </span>
+                          <RsvpBrick status="waitlisted" label={statusLabels.waitlisted} />
                           {canEditRoster && !savingMemberIds.has(wp.member) && (
                             <button
                               type="button"
@@ -1582,7 +1615,7 @@ export default function ParticipationRosterModal({
                 return (
                   <div
                     key={member.id}
-                    className="flex min-h-[44px] items-center gap-3 border-b px-3 py-2 last:border-b-0 dark:border-gray-700 sm:min-h-0"
+                    className={`flex min-h-[44px] items-center gap-3 border-b border-b-gray-200 border-l-4 px-3 py-2 last:border-b-0 dark:border-b-gray-700 sm:min-h-0 ${statusBarClass(status)}`}
                   >
                     {member.photo ? (
                       <img
@@ -1596,7 +1629,7 @@ export default function ParticipationRosterModal({
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-gray-900 dark:text-gray-100">
+                      <p className="break-words text-sm text-gray-900 dark:text-gray-100">
                         {displayNames.get(String(member.id)) ?? member.first_name}
                       </p>
                       {showRsvpTime && (() => {
@@ -1607,15 +1640,7 @@ export default function ParticipationRosterModal({
                         ) : null
                       })()}
                     </div>
-                    {status ? (
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[status] ?? ''}`}>
-                        {statusLabels[status] ?? t('notResponded')}
-                      </span>
-                    ) : (
-                      <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">
-                        {t('notResponded')}
-                      </span>
-                    )}
+                    <RsvpBrick status={status} label={status ? (statusLabels[status] ?? t('notResponded')) : t('notResponded')} />
                   </div>
                 )
               })}
