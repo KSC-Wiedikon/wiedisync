@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
-import { Home, Calendar, Trophy, Menu } from 'lucide-react'
+import { Home, Calendar, Menu } from 'lucide-react'
+import WhistleIcon from './WhistleIcon'
 
 interface TabItem {
   to: string
@@ -15,7 +16,7 @@ const iconClass = 'h-6 w-6'
 const primaryTabs: TabItem[] = [
   { to: '/', labelKey: 'home', icon: <Home className={iconClass} /> },
   { to: '/calendar', labelKey: 'calendar', icon: <Calendar className={iconClass} /> },
-  { to: '/games', labelKey: 'gamesShort', icon: <Trophy className={iconClass} /> },
+  { to: '/games', labelKey: 'gamesShort', icon: <WhistleIcon className={iconClass} /> },
   { to: '/trainings', labelKey: 'trainings', requiresAuth: true, icon: (
     <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M16.05 10.966a5 2.5 0 0 1-8.1 0" />

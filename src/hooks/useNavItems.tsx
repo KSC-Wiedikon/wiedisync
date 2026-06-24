@@ -4,10 +4,11 @@ import { useAdminMode } from './useAdminMode'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
-  Home, Calendar, Trophy, UserX, PenSquare, PartyPopper, Users,
+  Home, Calendar, UserX, PenSquare, PartyPopper, Users,
   Building2, CalendarClock, Activity,
   HeartPulse, MessageSquare, Inbox, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText,
 } from 'lucide-react'
+import WhistleIcon from '../components/WhistleIcon'
 
 export interface NavItem {
   to: string
@@ -36,7 +37,7 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
   const publicItems: NavItem[] = [
     { to: '/', label: t('home'), icon: <Home className={iconClass} /> },
     { to: '/calendar', label: t('calendar'), icon: <Calendar className={iconClass} /> },
-    { to: '/games', label: t('games'), icon: <Trophy className={iconClass} /> },
+    { to: '/games', label: t('games'), icon: <WhistleIcon className={iconClass} /> },
   ]
   // Primary = the daily "what's happening" views (these mirror the mobile bottom
   // tab bar). In the desktop top navbar Home stays a direct link and the rest are

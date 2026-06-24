@@ -27,8 +27,9 @@ import ParticipationSummary from '../../components/ParticipationSummary'
 import { useBulkParticipationStatuses } from '../../hooks/useBulkParticipationStatuses'
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Ranking, BaseRecord } from '../../types'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, CalendarDays, LayoutGrid, List, ScrollText } from 'lucide-react'
-import { mdiWhistleOutline } from '@mdi/js'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText } from 'lucide-react'
+import WhistleIcon from '../../components/WhistleIcon'
+import { detectCupMatch } from '../spielplanung/gameChipUtils'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import RankingsTable from '../games/components/RankingsTable'
 import InstallBanner from '../guide/install/InstallBanner'
@@ -978,17 +979,13 @@ function TrainingConeIcon({ className = '' }: { className?: string }) {
   )
 }
 
-/** Inline whistle SVG for game icon */
-function WhistleIcon({ className = '' }: { className?: string }) {
-  // Material Design Icons "whistle-outline" path (@mdi/js, Apache-2.0) rendered
-  // as a plain inline SVG. NOTE: do NOT use @mdi/react's <Icon> — its default
-  // export resolves to an object (not a component) in the prod bundle, which
-  // crashed the home page with React #130. The path string is interop-safe.
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d={mdiWhistleOutline} />
-    </svg>
-  )
+/** Game icon: whistle for league play, cup for cup competitions
+ *  (gold → trophy, silver → medal), matching the GameChip semantics. */
+function gameIcon(game: ExpandedGame, className: string) {
+  const cup = detectCupMatch(game.league)
+  if (cup === 'gold') return <Trophy className={className} />
+  if (cup === 'silver') return <Medal className={className} />
+  return <WhistleIcon className={className} />
 }
 
 /** Single appointment row with participation banner */
@@ -1010,7 +1007,7 @@ function AppointmentRow({ appointment, onClick, participationStatus }: {
   }
 
   const bigTypeIcon = {
-    game: <WhistleIcon className="h-6 w-6 shrink-0" />,
+    game: gameIcon(appointment.data as ExpandedGame, 'h-6 w-6 shrink-0'),
     training: <TrainingConeIcon className="h-6 w-6 shrink-0" />,
     event: <CalendarDays className="h-6 w-6 shrink-0" />,
   }
@@ -1098,7 +1095,7 @@ function AppointmentTableRow({ appointment, onClick, participationStatus }: {
   }
 
   const typeIcon = {
-    game: <WhistleIcon className="h-4 w-4" />,
+    game: gameIcon(appointment.data as ExpandedGame, 'h-4 w-4'),
     training: <TrainingConeIcon className="h-4 w-4" />,
     event: <CalendarDays className="h-4 w-4" />,
   }
