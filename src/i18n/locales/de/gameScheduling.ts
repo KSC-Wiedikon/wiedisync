@@ -589,6 +589,8 @@ export default {
   mailboxAssignLabel: 'Gehört zu',
   mailboxAssignAuto: 'Automatisch erkannt',
   mailboxAssignPinned: 'Manuell zugewiesen',
+  mailboxAssignNotDetected: 'Nicht erkannt',
+  mailboxAssignAutoDetectedHint: 'Automatisch erkannter Gegner für diese E-Mail',
   mailboxAssignDone: 'E-Mail-Verlauf zugewiesen',
   mailboxAssignCleared: 'Zuweisung aufgehoben',
   mailboxAssignFailed: 'Zuweisung fehlgeschlagen',

@@ -581,6 +581,8 @@ export default {
   mailboxAssignLabel: 'Ghört zu',
   mailboxAssignAuto: 'Automatisch erkennt',
   mailboxAssignPinned: 'Manuell zuegwise',
+  mailboxAssignNotDetected: 'Nöd erkennt',
+  mailboxAssignAutoDetectedHint: 'Automatisch erkennte Gegner für die E-Mail',
   mailboxAssignDone: 'E-Mail-Verlauf zuegwise',
   mailboxAssignCleared: 'Zuewisig ufghobe',
   mailboxAssignFailed: 'Zuewisig het nöd klappt',

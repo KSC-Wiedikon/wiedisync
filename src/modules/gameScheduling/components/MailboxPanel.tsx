@@ -726,7 +726,7 @@ function MailboxAssign({
         onChange={(e) => { setSaving(true); void onAssign(e.target.value ? Number(e.target.value) : null).finally(() => setSaving(false)) }}
         className="min-h-9 min-w-[12rem] flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
       >
-        <option value="">{`${t('mailboxAssignAuto')}${ownerLabel ? ` · ${ownerLabel}` : ''}`}</option>
+        <option value="">{t('mailboxAssignAuto')}</option>
         {groups.map(([team, list]) => (
           <optgroup key={team} label={team}>
             {list.map((oc) => (
@@ -735,7 +735,15 @@ function MailboxAssign({
           </optgroup>
         ))}
       </select>
-      {isPinned && <Badge variant="neutral" size="sm">{t('mailboxAssignPinned')}</Badge>}
+      {/* Show WHO it resolved to: the manually-pinned opponent, the auto-detected
+          owner, or a muted hint when it genuinely couldn't be auto-detected. */}
+      {isPinned ? (
+        <Badge variant="neutral" size="sm">{t('mailboxAssignPinned')}</Badge>
+      ) : ownerLabel ? (
+        <Badge variant="info" size="sm" title={t('mailboxAssignAutoDetectedHint')}>{ownerLabel}</Badge>
+      ) : (
+        <span className="text-xs italic text-gray-400 dark:text-gray-500">{t('mailboxAssignNotDetected')}</span>
+      )}
     </div>
   )
 }

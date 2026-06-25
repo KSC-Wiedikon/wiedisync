@@ -591,6 +591,8 @@ export default {
   mailboxAssignLabel: 'Belongs to',
   mailboxAssignAuto: 'Auto-detected',
   mailboxAssignPinned: 'Pinned manually',
+  mailboxAssignNotDetected: 'Couldn’t auto-detect',
+  mailboxAssignAutoDetectedHint: 'Auto-detected opponent for this email',
   mailboxAssignDone: 'Email chain assigned',
   mailboxAssignCleared: 'Assignment cleared',
   mailboxAssignFailed: 'Could not save assignment',

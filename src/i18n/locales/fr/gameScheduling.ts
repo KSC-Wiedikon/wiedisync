@@ -580,6 +580,8 @@ export default {
   mailboxAssignLabel: 'Appartient à',
   mailboxAssignAuto: 'Détecté automatiquement',
   mailboxAssignPinned: 'Assigné manuellement',
+  mailboxAssignNotDetected: 'Non détecté',
+  mailboxAssignAutoDetectedHint: 'Adversaire détecté automatiquement pour cet e-mail',
   mailboxAssignDone: 'Fil d’e-mails assigné',
   mailboxAssignCleared: 'Attribution supprimée',
   mailboxAssignFailed: 'Échec de l’attribution',
