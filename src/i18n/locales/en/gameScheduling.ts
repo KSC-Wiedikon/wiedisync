@@ -402,6 +402,10 @@ export default {
   seasonCloses: 'Season closes',
   seasonWindowHelp: 'Dates before the opening or after the closing date are greyed out in both calendars. Leave empty for the default (1 September – 31 March).',
   seasonWindowSaved: 'Season window saved',
+  vmAuthorityLabel: 'Swiss Volley feed authority',
+  vmAuthorityDate: 'Feed takeover date',
+  vmAuthorityHelp: 'Until this date, the dates you scheduled in the tool are protected from the Swiss Volley feed (which may still show a placeholder until opponents enter their away games in Volleymanager). On and after this date, the official feed becomes authoritative for date, time and venue. Leave empty to protect scheduled games until they are played.',
+  vmAuthoritySaved: 'Feed takeover date saved',
   outsideSeasonLabel: 'Season not open',
   save: 'Save',
 

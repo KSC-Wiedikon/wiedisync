@@ -400,6 +400,10 @@ export default {
   seasonCloses: 'Saison schliesst',
   seasonWindowHelp: 'Daten vor dem Öffnungs- oder nach dem Schliessdatum sind in beiden Kalendern ausgegraut. Leer lassen für den Standard (1. September – 31. März).',
   seasonWindowSaved: 'Saisonfenster gespeichert',
+  vmAuthorityLabel: 'Swiss-Volley-Feed-Hoheit',
+  vmAuthorityDate: 'Übernahmedatum Feed',
+  vmAuthorityHelp: 'Bis zu diesem Datum sind die im Tool geplanten Termine vor dem Swiss-Volley-Feed geschützt (der bis zur Eingabe der Auswärtsspiele durch die Gegner in Volleymanager noch ein Platzhalterdatum zeigen kann). Ab diesem Datum ist der offizielle Feed für Datum, Zeit und Ort massgebend. Leer lassen, um geplante Spiele bis zum Spieltag zu schützen.',
+  vmAuthoritySaved: 'Übernahmedatum gespeichert',
   outsideSeasonLabel: 'Saison nicht offen',
   save: 'Speichern',
 

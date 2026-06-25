@@ -608,6 +608,8 @@ export interface GameSchedulingSeason extends BaseRecord {
   season_opens: string | null
   /** Last date the tool offers slots/away dates (YYYY-MM-DD). Null → Mar 31 of the season's second year. */
   season_closes: string | null
+  /** Date the SV feed takes over date/time/venue for tool-scheduled games (YYYY-MM-DD). Null → protect until the game is completed. */
+  vm_authority_date: string | null
   notes: string
 
 }
