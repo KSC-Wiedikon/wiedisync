@@ -14,6 +14,7 @@
  */
 import { parseCamt, invoiceIdFromScor, invoiceNumbersFromMessage } from './camt.js'
 import { writeUserLog } from './activity-log.js'
+import { recomputeInvoice } from './finance-recompute.js'
 
 export function registerFinanceCamt(router, { database, logger }) {
   const log = logger.child({ extension: 'kscw-endpoints', module: 'finance-camt' })
@@ -81,17 +82,19 @@ export function registerFinanceCamt(router, { database, logger }) {
 
       // Auto-confirm a matched NATIVE invoice (by SCOR ref or by message number).
       const applyNative = async (inv, c) => {
-        await database('finance_payments').insert(payRow(c, importId, { invoice: inv.id, match_status: 'native' }))
-        const settles = c.amount + 1e-9 >= Number(inv.amount)
-        if (settles && ['open', 'pending_confirmation'].includes(inv.status)) {
-          await database('finance_invoices').where('id', inv.id).update({
-            status: 'paid', amount_paid: inv.amount, open_amount: 0, closed_on: todayISO(),
-            confirmed_at: new Date(), confirmed_by_name: 'camt import', confirmed_via: 'camt', date_updated: new Date(),
-          })
+        await database('finance_payments').insert(payRow(c, importId, { invoice: inv.id, match_status: 'native', entry_type: 'payment' }))
+        // Settlement is derived from the full ledger (handles partials + prior payments),
+        // not this single credit — one shared recompute across confirm/manual/camt.
+        const before = inv.status
+        const row = await recomputeInvoice(database, inv.id, { actorName: 'camt import', actorEmail: null, via: 'camt' })
+        const after = row?.status
+        if (after === 'paid' && before !== 'paid') {
           summary.auto_confirmed++
           details.push({ status: 'auto_confirmed', invoice: inv.number, ...slim(c) })
+        } else if (after === 'paid') {
+          details.push({ status: 'native_already_settled', invoice: inv.number, invoiceAmount: Number(inv.amount), ...slim(c) })
         } else {
-          details.push({ status: settles ? 'native_already_settled' : 'native_partial', invoice: inv.number, invoiceAmount: Number(inv.amount), ...slim(c) })
+          details.push({ status: 'native_partial', invoice: inv.number, invoiceAmount: Number(inv.amount), ...slim(c) })
         }
       }
 

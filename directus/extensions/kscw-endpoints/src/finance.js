@@ -27,6 +27,7 @@
 import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './email-template.js'
 import { renderInvoiceQrBillPdf } from './finance-qrbill.js'
+import { recomputeInvoice } from './finance-recompute.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -281,21 +282,82 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const id = Number(req.params.id)
       const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
       if (!inv) return res.status(404).json({ error: 'Not found' })
-      if (!['open', 'pending_confirmation'].includes(inv.status)) return res.status(409).json({ error: `Invoice is ${inv.status}` })
-      const [row] = await database('finance_invoices').where('id', id).update({
-        status: 'paid',
-        amount_paid: inv.amount,
-        open_amount: 0,
-        closed_on: todayISO(),
-        confirmed_at: new Date(),
-        confirmed_by_name: mem?.name || null,
-        confirmed_by_email: mem?.email || null,
-        confirmed_via: 'manual',
-        date_updated: new Date(),
-      }).returning('*')
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'confirm_payment', via: 'manual' } })
+      if (!['open', 'pending_confirmation', 'partial'].includes(inv.status)) return res.status(409).json({ error: `Invoice is ${inv.status}` })
+      // Confirm = record a payment for whatever is still open, then recompute. Keeps
+      // the settlement ledger the single source of truth (vs an all-or-nothing flip).
+      const remaining = round2(Number(inv.open_amount) > 0 ? Number(inv.open_amount) : Number(inv.amount))
+      if (remaining > 0.005) {
+        await database('finance_payments').insert({
+          invoice: id, amount: remaining, entry_type: 'payment',
+          method: inv.reported_paid_method || 'manual', payment_date: todayISO(),
+          source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+        })
+      }
+      const row = await recomputeInvoice(database, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'confirm_payment', via: 'manual', amount: remaining } })
       return res.json({ invoice: row })
     } catch (e) { return err(res, req, 'confirm', e) }
+  })
+
+  // ── Settlement ledger entries — partial payments, cash, credit notes, refunds, write-offs ──
+  const ENTRY_TYPES = ['payment', 'credit_note', 'refund', 'writeoff']
+
+  // POST /finance/invoices/:id/payments — record one entry, then recompute settlement
+  router.post('/finance/invoices/:id/payments', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
+      if (!inv) return res.status(404).json({ error: 'Not found (native invoice expected)' })
+      if (inv.status === 'cancelled') return res.status(409).json({ error: 'Invoice is cancelled' })
+      const b = req.body || {}
+      const entryType = ENTRY_TYPES.includes(b.entry_type) ? b.entry_type : 'payment'
+      const amount = round2(b.amount)
+      if (!(amount > 0)) return res.status(400).json({ error: 'amount must be greater than 0' })
+      const method = (entryType === 'payment' || entryType === 'refund') ? (PAY_METHODS.includes(b.method) ? b.method : 'other') : null
+      const paymentDate = /^\d{4}-\d{2}-\d{2}$/.test(b.payment_date || '') ? b.payment_date : todayISO()
+      const note = (b.note || '').toString().trim().slice(0, 255) || null
+
+      const ins = await database('finance_payments').insert({
+        invoice: id, amount, entry_type: entryType, method, payment_date: paymentDate, note,
+        source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+      }).returning('id')
+      const paymentId = ins[0]?.id ?? ins[0]
+      const row = await recomputeInvoice(database, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_payments', recordId: paymentId, data: { kind: 'manual_payment', entry_type: entryType, invoice: id, amount } })
+      return res.json({ invoice: row, payment_id: paymentId })
+    } catch (e) { return err(res, req, 'record-payment', e) }
+  })
+
+  // DELETE /finance/invoices/:id/payments/:pid — undo a manual entry (camt rows excluded)
+  router.delete('/finance/invoices/:id/payments/:pid', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const pid = Number(req.params.pid)
+      const p = await database('finance_payments').where('id', pid).andWhere('invoice', id).first('id', 'method')
+      if (!p) return res.status(404).json({ error: 'Not found' })
+      if (p.method === 'camt') return res.status(409).json({ error: 'camt entries are not deletable here (re-import is idempotent)' })
+      await database('finance_payments').where('id', pid).del()
+      const row = await recomputeInvoice(database, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_payments', recordId: pid, data: { kind: 'delete_payment', invoice: id } })
+      return res.json({ invoice: row })
+    } catch (e) { return err(res, req, 'delete-payment', e) }
+  })
+
+  // GET /finance/invoices/:id/payments — the settlement ledger for one invoice
+  router.get('/finance/invoices/:id/payments', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const rows = await database('finance_payments').where('invoice', id)
+        .orderBy([{ column: 'payment_date', order: 'asc' }, { column: 'id', order: 'asc' }])
+        .select('id', 'payment_date', 'amount', 'entry_type', 'method', 'note', 'created_by_name', 'camt_reference', 'source')
+      return res.json({ payments: rows })
+    } catch (e) { return err(res, req, 'list-payments', e) }
   })
 
   // ── POST /finance/invoices/:id/cancel — void a native invoice ───────────
