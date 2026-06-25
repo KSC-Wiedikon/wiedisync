@@ -301,6 +301,25 @@ END $$;
 -- would risk confirming the wrong invoice. Unmatched native invoices stay
 -- pending until the treasurer confirms them manually. Idempotent: paid rows are
 -- excluded by the status filter.
+--
+-- 5c-pre: record the sync confirmation as a finance_payments 'sync' row FIRST, so
+-- the settlement ledger is the single source of truth and a later recompute (from a
+-- manual payment/refund once partial-payments is live) can't silently revert the
+-- sync'd paid state. Guarded on the entry_type column existing — the nightly prod
+-- sync runs before the finance batch (migration 143) ships there.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'finance_payments' AND column_name = 'entry_type') THEN
+    INSERT INTO finance_payments (invoice, amount, entry_type, method, payment_date, source, created_by_name)
+    SELECT n.id, n.amount, 'payment', 'sync', COALESCE(cd.closed_on, CURRENT_DATE), 'native', 'clubdesk sync'
+    FROM finance_invoices n
+    JOIN finance_invoices cd ON cd.source = 'clubdesk' AND (n.number = cd.number OR n.number = cd.reference)
+    WHERE n.source = 'native' AND n.status IN ('pending_confirmation', 'open')
+      AND nullif(btrim(n.number), '') IS NOT NULL
+      AND (lower(btrim(coalesce(cd.status, ''))) = 'bezahlt' OR coalesce(cd.open_amount, cd.amount, 0) <= 0)
+      AND NOT EXISTS (SELECT 1 FROM finance_payments p WHERE p.invoice = n.id AND p.method = 'sync');
+  END IF;
+END $$;
+
 UPDATE finance_invoices n SET
   status = 'paid', amount_paid = n.amount, open_amount = 0,
   closed_on = COALESCE(cd.closed_on, CURRENT_DATE),

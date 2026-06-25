@@ -27,7 +27,7 @@
 import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './email-template.js'
 import { renderInvoiceQrBillPdf } from './finance-qrbill.js'
-import { recomputeInvoice } from './finance-recompute.js'
+import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -153,6 +153,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
   const todayISO = () => new Date().toISOString().slice(0, 10)
   const round2 = (n) => Math.round(Number(n) * 100) / 100
+  const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim())
 
   async function fiscalYearIdForDate(iso) {
     const fy = await database('finance_fiscal_years')
@@ -308,22 +309,28 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const mem = await actingMember(req)
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
-      const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
-      if (!inv) return res.status(404).json({ error: 'Not found' })
-      if (!['open', 'pending_confirmation', 'partial'].includes(inv.status)) return res.status(409).json({ error: `Invoice is ${inv.status}` })
-      // Confirm = record a payment for whatever is still open, then recompute. Keeps
-      // the settlement ledger the single source of truth (vs an all-or-nothing flip).
-      const remaining = round2(Number(inv.open_amount) > 0 ? Number(inv.open_amount) : Number(inv.amount))
-      if (remaining > 0.005) {
-        await database('finance_payments').insert({
-          invoice: id, amount: remaining, entry_type: 'payment',
-          method: inv.reported_paid_method || 'manual', payment_date: todayISO(),
-          source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
-        })
-      }
-      const row = await recomputeInvoice(database, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'confirm_payment', via: 'manual', amount: remaining } })
-      return res.json({ invoice: row })
+      // Confirm = record a payment for whatever cash is still owed (derived from the
+      // ledger, clamped), then recompute — all in one transaction with a row lock so
+      // a double-click / concurrent camt credit can't double-count.
+      const out = await database.transaction(async (trx) => {
+        const inv = await trx('finance_invoices').where('id', id).andWhere('source', 'native').forUpdate().first()
+        if (!inv) return { code: 404, msg: 'Not found' }
+        if (!['open', 'pending_confirmation', 'partial'].includes(inv.status)) return { code: 409, msg: `Invoice is ${inv.status}` }
+        const entries = await trx('finance_payments').where('invoice', id).select('amount', 'entry_type')
+        const remaining = round2(deriveSettlement(entries, inv.amount, inv.status).open_amount)
+        if (remaining > 0.005) {
+          await trx('finance_payments').insert({
+            invoice: id, amount: remaining, entry_type: 'payment',
+            method: inv.reported_paid_method || 'manual', payment_date: todayISO(),
+            source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+          })
+        }
+        const row = await recomputeInvoice(trx, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
+        return { row, remaining }
+      })
+      if (out.code) return res.status(out.code).json({ error: out.msg })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'confirm_payment', via: 'manual', amount: out.remaining } })
+      return res.json({ invoice: out.row })
     } catch (e) { return err(res, req, 'confirm', e) }
   })
 
@@ -336,9 +343,6 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const mem = await actingMember(req)
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
-      const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
-      if (!inv) return res.status(404).json({ error: 'Not found (native invoice expected)' })
-      if (inv.status === 'cancelled') return res.status(409).json({ error: 'Invoice is cancelled' })
       const b = req.body || {}
       const entryType = ENTRY_TYPES.includes(b.entry_type) ? b.entry_type : 'payment'
       const amount = round2(b.amount)
@@ -347,14 +351,21 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const paymentDate = /^\d{4}-\d{2}-\d{2}$/.test(b.payment_date || '') ? b.payment_date : todayISO()
       const note = (b.note || '').toString().trim().slice(0, 255) || null
 
-      const ins = await database('finance_payments').insert({
-        invoice: id, amount, entry_type: entryType, method, payment_date: paymentDate, note,
-        source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
-      }).returning('id')
-      const paymentId = ins[0]?.id ?? ins[0]
-      const row = await recomputeInvoice(database, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_payments', recordId: paymentId, data: { kind: 'manual_payment', entry_type: entryType, invoice: id, amount } })
-      return res.json({ invoice: row, payment_id: paymentId })
+      const out = await database.transaction(async (trx) => {
+        const inv = await trx('finance_invoices').where('id', id).andWhere('source', 'native').forUpdate().first()
+        if (!inv) return { code: 404, msg: 'Not found (native invoice expected)' }
+        if (inv.status === 'cancelled') return { code: 409, msg: 'Invoice is cancelled' }
+        const ins = await trx('finance_payments').insert({
+          invoice: id, amount, entry_type: entryType, method, payment_date: paymentDate, note,
+          source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+        }).returning('id')
+        const paymentId = ins[0]?.id ?? ins[0]
+        const row = await recomputeInvoice(trx, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
+        return { row, paymentId }
+      })
+      if (out.code) return res.status(out.code).json({ error: out.msg })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_payments', recordId: out.paymentId, data: { kind: 'manual_payment', entry_type: entryType, invoice: id, amount } })
+      return res.json({ invoice: out.row, payment_id: out.paymentId })
     } catch (e) { return err(res, req, 'record-payment', e) }
   })
 
@@ -365,13 +376,18 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       const pid = Number(req.params.pid)
-      const p = await database('finance_payments').where('id', pid).andWhere('invoice', id).first('id', 'method')
-      if (!p) return res.status(404).json({ error: 'Not found' })
-      if (p.method === 'camt') return res.status(409).json({ error: 'camt entries are not deletable here (re-import is idempotent)' })
-      await database('finance_payments').where('id', pid).del()
-      const row = await recomputeInvoice(database, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
+      const out = await database.transaction(async (trx) => {
+        await trx('finance_invoices').where('id', id).andWhere('source', 'native').forUpdate().first('id') // lock
+        const p = await trx('finance_payments').where('id', pid).andWhere('invoice', id).first('id', 'method')
+        if (!p) return { code: 404, msg: 'Not found' }
+        if (p.method === 'camt') return { code: 409, msg: 'camt entries are not deletable here (re-import is idempotent)' }
+        await trx('finance_payments').where('id', pid).del()
+        const row = await recomputeInvoice(trx, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
+        return { row }
+      })
+      if (out.code) return res.status(out.code).json({ error: out.msg })
       await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_payments', recordId: pid, data: { kind: 'delete_payment', invoice: id } })
-      return res.json({ invoice: row })
+      return res.json({ invoice: out.row })
     } catch (e) { return err(res, req, 'delete-payment', e) }
   })
 
@@ -742,6 +758,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const testMode = req.body?.test_mode !== false // default ON; only explicit false disables
       const testRecipient = (req.body?.test_recipient || '').toString().trim() || null
+      if (testRecipient && !isEmail(testRecipient)) return res.status(400).json({ error: 'test_recipient must be a valid email address' })
       await database('finance_email_settings')
         .insert({ id: 1, test_mode: testMode, test_recipient: testRecipient, updated_by_name: mem?.name || null, updated_by_email: mem?.email || null, date_updated: new Date() })
         .onConflict('id').merge()
@@ -1111,6 +1128,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const b = req.body || {}
       const name = (b.name || '').toString().trim()
       if (!name) return res.status(400).json({ error: 'name is required' })
+      const cEmail = (b.email || '').toString().trim()
+      if (cEmail && !isEmail(cEmail)) return res.status(400).json({ error: 'email must be a valid address' })
       const kind = CONTACT_KINDS.includes(b.kind) ? b.kind : 'sponsor'
       const ins = await database('finance_billing_contacts').insert({
         kind, name,
