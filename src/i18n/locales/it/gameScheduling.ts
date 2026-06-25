@@ -581,6 +581,8 @@ export default {
   mailboxAssignLabel: 'Appartiene a',
   mailboxAssignAuto: 'Rilevato automaticamente',
   mailboxAssignPinned: 'Assegnato manualmente',
+  mailboxAssignNotDetected: 'Non rilevato',
+  mailboxAssignAutoDetectedHint: 'Avversario rilevato automaticamente per questa e-mail',
   mailboxAssignDone: 'Conversazione assegnata',
   mailboxAssignCleared: 'Assegnazione rimossa',
   mailboxAssignFailed: 'Salvataggio non riuscito',
