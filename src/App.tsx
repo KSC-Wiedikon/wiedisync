@@ -62,6 +62,7 @@ import SetPasswordPage from './modules/auth/SetPasswordPage'
 import FeedbackPage from './modules/feedback/FeedbackPage'
 import ChangelogPage from './modules/changelog/ChangelogPage'
 import { SentryErrorBoundary } from './lib/sentry'
+import { maybeReloadOnStaleChunk } from './lib/chunkReload'
 
 const GuidePage = lazy(() => import('./modules/guide/GuidePage'))
 const InboxPage = lazy(() => import('./modules/messaging/pages/InboxPage'))
@@ -69,32 +70,10 @@ const ConversationPage = lazy(() => import('./modules/messaging/pages/Conversati
 const MessagingSettingsPage = lazy(() => import('./modules/messaging/pages/MessagingSettingsPage'))
 const AdminReportsPage = lazy(() => import('./modules/admin/AdminReportsPage'))
 
-// Stale lazy-import chunks (after a deploy) throw a different message per
-// engine — Chromium: `Failed to fetch dynamically imported module`,
-// Firefox desktop: `error loading dynamically imported module`, older
-// Safari: `Importing a module script failed`, and crucially WebKit/iOS
-// (Safari + Firefox iOS + Chrome iOS, where the SPA fallback serves
-// index.html for a missing chunk): `'text/html' is not a valid JavaScript
-// MIME type` / Chrome's strict-MIME `expected a JavaScript … module script
-// but the server responded with a MIME type`. Detected here so we hot-reload
-// once instead of stranding the user on a blank screen + Sentry noise.
-function isChunkLoadError(error: unknown): boolean {
-  const msg = error instanceof Error ? error.message : String(error ?? '')
-  return /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Loading chunk \d+ failed|ChunkLoadError|is not a valid JavaScript MIME type|expected a JavaScript(?:-or-Wasm)? module script but the server responded with a MIME type/i.test(msg)
-}
-
-const RELOAD_COOLDOWN_KEY = 'wiedisync-chunk-reload-ts'
-
-function maybeReloadOnStaleChunk(error: unknown): boolean {
-  if (!isChunkLoadError(error)) return false
-  const now = Date.now()
-  const last = Number(sessionStorage.getItem(RELOAD_COOLDOWN_KEY) || 0)
-  if (now - last < 10_000) return false // reload-loop guard
-  sessionStorage.setItem(RELOAD_COOLDOWN_KEY, String(now))
-  window.location.reload()
-  return true
-}
-
+// Stale lazy-import chunk recovery (deploy rotates hashed chunk names → a tab on
+// an older bundle fails to import a now-missing chunk). Detection + one-time
+// reload live in ./lib/chunkReload so the entry bootstrap (main.tsx) and these
+// in-app handlers share one regex and one reload-loop cooldown.
 if (typeof window !== 'undefined') {
   window.addEventListener('unhandledrejection', (event) => {
     if (maybeReloadOnStaleChunk(event.reason)) event.preventDefault()
