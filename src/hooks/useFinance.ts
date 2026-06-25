@@ -387,16 +387,29 @@ export interface DuesEmailPreview {
   total: number
   recipients: Array<{ invoice: string | null; name: string | null; email: string | null }>
 }
-export interface DuesEmailResult {
+export interface DuesEmailJobStart {
+  job_id: number
+  total: number
+  test_mode: boolean
   mode: 'test' | 'live'
-  test_recipient: string | null
+}
+export interface DuesEmailJob {
+  id: number
+  status: 'running' | 'done' | 'failed'
+  test_mode: boolean
+  total: number
   sent: number
   failed: number
-  no_email: number
+  error: string | null
+  date_created: string | null
 }
 /** Dry-run preview — who WOULD be emailed (no send). */
 export const previewDuesEmails = (id: number) =>
   kscwApi<DuesEmailPreview>(`/finance/dues-runs/${id}/send-emails`, { method: 'POST', body: { dry_run: true } })
-/** Actually send (test mode redirects all to the test recipient; live emails members). */
+/** Kick off the send (runs in the background; poll fetchDuesEmailJob for progress).
+ *  Test mode redirects all to the test recipient; live emails members. */
 export const sendDuesEmails = (id: number) =>
-  kscwApi<DuesEmailResult>(`/finance/dues-runs/${id}/send-emails`, { method: 'POST', body: { dry_run: false, confirm: true } })
+  kscwApi<DuesEmailJobStart>(`/finance/dues-runs/${id}/send-emails`, { method: 'POST', body: { dry_run: false, confirm: true } })
+/** Latest send job for a run (progress polling). */
+export const fetchDuesEmailJob = (id: number) =>
+  kscwApi<{ job: DuesEmailJob | null }>(`/finance/dues-runs/${id}/email-job`)

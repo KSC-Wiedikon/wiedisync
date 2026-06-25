@@ -345,6 +345,7 @@ export default {
   duesEmailSendTestCta: 'Send test',
   duesEmailSendLiveCta: 'Send to {{count}} members',
   duesEmailSendError: 'Could not send the emails.',
+  duesEmailSending: 'Sending… {{sent}}/{{total}}',
   duesEmailSentTest: 'Sent {{count}} test emails to {{recipient}}.',
   duesEmailSentLive: 'Sent {{count}} emails ({{failed}} failed).',
 }

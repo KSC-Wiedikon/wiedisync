@@ -678,32 +678,67 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (settings.test_mode && !settings.test_recipient) return res.status(400).json({ error: 'Set a test recipient first (test mode is on)' })
       if (!withEmail.length) return res.status(409).json({ error: 'No recipients with an email' })
 
-      const schema = await getSchema()
-      const { MailService } = services
-      const mail = new MailService({ schema, knex: database })
+      // One running send per run (15-min staleness window so a crashed job can't
+      // lock sending forever).
+      const fresh = new Date(Date.now() - 15 * 60 * 1000)
+      const running = await database('finance_email_jobs')
+        .where('dues_run', id).where('status', 'running').where('date_created', '>', fresh).first('id')
+      if (running) return res.status(409).json({ error: 'A send is already running for this run', job_id: running.id })
 
-      let sent = 0, failed = 0
-      for (const inv of withEmail) {
-        const amount = Number(inv.open_amount) > 0 ? Number(inv.open_amount) : Number(inv.amount)
-        const to = settings.test_mode ? settings.test_recipient : inv.recipient_email
-        try {
-          const html = composeDuesEmail(inv, amount, run.label, { testMode: settings.test_mode, realRecipient: inv.recipient_email })
-          // Attach the Swiss QR-bill PDF (best-effort — a render glitch must not block the email).
-          const attachments = []
-          try {
-            const message = [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n')
-            const pdf = await renderInvoiceQrBillPdf({
-              amount, number: inv.number, recipientName: inv.recipient_name, subject: inv.subject,
-              message, reference: inv.reference_type === 'SCOR' ? inv.reference : null,
-            })
-            attachments.push({ filename: `${inv.number || 'Rechnung'}.pdf`, content: pdf, contentType: 'application/pdf' })
-          } catch (pe) { log.warn?.({ msg: `dues qr-bill render failed: ${pe.message}`, invoice: inv.number }) }
-          await mail.send({ to, subject: `${settings.test_mode ? '[TEST] ' : ''}Mitgliederbeitrag${run.label ? ` ${run.label}` : ''} — ${inv.number}`, html, ...(attachments.length ? { attachments } : {}) })
-          sent++
-        } catch (e) { failed++; log.warn?.({ msg: `dues email failed: ${e.message}`, invoice: inv.number }) }
-      }
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_email_settings', recordId: id, data: { kind: 'dues_email_send', run: id, test_mode: settings.test_mode, sent, failed } })
-      return res.json({ mode: settings.test_mode ? 'test' : 'live', test_recipient: settings.test_recipient, sent, failed, no_email: noEmail })
+      const jobIns = await database('finance_email_jobs').insert({
+        dues_run: id, status: 'running', test_mode: settings.test_mode, total: withEmail.length,
+        sent: 0, failed: 0, created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+      }).returning('id')
+      const jobId = jobIns[0]?.id ?? jobIns[0]
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_email_jobs', recordId: jobId, data: { kind: 'dues_email_send', run: id, test_mode: settings.test_mode, total: withEmail.length } })
+
+      // Respond immediately; send in the background, chunked, updating job progress.
+      res.status(202).json({ job_id: jobId, total: withEmail.length, test_mode: settings.test_mode, mode: settings.test_mode ? 'test' : 'live' })
+
+      const CHUNK = 20
+      void (async () => {
+        const schema = await getSchema()
+        const { MailService } = services
+        const mail = new MailService({ schema, knex: database })
+        let sent = 0, failed = 0
+        for (let i = 0; i < withEmail.length; i += CHUNK) {
+          for (const inv of withEmail.slice(i, i + CHUNK)) {
+            const amount = Number(inv.open_amount) > 0 ? Number(inv.open_amount) : Number(inv.amount)
+            const to = settings.test_mode ? settings.test_recipient : inv.recipient_email
+            try {
+              const html = composeDuesEmail(inv, amount, run.label, { testMode: settings.test_mode, realRecipient: inv.recipient_email })
+              const attachments = []
+              try {
+                const message = [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n')
+                const pdf = await renderInvoiceQrBillPdf({
+                  amount, number: inv.number, recipientName: inv.recipient_name, subject: inv.subject,
+                  message, reference: inv.reference_type === 'SCOR' ? inv.reference : null,
+                })
+                attachments.push({ filename: `${inv.number || 'Rechnung'}.pdf`, content: pdf, contentType: 'application/pdf' })
+              } catch (pe) { log.warn?.({ msg: `dues qr-bill render failed: ${pe.message}`, invoice: inv.number }) }
+              await mail.send({ to, subject: `${settings.test_mode ? '[TEST] ' : ''}Mitgliederbeitrag${run.label ? ` ${run.label}` : ''} — ${inv.number}`, html, ...(attachments.length ? { attachments } : {}) })
+              sent++
+            } catch (e) { failed++; log.warn?.({ msg: `dues email failed: ${e.message}`, invoice: inv.number }) }
+          }
+          await database('finance_email_jobs').where('id', jobId).update({ sent, failed, date_updated: new Date() })
+        }
+        await database('finance_email_jobs').where('id', jobId).update({ status: 'done', sent, failed, date_updated: new Date() })
+      })().catch(async (e) => {
+        log.error?.({ msg: `dues email job ${jobId} crashed: ${e.message}`, stack: e.stack })
+        try { await database('finance_email_jobs').where('id', jobId).update({ status: 'failed', error: String(e.message || e).slice(0, 500), date_updated: new Date() }) } catch { /* noop */ }
+      })
     } catch (e) { return err(res, req, 'dues-send-emails', e) }
+  })
+
+  // GET /finance/dues-runs/:id/email-job — latest send job for progress polling
+  router.get('/finance/dues-runs/:id/email-job', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const job = await database('finance_email_jobs').where('dues_run', id)
+        .orderBy('id', 'desc').first('id', 'status', 'test_mode', 'total', 'sent', 'failed', 'error', 'date_created')
+      return res.json({ job: job || null })
+    } catch (e) { return err(res, req, 'dues-email-job', e) }
   })
 }

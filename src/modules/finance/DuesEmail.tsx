@@ -6,7 +6,7 @@ import Modal from '../../components/Modal'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import {
   useFinanceEmailSettings, saveFinanceEmailSettings,
-  previewDuesEmails, sendDuesEmails,
+  previewDuesEmails, sendDuesEmails, fetchDuesEmailJob,
   type DuesRun, type FinanceEmailSettings,
 } from '../../hooks/useFinance'
 
@@ -91,16 +91,28 @@ function DuesEmailForm({ initial, onSaved }: { initial: FinanceEmailSettings; on
 export function SendDuesEmailModal({ run, onClose }: { run: DuesRun | null; onClose: () => void }) {
   const { t } = useTranslation('finance')
   const [sending, setSending] = useState(false)
+  const [started, setStarted] = useState(false)
   const [confirmText, setConfirmText] = useState('')
-  const [result, setResult] = useState<string>('')
   const [error, setError] = useState('')
 
   // The modal is remounted per run (key) so this state is always fresh.
   const { data: preview, isLoading: loading, isError: previewFailed } = useQuery({
     queryKey: ['finance', 'dues-email-preview', run?.id ?? 'none'],
     queryFn: () => previewDuesEmails(run!.id),
-    enabled: !!run && !result,
+    enabled: !!run && !started,
   })
+
+  // Poll the background send job while it runs.
+  const { data: jobData } = useQuery({
+    queryKey: ['finance', 'dues-email-job', run?.id ?? 'none'],
+    queryFn: () => fetchDuesEmailJob(run!.id),
+    enabled: !!run && started,
+    refetchInterval: (q) => {
+      const s = q.state.data?.job?.status
+      return s === 'done' || s === 'failed' ? false : 1200
+    },
+  })
+  const job = jobData?.job ?? null
 
   const liveReady = preview && (preview.test_mode || confirmText === String(preview.would_send))
 
@@ -108,20 +120,45 @@ export function SendDuesEmailModal({ run, onClose }: { run: DuesRun | null; onCl
     if (!run || !preview) return
     setSending(true); setError('')
     try {
-      const r = await sendDuesEmails(run.id)
-      setResult(r.mode === 'test'
-        ? t('duesEmailSentTest', { count: r.sent, recipient: r.test_recipient || '' })
-        : t('duesEmailSentLive', { count: r.sent, failed: r.failed }))
+      await sendDuesEmails(run.id)
+      setStarted(true)
     } catch (e) { setError(apiErr(e, t('duesEmailSendError'))) } finally { setSending(false) }
+  }
+
+  // ── Sending in progress / done ──
+  if (started) {
+    return (
+      <Modal open={!!run} onClose={onClose} title={t('duesEmailSendTitle')}>
+        <div className="space-y-3">
+          {(!job || job.status === 'running') && (
+            <div className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
+              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+              {t('duesEmailSending', { sent: job?.sent ?? 0, total: job?.total ?? preview?.would_send ?? 0 })}
+            </div>
+          )}
+          {job?.status === 'done' && (
+            <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300">
+              {job.test_mode
+                ? t('duesEmailSentTest', { count: job.sent, recipient: preview?.test_recipient || '' })
+                : t('duesEmailSentLive', { count: job.sent, failed: job.failed })}
+            </p>
+          )}
+          {job?.status === 'failed' && (
+            <p className="text-sm text-red-600 dark:text-red-400">{t('duesEmailSendError')}{job.error ? ` (${job.error})` : ''}</p>
+          )}
+          <div className="flex justify-end">
+            <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">{t('cancel')}</button>
+          </div>
+        </div>
+      </Modal>
+    )
   }
 
   return (
     <Modal open={!!run} onClose={onClose} title={t('duesEmailSendTitle')}>
       {loading && <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>}
 
-      {result && <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300">{result}</p>}
-
-      {preview && !result && (
+      {preview && (
         <div className="space-y-4">
           {preview.test_mode ? (
             <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300">
@@ -181,7 +218,7 @@ export function SendDuesEmailModal({ run, onClose }: { run: DuesRun | null; onCl
         </div>
       )}
 
-      {(previewFailed || (error && !preview)) && !loading && !result && (
+      {(previewFailed || (error && !preview)) && !loading && (
         <p className="text-sm text-red-600 dark:text-red-400">{previewFailed ? t('duesEmailPreviewError') : error}</p>
       )}
     </Modal>
