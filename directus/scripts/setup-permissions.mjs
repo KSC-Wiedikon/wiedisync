@@ -1409,6 +1409,9 @@ async function main() {
     'finance_invoice_documents',
     // Member pay-outs / reimbursements (migration 137) — board read.
     'finance_payouts',
+    // Dues-rate schedule + issued batches (migration 138) — board read; the run
+    // writes go through /kscw/finance/dues-* (canManageFinance), not the items API.
+    'finance_dues_rates', 'finance_dues_runs',
   ]
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)
@@ -1530,6 +1533,8 @@ async function main() {
     'finance_accounts', 'finance_fiscal_years', 'finance_budget_lines',
     'finance_transactions', 'finance_invoices', 'finance_payments', 'finance_imports',
     'finance_invoice_member_overrides',
+    // Dues-rate schedule + issued batches (migration 138) — read; writes via endpoints.
+    'finance_dues_rates', 'finance_dues_runs',
   ]
   for (const col of FINANCE_READ_ALL) {
     await setPermRead(FINANCE_POLICY, col)
