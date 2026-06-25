@@ -426,4 +426,18 @@ export default {
   dunNoTestRecipient: 'Mahnung erfasst; setze einen Test-Empfänger für die Test-E-Mail.',
   dunSendFailed: 'Mahnung erfasst, aber die E-Mail konnte nicht gesendet werden.',
   dunRecorded: 'Mahnung erfasst.',
+
+  // Nicht-Mitglied-Rechnungskontakte
+  recipientContact: 'Kontakt',
+  selectContact: 'Kontakt wählen…',
+  contactNew: '+ Neuer Kontakt',
+  contactPickExisting: '← Bestehenden Kontakt wählen',
+  contactName: 'Name',
+  contactEmail: 'E-Mail (optional)',
+  contactKind_sponsor: 'Sponsor',
+  contactKind_parent: 'Elternteil / Erziehungsberechtigte',
+  contactKind_company: 'Firma',
+  contactKind_ex_member: 'Ex-Mitglied',
+  contactKind_other: 'Andere',
+  contactInvoiceHint: 'Einem Nicht-Mitglied verrechnen (Sponsor, Eltern, Firma). Erhält eine QR-Rechnung; kein App-Login nötig.',
 }

@@ -9,7 +9,7 @@ import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
   useFinanceInvoices, formatChf, isNativeInvoice,
   createNativeInvoice, confirmInvoice, cancelInvoice, linkInvoiceMember,
-  importCamt, type CamtImportResult,
+  importCamt, useBillingContacts, createBillingContact, type CamtImportResult,
 } from '../../hooks/useFinance'
 import type { FinanceInvoice } from './types'
 import type { Member, Team } from '../../types'
@@ -73,30 +73,44 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
   const { t } = useTranslation('finance')
   const { data: teamsRaw } = useTeams('all')
   const teams = (teamsRaw ?? []) as Team[]
-  const [recipientType, setRecipientType] = useState<'member' | 'team'>('member')
+  const [recipientType, setRecipientType] = useState<'member' | 'team' | 'contact'>('member')
   const [member, setMember] = useState<Member | null>(null)
   const [teamId, setTeamId] = useState('')
+  const [contactId, setContactId] = useState('')
+  const [newContact, setNewContact] = useState(false)
+  const [cName, setCName] = useState(''); const [cEmail, setCEmail] = useState(''); const [cKind, setCKind] = useState('sponsor')
   const [amount, setAmount] = useState('')
   const [subject, setSubject] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [category, setCategory] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const { data: contacts } = useBillingContacts(open)
 
   function reset() {
-    setRecipientType('member'); setMember(null); setTeamId(''); setAmount(''); setSubject(''); setDueDate(''); setCategory(''); setError('')
+    setRecipientType('member'); setMember(null); setTeamId(''); setContactId(''); setNewContact(false)
+    setCName(''); setCEmail(''); setCKind('sponsor'); setAmount(''); setSubject(''); setDueDate(''); setCategory(''); setError('')
   }
   const amt = Number(amount.replace(',', '.'))
-  const valid = amt > 0 && subject.trim() && (recipientType === 'member' ? !!member : !!teamId)
+  const recipientValid = recipientType === 'member' ? !!member
+    : recipientType === 'team' ? !!teamId
+    : (newContact ? !!cName.trim() : !!contactId)
+  const valid = amt > 0 && !!subject.trim() && recipientValid
 
   async function submit() {
     if (!valid) return
     setBusy(true); setError('')
     try {
+      let contactRef = recipientType === 'contact' ? Number(contactId) : undefined
+      if (recipientType === 'contact' && newContact) {
+        const r = await createBillingContact({ kind: cKind, name: cName.trim(), email: cEmail.trim() || null })
+        contactRef = r.contact.id
+      }
       await createNativeInvoice({
         recipient_type: recipientType,
         member: recipientType === 'member' ? Number(member!.id) : undefined,
         team: recipientType === 'team' ? Number(teamId) : undefined,
+        contact: recipientType === 'contact' ? contactRef : undefined,
         amount: amt,
         subject: subject.trim(),
         due_date: dueDate || null,
@@ -116,18 +130,19 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
         <div>
           <span className={labelCls}>{t('recipientType')}</span>
           <div className="mt-1 flex gap-2">
-            {(['member', 'team'] as const).map((rt) => (
+            {(['member', 'team', 'contact'] as const).map((rt) => (
               <button key={rt} type="button" onClick={() => setRecipientType(rt)}
                 className={`flex-1 rounded-md border px-3 py-2 text-sm ${recipientType === rt ? 'border-brand-500 bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'border-gray-200 text-gray-600 dark:border-gray-600 dark:text-gray-300'}`}>
-                {rt === 'member' ? t('recipientMember') : t('recipientTeam')}
+                {rt === 'member' ? t('recipientMember') : rt === 'team' ? t('recipientTeam') : t('recipientContact')}
               </button>
             ))}
           </div>
         </div>
 
-        {recipientType === 'member' ? (
+        {recipientType === 'member' && (
           <div><span className={labelCls}>{t('recipientMember')}</span><div className="mt-1"><MemberPicker value={member} onChange={setMember} /></div></div>
-        ) : (
+        )}
+        {recipientType === 'team' && (
           <div>
             <span className={labelCls}>{t('recipientTeam')}</span>
             <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
@@ -135,6 +150,30 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
               {teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
             </select>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('teamInvoiceHint')}</p>
+          </div>
+        )}
+        {recipientType === 'contact' && (
+          <div className="space-y-2">
+            <span className={labelCls}>{t('recipientContact')}</span>
+            {!newContact ? (
+              <>
+                <select value={contactId} onChange={(e) => setContactId(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+                  <option value="">{t('selectContact')}</option>
+                  {(contacts ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}{c.email ? ` · ${c.email}` : ''}</option>)}
+                </select>
+                <button type="button" onClick={() => setNewContact(true)} className="text-xs text-brand-600 hover:underline dark:text-brand-400">{t('contactNew')}</button>
+              </>
+            ) : (
+              <div className="space-y-2 rounded-md border border-gray-200 p-2 dark:border-gray-700">
+                <input value={cName} onChange={(e) => setCName(e.target.value)} placeholder={t('contactName')} className={inputCls} />
+                <input value={cEmail} onChange={(e) => setCEmail(e.target.value)} type="email" placeholder={t('contactEmail')} className={inputCls} />
+                <select value={cKind} onChange={(e) => setCKind(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+                  {['sponsor', 'parent', 'company', 'ex_member', 'other'].map((k) => <option key={k} value={k}>{t(`contactKind_${k}`)}</option>)}
+                </select>
+                <button type="button" onClick={() => setNewContact(false)} className="text-xs text-gray-500 hover:underline dark:text-gray-400">{t('contactPickExisting')}</button>
+              </div>
+            )}
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('contactInvoiceHint')}</p>
           </div>
         )}
 

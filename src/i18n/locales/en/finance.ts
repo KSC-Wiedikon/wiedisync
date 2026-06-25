@@ -431,4 +431,18 @@ export default {
   dunNoTestRecipient: 'Reminder recorded; set a test recipient to send the test email.',
   dunSendFailed: 'Reminder recorded, but the email failed to send.',
   dunRecorded: 'Reminder recorded.',
+
+  // Non-member billing contacts
+  recipientContact: 'Contact',
+  selectContact: 'Select a contact…',
+  contactNew: '+ New contact',
+  contactPickExisting: '← Pick an existing contact',
+  contactName: 'Name',
+  contactEmail: 'Email (optional)',
+  contactKind_sponsor: 'Sponsor',
+  contactKind_parent: 'Parent / guardian',
+  contactKind_company: 'Company',
+  contactKind_ex_member: 'Ex-member',
+  contactKind_other: 'Other',
+  contactInvoiceHint: 'Bill a non-member (sponsor, parent, company). They get a QR-bill; no app login needed.',
 }

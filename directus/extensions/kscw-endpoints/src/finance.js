@@ -168,7 +168,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
 
       const b = req.body || {}
-      const recipientType = b.recipient_type === 'team' ? 'team' : 'member'
+      const recipientType = ['team', 'contact'].includes(b.recipient_type) ? b.recipient_type : 'member'
       const amount = round2(b.amount)
       const subject = (b.subject || '').toString().trim()
       const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(b.due_date || '') ? b.due_date : null
@@ -176,18 +176,24 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!(amount > 0)) return res.status(400).json({ error: 'amount must be greater than 0' })
       if (!subject) return res.status(400).json({ error: 'subject is required' })
 
-      let memberId = null, teamId = null, recipientName = null, recipientEmail = null
+      let memberId = null, teamId = null, contactId = null, recipientName = null, recipientEmail = null
       if (recipientType === 'member') {
         memberId = Number(b.member)
         const tgt = Number.isInteger(memberId) ? await database('members').where('id', memberId).first('id', 'first_name', 'last_name', 'email') : null
         if (!tgt) return res.status(400).json({ error: 'member not found' })
         recipientName = [tgt.first_name, tgt.last_name].filter(Boolean).join(' ').trim() || null
         recipientEmail = tgt.email || null
-      } else {
+      } else if (recipientType === 'team') {
         teamId = Number(b.team)
         const tgt = Number.isInteger(teamId) ? await database('teams').where('id', teamId).first('id', 'name') : null
         if (!tgt) return res.status(400).json({ error: 'team not found' })
         recipientName = tgt.name || null
+      } else {
+        contactId = Number(b.contact)
+        const tgt = Number.isInteger(contactId) ? await database('finance_billing_contacts').where('id', contactId).first('id', 'name', 'email') : null
+        if (!tgt) return res.status(400).json({ error: 'contact not found' })
+        recipientName = tgt.name || null
+        recipientEmail = tgt.email || null
       }
 
       const invoiceDate = todayISO()
@@ -210,6 +216,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         recipient_email: recipientEmail,
         member: memberId,
         team: teamId,
+        contact: contactId,
         fiscal_year: await fiscalYearIdForDate(invoiceDate),
         source: 'native',
         created_by_name: mem?.name || null,
@@ -1082,5 +1089,54 @@ export function registerFinance(router, { database, logger, services, getSchema 
       await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'members', recordId: id, data: { kind: 'never_dun', value } })
       return res.json({ ok: true, never_dun: value })
     } catch (e) { return err(res, req, 'never-dun', e) }
+  })
+
+  // ── Billing contacts — invoice non-members (sponsors/parents/companies, mig 147) ──
+  const CONTACT_KINDS = ['sponsor', 'parent', 'ex_member', 'company', 'other']
+
+  router.get('/finance/contacts', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const contacts = await database('finance_billing_contacts').where('active', true)
+        .orderBy('name').select('id', 'kind', 'name', 'email', 'address', 'plz', 'ort', 'billing_iban', 'notes').limit(1000)
+      return res.json({ contacts })
+    } catch (e) { return err(res, req, 'contacts', e) }
+  })
+
+  router.post('/finance/contacts', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const b = req.body || {}
+      const name = (b.name || '').toString().trim()
+      if (!name) return res.status(400).json({ error: 'name is required' })
+      const kind = CONTACT_KINDS.includes(b.kind) ? b.kind : 'sponsor'
+      const ins = await database('finance_billing_contacts').insert({
+        kind, name,
+        email: (b.email || '').toString().trim() || null,
+        address: (b.address || '').toString().trim() || null,
+        plz: (b.plz || '').toString().trim() || null,
+        ort: (b.ort || '').toString().trim() || null,
+        billing_iban: (b.billing_iban || '').toString().replace(/\s+/g, '').toUpperCase() || null,
+        notes: (b.notes || '').toString().trim().slice(0, 255) || null,
+        source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+      }).returning('*')
+      const row = ins[0]
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_billing_contacts', recordId: row.id, data: { kind, name } })
+      return res.json({ contact: row })
+    } catch (e) { return err(res, req, 'contact-save', e) }
+  })
+
+  // Soft-deactivate (keeps history on invoices that referenced the contact)
+  router.delete('/finance/contacts/:id', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      await database('finance_billing_contacts').where('id', id).update({ active: false, date_updated: new Date() })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_billing_contacts', recordId: id, data: { kind: 'deactivate_contact' } })
+      return res.json({ ok: true })
+    } catch (e) { return err(res, req, 'contact-delete', e) }
   })
 }

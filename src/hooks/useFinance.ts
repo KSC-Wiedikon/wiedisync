@@ -40,9 +40,10 @@ export function useMyInvoices() {
 // ── Native-invoice write actions (all hit the Vorstand/recipient-gated endpoints) ──
 
 export interface CreateInvoiceInput {
-  recipient_type: 'member' | 'team'
+  recipient_type: 'member' | 'team' | 'contact'
   member?: number
   team?: number
+  contact?: number
   amount: number
   subject: string
   due_date?: string | null
@@ -556,3 +557,30 @@ export const escalateDunning = (id: number, input: EscalateInput) =>
   kscwApi<{ ok: true; level: number; channel: string; send_result: string }>(`/finance/dunning/${id}/escalate`, { method: 'POST', body: input })
 export const setMemberNeverDun = (memberId: number, value: boolean) =>
   kscwApi<{ ok: true; never_dun: boolean }>(`/finance/members/${memberId}/never-dun`, { method: 'POST', body: { value } })
+
+// ── Billing contacts — invoice non-members (sponsors/parents/companies, mig 147) ──
+
+export interface BillingContact {
+  id: number
+  kind: string
+  name: string
+  email: string | null
+  address: string | null
+  plz: string | null
+  ort: string | null
+  billing_iban: string | null
+  notes: string | null
+}
+/** Active billing contacts (finance/board). */
+export function useBillingContacts(enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'contacts'],
+    queryFn: () => kscwApi<{ contacts: BillingContact[] }>('/finance/contacts'),
+    enabled,
+    select: (r) => r.contacts,
+  })
+}
+export const createBillingContact = (input: { kind: string; name: string; email?: string | null; billing_iban?: string | null; notes?: string | null }) =>
+  kscwApi<{ contact: BillingContact }>('/finance/contacts', { method: 'POST', body: input })
+export const deleteBillingContact = (id: number) =>
+  kscwApi<{ ok: true }>(`/finance/contacts/${id}`, { method: 'DELETE' })
