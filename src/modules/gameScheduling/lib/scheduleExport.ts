@@ -1,5 +1,7 @@
 import { fetchAllItems, kscwApi } from '../../../lib/api'
 import type { Derby, GameSchedulingBooking, GameSchedulingOpponent, GameSchedulingSeason, GameSchedulingSlot, Team } from '../../../types'
+import { fetchTeamAbsences } from '../../../hooks/teamAbsencesFetch'
+import { buildAbsencesByDate, type AbsentMember } from '../../spielplanung/utils/absencesByDate'
 
 // Shared schedule-export engine. Used by:
 //  - the all-teams export bar (ExcelExportButton, no teamId)
@@ -7,6 +9,10 @@ import type { Derby, GameSchedulingBooking, GameSchedulingOpponent, GameScheduli
 //  - the "Notify coaches" email, which attaches the team-filtered Excel + PDF
 // Keeping the row-building + file generation here means the downloaded file and
 // the emailed attachment are byte-identical and never drift.
+//
+// The all-teams export is split into SECTIONS: a first "All games" section, then
+// one per team. Excel renders each section as its own sheet; the PDF renders each
+// as its own page. Per-team exports carry a single section.
 
 export interface ExportRow {
   date: string
@@ -18,21 +24,38 @@ export interface ExportRow {
   type: string
   status: string
   vm: string
+  // Game-spacing warning: another game for the SAME KSCW team within <5 days
+  // (e.g. "Another game in 3 days", "Another game 2 days ago"). Empty if none.
+  alert: string
+  // Players (incl. coaches/TR) of this game's team absent on the game date,
+  // comma-separated. Empty if nobody is absent.
+  absences: string
+}
+
+/** One named group of rows → one Excel sheet / one PDF page. */
+export interface ScheduleSection {
+  /** Excel sheet name (sanitised + truncated on write). */
+  name: string
+  /** PDF page heading. */
+  title: string
+  rows: ExportRow[]
 }
 
 // Contact columns (Spielplaner / Team responsibles) were intentionally dropped
 // from the export — the schedule report is shared with teams/coaches who don't
 // need the scheduler/TR contact details.
-const COLUMNS: { header: string; key: keyof ExportRow; xlsxWidth: number; pdfWidth: number }[] = [
-  { header: 'Date', key: 'date', xlsxWidth: 12, pdfWidth: 18 },
-  { header: 'Time', key: 'time', xlsxWidth: 10, pdfWidth: 13 },
-  { header: 'KSCW team', key: 'team', xlsxWidth: 12, pdfWidth: 16 },
-  { header: 'Home team', key: 'homeTeam', xlsxWidth: 26, pdfWidth: 44 },
-  { header: 'Guest team', key: 'guestTeam', xlsxWidth: 26, pdfWidth: 44 },
-  { header: 'Hall / venue', key: 'hall', xlsxWidth: 22, pdfWidth: 40 },
-  { header: 'Type', key: 'type', xlsxWidth: 8, pdfWidth: 14 },
-  { header: 'Status', key: 'status', xlsxWidth: 11, pdfWidth: 18 },
-  { header: 'VM status', key: 'vm', xlsxWidth: 14, pdfWidth: 22 },
+const COLUMNS: { header: string; key: keyof ExportRow; xlsxWidth: number; pdfWidth: number; wrap?: boolean }[] = [
+  { header: 'Date', key: 'date', xlsxWidth: 12, pdfWidth: 16 },
+  { header: 'Time', key: 'time', xlsxWidth: 10, pdfWidth: 11 },
+  { header: 'KSCW team', key: 'team', xlsxWidth: 12, pdfWidth: 13 },
+  { header: 'Home team', key: 'homeTeam', xlsxWidth: 26, pdfWidth: 36 },
+  { header: 'Guest team', key: 'guestTeam', xlsxWidth: 26, pdfWidth: 36 },
+  { header: 'Hall / venue', key: 'hall', xlsxWidth: 22, pdfWidth: 28 },
+  { header: 'Type', key: 'type', xlsxWidth: 8, pdfWidth: 12 },
+  { header: 'Status', key: 'status', xlsxWidth: 11, pdfWidth: 15 },
+  { header: 'VM status', key: 'vm', xlsxWidth: 14, pdfWidth: 20 },
+  { header: 'Alerts', key: 'alert', xlsxWidth: 28, pdfWidth: 34, wrap: true },
+  { header: 'Absences', key: 'absences', xlsxWidth: 30, pdfWidth: 50, wrap: true },
 ]
 
 // YYYY-MM-DD → dd.mm.yyyy (Swiss). Empty if unparseable.
@@ -53,12 +76,32 @@ const homeGameTime = (dateYmd: string | null | undefined, slotStart: string | nu
   const dow = new Date(`${String(dateYmd).slice(0, 10)}T00:00:00Z`).getUTCDay() // 0=Sun..6=Sat
   return dow >= 1 && dow <= 5 ? '20:00' : hhmm(slotStart)
 }
-const VM_LABEL: Record<string, string> = {
-  pushed: 'Pushed', pushed_no_hall: 'Pushed (no hall)', queued: 'Queued',
-  failed: 'Failed', no_fixture: 'No fixture', needs_pick: 'Needs pick',
+// VolleyManager date cross-check → one of three all-caps states for the VM
+// column, used for BOTH home and away games: the agreed date matches
+// VolleyManager (MATCH), differs (NO MATCH), or VM has no / only a placeholder
+// date or the home game was never pushed, so it still has to be updated (TBU =
+// to be updated — the default for anything not confirmed-and-matched).
+const VM_MATCH_LABEL: Record<string, string> = {
+  match: 'MATCH', mismatch: 'NO MATCH', no_vm: 'TBU', unset: 'TBU', not_pushed: 'TBU',
 }
-const vmLabel = (s: string | null | undefined): string => (s ? (VM_LABEL[s] || s) : 'Not pushed')
+const vmMatchLabel = (s: string | null | undefined): string => VM_MATCH_LABEL[String(s ?? '')] || 'TBU'
 const statusLabel = (s: string | null | undefined): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '')
+// Whole-day difference between two YYYY-MM-DD dates (UTC midnight, so DST never
+// shifts the count). `b` is assumed on/after `a`, so the result is ≥ 0.
+const daysApart = (a: string, b: string): number =>
+  Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000)
+
+// Season name ("2026/27") → a wide [Aug, Jul] absence-scan window. Absences are
+// only ever looked up on actual game dates, so over-scanning is harmless and
+// avoids clamping out late-spring games.
+function seasonWindow(season: GameSchedulingSeason | null): { start: string; end: string } | null {
+  const m = String(season?.season || '').match(/(\d{4})\D+(\d{2,4})/)
+  if (!m) return null
+  const y1 = parseInt(m[1], 10)
+  let y2 = parseInt(m[2], 10)
+  if (y2 < 100) y2 = 2000 + y2
+  return { start: `${y1}-08-01`, end: `${y2}-07-31` }
+}
 
 interface BuildArgs {
   bookings: GameSchedulingBooking[]
@@ -70,27 +113,67 @@ interface BuildArgs {
   teamId?: number | string | null
 }
 
-// Resolve confirmed + pending bookings to flat, sorted schedule rows. Shared by
-// every exporter so Excel, PDF and the email attachment stay identical.
-export async function buildScheduleRows({ bookings, opponents, slots, teams, season, teamId }: BuildArgs): Promise<ExportRow[]> {
+// Everything fetched ONCE per export and reused for the all-games table and every
+// per-team section, so an all-teams export doesn't refetch halls / derbies / VM
+// checks / absences for each team.
+interface ExportContext {
+  hallName: Map<string, string>
+  derbies: Derby[]
+  homeChecks: Record<string, { status?: string }>
+  awayChecks: Record<string, { status?: string }>
+  absByDate: Map<string, AbsentMember[]>
+}
+
+async function loadExportContext({ teams, season, teamId }: BuildArgs): Promise<ExportContext> {
   const teamFilter = teamId != null && teamId !== '' ? String(teamId) : null
   const halls = await fetchAllItems<{ id: number; name: string }>('halls', { fields: ['id', 'name'] }).catch(() => [])
+  const hallName = new Map(halls.map(h => [String(h.id), h.name]))
+
   // Intra-club derbies (Art. 27 SVRZ) live ONLY as anchored leg dates in
   // game_scheduling_derbies — they never become a booking or an opponent, so the
-  // booking→opponent projection below can't see them. Pull them in separately and
-  // synthesise a row per fixed leg, otherwise H1/H3-style head-to-heads are
-  // silently missing from the export.
+  // booking→opponent projection below can't see them. Pull them in separately.
   let derbies: Derby[] = []
+  // VM date cross-checks: our agreed date vs VolleyManager, keyed by booking id —
+  // home (we push) and away (the opponent enters it) use separate endpoints.
+  let homeChecks: Record<string, { status?: string }> = {}
+  let awayChecks: Record<string, { status?: string }> = {}
   if (season?.id) {
     try {
       const resp = await kscwApi<{ derbies: Derby[] }>(`/admin/terminplanung/derbies?season=${season.id}`)
       derbies = resp.derbies || []
     } catch { /* feed unavailable — derbies simply absent from the export */ }
+    try {
+      const resp = await kscwApi<{ checks: Record<string, { status?: string }> }>(`/admin/terminplanung/home-vm-check?season=${season.id}`)
+      homeChecks = resp.checks || {}
+    } catch { /* VM check unavailable — home games fall back to TBU */ }
+    try {
+      const resp = await kscwApi<{ checks: Record<string, { status?: string }> }>(`/admin/terminplanung/away-vm-check?season=${season.id}`)
+      awayChecks = resp.checks || {}
+    } catch { /* VM check unavailable — away games fall back to TBU */ }
   }
+
+  // Absent players per game date — fetched exactly like the calendar (players +
+  // coaches + responsibles of the team). Best-effort.
+  let absByDate = new Map<string, AbsentMember[]>()
+  const absTeamIds = teamFilter ? [teamFilter] : teams.map(tm => String(tm.id))
+  const win = seasonWindow(season)
+  if (absTeamIds.length && win) {
+    try {
+      const { absences, memberTeams } = await fetchTeamAbsences(absTeamIds, win.start, win.end)
+      absByDate = buildAbsencesByDate(absences, memberTeams, win.start, win.end)
+    } catch { /* absences unavailable — column stays blank */ }
+  }
+
+  return { hallName, derbies, homeChecks, awayChecks, absByDate }
+}
+
+// Resolve confirmed + pending bookings (+ derby legs) for ONE team filter to flat,
+// sorted, alert/absence-annotated rows — purely in memory from the shared context.
+function buildRows({ bookings, opponents, slots, teams }: BuildArgs, ctx: ExportContext, teamFilter: string | null): ExportRow[] {
   const teamName = new Map(teams.map(tm => [String(tm.id), tm.name]))
   const oppById = new Map(opponents.map(o => [String(o.id), o]))
   const slotById = new Map(slots.map(s => [String(s.id), s]))
-  const hallName = new Map(halls.map(h => [String(h.id), h.name]))
+  const { hallName, derbies, homeChecks, awayChecks, absByDate } = ctx
 
   // useAdminBookings expands opponent/slot to objects; fall back to id lookup.
   const resolveOpp = (b: GameSchedulingBooking): GameSchedulingOpponent | undefined => {
@@ -125,7 +208,9 @@ export async function buildScheduleRows({ bookings, opponents, slots, teams, sea
           time: homeGameTime(slot.date, slot.start_time),
           team, homeTeam: kscwLabel, guestTeam: opponentName,
           hall: hallName.get(String(slot.hall)) || '',
-          type: 'Home', status, vm: vmLabel(b.vm_push_status as unknown as string),
+          // Home games carry the VolleyManager match state (we push the date).
+          type: 'Home', status, vm: vmMatchLabel(homeChecks[String(b.id)]?.status),
+          alert: '', absences: '',
         }
       }
       // Away — confirmed uses the chosen proposal, pending shows the 1st.
@@ -140,15 +225,17 @@ export async function buildScheduleRows({ bookings, opponents, slots, teams, sea
         time: dtTime(dt),
         team, homeTeam: opponentName, guestTeam: kscwLabel,
         hall: place,
-        type: 'Away', status, vm: '—',
+        // Away games carry the VolleyManager match state (the opponent enters it).
+        type: 'Away', status, vm: vmMatchLabel(awayChecks[String(b.id)]?.status),
+        alert: '', absences: '',
       }
     })
     .filter((r): r is ExportRow & { _sort: string } => r !== null)
 
   // Derby legs → export rows. A leg surfaces once the spielplaner has fixed its
-  // date. In a per-team report it shows for BOTH KSCW sides (the team appears
-  // whether it's the home or the away side); in the all-teams report it lists
-  // once under the host. No booking/opponent exists for these, so hall is unknown.
+  // date. In a per-team report it shows for BOTH KSCW sides; in the all-teams
+  // report it lists once under the host. No booking/opponent exists, so hall is
+  // unknown and there is no VM push.
   const derbyRows: (ExportRow & { _sort: string })[] = []
   for (const d of derbies) {
     for (const leg of d.legs) {
@@ -173,66 +260,175 @@ export async function buildScheduleRows({ bookings, opponents, slots, teams, sea
         guestTeam: `KSC Wiedikon ${leg.away_team.name}`,
         hall: '',
         type: 'Derby', status: d.confirmed ? 'Confirmed' : 'Pending', vm: '—',
+        alert: '', absences: '',
       })
     }
   }
 
-  return [...bookingRows, ...derbyRows]
-    .sort((a, b) => a._sort.localeCompare(b._sort))
-    .map(({ _sort, ...row }) => row)
+  const all = [...bookingRows, ...derbyRows].sort((a, b) => a._sort.localeCompare(b._sort))
+
+  // Game-spacing alerts — for each game flag another game of the SAME KSCW team
+  // within <5 days (before and/or after). Grouped per team so an H1 game near an
+  // H3 game (different rosters) doesn't false-alarm. `all` is date-ascending, so
+  // each team's slice stays ordered.
+  const byTeam = new Map<string, (ExportRow & { _sort: string })[]>()
+  for (const r of all) {
+    if (!r.team) continue
+    const arr = byTeam.get(r.team) ?? []
+    arr.push(r)
+    byTeam.set(r.team, arr)
+  }
+  for (const arr of byTeam.values()) {
+    arr.forEach((r, i) => {
+      const fragments: string[] = []
+      const prev = arr[i - 1]
+      const next = arr[i + 1]
+      if (prev) {
+        const d = daysApart(prev._sort, r._sort)
+        if (d < 5) fragments.push(d === 0 ? 'Another game the same day' : `Another game ${d} day${d === 1 ? '' : 's'} ago`)
+      }
+      if (next) {
+        const d = daysApart(r._sort, next._sort)
+        if (d < 5) fragments.push(d === 0 ? 'Another game the same day' : `Another game in ${d} day${d === 1 ? '' : 's'}`)
+      }
+      r.alert = [...new Set(fragments)].join(' · ')
+    })
+  }
+
+  // Absent players: match by game date and the row's team name.
+  if (absByDate.size) {
+    for (const r of all) {
+      const dayAbs = absByDate.get(r._sort)
+      if (!dayAbs?.length) continue
+      r.absences = dayAbs.filter(m => m.teams.includes(r.team)).map(m => m.name).join(', ')
+    }
+  }
+
+  return all.map(({ _sort, ...row }) => row)
 }
 
-// Excel workbook (single "Schedule" sheet) → bytes.
-export async function buildScheduleXlsx(rows: ExportRow[]): Promise<Uint8Array> {
+// Build the sections to render: a single team's section for a per-team report,
+// or the "All games" section followed by one section per team for the all-teams
+// report. All sections share one fetched context.
+export async function buildScheduleSections(args: BuildArgs): Promise<ScheduleSection[]> {
+  const ctx = await loadExportContext(args)
+  const teamFilter = args.teamId != null && args.teamId !== '' ? String(args.teamId) : null
+
+  if (teamFilter) {
+    const tm = args.teams.find(t => String(t.id) === teamFilter)
+    return [{ name: 'Schedule', title: tm ? `KSCW ${tm.name} schedule` : 'KSCW game schedule', rows: buildRows(args, ctx, teamFilter) }]
+  }
+
+  const sections: ScheduleSection[] = [
+    { name: 'All games', title: 'KSCW game schedule — all teams', rows: buildRows(args, ctx, null) },
+  ]
+  for (const tm of args.teams) {
+    const rows = buildRows(args, ctx, String(tm.id))
+    if (rows.length) sections.push({ name: tm.name, title: `KSCW ${tm.name} schedule`, rows })
+  }
+  return sections
+}
+
+// Backward-compatible flat builder (single team filter, no sectioning).
+export async function buildScheduleRows(args: BuildArgs): Promise<ExportRow[]> {
+  const ctx = await loadExportContext(args)
+  const teamFilter = args.teamId != null && args.teamId !== '' ? String(args.teamId) : null
+  return buildRows(args, ctx, teamFilter)
+}
+
+// Excel forbids []:*?/\ in sheet names and caps them at 31 chars; names must also
+// be unique within a workbook.
+function sheetName(name: string, used: Set<string>): string {
+  const base = (String(name || 'Sheet').replace(/[[\]:*?/\\]/g, ' ').trim().slice(0, 31)) || 'Sheet'
+  let candidate = base
+  let i = 2
+  while (used.has(candidate.toLowerCase())) {
+    const suffix = ` ${i++}`
+    candidate = base.slice(0, 31 - suffix.length) + suffix
+  }
+  used.add(candidate.toLowerCase())
+  return candidate
+}
+
+// Excel workbook — one sheet per section → bytes.
+export async function buildScheduleXlsx(sections: ScheduleSection[]): Promise<Uint8Array> {
   const ExcelJS = await import('exceljs')
   const wb = new ExcelJS.Workbook()
-  const ws = wb.addWorksheet('Schedule')
-  ws.columns = COLUMNS.map(c => ({ header: c.header, key: c.key, width: c.xlsxWidth }))
-  ws.getRow(1).font = { bold: true }
-  ws.views = [{ state: 'frozen', ySplit: 1 }]
-  rows.forEach(r => ws.addRow(r))
+  const used = new Set<string>()
+  const list = sections.length ? sections : [{ name: 'Schedule', title: '', rows: [] as ExportRow[] }]
+  for (const section of list) {
+    const ws = wb.addWorksheet(sheetName(section.name, used))
+    ws.columns = COLUMNS.map(c => ({ header: c.header, key: c.key, width: c.xlsxWidth }))
+    ws.getRow(1).font = { bold: true }
+    ws.views = [{ state: 'frozen', ySplit: 1 }]
+    // Wrap the free-text columns (alerts, absences) so long entries stay readable
+    // instead of bleeding across neighbouring cells.
+    for (const c of COLUMNS) {
+      if (c.wrap) ws.getColumn(c.key).alignment = { wrapText: true, vertical: 'top' }
+    }
+    section.rows.forEach(r => ws.addRow(r))
+  }
   const buffer = await wb.xlsx.writeBuffer()
   return new Uint8Array(buffer as ArrayBuffer)
 }
 
-// Landscape A4 PDF (auto-paginated table) → bytes.
-export async function buildSchedulePdf(rows: ExportRow[], title = 'KSCW game schedule'): Promise<Uint8Array> {
+// Landscape A4 PDF — one page (heading + table) per section. Cells wrap to as many
+// lines as needed (so absences / alerts aren't truncated) and rows grow to fit.
+export async function buildSchedulePdf(sections: ScheduleSection[]): Promise<Uint8Array> {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF('l', 'mm', 'a4') // landscape — many columns
   const margin = 8
   const tableW = COLUMNS.reduce((a, c) => a + c.pdfWidth, 0)
   const pageH = doc.internal.pageSize.getHeight()
-  const rowH = 6
+  const lineH = 3.4 // per wrapped text line
+  const padY = 1.8 // extra vertical breathing room per row
 
-  doc.setFontSize(14)
-  doc.text(title, margin, 13)
-  let y = 22
-
-  const drawHeader = () => {
-    doc.setFontSize(8.5)
+  let y = 0
+  const drawColumnHeader = () => {
+    doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
     doc.setFillColor(235, 235, 235)
-    doc.rect(margin, y - 4.2, tableW, rowH, 'F')
+    doc.rect(margin, y, tableW, lineH + padY + 1, 'F')
     let x = margin
-    for (const c of COLUMNS) { doc.text(c.header, x + 1, y); x += c.pdfWidth }
+    for (const c of COLUMNS) { doc.text(c.header, x + 1, y + lineH + 0.6); x += c.pdfWidth }
+    y += lineH + padY + 1
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    y += rowH
+    doc.setFontSize(7.2)
   }
-  drawHeader()
 
-  for (const r of rows) {
-    if (y > pageH - margin) { doc.addPage(); y = 14; drawHeader() }
-    let x = margin
-    for (const c of COLUMNS) {
-      const line = doc.splitTextToSize(String(r[c.key] ?? ''), c.pdfWidth - 2)[0] ?? ''
-      doc.text(line, x + 1, y)
-      x += c.pdfWidth
+  const list = sections.length ? sections : [{ name: 'Schedule', title: 'KSCW game schedule', rows: [] as ExportRow[] }]
+  list.forEach((section, si) => {
+    if (si > 0) doc.addPage()
+    y = 13
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.text(section.title, margin, y)
+    doc.setFont('helvetica', 'normal')
+    y += 7
+    drawColumnHeader()
+
+    if (section.rows.length === 0) {
+      doc.setFontSize(9)
+      doc.text('No games.', margin + 1, y + lineH)
+      return
     }
-    doc.setDrawColor(225)
-    doc.line(margin, y + 1.2, margin + tableW, y + 1.2)
-    y += rowH
-  }
+    for (const r of section.rows) {
+      // Wrap every cell first so the row height fits the tallest column.
+      const cells = COLUMNS.map(c => doc.splitTextToSize(String(r[c.key] ?? ''), c.pdfWidth - 2) as string[])
+      const lineCount = Math.max(1, ...cells.map(l => l.length))
+      const rowH = lineCount * lineH + padY
+      if (y + rowH > pageH - margin) { doc.addPage(); y = 12; drawColumnHeader() }
+      let x = margin
+      for (let i = 0; i < COLUMNS.length; i++) {
+        let ty = y + lineH
+        for (const ln of cells[i]) { doc.text(ln, x + 1, ty); ty += lineH }
+        x += COLUMNS[i].pdfWidth
+      }
+      y += rowH
+      doc.setDrawColor(225)
+      doc.line(margin, y, margin + tableW, y)
+    }
+  })
   return new Uint8Array(doc.output('arraybuffer'))
 }
 

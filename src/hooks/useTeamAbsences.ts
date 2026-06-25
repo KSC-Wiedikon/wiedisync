@@ -1,14 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { fetchAllItems, fetchItem } from '../lib/api'
 import { useRealtime } from './useRealtime'
-import type { Absence, Member, MemberTeam, Team } from '../types'
-import { asObj, relId, flattenMemberIds } from '../utils/relations'
+import type { Member } from '../types'
+import { fetchTeamAbsences } from './teamAbsencesFetch'
+import type { AbsenceWithMember, MemberTeamRef } from './teamAbsencesFetch'
 
-export type AbsenceWithMember = Absence & { member: Member | string }
-
-/** A team (within the viewed scope) a member belongs to — used to label/group
- *  absences by team when more than one team is in view. */
-export type MemberTeamRef = { id: string; name: string; sport?: 'volleyball' | 'basketball' }
+// Re-exported so existing importers of these types from this module keep working.
+export type { AbsenceWithMember, MemberTeamRef } from './teamAbsencesFetch'
 
 export function useTeamAbsences(teamIds: string[], startDate: string, endDate: string) {
   const [absences, setAbsences] = useState<AbsenceWithMember[]>([])
@@ -47,110 +44,8 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
     latestKeyRef.current = key
     setError(null)
     try {
-      // Get players from member_teams for all teams. Expand team name/sport so
-      // we can label/group absences by team in multi-team views.
-      const memberTeamRows = await fetchAllItems<MemberTeam>('member_teams', {
-        filter: { team: { _in: teamIds } },
-        fields: ['member', 'team.id', 'team.name', 'team.sport'],
-      })
-      const memberIdSet = new Set(memberTeamRows.map((mt) => mt.member))
-
-      // member id → its teams within scope (deduped by team id).
-      const teamsByMember: Record<string, MemberTeamRef[]> = {}
-      const addTeamRef = (memberId: string, ref: MemberTeamRef) => {
-        if (!memberId || !ref.id) return
-        const arr = (teamsByMember[memberId] ??= [])
-        if (!arr.some((x) => x.id === ref.id)) arr.push(ref)
-      }
-      for (const mt of memberTeamRows) {
-        const teamObj = asObj<Team>(mt.team)
-        addTeamRef(String(relId(mt.member)), {
-          id: String(relId(mt.team)),
-          name: teamObj?.name ?? '',
-          sport: teamObj?.sport,
-        })
-      }
-
-      // Also include coaches and team_responsibles (they may not have member_teams records).
-      // CRITICAL: must request `coach.members_id` + `team_responsible.members_id` — without
-      // expansion Directus returns the M2M junction row IDs (teams_coaches.id) which look
-      // like member IDs but aren't. flattenMemberIds then pollutes the set with random
-      // members whose id happens to equal a junction id (ghost roster bug, 2026-05-12).
-      const validTeamIds = teamIds.filter((id) => id != null && id !== '' && id !== 'null' && id !== 'undefined')
-      for (const teamId of validTeamIds) {
-        try {
-          const team = await fetchItem<Record<string, unknown>>('teams', teamId, {
-            fields: ['name', 'sport', 'coach.members_id', 'team_responsible.members_id'],
-          })
-          const teamRef: MemberTeamRef = {
-            id: String(teamId),
-            name: (team.name as string) ?? '',
-            sport: team.sport as MemberTeamRef['sport'],
-          }
-          const coachIds = flattenMemberIds(team.coach)
-          const trIds = flattenMemberIds(team.team_responsible)
-          for (const id of [...coachIds, ...trIds]) {
-            if (id) {
-              memberIdSet.add(id)
-              addTeamRef(String(id), teamRef)
-            }
-          }
-        } catch {
-          // team fetch failed — continue
-        }
-      }
-
-      const memberIds = [...memberIdSet]
-
-      if (memberIds.length === 0) {
-        if (latestKeyRef.current === key) {
-          setAbsences([])
-          setMemberMap({})
-          setMemberTeams({})
-        }
-        return
-      }
-
-      const result = await fetchAllItems<AbsenceWithMember>('absences', {
-        filter: {
-          _and: [
-            { member: { _in: memberIds } },
-            { end_date: { _gte: startDate } },
-            { start_date: { _lte: endDate } },
-          ],
-        },
-        fields: ['*', 'member.*'],
-        sort: ['start_date'],
-      })
-
-      // `affects` is an *activity-type* filter (`all` | `trainings` | `games` |
-      // `events`), NOT a team filter — earlier code mistakenly intersected it
-      // with `teamIds` which caused absences with `affects: ['trainings']` to
-      // disappear from team views entirely (2026-05-12). Membership scoping is
-      // already enforced by the member._in fetch above, so we keep every row
-      // returned by the absences query.
-      const relevant = result
-
-      // Build member map from absence expands
-      const mMap: Record<string, Member> = {}
-      for (const a of relevant) {
-        const memberObj = asObj<Member>(a.member)
-        if (memberObj) {
-          mMap[memberObj.id] = memberObj
-        }
-      }
-
-      // Fetch member details for all team members (for "available" list)
-      const knownIds = new Set(Object.keys(mMap))
-      const missingIds = memberIds.filter((id) => !knownIds.has(id))
-      if (missingIds.length > 0) {
-        const members = await fetchAllItems<Member>('members', {
-          filter: { id: { _in: missingIds } },
-        })
-        for (const m of members) {
-          mMap[m.id] = m
-        }
-      }
+      const { absences: relevant, memberMap: mMap, memberTeams: teamsByMember } =
+        await fetchTeamAbsences(teamIds, startDate, endDate)
 
       // Discard this response if a newer team/date selection has superseded it.
       if (latestKeyRef.current !== key) return
