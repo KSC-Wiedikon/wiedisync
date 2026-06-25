@@ -1,32 +1,37 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { SwissQRCode } from 'swissqrbill/svg'
-import { QrCode, ShieldAlert, Download, Loader2 } from 'lucide-react'
+import { QrCode, ShieldAlert, Download, Loader2, Trash2, Save } from 'lucide-react'
 import { isValidIban } from '../../utils/iban'
-import { formatChf } from '../../hooks/useFinance'
-import type { FinanceMember } from '../../hooks/useFinance'
+import { formatChf, useMemberPayouts, type FinanceMember, type FinancePayout } from '../../hooks/useFinance'
+import { createRecord, deleteRecord } from '../../lib/api'
+import { logActivity } from '../../utils/logActivity'
+import { useAuth } from '../../hooks/useAuth'
+import { formatDateCompactZurich } from '../../utils/dateHelpers'
+import { downloadQrBillPdf } from './qrBillPdf'
 
 /**
- * Per-member "pay-out" QR-bill: a Swiss QR with the payee as creditor. The
- * treasurer can set the amount + message BEFORE generating (baked into the QR →
- * scan-and-go), or leave the amount blank to type it when scanning. Renders on a
- * white background (scannable contrast) and downloads as a PDF for upload to UBS
- * e-banking. Payee = the billing contact (billing_iban + billing name/address)
- * when billing_different + a billing IBAN is set, else the member's own IBAN.
+ * Per-member pay-out QR-bill + saved reimbursements. The treasurer sets an amount
+ * (+ message), can scan the QR on screen, and "Save & download" persists a
+ * finance_payouts record (so it shows on the member's My-finances page) and
+ * downloads the official QR-bill PDF. Saved pay-outs can be re-downloaded or
+ * deleted. Payee = the billing contact (billing_iban) when billing_different,
+ * else the member's own IBAN; the saved record snapshots the account/address.
  */
 const isChLiIban = (iban: string) => /^(CH|LI)/.test(iban) && isValidIban(iban)
 const fmtIban = (iban: string) => iban.replace(/(.{4})/g, '$1 ').trim()
 const cleanIban = (s?: string | null) => (s ?? '').replace(/\s/g, '').toUpperCase()
 
-/** The club is the payer on a reimbursement — shown as "Payable by" on the slip. */
-const CLUB_DEBTOR = { name: 'Kantonsschulsportclub Wiedikon', address: 'Schrennengasse 7', zip: 8003, city: 'Zürich', country: 'CH' } as const
-
 export default function MemberPayoutQrBill({ member }: { member: FinanceMember }) {
   const { t } = useTranslation('finance')
+  const { user } = useAuth()
+  const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [amountStr, setAmountStr] = useState('')
   const [message, setMessage] = useState('')
-  const [pdfBusy, setPdfBusy] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const memberName = [member.first_name, member.last_name].filter(Boolean).join(' ').trim()
   const useBilling = !!member.billing_different && !!cleanIban(member.billing_iban)
@@ -44,6 +49,9 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
     return Number.isFinite(n) && n > 0 ? n : undefined
   }, [amountStr])
 
+  const { data: payoutsRaw } = useMemberPayouts(member.id, true)
+  const payouts = payoutsRaw ?? []
+
   const svg = useMemo(() => {
     if (!open || !canRender) return null
     try {
@@ -58,56 +66,66 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
     }
   }, [open, canRender, iban, name, street, zip, city, amount, message])
 
-  async function downloadPdf() {
+  const refresh = () => qc.invalidateQueries({ queryKey: ['finance', 'payouts', 'member', member.id] })
+
+  async function saveAndDownload() {
     if (!canRender) return
-    setPdfBusy(true)
+    if (!amount) { toast.error(t('payoutNeedAmount')); return }
+    setBusy(true)
     try {
-      const MM = 2.834645669 // mm → pt (pdfkit unit)
-      // pdfkit's self-contained browser bundle (fonts + zlib inlined → no node polyfills);
-      // swissqrbill draws the official payment part onto it as TRUE vector (selectable text).
-      const [pdfkitMod, swissMod] = await Promise.all([
-        import('pdfkit/js/pdfkit.standalone.js'),
-        import('swissqrbill/pdf'),
-      ])
-      const PDFDocument = ((pdfkitMod as { default?: unknown }).default ?? pdfkitMod) as new (o: unknown) => Record<string, (...a: unknown[]) => unknown> & { page: { height: number }; on: (e: string, cb: (c: BlobPart) => void) => void }
-      const SwissQRBill = (swissMod as { SwissQRBill: new (d: unknown, o?: unknown) => { attachTo: (doc: unknown) => void } }).SwissQRBill
-      const doc = new PDFDocument({ size: 'A4', margin: 0 })
-      const chunks: BlobPart[] = []
-      doc.on('data', (c: BlobPart) => chunks.push(c))
-      const done = new Promise<void>((resolve) => doc.on('end', () => resolve()))
-      ;(doc.fontSize as (n: number) => { text: (s: string, x: number, y: number) => void }).call(doc, 13).text(`${t('payoutPdfTitle')} — ${name}`, 20 * MM, 20 * MM)
-      if (amount) (doc.fontSize as (n: number) => { text: (s: string, x: number, y: number) => void }).call(doc, 10).text(`${t('payoutAmount')}: ${formatChf(amount)}`, 20 * MM, 28 * MM)
-      new SwissQRBill({
-        currency: 'CHF',
-        ...(amount ? { amount } : {}),
-        creditor: { account: iban, name, address: street || name, zip: Number(zip), city: city as string, country: 'CH' },
-        debtor: { ...CLUB_DEBTOR },
-        ...(message.trim() ? { message: message.trim().slice(0, 140) } : {}),
-      }, { language: 'DE' }).attachTo(doc) // payment part at the A4 bottom (default position)
-      ;(doc.end as () => void).call(doc)
-      await done
-      const url = URL.createObjectURL(new Blob(chunks, { type: 'application/pdf' }))
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `payout-${name.replace(/\s+/g, '-')}.pdf`
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(url), 30_000)
-    } catch {
-      toastError()
+      await createRecord('finance_payouts', {
+        member: member.id, amount, currency: 'CHF', message: message.trim() || null,
+        iban, payee_name: name, payee_address: street || null, payee_zip: zip || null, payee_ort: city || null,
+        created_by_name: [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim() || null,
+        created_by_email: user?.email ?? null,
+      })
+      logActivity('create', 'finance_payouts', undefined, { member: member.id, amount })
+      await refresh()
+      await downloadQrBillPdf({
+        account: iban, name, address: street, zip: zip as string, city: city as string,
+        amount, message, title: `${t('payoutPdfTitle')} — ${name}`, filename: `payout-${name.replace(/\s+/g, '-')}.pdf`,
+      })
+      toast.success(t('payoutSaved'))
+      setAmountStr(''); setMessage('')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('payoutQrError'))
     } finally {
-      setPdfBusy(false)
+      setBusy(false)
     }
   }
-  function toastError() { import('sonner').then(({ toast }) => toast.error(t('payoutQrError'))) }
 
-  if (!iban) return null
+  async function downloadSaved(p: FinancePayout) {
+    try {
+      await downloadQrBillPdf({
+        account: cleanIban(p.iban), name: p.payee_name || memberName, address: p.payee_address,
+        zip: (p.payee_zip ?? '') as string, city: (p.payee_ort ?? '') as string,
+        amount: p.amount != null ? Number(p.amount) : undefined, message: p.message,
+        title: `${t('payoutPdfTitle')} — ${p.payee_name || memberName}`,
+        filename: `payout-${(p.payee_name || memberName).replace(/\s+/g, '-')}.pdf`,
+      })
+    } catch {
+      toast.error(t('payoutQrError'))
+    }
+  }
+
+  async function removeSaved(p: FinancePayout) {
+    try {
+      await deleteRecord('finance_payouts', p.id)
+      logActivity('delete', 'finance_payouts', String(p.id), null)
+      await refresh()
+    } catch {
+      toast.error(t('payoutDeleteError'))
+    }
+  }
+
+  if (!iban && payouts.length === 0) return null
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
       <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
         <QrCode className="h-4 w-4" /> {t('payoutQrTitle')}
       </h3>
-      <p className="font-mono text-sm text-gray-900 dark:text-gray-100">{fmtIban(iban)}</p>
+      {iban && <p className="font-mono text-sm text-gray-900 dark:text-gray-100">{fmtIban(iban)}</p>}
       {useBilling && <p className="mt-0.5 text-xs font-medium text-brand-600 dark:text-brand-300">{t('payoutToBilling', { name })}</p>}
       {unconfirmed && (
         <p className="mt-0.5 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
@@ -115,53 +133,39 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
         </p>
       )}
 
-      {!isChLiIban(iban) ? (
+      {iban && (!isChLiIban(iban) ? (
         <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t('payoutQrNonCh')}</p>
       ) : !hasAddress ? (
         <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t('payoutQrNeedsAddress')}</p>
       ) : (
         <>
-          {/* Amount + message — set before generating so the scan is ready to pay. */}
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('payoutAmount')}</span>
-              <input
-                inputMode="decimal" value={amountStr} onChange={(e) => setAmountStr(e.target.value)}
-                placeholder={t('payoutAmountPlaceholder')}
-                className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-              />
+              <input inputMode="decimal" value={amountStr} onChange={(e) => setAmountStr(e.target.value)} placeholder={t('payoutAmountPlaceholder')}
+                className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('payoutMessage')}</span>
-              <input
-                value={message} onChange={(e) => setMessage(e.target.value)} maxLength={140}
-                className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-              />
+              <input value={message} onChange={(e) => setMessage(e.target.value)} maxLength={140}
+                className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
             </label>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              onClick={() => setOpen((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
+            <button onClick={() => setOpen((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
               <QrCode className="h-4 w-4" /> {open ? t('payoutQrHide') : t('payoutQrShow')}
             </button>
-            {canRender && (
-              <button
-                onClick={downloadPdf} disabled={pdfBusy}
-                className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 dark:bg-brand-500 dark:hover:bg-brand-400"
-              >
-                {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                {pdfBusy ? t('payoutGenerating') : t('payoutDownloadPdf')}
-              </button>
-            )}
+            <button onClick={saveAndDownload} disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 dark:bg-brand-500 dark:hover:bg-brand-400">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {busy ? t('payoutGenerating') : t('payoutSaveDownload')}
+            </button>
           </div>
 
           {open && svg && (
             <div className="mt-3">
-              {/* The QR SVG has a fixed 46mm size, so center the white card that hugs
-                  it (w-fit) rather than stretching the svg — black-on-white, scannable. */}
               <div className="flex justify-center">
                 <div className="w-fit rounded-lg bg-white p-4 text-black" dangerouslySetInnerHTML={{ __html: svg }} />
               </div>
@@ -172,6 +176,29 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
           )}
           {open && !svg && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{t('payoutQrError')}</p>}
         </>
+      ))}
+
+      {payouts.length > 0 && (
+        <div className="mt-4">
+          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('payoutsSaved')}</h4>
+          <div className="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+            {payouts.map((p) => (
+              <div key={p.id} className="flex items-center gap-3 p-2.5">
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium tabular-nums text-gray-900 dark:text-gray-100">{p.amount != null ? formatChf(p.amount) : '—'}</span>
+                  {p.message && <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">{p.message}</span>}
+                  <span className="mt-0.5 block text-xs text-gray-400">{p.date_created ? formatDateCompactZurich(p.date_created) : ''}{p.created_by_name ? ` · ${p.created_by_name}` : ''}</span>
+                </div>
+                <button onClick={() => downloadSaved(p)} title={t('payoutDownloadPdf')} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-brand-600 dark:hover:bg-gray-700">
+                  <Download className="h-4 w-4" />
+                </button>
+                <button onClick={() => removeSaved(p)} title={t('payoutDelete')} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </section>
   )

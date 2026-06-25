@@ -254,4 +254,12 @@ export default {
   payoutGenerating: 'Wird gmacht…',
   payoutPdfTitle: 'Rückerstattig / Uszahlig',
   payoutQrHintAmount: 'Scanne, zum {{amount}} a das Mitglied zahle.',
+  payoutSaveDownload: 'Speichere & abelade',
+  payoutNeedAmount: 'Betrag igäh, zum d Uszahlig z speichere.',
+  payoutSaved: 'Uszahlig gspeicheret.',
+  payoutDeleteError: 'Uszahlig het nöd chöne glöscht wärde.',
+  payoutsSaved: 'Gspeicherti Uszahlige',
+  payoutDelete: 'Lösche',
+  myPayoutsTitle: 'Rückerstattige a di',
+  myPayoutsSubtitle: 'Uszahlige, wo dr Verein dir schickt. Bi Bedarf de QR-Iizahligsschii abelade.',
 }

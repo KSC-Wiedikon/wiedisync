@@ -254,4 +254,12 @@ export default {
   payoutGenerating: 'Wird erstellt…',
   payoutPdfTitle: 'Rückerstattung / Auszahlung',
   payoutQrHintAmount: 'Scannen, um {{amount}} an dieses Mitglied zu zahlen.',
+  payoutSaveDownload: 'Speichern & herunterladen',
+  payoutNeedAmount: 'Betrag eingeben, um die Auszahlung zu speichern.',
+  payoutSaved: 'Auszahlung gespeichert.',
+  payoutDeleteError: 'Auszahlung konnte nicht gelöscht werden.',
+  payoutsSaved: 'Gespeicherte Auszahlungen',
+  payoutDelete: 'Löschen',
+  myPayoutsTitle: 'Rückerstattungen an dich',
+  myPayoutsSubtitle: 'Auszahlungen, die der Verein dir schickt. Bei Bedarf den QR-Einzahlschein herunterladen.',
 }

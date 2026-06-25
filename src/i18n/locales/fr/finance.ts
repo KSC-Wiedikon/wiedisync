@@ -254,4 +254,12 @@ export default {
   payoutGenerating: 'Génération…',
   payoutPdfTitle: 'Remboursement / versement',
   payoutQrHintAmount: 'Scannez pour verser {{amount}} à ce membre.',
+  payoutSaveDownload: 'Enregistrer et télécharger',
+  payoutNeedAmount: 'Saisis un montant pour enregistrer le versement.',
+  payoutSaved: 'Versement enregistré.',
+  payoutDeleteError: 'Impossible de supprimer le versement.',
+  payoutsSaved: 'Versements enregistrés',
+  payoutDelete: 'Supprimer',
+  myPayoutsTitle: 'Remboursements pour toi',
+  myPayoutsSubtitle: "Versements que le club t'envoie. Télécharge le QR-facture si besoin.",
 }
