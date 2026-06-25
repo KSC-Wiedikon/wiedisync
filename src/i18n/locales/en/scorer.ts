@@ -17,14 +17,14 @@ export default {
   // Labels — Basketball
   bbScorer: 'Scorer (OTR1)',
   bbTimekeeper: 'Timekeeper (OTR1)',
-  bb24sOfficial: '24" Official (OTR2)',
-  bbDutyTeam: 'Officials Team',
+  bb24sOfficial: '24" official (OTR2)',
+  bbDutyTeam: 'Officials team',
 
   // Sport toggle
   sportVolleyball: 'Volleyball',
   sportBasketball: 'Basketball',
   officialsDuties: 'Officials',
-  dutyTeam: 'Duty Team',
+  dutyTeam: 'Duty team',
 
   // Status labels
   statusConfirmed: 'Confirmed',
@@ -35,16 +35,16 @@ export default {
   // Filters
   filters: 'Filters',
   filterDate: 'Date',
-  filterDutyTeam: 'Duty Team',
-  filterDutyType: 'Duty Type',
-  filterUnassigned: 'Unassigned Duty',
+  filterDutyTeam: 'Duty team',
+  filterDutyType: 'Duty type',
+  filterUnassigned: 'Unassigned duty',
   filterSearchAssignee: 'Look for assignee',
-  filterAllTeams: 'All Teams',
-  filterAllTypes: 'All Types',
-  filterAllDuties: 'All Duties',
+  filterAllTeams: 'All teams',
+  filterAllTypes: 'All types',
+  filterAllDuties: 'All duties',
   filterAnyUnassigned: 'Any unassigned',
   searchAssigneePlaceholder: 'Search assignees...',
-  clearFilters: 'Clear Filters',
+  clearFilters: 'Clear filters',
 
   // Empty state
   noGames: 'No games',

@@ -77,33 +77,33 @@ export default function PaymentLedgerModal({ invoice, onClose, onChanged }: {
           <div className="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>{t('payEntryType')}</label>
-                <select value={entryType} onChange={(e) => setEntryType(e.target.value as PaymentEntryType)} className={`${inputCls} dark:bg-gray-800`}>
+                <label htmlFor="pay-entry-type" className={labelCls}>{t('payEntryType')}</label>
+                <select id="pay-entry-type" value={entryType} onChange={(e) => setEntryType(e.target.value as PaymentEntryType)} className={`${inputCls} dark:bg-gray-800`}>
                   {ENTRY_TYPES.map((x) => <option key={x} value={x}>{typeLabel(x)}</option>)}
                 </select>
               </div>
               <div>
-                <label className={labelCls}>{t('invoiceAmount')}</label>
-                <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
+                <label htmlFor="pay-amount" className={labelCls}>{t('invoiceAmount')}</label>
+                <input id="pay-amount" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {hasMethod(entryType) && (
                 <div>
-                  <label className={labelCls}>{t('payMethod')}</label>
-                  <select value={method} onChange={(e) => setMethod(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+                  <label htmlFor="pay-method" className={labelCls}>{t('payMethod')}</label>
+                  <select id="pay-method" value={method} onChange={(e) => setMethod(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
                     {METHODS.map((m) => <option key={m} value={m}>{t(`payMethod_${m}`)}</option>)}
                   </select>
                 </div>
               )}
               <div>
-                <label className={labelCls}>{t('payDate')}</label>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
+                <label htmlFor="pay-date" className={labelCls}>{t('payDate')}</label>
+                <input id="pay-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
               </div>
             </div>
             <div>
-              <label className={labelCls}>{t('payNote')}</label>
-              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('payNotePlaceholder')} className={inputCls} />
+              <label htmlFor="pay-note" className={labelCls}>{t('payNote')}</label>
+              <input id="pay-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('payNotePlaceholder')} className={inputCls} />
             </div>
             <div className="flex justify-end">
               <button type="button" disabled={!valid || busy} onClick={add}

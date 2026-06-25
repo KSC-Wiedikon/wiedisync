@@ -63,8 +63,8 @@ function DuesEmailForm({ initial, onSaved }: { initial: FinanceEmailSettings; on
 
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <div className="min-w-[12rem] flex-1">
-          <label className={labelCls}>{t('duesEmailRecipient')}</label>
-          <input value={recipient} onChange={(e) => setRecipient(e.target.value)} type="email" placeholder="treasurer@example.ch" className={inputCls} />
+          <label htmlFor="dues-email-recipient" className={labelCls}>{t('duesEmailRecipient')}</label>
+          <input id="dues-email-recipient" value={recipient} onChange={(e) => setRecipient(e.target.value)} type="email" placeholder="treasurer@example.ch" className={inputCls} />
         </div>
         <button type="button" disabled={busy} onClick={() => save(testMode)}
           className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
@@ -200,8 +200,8 @@ export function SendDuesEmailModal({ run, onClose }: { run: DuesRun | null; onCl
           {/* Live send requires typing the count */}
           {!preview.test_mode && preview.would_send > 0 && (
             <div>
-              <label className={labelCls}>{t('duesEmailTypeCount', { count: preview.would_send })}</label>
-              <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} inputMode="numeric" className={inputCls} />
+              <label htmlFor="dues-email-confirm-count" className={labelCls}>{t('duesEmailTypeCount', { count: preview.would_send })}</label>
+              <input id="dues-email-confirm-count" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} inputMode="numeric" className={inputCls} />
             </div>
           )}
 

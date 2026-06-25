@@ -1304,7 +1304,6 @@ function HomeSections({
 }
 
 function EventRow({ event, onClick, participationStatus }: { event: EventExpanded; onClick: () => void; participationStatus?: string }) {
-  const { i18n } = useTranslation()
   const effectiveStatus = participationStatus
   const teams = (Array.isArray(event.teams) ? event.teams.map((t: any) => t?.teams_id ?? t).filter((t): t is Team => t != null && typeof t === 'object' && 'name' in t) : [])
 
@@ -1338,7 +1337,7 @@ function EventRow({ event, onClick, participationStatus }: { event: EventExpande
             const endZh = toZurichDateString(event.end_date)
             const isMultiDay = !!endZh && endZh !== startZh
             const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich', day: 'numeric' })
-            const monthFmt = new Intl.DateTimeFormat(i18n.language, { timeZone: 'Europe/Zurich', month: 'short' })
+            const monthFmt = new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', month: 'short' })
             const startDay = dayFmt.format(new Date(event.start_date))
             const startMonth = monthFmt.format(new Date(event.start_date))
             if (!isMultiDay) {

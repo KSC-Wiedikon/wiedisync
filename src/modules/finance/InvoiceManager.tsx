@@ -128,8 +128,8 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
     <Modal open={open} onClose={onClose} title={t('createInvoiceTitle')}>
       <div className="space-y-4">
         <div>
-          <span className={labelCls}>{t('recipientType')}</span>
-          <div className="mt-1 flex gap-2">
+          <span id="inv-recipient-type-label" className={labelCls}>{t('recipientType')}</span>
+          <div role="group" aria-labelledby="inv-recipient-type-label" className="mt-1 flex gap-2">
             {(['member', 'team', 'contact'] as const).map((rt) => (
               <button key={rt} type="button" onClick={() => setRecipientType(rt)}
                 className={`flex-1 rounded-md border px-3 py-2 text-sm ${recipientType === rt ? 'border-brand-500 bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'border-gray-200 text-gray-600 dark:border-gray-600 dark:text-gray-300'}`}>
@@ -144,8 +144,8 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
         )}
         {recipientType === 'team' && (
           <div>
-            <span className={labelCls}>{t('recipientTeam')}</span>
-            <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+            <label htmlFor="inv-team" className={labelCls}>{t('recipientTeam')}</label>
+            <select id="inv-team" value={teamId} onChange={(e) => setTeamId(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
               <option value="">{t('selectTeam')}</option>
               {teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
             </select>
@@ -154,10 +154,10 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
         )}
         {recipientType === 'contact' && (
           <div className="space-y-2">
-            <span className={labelCls}>{t('recipientContact')}</span>
+            <label htmlFor="inv-contact" className={labelCls}>{t('recipientContact')}</label>
             {!newContact ? (
               <>
-                <select value={contactId} onChange={(e) => setContactId(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+                <select id="inv-contact" value={contactId} onChange={(e) => setContactId(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
                   <option value="">{t('selectContact')}</option>
                   {(contacts ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}{c.email ? ` · ${c.email}` : ''}</option>)}
                 </select>
@@ -165,8 +165,8 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
               </>
             ) : (
               <div className="space-y-2 rounded-md border border-gray-200 p-2 dark:border-gray-700">
-                <input value={cName} onChange={(e) => setCName(e.target.value)} placeholder={t('contactName')} className={inputCls} />
-                <input value={cEmail} onChange={(e) => setCEmail(e.target.value)} type="email" placeholder={t('contactEmail')} className={inputCls} />
+                <input value={cName} onChange={(e) => setCName(e.target.value)} placeholder={t('contactName')} aria-label={t('contactName')} className={inputCls} />
+                <input value={cEmail} onChange={(e) => setCEmail(e.target.value)} type="email" placeholder={t('contactEmail')} aria-label={t('contactEmail')} className={inputCls} />
                 <select value={cKind} onChange={(e) => setCKind(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
                   {['sponsor', 'parent', 'company', 'ex_member', 'other'].map((k) => <option key={k} value={k}>{t(`contactKind_${k}`)}</option>)}
                 </select>
@@ -178,22 +178,22 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
         )}
 
         <div>
-          <label className={labelCls}>{t('invoiceSubject')}</label>
-          <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('invoiceSubjectPlaceholder')} className={inputCls} />
+          <label htmlFor="inv-subject" className={labelCls}>{t('invoiceSubject')}</label>
+          <input id="inv-subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('invoiceSubjectPlaceholder')} className={inputCls} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelCls}>{t('invoiceAmount')}</label>
-            <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
+            <label htmlFor="inv-amount" className={labelCls}>{t('invoiceAmount')}</label>
+            <input id="inv-amount" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>{t('invoiceDueDate')}</label>
-            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
+            <label htmlFor="inv-duedate" className={labelCls}>{t('invoiceDueDate')}</label>
+            <input id="inv-duedate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
           </div>
         </div>
         <div>
-          <label className={labelCls}>{t('invoiceCategory')}</label>
-          <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder={t('invoiceCategoryPlaceholder')} className={inputCls} />
+          <label htmlFor="inv-category" className={labelCls}>{t('invoiceCategory')}</label>
+          <input id="inv-category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder={t('invoiceCategoryPlaceholder')} className={inputCls} />
         </div>
 
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

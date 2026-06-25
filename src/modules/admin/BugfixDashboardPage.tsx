@@ -27,6 +27,7 @@ import {
 } from '../../components/ui/alert-dialog'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
+import { Table, TableBody, TableCell, TableRow } from '../../components/ui/table'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
@@ -179,43 +180,45 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
   const fileLine = parseFileLine(issue.expanded?.stack ?? '')
 
   return (
-    <div className="border-b border-gray-100 dark:border-gray-700/50">
-      {/* Collapsed row */}
-      <button
+    <>
+      {/* Collapsed scannable row */}
+      <TableRow
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50"
+        aria-expanded={expanded}
+        className="cursor-pointer border-b-0 text-xs"
       >
-        {expanded
-          ? <ChevronDown className="h-3 w-3 shrink-0 text-gray-400" />
-          : <ChevronRight className="h-3 w-3 shrink-0 text-gray-400" />
-        }
-
-        <StatusBadge status={status} t={t} />
-
-        <span className="min-w-0 truncate text-gray-900 dark:text-gray-100" title={issue.message}>
+        <TableCell className="w-6 pr-0">
+          {expanded
+            ? <ChevronDown className="h-3 w-3 shrink-0 text-gray-400" />
+            : <ChevronRight className="h-3 w-3 shrink-0 text-gray-400" />
+          }
+        </TableCell>
+        <TableCell><StatusBadge status={status} t={t} /></TableCell>
+        <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100" title={issue.message}>
           {issue.message.length > 80 ? issue.message.slice(0, 80) + '...' : issue.message}
-        </span>
-
-        <span className={`hidden sm:inline-block shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
-          issue.source === 'frontend'
-            ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-            : 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
-        }`}>
-          {issue.source === 'frontend' ? 'FE' : 'BE'}
-        </span>
-
-        <span className="hidden sm:inline-block shrink-0 text-gray-400 font-mono">{issue.count}x</span>
-        <span className="hidden sm:inline-block shrink-0 text-gray-400" title={absoluteTime(issue.first_seen)}>
+        </TableCell>
+        <TableCell className="hidden sm:table-cell">
+          <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${
+            issue.source === 'frontend'
+              ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+              : 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
+          }`}>
+            {issue.source === 'frontend' ? 'FE' : 'BE'}
+          </span>
+        </TableCell>
+        <TableCell className="hidden sm:table-cell text-gray-400 font-mono">{issue.count}x</TableCell>
+        <TableCell className="hidden sm:table-cell text-gray-400" title={absoluteTime(issue.first_seen)}>
           {relativeTime(issue.first_seen, lang)}
-        </span>
-        <span className="shrink-0 ml-auto text-gray-400" title={absoluteTime(issue.last_seen)}>
+        </TableCell>
+        <TableCell className="text-right text-gray-400" title={absoluteTime(issue.last_seen)}>
           {relativeTime(issue.last_seen, lang)}
-        </span>
-      </button>
+        </TableCell>
+      </TableRow>
 
       {/* Action buttons row */}
-      <div className="flex items-center gap-1.5 px-3 pb-2">
-        <div className="w-3 shrink-0" /> {/* align with chevron */}
+      <TableRow className={`hover:bg-transparent ${expanded ? 'border-b-0' : ''}`}>
+        <TableCell colSpan={7} className="pt-0">
+          <div className="flex items-center gap-1.5">
 
         {status === 'new' && (
           <>
@@ -303,11 +306,15 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
             {t('reopen')}
           </button>
         )}
-      </div>
+          </div>
+        </TableCell>
+      </TableRow>
 
       {/* Expanded detail */}
       {expanded && (
-        <div className="border-t border-gray-50 bg-gray-50/50 px-8 py-3 space-y-3 dark:border-gray-700/30 dark:bg-gray-900/30">
+        <TableRow className="hover:bg-transparent">
+          <TableCell colSpan={7} className="bg-gray-50/50 px-8 py-3 dark:bg-gray-900/30">
+            <div className="space-y-3">
           {/* When */}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">{t('when')}</p>
@@ -384,7 +391,9 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
               </p>
             </div>
           )}
-        </div>
+            </div>
+          </TableCell>
+        </TableRow>
       )}
 
       {/* Inline confirm dialog */}
@@ -402,7 +411,7 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   )
 }
 
@@ -508,9 +517,13 @@ export default function BugfixDashboardPage() {
 
         {filtered.length > 0 && (
           <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
-            {filtered.map(issue => (
-              <IssueRow key={issue.hash} issue={issue} t={t} lang={lang} />
-            ))}
+            <Table>
+              <TableBody>
+                {filtered.map(issue => (
+                  <IssueRow key={issue.hash} issue={issue} t={t} lang={lang} />
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>

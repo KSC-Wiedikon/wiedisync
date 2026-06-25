@@ -1,6 +1,6 @@
 # Permissions reference — KSCW Directus
 
-Canonical role × collection × action map. Reflects the live state through migration 111 (2026-06-15). Updated by reviewers as part of every permission change.
+Canonical role × collection × action map. Reflects the live state through migration 149 (2026-06-25). Updated by reviewers as part of every permission change. (Schema-only migrations 104–149 carry no permission rows; the per-collection posture for the finance-batch collections — 138–147 — is in the dated history below.)
 
 > Migrations 104–111 (2026-06-10..06-15) are all schema-only — they carry no permission rows and add no plpgsql functions needing `search_path`, so this doc's role tables are unchanged by them; only the version anchor moved. The Forms permission surface (migrations 086–089) is documented in the role tables below.
 
@@ -212,7 +212,8 @@ Per-user policy (migrations 132/133), attached to members with `finance` in thei
 | members | read | none (club-wide) | `FINANCE_MEMBER_FIELDS` — contact + `adresse/plz/ort` + `iban` + `ahv_nummer` + `beitragskategorie` + membership + billing_*. UNION-ed with the member policy's `MEMBER_VISIBLE_FIELDS`, so this only widens finance's view |
 | members | update | none (club-wide) | `FINANCE_MEMBER_BILLING_FIELDS` only — the alternate billing contact (migration 133). No other member field is writable here |
 | member_teams | read | none | Team context |
-| finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides | read | none | Full club finance read (same set as Vorstand) |
+| finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides, finance_payouts | read | none | Full club finance read (same set as Vorstand; `finance_payouts` migration 137) |
+| finance_dues_rates, finance_dues_runs | read | none | Dues-rate table + dues-run history (migration 138). Vorstand + Finance only |
 | finance_invoice_documents | create/read/update/delete | none | Invoice PDF attachment links (migration 134). Vorstand gets read |
 | directus_files | create | none | Upload invoice PDFs (frontend sets `folder` = the private finance folder) |
 | directus_files | read | `folder = <finance folder>` | View the private invoice PDFs via /assets. Folder-less files come via the member policy; members are excluded from THIS folder (read narrowed to `_or[null, ≠finance]`) |

@@ -123,7 +123,7 @@ export const FileUpload = ({
                       layout
                     >
                       modified{" "}
-                      {new Date(file.lastModified).toLocaleDateString()}
+                      {new Date(file.lastModified).toLocaleDateString("de-CH")}
                     </motion.p>
                   </div>
                 </motion.div>

@@ -94,8 +94,8 @@ function AddTeamEntryModal({ open, onClose, fiscalYearId, presetTeam, onDone }: 
       <div className="space-y-3">
         {presetTeam == null && (
           <div>
-            <label className={labelCls}>{t('teamLabel')}</label>
-            <select value={team} onChange={(e) => setTeam(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+            <label htmlFor="tf-team" className={labelCls}>{t('teamLabel')}</label>
+            <select id="tf-team" value={team} onChange={(e) => setTeam(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
               <option value="">{t('selectTeam')}</option>
               {teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
             </select>
@@ -103,30 +103,30 @@ function AddTeamEntryModal({ open, onClose, fiscalYearId, presetTeam, onDone }: 
         )}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelCls}>{t('teamEntryKind')}</label>
-            <select value={kind} onChange={(e) => setKind(e.target.value as TeamEntryKind)} className={`${inputCls} dark:bg-gray-800`}>
+            <label htmlFor="tf-kind" className={labelCls}>{t('teamEntryKind')}</label>
+            <select id="tf-kind" value={kind} onChange={(e) => setKind(e.target.value as TeamEntryKind)} className={`${inputCls} dark:bg-gray-800`}>
               {KINDS.map((k) => <option key={k} value={k}>{t(`teamKind${k.charAt(0).toUpperCase()}${k.slice(1)}`)}</option>)}
             </select>
           </div>
           <div>
-            <label className={labelCls}>{t('invoiceAmount')}</label>
-            <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
+            <label htmlFor="tf-amount" className={labelCls}>{t('invoiceAmount')}</label>
+            <input id="tf-amount" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelCls}>{t('teamEntryLabel')}</label>
-            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('teamEntryLabelPlaceholder')} className={inputCls} />
+            <label htmlFor="tf-entry-label" className={labelCls}>{t('teamEntryLabel')}</label>
+            <input id="tf-entry-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('teamEntryLabelPlaceholder')} className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>{t('payDate')}</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
+            <label htmlFor="tf-date" className={labelCls}>{t('payDate')}</label>
+            <input id="tf-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
           </div>
         </div>
         {kind !== 'expense' && (
           <div>
-            <label className={labelCls}>{t('teamSponsor')}</label>
-            <input value={sponsor} onChange={(e) => setSponsor(e.target.value)} placeholder={t('teamSponsorPlaceholder')} className={inputCls} />
+            <label htmlFor="tf-sponsor" className={labelCls}>{t('teamSponsor')}</label>
+            <input id="tf-sponsor" value={sponsor} onChange={(e) => setSponsor(e.target.value)} placeholder={t('teamSponsorPlaceholder')} className={inputCls} />
           </div>
         )}
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

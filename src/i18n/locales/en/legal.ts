@@ -1,13 +1,13 @@
 export default {
   // Privacy Policy page
-  privacyTitle: 'Privacy Policy',
+  privacyTitle: 'Privacy policy',
   lastUpdated: 'Last updated: April 4, 2026',
 
-  controllerTitle: '1. Data Controller',
+  controllerTitle: '1. Data controller',
   controllerText:
     'KSC Wiedikon\nSchrennengasse 7\n8003 Zürich\nEmail: kscw@kscw.ch',
 
-  dataCollectedTitle: '2. Data We Collect',
+  dataCollectedTitle: '2. Data we collect',
   dataAccountTitle: 'Account data (upon registration)',
   dataAccountText:
     'When registering as a club member, we collect: name, email address, phone number, and date of birth. Profile photos are uploaded and managed by members themselves. License number, position, and team assignment are set by coaches or the board.',
@@ -21,7 +21,7 @@ export default {
   dataTechnicalText:
     'When visiting the website, technical information such as IP address and browser information is automatically processed by our hosting provider (Cloudflare).',
 
-  legalBasisTitle: '3. Legal Basis',
+  legalBasisTitle: '3. Legal basis',
   legalBasisText:
     'The processing of personal data is based on:',
   legalBasisContract:
@@ -31,7 +31,7 @@ export default {
   legalBasisConsent:
     'Consent — Members upload their own profile photo and can change or remove it at any time.',
 
-  thirdPartyTitle: '4. Sub-Processors',
+  thirdPartyTitle: '4. Sub-processors',
   thirdPartyIntro: 'The following service providers are used as sub-processors:',
   thirdPartyCloudflare:
     'Cloudflare, Inc. — Frontend hosting (Cloudflare Pages) | Global (US-based) | DPA, Standard Contractual Clauses, Swiss-US Data Privacy Framework',
@@ -50,11 +50,11 @@ export default {
   thirdPartyCloudflareWorkers:
     'Cloudflare Workers — Processing of push notifications | Global (US-based) | DPA, Standard Contractual Clauses, Swiss-US Data Privacy Framework',
 
-  retentionTitle: '5. Data Retention',
+  retentionTitle: '5. Data retention',
   retentionText:
     'Your personal data is retained for as long as you have an active account on the Platform. Upon request or when your membership ends, your data will be deleted within 30 days, unless a longer retention period is required by law. You can also delete your account at any time directly in your profile settings.',
 
-  storageTitle: '6. Data Storage',
+  storageTitle: '6. Data storage',
   storageServer:
     'Data is stored on a server hosted by Hetzner Online GmbH in Germany (Nuremberg datacenter) running Directus. The frontend is served via Cloudflare Pages.',
   storageLocal:
@@ -62,7 +62,7 @@ export default {
   storageNoCookies:
     'The website itself does not set any cookies. Cloudflare may set technically necessary cookies that do not require consent.',
 
-  rightsTitle: '7. Your Rights',
+  rightsTitle: '7. Your rights',
   rightsText:
     'Under the Swiss Data Protection Act (nDSG), you have the following rights:',
   rightsAccess: 'Right of access — You can request information about your stored data.',
@@ -106,7 +106,7 @@ export default {
     'We reserve the right to update this privacy policy as needed. The current version is available on this page.',
 
   // Impressum page
-  impressumTitle: 'Legal Notice',
+  impressumTitle: 'Legal notice',
   impressumClubName: 'KSC Wiedikon',
   impressumAddress: 'Schrennengasse 7\n8003 Zürich',
   impressumFullName: 'Kultur- und Sportclub Wiedikon',
@@ -114,13 +114,13 @@ export default {
   impressumWebsite: 'Website: kscw.ch',
   impressumBoard: 'Responsible: Board of KSC Wiedikon',
   impressumHosting: 'Hosting: Cloudflare Pages (frontend), Hetzner Online GmbH, Germany (backend)',
-  impressumLinks: 'Liability for Links',
+  impressumLinks: 'Liability for links',
   impressumLinksText:
     'Our website contains links to external third-party websites over whose content we have no influence. The respective provider is always responsible for the content of linked pages. If we become aware of any legal violations, we will remove such links immediately.',
   impressumCopyright: 'Copyright',
   impressumCopyrightText:
     'The content and works created by KSC Wiedikon on this website are subject to Swiss copyright law. Reproduction, editing, or distribution beyond the scope of copyright law requires the written consent of the club.',
-  impressumSocial: 'Social Media',
+  impressumSocial: 'Social media',
   impressumFacebook: 'Facebook: KSC Wiedikon',
   impressumInstagram: 'Instagram: @ksc_wiedikon',
   impressumDisclaimer: 'Disclaimer',

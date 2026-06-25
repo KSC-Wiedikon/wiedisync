@@ -22,7 +22,7 @@ async function verifyTurnstile(token) {
   const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `secret=${TURNSTILE_SECRET}&response=${token}`,
+    body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: String(token) }).toString(),
   })
   return (await resp.json()).success === true
 }

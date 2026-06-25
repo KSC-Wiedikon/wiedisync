@@ -4,7 +4,7 @@ export default {
 
   // Tabs
   tabTrainings: 'Trainings',
-  tabCoachDashboard: 'Coach Dashboard',
+  tabCoachDashboard: 'Coach dashboard',
 
   // Training card
   attendance: 'Attendance',
@@ -43,18 +43,18 @@ export default {
   noTrainingsDescription: 'No trainings found for the selected filters.',
 
   // CRUD
-  newTraining: 'New Training',
-  newSingleTraining: 'Single Training',
-  newRecurringTraining: 'Recurring Trainings',
-  editTraining: 'Edit Training',
-  deleteTraining: 'Delete Training',
+  newTraining: 'New training',
+  newSingleTraining: 'Single training',
+  newRecurringTraining: 'Recurring trainings',
+  editTraining: 'Edit training',
+  deleteTraining: 'Delete training',
   deleteConfirm: 'Are you sure you want to delete this training?',
   cancelTraining: 'Cancel training',
   trainingCancelled: 'Training cancelled',
   cancelReason: 'Cancellation reason',
 
   // Recurring
-  recurringTitle: 'Generate Recurring Trainings',
+  recurringTitle: 'Generate recurring trainings',
   selectSlot: 'Select hall slot',
   dateRange: 'Date range',
   generatePreview: 'Preview dates',

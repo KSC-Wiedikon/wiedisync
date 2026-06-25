@@ -18,13 +18,13 @@ export default {
   noAccountYet: 'Don\'t have an account?',
 
   // Profile
-  editProfile: 'Edit Profile',
+  editProfile: 'Edit profile',
   contact: 'Contact',
   phone: 'Phone',
-  licenseNr: 'License Nr.',
-  licenceCategory: 'Licence Category',
-  licenceActivated: 'Licence Activated',
-  licenceValidated: 'Licence Validated',
+  licenseNr: 'License nr.',
+  licenceCategory: 'Licence category',
+  licenceActivated: 'Licence activated',
+  licenceValidated: 'Licence validated',
   licence: 'Licence',
   type: 'Type',
   activated: 'Activated',
@@ -34,8 +34,8 @@ export default {
   svForeigner: 'Foreign',
   svAssociation: 'Association',
   licences: 'Licences',
-  upcomingActivities: 'Upcoming Activities',
-  activeAbsences: 'Active Absences',
+  upcomingActivities: 'Upcoming activities',
+  activeAbsences: 'Active absences',
   showAll: 'Show all',
   noUpcomingActivities: 'No activities in the next 4 weeks.',
   noActiveAbsences: 'No active absences.',
@@ -45,13 +45,13 @@ export default {
   contactPrivacyNotice: 'Your email and phone number are only visible to the coach and team responsible of teams where you have an official duty (e.g. scorekeeper).',
 
   // Profile Edit
-  firstName: 'First Name',
-  lastName: 'Last Name',
-  changePhoto: 'Change Photo',
+  firstName: 'First name',
+  lastName: 'Last name',
+  changePhoto: 'Change photo',
   managedByCoach: 'Managed by coach/admin',
   position: 'Position',
   number: 'Number',
-  changePassword: 'Change Password',
+  changePassword: 'Change password',
   sendResetLink: 'Send reset link',
   numberTaken: 'This number is already used by {{name}}',
   errorSaving: 'Error saving',
@@ -63,8 +63,8 @@ export default {
 
   // Sign Up
   signUp: 'Sign up',
-  createAccount: 'Create Account',
-  confirmPassword: 'Confirm Password',
+  createAccount: 'Create account',
+  confirmPassword: 'Confirm password',
   passwordMismatch: 'Passwords do not match',
   registrationFailed: 'Registration failed. Please try again.',
   creatingAccount: 'Creating account...',
@@ -86,10 +86,10 @@ export default {
   teamRequired: 'Please select a team.',
 
   // Pending page
-  pendingApproval: 'Pending Approval',
+  pendingApproval: 'Pending approval',
   pendingDescription: 'Your account is waiting for approval from your team\'s coach or an admin.',
-  requestedTeam: 'Requested Team',
-  refreshStatus: 'Refresh Status',
+  requestedTeam: 'Requested team',
+  refreshStatus: 'Refresh status',
   checking: 'Checking...',
   logout: 'Log out',
 
@@ -99,7 +99,7 @@ export default {
   language: 'Language',
   languageGerman: 'Deutsch',
   languageEnglish: 'English',
-  completeProfile: 'Confirm Profile',
+  completeProfile: 'Confirm profile',
   skipForNow: 'Skip for now',
   birthdate: 'Birthdate',
 
@@ -122,10 +122,10 @@ export default {
 
   // Privacy consent
   privacyConsent: 'By registering you accept our',
-  privacyPolicy: 'Privacy Policy',
+  privacyPolicy: 'Privacy policy',
 
   // Password reset
-  resetPasswordTitle: 'Reset Password',
+  resetPasswordTitle: 'Reset password',
   newPassword: 'New password',
   resetPasswordButton: 'Save password',
   resettingPassword: 'Saving...',
@@ -144,19 +144,19 @@ export default {
   codeSentTo: 'We sent an 8-digit code to',
 
   // Context-aware OTP titles
-  activateAccount: 'Activate Account',
+  activateAccount: 'Activate account',
   activateAccountDescription: 'Your account has been prepared. Enter the code to get started.',
-  verifyEmail: 'Verify Email',
+  verifyEmail: 'Verify email',
   verifyEmailDescription: 'Verify your email address to continue registration.',
-  resetPasswordOtp: 'Reset Password',
+  resetPasswordOtp: 'Reset password',
   resetPasswordOtpDescription: 'Enter the code to reset your password.',
   resetPasswordOtpEmailDescription: 'Enter your email address to receive a reset code.',
   resetPasswordOtpSetDescription: 'Choose a new password for your account.',
-  setPasswordTitle: 'Set Password',
+  setPasswordTitle: 'Set password',
   setPasswordDescription: 'Welcome! Set your password to complete setup.',
 
   // Password setting form
-  setPasswordButton: 'Set Password',
+  setPasswordButton: 'Set password',
   settingPassword: 'Setting password...',
   passwordSetSuccess: 'Password set successfully!',
   passwordTooShort: 'Password must be at least 8 characters.',
@@ -176,12 +176,12 @@ export default {
   additionalTeamsNote: 'Additional teams require coach approval',
 
   // Team requests
-  addTeam: 'Add Team',
-  addTeamTitle: 'Join a Team',
+  addTeam: 'Add team',
+  addTeamTitle: 'Join a team',
   manageTeamsTitle: 'Manage teams',
   addTeamDescription: 'Select a team you\'d like to join. The coach needs to approve your request.',
   noTeamsAvailable: 'No more teams available.',
-  sendRequest: 'Send Request',
+  sendRequest: 'Send request',
   teamRequestError: 'Error sending request',
   leaveTeam: 'Leave team',
   leaveTeamTitle: 'Leave team',
@@ -195,8 +195,8 @@ export default {
   outstandingFinesCount_other: '{{count}} open fines',
 
   // Danger Zone
-  dangerZone: 'Danger Zone',
-  deleteAccount: 'Delete Account',
+  dangerZone: 'Danger zone',
+  deleteAccount: 'Delete account',
   deleteAccountDescription: 'Your account and all associated data will be permanently deleted. This action cannot be undone.',
   deleteAccountConfirm: 'Permanently delete account',
   deleteAccountEmailPrompt: 'Type your email address to confirm:',
@@ -209,15 +209,15 @@ export default {
   passive: 'Passive member',
 
   // ClubDesk data sync
-  personalDataClubdesk: 'Personal Data (ClubDesk)',
+  personalDataClubdesk: 'Personal data (ClubDesk)',
   anrede: 'Salutation',
   adresse: 'Address',
-  plz: 'Postal Code',
+  plz: 'Postal code',
   ort: 'City',
   nationalitaet: 'Nationality',
   sex: 'Sex',
-  ahvNummer: 'AHV Number',
-  beitragskategorie: 'Fee Category',
+  ahvNummer: 'AHV number',
+  beitragskategorie: 'Fee category',
   managedByAdmin: 'Managed by admin',
   male: 'Male',
   female: 'Female',

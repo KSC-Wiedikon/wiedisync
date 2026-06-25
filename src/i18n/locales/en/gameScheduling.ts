@@ -298,6 +298,7 @@ export default {
   revokeInvite: 'Revoke',
   confirmRevoke: 'Really revoke this invite?',
   linkCopied: 'Link copied',
+  linkCopyFailed: 'Could not copy link',
   inviteReissued: 'New link generated',
   inviteRevoked: 'Invite revoked',
   invitesCreated: '{{count}} invites created',

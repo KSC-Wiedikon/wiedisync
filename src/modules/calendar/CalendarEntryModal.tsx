@@ -59,13 +59,16 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
     'scorer-duty': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
   }
 
-  const dateStr = formatDate(entry.date, 'EEEE, MMMM d, yyyy')
+  const dateStr = formatDate(entry.date, 'EEEE, d. MMMM yyyy')
 
   const isOwnAbsence = entry.type === 'absence' && user && (entry.source as Absence).member === user.id
 
   return (
     <>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={entry.title}
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
         onClick={onClose}
       >
@@ -80,6 +83,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
             </span>
             <button
               onClick={onClose}
+              aria-label={t('common:close')}
               className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 sm:min-h-0 sm:min-w-0 sm:p-1 dark:hover:bg-gray-700"
             >
               <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -110,7 +114,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
           <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
             <DetailRow label={entry.endDate ? t('common:from') : t('common:date')} value={dateStr} />
             {entry.endDate && (
-              <DetailRow label={t('common:to')} value={formatDate(entry.endDate, 'EEEE, MMMM d, yyyy')} />
+              <DetailRow label={t('common:to')} value={formatDate(entry.endDate, 'EEEE, d. MMMM yyyy')} />
             )}
 
             {entry.allDay && !entry.endDate ? (

@@ -6,11 +6,103 @@
  * Sends branded HTML emails filtered by subscriber category preferences.
  */
 
-import { buildEmailLayout, formatDateCH, FRONTEND_URL } from './email-template.js';
+import crypto from 'crypto';
+import { buildEmailLayout, formatDateCH, FRONTEND_URL, escHtml } from './email-template.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const DEEPL_API_KEY = process.env.DEEPL_API_KEY || '';
 const WEBSITE_URL = process.env.KSCW_WEBSITE_URL || 'https://kscw-website.pages.dev';
+
+/**
+ * Constant-time bearer comparison — avoids leaking the admin token via response
+ * timing. Length mismatch returns false up front (length isn't a secret here),
+ * which also keeps crypto.timingSafeEqual from throwing on unequal buffers.
+ */
+function constantTimeEqual(a, b) {
+  const aBuf = Buffer.from(String(a ?? ''), 'utf8');
+  const bBuf = Buffer.from(String(b ?? ''), 'utf8');
+  if (aBuf.length !== bBuf.length) return false;
+  return crypto.timingSafeEqual(aBuf, bBuf);
+}
+
+// ── Allowlist HTML sanitizer for the AI summary ─────────────────────────────
+// The summary is HTML emitted by Claude from data that includes externally
+// scraped fields (opponent names, leagues). A prompt injection could otherwise
+// smuggle <script>/onerror/javascript: into a newsletter that reaches every
+// public subscriber. We keep the intended <b>/<a>/<br> formatting but strip
+// everything dangerous. Duplicated from kscw-hooks/src/sanitize-html.js —
+// extensions don't share a module graph, same duplication pattern as
+// error-log.js. Keep the two in sync if the threat model changes.
+const SUMMARY_ALLOWED_TAGS = new Set([
+  'p', 'br', 'span', 'div',
+  'strong', 'b', 'em', 'i', 'u',
+  'ul', 'ol', 'li',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'blockquote', 'pre', 'code',
+  'a',
+]);
+const SUMMARY_DANGEROUS_BLOCK_TAGS = [
+  'script', 'style', 'iframe', 'object', 'embed', 'svg', 'math',
+  'form', 'input', 'button', 'textarea', 'select', 'option', 'label',
+  'video', 'audio', 'source', 'track', 'canvas', 'noscript',
+];
+const SUMMARY_DANGEROUS_VOID_TAGS = [
+  'link', 'meta', 'base', 'img', 'picture', 'frame', 'frameset',
+];
+function summaryHrefIsSafe(value) {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed.startsWith('https://')) return true;
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return true;
+  if (trimmed.startsWith('#')) return true;
+  return false;
+}
+function sanitizeSummaryHtml(input) {
+  if (typeof input !== 'string') return '';
+  let s = input;
+  s = s.replace(/<!--[\s\S]*?-->/g, '');
+  for (const tag of SUMMARY_DANGEROUS_BLOCK_TAGS) {
+    s = s.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?</${tag}\\s*>`, 'gi'), '');
+    s = s.replace(new RegExp(`<${tag}\\b[^>]*/?>`, 'gi'), '');
+  }
+  for (const tag of SUMMARY_DANGEROUS_VOID_TAGS) {
+    s = s.replace(new RegExp(`<${tag}\\b[^>]*/?>`, 'gi'), '');
+  }
+  s = s.replace(/<\/?([a-zA-Z][a-zA-Z0-9-]*)\b([^>]*)>/g, (match, tag, attrs) => {
+    const lower = tag.toLowerCase();
+    const isClose = match.startsWith('</');
+    if (!SUMMARY_ALLOWED_TAGS.has(lower)) return '';
+    if (isClose) return `</${lower}>`;
+    if (lower === 'a') {
+      const hrefDouble = attrs.match(/\bhref\s*=\s*"([^"]*)"/i);
+      const hrefSingle = attrs.match(/\bhref\s*=\s*'([^']*)'/i);
+      const href = hrefDouble?.[1] ?? hrefSingle?.[1] ?? null;
+      if (href && summaryHrefIsSafe(href)) {
+        const safe = href
+          .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+          .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<a href="${safe}" target="_blank" rel="noopener noreferrer">`;
+      }
+      return '<a>';
+    }
+    return `<${lower}>`;
+  });
+  s = s.replace(/<\s*\/?\s*(script|style|iframe|svg|object|embed|form)\b[^>]*>?/gi, '');
+  s = s.replace(/\son\w+\s*=\s*"[^"]*"/gi, '');
+  s = s.replace(/\son\w+\s*=\s*'[^']*'/gi, '');
+  s = s.replace(/\son\w+\s*=\s*[^\s>]+/gi, '');
+  s = s.replace(/(href|src)\s*=\s*("|')\s*javascript:[^"']*\2/gi, '$1=$2#$2');
+  s = s.replace(/(href|src)\s*=\s*("|')\s*vbscript:[^"']*\2/gi, '$1=$2#$2');
+  s = s.replace(/(href|src)\s*=\s*("|')\s*data:(?!image\/)[^"']*\2/gi, '$1=$2#$2');
+  // Fail closed: if anything dangerous survived, drop the summary entirely
+  // rather than email an XSS/phishing vector to the whole subscriber list.
+  if (/<\s*\/?\s*(script|style|iframe|svg|object|embed|form)\b/i.test(s)
+      || /\son\w+\s*=/i.test(s)
+      || /javascript:/i.test(s)) {
+    return '';
+  }
+  return s;
+}
 
 async function generateSummary(locale, data, monthLabel, year) {
   if (!ANTHROPIC_API_KEY) return null;
@@ -95,7 +187,7 @@ function buildGameCard(g, showScore) {
 
   // Left: date + time
   card += `<td style="vertical-align:top;padding:10px 8px 10px 0;width:70px"><div style="font-size:12px;color:#64748b">${dateStr}</div>`;
-  if (time) card += `<div style="font-size:11px;color:#475569">${time}</div>`;
+  if (time) card += `<div style="font-size:11px;color:#475569">${escHtml(time)}</div>`;
   card += `</td>`;
 
   // (sport dot removed — games grouped by sport section instead)
@@ -110,13 +202,13 @@ function buildGameCard(g, showScore) {
 
   // Team names column
   card += `<td style="vertical-align:top;padding:8px 0">`;
-  card += `<div style="font-size:13px;line-height:1.5;${homeBold}">${g.home_team}</div>`;
-  card += `<div style="font-size:13px;line-height:1.5;${awayBold}">${g.away_team}</div>`;
+  card += `<div style="font-size:13px;line-height:1.5;${homeBold}">${escHtml(g.home_team)}</div>`;
+  card += `<div style="font-size:13px;line-height:1.5;${awayBold}">${escHtml(g.away_team)}</div>`;
   card += `</td>`;
 
   // League badge
   if (leagueShort) {
-    card += `<td style="vertical-align:top;padding:12px 0 10px;width:70px;text-align:right"><span style="font-size:10px;color:#64748b;border:1px solid #334155;border-radius:4px;padding:2px 6px;white-space:nowrap">${leagueShort}</span></td>`;
+    card += `<td style="vertical-align:top;padding:12px 0 10px;width:70px;text-align:right"><span style="font-size:10px;color:#64748b;border:1px solid #334155;border-radius:4px;padding:2px 6px;white-space:nowrap">${escHtml(leagueShort)}</span></td>`;
   }
 
   card += `</tr></table>`;
@@ -129,18 +221,18 @@ function buildDigestHtml(locale, summary, news, results, upcoming, events, unsub
 
   // AI Summary
   if (summary) {
-    body += `<div style="font-size:14px;color:#e2e8f0;line-height:1.7;margin-bottom:20px;padding:16px;background:#0f172a;border-radius:8px;border-left:3px solid #FFC832;text-align:justify">${summary}</div>`;
+    body += `<div style="font-size:14px;color:#e2e8f0;line-height:1.7;margin-bottom:20px;padding:16px;background:#0f172a;border-radius:8px;border-left:3px solid #FFC832;text-align:justify">${sanitizeSummaryHtml(summary)}</div>`;
   }
 
   // News section
   if (news.length > 0) {
     body += `<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;font-weight:700;margin:20px 0 8px">News</div>`;
     for (const n of news) {
-      const link = `${WEBSITE_URL}/${locale}/news/?article=${n.slug}`;
+      const link = `${WEBSITE_URL}/${locale}/news/?article=${escHtml(n.slug)}`;
       const title = (locale === 'en' && n.title_en) ? n.title_en : n.title;
-      body += `<div style="padding:8px 0;border-bottom:1px solid #334155"><a href="${link}" style="color:#60a5fa;text-decoration:none;font-weight:600;font-size:14px">${title}</a>`;
+      body += `<div style="padding:8px 0;border-bottom:1px solid #334155"><a href="${link}" style="color:#60a5fa;text-decoration:none;font-weight:600;font-size:14px">${escHtml(title)}</a>`;
       const excerpt = (locale === 'en' && n._excerptEn) ? n._excerptEn : n.excerpt;
-      if (excerpt) body += `<div style="color:#94a3b8;font-size:13px;margin-top:2px;text-align:justify">${excerpt}</div>`;
+      if (excerpt) body += `<div style="color:#94a3b8;font-size:13px;margin-top:2px;text-align:justify">${escHtml(excerpt)}</div>`;
       body += '</div>';
     }
   }
@@ -179,7 +271,7 @@ function buildDigestHtml(locale, summary, news, results, upcoming, events, unsub
   if (events.length > 0) {
     body += `<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;font-weight:700;margin:20px 0 8px">Events</div>`;
     for (const ev of events) {
-      body += `<div style="padding:6px 0;border-bottom:1px solid #334155;font-size:13px;color:#e2e8f0"><span style="color:#94a3b8">${formatDateCH(ev.startDate || ev.date)}</span> &nbsp; ${ev.title}${ev.location ? ' — ' + ev.location : ''}</div>`;
+      body += `<div style="padding:6px 0;border-bottom:1px solid #334155;font-size:13px;color:#e2e8f0"><span style="color:#94a3b8">${formatDateCH(ev.startDate || ev.date)}</span> &nbsp; ${escHtml(ev.title)}${ev.location ? ' — ' + escHtml(ev.location) : ''}</div>`;
     }
   }
 
@@ -211,7 +303,7 @@ export function registerNewsletterDigest(router, { database, logger, services, g
       }
       const token = authHeader.slice(7);
       const adminToken = process.env.DIRECTUS_ADMIN_TOKEN || process.env.ADMIN_ACCESS_TOKEN;
-      if (!adminToken || token !== adminToken) {
+      if (!adminToken || !constantTimeEqual(token, adminToken)) {
         log.warn('newsletter-digest: invalid bearer token attempt');
         return res.status(403).json({ error: 'Forbidden' });
       }

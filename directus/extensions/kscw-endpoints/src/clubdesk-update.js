@@ -95,7 +95,12 @@ const CSV_HEADERS = [
 ]
 
 function escCsv(val) {
-  const s = String(val ?? '')
+  let s = String(val ?? '')
+  // Neutralize spreadsheet formula injection: a cell that starts with =, +, -,
+  // @ (or a tab/CR) is interpreted as a formula by Excel/ClubDesk. These CSVs
+  // carry member-controlled fields, so prefix such cells with a single quote to
+  // force literal text before applying the usual quoting.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
   return s.includes(',') || s.includes('"') || s.includes('\n')
     ? `"${s.replace(/"/g, '""')}"` : s
 }

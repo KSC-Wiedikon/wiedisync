@@ -83,7 +83,7 @@ export default function TemplateParamForm({ params, onRun, isRunning }: Template
             <select
               value={values[param.name] ?? ''}
               onChange={(e) => handleChange(param.name, e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800"
             >
               <option value="">—</option>
               {(relationOptions[param.collection ?? ''] ?? []).map((opt) => (

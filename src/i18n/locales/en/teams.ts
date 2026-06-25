@@ -197,6 +197,9 @@ export default {
   teamPageOnlyHint: 'If disabled, the sponsor also appears on the homepage and sponsors page',
   sponsorSaved: 'Sponsor saved',
   sponsorDeleted: 'Sponsor removed',
+  sponsorSaveError: 'Could not save sponsor',
+  sponsorDeleteError: 'Could not delete sponsor',
+  sponsorUpdateError: 'Could not update sponsor',
   // Staff management (coaches & team responsibles)
   manageStaff: 'Manage staff',
   manageStaffTitle: 'Coaches & team responsibles',

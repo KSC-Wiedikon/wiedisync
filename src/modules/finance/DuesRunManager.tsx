@@ -207,11 +207,11 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
 
         <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
           <div>
-            <span className={labelCls}>{t('duesPickCategories')}</span>
+            <span id="dues-pick-categories-label" className={labelCls}>{t('duesPickCategories')}</span>
             {categories.length === 0 ? (
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('duesNoActiveCategories')}</p>
             ) : (
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <div role="group" aria-labelledby="dues-pick-categories-label" className="mt-1.5 flex flex-wrap gap-1.5">
                 {categories.map((c) => (
                   <button key={c} type="button" onClick={() => toggleCat(c)}
                     className={`rounded-full border px-3 py-1 text-xs font-medium ${selected.includes(c)
@@ -229,8 +229,8 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
               {t('duesOnlyActive')}
             </label>
             <div>
-              <label className={labelCls}>{t('duesRunDueDate')}</label>
-              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
+              <label htmlFor="dues-run-due-date" className={labelCls}>{t('duesRunDueDate')}</label>
+              <input id="dues-run-due-date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
             </div>
             <button type="button" disabled={!selected.length || pvBusy} onClick={runPreview}
               className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">

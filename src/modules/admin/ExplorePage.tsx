@@ -3,7 +3,6 @@ import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
-import { currentLocale } from '../../utils/dateHelpers'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { useExplorerCache } from './hooks/useExplorerCache'
@@ -74,7 +73,7 @@ export default function ExplorePage() {
   }, [refresh])
 
   const hasSelection = !!selectedType && !!selectedId
-  const refreshedAt = data.loadedAt ? new Date(data.loadedAt).toLocaleTimeString(currentLocale(), { hour12: false }) : null
+  const refreshedAt = data.loadedAt ? new Date(data.loadedAt).toLocaleTimeString('de-CH', { hour12: false }) : null
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col bg-background text-foreground">

@@ -120,7 +120,7 @@ export default {
   impressumCopyright: 'Diritto d\'autore',
   impressumCopyrightText:
     'I contenuti e le opere creati dal KSC Wiedikon su questo sito web sono soggetti al diritto d\'autore svizzero. La riproduzione, l\'elaborazione o la diffusione al di fuori dei limiti del diritto d\'autore richiede il consenso scritto del club.',
-  impressumSocial: 'Social Media',
+  impressumSocial: 'Social media',
   impressumFacebook: 'Facebook: KSC Wiedikon',
   impressumInstagram: 'Instagram: @ksc_wiedikon',
   impressumDisclaimer: 'Esclusione di responsabilità',

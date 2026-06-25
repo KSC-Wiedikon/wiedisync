@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCollection } from '../../lib/query'
 import { formatDateZurich } from '../../utils/dateHelpers'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import DashboardSection from './components/DashboardSection'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
@@ -194,54 +195,52 @@ export default function VolleyFeedbackPage() {
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="p-2">{t('vfDate')}</th>
-                <th className="p-2">Name</th>
-                <th className="p-2">Team</th>
-                {RATING_KEYS.map(k => (
-                  <th key={k} className="p-2 text-center">{t(RATING_I18N_KEYS[k])}</th>
-                ))}
-                <th className="p-2 text-center">Text</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(item => {
-                const hasText = item.feedback_text || item.ideas_text || item.other_text
-                return (
-                  <tr
-                    key={item.id}
-                    className={`border-b ${item.is_anonymous ? 'bg-secondary/10' : ''}`}
-                  >
-                    <td className="p-2 whitespace-nowrap">{formatDate(item.date_created)}</td>
-                    <td className="p-2">
-                      {item.is_anonymous
-                        ? <em className="text-muted-foreground">{t('vfAnon')}</em>
-                        : (item.name || '—')}
-                    </td>
-                    <td className="p-2">{item.is_anonymous ? '—' : <TeamChips teams={item.teams} />}</td>
-                    {RATING_KEYS.map(k => (
-                      <td key={k} className="p-2 text-center">{item[k] ?? '—'}</td>
-                    ))}
-                    <td className="p-2 text-center">
-                      {hasText ? (
-                        <button
-                          onClick={() => setSelectedItem(item)}
-                          className="cursor-pointer hover:opacity-70"
-                          title={t('vfReadText')}
-                        >
-                          💬
-                        </button>
-                      ) : '—'}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow className="text-xs text-muted-foreground">
+              <TableHead>{t('vfDate')}</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Team</TableHead>
+              {RATING_KEYS.map(k => (
+                <TableHead key={k} className="text-center">{t(RATING_I18N_KEYS[k])}</TableHead>
+              ))}
+              <TableHead className="text-center">Text</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map(item => {
+              const hasText = item.feedback_text || item.ideas_text || item.other_text
+              return (
+                <TableRow
+                  key={item.id}
+                  className={item.is_anonymous ? 'bg-secondary/10' : ''}
+                >
+                  <TableCell>{formatDate(item.date_created)}</TableCell>
+                  <TableCell className="whitespace-normal break-words">
+                    {item.is_anonymous
+                      ? <em className="text-muted-foreground">{t('vfAnon')}</em>
+                      : (item.name || '—')}
+                  </TableCell>
+                  <TableCell className="whitespace-normal break-words">{item.is_anonymous ? '—' : <TeamChips teams={item.teams} />}</TableCell>
+                  {RATING_KEYS.map(k => (
+                    <TableCell key={k} className="text-center">{item[k] ?? '—'}</TableCell>
+                  ))}
+                  <TableCell className="text-center">
+                    {hasText ? (
+                      <button
+                        onClick={() => setSelectedItem(item)}
+                        className="cursor-pointer hover:opacity-70"
+                        title={t('vfReadText')}
+                      >
+                        💬
+                      </button>
+                    ) : '—'}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
       </DashboardSection>
 
       {/* Text detail modal */}

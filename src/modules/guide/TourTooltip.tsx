@@ -49,6 +49,7 @@ export function TourTooltip({
         {/* Close button */}
         <button
           {...closeProps}
+          aria-label={tRaw('common:close')}
           className={`absolute top-2 right-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors ${
             isMobile ? 'p-2 min-h-[44px] min-w-[44px] flex items-center justify-center' : 'p-1'
           }`}

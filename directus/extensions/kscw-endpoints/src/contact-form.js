@@ -77,9 +77,52 @@ async function verifyTurnstile(token) {
   const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `secret=${TURNSTILE_SECRET}&response=${token}`,
+    body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: String(token || '') }).toString(),
   })
   return (await resp.json()).success === true
+}
+
+// ── Anti-abuse (2026-06-25 audit INT-1) ──────────────────────────────────
+// /contact is public + Turnstile-only; a per-IP limiter stops a solved or
+// misconfigured Turnstile from turning KSCW's DKIM-aligned sender into an
+// email-bomb / staff-spam relay. Safe ONLY behind CF Tunnel (see SECURITY.md).
+const contactIpAttempts = new Map()
+function contactRateLimit(req, maxAttempts, windowMs) {
+  const xff = req.headers['x-forwarded-for']
+  const ip = req.headers['cf-connecting-ip']
+    || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
+    || req.ip || 'unknown'
+  const now = Date.now()
+  const a = contactIpAttempts.get(ip)
+  if (a && now < a.resetAt) {
+    if (a.count >= maxAttempts) return false
+    a.count++
+  } else {
+    contactIpAttempts.set(ip, { count: 1, resetAt: now + windowMs })
+  }
+  if (contactIpAttempts.size > 1000) {
+    for (const [k, v] of contactIpAttempts) { if (now > v.resetAt) contactIpAttempts.delete(k) }
+  }
+  return true
+}
+
+// Fixed sender-acknowledgement — never echo the sender-supplied message/subject
+// back to the UNVERIFIED, attacker-choosable recipient address. Echoing the
+// free-form message there made /contact an arbitrary-text-to-arbitrary-recipient
+// relay under KSCW's domain reputation (audit INT-1). Send a constant ack.
+const ACK_SUBJECT = {
+  de: 'Deine Nachricht an den KSC Wiedikon',
+  gsw: 'Dini Nachricht ans KSC Wiedikon',
+  en: 'Your message to KSC Wiedikon',
+  fr: 'Ton message au KSC Wiedikon',
+  it: 'Il tuo messaggio a KSC Wiedikon',
+}
+const ACK_CONFIRM = {
+  de: (name) => `Hallo ${name},\n\nDanke für deine Nachricht an den KSC Wiedikon. Wir melden uns so bald wie möglich bei dir.\n\nSportliche Grüsse\nKSC Wiedikon`,
+  gsw: (name) => `Sali ${name},\n\nDanke für dini Nachricht ans KSC Wiedikon. Mer mälde üs so schnell wie möglich.\n\nSportlechi Grüess\nKSC Wiedikon`,
+  en: (name) => `Hi ${name},\n\nThanks for reaching out to KSC Wiedikon. We'll get back to you as soon as possible.\n\nBest regards\nKSC Wiedikon`,
+  fr: (name) => `Bonjour ${name},\n\nMerci pour ton message au KSC Wiedikon. Nous te répondrons dès que possible.\n\nMeilleures salutations\nKSC Wiedikon`,
+  it: (name) => `Ciao ${name},\n\nGrazie per il tuo messaggio a KSC Wiedikon. Ti risponderemo il prima possibile.\n\nCordiali saluti\nKSC Wiedikon`,
 }
 
 export function registerContactForm(router, { database, logger, services, getSchema }) {
@@ -102,6 +145,10 @@ export function registerContactForm(router, { database, logger, services, getSch
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailRegex.test(email)) {
         return res.status(400).json({ error: 'Invalid email format' })
+      }
+
+      if (!contactRateLimit(req, 5, 10 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many requests. Please try again later.' })
       }
 
       if (!turnstile_token || !(await verifyTurnstile(turnstile_token))) {
@@ -169,18 +216,14 @@ export function registerContactForm(router, { database, logger, services, getSch
         })
       }
 
-      // Separate confirmation to the sender — echoes their own message back so
-      // they have a record. Deliberately does NOT include any recipient
-      // address (would defeat the whole point of hiding coach/TR emails).
-      const ackTT = T[senderLocale] || T.de
-      const ackSubject = (team_id && teamName)
-        ? ackTT.teamSubject(teamName)
-        : ackTT.subject(subject, name)
+      // Separate confirmation to the sender. Constant body/subject only — the
+      // recipient is the unverified, sender-supplied address, so we must NOT
+      // echo the free-form message/subject back to it (audit INT-1).
       try {
         await mail.send({
           to: email,
-          subject: ackSubject,
-          text: ACK_BODY[senderLocale](name) + message + ACK_OUTRO[senderLocale],
+          subject: ACK_SUBJECT[senderLocale] || ACK_SUBJECT.de,
+          text: (ACK_CONFIRM[senderLocale] || ACK_CONFIRM.de)(name),
         })
       } catch (ackErr) {
         // Confirmation failure shouldn't fail the whole request — the real

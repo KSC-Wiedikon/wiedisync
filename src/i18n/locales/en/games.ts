@@ -1,5 +1,5 @@
 export default {
-  title: 'Games & Results',
+  title: 'Games & results',
   subtitle: 'Swiss Volley data — upcoming games, results, rankings.',
 
   // Tabs
@@ -38,7 +38,7 @@ export default {
   lossesNarrow: '2:3 losses',
   breakdownTotal: 'Total',
   breakdownUnavailable: 'Detailed split will appear after rankings are synced again.',
-  scoreboardTitle: 'KSCW Scoreboard',
+  scoreboardTitle: 'KSCW scoreboard',
   scoreboardSubtitle: 'Best KSCW teams by season stats',
   scoreboardVolleyball: 'Volleyball',
   scoreboardBasketball: 'Basketball',
@@ -61,7 +61,7 @@ export default {
   scoreboardPercent: '%',
   scoreboardUnavailable: 'Not available',
   scoreboardAbsolute: 'Absolute',
-  scoreboardPerGame: 'Per Game',
+  scoreboardPerGame: 'Per game',
   scoreboardAvg: 'Avg',
   scoreboardMostRankingPoints: 'Most ranking points',
   scoreboardMostWins: 'Most wins',
@@ -99,9 +99,9 @@ export default {
   scorerDuties: 'Scorer(s)',
   scorer: 'Scorer',
   referee: 'Referee',
-  referee1st: '1st Referee',
-  referee2nd: '2nd Referee',
-  referee3rd: '3rd Referee',
+  referee1st: '1st referee',
+  referee2nd: '2nd referee',
+  referee3rd: '3rd referee',
   gameNumber: 'Game #',
   scoreboard: 'Scoreboard',
   scorerTaefeler: 'Scorer/Scoreboard',

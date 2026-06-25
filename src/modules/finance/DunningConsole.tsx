@@ -46,8 +46,8 @@ function EscalateModal({ row, onClose, onDone }: { row: DunningCandidate | null;
           ) : (
             <>
               <div>
-                <label className={labelCls}>{t('dunFee')}</label>
-                <input value={fee} onChange={(e) => setFee(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
+                <label htmlFor="dun-fee" className={labelCls}>{t('dunFee')}</label>
+                <input id="dun-fee" value={fee} onChange={(e) => setFee(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
               </div>
               <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} disabled={!row.recipient_email} />

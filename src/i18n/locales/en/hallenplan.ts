@@ -1,5 +1,5 @@
 export default {
-  title: 'Hall Plan',
+  title: 'Hall plan',
   subtitleDay: 'Daily view of hall occupancy',
   subtitleWeek: 'Weekly view of hall occupancy',
 
@@ -130,11 +130,11 @@ export default {
 
   // Admin navigation
   updateFutureTrainings: 'Update future trainings',
-  goToTrainings: 'Go to Trainings',
-  goToGames: 'Go to Games',
+  goToTrainings: 'Go to trainings',
+  goToGames: 'Go to games',
 
   // Available slots
   slotsAvailable: '{{count}} slot(s) available',
-  slotsAvailableTitle: 'Available Slots',
+  slotsAvailableTitle: 'Available slots',
   slotsAvailableNone: 'No available slots',
 } as const

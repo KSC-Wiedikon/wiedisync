@@ -60,7 +60,7 @@ export default {
   carpoolUpdate: 'Carpool',
   taskAssigned: 'Task',
   // Push notifications
-  pushNotifications: 'Push Notifications',
+  pushNotifications: 'Push notifications',
   pushEnable: 'Enable',
   pushDisable: 'Disable',
   pushDenied: 'Push notifications are blocked in your browser settings.',

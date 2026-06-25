@@ -1,5 +1,5 @@
 export default {
-  title: 'Game Planning',
+  title: 'Game planning',
   subtitleSeason: 'Season overview {{season}}',
   seasonPicker: 'Season',
 

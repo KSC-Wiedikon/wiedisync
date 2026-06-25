@@ -1,5 +1,5 @@
 export default {
-  pageTitle: 'Club News',
+  pageTitle: 'Club news',
   newAnnouncement: 'New post',
   empty: 'No club news yet. Click "New post" to get started.',
   loadError: 'Could not load club news',

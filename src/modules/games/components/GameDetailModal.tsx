@@ -182,7 +182,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   const homeLabel = game.type === 'home' && kscwFullLabel ? kscwFullLabel : game.home_team
   const awayLabel = game.type === 'away' && kscwFullLabel ? kscwFullLabel : game.away_team
   const sets = parseSets(game.sets_json)
-  const intlLocale = i18n.language === 'gsw' ? 'de-CH' : i18n.language
+  const intlLocale = i18n.language === 'en' ? 'en-GB' : i18n.language === 'gsw' ? 'de-CH' : i18n.language
   const dateStr = game.date ? new Intl.DateTimeFormat(intlLocale, dateFormatOptions).format(new Date(game.date)) : ''
   // Scorer contact: admins (sport/global) anytime; coaches/TR of the team only
   // within ±1h of kickoff — same rule as the scorer page (not the admin-mode
@@ -199,6 +199,8 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   return (
     <>
     <div
+      role="dialog"
+      aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={onClose}
     >

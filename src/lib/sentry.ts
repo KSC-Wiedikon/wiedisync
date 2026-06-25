@@ -135,8 +135,10 @@ interface SentryUserContext {
  */
 export function setSentryUser(user: SentryUserContext | null) {
   if (user) {
-    // ID + display name only — no email (PII)
-    Sentry.setUser({ id: user.id, username: user.displayName || `member#${user.id}` })
+    // Pseudonymous identifier only — never send the member's real name/email to
+    // the third-party processor (Sentry, EU). Staff correlate `member#<id>` to a
+    // member via the admin UI; the numeric id alone carries no PII (audit FE-2).
+    Sentry.setUser({ id: user.id, username: `member#${user.id}` })
     Sentry.setTag('user.role', user.roles?.join(',') || 'member')
     Sentry.setTag('user.sport', user.primarySport || 'unknown')
     Sentry.setTag('user.is_admin', String(!!user.isAdmin))

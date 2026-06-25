@@ -111,7 +111,7 @@ export default {
   retry: 'Riprova',
 
   // Esploratore Dati
-  explorerTitle: 'Esploratore Dati',
+  explorerTitle: 'Esploratore dati',
   explorerRefresh: 'Aggiorna',
   explorerRefreshedAt: 'Ultimo aggiornamento {{time}}',
   explorerSearchPlaceholder: 'Cerca in tutto…',

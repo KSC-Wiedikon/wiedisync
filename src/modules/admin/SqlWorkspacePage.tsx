@@ -471,6 +471,7 @@ export default function SqlWorkspacePage() {
               <button
                 type="button"
                 onClick={clearRecent}
+                aria-label={t('sqlWorkspaceClearRecent')}
                 className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
                 title={t('sqlWorkspaceClearRecent')}
               >
