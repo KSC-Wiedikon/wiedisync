@@ -9,7 +9,7 @@ import {
   eachDayOfInterval,
 } from '../../../utils/dateUtils'
 import { format, isBefore, isAfter, isSameDay, max as maxDate, min as minDate } from 'date-fns'
-import { formatTime, getDayOfWeek } from '../../../utils/dateHelpers'
+import { formatTime, getDayOfWeek, toZurichDateString } from '../../../utils/dateHelpers'
 import { asObj, relId, memberName, disambiguateFirstNames } from '../../../utils/relations'
 import { isAuthenticated } from '../../../lib/api'
 import { useAuth } from '../../../hooks/useAuth'
@@ -140,8 +140,13 @@ function trainingToEntry(training: Training & { team?: Team | string; hall?: { n
 }
 
 function eventToEntry(event: Event): CalendarEntry {
-  const startDate = parseDate(event.start_date)
-  const endDate = event.end_date ? parseDate(event.end_date) : undefined
+  // events.*_date are timestamptz stored at midnight Europe/Zurich (all-day events
+  // land at 22:00Z in summer). Resolve the day in Zurich and rebuild as a local-
+  // midnight Date, so the cell mapping (date-fns, device-local) is correct on any
+  // device timezone — a viewer on UTC would otherwise see an all-day weekend shift
+  // a day earlier (Sat+Sun → Fri+Sat).
+  const startDate = parseDate(toZurichDateString(event.start_date))
+  const endDate = event.end_date ? parseDate(toZurichDateString(event.end_date)) : undefined
   // Multi-day if end_date is a different day from start_date
   const isMultiDay = endDate && !isSameDay(startDate, endDate)
 

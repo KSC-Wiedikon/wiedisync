@@ -15,7 +15,7 @@ import ExcelExportButton from '../components/ExcelExportButton'
 import SyncNowButton from '../components/SyncNowButton'
 import InlineSpinner from '../../../components/InlineSpinner'
 import {
-  buildScheduleRows, buildScheduleXlsx, buildSchedulePdf,
+  buildScheduleSections, buildScheduleXlsx, buildSchedulePdf,
   bytesToBase64, exportFilename, XLSX_MIME, PDF_MIME,
 } from '../lib/scheduleExport'
 import TeamAvailabilityDialog from '../components/TeamAvailabilityDialog'
@@ -419,10 +419,9 @@ export default function AdminDashboardPage() {
       let attachments: { filename: string; content_base64: string; content_type: string }[] = []
       try {
         const teamName = volleyballTeams.find((tm) => String(tm.id) === String(teamId))?.name
-        const rows = await buildScheduleRows({ bookings, opponents, slots, teams: volleyballTeams, season, teamId })
-        if (rows.length) {
-          const title = teamName ? `KSCW ${teamName} schedule` : 'KSCW game schedule'
-          const [xlsx, pdf] = await Promise.all([buildScheduleXlsx(rows), buildSchedulePdf(rows, title)])
+        const sections = await buildScheduleSections({ bookings, opponents, slots, teams: volleyballTeams, season, teamId })
+        if (sections.some((s) => s.rows.length)) {
+          const [xlsx, pdf] = await Promise.all([buildScheduleXlsx(sections), buildSchedulePdf(sections)])
           attachments = [
             { filename: exportFilename('xlsx', teamName), content_base64: bytesToBase64(xlsx), content_type: XLSX_MIME },
             { filename: exportFilename('pdf', teamName), content_base64: bytesToBase64(pdf), content_type: PDF_MIME },

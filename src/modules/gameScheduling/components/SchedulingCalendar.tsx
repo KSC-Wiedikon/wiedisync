@@ -6,6 +6,7 @@ import Modal from '../../../components/Modal'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table'
 import { fetchAllItems } from '../../../lib/api'
 import { toDateKey, getSeasonYear, formatDate } from '../../../utils/dateUtils'
+import { toZurichDateString } from '../../../utils/dateHelpers'
 import { relId } from '../../../utils/relations'
 import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team, Absence, MemberTeam, SchedulingBlock } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
@@ -508,9 +509,13 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       }
     }
 
-    // Team events that block games (tournament weekend, team trip).
+    // Team events that block games (tournament weekend, team trip). events.*_date
+    // are timestamptz stored at midnight Europe/Zurich (e.g. 22:00Z in summer), so
+    // parseYmd's UTC `.slice(0,10)` would land a day early (Sat→Fri). Pin to the
+    // Zurich calendar day first so a Sat+Sun weekend renders Sat+Sun.
     for (const ev of teamEvents) {
-      const start = parseYmd(ev.start_date); const end = parseYmd(ev.end_date || ev.start_date)
+      const start = parseYmd(toZurichDateString(ev.start_date))
+      const end = parseYmd(toZurichDateString(ev.end_date || ev.start_date))
       if (!start || !end) continue
       const team = teamName(ev.teamId)
       const ttl = (ev.title || '').trim()
