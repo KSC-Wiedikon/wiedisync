@@ -151,11 +151,11 @@ export function registerICalFeed(router, { database, logger }) {
           let refs = g.referees_json
           if (typeof refs === 'string') { try { refs = JSON.parse(refs) } catch { refs = [] } }
           const shortRef = (full) => {
-            const parts = String(full).trim().split(/\s+/).filter(Boolean)
-            if (parts.length <= 1) return parts[0] || ''
-            // First initial + surname (last token). Compound surnames ("von X")
-            // collapse to the last word — acceptable for a compact calendar label.
-            return `${parts[0][0]}. ${parts[parts.length - 1]}`
+            // First initial + everything after the first name, so compound /
+            // multi-part surnames ("von der Heide") are kept in full.
+            const s = String(full).trim()
+            const i = s.indexOf(' ')
+            return i > 0 ? `${s[0]}. ${s.slice(i + 1)}` : s
           }
           const refNames = (Array.isArray(refs) ? refs : []).map((r) => r?.name).filter(Boolean).map(shortRef)
 
