@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.9.0'
+const APP_VERSION = '1.9.1'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.9.1',
+    date: '25.06.2026',
+    sections: [
+      {
+        title: 'Game scheduling: hand schedules over to the Swiss Volley feed on a set date',
+        items: [
+          'Set a "Feed takeover date" per season in the scheduling settings. Until that date, the dates, times and venues you arranged in the tool are protected from the official Swiss Volley feed — which can still show a placeholder until your opponents enter your away games in Volleymanager.',
+          'On and after that date, the official feed takes over date, time and venue automatically, since by then every opponent has had time to enter their away games. Scores and results always sync regardless.',
+          'Leave the date empty to keep protecting scheduled games until they are played, as before.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.9.0',
     date: '25.06.2026',

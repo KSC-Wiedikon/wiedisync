@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.9.1 — 2026-06-25
+
+### Game scheduling: hand schedules over to the Swiss Volley feed on a set date
+- Set a **"Feed takeover date"** per season in the scheduling settings. Until that date, the dates, times and venues you arranged in the tool are **protected** from the official Swiss Volley feed — which can still show a placeholder until opponents enter your away games in Volleymanager.
+- **On and after that date**, the official feed becomes authoritative for date, time and venue automatically — by then every opponent has had time to enter their away games. Scores and results always sync regardless.
+- Leave the date **empty** to keep protecting scheduled games until they are played (the previous behaviour).
+
 ## v1.9.0 — 2026-06-25
 
 ### Finances: bill membership dues in one run
