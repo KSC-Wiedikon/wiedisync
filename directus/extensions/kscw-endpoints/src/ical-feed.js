@@ -132,13 +132,49 @@ export function registerICalFeed(router, { database, logger }) {
         else if (sources['games-away'] && !sources['games-home']) q = q.where('type', 'away')
         const games = await q.orderBy('date')
 
+        // Hall lookup → LOCATION (venue name + address), mirroring the duties feed.
+        const hallById = games.some((g) => g.hall)
+          ? Object.fromEntries(
+              (await database('halls').select('id', 'name', 'address', 'city')).map((h) => [h.id, h]),
+            )
+          : {}
+
         for (const g of games) {
           if (!g.date) continue
           const d = toISO(g.date)
           let title = `${g.home_team || ''} - ${g.away_team || ''}`
           if (g.status === 'completed') title += ` (${g.home_score}:${g.away_score})`
-          let desc = g.league || ''
-          if (g.status === 'postponed') desc += ' [VERSCHOBEN]'
+
+          // Referees from the SVRZ importer as [{ name, id }] — the json column may
+          // surface as a string or a parsed array depending on the driver. Rendered
+          // as "F. Lastname" (first initial + remainder of the name).
+          let refs = g.referees_json
+          if (typeof refs === 'string') { try { refs = JSON.parse(refs) } catch { refs = [] } }
+          const shortRef = (full) => {
+            // First initial + everything after the first name, so compound /
+            // multi-part surnames ("von der Heide") are kept in full.
+            const s = String(full).trim()
+            const i = s.indexOf(' ')
+            return i > 0 ? `${s[0]}. ${s.slice(i + 1)}` : s
+          }
+          const refNames = (Array.isArray(refs) ? refs : []).map((r) => r?.name).filter(Boolean).map(shortRef)
+
+          const descParts = [g.league || '']
+          if (g.status === 'postponed') descParts[0] += ' [VERSCHOBEN]'
+          if (refNames.length) descParts.push(`Schiedsrichter: ${refNames.join(', ')}`)
+          const desc = descParts.filter(Boolean).join('\n')
+
+          // Venue: KSCW home games carry a hall FK; away games store the opponent
+          // venue inline as away_hall_json. Fall back to it so away fixtures also
+          // get a LOCATION (the case where directions actually matter).
+          let venue = g.hall ? hallById[g.hall] : null
+          if (!venue && g.away_hall_json) {
+            venue = g.away_hall_json
+            if (typeof venue === 'string') { try { venue = JSON.parse(venue) } catch { venue = null } }
+          }
+          const location = venue
+            ? [venue.name, venue.address, venue.city].map((s) => String(s || '').trim()).filter(Boolean).join(', ')
+            : ''
 
           lines.push('BEGIN:VEVENT', `UID:${g.id}@kscw.ch`, `DTSTAMP:${now}`)
           if (g.time) {
@@ -148,6 +184,7 @@ export function registerICalFeed(router, { database, logger }) {
             lines.push(`DTSTART;VALUE=DATE:${fmtDate(d)}`, `DTEND;VALUE=DATE:${fmtDate(nextDay(d))}`)
           }
           lines.push(`SUMMARY:${esc(title)}`)
+          if (location) lines.push(`LOCATION:${esc(location)}`)
           if (desc) lines.push(`DESCRIPTION:${esc(desc)}`)
           lines.push('END:VEVENT')
         }
