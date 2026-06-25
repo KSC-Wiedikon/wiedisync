@@ -448,3 +448,61 @@ export const recordInvoicePayment = (id: string | number, input: RecordPaymentIn
   kscwApi<{ invoice: FinanceInvoice; payment_id: number }>(`/finance/invoices/${id}/payments`, { method: 'POST', body: input })
 export const deleteInvoicePayment = (id: string | number, paymentId: number) =>
   kscwApi<{ invoice: FinanceInvoice }>(`/finance/invoices/${id}/payments/${paymentId}`, { method: 'DELETE' })
+
+// ── Per-team finance — sponsoring income + team bills (migration 145) ──
+
+export interface TeamSummaryRow {
+  team: number
+  team_name: string
+  income: number
+  expense: number
+  net: number
+  invoice_total: number
+  invoice_open: number
+}
+/** Per-team income/expense/net + open bills for a fiscal year (finance/board). */
+export function useTeamsSummary(fiscalYearId: string | number | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'teams-summary', String(fiscalYearId ?? '')],
+    queryFn: () => kscwApi<{ teams: TeamSummaryRow[] }>(`/finance/teams-summary${fiscalYearId ? `?fiscal_year=${fiscalYearId}` : ''}`),
+    enabled,
+    select: (r) => r.teams,
+  })
+}
+
+export type TeamEntryKind = 'sponsoring' | 'income' | 'expense'
+export interface TeamEntry {
+  id: number
+  team: number
+  fiscal_year: number | null
+  kind: TeamEntryKind
+  amount: number | string
+  label: string | null
+  sponsor: string | null
+  entry_date: string | null
+  note: string | null
+  created_by_name: string | null
+}
+/** A team's finance entries (finance/board). */
+export function useTeamEntries(teamId: string | number | null | undefined, fiscalYearId: string | number | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'team-entries', String(teamId ?? ''), String(fiscalYearId ?? '')],
+    queryFn: () => kscwApi<{ entries: TeamEntry[] }>(`/finance/team-entries?team=${teamId}${fiscalYearId ? `&fiscal_year=${fiscalYearId}` : ''}`),
+    enabled: enabled && teamId != null && teamId !== '',
+    select: (r) => r.entries,
+  })
+}
+export interface TeamEntryInput {
+  team: number
+  fiscal_year?: number | null
+  kind: TeamEntryKind
+  amount: number
+  label?: string | null
+  sponsor?: string | null
+  entry_date?: string | null
+  note?: string | null
+}
+export const recordTeamEntry = (input: TeamEntryInput) =>
+  kscwApi<{ id: number }>('/finance/team-entries', { method: 'POST', body: input })
+export const deleteTeamEntry = (id: number) =>
+  kscwApi<{ ok: true; removed: number }>(`/finance/team-entries/${id}`, { method: 'DELETE' })

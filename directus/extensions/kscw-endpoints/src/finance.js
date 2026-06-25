@@ -837,4 +837,90 @@ export function registerFinance(router, { database, logger, services, getSchema 
       return res.json({ job: job || null })
     } catch (e) { return err(res, req, 'dues-email-job', e) }
   })
+
+  // ── Per-team finance entries + summary (sponsoring + bills, migration 145) ──
+  const TEAM_KINDS = ['sponsoring', 'income', 'expense']
+
+  // GET /finance/team-entries?team=&fiscal_year=
+  router.get('/finance/team-entries', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const teamId = Number(req.query.team)
+      const fyId = Number(req.query.fiscal_year)
+      let q = database('finance_team_entries')
+        .orderBy([{ column: 'entry_date', order: 'desc' }, { column: 'id', order: 'desc' }])
+        .select('id', 'team', 'fiscal_year', 'kind', 'amount', 'label', 'sponsor', 'entry_date', 'note', 'created_by_name')
+      if (Number.isInteger(teamId)) q = q.where('team', teamId)
+      if (Number.isInteger(fyId)) q = q.where('fiscal_year', fyId)
+      return res.json({ entries: await q.limit(500) })
+    } catch (e) { return err(res, req, 'team-entries', e) }
+  })
+
+  // POST /finance/team-entries — record a sponsoring/income/expense entry
+  router.post('/finance/team-entries', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const b = req.body || {}
+      const teamId = Number(b.team)
+      const tgt = Number.isInteger(teamId) ? await database('teams').where('id', teamId).first('id') : null
+      if (!tgt) return res.status(400).json({ error: 'team not found' })
+      const kind = TEAM_KINDS.includes(b.kind) ? b.kind : 'sponsoring'
+      const amount = round2(b.amount)
+      if (!(amount >= 0)) return res.status(400).json({ error: 'amount must be >= 0' })
+      const fyId = Number.isInteger(Number(b.fiscal_year)) ? Number(b.fiscal_year) : await fiscalYearIdForDate(todayISO())
+      const entryDate = /^\d{4}-\d{2}-\d{2}$/.test(b.entry_date || '') ? b.entry_date : todayISO()
+      const ins = await database('finance_team_entries').insert({
+        team: teamId, fiscal_year: fyId, kind, amount,
+        label: (b.label || '').toString().trim().slice(0, 255) || null,
+        sponsor: (b.sponsor || '').toString().trim().slice(0, 255) || null,
+        entry_date: entryDate, note: (b.note || '').toString().trim().slice(0, 255) || null,
+        created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+      }).returning('id')
+      const entryId = ins[0]?.id ?? ins[0]
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_team_entries', recordId: entryId, data: { kind: 'team_entry', team: teamId, entry_kind: kind, amount } })
+      return res.json({ id: entryId })
+    } catch (e) { return err(res, req, 'team-entry-save', e) }
+  })
+
+  // DELETE /finance/team-entries/:id
+  router.delete('/finance/team-entries/:id', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const removed = await database('finance_team_entries').where('id', id).del()
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_team_entries', recordId: id, data: { removed } })
+      return res.json({ ok: true, removed })
+    } catch (e) { return err(res, req, 'team-entry-delete', e) }
+  })
+
+  // GET /finance/teams-summary?fiscal_year= — per-team income/expense/net + open bills
+  router.get('/finance/teams-summary', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const fyId = Number(req.query.fiscal_year)
+      const hasFy = Number.isInteger(fyId)
+      const entries = await database('finance_team_entries')
+        .modify((qb) => { if (hasFy) qb.where('fiscal_year', fyId) }).select('team', 'kind', 'amount')
+      const invs = await database('finance_invoices')
+        .where('source', 'native').whereNotNull('team').whereNot('status', 'cancelled')
+        .modify((qb) => { if (hasFy) qb.where('fiscal_year', fyId) }).select('team', 'amount', 'open_amount')
+      const map = new Map()
+      const bump = (tid) => { const k = Number(tid); if (!map.has(k)) map.set(k, { team: k, income: 0, expense: 0, invoice_total: 0, invoice_open: 0 }); return map.get(k) }
+      for (const e of entries) { const m = bump(e.team); const a = Number(e.amount) || 0; if (e.kind === 'expense') m.expense += a; else m.income += a }
+      for (const i of invs) { const m = bump(i.team); m.invoice_total += Number(i.amount) || 0; m.invoice_open += Number(i.open_amount) || 0 }
+      const ids = [...map.keys()]
+      const teams = ids.length ? await database('teams').whereIn('id', ids).select('id', 'name') : []
+      const nameById = new Map(teams.map((t) => [Number(t.id), t.name]))
+      const rows = [...map.values()].map((m) => ({
+        team: m.team, team_name: nameById.get(m.team) || `#${m.team}`,
+        income: round2(m.income), expense: round2(m.expense), net: round2(m.income - m.expense),
+        invoice_total: round2(m.invoice_total), invoice_open: round2(m.invoice_open),
+      })).sort((a, b) => a.team_name.localeCompare(b.team_name))
+      return res.json({ teams: rows })
+    } catch (e) { return err(res, req, 'teams-summary', e) }
+  })
 }
