@@ -1425,48 +1425,15 @@ export default function ParticipationRosterModal({
                       </span>
                     )
                   })()
-                ) : editingMemberId === member.id ? (
-                  // Inline edit panel: status dropdown + note input. Both auto-save
-                  // (status on `onChange`, note on `onBlur`). The wrapper's `onBlur`
-                  // only closes the panel when focus leaves the whole panel — tabbing
-                  // between the select and the input keeps it open. Saving the status
-                  // also closes; saving the note alone leaves it open so the editor
-                  // can keep tweaking.
-                  <div
-                    className="flex shrink-0 items-center gap-1.5"
-                    onBlur={(e) => {
-                      if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                        setTimeout(() => setEditingMemberId(prev => prev === member.id ? null : prev), 150)
-                      }
-                    }}
-                  >
-                    <select
-                      autoFocus
-                      defaultValue={participations.find(p => p.member === member.id && !p.is_staff)?.status ?? participations.find(p => p.member === member.id)?.status ?? ''}
-                      onChange={(e) => handleStatusChange(member.id, e.target.value)}
-                      className="rounded-md border border-gray-300 bg-white px-1.5 py-0.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
-                    >
-                      <option value="">{t('clearStatus')}</option>
-                      <option value="confirmed">{t('confirmed')}</option>
-                      {allowMaybe && <option value="tentative">{t('tentative')}</option>}
-                      <option value="declined">{t('declined')}</option>
-                    </select>
-                    <input
-                      type="text"
-                      placeholder={t('addNotePlaceholder', { defaultValue: 'Note…' })}
-                      defaultValue={participations.find(p => p.member === member.id && !p.is_staff)?.note ?? participations.find(p => p.member === member.id)?.note ?? ''}
-                      onBlur={(e) => handleNoteChange(member.id, e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
-                      className="w-32 rounded-md border border-gray-300 bg-white px-2 py-0.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
-                    />
-                  </div>
                 ) : (
                   // RSVP brick + optional pencil. The textual status moved to the
                   // note line beneath ("Reason: note"); the row's left bar mirrors
                   // the same colour so status reads at a glance without a wide badge.
+                  // When this member is being edited the controls render full-width on
+                  // their own row below, so the pencil hides to avoid a dead affordance.
                   <div className="flex w-16 shrink-0 items-center justify-end gap-1">
                     <RsvpBrick status={status} label={statusLabelText(member.id, status)} />
-                    {canEditRoster && !savingMemberIds.has(member.id) && (
+                    {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
                       <button
                         type="button"
                         onClick={() => setEditingMemberId(member.id)}
@@ -1481,6 +1448,41 @@ export default function ParticipationRosterModal({
                   </div>
                 )}
                 </div>
+                {/* Inline edit panel — its own full-width row so the status dropdown and
+                    note input have room without crushing the member's name into a single
+                    vertical column on mobile. Status auto-saves on `onChange`, note on
+                    `onBlur`. The wrapper `onBlur` only closes when focus leaves the whole
+                    panel (tabbing between the select and the input keeps it open). */}
+                {editingMemberId === member.id && (
+                  <div
+                    className="flex items-center gap-2 px-3 pb-2 pl-14"
+                    onBlur={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                        setTimeout(() => setEditingMemberId(prev => prev === member.id ? null : prev), 150)
+                      }
+                    }}
+                  >
+                    <select
+                      autoFocus
+                      defaultValue={participations.find(p => p.member === member.id && !p.is_staff)?.status ?? participations.find(p => p.member === member.id)?.status ?? ''}
+                      onChange={(e) => handleStatusChange(member.id, e.target.value)}
+                      className="shrink-0 rounded-md border border-gray-300 bg-white px-1.5 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                    >
+                      <option value="">{t('clearStatus')}</option>
+                      <option value="confirmed">{t('confirmed')}</option>
+                      {allowMaybe && <option value="tentative">{t('tentative')}</option>}
+                      <option value="declined">{t('declined')}</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder={t('addNotePlaceholder', { defaultValue: 'Note…' })}
+                      defaultValue={participations.find(p => p.member === member.id && !p.is_staff)?.note ?? participations.find(p => p.member === member.id)?.note ?? ''}
+                      onBlur={(e) => handleNoteChange(member.id, e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
+                      className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                    />
+                  </div>
+                )}
                 {/* Note on its own row — skip if note is just a duplicate of position preferences.
                     Custom participation.note wins over absence-reason fallback even when cleared
                     to empty: staff explicit clear should remove the displayed note. Absence reason
