@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.9.1'
+const APP_VERSION = '1.10.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.10.0',
+    date: '25.06.2026',
+    sections: [
+      {
+        title: 'Scheduling mailbox: its own tab, with a Volleyball/Basketball switch',
+        items: [
+          'The scheduling mailbox moved out of the dashboard into its own "Mailbox" tab, next to Dashboard and Settings.',
+          'Switch between the Volleyball and Basketball mailboxes with a toggle at the top — each is its own account (volleyball@ / basketball@spielplanung.kscw.ch). You only see the sports you have access to.',
+          'A proper mail client: separate Inbox and Sent, plus reply, reply all, forward (keeps the original attachments) and new email.',
+          'On the volleyball side, emails still group by opponent — the dashboard "N emails" button opens that opponent’s thread in the new tab.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.9.1',
     date: '25.06.2026',

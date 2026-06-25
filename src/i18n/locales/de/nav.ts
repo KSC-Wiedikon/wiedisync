@@ -17,6 +17,7 @@ export default {
   hallenplan: 'Hallenplan',
   terminplanung: 'Terminplanung',
   dashboard: 'Dashboard',
+  mailbox: 'Postfach',
   settings: 'Einstellungen',
   manageDb: 'Datenbank verwalten',
   openInNewTab: 'In neuem Tab öffnen',

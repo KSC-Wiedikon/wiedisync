@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.10.0 — 2026-06-25
+
+### Scheduling mailbox: its own tab, with a Volleyball/Basketball switch
+- The embedded scheduling mailbox moved out of the Terminplanung dashboard into its **own "Mailbox" tab**, alongside Dashboard and Settings.
+- A **Volleyball/Basketball toggle** at the top switches between the two Migadu accounts (`volleyball@` / `basketball@spielplanung.kscw.ch`). You only see the sports you can access (volleyball admins/Spielplaner; basketball admins). Basketball is a plain mailbox — it has no opponent scheduling.
+- Now a **full mail client**: separate **Inbox** and **Sent** folders, plus **Reply**, **Reply all**, **Forward** (carries the original's attachments along), and **New email**.
+- On the volleyball side the per-opponent grouping stays — the dashboard's "N emails" button deep-links into the new tab and opens that opponent's thread.
+
 ## v1.9.1 — 2026-06-25
 
 ### Game scheduling: hand schedules over to the Swiss Volley feed on a set date

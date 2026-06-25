@@ -17,6 +17,7 @@ export default {
   hallenplan: 'Hall Slots',
   terminplanung: 'Match scheduling',
   dashboard: 'Dashboard',
+  mailbox: 'Mailbox',
   settings: 'Settings',
   manageDb: 'Manage Database',
   openInNewTab: 'Open in new tab',

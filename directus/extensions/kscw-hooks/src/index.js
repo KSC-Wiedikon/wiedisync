@@ -3041,12 +3041,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   })
 
   // ── 10e². Cron: Spielplanung mailbox sync (every 10 min) ──
-  // Pulls the Migadu mailbox volleyball@spielplanung.kscw.ch (INBOX + Sent)
-  // into scheduling_emails via the kscw-endpoints IMAP sync, so opponent
-  // replies surface in the Terminplanung dashboard. Dormant until
-  // SCHEDULING_IMAP_PASSWORD is set on the container.
+  // Pulls the Migadu mailboxes volleyball@ + basketball@spielplanung.kscw.ch
+  // (INBOX + Sent each) into scheduling_emails via the kscw-endpoints IMAP sync,
+  // so opponent replies surface in the Mailbox tab. The endpoint syncs every
+  // configured account; this stays dormant until at least one account's IMAP
+  // password is set on the container.
   schedule('*/10 * * * *', async () => {
-    if (!process.env.SCHEDULING_IMAP_PASSWORD) return
+    if (!process.env.SCHEDULING_IMAP_PASSWORD && !process.env.SCHEDULING_IMAP_PASSWORD_BASKETBALL) return
     const startedAt = Date.now()
     try {
       const token = await getCronAccessToken(log, 'Mailbox sync')

@@ -17,6 +17,7 @@ export default {
   hallenplan: 'Plan de salle',
   terminplanung: 'Planification des matchs',
   dashboard: 'Tableau de bord',
+  mailbox: 'Messagerie',
   settings: 'Paramètres',
   manageDb: 'Gerer la base de donnees',
   openInNewTab: 'Ouvrir dans un nouvel onglet',

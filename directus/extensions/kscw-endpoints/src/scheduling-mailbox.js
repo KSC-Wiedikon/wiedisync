@@ -34,17 +34,53 @@ import nodemailer from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { escHtml } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
-import { SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT } from './scheduling-signature.js'
+import {
+  SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT,
+  SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML, SCHEDULING_SIGNATURE_BASKETBALL_TEXT,
+} from './scheduling-signature.js'
 
+// Same Migadu server for both mailboxes; only the credentials + From differ.
 const IMAP_HOST = process.env.SCHEDULING_IMAP_HOST || 'imap.migadu.com'
 const IMAP_PORT = Number(process.env.SCHEDULING_IMAP_PORT || 993)
-const IMAP_USER = process.env.SCHEDULING_IMAP_USER || 'volleyball@spielplanung.kscw.ch'
-const IMAP_PASSWORD = process.env.SCHEDULING_IMAP_PASSWORD || ''
 const SYNC_DAYS = Number(process.env.SCHEDULING_MAILBOX_SYNC_DAYS || 60)
 
-const SCHEDULING_FROM = 'volleyball@spielplanung.kscw.ch'
-// Keep in sync with SCHEDULING_FROM_NAME in game-scheduling.js.
-const FROM_NAME = 'KSCW VB Spielplanung'
+// The two mailbox accounts, keyed by sport. Each is "configured" (live) only
+// once its IMAP password env is set — volleyball keeps the original
+// SCHEDULING_IMAP_PASSWORD name for back-compat, basketball adds a *_BASKETBALL
+// pair. Outgoing mail is sent from each account's own address (DKIM-aligned for
+// spielplanung.kscw.ch) with its own branded signature. FROM_NAME stays in sync
+// with SCHEDULING_FROM_NAME in game-scheduling.js for the volleyball account.
+const ACCOUNTS = {
+  volleyball: {
+    sport: 'volleyball',
+    imapUser: process.env.SCHEDULING_IMAP_USER || 'volleyball@spielplanung.kscw.ch',
+    imapPassword: process.env.SCHEDULING_IMAP_PASSWORD || '',
+    fromAddress: 'volleyball@spielplanung.kscw.ch',
+    fromName: 'KSCW VB Spielplanung',
+    msgIdDomain: 'spielplanung.kscw.ch',
+    signatureHtml: SCHEDULING_SIGNATURE_LIGHT_HTML,
+    signatureText: SCHEDULING_SIGNATURE_TEXT,
+  },
+  basketball: {
+    sport: 'basketball',
+    imapUser: process.env.SCHEDULING_IMAP_USER_BASKETBALL || 'basketball@spielplanung.kscw.ch',
+    imapPassword: process.env.SCHEDULING_IMAP_PASSWORD_BASKETBALL || '',
+    fromAddress: 'basketball@spielplanung.kscw.ch',
+    fromName: 'KSCW BB Spielplanung',
+    msgIdDomain: 'spielplanung.kscw.ch',
+    signatureHtml: SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML,
+    signatureText: SCHEDULING_SIGNATURE_BASKETBALL_TEXT,
+  },
+}
+
+const accountConfigured = (acct) => Boolean(acct && acct.imapPassword)
+
+// Resolve a sport param to an ACCOUNTS entry, defaulting to volleyball for
+// back-compat. Returns null for an unknown sport so the route can 400.
+function resolveAccount(raw) {
+  const sport = String(raw || 'volleyball').toLowerCase()
+  return ACCOUNTS[sport] || null
+}
 
 // Body columns are text; cap to keep pathological messages from bloating rows.
 const MAX_BODY_CHARS = 500_000
@@ -57,8 +93,6 @@ const LIST_LIMIT = 500
 const ATTACH_MAX_FILES = 10
 const ATTACH_MAX_PER_FILE = 10 * 1024 * 1024
 const ATTACH_MAX_TOTAL = 10 * 1024 * 1024
-
-const isConfigured = () => Boolean(IMAP_PASSWORD)
 
 /**
  * Parse a multipart/form-data reply (text fields + attachment files) with
@@ -137,12 +171,12 @@ function htmlToPlain(html) {
     .trim()
 }
 
-function imapClient() {
+function imapClient(acct) {
   return new ImapFlow({
     host: IMAP_HOST,
     port: IMAP_PORT,
     secure: true,
-    auth: { user: IMAP_USER, pass: IMAP_PASSWORD },
+    auth: { user: acct.imapUser, pass: acct.imapPassword },
     logger: false,
   })
 }
@@ -165,7 +199,7 @@ function flattenAddresses(obj) {
 
 const stripBrackets = (id) => String(id || '').replace(/^<|>$/g, '').trim()
 
-function parsedToRow(parsed, { folder, uid, uidValidity, internalDate, direction }) {
+function parsedToRow(parsed, { account, folder, uid, uidValidity, internalDate, direction }) {
   const from = flattenAddresses(parsed.from)[0] || null
   const to = flattenAddresses(parsed.to).map((a) => a.address)
   const cc = flattenAddresses(parsed.cc).map((a) => a.address)
@@ -177,6 +211,7 @@ function parsedToRow(parsed, { folder, uid, uidValidity, internalDate, direction
   }))
   const messageId = stripBrackets(parsed.messageId) || `${folder}-${uidValidity || 0}-${uid}@sync.local`
   return {
+    account,
     message_id: messageId,
     in_reply_to: stripBrackets(parsed.inReplyTo) || null,
     references_ids: refs,
@@ -196,6 +231,32 @@ function parsedToRow(parsed, { folder, uid, uidValidity, internalDate, direction
   }
 }
 
+// Re-fetch a stored message's parsed attachments live from IMAP (content is
+// never stored locally). Shared by the forward path (re-attach the original's
+// files) and the single-attachment download route. Throws an Error with a
+// `.status` (404/410) when the source can't be resolved to the same message.
+async function fetchMessageAttachments(acct, row) {
+  if (!row.folder || !row.imap_uid) { const e = new Error('No IMAP source for this message'); e.status = 410; throw e }
+  const client = imapClient(acct)
+  await client.connect()
+  try {
+    const lock = await client.getMailboxLock(row.folder)
+    let msg
+    try {
+      msg = await client.fetchOne(String(row.imap_uid), { source: true }, { uid: true })
+    } finally {
+      lock.release()
+    }
+    if (!msg || !msg.source) { const e = new Error('Message no longer at stored IMAP location'); e.status = 410; throw e }
+    const parsed = await simpleParser(msg.source)
+    // UID reuse safety: make sure we fetched the same message we stored.
+    if (stripBrackets(parsed.messageId) !== row.message_id) { const e = new Error('Message no longer at stored IMAP location'); e.status = 410; throw e }
+    return parsed.attachments || []
+  } finally {
+    await client.logout().catch(() => {})
+  }
+}
+
 async function findSentFolder(client) {
   const folders = await client.list()
   const byUse = folders.find((f) => f.specialUse === '\\Sent')
@@ -204,18 +265,19 @@ async function findSentFolder(client) {
   return byName?.path || 'Sent'
 }
 
-async function syncFolder(client, database, log, folder, direction, since) {
+async function syncFolder(client, database, log, folder, direction, since, acct) {
   const lock = await client.getMailboxLock(folder)
   let processed = 0
   try {
     const uidValidity = client.mailbox?.uidValidity ? String(client.mailbox.uidValidity) : null
     const uids = await client.search({ since }, { uid: true })
     if (!uids || uids.length === 0) return 0
-    // Cheap delta: skip UIDs we already hold for this folder, so the 10-min
-    // cron doesn't re-download the whole window every run. Message-ID conflict
-    // handling below stays the actual dedupe (covers moves + app-sent copies).
+    // Cheap delta: skip UIDs we already hold for this account+folder, so the
+    // 10-min cron doesn't re-download the whole window every run. Message-ID
+    // conflict handling below stays the actual dedupe (covers moves + app-sent
+    // copies). Scoped by account so the two mailboxes never alias UIDs.
     const existing = await database('scheduling_emails')
-      .where({ folder })
+      .where({ account: acct.sport, folder })
       .whereIn('imap_uid', uids)
       .pluck('imap_uid')
     const existingSet = new Set(existing.map(Number))
@@ -225,17 +287,18 @@ async function syncFolder(client, database, log, folder, direction, since) {
         const msg = await client.fetchOne(String(uid), { source: true, internalDate: true }, { uid: true })
         if (!msg || !msg.source) continue
         const parsed = await simpleParser(msg.source)
-        const row = parsedToRow(parsed, { folder, uid, uidValidity, internalDate: msg.internalDate, direction })
+        const row = parsedToRow(parsed, { account: acct.sport, folder, uid, uidValidity, internalDate: msg.internalDate, direction })
         // App-sent replies are inserted at send time with folder=null; when the
         // Sent sync later sees the appended copy, merge folder/uid back in so
         // attachments stay streamable. Everything else: first writer wins.
+        // Dedup is per-account (UNIQUE (account, message_id) — migration 141).
         await database('scheduling_emails')
           .insert(row)
-          .onConflict('message_id')
+          .onConflict(['account', 'message_id'])
           .merge(['folder', 'imap_uid'])
         processed++
       } catch (err) {
-        log.warn(`Mailbox sync: failed to ingest ${folder} uid ${uid}: ${err.message}`)
+        log.warn(`Mailbox sync: failed to ingest ${acct.sport} ${folder} uid ${uid}: ${err.message}`)
       }
     }
     return processed
@@ -244,38 +307,62 @@ async function syncFolder(client, database, log, folder, direction, since) {
   }
 }
 
-let syncRunning = false
+// Per-account run guard so one stuck mailbox never blocks the other.
+const syncRunningFor = new Set()
 
-export async function runMailboxSync(database, log) {
-  if (!isConfigured()) return { configured: false, processed: 0 }
-  if (syncRunning) return { configured: true, processed: 0, skipped: 'already_running' }
-  syncRunning = true
-  const client = imapClient()
-  try {
-    await client.connect()
-    const since = new Date(Date.now() - SYNC_DAYS * 86400000)
-    const sentFolder = await findSentFolder(client)
-    const inbox = await syncFolder(client, database, log, 'INBOX', 'in', since)
-    const sent = await syncFolder(client, database, log, sentFolder, 'out', since)
-    return { configured: true, processed: inbox + sent }
-  } finally {
-    syncRunning = false
-    await client.logout().catch(() => {})
+// Sync the configured mailbox accounts (INBOX + Sent each). `onlySport` limits
+// the run to one account (a UI "Check now" for the active toggle); omitted (the
+// cron) syncs every configured account. One IMAP login per account, sequential.
+export async function runMailboxSync(database, log, onlySport = null) {
+  const accounts = Object.values(ACCOUNTS).filter(
+    (a) => accountConfigured(a) && (!onlySport || a.sport === onlySport),
+  )
+  if (accounts.length === 0) return { configured: false, processed: 0, accounts: [] }
+  const results = []
+  for (const acct of accounts) {
+    if (syncRunningFor.has(acct.sport)) { results.push({ account: acct.sport, skipped: 'already_running' }); continue }
+    syncRunningFor.add(acct.sport)
+    const client = imapClient(acct)
+    try {
+      await client.connect()
+      const since = new Date(Date.now() - SYNC_DAYS * 86400000)
+      const sentFolder = await findSentFolder(client)
+      const inbox = await syncFolder(client, database, log, 'INBOX', 'in', since, acct)
+      const sent = await syncFolder(client, database, log, sentFolder, 'out', since, acct)
+      results.push({ account: acct.sport, processed: inbox + sent })
+    } catch (err) {
+      log.warn(`Mailbox sync (${acct.sport}) failed: ${err.message}`)
+      results.push({ account: acct.sport, error: err.message })
+    } finally {
+      syncRunningFor.delete(acct.sport)
+      await client.logout().catch(() => {})
+    }
   }
+  const processed = results.reduce((n, r) => n + (r.processed || 0), 0)
+  return { configured: true, processed, accounts: results }
 }
 
 export function registerSchedulingMailbox(router, { database, logger }) {
   const log = logger.child({ endpoint: 'scheduling-mailbox' })
 
-  // Same gate as the other operational /admin/terminplanung/* endpoints: full
-  // admin OR club-wide Spielplaner. The mailbox is the club's shared
-  // scheduling identity, so no per-team scoping.
-  async function isAdminOrSpielplaner(req) {
+  // Per-sport gate. The mailbox is the club's shared scheduling identity (no
+  // per-team scoping), but the two accounts are gated by sport:
+  //   volleyball → Directus superadmin OR app admin/vb_admin OR is_spielplaner
+  //                (preserves the original mailbox behaviour — is_spielplaner is
+  //                the club-wide volleyball-scheduler grant)
+  //   basketball → Directus superadmin OR app admin/bb_admin
+  // So a vb_admin can't touch the basketball mailbox and vice-versa.
+  async function authForSport(req, sport) {
     if (req.accountability?.admin) return true
     const userId = req.accountability?.user
     if (!userId) return false
-    const member = await database('members').where('user', userId).select('is_spielplaner').first()
-    return member?.is_spielplaner === true
+    const member = await database('members').where('user', userId).select('role', 'is_spielplaner').first()
+    if (!member) return false
+    const roles = member.role ? (typeof member.role === 'string' ? JSON.parse(member.role) : member.role) : []
+    if (roles.includes('admin') || roles.includes('superuser')) return true
+    if (sport === 'volleyball') return roles.includes('vb_admin') || member.is_spielplaner === true
+    if (sport === 'basketball') return roles.includes('bb_admin')
+    return false
   }
 
   const fail = (res, route, err, req) => {
@@ -286,14 +373,17 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   // GET /kscw/admin/terminplanung/mailbox — message list (no bodies) + unread
   // count + last sync heartbeat. Opponent matching happens in the frontend.
   router.get('/admin/terminplanung/mailbox', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    const acct = resolveAccount(req.query.sport)
+    if (!acct) return res.status(400).json({ error: 'Unknown sport' })
+    if (!(await authForSport(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
     try {
-      if (!isConfigured()) return res.json({ configured: false, unread: 0, messages: [], last_sync: null })
+      if (!accountConfigured(acct)) return res.json({ configured: false, unread: 0, messages: [], last_sync: null })
       // Optional full-text search: subject + sender/recipient AND body_text.
       // ≥2 chars to avoid scanning the whole table on a single keystroke; LIKE
       // wildcards in the term are escaped so they're matched literally.
       const search = String(req.query.search || '').trim().slice(0, 100)
       let q = database('scheduling_emails')
+        .where({ account: acct.sport })
         .select('id', 'direction', 'from_address', 'from_name', 'to_addresses', 'cc_addresses', 'subject', 'date_sent', 'read_at', 'has_attachments', 'in_reply_to', 'message_id', 'assigned_opponent',
           database.raw('left(coalesce(body_text, \'\'), 160) as snippet'))
       if (search.length >= 2) {
@@ -309,7 +399,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       const rows = await q
         .orderBy([{ column: 'date_sent', order: 'desc', nulls: 'last' }])
         .limit(LIST_LIMIT)
-      const [{ count }] = await database('scheduling_emails').where({ direction: 'in' }).whereNull('read_at').count('id as count')
+      const [{ count }] = await database('scheduling_emails').where({ account: acct.sport, direction: 'in' }).whereNull('read_at').count('id as count')
       const sync = await database('sync_runs').where({ source: 'mailbox_sync' }).first().catch(() => null)
       res.json({ configured: true, unread: Number(count), messages: rows, last_sync: sync?.last_run_at || null })
     } catch (err) { fail(res, 'admin/terminplanung/mailbox', err, req) }
@@ -318,9 +408,11 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   // GET /kscw/admin/terminplanung/mailbox/message/:id — full body; opening an
   // inbound message IS the read action, so it stamps read_at.
   router.get('/admin/terminplanung/mailbox/message/:id', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    const acct = resolveAccount(req.query.sport)
+    if (!acct) return res.status(400).json({ error: 'Unknown sport' })
+    if (!(await authForSport(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
     try {
-      const row = await database('scheduling_emails').where('id', Number(req.params.id)).first()
+      const row = await database('scheduling_emails').where({ id: Number(req.params.id), account: acct.sport }).first()
       if (!row) return res.status(404).json({ error: 'Message not found' })
       if (row.direction === 'in' && !row.read_at) {
         row.read_at = new Date().toISOString()
@@ -336,7 +428,11 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   // opponent_id:null to clear back to auto-classification. Actor-logged per the
   // audit rule (raw-knex write bypasses the items-API audit hook).
   router.post('/admin/terminplanung/mailbox/assign', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    // Opponent assignment is volleyball-only — basketball has no opponent rows.
+    const acct = resolveAccount(req.query.sport ?? (req.body && req.body.sport))
+    if (!acct) return res.status(400).json({ error: 'Unknown sport' })
+    if (acct.sport !== 'volleyball') return res.status(400).json({ error: 'Opponent assignment is volleyball-only' })
+    if (!(await authForSport(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
     try {
       const body = req.body || {}
       const ids = Array.isArray(body.ids)
@@ -354,7 +450,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         if (!opp) return res.status(404).json({ error: 'Opponent not found' })
       }
 
-      const updated = await database('scheduling_emails').whereIn('id', ids).update({ assigned_opponent: opponentId })
+      const updated = await database('scheduling_emails').where({ account: 'volleyball' }).whereIn('id', ids).update({ assigned_opponent: opponentId })
       await writeUserLog(database, log, {
         accountability: req.accountability,
         action: 'update',
@@ -366,24 +462,37 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     } catch (err) { fail(res, 'admin/terminplanung/mailbox/assign', err, req) }
   })
 
-  // POST /kscw/admin/terminplanung/mailbox/sync — pull now (also the cron's
-  // entry point, called via localhost with the cron service token).
+  // POST /kscw/admin/terminplanung/mailbox/sync — pull now. The UI passes the
+  // active toggle's `sport` → sync only that account (gated for that sport). The
+  // cron passes no sport → must be a Directus admin (the cron service token is)
+  // → sync every configured account.
   router.post('/admin/terminplanung/mailbox/sync', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    const sportRaw = req.query.sport ?? (req.body && req.body.sport)
     try {
-      const result = await runMailboxSync(database, log)
-      res.json(result)
+      if (sportRaw != null && String(sportRaw) !== '') {
+        const acct = resolveAccount(sportRaw)
+        if (!acct) return res.status(400).json({ error: 'Unknown sport' })
+        if (!(await authForSport(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
+        return res.json(await runMailboxSync(database, log, acct.sport))
+      }
+      if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin only' })
+      res.json(await runMailboxSync(database, log))
     } catch (err) { fail(res, 'admin/terminplanung/mailbox/sync', err, req) }
   })
 
-  // POST /kscw/admin/terminplanung/mailbox/reply — compose + send.
-  // Body: { to, cc?, subject, text, reply_to_id? }. Raw MIME via MailComposer
-  // so we own Message-ID + threading headers; sent over the container's SES
-  // SMTP (DKIM-aligned for spielplanung.kscw.ch), then appended to Migadu Sent.
+  // POST /kscw/admin/terminplanung/mailbox/reply — compose + send (also handles
+  // reply-all via `cc`, and forward via `forward_from_id`/`forward_attach_indices`,
+  // which re-attaches the source message's files from IMAP). The active account
+  // comes from `?sport=` (query, so auth runs before the multipart body is read;
+  // defaults to volleyball for legacy callers). Raw MIME via MailComposer so we
+  // own Message-ID + threading headers; sent over the container's SES SMTP
+  // (DKIM-aligned for spielplanung.kscw.ch), then appended to Migadu Sent.
   router.post('/admin/terminplanung/mailbox/reply', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    const acct = resolveAccount(req.query.sport)
+    if (!acct) return res.status(400).json({ error: 'Unknown sport' })
+    if (!(await authForSport(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
     try {
-      if (!isConfigured()) return res.status(409).json({ error: 'Mailbox not configured' })
+      if (!accountConfigured(acct)) return res.status(409).json({ error: 'Mailbox not configured' })
 
       // The compose dialog now posts multipart/form-data (rich-text HTML body +
       // file attachments). A plain JSON body is still accepted for callers that
@@ -400,8 +509,12 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         }
       }
 
-      const to = cleanAddresses(body.to)
-      const cc = cleanAddresses(body.cc)
+      // Strip our own mailbox address out of To/Cc (reply-all would otherwise
+      // mail the account back, doubling rows), and de-dupe a To↔Cc overlap.
+      const self = acct.fromAddress.toLowerCase()
+      const to = cleanAddresses(body.to).filter((a) => a.toLowerCase() !== self)
+      const toSet = new Set(to.map((a) => a.toLowerCase()))
+      const cc = cleanAddresses(body.cc).filter((a) => a.toLowerCase() !== self && !toSet.has(a.toLowerCase()))
       const subject = String(body.subject || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 300)
 
       // Body: rich-text HTML (TipTap) is primary; fall back to a plain-text body
@@ -421,31 +534,66 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       if (!to.length) return res.status(400).json({ error: 'No valid recipient' })
       if (!subject || !bodyContentHtml.trim()) return res.status(400).json({ error: 'subject and body required' })
 
-      // Threading: chain References from the replied-to message.
+      // Threading: chain References from the replied-to message (same account).
+      // A forward (forward_from_id) starts a NEW thread, so it never sets these.
       let inReplyTo, references
-      if (body.reply_to_id) {
-        const parent = await database('scheduling_emails').where('id', Number(body.reply_to_id)).first()
+      if (body.reply_to_id && !body.forward_from_id) {
+        const parent = await database('scheduling_emails').where({ id: Number(body.reply_to_id), account: acct.sport }).first()
         if (parent?.message_id && !parent.message_id.endsWith('@sync.local')) {
           inReplyTo = `<${parent.message_id}>`
           references = [parent.references_ids, `<${parent.message_id}>`].filter(Boolean).join(' ')
         }
       }
 
-      // Append the Spielplanung signature: plain-text version on the text part,
-      // and a light HTML part (rich body → HTML + branded signature card) so the
-      // crest/contacts render.
-      const textWithSig = `${plainContent}\n\n${SCHEDULING_SIGNATURE_TEXT}`
+      // Forward: re-attach the source message's files, fetched live from IMAP so
+      // the user doesn't have to re-download + re-upload each one. Optional
+      // forward_attach_indices (JSON array / comma list) selects a subset.
+      let forwardedAtt = []
+      if (body.forward_from_id) {
+        const src = await database('scheduling_emails').where({ id: Number(body.forward_from_id), account: acct.sport }).first()
+        if (!src) return res.status(404).json({ error: 'Forward source not found' })
+        let picked = null
+        if (body.forward_attach_indices != null && String(body.forward_attach_indices) !== '') {
+          try { picked = JSON.parse(body.forward_attach_indices) } catch { picked = String(body.forward_attach_indices).split(',') }
+          picked = new Set((Array.isArray(picked) ? picked : []).map((n) => Number(n)).filter((n) => Number.isInteger(n) && n >= 0))
+        }
+        try {
+          const srcAtt = await fetchMessageAttachments(acct, src)
+          forwardedAtt = srcAtt
+            .map((a, i) => ({ a, i }))
+            .filter(({ i }) => !picked || picked.has(i))
+            .map(({ a, i }) => ({ filename: a.filename || `attachment-${i + 1}`, content: a.content, contentType: a.contentType || 'application/octet-stream' }))
+        } catch (err) {
+          return res.status(err.status || 502).json({ error: err.message || 'Could not load forwarded attachments' })
+        }
+      }
+
+      // Append the account's Spielplanung signature: plain-text on the text part,
+      // and a light HTML part (rich body → HTML + branded signature card).
+      const textWithSig = `${plainContent}\n\n${acct.signatureText}`
       const htmlBody =
         `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:14px;line-height:1.5">` +
         `${bodyContentHtml}` +
         `</div><br>` +
-        SCHEDULING_SIGNATURE_LIGHT_HTML
+        acct.signatureHtml
 
-      const attachments = uploads.map((u) => ({ filename: u.filename, content: u.content, contentType: u.contentType }))
+      const attachments = [
+        ...uploads.map((u) => ({ filename: u.filename, content: u.content, contentType: u.contentType })),
+        ...forwardedAtt,
+      ]
+      // Enforce the outgoing caps across the COMBINED set (uploads + forwarded).
+      if (attachments.length > ATTACH_MAX_FILES) return res.status(413).json({ error: 'Too many attachments' })
+      let attachTotal = 0
+      for (const a of attachments) {
+        const sz = a.content?.length || 0
+        if (sz > ATTACH_MAX_PER_FILE) return res.status(413).json({ error: 'Attachment too large' })
+        attachTotal += sz
+      }
+      if (attachTotal > ATTACH_MAX_TOTAL) return res.status(413).json({ error: 'Attachments exceed total size limit' })
 
-      const messageId = `<${crypto.randomUUID()}@spielplanung.kscw.ch>`
+      const messageId = `<${crypto.randomUUID()}@${acct.msgIdDomain}>`
       const composer = new MailComposer({
-        from: { name: FROM_NAME, address: SCHEDULING_FROM },
+        from: { name: acct.fromName, address: acct.fromAddress },
         to, cc: cc.length ? cc : undefined, subject, text: textWithSig, html: htmlBody,
         attachments: attachments.length ? attachments : undefined,
         messageId, inReplyTo, references,
@@ -458,15 +606,15 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         secure: String(process.env.EMAIL_SMTP_SECURE) === 'true',
         auth: { user: process.env.EMAIL_SMTP_USER, pass: process.env.EMAIL_SMTP_PASSWORD },
       })
-      await transport.sendMail({ envelope: { from: SCHEDULING_FROM, to: [...to, ...cc] }, raw })
+      await transport.sendMail({ envelope: { from: acct.fromAddress, to: [...to, ...cc] }, raw })
 
-      // Best-effort: mirror into the Migadu Sent folder so webmail stays the
-      // full record. UIDPLUS gives us folder/uid for attachment streaming;
-      // failure here never fails the send (the row below still logs it).
+      // Best-effort: mirror into the account's Migadu Sent folder so webmail
+      // stays the full record. UIDPLUS gives us folder/uid for attachment
+      // streaming; failure here never fails the send (the row below still logs it).
       let folder = null
       let imapUid = null
       try {
-        const client = imapClient()
+        const client = imapClient(acct)
         await client.connect()
         try {
           const sentFolder = await findSentFolder(client)
@@ -482,14 +630,15 @@ export function registerSchedulingMailbox(router, { database, logger }) {
 
       const [inserted] = await database('scheduling_emails')
         .insert({
+          account: acct.sport,
           message_id: stripBrackets(messageId),
           in_reply_to: stripBrackets(inReplyTo) || null,
           references_ids: references || null,
           direction: 'out',
           folder,
           imap_uid: imapUid,
-          from_address: SCHEDULING_FROM,
-          from_name: FROM_NAME,
+          from_address: acct.fromAddress,
+          from_name: acct.fromName,
           to_addresses: to.join(','),
           cc_addresses: cc.join(',') || null,
           subject,
@@ -502,7 +651,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
           date_sent: new Date().toISOString(),
           read_at: new Date().toISOString(),
         })
-        .onConflict('message_id')
+        .onConflict(['account', 'message_id'])
         .ignore()
         .returning('id')
       res.json({ success: true, id: inserted?.id ?? inserted ?? null })
@@ -514,38 +663,25 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   // stored folder/uid no longer resolves to the same message — a fresh sync
   // re-points it.
   router.get('/admin/terminplanung/mailbox/attachment/:id/:index', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    const acct = resolveAccount(req.query.sport)
+    if (!acct) return res.status(400).json({ error: 'Unknown sport' })
+    if (!(await authForSport(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
     try {
-      if (!isConfigured()) return res.status(409).json({ error: 'Mailbox not configured' })
-      const row = await database('scheduling_emails').where('id', Number(req.params.id)).first()
+      if (!accountConfigured(acct)) return res.status(409).json({ error: 'Mailbox not configured' })
+      const row = await database('scheduling_emails').where({ id: Number(req.params.id), account: acct.sport }).first()
       if (!row) return res.status(404).json({ error: 'Message not found' })
-      if (!row.folder || !row.imap_uid) return res.status(410).json({ error: 'No IMAP source for this message' })
       const index = Number(req.params.index)
-      const client = imapClient()
-      await client.connect()
+      let att
       try {
-        const lock = await client.getMailboxLock(row.folder)
-        let msg
-        try {
-          msg = await client.fetchOne(String(row.imap_uid), { source: true }, { uid: true })
-        } finally {
-          lock.release()
-        }
-        if (!msg || !msg.source) return res.status(410).json({ error: 'Message no longer at stored IMAP location' })
-        const parsed = await simpleParser(msg.source)
-        // UID reuse safety: make sure we fetched the same message we stored.
-        if (stripBrackets(parsed.messageId) !== row.message_id) {
-          return res.status(410).json({ error: 'Message no longer at stored IMAP location' })
-        }
-        const att = (parsed.attachments || [])[index]
-        if (!att) return res.status(404).json({ error: 'Attachment not found' })
-        const filename = (att.filename || `attachment-${index + 1}`).replace(/[\r\n"]/g, '')
-        res.setHeader('Content-Type', att.contentType || 'application/octet-stream')
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-        res.send(att.content)
-      } finally {
-        await client.logout().catch(() => {})
+        att = (await fetchMessageAttachments(acct, row))[index]
+      } catch (err) {
+        return res.status(err.status || 410).json({ error: err.message || 'Message no longer at stored IMAP location' })
       }
+      if (!att) return res.status(404).json({ error: 'Attachment not found' })
+      const filename = (att.filename || `attachment-${index + 1}`).replace(/[\r\n"]/g, '')
+      res.setHeader('Content-Type', att.contentType || 'application/octet-stream')
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+      res.send(att.content)
     } catch (err) { fail(res, 'admin/terminplanung/mailbox/attachment', err, req) }
   })
 }

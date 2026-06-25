@@ -48,9 +48,17 @@ export interface MailboxReplyPayload {
   /** Rich-text HTML body from the TipTap editor. */
   html: string
   reply_to_id?: number
+  /** Forward: source message id whose attachments to re-attach (server fetches
+   *  them live from IMAP). Starts a new thread (no In-Reply-To). */
+  forward_from_id?: number
+  /** Which of the forward source's attachments to include (omit = all). */
+  forward_attach_indices?: number[]
   /** Files to attach; posted as multipart/form-data. */
   attachments?: File[]
 }
+
+/** The mailbox account a hook/call targets — one Migadu mailbox each. */
+export type MailboxSport = 'volleyball' | 'basketball'
 
 /** Lower-cased bare addresses from a comma/semicolon-joined contact_email. */
 export function contactAddressSet(opp: Pick<GameSchedulingOpponent, 'contact_email'>): Set<string> {
@@ -406,8 +414,8 @@ export function messagesForOpponentThread(
  * Download an attachment through the authed endpoint (a plain <a href> can't
  * carry the Bearer token). Streams live from IMAP server-side.
  */
-export async function downloadMailboxAttachment(messageId: number, index: number, filename: string): Promise<void> {
-  const res = await fetch(`${API_URL}/kscw/admin/terminplanung/mailbox/attachment/${messageId}/${index}`, {
+export async function downloadMailboxAttachment(messageId: number, index: number, filename: string, sport: MailboxSport = 'volleyball'): Promise<void> {
+  const res = await fetch(`${API_URL}/kscw/admin/terminplanung/mailbox/attachment/${messageId}/${index}?sport=${sport}`, {
     credentials: 'include',
   })
   if (!res.ok) throw new Error(`Attachment download failed (${res.status})`)
@@ -452,7 +460,7 @@ export interface UseMailboxReturn {
   assignThread: (ids: number[], opponentId: number | null) => Promise<void>
 }
 
-export function useMailbox(enabled: boolean = true): UseMailboxReturn {
+export function useMailbox(enabled: boolean = true, sport: MailboxSport = 'volleyball'): UseMailboxReturn {
   const [configured, setConfigured] = useState<boolean | null>(null)
   const [messages, setMessages] = useState<MailboxMessage[]>([])
   const [unread, setUnread] = useState(0)
@@ -467,7 +475,7 @@ export function useMailbox(enabled: boolean = true): UseMailboxReturn {
   const refetch = useCallback(async () => {
     const seq = ++fetchSeq.current
     try {
-      const resp = await kscwApi<MailboxListResponse>('/admin/terminplanung/mailbox')
+      const resp = await kscwApi<MailboxListResponse>(`/admin/terminplanung/mailbox?sport=${sport}`)
       if (seq !== fetchSeq.current) return
       setConfigured(resp.configured)
       setMessages(Array.isArray(resp.messages) ? resp.messages : [])
@@ -476,7 +484,7 @@ export function useMailbox(enabled: boolean = true): UseMailboxReturn {
     } finally {
       if (seq === fetchSeq.current) setIsLoading(false)
     }
-  }, [])
+  }, [sport])
 
   useEffect(() => {
     if (!enabled) return
@@ -486,15 +494,15 @@ export function useMailbox(enabled: boolean = true): UseMailboxReturn {
   const sync = useCallback(async () => {
     setSyncing(true)
     try {
-      await kscwApi('/admin/terminplanung/mailbox/sync', { method: 'POST' })
+      await kscwApi(`/admin/terminplanung/mailbox/sync?sport=${sport}`, { method: 'POST' })
       await refetch()
     } finally {
       setSyncing(false)
     }
-  }, [refetch])
+  }, [refetch, sport])
 
   const loadMessage = useCallback(async (id: number) => {
-    const resp = await kscwApi<{ message: MailboxMessageFull }>(`/admin/terminplanung/mailbox/message/${id}`)
+    const resp = await kscwApi<{ message: MailboxMessageFull }>(`/admin/terminplanung/mailbox/message/${id}?sport=${sport}`)
     const msg = resp.message
     if (msg.read_at) {
       setMessages((prev) => {
@@ -508,7 +516,7 @@ export function useMailbox(enabled: boolean = true): UseMailboxReturn {
       })
     }
     return msg
-  }, [])
+  }, [sport])
 
   // Posts multipart/form-data (HTML body + attachment files) via a raw fetch —
   // kscwApi only speaks JSON, and attachments would exceed Directus's 1 MB JSON
@@ -522,8 +530,12 @@ export function useMailbox(enabled: boolean = true): UseMailboxReturn {
       fd.append('subject', payload.subject)
       fd.append('html', payload.html)
       if (payload.reply_to_id != null) fd.append('reply_to_id', String(payload.reply_to_id))
+      if (payload.forward_from_id != null) fd.append('forward_from_id', String(payload.forward_from_id))
+      if (payload.forward_attach_indices != null) fd.append('forward_attach_indices', JSON.stringify(payload.forward_attach_indices))
       for (const f of payload.attachments || []) fd.append('attachments', f, f.name)
-      const res = await fetch(`${API_URL}/kscw/admin/terminplanung/mailbox/reply`, {
+      // sport goes in the query string so the server authorizes the account
+      // before parsing the multipart body.
+      const res = await fetch(`${API_URL}/kscw/admin/terminplanung/mailbox/reply?sport=${sport}`, {
         method: 'POST',
         credentials: 'include',
         body: fd,
@@ -542,28 +554,29 @@ export function useMailbox(enabled: boolean = true): UseMailboxReturn {
     } finally {
       setSending(false)
     }
-  }, [refetch])
+  }, [refetch, sport])
 
   // Server-side full-text search (subject + sender/recipient + body_text). Does
   // NOT mutate the cached `messages` list — the panel keeps its own results
   // state so the opponent thread/chip features still read the full list.
   const searchMessages = useCallback(async (q: string) => {
     const resp = await kscwApi<MailboxListResponse>(
-      `/admin/terminplanung/mailbox?search=${encodeURIComponent(q)}`)
+      `/admin/terminplanung/mailbox?sport=${sport}&search=${encodeURIComponent(q)}`)
     return Array.isArray(resp.messages) ? resp.messages : []
-  }, [])
+  }, [sport])
 
   // Pin / unpin an email chain to an opponent. Optimistically patches the cached
   // list so the chip + thread update instantly, then refetches for consistency.
+  // Volleyball-only (basketball has no opponents) — the server enforces this.
   const assignThread = useCallback(async (ids: number[], opponentId: number | null) => {
     const idSet = new Set(ids)
     setMessages((prev) => prev.map((m) => (idSet.has(m.id) ? { ...m, assigned_opponent: opponentId } : m)))
-    await kscwApi('/admin/terminplanung/mailbox/assign', {
+    await kscwApi(`/admin/terminplanung/mailbox/assign?sport=${sport}`, {
       method: 'POST',
       body: { ids, opponent_id: opponentId },
     })
     await refetch()
-  }, [refetch])
+  }, [refetch, sport])
 
   return { configured, messages, unread, lastSync, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages, assignThread }
 }
