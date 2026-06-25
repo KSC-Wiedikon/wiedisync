@@ -528,3 +528,31 @@ export const saveBudgetLine = (input: { fiscal_year: number; account: number; am
   kscwApi<{ budget: FinanceBudgetLine }>('/finance/budget', { method: 'POST', body: input })
 export const deleteBudgetLine = (id: number) =>
   kscwApi<{ ok: true }>(`/finance/budget/${id}`, { method: 'DELETE' })
+
+// ── Dunning / Mahnwesen — reminders on overdue native invoices (migration 146) ──
+
+export interface DunningCandidate {
+  id: number
+  number: string | null
+  recipient_name: string | null
+  recipient_email: string | null
+  amount: number | string
+  open_amount: number | string
+  due_date: string | null
+  dunning_level: number
+  member: number | null
+  never_dun: boolean | null
+}
+/** Overdue native invoices for the dunning console (finance/board). */
+export function useDunningCandidates(enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'dunning-candidates'],
+    queryFn: () => kscwApi<{ candidates: DunningCandidate[]; today: string }>('/finance/dunning/candidates'),
+    enabled,
+  })
+}
+export interface EscalateInput { level: number; reminder_fee?: number; send_email?: boolean; force?: boolean }
+export const escalateDunning = (id: number, input: EscalateInput) =>
+  kscwApi<{ ok: true; level: number; channel: string; send_result: string }>(`/finance/dunning/${id}/escalate`, { method: 'POST', body: input })
+export const setMemberNeverDun = (memberId: number, value: boolean) =>
+  kscwApi<{ ok: true; never_dun: boolean }>(`/finance/members/${memberId}/never-dun`, { method: 'POST', body: { value } })

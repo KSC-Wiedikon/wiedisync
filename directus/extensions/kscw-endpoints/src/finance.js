@@ -91,6 +91,27 @@ function composeDuesEmail(inv, amount, runLabel, { testMode, realRecipient, hasA
   })
 }
 
+/** Compose a payment reminder (Mahnung) email. */
+function composeDunningEmail(inv, total, level, fee, { testMode, realRecipient }) {
+  const chf = (n) => `CHF ${Number(n).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const rows = [
+    { label: 'Rechnung', value: inv.number || '–', halfWidth: true },
+    { label: 'Offener Betrag', value: chf(total), halfWidth: true },
+  ]
+  if (fee > 0) rows.push({ label: 'Mahngebühr', value: chf(fee) })
+  if (inv.reference_type === 'SCOR' && inv.reference) rows.push({ label: 'Referenz', value: inv.reference })
+  let body = buildAlertBox('warning', `${level}. Mahnung`, 'Diese Rechnung ist noch offen. Bitte begleiche den Betrag bald.')
+    + buildInfoCard(rows)
+    + '<div style="font-size:14px;color:#cbd5e1;margin-top:12px">Die QR-Rechnung ist als PDF angehängt. Falls bereits bezahlt, bitte diese Mahnung ignorieren.</div>'
+  if (testMode) body = buildAlertBox('info', 'Testmodus', `Diese Mahnung wäre an ${realRecipient || 'das Mitglied'} gegangen.`) + body
+  const firstName = (inv.recipient_name || '').trim().split(/\s+/)[0]
+  return buildEmailLayout(body, {
+    title: `${level}. Mahnung`, subtitle: inv.number || '',
+    greeting: firstName ? `Hallo ${firstName}` : 'Hallo',
+    ctaUrl: `${FRONTEND_URL}/finance/dues`, ctaLabel: 'Rechnung ansehen',
+  })
+}
+
 export function registerFinance(router, { database, logger, services, getSchema }) {
   const log = logger.child({ extension: 'kscw-endpoints', module: 'finance' })
 
@@ -958,5 +979,108 @@ export function registerFinance(router, { database, logger, services, getSchema 
       await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_budget_lines', recordId: id, data: { removed } })
       return res.json({ ok: true, removed })
     } catch (e) { return err(res, req, 'budget-delete', e) }
+  })
+
+  // ── Dunning / Mahnwesen — reminders on overdue native invoices (migration 146) ──
+
+  // GET /finance/dunning/candidates — overdue native invoices + never-dun + level
+  router.get('/finance/dunning/candidates', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const today = todayISO()
+      const rows = await database('finance_invoices as fi')
+        .leftJoin('members as m', 'm.id', 'fi.member')
+        .where('fi.source', 'native').whereIn('fi.status', ['open', 'partial'])
+        .whereNotNull('fi.due_date').where('fi.due_date', '<', today).where('fi.open_amount', '>', 0)
+        .select('fi.id', 'fi.number', 'fi.recipient_name', 'fi.recipient_email', 'fi.amount', 'fi.open_amount',
+          'fi.due_date', 'fi.dunning_level', 'fi.member', 'm.never_dun')
+        .orderBy('fi.due_date', 'asc').limit(500)
+      return res.json({ candidates: rows, today })
+    } catch (e) { return err(res, req, 'dunning-candidates', e) }
+  })
+
+  // POST /finance/dunning/:id/escalate — record the next Mahnung (+ optional reminder email)
+  router.post('/finance/dunning/:id/escalate', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
+      if (!inv) return res.status(404).json({ error: 'Not found (native invoice expected)' })
+      if (!['open', 'partial'].includes(inv.status)) return res.status(409).json({ error: `Invoice is ${inv.status}` })
+      const level = Number(req.body?.level)
+      if (![1, 2, 3].includes(level)) return res.status(400).json({ error: 'level must be 1, 2 or 3' })
+      if (level !== (inv.dunning_level || 0) + 1) return res.status(409).json({ error: `Next level is ${(inv.dunning_level || 0) + 1}` })
+      const fee = round2(req.body?.reminder_fee || 0)
+      const sendEmail = req.body?.send_email === true
+
+      if (inv.member) {
+        const m = await database('members').where('id', inv.member).first('never_dun')
+        if (m?.never_dun && req.body?.force !== true) return res.status(409).json({ error: 'Member is flagged never-dun', never_dun: true })
+      }
+
+      let channel = 'manual', sentAt = null, sendResult = 'not_sent'
+      if (sendEmail && (inv.recipient_email || '').trim()) {
+        const settings = await emailSettings()
+        const to = settings.test_mode ? settings.test_recipient : inv.recipient_email
+        if (settings.test_mode && !settings.test_recipient) { sendResult = 'no_test_recipient' }
+        else if (to) {
+          try {
+            const schema = await getSchema()
+            const { MailService } = services
+            const mail = new MailService({ schema, knex: database })
+            const open = Number(inv.open_amount) > 0 ? Number(inv.open_amount) : Number(inv.amount)
+            const total = round2(open + fee)
+            const html = composeDunningEmail(inv, total, level, fee, { testMode: settings.test_mode, realRecipient: inv.recipient_email })
+            const attachments = []
+            try {
+              const message = [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n')
+              const pdf = await renderInvoiceQrBillPdf({ amount: total, number: inv.number, recipientName: inv.recipient_name, subject: inv.subject, message, reference: inv.reference_type === 'SCOR' ? inv.reference : null })
+              attachments.push({ filename: `${inv.number || 'Mahnung'}.pdf`, content: pdf, contentType: 'application/pdf' })
+            } catch { /* send without attachment */ }
+            await withTimeout(mail.send({ to, subject: `${settings.test_mode ? '[TEST] ' : ''}${level}. Mahnung — ${inv.number}`, html, ...(attachments.length ? { attachments } : {}) }), 60000, 'mahnung send timeout')
+            channel = 'email'; sentAt = new Date(); sendResult = settings.test_mode ? 'test' : 'sent'
+          } catch (e) { sendResult = 'send_failed'; log.warn?.({ msg: `mahnung email failed: ${e.message}`, invoice: inv.number }) }
+        }
+      }
+
+      try {
+        await database('finance_dunning_notices').insert({
+          invoice: id, level, reminder_fee: fee, channel, recipient_email: inv.recipient_email || null,
+          sent_at: sentAt, created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+        })
+      } catch (e) { if (e?.code === '23505') return res.status(409).json({ error: `Level ${level} already issued` }); throw e }
+      await database('finance_invoices').where('id', id).update({ dunning_level: level, dunning_status: `Mahnung ${level}`, date_updated: new Date() })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_dunning_notices', recordId: id, data: { kind: 'dunning_escalate', invoice: id, level, fee, channel, send_result: sendResult } })
+      return res.json({ ok: true, level, channel, send_result: sendResult })
+    } catch (e) { return err(res, req, 'dunning-escalate', e) }
+  })
+
+  // GET /finance/dunning/:id/history — notices for one invoice
+  router.get('/finance/dunning/:id/history', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const notices = await database('finance_dunning_notices').where('invoice', id)
+        .orderBy('level', 'asc').select('id', 'level', 'reminder_fee', 'channel', 'sent_at', 'created_by_name', 'date_created')
+      return res.json({ notices })
+    } catch (e) { return err(res, req, 'dunning-history', e) }
+  })
+
+  // POST /finance/members/:id/never-dun — toggle the per-member opt-out
+  router.post('/finance/members/:id/never-dun', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const value = req.body?.value === true
+      const m = Number.isInteger(id) ? await database('members').where('id', id).first('id') : null
+      if (!m) return res.status(404).json({ error: 'Not found' })
+      await database('members').where('id', id).update({ never_dun: value })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'members', recordId: id, data: { kind: 'never_dun', value } })
+      return res.json({ ok: true, never_dun: value })
+    } catch (e) { return err(res, req, 'never-dun', e) }
   })
 }
