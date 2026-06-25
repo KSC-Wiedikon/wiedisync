@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Search, Check, X, Link2, Loader2, Upload } from 'lucide-react'
+import { Plus, Search, Check, X, Link2, Loader2, Upload, Coins } from 'lucide-react'
 import Modal from '../../components/Modal'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { useCollection } from '../../lib/query'
@@ -13,6 +13,7 @@ import {
 } from '../../hooks/useFinance'
 import type { FinanceInvoice } from './types'
 import type { Member, Team } from '../../types'
+import PaymentLedgerModal from './PaymentLedgerModal'
 
 /** Searchable single-member picker (mirrors MemberMultiSelect's dropdown). */
 function MemberPicker({ value, onChange }: { value: Member | null; onChange: (m: Member | null) => void }) {
@@ -313,6 +314,7 @@ export default function InvoiceManager() {
   const invoices = invoicesRaw ?? []
   const [showCreate, setShowCreate] = useState(false)
   const [linkTarget, setLinkTarget] = useState<FinanceInvoice | null>(null)
+  const [paymentTarget, setPaymentTarget] = useState<FinanceInvoice | null>(null)
   const [orphanSearch, setOrphanSearch] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
 
@@ -337,7 +339,7 @@ export default function InvoiceManager() {
 
   const statusLabel = (s: string | null) => {
     const map: Record<string, string> = {
-      open: t('statusOpen'), pending_confirmation: t('statusPendingConfirmation'), paid: t('statusPaid'), cancelled: t('statusCancelled'),
+      open: t('statusOpen'), pending_confirmation: t('statusPendingConfirmation'), partial: t('statusPartial'), paid: t('statusPaid'), cancelled: t('statusCancelled'),
     }
     return map[s ?? ''] ?? s ?? '–'
   }
@@ -380,10 +382,16 @@ export default function InvoiceManager() {
                     <TableCell className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{statusLabel(inv.status)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1.5">
-                        {(inv.status === 'pending_confirmation' || inv.status === 'open') && (
+                        {['pending_confirmation', 'open', 'partial'].includes(inv.status ?? '') && (
                           <button type="button" disabled={busyId === inv.id} onClick={() => act(inv.id, confirmInvoice)}
                             className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50">
                             <Check className="h-3.5 w-3.5" />{t('confirmPaymentCta')}
+                          </button>
+                        )}
+                        {inv.status !== 'cancelled' && (
+                          <button type="button" onClick={() => setPaymentTarget(inv)}
+                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                            <Coins className="h-3.5 w-3.5" />{t('payButton')}
                           </button>
                         )}
                         {inv.status !== 'paid' && inv.status !== 'cancelled' && (
@@ -462,6 +470,7 @@ export default function InvoiceManager() {
 
       <CreateInvoiceModal open={showCreate} onClose={() => setShowCreate(false)} onDone={() => refetch()} />
       <LinkMemberModal invoice={linkTarget} onClose={() => setLinkTarget(null)} onDone={() => refetch()} />
+      <PaymentLedgerModal invoice={paymentTarget} onClose={() => setPaymentTarget(null)} onChanged={() => refetch()} />
     </div>
   )
 }

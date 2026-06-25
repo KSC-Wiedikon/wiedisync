@@ -413,3 +413,38 @@ export const sendDuesEmails = (id: number) =>
 /** Latest send job for a run (progress polling). */
 export const fetchDuesEmailJob = (id: number) =>
   kscwApi<{ job: DuesEmailJob | null }>(`/finance/dues-runs/${id}/email-job`)
+
+// ── Settlement ledger — partial payments, cash, credit notes, refunds, write-offs (migration 143) ──
+
+export type PaymentEntryType = 'payment' | 'credit_note' | 'refund' | 'writeoff'
+export interface InvoicePayment {
+  id: number
+  payment_date: string | null
+  amount: number | string
+  entry_type: PaymentEntryType
+  method: string | null
+  note: string | null
+  created_by_name: string | null
+  camt_reference: string | null
+  source: string
+}
+/** The settlement ledger for one invoice (finance/board). */
+export function useInvoicePayments(invoiceId: string | number | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'invoice-payments', String(invoiceId ?? '')],
+    queryFn: () => kscwApi<{ payments: InvoicePayment[] }>(`/finance/invoices/${invoiceId}/payments`),
+    enabled: enabled && invoiceId != null && invoiceId !== '',
+    select: (r) => r.payments,
+  })
+}
+export interface RecordPaymentInput {
+  amount: number
+  entry_type: PaymentEntryType
+  method?: string | null
+  payment_date?: string | null
+  note?: string | null
+}
+export const recordInvoicePayment = (id: string | number, input: RecordPaymentInput) =>
+  kscwApi<{ invoice: FinanceInvoice; payment_id: number }>(`/finance/invoices/${id}/payments`, { method: 'POST', body: input })
+export const deleteInvoicePayment = (id: string | number, paymentId: number) =>
+  kscwApi<{ invoice: FinanceInvoice }>(`/finance/invoices/${id}/payments/${paymentId}`, { method: 'DELETE' })
