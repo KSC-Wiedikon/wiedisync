@@ -26,6 +26,7 @@
  */
 import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './email-template.js'
+import { renderInvoiceQrBillPdf } from './finance-qrbill.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -66,7 +67,7 @@ function composeDuesEmail(inv, amount, runLabel, { testMode, realRecipient }) {
   ]
   if (inv.reference_type === 'SCOR' && inv.reference) rows.push({ label: 'Referenz', value: inv.reference })
   let body = buildInfoCard(rows)
-    + '<div style="font-size:14px;color:#cbd5e1;margin-top:12px">Du kannst diese Rechnung direkt in der App mit QR-Rechnung oder TWINT bezahlen.</div>'
+    + '<div style="font-size:14px;color:#cbd5e1;margin-top:12px">Die QR-Rechnung ist als PDF angehängt. Du kannst sie auch direkt in der App mit QR-Rechnung oder TWINT bezahlen.</div>'
   if (testMode) body = buildAlertBox('warning', 'Testmodus', `Diese E-Mail wäre an ${realRecipient || 'das Mitglied'} gegangen.`) + body
   const firstName = (inv.recipient_name || '').trim().split(/\s+/)[0]
   return buildEmailLayout(body, {
@@ -687,7 +688,17 @@ export function registerFinance(router, { database, logger, services, getSchema 
         const to = settings.test_mode ? settings.test_recipient : inv.recipient_email
         try {
           const html = composeDuesEmail(inv, amount, run.label, { testMode: settings.test_mode, realRecipient: inv.recipient_email })
-          await mail.send({ to, subject: `${settings.test_mode ? '[TEST] ' : ''}Mitgliederbeitrag${run.label ? ` ${run.label}` : ''} — ${inv.number}`, html })
+          // Attach the Swiss QR-bill PDF (best-effort — a render glitch must not block the email).
+          const attachments = []
+          try {
+            const message = [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n')
+            const pdf = await renderInvoiceQrBillPdf({
+              amount, number: inv.number, recipientName: inv.recipient_name, subject: inv.subject,
+              message, reference: inv.reference_type === 'SCOR' ? inv.reference : null,
+            })
+            attachments.push({ filename: `${inv.number || 'Rechnung'}.pdf`, content: pdf, contentType: 'application/pdf' })
+          } catch (pe) { log.warn?.({ msg: `dues qr-bill render failed: ${pe.message}`, invoice: inv.number }) }
+          await mail.send({ to, subject: `${settings.test_mode ? '[TEST] ' : ''}Mitgliederbeitrag${run.label ? ` ${run.label}` : ''} — ${inv.number}`, html, ...(attachments.length ? { attachments } : {}) })
           sent++
         } catch (e) { failed++; log.warn?.({ msg: `dues email failed: ${e.message}`, invoice: inv.number }) }
       }
