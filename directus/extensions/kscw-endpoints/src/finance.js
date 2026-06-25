@@ -923,4 +923,40 @@ export function registerFinance(router, { database, logger, services, getSchema 
       return res.json({ teams: rows })
     } catch (e) { return err(res, req, 'teams-summary', e) }
   })
+
+  // ── Budget lines — fills the dormant finance_budget_lines (budget vs actual) ──
+  router.post('/finance/budget', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const b = req.body || {}
+      const fiscalYear = Number(b.fiscal_year)
+      const account = Number(b.account)
+      const amount = round2(b.amount_budgeted)
+      if (!Number.isInteger(fiscalYear) || !Number.isInteger(account)) return res.status(400).json({ error: 'fiscal_year and account required' })
+      const notes = (b.notes || '').toString().trim() || null
+      const existing = await database('finance_budget_lines').where({ fiscal_year: fiscalYear, account }).first('id')
+      let row
+      if (existing) {
+        const upd = await database('finance_budget_lines').where('id', existing.id).update({ amount_budgeted: amount, notes, source: 'native', date_updated: new Date() }).returning('*')
+        row = upd[0]
+      } else {
+        const ins = await database('finance_budget_lines').insert({ fiscal_year: fiscalYear, account, amount_budgeted: amount, notes, source: 'native' }).returning('*')
+        row = ins[0]
+      }
+      await writeUserLog(database, log, { accountability: req.accountability, action: existing ? 'update' : 'create', collection: 'finance_budget_lines', recordId: row.id, data: { fiscal_year: fiscalYear, account, amount } })
+      return res.json({ budget: row })
+    } catch (e) { return err(res, req, 'budget-save', e) }
+  })
+
+  router.delete('/finance/budget/:id', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const removed = await database('finance_budget_lines').where('id', id).del()
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_budget_lines', recordId: id, data: { removed } })
+      return res.json({ ok: true, removed })
+    } catch (e) { return err(res, req, 'budget-delete', e) }
+  })
 }

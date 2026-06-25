@@ -399,4 +399,14 @@ export default {
   teamEntryDelete: 'Remove entry',
   teamEntryDeleteSure: 'Remove this entry?',
   teamEntrySaveError: 'Could not save the entry.',
+
+  // Budget vs actual
+  tabBudget: 'Budget',
+  budgetHint: 'Budget vs actual per account for {{year}}. Edit a budget — it saves automatically.',
+  budgetColName: 'Name',
+  budgetColBudget: 'Budget',
+  budgetColActual: 'Actual',
+  budgetColVariance: 'Variance',
+  budgetVarianceNote: 'Variance is favourable (green) when income beats budget or expenses stay under it.',
+  exportCsv: 'Export CSV',
 }

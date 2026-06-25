@@ -15,9 +15,10 @@ import AccountLedger from './AccountLedger'
 import InvoiceManager from './InvoiceManager'
 import DuesRunManager from './DuesRunManager'
 import TeamFinance from './TeamFinance'
+import BudgetTab from './BudgetTab'
 import FinanceMemberExplorer from './FinanceMemberExplorer'
 
-type Tab = 'overview' | 'income' | 'balance' | 'accounts' | 'invoices' | 'dues' | 'members' | 'teams' | 'sync'
+type Tab = 'overview' | 'income' | 'budget' | 'balance' | 'accounts' | 'invoices' | 'dues' | 'members' | 'teams' | 'sync'
 
 /** Aggregate debit/credit totals per account number from a set of transactions. */
 function statsFrom(rows: FinanceTransaction[]) {
@@ -121,7 +122,7 @@ export default function FinancePage() {
   const { t } = useTranslation('finance')
   // Tab lives in the URL (?tab=) so a refresh / shared link keeps the view.
   const [searchParams, setSearchParams] = useSearchParams()
-  const TABS: Tab[] = ['overview', 'income', 'balance', 'accounts', 'invoices', 'dues', 'members', 'teams', 'sync']
+  const TABS: Tab[] = ['overview', 'income', 'budget', 'balance', 'accounts', 'invoices', 'dues', 'members', 'teams', 'sync']
   const tabParam = searchParams.get('tab') as Tab | null
   const tab: Tab = tabParam && TABS.includes(tabParam) ? tabParam : 'overview'
   const setTab = (next: Tab) => setSearchParams((prev) => {
@@ -224,6 +225,7 @@ export default function FinancePage() {
           <div className="flex flex-wrap gap-1.5">
             <TabBtn active={tab === 'overview'} label={t('tabOverview')} onClick={() => setTab('overview')} />
             <TabBtn active={tab === 'income'} label={t('tabIncome')} onClick={() => setTab('income')} />
+            <TabBtn active={tab === 'budget'} label={t('tabBudget')} onClick={() => setTab('budget')} />
             <TabBtn active={tab === 'balance'} label={t('tabBalance')} onClick={() => setTab('balance')} />
             <TabBtn active={tab === 'accounts'} label={t('tabAccounts')} onClick={() => setTab('accounts')} />
             <TabBtn active={tab === 'invoices'} label={t('tabInvoices')} onClick={() => setTab('invoices')} />
@@ -241,6 +243,9 @@ export default function FinancePage() {
 
           {/* ── Per-team finance (sponsoring + bills) ── */}
           {tab === 'teams' && <TeamFinance fiscalYearId={String(activeFyId)} fiscalYearLabel={activeFyLabel} />}
+
+          {/* ── Budget vs actual ── */}
+          {tab === 'budget' && <BudgetTab rows={accountRows.filter((a) => a.type === 'income' || a.type === 'expense')} fiscalYearId={String(activeFyId)} fiscalYearLabel={activeFyLabel} />}
 
           {/* ── Members (per-member finance: contact, billing, invoices) ── */}
           {tab === 'members' && <FinanceMemberExplorer />}

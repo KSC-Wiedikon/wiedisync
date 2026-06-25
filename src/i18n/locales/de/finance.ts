@@ -394,4 +394,14 @@ export default {
   teamEntryDelete: 'Eintrag entfernen',
   teamEntryDeleteSure: 'Diesen Eintrag entfernen?',
   teamEntrySaveError: 'Eintrag konnte nicht gespeichert werden.',
+
+  // Budget gegen Ist
+  tabBudget: 'Budget',
+  budgetHint: 'Budget gegen Ist pro Konto für {{year}}. Budget bearbeiten — wird automatisch gespeichert.',
+  budgetColName: 'Name',
+  budgetColBudget: 'Budget',
+  budgetColActual: 'Ist',
+  budgetColVariance: 'Abweichung',
+  budgetVarianceNote: 'Abweichung ist günstig (grün), wenn Einnahmen über Budget liegen oder Ausgaben darunter bleiben.',
+  exportCsv: 'CSV exportieren',
 }

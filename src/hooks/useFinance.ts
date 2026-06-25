@@ -506,3 +506,25 @@ export const recordTeamEntry = (input: TeamEntryInput) =>
   kscwApi<{ id: number }>('/finance/team-entries', { method: 'POST', body: input })
 export const deleteTeamEntry = (id: number) =>
   kscwApi<{ ok: true; removed: number }>(`/finance/team-entries/${id}`, { method: 'DELETE' })
+
+// ── Budget vs actual — fills the dormant finance_budget_lines (migration 114) ──
+
+export interface FinanceBudgetLine {
+  id: string | number
+  fiscal_year: string | number
+  account: string | number
+  amount_budgeted: number | string
+  notes: string | null
+}
+/** Budget lines for a fiscal year (board/finance — items API, already granted). */
+export function useFinanceBudget(fiscalYearId: string | number | null | undefined, enabled = true) {
+  return useCollection<FinanceBudgetLine>('finance_budget_lines', {
+    filter: fiscalYearId ? { fiscal_year: { _eq: fiscalYearId } } : undefined,
+    enabled: enabled && !!fiscalYearId,
+    all: true,
+  })
+}
+export const saveBudgetLine = (input: { fiscal_year: number; account: number; amount_budgeted: number; notes?: string | null }) =>
+  kscwApi<{ budget: FinanceBudgetLine }>('/finance/budget', { method: 'POST', body: input })
+export const deleteBudgetLine = (id: number) =>
+  kscwApi<{ ok: true }>(`/finance/budget/${id}`, { method: 'DELETE' })
