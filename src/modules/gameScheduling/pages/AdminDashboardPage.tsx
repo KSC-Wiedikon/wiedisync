@@ -1306,15 +1306,27 @@ function TeamBookingsContent({
                   )}
                   {mailboxConfigured && (
                     emailsFor(opp).length > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleEmails(String(opp.id))}
-                        aria-expanded={openEmails.has(String(opp.id))}
-                        className="inline-flex items-center gap-0.5 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-                      >
-                        {t('opponentEmails', { count: emailsFor(opp).length })}
-                        <span aria-hidden>{openEmails.has(String(opp.id)) ? '▾' : '▸'}</span>
-                      </button>
+                      <>
+                        {/* Expand the email chain inline (kept on the dashboard) … */}
+                        <button
+                          type="button"
+                          onClick={() => toggleEmails(String(opp.id))}
+                          aria-expanded={openEmails.has(String(opp.id))}
+                          className="inline-flex items-center gap-0.5 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                        >
+                          {t('opponentEmails', { count: emailsFor(opp).length })}
+                          <span aria-hidden>{openEmails.has(String(opp.id)) ? '▾' : '▸'}</span>
+                        </button>
+                        {/* … plus an explicit jump to the full Mailbox tab for this opponent. */}
+                        <button
+                          type="button"
+                          onClick={() => onOpenMailbox(opp)}
+                          title={t('openInMailbox')}
+                          className="text-xs font-medium text-gray-500 hover:text-brand-600 hover:underline dark:text-gray-400 dark:hover:text-brand-400"
+                        >
+                          {t('openInMailbox')} ↗
+                        </button>
+                      </>
                     ) : (
                       <button
                         type="button"

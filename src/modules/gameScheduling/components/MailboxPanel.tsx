@@ -121,6 +121,8 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   const { configured, messages, unread, lastSync, syncing, sending } = mailbox
   const [showAll, setShowAll] = useState(false)
   const [folder, setFolder] = useState<Folder>('inbox')
+  // KSCW-team filter (volleyball only — opponentContacts carry the team alias).
+  const [teamFilter, setTeamFilter] = useState('')
   const [search, setSearch] = useState('')
   // Server-side search results (subject + sender/recipient + body). null = not
   // searching → show the cached list. The cached `messages` is never replaced,
@@ -137,6 +139,24 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // name, with thread inheritance for forwarded/stripped replies. Drives both
   // the row chip and the per-opponent thread so they always agree.
   const classification = useMemo(() => classifyMessages(messages, opponentContacts), [messages, opponentContacts])
+
+  // KSCW-team filter support: opponent → its team alias (e.g. "DU23-1"). A message
+  // belongs to a team if its classified owner (or, when ambiguous, any candidate)
+  // is one of that team's opponents.
+  const oppById = useMemo(() => new Map(opponentContacts.map((oc) => [String(oc.opp.id), oc])), [opponentContacts])
+  const teamOptions = useMemo(() => {
+    const s = new Set<string>()
+    for (const oc of opponentContacts) { const a = oc.aliases?.[0]; if (a) s.add(a) }
+    return [...s].sort((a, b) => a.localeCompare(b))
+  }, [opponentContacts])
+  // Auto-clear a stale filter (e.g. after switching to the basketball account).
+  const effectiveTeamFilter = teamOptions.includes(teamFilter) ? teamFilter : ''
+  const messageInTeam = (msg: MailboxMessage, team: string): boolean => {
+    const c = classification.get(msg.id)
+    if (!c) return false
+    const ids = c.ownerId ? [c.ownerId] : c.candidateIds
+    return ids.some((id) => oppById.get(id)?.aliases?.[0] === team)
+  }
 
   const opponentForMessage = (msg: MailboxMessage): GameSchedulingOpponent | null =>
     chipOpponentForMessage(classification.get(msg.id), opponentContacts)
@@ -385,7 +405,9 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // (Inbox = received, Sent = sent). Search results are shown in full.
   const inFolder = (m: MailboxMessage) => (folder === 'inbox' ? m.direction === 'in' : m.direction === 'out')
   const searchActive = results !== null
-  const list = (results ?? messages).filter(inFolder)
+  const list = (results ?? messages)
+    .filter(inFolder)
+    .filter((m) => !effectiveTeamFilter || messageInTeam(m, effectiveTeamFilter))
   const visible = searchActive ? list : (showAll ? list : list.slice(0, COLLAPSED_COUNT))
   const inboxCount = messages.reduce((n, m) => n + (m.direction === 'in' ? 1 : 0), 0)
   const sentCount = messages.length - inboxCount
@@ -443,10 +465,25 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxEmpty')}</p>
           ) : (
             <>
-              {/* Inbox / Sent folder tabs */}
-              <div className="mb-3 flex items-center gap-1 border-b border-gray-200 pb-2 dark:border-gray-700">
-                {folderTab('inbox', t('mailboxFolderInbox'), inboxCount)}
-                {folderTab('sent', t('mailboxFolderSent'), sentCount)}
+              {/* Inbox / Sent folder tabs + (volleyball) KSCW-team filter */}
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-2 dark:border-gray-700">
+                <div className="flex items-center gap-1">
+                  {folderTab('inbox', t('mailboxFolderInbox'), inboxCount)}
+                  {folderTab('sent', t('mailboxFolderSent'), sentCount)}
+                </div>
+                {teamOptions.length > 0 && (
+                  <select
+                    value={effectiveTeamFilter}
+                    onChange={(e) => setTeamFilter(e.target.value)}
+                    aria-label={t('mailboxTeamFilterLabel')}
+                    className="min-h-9 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  >
+                    <option value="">{t('mailboxTeamFilterAll')}</option>
+                    {teamOptions.map((tm) => (
+                      <option key={tm} value={tm}>{tm}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="mb-3">
                 <input
