@@ -25,6 +25,7 @@
  * Raw-knex writes → every mutation calls writeUserLog (CLAUDE.md actor-capture).
  */
 import { writeUserLog } from './activity-log.js'
+import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './email-template.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -54,7 +55,30 @@ function pickRate(rates, category, sektion) {
       || null
 }
 
-export function registerFinance(router, { database, logger }) {
+/** Compose a dues-invoice notification email (German — the club's canonical
+ *  language). In test mode a banner shows where it WOULD have gone. */
+function composeDuesEmail(inv, amount, runLabel, { testMode, realRecipient }) {
+  const amountStr = `CHF ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const rows = [
+    { label: 'Rechnung', value: inv.number || '–', halfWidth: true },
+    { label: 'Betrag', value: amountStr, halfWidth: true },
+    { label: 'Betreff', value: inv.subject || '–' },
+  ]
+  if (inv.reference_type === 'SCOR' && inv.reference) rows.push({ label: 'Referenz', value: inv.reference })
+  let body = buildInfoCard(rows)
+    + '<div style="font-size:14px;color:#cbd5e1;margin-top:12px">Du kannst diese Rechnung direkt in der App mit QR-Rechnung oder TWINT bezahlen.</div>'
+  if (testMode) body = buildAlertBox('warning', 'Testmodus', `Diese E-Mail wäre an ${realRecipient || 'das Mitglied'} gegangen.`) + body
+  const firstName = (inv.recipient_name || '').trim().split(/\s+/)[0]
+  return buildEmailLayout(body, {
+    title: 'Mitgliederbeitrag',
+    subtitle: runLabel || '',
+    greeting: firstName ? `Hallo ${firstName}` : 'Hallo',
+    ctaUrl: `${FRONTEND_URL}/finance/dues`,
+    ctaLabel: 'Rechnung ansehen',
+  })
+}
+
+export function registerFinance(router, { database, logger, services, getSchema }) {
   const log = logger.child({ extension: 'kscw-endpoints', module: 'finance' })
 
   function err(res, req, endpoint, e, code = 500) {
@@ -588,5 +612,87 @@ export function registerFinance(router, { database, logger }) {
         .select('id', 'number', 'recipient_name', 'subject', 'amount', 'open_amount', 'status', 'reference', 'reference_type')
       return res.json({ run, invoices })
     } catch (e) { return err(res, req, 'dues-run-invoices', e) }
+  })
+
+  // ── Dues-run email send + the global TEST MODE switch (migration 140) ────
+  // test_mode (default ON) redirects EVERY send to test_recipient, so no member
+  // is ever emailed until an admin turns it off. Layered guards: dry_run preview
+  // (default) → test-mode redirect → explicit confirm for a live send.
+
+  const emailSettings = async () => {
+    const s = await database('finance_email_settings').where('id', 1).first()
+    return { test_mode: s ? s.test_mode !== false : true, test_recipient: s?.test_recipient || null }
+  }
+
+  // GET /finance/email-settings — current test-mode + recipient
+  router.get('/finance/email-settings', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      return res.json(await emailSettings())
+    } catch (e) { return err(res, req, 'email-settings', e) }
+  })
+
+  // PUT /finance/email-settings — flip test mode / set the test recipient (logged)
+  router.put('/finance/email-settings', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const testMode = req.body?.test_mode !== false // default ON; only explicit false disables
+      const testRecipient = (req.body?.test_recipient || '').toString().trim() || null
+      await database('finance_email_settings')
+        .insert({ id: 1, test_mode: testMode, test_recipient: testRecipient, updated_by_name: mem?.name || null, updated_by_email: mem?.email || null, date_updated: new Date() })
+        .onConflict('id').merge()
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_email_settings', recordId: 1, data: { kind: 'finance_email_test_mode', test_mode: testMode, test_recipient: testRecipient } })
+      return res.json(await emailSettings())
+    } catch (e) { return err(res, req, 'email-settings-save', e) }
+  })
+
+  // POST /finance/dues-runs/:id/send-emails — preview (default) or send.
+  router.post('/finance/dues-runs/:id/send-emails', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const run = await database('finance_dues_runs').where('id', id).first('id', 'label')
+      if (!run) return res.status(404).json({ error: 'Not found' })
+      const dryRun = req.body?.dry_run !== false // default true = preview, no send
+      const confirm = req.body?.confirm === true
+      const settings = await emailSettings()
+
+      const invoices = await database('finance_invoices')
+        .where('dues_run', id).whereNot('status', 'cancelled')
+        .select('id', 'number', 'recipient_name', 'recipient_email', 'subject', 'amount', 'open_amount', 'reference', 'reference_type')
+      const withEmail = invoices.filter((i) => (i.recipient_email || '').trim())
+      const noEmail = invoices.length - withEmail.length
+
+      if (dryRun) {
+        return res.json({
+          mode: 'dry_run', test_mode: settings.test_mode, test_recipient: settings.test_recipient,
+          would_send: withEmail.length, no_email: noEmail, total: invoices.length,
+          recipients: withEmail.slice(0, 300).map((i) => ({ invoice: i.number, name: i.recipient_name, email: i.recipient_email })),
+        })
+      }
+      if (!confirm) return res.status(400).json({ error: 'confirm required for a real send' })
+      if (settings.test_mode && !settings.test_recipient) return res.status(400).json({ error: 'Set a test recipient first (test mode is on)' })
+      if (!withEmail.length) return res.status(409).json({ error: 'No recipients with an email' })
+
+      const schema = await getSchema()
+      const { MailService } = services
+      const mail = new MailService({ schema, knex: database })
+
+      let sent = 0, failed = 0
+      for (const inv of withEmail) {
+        const amount = Number(inv.open_amount) > 0 ? Number(inv.open_amount) : Number(inv.amount)
+        const to = settings.test_mode ? settings.test_recipient : inv.recipient_email
+        try {
+          const html = composeDuesEmail(inv, amount, run.label, { testMode: settings.test_mode, realRecipient: inv.recipient_email })
+          await mail.send({ to, subject: `${settings.test_mode ? '[TEST] ' : ''}Mitgliederbeitrag${run.label ? ` ${run.label}` : ''} — ${inv.number}`, html })
+          sent++
+        } catch (e) { failed++; log.warn?.({ msg: `dues email failed: ${e.message}`, invoice: inv.number }) }
+      }
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_email_settings', recordId: id, data: { kind: 'dues_email_send', run: id, test_mode: settings.test_mode, sent, failed } })
+      return res.json({ mode: settings.test_mode ? 'test' : 'live', test_recipient: settings.test_recipient, sent, failed, no_email: noEmail })
+    } catch (e) { return err(res, req, 'dues-send-emails', e) }
   })
 }

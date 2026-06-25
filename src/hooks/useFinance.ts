@@ -360,3 +360,43 @@ export interface DuesRunInvoice {
 /** A dues run's non-cancelled invoices (finance/board) — for the bulk QR-bill PDF. */
 export const fetchDuesRunInvoices = (id: number) =>
   kscwApi<{ run: { id: number; label: string | null }; invoices: DuesRunInvoice[] }>(`/finance/dues-runs/${id}/invoices`)
+
+// ── Dues-run email send + the global TEST MODE switch (migration 140) ──
+
+export interface FinanceEmailSettings {
+  test_mode: boolean
+  test_recipient: string | null
+}
+/** The finance email test-mode switch (finance/board). */
+export function useFinanceEmailSettings(enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'email-settings'],
+    queryFn: () => kscwApi<FinanceEmailSettings>('/finance/email-settings'),
+    enabled,
+  })
+}
+export const saveFinanceEmailSettings = (input: FinanceEmailSettings) =>
+  kscwApi<FinanceEmailSettings>('/finance/email-settings', { method: 'PUT', body: input })
+
+export interface DuesEmailPreview {
+  mode: 'dry_run'
+  test_mode: boolean
+  test_recipient: string | null
+  would_send: number
+  no_email: number
+  total: number
+  recipients: Array<{ invoice: string | null; name: string | null; email: string | null }>
+}
+export interface DuesEmailResult {
+  mode: 'test' | 'live'
+  test_recipient: string | null
+  sent: number
+  failed: number
+  no_email: number
+}
+/** Dry-run preview — who WOULD be emailed (no send). */
+export const previewDuesEmails = (id: number) =>
+  kscwApi<DuesEmailPreview>(`/finance/dues-runs/${id}/send-emails`, { method: 'POST', body: { dry_run: true } })
+/** Actually send (test mode redirects all to the test recipient; live emails members). */
+export const sendDuesEmails = (id: number) =>
+  kscwApi<DuesEmailResult>(`/finance/dues-runs/${id}/send-emails`, { method: 'POST', body: { dry_run: false, confirm: true } })
