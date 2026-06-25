@@ -9,6 +9,7 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 - **Preview before billing**: see exactly who will be charged, how much, and who is missing a rate or already billed, before anything is issued.
 - **Safe to re-run** — members who already have a dues invoice for the season are skipped, so nobody is billed twice.
 - **Cancel a whole run** to void its still-open invoices; paid ones are kept.
+- **Download all bills** for a run as one PDF — a Swiss QR-bill per member to print and post, or attach yourself.
 
 ## v1.8.0 — 2026-06-24
 

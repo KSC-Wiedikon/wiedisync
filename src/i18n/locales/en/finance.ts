@@ -320,4 +320,8 @@ export default {
   duesRunCancelSure: 'Cancel this run? Its still-open invoices will be voided (paid ones are kept).',
   duesRunCancelled: 'Run cancelled — {{count}} invoices voided.',
   duesRunCancelError: 'Could not cancel the run.',
+  duesDownloadBills: 'Download bills',
+  duesBillsPdfTitle: 'Membership dues — {{run}}',
+  duesBillsError: 'Could not generate the bills PDF.',
+  duesBillsEmpty: 'No payable bills in this run.',
 }

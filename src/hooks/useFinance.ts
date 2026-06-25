@@ -345,3 +345,18 @@ export function useDuesRuns(fiscalYearId: string | number | null | undefined, en
 }
 export const cancelDuesRun = (id: number) =>
   kscwApi<{ ok: true; cancelled: number }>(`/finance/dues-runs/${id}/cancel`, { method: 'POST' })
+
+export interface DuesRunInvoice {
+  id: number
+  number: string | null
+  recipient_name: string | null
+  subject: string | null
+  amount: number | string
+  open_amount: number | string
+  status: string
+  reference: string | null
+  reference_type: string | null
+}
+/** A dues run's non-cancelled invoices (finance/board) — for the bulk QR-bill PDF. */
+export const fetchDuesRunInvoices = (id: number) =>
+  kscwApi<{ run: { id: number; label: string | null }; invoices: DuesRunInvoice[] }>(`/finance/dues-runs/${id}/invoices`)

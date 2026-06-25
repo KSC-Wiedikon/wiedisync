@@ -573,4 +573,20 @@ export function registerFinance(router, { database, logger }) {
       return res.json({ runs })
     } catch (e) { return err(res, req, 'dues-runs', e) }
   })
+
+  // GET /finance/dues-runs/:id/invoices — a run's (non-cancelled) invoices, for the
+  // bulk QR-bill PDF the treasurer prints/posts. Read-only.
+  router.get('/finance/dues-runs/:id/invoices', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const run = await database('finance_dues_runs').where('id', id).first('id', 'label')
+      if (!run) return res.status(404).json({ error: 'Not found' })
+      const invoices = await database('finance_invoices')
+        .where('dues_run', id).whereNot('status', 'cancelled').orderBy('id')
+        .select('id', 'number', 'recipient_name', 'subject', 'amount', 'open_amount', 'status', 'reference', 'reference_type')
+      return res.json({ run, invoices })
+    } catch (e) { return err(res, req, 'dues-run-invoices', e) }
+  })
 }
