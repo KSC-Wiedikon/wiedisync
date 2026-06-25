@@ -315,4 +315,8 @@ export default {
   duesRunCancelSure: 'Diesen Lauf stornieren? Die noch offenen Rechnungen werden storniert (bezahlte bleiben).',
   duesRunCancelled: 'Lauf storniert — {{count}} Rechnungen storniert.',
   duesRunCancelError: 'Lauf konnte nicht storniert werden.',
+  duesDownloadBills: 'Rechnungen herunterladen',
+  duesBillsPdfTitle: 'Mitgliederbeitrag — {{run}}',
+  duesBillsError: 'Rechnungs-PDF konnte nicht erstellt werden.',
+  duesBillsEmpty: 'Keine zahlbaren Rechnungen in diesem Lauf.',
 }

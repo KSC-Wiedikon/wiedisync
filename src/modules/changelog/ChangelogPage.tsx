@@ -22,6 +22,7 @@ const CHANGELOG: ChangelogEntry[] = [
           'Preview before you bill: see exactly who will be charged, how much, and who is missing a rate or already billed.',
           'Re-running is safe — members who already have a dues invoice for the season are skipped, so nobody is billed twice.',
           'Cancel a whole run to void its still-open invoices; paid ones are kept.',
+          'Download all of a run\'s bills as one PDF — a Swiss QR-bill per member to print and post, or attach yourself.',
         ],
       },
     ],

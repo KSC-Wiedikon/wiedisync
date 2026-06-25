@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Loader2, PlayCircle, ListChecks } from 'lucide-react'
+import { Plus, Trash2, Loader2, PlayCircle, ListChecks, Download } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
   useDuesRates, useDuesRuns, saveDuesRate, deleteDuesRate,
-  previewDuesRun, issueDuesRun, cancelDuesRun, formatChf, toNum,
-  type DuesPreviewResult, type DuesPreviewRow,
+  previewDuesRun, issueDuesRun, cancelDuesRun, fetchDuesRunInvoices, formatChf, toNum,
+  type DuesPreviewResult, type DuesPreviewRow, type DuesRun,
 } from '../../hooks/useFinance'
+import { downloadInvoiceBillsPdf } from './qrBillPdf'
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
 const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
@@ -95,6 +96,28 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
       setRunMsg(t('duesRunCancelled', { count: r.cancelled }))
       await refetchRuns()
     } catch { setRunErr(t('duesRunCancelError')) }
+  }
+
+  // Download every bill in a run as one multi-page PDF (print/post or attach).
+  const [billBusy, setBillBusy] = useState<number | null>(null)
+  async function downloadBills(run: DuesRun) {
+    setBillBusy(run.id); setRunErr('')
+    try {
+      const { invoices } = await fetchDuesRunInvoices(run.id)
+      const bills = invoices.map((inv) => {
+        const open = toNum(inv.open_amount)
+        return {
+          number: inv.number,
+          recipientName: inv.recipient_name,
+          amount: open > 0 ? open : toNum(inv.amount),
+          message: [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n') || null,
+          reference: inv.reference_type === 'SCOR' ? inv.reference : null,
+        }
+      })
+      if (!bills.some((b) => b.amount >= 0.01)) { setRunErr(t('duesBillsEmpty')); return }
+      const safe = String(run.label || run.id).replace(/[^\w.-]+/g, '-')
+      await downloadInvoiceBillsPdf(bills, `dues-${safe}.pdf`, t('duesBillsPdfTitle', { run: run.label || `#${run.id}` }))
+    } catch { setRunErr(t('duesBillsError')) } finally { setBillBusy(null) }
   }
 
   const statusLabel = (s: string) => ({ willBill: t('duesStatusWillBill'), alreadyBilled: t('duesStatusAlreadyBilled'), noRate: t('duesStatusNoRate') }[s] ?? s)
@@ -294,12 +317,20 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                     <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(toNum(run.total_amount))}</TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{run.status === 'cancelled' ? t('duesRunStatusCancelled') : t('duesRunStatusIssued')}</TableCell>
                     <TableCell className="text-right">
-                      {run.status !== 'cancelled' && (
-                        <button type="button" onClick={() => cancelRun(run.id)}
-                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                          {t('duesRunCancel')}
-                        </button>
-                      )}
+                      <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:justify-end">
+                        {run.status !== 'cancelled' && run.total_count > 0 && (
+                          <button type="button" disabled={billBusy === run.id} onClick={() => downloadBills(run)}
+                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                            {billBusy === run.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}{t('duesDownloadBills')}
+                          </button>
+                        )}
+                        {run.status !== 'cancelled' && (
+                          <button type="button" onClick={() => cancelRun(run.id)}
+                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                            {t('duesRunCancel')}
+                          </button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
