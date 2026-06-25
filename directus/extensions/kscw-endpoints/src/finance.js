@@ -1039,9 +1039,13 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const fee = round2(req.body?.reminder_fee || 0)
       const sendEmail = req.body?.send_email === true
 
+      let forcedNeverDun = false
       if (inv.member) {
         const m = await database('members').where('id', inv.member).first('never_dun')
-        if (m?.never_dun && req.body?.force !== true) return res.status(409).json({ error: 'Member is flagged never-dun', never_dun: true })
+        if (m?.never_dun) {
+          if (req.body?.force !== true) return res.status(409).json({ error: 'Member is flagged never-dun', never_dun: true })
+          forcedNeverDun = true // overriding the opt-out — record it for audit
+        }
       }
 
       let channel = 'manual', sentAt = null, sendResult = 'not_sent'
@@ -1076,7 +1080,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         })
       } catch (e) { if (e?.code === '23505') return res.status(409).json({ error: `Level ${level} already issued` }); throw e }
       await database('finance_invoices').where('id', id).update({ dunning_level: level, dunning_status: `Mahnung ${level}`, date_updated: new Date() })
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_dunning_notices', recordId: id, data: { kind: 'dunning_escalate', invoice: id, level, fee, channel, send_result: sendResult } })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_dunning_notices', recordId: id, data: { kind: 'dunning_escalate', invoice: id, level, fee, channel, send_result: sendResult, ...(forcedNeverDun ? { forced_never_dun: true, member: inv.member } : {}) } })
       return res.json({ ok: true, level, channel, send_result: sendResult })
     } catch (e) { return err(res, req, 'dunning-escalate', e) }
   })
