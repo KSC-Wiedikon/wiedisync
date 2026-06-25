@@ -25,7 +25,7 @@ export interface ExportRow {
   status: string
   vm: string
   // Game-spacing warning: another game for the SAME KSCW team within <5 days
-  // (e.g. "Another game in 3 days", "Another game 2 days ago"). Empty if none.
+  // (e.g. "Another game in 3 days", "Another game 2 days before"). Empty if none.
   alert: string
   // Players (incl. coaches/TR) of this game's team absent on the game date,
   // comma-separated. Empty if nobody is absent.
@@ -285,7 +285,7 @@ function buildRows({ bookings, opponents, slots, teams }: BuildArgs, ctx: Export
       const next = arr[i + 1]
       if (prev) {
         const d = daysApart(prev._sort, r._sort)
-        if (d < 5) fragments.push(d === 0 ? 'Another game the same day' : `Another game ${d} day${d === 1 ? '' : 's'} ago`)
+        if (d < 5) fragments.push(d === 0 ? 'Another game the same day' : `Another game ${d} day${d === 1 ? '' : 's'} before`)
       }
       if (next) {
         const d = daysApart(r._sort, next._sort)
@@ -387,11 +387,21 @@ export async function buildSchedulePdf(sections: ScheduleSection[]): Promise<Uin
   const drawColumnHeader = () => {
     doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
+    // Wrap each header to its own column width (like the body cells) so a long
+    // header — e.g. "KSCW team" in a narrow column — stacks onto a second line
+    // instead of bleeding into the neighbouring header.
+    const cells = COLUMNS.map(c => doc.splitTextToSize(c.header, c.pdfWidth - 2) as string[])
+    const lineCount = Math.max(1, ...cells.map(l => l.length))
+    const headerH = lineCount * lineH + padY + 1
     doc.setFillColor(235, 235, 235)
-    doc.rect(margin, y, tableW, lineH + padY + 1, 'F')
+    doc.rect(margin, y, tableW, headerH, 'F')
     let x = margin
-    for (const c of COLUMNS) { doc.text(c.header, x + 1, y + lineH + 0.6); x += c.pdfWidth }
-    y += lineH + padY + 1
+    for (let i = 0; i < COLUMNS.length; i++) {
+      let ty = y + lineH + 0.6
+      for (const ln of cells[i]) { doc.text(ln, x + 1, ty); ty += lineH }
+      x += COLUMNS[i].pdfWidth
+    }
+    y += headerH
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.2)
   }
