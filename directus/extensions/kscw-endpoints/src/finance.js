@@ -56,9 +56,17 @@ function pickRate(rates, category, sektion) {
       || null
 }
 
+/** Reject after `ms` so one hung send can't stall a whole chunk. */
+function withTimeout(promise, ms, label) {
+  let t
+  const timeout = new Promise((_, reject) => { t = setTimeout(() => reject(new Error(label || 'timeout')), ms) })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(t))
+}
+
 /** Compose a dues-invoice notification email (German — the club's canonical
- *  language). In test mode a banner shows where it WOULD have gone. */
-function composeDuesEmail(inv, amount, runLabel, { testMode, realRecipient }) {
+ *  language). In test mode a banner shows where it WOULD have gone. The body only
+ *  promises a PDF when one is actually attached. */
+function composeDuesEmail(inv, amount, runLabel, { testMode, realRecipient, hasAttachment }) {
   const amountStr = `CHF ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   const rows = [
     { label: 'Rechnung', value: inv.number || '–', halfWidth: true },
@@ -66,8 +74,11 @@ function composeDuesEmail(inv, amount, runLabel, { testMode, realRecipient }) {
     { label: 'Betreff', value: inv.subject || '–' },
   ]
   if (inv.reference_type === 'SCOR' && inv.reference) rows.push({ label: 'Referenz', value: inv.reference })
+  const payLine = hasAttachment
+    ? 'Die QR-Rechnung ist als PDF angehängt. Du kannst sie auch direkt in der App mit QR-Rechnung oder TWINT bezahlen.'
+    : 'Du kannst diese Rechnung direkt in der App mit QR-Rechnung oder TWINT bezahlen.'
   let body = buildInfoCard(rows)
-    + '<div style="font-size:14px;color:#cbd5e1;margin-top:12px">Die QR-Rechnung ist als PDF angehängt. Du kannst sie auch direkt in der App mit QR-Rechnung oder TWINT bezahlen.</div>'
+    + `<div style="font-size:14px;color:#cbd5e1;margin-top:12px">${payLine}</div>`
   if (testMode) body = buildAlertBox('warning', 'Testmodus', `Diese E-Mail wäre an ${realRecipient || 'das Mitglied'} gegangen.`) + body
   const firstName = (inv.recipient_name || '').trim().split(/\s+/)[0]
   return buildEmailLayout(body, {
@@ -663,9 +674,12 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
       const invoices = await database('finance_invoices')
         .where('dues_run', id).whereNot('status', 'cancelled')
-        .select('id', 'number', 'recipient_name', 'recipient_email', 'subject', 'amount', 'open_amount', 'reference', 'reference_type')
-      const withEmail = invoices.filter((i) => (i.recipient_email || '').trim())
-      const noEmail = invoices.length - withEmail.length
+        .select('id', 'number', 'recipient_name', 'recipient_email', 'subject', 'amount', 'open_amount', 'reference', 'reference_type', 'email_sent_at')
+      const emailable = invoices.filter((i) => (i.recipient_email || '').trim())
+      const noEmail = invoices.length - emailable.length
+      // Live sends skip invoices already emailed (idempotent resume after a crash);
+      // test mode re-sends all so it stays repeatable.
+      const withEmail = settings.test_mode ? emailable : emailable.filter((i) => !i.email_sent_at)
 
       if (dryRun) {
         return res.json({
@@ -678,18 +692,26 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (settings.test_mode && !settings.test_recipient) return res.status(400).json({ error: 'Set a test recipient first (test mode is on)' })
       if (!withEmail.length) return res.status(409).json({ error: 'No recipients with an email' })
 
-      // One running send per run (15-min staleness window so a crashed job can't
-      // lock sending forever).
-      const fresh = new Date(Date.now() - 15 * 60 * 1000)
-      const running = await database('finance_email_jobs')
-        .where('dues_run', id).where('status', 'running').where('date_created', '>', fresh).first('id')
-      if (running) return res.status(409).json({ error: 'A send is already running for this run', job_id: running.id })
+      // At-most-one running send per run. Reap a stuck 'running' row (crashed
+      // worker; its date_updated/created is older than the staleness window) so the
+      // partial-unique index can't lock sending forever — then let the DB index
+      // enforce atomicity (TOCTOU-proof, unlike a check-then-insert).
+      const staleBefore = new Date(Date.now() - 15 * 60 * 1000)
+      await database('finance_email_jobs').where('dues_run', id).where('status', 'running')
+        .whereRaw('coalesce(date_updated, date_created) < ?', [staleBefore])
+        .update({ status: 'failed', error: 'worker_lost', date_updated: new Date() })
 
-      const jobIns = await database('finance_email_jobs').insert({
-        dues_run: id, status: 'running', test_mode: settings.test_mode, total: withEmail.length,
-        sent: 0, failed: 0, created_by_name: mem?.name || null, created_by_email: mem?.email || null,
-      }).returning('id')
-      const jobId = jobIns[0]?.id ?? jobIns[0]
+      let jobId
+      try {
+        const jobIns = await database('finance_email_jobs').insert({
+          dues_run: id, status: 'running', test_mode: settings.test_mode, total: withEmail.length,
+          sent: 0, failed: 0, created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+        }).returning('id')
+        jobId = jobIns[0]?.id ?? jobIns[0]
+      } catch (e) {
+        if (e?.code === '23505') return res.status(409).json({ error: 'A send is already running for this run' })
+        throw e
+      }
       await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_email_jobs', recordId: jobId, data: { kind: 'dues_email_send', run: id, test_mode: settings.test_mode, total: withEmail.length } })
 
       // Respond immediately; send in the background, chunked, updating job progress.
@@ -700,13 +722,13 @@ export function registerFinance(router, { database, logger, services, getSchema 
         const schema = await getSchema()
         const { MailService } = services
         const mail = new MailService({ schema, knex: database })
-        let sent = 0, failed = 0
+        let sent = 0, failed = 0, lastError = null
         for (let i = 0; i < withEmail.length; i += CHUNK) {
           for (const inv of withEmail.slice(i, i + CHUNK)) {
             const amount = Number(inv.open_amount) > 0 ? Number(inv.open_amount) : Number(inv.amount)
             const to = settings.test_mode ? settings.test_recipient : inv.recipient_email
             try {
-              const html = composeDuesEmail(inv, amount, run.label, { testMode: settings.test_mode, realRecipient: inv.recipient_email })
+              // Render the QR-bill first so the body only promises a PDF when one attaches.
               const attachments = []
               try {
                 const message = [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n')
@@ -716,13 +738,19 @@ export function registerFinance(router, { database, logger, services, getSchema 
                 })
                 attachments.push({ filename: `${inv.number || 'Rechnung'}.pdf`, content: pdf, contentType: 'application/pdf' })
               } catch (pe) { log.warn?.({ msg: `dues qr-bill render failed: ${pe.message}`, invoice: inv.number }) }
-              await mail.send({ to, subject: `${settings.test_mode ? '[TEST] ' : ''}Mitgliederbeitrag${run.label ? ` ${run.label}` : ''} — ${inv.number}`, html, ...(attachments.length ? { attachments } : {}) })
+              const html = composeDuesEmail(inv, amount, run.label, { testMode: settings.test_mode, realRecipient: inv.recipient_email, hasAttachment: attachments.length > 0 })
+              await withTimeout(mail.send({ to, subject: `${settings.test_mode ? '[TEST] ' : ''}Mitgliederbeitrag${run.label ? ` ${run.label}` : ''} — ${inv.number}`, html, ...(attachments.length ? { attachments } : {}) }), 60000, 'mail.send timeout')
+              // Mark LIVE sends so a resumed/retried run skips them (no double-email). Test sends don't mark.
+              if (!settings.test_mode) { try { await database('finance_invoices').where('id', inv.id).update({ email_sent_at: new Date() }) } catch { /* noop */ } }
               sent++
-            } catch (e) { failed++; log.warn?.({ msg: `dues email failed: ${e.message}`, invoice: inv.number }) }
+            } catch (e) { failed++; lastError = e?.message || String(e); log.warn?.({ msg: `dues email failed: ${e?.message}`, invoice: inv.number }) }
           }
           await database('finance_email_jobs').where('id', jobId).update({ sent, failed, date_updated: new Date() })
         }
-        await database('finance_email_jobs').where('id', jobId).update({ status: 'done', sent, failed, date_updated: new Date() })
+        // All-failed is a terminal failure the operator must see, not a green 'done'.
+        const finalStatus = sent === 0 && failed > 0 ? 'failed' : 'done'
+        const finalError = sent === 0 && failed > 0 ? `Alle ${failed} Sendungen fehlgeschlagen${lastError ? `: ${lastError}` : ''}`.slice(0, 500) : null
+        await database('finance_email_jobs').where('id', jobId).update({ status: finalStatus, sent, failed, error: finalError, date_updated: new Date() })
       })().catch(async (e) => {
         log.error?.({ msg: `dues email job ${jobId} crashed: ${e.message}`, stack: e.stack })
         try { await database('finance_email_jobs').where('id', jobId).update({ status: 'failed', error: String(e.message || e).slice(0, 500), date_updated: new Date() }) } catch { /* noop */ }
@@ -737,7 +765,13 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       const job = await database('finance_email_jobs').where('dues_run', id)
-        .orderBy('id', 'desc').first('id', 'status', 'test_mode', 'total', 'sent', 'failed', 'error', 'date_created')
+        .orderBy('id', 'desc').first('id', 'status', 'test_mode', 'total', 'sent', 'failed', 'error', 'date_created', 'date_updated')
+      // A crashed worker can't update its own row; surface a long-idle 'running' job
+      // as failed so the UI poller terminates instead of spinning forever.
+      if (job && job.status === 'running') {
+        const last = job.date_updated || job.date_created
+        if (last && Date.now() - new Date(last).getTime() > 15 * 60 * 1000) { job.status = 'failed'; job.error = job.error || 'worker_lost' }
+      }
       return res.json({ job: job || null })
     } catch (e) { return err(res, req, 'dues-email-job', e) }
   })
