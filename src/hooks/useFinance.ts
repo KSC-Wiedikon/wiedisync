@@ -248,3 +248,100 @@ export function isOpenInvoice(inv: FinanceInvoice): boolean {
   if (status.includes('storn') || status.includes('cancel')) return false
   return toNum(inv.open_amount) > 0
 }
+
+// ── Dues runs — recurring / batch membership-dues billing (migration 138) ──
+
+/** A per-(fiscal_year, category[, sektion]) membership-fee rate. */
+export interface DuesRate {
+  id: number
+  fiscal_year: number
+  category: string
+  sektion: string | null
+  amount_chf: number | string
+  subject_template: string | null
+  active: boolean
+}
+export interface DuesRatesResponse {
+  rates: DuesRate[]
+  categories: string[]   // distinct beitragskategorie values from live active members
+  sektionen: string[]
+}
+/** Rate schedule + the real category/sektion values for a fiscal year (finance/board). */
+export function useDuesRates(fiscalYearId: string | number | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'dues-rates', String(fiscalYearId ?? '')],
+    queryFn: () => kscwApi<DuesRatesResponse>(`/finance/dues-rates?fiscal_year=${fiscalYearId}`),
+    enabled: enabled && fiscalYearId != null && fiscalYearId !== '',
+  })
+}
+
+export interface SaveDuesRateInput {
+  fiscal_year: number
+  category: string
+  sektion?: string | null
+  amount_chf: number
+  subject_template?: string | null
+  active?: boolean
+}
+export const saveDuesRate = (input: SaveDuesRateInput) =>
+  kscwApi<{ rate: DuesRate }>('/finance/dues-rates', { method: 'POST', body: input })
+export const deleteDuesRate = (id: number) =>
+  kscwApi<{ ok: true; removed: number }>(`/finance/dues-rates/${id}`, { method: 'DELETE' })
+
+export interface DuesPreviewRow {
+  member: number
+  name: string | null
+  email: string | null
+  category: string | null
+  sektion: string | null
+  amount: number | null
+  already_billed: boolean
+  missing_rate: boolean
+  missing_email: boolean
+}
+export interface DuesPreviewResult {
+  fiscal_year: { id: number; label: string }
+  rows: DuesPreviewRow[]
+  totals: { members: number; billable: number; billable_amount: number; already_billed: number; missing_rate: number; no_email: number }
+}
+export interface DuesRunInput {
+  fiscal_year: number
+  categories: string[]
+  sektion?: string | null
+  only_active?: boolean
+  due_date?: string | null
+  label?: string
+}
+export const previewDuesRun = (input: DuesRunInput) =>
+  kscwApi<DuesPreviewResult>('/finance/dues-runs/preview', { method: 'POST', body: input })
+
+export interface DuesRunResult {
+  run: { id: number; label: string; fiscal_year: number; total_count: number; total_amount: number }
+  summary: { created: number; skipped_already_billed: number; skipped_no_rate: number }
+  details: Array<{ member: number; invoice: string; amount: number }>
+}
+export const issueDuesRun = (input: DuesRunInput) =>
+  kscwApi<DuesRunResult>('/finance/dues-runs/issue', { method: 'POST', body: input })
+
+export interface DuesRun {
+  id: number
+  fiscal_year: number
+  fiscal_year_label: string | null
+  label: string | null
+  status: string
+  total_count: number
+  total_amount: number | string
+  created_by_name: string | null
+  date_created: string | null
+}
+/** Past dues runs for a fiscal year (finance/board). */
+export function useDuesRuns(fiscalYearId: string | number | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'dues-runs', String(fiscalYearId ?? '')],
+    queryFn: () => kscwApi<{ runs: DuesRun[] }>(`/finance/dues-runs${fiscalYearId ? `?fiscal_year=${fiscalYearId}` : ''}`),
+    enabled,
+    select: (r) => r.runs,
+  })
+}
+export const cancelDuesRun = (id: number) =>
+  kscwApi<{ ok: true; cancelled: number }>(`/finance/dues-runs/${id}/cancel`, { method: 'POST' })

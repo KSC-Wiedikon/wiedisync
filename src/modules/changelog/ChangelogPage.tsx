@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.8.0'
+const APP_VERSION = '1.9.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.9.0',
+    date: '25.06.2026',
+    sections: [
+      {
+        title: 'Finances: bill membership dues in one run',
+        items: [
+          'Set the membership fee per category (and per section) for a season, then bill every active member in those categories in one go — each gets a payable QR-bill in the app.',
+          'Preview before you bill: see exactly who will be charged, how much, and who is missing a rate or already billed.',
+          'Re-running is safe — members who already have a dues invoice for the season are skipped, so nobody is billed twice.',
+          'Cancel a whole run to void its still-open invoices; paid ones are kept.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.8.0',
     date: '24.06.2026',

@@ -103,13 +103,27 @@ export async function syncSvGames(db, log) {
   // it in VM (especially our AWAY games, which the opponent owns) — so syncing it
   // blindly would clobber the agreed date back to the placeholder. Treat the
   // booking as authoritative for date/time/venue until the game is actually played
-  // (completed); scores, status and everything else still sync normally.
+  // (completed) OR the season's SV-feed takeover date (vm_authority_date) passes:
+  // by then every opponent has had time to enter their away games, so the feed
+  // becomes authoritative for date/time/venue too. NULL takeover date → protect
+  // until completed (the pre-139 behaviour). bookings.season is the season's id
+  // (stored as text), so join on ssn.id::text.
   const bookedRows = await db('game_scheduling_bookings as b')
     .join('svrz_games as s', 's.svrz_persistence_id', 'b.svrz_game_id')
+    .leftJoin('game_scheduling_seasons as ssn', function () {
+      this.on(db.raw('ssn.id::text'), '=', 'b.season')
+    })
     .where('b.status', 'confirmed')
     .whereNotNull('s.svrz_number')
-    .distinct('s.svrz_number')
-  const toolScheduledIds = new Set(bookedRows.map(r => `vb_${r.svrz_number}`))
+    .select('s.svrz_number', 'ssn.vm_authority_date')
+  const toolScheduledIds = new Set()
+  const toolTakeoverDates = new Map() // `vb_<svrz_number>` → 'YYYY-MM-DD' (when the feed takes over)
+  for (const r of bookedRows) {
+    const key = `vb_${r.svrz_number}`
+    toolScheduledIds.add(key)
+    if (r.vm_authority_date) toolTakeoverDates.set(key, new Date(r.vm_authority_date).toISOString().slice(0, 10))
+  }
+  const todayStr = new Date().toISOString().slice(0, 10)
 
   // Fields to compare — if all match, skip the update
   const COMPARE_FIELDS = [
@@ -178,7 +192,13 @@ export async function syncSvGames(db, log) {
         // Tool-scheduled & not yet played → keep the agreed date/time/venue; don't
         // let a feed placeholder overwrite it (a real reschedule reaches these via
         // the tool). Scores/status/teams/etc. below still sync.
-        if (toolScheduledIds.has(`vb_${gameId}`) && existing.status !== 'completed' && data.status !== 'completed') {
+        //
+        // Protection is lifted once the season's SV-feed takeover date passes
+        // (toolTakeoverDates): from then on the feed wins date/time/venue too. No
+        // takeover date set → protect until the game is completed (pre-139).
+        const takeover = toolTakeoverDates.get(`vb_${gameId}`)
+        const feedHasTakenOver = takeover && todayStr >= takeover
+        if (toolScheduledIds.has(`vb_${gameId}`) && !feedHasTakenOver && existing.status !== 'completed' && data.status !== 'completed') {
           data.date = existing.date
           data.time = existing.time
           data.hall = existing.hall

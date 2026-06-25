@@ -83,6 +83,20 @@ export default function SeasonConfig({
     }
   }
 
+  const [savingAuthority, setSavingAuthority] = useState(false)
+  const handleAuthoritySave = async (value: string) => {
+    if (!onUpdateSeason) return
+    setSavingAuthority(true)
+    try {
+      await onUpdateSeason({ vm_authority_date: value || null })
+      toast.success(t('vmAuthoritySaved'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSavingAuthority(false)
+    }
+  }
+
   const getNextSeasonName = () => {
     const year = new Date().getFullYear()
     return `${year}/${(year + 1).toString().slice(-2)}`
@@ -392,6 +406,29 @@ export default function SeasonConfig({
             {savingWindow && <span className="pb-1 text-xs text-gray-500">…</span>}
           </div>
           <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{t('seasonWindowHelp')}</p>
+        </div>
+      )}
+
+      {/* SV feed takeover date — after this date the national feed becomes
+          authoritative for tool-scheduled games' date/time/venue. */}
+      {season && onUpdateSeason && (
+        <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-700">
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{t('vmAuthorityLabel')}</span>
+          <div className="mt-2 flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+              {t('vmAuthorityDate')}
+              <input
+                type="date"
+                value={season.vm_authority_date ? String(season.vm_authority_date).slice(0, 10) : ''}
+                disabled={savingAuthority}
+                onChange={(e) => handleAuthoritySave(e.target.value)}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+              />
+              <WeekdayHint date={season.vm_authority_date ? String(season.vm_authority_date).slice(0, 10) : ''} />
+            </label>
+            {savingAuthority && <span className="pb-1 text-xs text-gray-500">…</span>}
+          </div>
+          <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{t('vmAuthorityHelp')}</p>
         </div>
       )}
     </div>

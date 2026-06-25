@@ -13,9 +13,10 @@ import type { FinanceAccount, FinanceTransaction } from './types'
 import AccountExplorer from './AccountExplorer'
 import AccountLedger from './AccountLedger'
 import InvoiceManager from './InvoiceManager'
+import DuesRunManager from './DuesRunManager'
 import FinanceMemberExplorer from './FinanceMemberExplorer'
 
-type Tab = 'overview' | 'income' | 'balance' | 'accounts' | 'invoices' | 'members' | 'sync'
+type Tab = 'overview' | 'income' | 'balance' | 'accounts' | 'invoices' | 'dues' | 'members' | 'sync'
 
 /** Aggregate debit/credit totals per account number from a set of transactions. */
 function statsFrom(rows: FinanceTransaction[]) {
@@ -119,7 +120,7 @@ export default function FinancePage() {
   const { t } = useTranslation('finance')
   // Tab lives in the URL (?tab=) so a refresh / shared link keeps the view.
   const [searchParams, setSearchParams] = useSearchParams()
-  const TABS: Tab[] = ['overview', 'income', 'balance', 'accounts', 'invoices', 'members', 'sync']
+  const TABS: Tab[] = ['overview', 'income', 'balance', 'accounts', 'invoices', 'dues', 'members', 'sync']
   const tabParam = searchParams.get('tab') as Tab | null
   const tab: Tab = tabParam && TABS.includes(tabParam) ? tabParam : 'overview'
   const setTab = (next: Tab) => setSearchParams((prev) => {
@@ -134,6 +135,7 @@ export default function FinancePage() {
   const fiscalYears = fiscalYearsRaw ?? []
   const [fyId, setFyId] = useState<string>('')
   const activeFyId = fyId || (fiscalYears[0]?.id ?? '')
+  const activeFyLabel = fiscalYears.find((fy) => String(fy.id) === String(activeFyId))?.label ?? ''
 
   const { data: accountsRaw } = useFinanceAccounts()
   const accounts = accountsRaw ?? []
@@ -224,12 +226,16 @@ export default function FinancePage() {
             <TabBtn active={tab === 'balance'} label={t('tabBalance')} onClick={() => setTab('balance')} />
             <TabBtn active={tab === 'accounts'} label={t('tabAccounts')} onClick={() => setTab('accounts')} />
             <TabBtn active={tab === 'invoices'} label={t('tabInvoices')} onClick={() => setTab('invoices')} />
+            <TabBtn active={tab === 'dues'} label={t('tabDues')} onClick={() => setTab('dues')} />
             <TabBtn active={tab === 'members'} label={t('tabMembers')} onClick={() => setTab('members')} />
             <TabBtn active={tab === 'sync'} label={t('tabSync')} onClick={() => setTab('sync')} />
           </div>
 
           {/* ── Invoices (native create/manage + orphan member-linking) ── */}
           {tab === 'invoices' && <InvoiceManager />}
+
+          {/* ── Dues run (recurring/batch membership-dues billing) ── */}
+          {tab === 'dues' && <DuesRunManager fiscalYearId={String(activeFyId)} fiscalYearLabel={activeFyLabel} />}
 
           {/* ── Members (per-member finance: contact, billing, invoices) ── */}
           {tab === 'members' && <FinanceMemberExplorer />}

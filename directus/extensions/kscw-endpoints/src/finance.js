@@ -44,6 +44,16 @@ function scorReference(idNum) {
   return `RF${String(98 - rem).padStart(2, '0')}${body}`
 }
 
+/** Pick the CHF dues rate for a member: a sektion-specific row wins over the
+ *  category default (sektion NULL). Returns the matching rate row or null. */
+function pickRate(rates, category, sektion) {
+  const cat = (category || '').toLowerCase()
+  const inCat = rates.filter((r) => r.active && (r.category || '').toLowerCase() === cat)
+  return inCat.find((r) => r.sektion && sektion && r.sektion.toLowerCase() === String(sektion).toLowerCase())
+      || inCat.find((r) => !r.sektion)
+      || null
+}
+
 export function registerFinance(router, { database, logger }) {
   const log = logger.child({ extension: 'kscw-endpoints', module: 'finance' })
 
@@ -328,5 +338,239 @@ export function registerFinance(router, { database, logger }) {
       await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'unlink_member', removed, cleared } })
       return res.json({ ok: true, removed, cleared })
     } catch (e) { return err(res, req, 'unlink-member', e) }
+  })
+
+  // ── Dues runs — recurring / batch membership-dues billing (migration 138) ─
+  // Mints ordinary native invoices for a cohort from a per-category rate
+  // schedule. Preview is a pure dry-run; issue is idempotent (skips members who
+  // already hold a non-cancelled dues invoice this fiscal year).
+
+  /** Resolve the cohort + per-member billing decision. Shared by preview + issue. */
+  async function resolveDuesCohort(body) {
+    const fiscalYear = Number(body.fiscal_year)
+    const fy = Number.isInteger(fiscalYear)
+      ? await database('finance_fiscal_years').where('id', fiscalYear).first('id', 'label') : null
+    if (!fy) return { error: 'fiscal_year not found' }
+    const categories = Array.isArray(body.categories) ? body.categories.map((c) => String(c)).filter(Boolean) : []
+    if (!categories.length) return { error: 'categories[] required' }
+    const sektion = (body.sektion || '').toString().trim() || null
+    const onlyActive = body.only_active !== false // default true
+
+    const rates = await database('finance_dues_rates').where('fiscal_year', fy.id)
+      .select('id', 'category', 'sektion', 'amount_chf', 'subject_template', 'active')
+
+    let mq = database('members').whereIn('beitragskategorie', categories)
+      .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie', 'sektion')
+    if (onlyActive) mq = mq.where('kscw_membership_active', true)
+    if (sektion) mq = mq.where('sektion', sektion)
+    const members = await mq.orderBy(['last_name', 'first_name'])
+
+    // Members already holding a non-cancelled dues invoice this fiscal year.
+    const billed = new Set((await database('finance_invoices')
+      .where('fiscal_year', fy.id).whereNotNull('dues_run').whereNotNull('member')
+      .whereNot('status', 'cancelled').pluck('member')).map(Number))
+
+    const rows = members.map((m) => {
+      const rate = pickRate(rates, m.beitragskategorie, m.sektion)
+      return {
+        member: m.id,
+        name: [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null,
+        email: m.email || null,
+        category: m.beitragskategorie || null,
+        sektion: m.sektion || null,
+        amount: rate ? round2(rate.amount_chf) : null,
+        subject_template: rate?.subject_template || null,
+        already_billed: billed.has(Number(m.id)),
+        missing_rate: !rate,
+        missing_email: !m.email,
+      }
+    })
+    return { fy, sektion, onlyActive, categories, rows }
+  }
+
+  const duesTotals = (rows) => {
+    const billable = rows.filter((x) => !x.missing_rate && !x.already_billed)
+    return {
+      members: rows.length,
+      billable: billable.length,
+      billable_amount: round2(billable.reduce((s, x) => s + (x.amount || 0), 0)),
+      already_billed: rows.filter((x) => x.already_billed).length,
+      missing_rate: rows.filter((x) => x.missing_rate).length,
+      no_email: billable.filter((x) => x.missing_email).length,
+    }
+  }
+
+  // GET /finance/dues-rates?fiscal_year= — rate schedule + real category/sektion values
+  router.get('/finance/dues-rates', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const fyId = Number(req.query.fiscal_year)
+      const rates = Number.isInteger(fyId)
+        ? await database('finance_dues_rates').where('fiscal_year', fyId).orderBy(['category', 'sektion'])
+            .select('id', 'fiscal_year', 'category', 'sektion', 'amount_chf', 'subject_template', 'active')
+        : []
+      // Free-text columns synced from ClubDesk — offer only real live values.
+      const categories = await database('members').whereNotNull('beitragskategorie')
+        .where('kscw_membership_active', true).distinct('beitragskategorie').orderBy('beitragskategorie').pluck('beitragskategorie')
+      const sektionen = await database('members').whereNotNull('sektion')
+        .where('kscw_membership_active', true).distinct('sektion').orderBy('sektion').pluck('sektion')
+      return res.json({ rates, categories, sektionen })
+    } catch (e) { return err(res, req, 'dues-rates', e) }
+  })
+
+  // POST /finance/dues-rates — upsert a (fiscal_year, category, sektion) rate
+  router.post('/finance/dues-rates', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const b = req.body || {}
+      const fiscalYear = Number(b.fiscal_year)
+      const category = (b.category || '').toString().trim()
+      const sektion = (b.sektion || '').toString().trim() || null
+      const amount = round2(b.amount_chf)
+      const subjectTemplate = (b.subject_template || '').toString().trim() || null
+      const active = b.active !== false
+      if (!Number.isInteger(fiscalYear)) return res.status(400).json({ error: 'fiscal_year required' })
+      if (!category) return res.status(400).json({ error: 'category required' })
+      if (!(amount >= 0)) return res.status(400).json({ error: 'amount_chf must be >= 0' })
+
+      const existing = await database('finance_dues_rates').where('fiscal_year', fiscalYear)
+        .whereRaw('lower(category) = lower(?)', [category])
+        .whereRaw("coalesce(sektion, '') = coalesce(?, '')", [sektion])
+        .first('id')
+      let row
+      if (existing) {
+        const upd = await database('finance_dues_rates').where('id', existing.id)
+          .update({ category, sektion, amount_chf: amount, subject_template: subjectTemplate, active, date_updated: new Date() }).returning('*')
+        row = upd[0]
+      } else {
+        const ins = await database('finance_dues_rates').insert({
+          fiscal_year: fiscalYear, category, sektion, amount_chf: amount, subject_template: subjectTemplate, active,
+          created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+        }).returning('*')
+        row = ins[0]
+      }
+      await writeUserLog(database, log, { accountability: req.accountability, action: existing ? 'update' : 'create', collection: 'finance_dues_rates', recordId: row.id, data: { fiscal_year: fiscalYear, category, sektion, amount } })
+      return res.json({ rate: row })
+    } catch (e) { return err(res, req, 'dues-rate-save', e) }
+  })
+
+  // DELETE /finance/dues-rates/:id
+  router.delete('/finance/dues-rates/:id', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const removed = await database('finance_dues_rates').where('id', id).del()
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_dues_rates', recordId: id, data: { removed } })
+      return res.json({ ok: true, removed })
+    } catch (e) { return err(res, req, 'dues-rate-delete', e) }
+  })
+
+  // POST /finance/dues-runs/preview — dry-run, no writes
+  router.post('/finance/dues-runs/preview', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const r = await resolveDuesCohort(req.body || {})
+      if (r.error) return res.status(400).json({ error: r.error })
+      return res.json({ fiscal_year: r.fy, rows: r.rows, totals: duesTotals(r.rows) })
+    } catch (e) { return err(res, req, 'dues-preview', e) }
+  })
+
+  // POST /finance/dues-runs/issue — mint native invoices for the billable cohort
+  router.post('/finance/dues-runs/issue', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const body = req.body || {}
+      const r = await resolveDuesCohort(body)
+      if (r.error) return res.status(400).json({ error: r.error })
+      const billable = r.rows.filter((x) => !x.missing_rate && !x.already_billed)
+      if (!billable.length) return res.status(409).json({ error: 'Nothing to bill (no members with a rate that are not already billed)' })
+
+      const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(body.due_date || '') ? body.due_date : null
+      const invoiceDate = todayISO()
+      const fyLabel = r.fy.label
+      const label = (body.label || '').toString().trim() || `Dues ${fyLabel}`
+
+      const result = await database.transaction(async (trx) => {
+        const runIns = await trx('finance_dues_runs').insert({
+          fiscal_year: r.fy.id, label,
+          filter_json: JSON.stringify({ categories: r.categories, sektion: r.sektion, only_active: r.onlyActive, due_date: dueDate }),
+          status: 'issued', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+        }).returning('id')
+        const runId = runIns[0]?.id ?? runIns[0]
+
+        const created = []
+        let total = 0
+        for (const x of billable) {
+          const seqRow = await trx.raw("SELECT nextval('finance_native_invoice_seq')::int AS n")
+          const seq = (seqRow.rows ? seqRow.rows[0] : seqRow[0]).n
+          const number = `N-${invoiceDate.slice(0, 4)}-${String(seq).padStart(4, '0')}`
+          const subject = (x.subject_template || `Mitgliederbeitrag ${fyLabel}`)
+            .replace(/\{fy\}/g, fyLabel).replace(/\{category\}/g, x.category || '')
+          const ins = await trx('finance_invoices').insert({
+            clubdesk_id: null, number, invoice_date: invoiceDate, subject,
+            amount: x.amount, status: 'open', due_date: dueDate,
+            amount_paid: 0, open_amount: x.amount, fee_category: x.category,
+            recipient_name: x.name, recipient_email: x.email,
+            member: x.member, team: null, dues_run: runId, fiscal_year: r.fy.id,
+            source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+          }).returning('id')
+          const invId = ins[0]?.id ?? ins[0]
+          try {
+            await trx('finance_invoices').where('id', invId)
+              .update({ reference: scorReference(invId), reference_type: 'SCOR', date_updated: new Date() })
+          } catch (e) { log.warn?.({ msg: `dues scor gen failed: ${e.message}`, id: invId }) }
+          created.push({ member: x.member, invoice: number, amount: x.amount })
+          total = round2(total + x.amount)
+        }
+        await trx('finance_dues_runs').where('id', runId).update({ total_count: created.length, total_amount: total })
+        return { runId, created, total }
+      })
+
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_dues_runs', recordId: result.runId, data: { kind: 'dues_run_issue', fiscal_year: r.fy.id, count: result.created.length, total: result.total } })
+      return res.json({
+        run: { id: result.runId, label, fiscal_year: r.fy.id, total_count: result.created.length, total_amount: result.total },
+        summary: { created: result.created.length, skipped_already_billed: r.rows.filter((x) => x.already_billed).length, skipped_no_rate: r.rows.filter((x) => x.missing_rate).length },
+        details: result.created,
+      })
+    } catch (e) { return err(res, req, 'dues-issue', e) }
+  })
+
+  // POST /finance/dues-runs/:id/cancel — bulk-void a run's still-open invoices
+  router.post('/finance/dues-runs/:id/cancel', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const run = await database('finance_dues_runs').where('id', id).first()
+      if (!run) return res.status(404).json({ error: 'Not found' })
+      const cancelled = await database('finance_invoices')
+        .where('dues_run', id).whereNotIn('status', ['paid', 'cancelled'])
+        .update({ status: 'cancelled', open_amount: 0, cancelled_at: new Date(), date_updated: new Date() })
+      await database('finance_dues_runs').where('id', id).update({ status: 'cancelled' })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_dues_runs', recordId: id, data: { kind: 'dues_run_cancel', cancelled } })
+      return res.json({ ok: true, cancelled })
+    } catch (e) { return err(res, req, 'dues-cancel', e) }
+  })
+
+  // GET /finance/dues-runs?fiscal_year= — past runs for the console
+  router.get('/finance/dues-runs', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const fyId = Number(req.query.fiscal_year)
+      let q = database('finance_dues_runs as r')
+        .leftJoin('finance_fiscal_years as fy', 'fy.id', 'r.fiscal_year')
+        .select('r.id', 'r.fiscal_year', 'fy.label as fiscal_year_label', 'r.label', 'r.status',
+          'r.total_count', 'r.total_amount', 'r.created_by_name', 'r.date_created')
+        .orderBy([{ column: 'r.date_created', order: 'desc' }, { column: 'r.id', order: 'desc' }])
+      if (Number.isInteger(fyId)) q = q.where('r.fiscal_year', fyId)
+      const runs = await q.limit(200)
+      return res.json({ runs })
+    } catch (e) { return err(res, req, 'dues-runs', e) }
   })
 }

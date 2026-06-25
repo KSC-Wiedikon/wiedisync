@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.9.0 — 2026-06-25
+
+### Finances: bill membership dues in one run
+- Set the membership fee per **category** (and per section) for a season, then bill every active member in those categories **in one run** — each member gets a payable QR-bill in the app.
+- **Preview before billing**: see exactly who will be charged, how much, and who is missing a rate or already billed, before anything is issued.
+- **Safe to re-run** — members who already have a dues invoice for the season are skipped, so nobody is billed twice.
+- **Cancel a whole run** to void its still-open invoices; paid ones are kept.
+
 ## v1.8.0 — 2026-06-24
 
 ### Finances: per-member explorer + a dedicated Finance role
