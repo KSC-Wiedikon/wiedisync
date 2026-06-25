@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../hooks/useAuth'
 import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
 import { useAdminBookings } from '../hooks/useAdminBookings'
@@ -20,7 +20,6 @@ import {
 } from '../lib/scheduleExport'
 import TeamAvailabilityDialog from '../components/TeamAvailabilityDialog'
 import SchedulingCalendar, { type IntraClubGame } from '../components/SchedulingCalendar'
-import MailboxPanel from '../components/MailboxPanel'
 import { useMailbox, classifyMessages, messagesForOwner, contactAddressSet, type MailboxMessage, type OpponentContacts } from '../hooks/useMailbox'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { Badge } from '../../../components/ui/badge'
@@ -209,6 +208,7 @@ function sourceKey(source: InviteSource | undefined): string {
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation('gameScheduling')
+  const navigate = useNavigate()
   const { hasAdminAccessToSport, is_spielplaner } = useAuth()
   const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
   const { bookings, opponents, slots, proposalHealth, isLoading, hasLoaded, confirmAwayProposal, confirmHomeProposal, requestNewSlots, saveOpponentNote, manualBooking, deleteBooking, blockSlot, finalizeNotify, vmPush, refetch } = useAdminBookings(season?.id)
@@ -217,7 +217,7 @@ export default function AdminDashboardPage() {
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [notifyingTeam, setNotifyingTeam] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const mailbox = useMailbox(hasAdminAccessToSport('volleyball') || is_spielplaner)
+  const mailbox = useMailbox(hasAdminAccessToSport('volleyball') || is_spielplaner, 'volleyball')
 
   // Intra-club games (e.g. the H1↔H3 derby) — not bookings, so they don't come
   // through useAdminBookings. Surface them on the overview + per-team calendars.
@@ -283,7 +283,10 @@ export default function AdminDashboardPage() {
     return () => { cancelled = true }
   }, [season?.id, bookings])
 
-  const [mailboxFocus, setMailboxFocus] = useState<GameSchedulingOpponent | null>(null)
+  // Open an opponent's email thread in the Mailbox tab (the mailbox UI moved off
+  // the dashboard into its own tab; the per-opponent "N emails" button deep-links).
+  const openOpponentMailbox = (opp: GameSchedulingOpponent) =>
+    navigate(`/admin/terminplanung/mailbox?sport=volleyball&opponent=${opp.id}`)
 
   // Wrap confirm so a rejected booking (Saturday cap, cross-team, gap, Döltschi,
   // slot taken, hall closure…) surfaces its reason instead of failing silently.
@@ -1004,7 +1007,7 @@ export default function AdminDashboardPage() {
                     onBlockSlot={blockSlot}
                     mailboxConfigured={mailbox.configured === true}
                     emailsFor={(opp) => messagesForOwner(mailbox.messages, opp.id, mailClassification)}
-                    onOpenMailbox={setMailboxFocus}
+                    onOpenMailbox={openOpponentMailbox}
                     awayVmChecks={awayVmChecks}
                     awayVmUnbooked={awayVmUnbooked}
                     onSyncVm={handleSyncFromVm}
@@ -1016,19 +1019,6 @@ export default function AdminDashboardPage() {
           )
         })}
       </div>
-
-      {/* Spielplanung mailbox — synced volleyball@spielplanung.kscw.ch */}
-      <MailboxPanel
-        mailbox={mailbox}
-        opponentContacts={opponentContacts}
-        focusOpponent={mailboxFocus}
-        onClearFocus={() => setMailboxFocus(null)}
-        seasonName={season.season}
-        kscwTeamLabelFor={(opp) => {
-          const team = volleyballTeams.find((tm) => String(tm.id) === String(opp.kscw_team))
-          return team?.full_name || (team?.name ? `KSC Wiedikon ${team.name}` : 'KSC Wiedikon')
-        }}
-      />
     </div>
   )
 }

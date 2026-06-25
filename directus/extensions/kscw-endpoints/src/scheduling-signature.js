@@ -18,13 +18,22 @@ import { FRONTEND_URL, escHtml } from './email-template.js'
 
 const LOGO_URL = `${FRONTEND_URL}/kscw_email_crest.png`
 const SIG_EMAIL = 'volleyball@spielplanung.kscw.ch'
+const SIG_EMAIL_BB = 'basketball@spielplanung.kscw.ch'
 const SIG_WA_HREF = 'https://wa.me/41797891817'
 const SIG_WA_DISPLAY = '+41&nbsp;79&nbsp;789&nbsp;18&nbsp;17'
 const SIG_PEOPLE = 'Luca &middot; Martin &middot; Hella'
 
-// One branded light card (the operators' design), parameterised by language so
-// it can be emitted once (DE) or stacked (DE + EN) for the bilingual case.
-function lightCard({ role, waLabel }) {
+// One branded light card (the operators' design), parameterised by role + the
+// contact block so the volleyball and basketball mailboxes can each emit their
+// own card. The `email`/`people`/WhatsApp fields default to the volleyball
+// values so the existing VB export is byte-identical; a falsy `people` drops the
+// names row and a falsy `waLabel` drops the WhatsApp row (basketball placeholder
+// has neither until the operators supply them).
+function lightCard({ role, waLabel, email = SIG_EMAIL, people = SIG_PEOPLE, waHref = SIG_WA_HREF, waDisplay = SIG_WA_DISPLAY }) {
+  const peopleRow = people ? `<div style="font-weight: bold; margin-top: 6px;">${people}</div>` : ''
+  const waRow = waLabel
+    ? `<div style="margin-top: 2px; font-size: 13px; color: #555555;">${waLabel}: <a href="${waHref}" style="color: #3D4A99; text-decoration: none;">${waDisplay}</a></div>`
+    : ''
   return (
     `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; font-size: 14px; line-height: 1.5;">` +
     `<tr>` +
@@ -34,13 +43,18 @@ function lightCard({ role, waLabel }) {
     `<td style="padding-left: 16px; vertical-align: middle;">` +
     `<div style="font-size: 16px; font-weight: bold; color: #3D4A99; letter-spacing: 0.3px;">KSC Wiedikon</div>` +
     `<div style="font-size: 13px; color: #555555; margin-top: 1px;">${role}</div>` +
-    `<div style="font-weight: bold; margin-top: 6px;">${SIG_PEOPLE}</div>` +
-    `<div style="margin-top: 4px; font-size: 13px;"><a href="mailto:${SIG_EMAIL}" style="color: #3D4A99; text-decoration: none;">${SIG_EMAIL}</a></div>` +
-    `<div style="margin-top: 2px; font-size: 13px; color: #555555;">${waLabel}: <a href="${SIG_WA_HREF}" style="color: #3D4A99; text-decoration: none;">${SIG_WA_DISPLAY}</a></div>` +
+    peopleRow +
+    `<div style="margin-top: 4px; font-size: 13px;"><a href="mailto:${email}" style="color: #3D4A99; text-decoration: none;">${email}</a></div>` +
+    waRow +
     `</td>` +
     `</tr>` +
     `</table>`
   )
+}
+
+/** Plain-text signature, same fields as the card (drops empty rows). */
+function sigText({ role, email, people, wa }) {
+  return ['--', `KSC Wiedikon · ${role}`, people, email, wa].filter(Boolean).join('\n')
 }
 
 /**
@@ -52,11 +66,17 @@ export const SCHEDULING_SIGNATURE_LIGHT_HTML =
 
 /** Plain-text signature appended to the text part of manual emails. */
 export const SCHEDULING_SIGNATURE_TEXT =
-  '--\n' +
-  'KSC Wiedikon · Spielplanung Volleyball\n' +
-  'Luca · Martin · Hella\n' +
-  `${SIG_EMAIL}\n` +
-  'WhatsApp (Notfall, Luca): +41 79 789 18 17'
+  sigText({ role: 'Spielplanung Volleyball', email: SIG_EMAIL, people: 'Luca · Martin · Hella', wa: 'WhatsApp (Notfall, Luca): +41 79 789 18 17' })
+
+// Basketball mailbox signature. PLACEHOLDER copy — basketball@spielplanung.kscw.ch
+// + the "Spielplanung Basketball" role only; the scheduler names + WhatsApp line
+// are intentionally omitted until the basketball operators supply them. Drop them
+// into the `people` / `waLabel` args here once known.
+export const SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML =
+  lightCard({ role: 'Spielplanung Basketball', email: SIG_EMAIL_BB, people: null, waLabel: null })
+
+export const SCHEDULING_SIGNATURE_BASKETBALL_TEXT =
+  sigText({ role: 'Spielplanung Basketball', email: SIG_EMAIL_BB })
 
 // Localised role + WhatsApp label for the dark automated footer (gsw → de).
 const DARK_I18N = {

@@ -12,6 +12,7 @@ import { TourProvider } from './modules/guide/TourProvider'
 import { SentryErrorBoundary } from './lib/sentry'
 import SchedulingLayout from './components/SchedulingLayout'
 import AdminOrSpielplanerRoute from './components/AdminOrSpielplanerRoute'
+import MailboxRoute from './components/MailboxRoute'
 import SpielplanerOrAdminRoute from './components/SpielplanerOrAdminRoute'
 // Auth pages — pre-SSO, admins still log in on this origin until cookie-session
 // SSO (Phase 2) shares the member-app login across the .kscw.ch subdomains.
@@ -23,6 +24,7 @@ import PublicTerminplanungPage from './modules/gameScheduling/pages/PublicTermin
 import OpponentFlowPage from './modules/gameScheduling/pages/OpponentFlowPage'
 import AdminSetupPage from './modules/gameScheduling/pages/AdminSetupPage'
 import AdminDashboardPage from './modules/gameScheduling/pages/AdminDashboardPage'
+import MailboxPage from './modules/gameScheduling/pages/MailboxPage'
 import SpielplanungPage from './modules/spielplanung/SpielplanungPage'
 import SchedulingHome from './modules/gameScheduling/pages/SchedulingHome'
 
@@ -88,6 +90,11 @@ export default function SchedulingApp() {
                         <Route
                           path="admin/terminplanung/settings"
                           element={<AdminOrSpielplanerRoute><AdminSetupPage /></AdminOrSpielplanerRoute>}
+                        />
+                        {/* Mailbox tab — Volleyball/Basketball toggle inside (per-sport gating in the page). */}
+                        <Route
+                          path="admin/terminplanung/mailbox"
+                          element={<MailboxRoute><MailboxPage /></MailboxRoute>}
                         />
                         {/* Back-compat: the old dashboard URL now lives at the section root. */}
                         <Route

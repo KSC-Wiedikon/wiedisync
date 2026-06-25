@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { CalendarClock, Check, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, LogOut, Moon, Settings, Sun } from 'lucide-react'
+import { CalendarClock, Check, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, LogOut, Mail, Moon, Settings, Sun } from 'lucide-react'
 
 const WIEDISYNC_URL = 'https://wiedisync.kscw.ch'
 
@@ -37,14 +37,14 @@ export default function SchedulingLayout() {
 
   const canTerminplanung = hasAdminAccessToSport('volleyball') || is_spielplaner
   const canPlanner = isAdmin || is_spielplaner || spielplanerTeamIds.length > 0
+  // The mailbox tab is reachable by either sport's admins (basketball-only
+  // bb_admins included), wider than the terminplanung dashboard.
+  const canMailbox = canTerminplanung || hasAdminAccessToSport('basketball')
 
   const navItems: { to: string; label: string; Icon: typeof CalendarClock; end?: boolean }[] = [
-    ...(canTerminplanung
-      ? [
-          { to: '/admin/terminplanung', label: t('dashboard'), Icon: LayoutDashboard, end: true },
-          { to: '/admin/terminplanung/settings', label: t('settings'), Icon: Settings },
-        ]
-      : []),
+    ...(canTerminplanung ? [{ to: '/admin/terminplanung', label: t('dashboard'), Icon: LayoutDashboard, end: true }] : []),
+    ...(canMailbox ? [{ to: '/admin/terminplanung/mailbox', label: t('mailbox'), Icon: Mail }] : []),
+    ...(canTerminplanung ? [{ to: '/admin/terminplanung/settings', label: t('settings'), Icon: Settings }] : []),
     ...(canPlanner ? [{ to: '/admin/spielplanung', label: t('gameplan'), Icon: ClipboardList }] : []),
   ]
   // Most-specific match wins so /settings doesn't light up the exact-match dashboard tab.

@@ -19,6 +19,7 @@ import {
   type MailboxAttachment,
   type MailboxMessage,
   type MailboxMessageFull,
+  type MailboxSport,
   type MessageClassification,
   type OpponentContacts,
   type UseMailboxReturn,
@@ -26,6 +27,12 @@ import {
 import type { GameSchedulingOpponent } from '../../../types'
 
 const COLLAPSED_COUNT = 10
+
+/** Compose modes — new mail, reply, reply-all, or forward. */
+type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward'
+
+/** Inbox = received (direction in), Sent = sent (direction out). */
+type Folder = 'inbox' | 'sent'
 
 // Outgoing-attachment caps (mirrored server-side in scheduling-mailbox.js).
 const ATTACH_MAX_FILES = 10
@@ -57,22 +64,45 @@ function emailSrcDoc(html: string): string {
     `</style></head><body>${html}</body></html>`
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+/** Count of attachments on a full message (the column is jsonb or a string). */
+function attachmentCount(msg: MailboxMessageFull): number {
+  const raw = msg.attachments
+  if (!raw) return 0
+  if (typeof raw === 'string') { try { return (JSON.parse(raw) as unknown[]).length } catch { return 0 } }
+  return Array.isArray(raw) ? raw.length : 0
+}
+
 interface ComposeState {
   to: string
+  /** Carbon-copy recipients (comma-separated). Populated for reply-all. */
+  cc: string
   subject: string
   /** Rich-text HTML from the TipTap editor (empty string when blank). */
   html: string
   attachments: File[]
   replyToId?: number
+  /** Forward: source message id whose attachments the server re-attaches. */
+  forwardFromId?: number
+  /** Count of attachments carried over from the forwarded message (UI hint). */
+  forwardAttachCount?: number
+  mode: ComposeMode
 }
 
 interface Props {
   mailbox: UseMailboxReturn
+  /** Which mailbox account this panel is showing — passed through to attachment
+   *  downloads so they hit the right account. */
+  sport?: MailboxSport
   /** All opponents + their contact sets (and KSCW-pairing aliases), built once
-   *  by the dashboard so the chip and the per-opponent thread disambiguate
-   *  identically across opponent rows that share a club's contacts. */
+   *  by the page so the chip and the per-opponent thread disambiguate
+   *  identically across opponent rows that share a club's contacts. Empty for
+   *  basketball (no opponent scheduling) → no chips/assign/thread. */
   opponentContacts: OpponentContacts[]
-  /** Set from an opponent card's "N emails" button — opens the per-opponent thread dialog. */
+  /** Set from an opponent card's "N emails" deep-link — opens the per-opponent thread dialog. */
   focusOpponent: GameSchedulingOpponent | null
   onClearFocus: () => void
   /** Season label (e.g. "2026/2027") for the auto-generated compose subject. */
@@ -86,10 +116,11 @@ interface Props {
  * volleyball@spielplanung.kscw.ch inbox + sent mail, with reply/compose.
  * Messages are matched to opponents client-side by contact-address overlap.
  */
-export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent, onClearFocus, seasonName, kscwTeamLabelFor }: Props) {
+export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentContacts, focusOpponent, onClearFocus, seasonName, kscwTeamLabelFor }: Props) {
   const { t } = useTranslation('gameScheduling')
   const { configured, messages, unread, lastSync, syncing, sending } = mailbox
   const [showAll, setShowAll] = useState(false)
+  const [folder, setFolder] = useState<Folder>('inbox')
   const [search, setSearch] = useState('')
   // Server-side search results (subject + sender/recipient + body). null = not
   // searching → show the cached list. The cached `messages` is never replaced,
@@ -153,9 +184,11 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
     try {
       await mailbox.sendReply({
         to: compose.to,
+        cc: compose.cc || undefined,
         subject: compose.subject,
         html: compose.html,
         reply_to_id: compose.replyToId,
+        forward_from_id: compose.forwardFromId,
         attachments: compose.attachments,
       })
       toast.success(t('mailboxSent'))
@@ -190,10 +223,56 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
     setCompose({ ...compose, attachments: compose.attachments.filter((_, i) => i !== idx) })
   }
 
-  const replyTo = (msg: MailboxMessageFull) => {
-    const to = msg.direction === 'in' ? (msg.from_address || '') : (msg.to_addresses || '')
+  // Our own mailbox address for this account — kept out of reply-all recipients
+  // (the server also strips it, but the compose form shouldn't show it either).
+  const selfAddress = (sport === 'basketball' ? 'basketball@spielplanung.kscw.ch' : 'volleyball@spielplanung.kscw.ch')
+
+  const splitAddrs = (s: string | null | undefined) =>
+    String(s || '').split(',').map((a) => a.trim()).filter(Boolean)
+
+  // Reply (all=false) or Reply-all (all=true). To = the other party; for
+  // reply-all every other To/Cc address (minus us + the primary) becomes Cc.
+  const startReply = (msg: MailboxMessageFull, all: boolean) => {
+    const isIn = msg.direction === 'in'
+    const primary = isIn ? (msg.from_address || '') : (splitAddrs(msg.to_addresses)[0] || '')
+    let ccList: string[] = []
+    if (all) {
+      const everyone = [...splitAddrs(msg.to_addresses), ...splitAddrs(msg.cc_addresses)]
+      ccList = [...new Set(everyone.filter((a) => {
+        const low = a.toLowerCase()
+        return low !== selfAddress && low !== primary.toLowerCase()
+      }))]
+    }
     const subject = /^re:/i.test(msg.subject || '') ? (msg.subject || '') : `Re: ${msg.subject || ''}`
-    setCompose({ to, subject, html: '', attachments: [], replyToId: msg.id })
+    setCompose({ to: primary, cc: ccList.join(', '), subject, html: '', attachments: [], replyToId: msg.id, mode: all ? 'replyAll' : 'reply' })
+  }
+
+  // Minimal quoted block for a forward: a header + the original plain body
+  // (kept plain so it pastes cleanly into the rich-text editor and stays
+  // editable; the attachments ride along server-side via forward_from_id).
+  const buildForwardQuote = (msg: MailboxMessageFull): string => {
+    const when = msg.date_sent ? formatDateTimeCompact(msg.date_sent) : ''
+    const fromLine = msg.from_name
+      ? `${escapeHtml(msg.from_name)} &lt;${escapeHtml(msg.from_address || '')}&gt;`
+      : escapeHtml(msg.from_address || '')
+    const header =
+      `<p>---------- ${escapeHtml(t('mailboxForwardedMessage'))} ----------<br>` +
+      `${escapeHtml(t('mailboxFrom'))}: ${fromLine}<br>` +
+      `${escapeHtml(t('mailboxDate'))}: ${escapeHtml(when)}<br>` +
+      `${escapeHtml(t('mailboxSubject'))}: ${escapeHtml(msg.subject || '')}<br>` +
+      `${escapeHtml(t('mailboxTo'))}: ${escapeHtml(msg.to_addresses || '')}</p>`
+    const body = `<p>${escapeHtml(msg.body_text || '').replace(/\n/g, '<br>')}</p>`
+    return header + body
+  }
+
+  // Forward: new thread (no reply_to), quoted original body, and the server
+  // re-attaches the source's files (forward_from_id) so they ride along.
+  const startForward = (msg: MailboxMessageFull) => {
+    const subject = /^fwd?:/i.test(msg.subject || '') ? (msg.subject || '') : `Fwd: ${msg.subject || ''}`
+    setCompose({
+      to: '', cc: '', subject, html: buildForwardQuote(msg), attachments: [],
+      forwardFromId: msg.id, forwardAttachCount: attachmentCount(msg), mode: 'forward',
+    })
   }
 
   const composeForOpponent = (opp: GameSchedulingOpponent) => {
@@ -205,7 +284,7 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
     const subject = [matchup, seasonName ? `Spielplanung ${seasonName}` : '']
       .filter(Boolean)
       .join(' / ')
-    setCompose({ to: opp.contact_email || '', subject, html: '', attachments: [] })
+    setCompose({ to: opp.contact_email || '', cc: '', subject, html: '', attachments: [], mode: 'new' })
   }
 
   const correspondent = (msg: MailboxMessage) =>
@@ -302,10 +381,29 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
 
   // When a search is active, `results` (server-side: subject + sender/recipient
   // + full body) replaces the cached list; otherwise show the cached list with
-  // the show-all collapse. Search results are shown in full (no collapse).
+  // the show-all collapse. Either way the list is scoped to the active folder
+  // (Inbox = received, Sent = sent). Search results are shown in full.
+  const inFolder = (m: MailboxMessage) => (folder === 'inbox' ? m.direction === 'in' : m.direction === 'out')
   const searchActive = results !== null
-  const list = results ?? messages
+  const list = (results ?? messages).filter(inFolder)
   const visible = searchActive ? list : (showAll ? list : list.slice(0, COLLAPSED_COUNT))
+  const inboxCount = messages.reduce((n, m) => n + (m.direction === 'in' ? 1 : 0), 0)
+  const sentCount = messages.length - inboxCount
+
+  const folderTab = (key: Folder, label: string, count: number) => (
+    <button
+      type="button"
+      onClick={() => { setFolder(key); setShowAll(false) }}
+      className={`inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+        folder === key
+          ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-gold-400'
+          : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+      }`}
+    >
+      <span>{label}</span>
+      <span className="text-xs text-gray-400 tabular-nums dark:text-gray-500">{count}</span>
+    </button>
+  )
 
   return (
     <>
@@ -322,8 +420,8 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
                   {t('mailboxLastSync', { time: formatDateTimeCompact(lastSync) })}
                 </span>
               )}
-              <Button size="sm" variant="outline" onClick={() => setCompose({ to: '', subject: '', html: '', attachments: [] })}>
-                {t('mailboxCompose')}
+              <Button size="sm" onClick={() => setCompose({ to: '', cc: '', subject: '', html: '', attachments: [], mode: 'new' })}>
+                {t('mailboxNew')}
               </Button>
               <Button size="sm" variant="outline" onClick={() => void handleSync()} disabled={syncing}>
                 {syncing ? (
@@ -345,6 +443,11 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxEmpty')}</p>
           ) : (
             <>
+              {/* Inbox / Sent folder tabs */}
+              <div className="mb-3 flex items-center gap-1 border-b border-gray-200 pb-2 dark:border-gray-700">
+                {folderTab('inbox', t('mailboxFolderInbox'), inboxCount)}
+                {folderTab('sent', t('mailboxFolderSent'), sentCount)}
+              </div>
               <div className="mb-3">
                 <input
                   type="search"
@@ -359,18 +462,18 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
                   </p>
                 )}
               </div>
-              {searchActive && !searching && list.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxSearchEmpty')}</p>
+              {!searching && list.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">{searchActive ? t('mailboxSearchEmpty') : t('mailboxFolderEmpty')}</p>
               ) : (
                 <>
                   {renderRows(visible, true)}
-                  {!searchActive && messages.length > COLLAPSED_COUNT && (
+                  {!searchActive && list.length > COLLAPSED_COUNT && (
                     <button
                       type="button"
                       onClick={() => setShowAll((v) => !v)}
                       className="inline-flex items-center min-h-11 sm:min-h-0 mt-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
                     >
-                      {showAll ? t('mailboxShowLess') : t('mailboxShowAll', { count: messages.length })}
+                      {showAll ? t('mailboxShowLess') : t('mailboxShowAll', { count: list.length })}
                     </button>
                   )}
                 </>
@@ -433,7 +536,7 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
                   {detail.body_text || ''}
                 </div>
               )}
-              <MailboxAttachments message={detail} />
+              <MailboxAttachments message={detail} sport={sport} />
               <MailboxAssign
                 message={detail}
                 opponentContacts={opponentContacts}
@@ -450,20 +553,27 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
                   }
                 }}
               />
-              <div>
-                <Button size="sm" onClick={() => replyTo(detail)}>{t('mailboxReply')}</Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" onClick={() => startReply(detail, false)}>{t('mailboxReply')}</Button>
+                <Button size="sm" variant="outline" onClick={() => startReply(detail, true)}>{t('mailboxReplyAll')}</Button>
+                <Button size="sm" variant="outline" onClick={() => startForward(detail)}>{t('mailboxForward')}</Button>
               </div>
             </>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Compose / reply */}
+      {/* Compose / reply / reply-all / forward */}
       <Dialog open={!!compose} onOpenChange={(o) => { if (!o) setCompose(null) }}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>{compose?.replyToId ? t('mailboxReply') : t('mailboxCompose')}</DialogTitle>
-            <DialogDescription className="sr-only">{t('mailboxCompose')}</DialogDescription>
+            <DialogTitle>
+              {compose?.mode === 'reply' ? t('mailboxReply')
+                : compose?.mode === 'replyAll' ? t('mailboxReplyAll')
+                : compose?.mode === 'forward' ? t('mailboxForward')
+                : t('mailboxNew')}
+            </DialogTitle>
+            <DialogDescription className="sr-only">{t('mailboxNew')}</DialogDescription>
           </DialogHeader>
           {compose && (
             <div className="space-y-3">
@@ -476,6 +586,22 @@ export default function MailboxPanel({ mailbox, opponentContacts, focusOpponent,
                   className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
                 />
               </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxCc')}</label>
+                <input
+                  type="text"
+                  value={compose.cc}
+                  onChange={(e) => setCompose({ ...compose, cc: e.target.value })}
+                  placeholder={t('mailboxCcPlaceholder')}
+                  className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+                />
+              </div>
+              {compose.mode === 'forward' && (compose.forwardAttachCount ?? 0) > 0 && (
+                <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  <Paperclip className="h-3.5 w-3.5" />
+                  {t('mailboxForwardAttachments', { count: compose.forwardAttachCount })}
+                </p>
+              )}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxSubject')}</label>
                 <input
@@ -614,7 +740,7 @@ function MailboxAssign({
   )
 }
 
-function MailboxAttachments({ message }: { message: MailboxMessageFull }) {
+function MailboxAttachments({ message, sport }: { message: MailboxMessageFull; sport: MailboxSport }) {
   const { t } = useTranslation('gameScheduling')
   const attachments: MailboxAttachment[] = useMemo(() => {
     const raw = message.attachments
@@ -631,7 +757,7 @@ function MailboxAttachments({ message }: { message: MailboxMessageFull }) {
   const download = async (index: number, filename: string) => {
     setDownloading(index)
     try {
-      await downloadMailboxAttachment(message.id, index, filename)
+      await downloadMailboxAttachment(message.id, index, filename, sport)
     } catch {
       toast.error(t('mailboxDownloadFailed'))
     } finally {

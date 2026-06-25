@@ -17,6 +17,7 @@ export default {
   hallenplan: 'Fasce palestra',
   terminplanung: 'Pianificazione partite',
   dashboard: 'Pannello',
+  mailbox: 'Posta',
   settings: 'Impostazioni',
   manageDb: 'Gestisci database',
   openInNewTab: 'Apri in una nuova scheda',
