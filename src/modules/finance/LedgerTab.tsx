@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, Plus, Undo2, Trash2, BookOpen, ListTree, Scale, Lock, Settings2, RefreshCw, CopyPlus } from 'lucide-react'
+import { Loader2, Plus, Undo2, Trash2, BookOpen, ListTree, Scale, Lock, Settings2, RefreshCw } from 'lucide-react'
 import Modal from '../../components/Modal'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
   useLedgerAccounts, useLedgerEntries, useLedgerTrialBalance, useLedgerFiscalYears, useLedgerSettings,
   createLedgerAccount, editLedgerAccount, postLedgerEntry, reverseLedgerEntry, deleteLedgerEntry,
-  closeLedgerYear, saveLedgerSettings, reconcileLedger, seedLedgerChart, formatChf, toNum,
+  closeLedgerYear, saveLedgerSettings, reconcileLedger, formatChf, toNum,
   ACCOUNT_TYPES, type LedgerAccount, type LedgerSettings,
 } from '../../hooks/useFinance'
 
@@ -174,7 +174,7 @@ function Accounts() {
   const [open, setOpen] = useState(false)
   const refresh = () => qc.invalidateQueries({ queryKey: ['finance', 'ledger-accounts'] })
   const typeLabel = (ty: string | null) => (ty ? t(`acctType_${ty}`) : '–')
-  const rows = (accounts ?? []).filter((a) => a.source === 'native')
+  const rows = accounts ?? []
 
   async function toggle(a: LedgerAccount) { try { await editLedgerAccount(a.id, { active: !a.active }); refresh() } catch (e) { alert(apiErr(e, t('ledActionError'))) } }
 
@@ -193,6 +193,7 @@ function Accounts() {
               <TableHead className="text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColNumber')}</TableHead>
               <TableHead className="text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColName')}</TableHead>
               <TableHead className="text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColType')}</TableHead>
+              <TableHead className="hidden sm:table-cell text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColSource')}</TableHead>
               <TableHead className="text-right text-xs uppercase text-gray-500 dark:text-gray-400"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
@@ -201,8 +202,11 @@ function Accounts() {
                   <TableCell className="whitespace-nowrap tabular-nums text-gray-900 dark:text-gray-100">{a.number}</TableCell>
                   <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">{a.name}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{typeLabel(a.type)}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{a.source === 'native' ? t('ledSourceNative') : t('ledSourceClubdesk')}</TableCell>
                   <TableCell className="text-right">
-                    <button type="button" onClick={() => toggle(a)} className={btnGhost}>{a.active ? t('ledDeactivate') : t('ledActivate')}</button>
+                    {a.source === 'native'
+                      ? <button type="button" onClick={() => toggle(a)} className={btnGhost}>{a.active ? t('ledDeactivate') : t('ledActivate')}</button>
+                      : <span className="text-xs text-gray-400">{t('ledFromClubdesk')}</span>}
                   </TableCell>
                 </TableRow>
               ))}
@@ -376,14 +380,12 @@ function AutopostForm({ settings, accounts, onSaved }: { settings: LedgerSetting
       await saveLedgerSettings(body); setMsg(t('ledSettingsSaved')); onSaved()
     } catch (e) { setError(apiErr(e, t('ledActionError'))) } finally { setBusy('') }
   }
-  async function seed() { setBusy('seed'); setError(''); setMsg(''); try { const r = await seedLedgerChart(); setMsg(t('ledSeeded', { added: r.added })); onSaved() } catch (e) { setError(apiErr(e, t('ledActionError'))) } finally { setBusy('') } }
   async function reconcile() { setBusy('recon'); setError(''); setMsg(''); try { const r = await reconcileLedger(); setMsg(t('ledReconciled', { posted: r.posted })); onSaved() } catch (e) { setError(apiErr(e, t('ledActionError'))) } finally { setBusy('') } }
 
   return (
     <div className="max-w-xl space-y-4">
       <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledAutopostHint')}</p>
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={!!busy} onClick={seed} className={btnGhost}>{busy === 'seed' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CopyPlus className="h-4 w-4" />}{t('ledSeedChart')}</button>
         <button type="button" disabled={!!busy} onClick={reconcile} className={btnGhost}>{busy === 'recon' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{t('ledReconcile')}</button>
       </div>
       <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">

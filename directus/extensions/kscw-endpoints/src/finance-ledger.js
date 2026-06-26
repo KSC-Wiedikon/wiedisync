@@ -335,18 +335,22 @@ export function registerFinanceLedger(router, { database, logger }) {
   router.post('/finance/ledger/seed-chart', async (req, res) => {
     try {
       const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
-      const nativeNums = new Set((await database('finance_accounts').where('source', 'native').select('number')).map((x) => x.number))
+      // The ledger shares the existing chart of accounts (account numbers are globally
+      // unique). The ClubDesk-imported accounts ARE the chart — the journal posts to them
+      // directly. So we only add NATIVE accounts for numbers that don't exist at all
+      // (genuinely new), never a duplicate. Type inferred from the Swiss number range.
+      const existingNums = new Set((await database('finance_accounts').select('number')).map((x) => x.number))
       const cd = await database('finance_accounts').where('source', 'clubdesk').select('number', 'name', 'type', 'division')
       const toAdd = []
       const seen = new Set()
       for (const c of cd) {
-        if (!c.number || nativeNums.has(c.number) || seen.has(c.number)) continue
+        if (!c.number || existingNums.has(c.number) || seen.has(c.number)) continue
         seen.add(c.number)
         toAdd.push({ number: c.number, name: c.name, type: c.type || inferType(c.number), division: c.division || null, active: true, source: 'native' })
       }
       if (toAdd.length) await database('finance_accounts').insert(toAdd)
       await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_accounts', recordId: 0, data: { kind: 'seed_chart_from_clubdesk', added: toAdd.length } })
-      return res.json({ added: toAdd.length, skipped_existing: cd.length - toAdd.length })
+      return res.json({ added: toAdd.length, available: existingNums.size })
     } catch (e) { return err(res, req, 'seed-chart', e) }
   })
 
