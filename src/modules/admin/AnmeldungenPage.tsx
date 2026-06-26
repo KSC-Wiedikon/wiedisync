@@ -52,6 +52,16 @@ interface Registration extends BaseRecord {
   id_upload_back: string | null
 }
 
+// All document fields a registration can carry (BB docs + ID front/back)
+const DOC_FIELDS: (keyof Registration)[] = [
+  'bb_doc_lizenz',
+  'bb_doc_selfdecl',
+  'bb_doc_natdecl',
+  'id_upload_front',
+  'id_upload_back',
+]
+const countDocs = (reg: Registration): number => DOC_FIELDS.filter((k) => reg[k]).length
+
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
 
 // ── CSV export (ClubDesk format) ───────────────────────────────
@@ -382,10 +392,10 @@ export default function AnmeldungenPage() {
                                       <span key={name}>{name}</span>
                                     )
                                   })}
-                                  {reg.membership_type === 'basketball' && reg.bb_doc_lizenz && (
+                                  {countDocs(reg) > 0 && (
                                     <span className="inline-flex items-center gap-0.5 text-orange-600 dark:text-orange-400">
                                       <FileText className="h-3 w-3" />
-                                      {[reg.bb_doc_lizenz, reg.bb_doc_selfdecl, reg.bb_doc_natdecl].filter(Boolean).length} docs
+                                      {countDocs(reg)} docs
                                     </span>
                                   )}
                                 </div>
@@ -403,10 +413,10 @@ export default function AnmeldungenPage() {
                                       <span key={name} className="text-xs">{name}</span>
                                     )
                                   })}
-                                  {reg.membership_type === 'basketball' && reg.bb_doc_lizenz && (
+                                  {countDocs(reg) > 0 && (
                                     <span className="inline-flex items-center gap-0.5 text-xs text-orange-600 dark:text-orange-400">
                                       <FileText className="h-3 w-3" />
-                                      {[reg.bb_doc_lizenz, reg.bb_doc_selfdecl, reg.bb_doc_natdecl].filter(Boolean).length}
+                                      {countDocs(reg)}
                                     </span>
                                   )}
                                 </div>
