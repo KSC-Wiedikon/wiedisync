@@ -11,6 +11,9 @@
 # ⚠ One ClubDesk session per account — runs on a dedicated service account.
 set -euo pipefail
 DIR=/opt/clubdesk-sync
+# Single sync at a time (nightly cron + the on-demand dispatcher share this lock).
+exec 8>"$DIR/.sync.lock"
+flock -n 8 || { echo "another finance sync is running — skipping"; exit 0; }
 PW_IMG=mcr.microsoft.com/playwright:v1.60.0-jammy
 NODE_IMG=node:20-bookworm
 PG=supabase-db-vek42jyj0owoutoouq29aisq

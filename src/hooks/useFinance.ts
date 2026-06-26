@@ -628,3 +628,6 @@ export function useLedgerIncomeMap(enabled = true) {
 }
 export const saveLedgerIncomeMap = (entries: IncomeMapEntry[]) => kscwApi<{ map: IncomeMapEntry[] }>('/finance/ledger/income-map', { method: 'PATCH', body: { entries } })
 export const autoMapIncome = () => kscwApi<{ matched: number; total: number; applied: { fee_category: string; account: number; account_label: string }[] }>('/finance/ledger/income-map/auto', { method: 'POST' })
+
+export const triggerClubdeskSync = () => kscwApi<{ state: string }>('/finance/ledger/clubdesk-sync', { method: 'POST' })
+export const fetchClubdeskSyncStatus = () => kscwApi<{ state: string; message: string | null; last_import: string | null }>('/finance/ledger/clubdesk-sync')

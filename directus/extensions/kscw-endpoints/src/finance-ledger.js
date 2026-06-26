@@ -434,4 +434,26 @@ export function registerFinanceLedger(router, { database, logger }) {
       return res.json({ matched: applied.length, total: categories.length, applied })
     } catch (e) { return err(res, req, 'income-map-auto', e) }
   })
+
+  // ── On-demand ClubDesk finance sync ─────────────────────────────────────
+  // POST sets a request flag; a host dispatcher cron runs the scrape+import and
+  // writes back sync_state. GET is polled by the button.
+  router.get('/finance/ledger/clubdesk-sync', async (req, res) => {
+    try {
+      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const s = await database('finance_ledger_settings').where('id', 1).first('sync_state', 'sync_message', 'sync_requested_at', 'sync_finished_at')
+      const li = await database('finance_imports').max('date_created as t').first()
+      return res.json({ state: s?.sync_state || 'idle', message: s?.sync_message || null, requested_at: s?.sync_requested_at || null, finished_at: s?.sync_finished_at || null, last_import: li?.t || null })
+    } catch (e) { return err(res, req, 'sync-status', e) }
+  })
+  router.post('/finance/ledger/clubdesk-sync', async (req, res) => {
+    try {
+      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const s = await database('finance_ledger_settings').where('id', 1).first('sync_state')
+      if (['queued', 'running'].includes(s?.sync_state)) return res.status(409).json({ error: 'A sync is already in progress', state: s.sync_state })
+      await database('finance_ledger_settings').where('id', 1).update({ sync_requested_at: new Date(), sync_state: 'queued', sync_message: null, sync_finished_at: null })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_ledger_settings', recordId: 1, data: { kind: 'clubdesk_sync_request' } })
+      return res.json({ state: 'queued' })
+    } catch (e) { return err(res, req, 'sync-trigger', e) }
+  })
 }

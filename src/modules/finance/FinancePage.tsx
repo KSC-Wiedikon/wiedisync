@@ -1,12 +1,13 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import {
   useFinanceAccounts, useFinanceFiscalYears, useFinanceTransactions, useFinanceInvoices, useFinanceImports,
-  toNum, formatChf, isOpenInvoice,
+  toNum, formatChf, isOpenInvoice, triggerClubdeskSync, fetchClubdeskSyncStatus,
 } from '../../hooks/useFinance'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import type { FinanceAccount, FinanceTransaction } from './types'
@@ -21,6 +22,42 @@ import LedgerTab from './LedgerTab'
 import FinanceMemberExplorer from './FinanceMemberExplorer'
 
 type Tab = 'overview' | 'income' | 'budget' | 'balance' | 'ledger' | 'accounts' | 'invoices' | 'dues' | 'dunning' | 'members' | 'teams' | 'sync'
+
+/** On-demand "Sync now" — requests a ClubDesk finance import and polls until the
+ *  host dispatcher reports done/failed (state changes in the handler, not an effect). */
+function SyncNowButton() {
+  const { t } = useTranslation('finance')
+  const qc = useQueryClient()
+  const [syncing, setSyncing] = useState(false)
+  const [error, setError] = useState('')
+  async function go() {
+    setSyncing(true); setError('')
+    try {
+      await triggerClubdeskSync()
+      const deadline = Date.now() + 240000
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 5000))
+        const s = await fetchClubdeskSyncStatus()
+        if (s.state === 'done') break
+        if (s.state === 'failed') throw new Error(s.message || t('syncFailed'))
+        if (Date.now() > deadline) throw new Error(t('syncTimeout'))
+      }
+      await qc.invalidateQueries({ queryKey: ['finance'] })
+    } catch (e) {
+      setError((e as { body?: { error?: string } })?.body?.error || (e as Error)?.message || t('syncFailed'))
+    } finally { setSyncing(false) }
+  }
+  return (
+    <div className="mt-3">
+      <button type="button" disabled={syncing} onClick={go}
+        className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60">
+        {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{syncing ? t('syncing') : t('syncNow')}
+      </button>
+      {syncing && <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{t('syncingNote')}</p>}
+      {error && <p className="mt-1.5 text-sm text-red-600 dark:text-red-400">{error}</p>}
+    </div>
+  )
+}
 
 /** Aggregate debit/credit totals per account number from a set of transactions. */
 function statsFrom(rows: FinanceTransaction[]) {
@@ -363,6 +400,7 @@ export default function FinancePage() {
                 <div className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('lastSync')}</div>
                 <div className="mt-1 text-lg font-semibold tabular-nums text-gray-900 dark:text-gray-100">{imports[0] ? formatDateTimeCompactZurich(imports[0].imported_at) : '–'}</div>
                 <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('autoSyncNote')}</div>
+                <SyncNowButton />
               </div>
               {imports.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('noSyncs')}</div>
