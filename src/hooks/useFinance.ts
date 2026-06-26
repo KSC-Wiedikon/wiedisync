@@ -83,9 +83,12 @@ export function useFinanceInvoices(enabled = true) {
 }
 
 /** Ledger transactions, optionally scoped to a fiscal year (board only). */
-export function useFinanceTransactions(fiscalYearId?: string | null, enabled = true) {
+export function useFinanceTransactions(fiscalYearId?: string | null, enabled = true, source?: string) {
+  const filter: Record<string, unknown> = {}
+  if (fiscalYearId) filter.fiscal_year = { _eq: fiscalYearId }
+  if (source) filter.source = { _eq: source }
   return useCollection<FinanceTransaction>('finance_transactions', {
-    filter: fiscalYearId ? { fiscal_year: { _eq: fiscalYearId } } : undefined,
+    filter: Object.keys(filter).length ? filter : undefined,
     sort: ['-booking_date'],
     enabled,
     all: true,

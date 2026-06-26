@@ -142,7 +142,10 @@ export default function FinancePage() {
 
   const { data: accountsRaw } = useFinanceAccounts()
   const accounts = accountsRaw ?? []
-  const { data: txRaw, isLoading } = useFinanceTransactions(activeFyId || null, !!activeFyId)
+  // Board dashboard = the ClubDesk-mirror book (source='clubdesk'). The native ledger
+  // (source='native') is a parallel book with its own reports — never summed here, or
+  // a year with both would double-count. Flip this when native becomes the book of record.
+  const { data: txRaw, isLoading } = useFinanceTransactions(activeFyId || null, !!activeFyId, 'clubdesk')
   const transactions = txRaw ?? []
   const { data: invoicesRaw } = useFinanceInvoices()
   const invoices = invoicesRaw ?? []
@@ -157,7 +160,7 @@ export default function FinancePage() {
   // zero the income/expense accounts — without this a CLOSED fiscal year's P&L
   // reads as 0, because the closing offsets the whole year's nominal activity.
   const nameByNum = useMemo(() => { const m = new Map<string, string>(); for (const a of accounts) m.set(a.number, a.name); return m }, [accounts])
-  const plTransactions = useMemo(() => transactions.filter((tx) => tx.typ !== 'Abschluss'), [transactions])
+  const plTransactions = useMemo(() => transactions.filter((tx) => tx.typ !== 'Abschluss' && tx.typ !== 'Eroeffnung'), [transactions])
   const allStats = useMemo(() => statsFrom(transactions), [transactions])
   const plStats = useMemo(() => statsFrom(plTransactions), [plTransactions])
 

@@ -16,6 +16,7 @@
  * Corrections in a CLOSED year are reversal-only (DB trigger enforces immutability).
  */
 import { writeUserLog } from './activity-log.js'
+import { planYearEndClose } from './finance-close.js'
 
 const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense', 'close']
 const DIVISIONS = ['club', 'vb', 'bb']
@@ -209,5 +210,86 @@ export function registerFinanceLedger(router, { database, logger }) {
       }).sort((x, y) => String(x.number).localeCompare(String(y.number)))
       return res.json({ rows, totals: { debit: totalDebit, credit: totalCredit, balanced: Math.abs(totalDebit - totalCredit) < 0.005 } })
     } catch (e) { return err(res, req, 'trial-balance', e) }
+  })
+
+  // ── Fiscal years + year-end close (Jahresabschluss) ─────────────────────
+  router.get('/finance/ledger/fiscal-years', async (req, res) => {
+    try {
+      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const years = await database('finance_fiscal_years').orderBy('starts_on', 'desc')
+        .select('id', 'label', 'starts_on', 'ends_on', 'status', 'closed_on', 'closed_by_name')
+      return res.json({ fiscal_years: years })
+    } catch (e) { return err(res, req, 'fiscal-years', e) }
+  })
+
+  // Close = post Abschluss (nominal → equity) + Eröffnung (real balances → next year
+  // via an opening clearing), then lock the year. dry_run returns the plan only.
+  router.post('/finance/ledger/fiscal-years/:id/close', async (req, res) => {
+    try {
+      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const b = req.body || {}
+      const equityId = Number(b.equity_account), openingId = Number(b.opening_account)
+      const dryRun = b.dry_run === true
+      if (!Number.isInteger(equityId) || !Number.isInteger(openingId) || equityId === openingId)
+        return res.status(400).json({ error: 'equity_account and opening_account are required and must differ' })
+      const accts = await database('finance_accounts').select('id', 'number', 'name', 'type', 'active')
+      const acctById = new Map(accts.map((x) => [Number(x.id), x]))
+      const eq = acctById.get(equityId), op = acctById.get(openingId)
+      if (!eq || eq.type !== 'equity' || !eq.active) return res.status(400).json({ error: 'equity_account must be an active equity account' })
+      if (!op || op.type !== 'equity' || !op.active) return res.status(400).json({ error: 'opening_account (Eröffnungsbilanz) must be an active equity account' })
+
+      const isoDate = (d) => { if (!d) return null; if (typeof d === 'string') return d.slice(0, 10); const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` }
+
+      // Whole close in one transaction with a row lock on the year, so a double-submit
+      // / concurrent close can't post two Abschluss+Eröffnung sets. dry_run rolls back.
+      const out = await database.transaction(async (trx) => {
+        const fy = await trx('finance_fiscal_years').where('id', id).forUpdate().first()
+        if (!fy) return { code: 404, msg: 'Fiscal year not found' }
+        if (fy.status === 'closed') return { code: 409, msg: 'Fiscal year is already closed' }
+        const nextFy = await trx('finance_fiscal_years').where('starts_on', '>', fy.ends_on).orderBy('starts_on').first('id', 'label', 'starts_on', 'status')
+        if (!nextFy) return { code: 400, msg: 'Create the next fiscal year before closing this one' }
+        if (nextFy.status === 'closed') return { code: 409, msg: 'The next fiscal year is already closed — cannot carry opening balances into it' }
+        const existingOpen = await trx('finance_transactions').where({ source: 'native', fiscal_year: nextFy.id, typ: 'Eroeffnung' }).first('id')
+        if (existingOpen) return { code: 409, msg: 'The next fiscal year already has opening (Eröffnung) entries' }
+
+        const txns = await trx('finance_transactions').where('source', 'native').andWhere('fiscal_year', id).select('debit_account', 'credit_account', 'amount_chf')
+        const plan = planYearEndClose(txns, accts, { equityId, openingId })
+        const summary = { fiscal_year: id, next_fiscal_year: nextFy.id, income: plan.income, expense: plan.expense, net: plan.net, closing_entries: plan.closing.length, opening_entries: plan.opening.length, balanced: plan.balanced }
+        if (!plan.balanced) {
+          const residue = Math.abs(plan.clearingResidue) >= 0.005 ? ` (the Eröffnungsbilanz account ${op.number} carries a non-zero balance of ${plan.clearingResidue} — reconcile it first)` : ''
+          return { code: 409, msg: `Books do not balance — opening clearing nets to ${plan.clearingNet}${residue}.`, body: { ...summary, clearing_net: plan.clearingNet } }
+        }
+        if (dryRun) return { dryRun: true, summary }
+
+        const mkBeleg = async (prefix, dateISO) => {
+          const r = await trx.raw("SELECT nextval('finance_native_entry_seq')::int AS n")
+          const n = (r.rows ? r.rows[0] : r[0]).n
+          return `${prefix}-${dateISO.slice(0, 4)}-${String(n).padStart(4, '0')}`
+        }
+        const insLegs = async (legs, fyId, typ, dateISO, prefix, text) => {
+          for (const l of legs) {
+            const dr = acctById.get(Number(l.debit)), cr = acctById.get(Number(l.credit))
+            await trx('finance_transactions').insert({
+              source: 'native', typ, booking_date: dateISO, fiscal_year: fyId, beleg: await mkBeleg(prefix, dateISO), text,
+              debit_account: Number(l.debit), debit_account_number: dr?.number || null, debit_account_name: dr?.name || null,
+              credit_account: Number(l.credit), credit_account_number: cr?.number || null, credit_account_name: cr?.name || null,
+              amount_chf: round2(l.amount), created_by_name: a.name, created_by_email: a.email,
+            })
+          }
+        }
+        // Abschluss legs go into the year being closed WHILE it's still open (the INSERT
+        // trigger only blocks once status flips), then the status flip locks them.
+        await insLegs(plan.closing, id, 'Abschluss', isoDate(fy.ends_on), 'A', `Abschluss ${fy.label || id}`)
+        await insLegs(plan.opening, nextFy.id, 'Eroeffnung', isoDate(nextFy.starts_on), 'E', `Eröffnung ${nextFy.label || nextFy.id}`)
+        await trx('finance_fiscal_years').where('id', id).update({ status: 'closed', closed_on: todayISO(), closed_by_name: a.name, closed_by_email: a.email })
+        return { summary }
+      })
+
+      if (out.code) return res.status(out.code).json({ error: out.msg, ...(out.body || {}) })
+      if (out.dryRun) return res.json({ dry_run: true, ...out.summary })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_fiscal_years', recordId: id, data: { kind: 'year_end_close', ...out.summary } })
+      return res.json(out.summary)
+    } catch (e) { return err(res, req, 'close-year', e) }
   })
 }
