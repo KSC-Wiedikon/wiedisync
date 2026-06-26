@@ -28,6 +28,7 @@ import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './email-template.js'
 import { renderInvoiceQrBillPdf } from './finance-qrbill.js'
 import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
+import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe } from './finance-autopost.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -235,6 +236,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       } catch (e) { log.warn?.({ msg: `scor reference gen failed: ${e.message}`, id: row.id }) }
 
       await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_invoices', recordId: invoice.id, data: { kind: 'native_invoice', recipient_type: recipientType, member: memberId, team: teamId, amount, number } })
+      await autopostInvoiceSafe(database, log, invoice.id)
       return res.json({ invoice })
     } catch (e) { return err(res, req, 'create', e) }
   })
@@ -330,6 +332,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       })
       if (out.code) return res.status(out.code).json({ error: out.msg })
       await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'confirm_payment', via: 'manual', amount: out.remaining } })
+      await autopostInvoiceSafe(database, log, id)
       return res.json({ invoice: out.row })
     } catch (e) { return err(res, req, 'confirm', e) }
   })
@@ -365,6 +368,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       })
       if (out.code) return res.status(out.code).json({ error: out.msg })
       await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_payments', recordId: out.paymentId, data: { kind: 'manual_payment', entry_type: entryType, invoice: id, amount } })
+      await autopostInvoiceSafe(database, log, id)
       return res.json({ invoice: out.row, payment_id: out.paymentId })
     } catch (e) { return err(res, req, 'record-payment', e) }
   })
@@ -387,6 +391,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
       })
       if (out.code) return res.status(out.code).json({ error: out.msg })
       await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_payments', recordId: pid, data: { kind: 'delete_payment', invoice: id } })
+      await removeAutopostForPaymentSafe(database, log, pid)
+      await autopostInvoiceSafe(database, log, id)
       return res.json({ invoice: out.row })
     } catch (e) { return err(res, req, 'delete-payment', e) }
   })
@@ -674,6 +680,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       })
 
       await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_dues_runs', recordId: result.runId, data: { kind: 'dues_run_issue', fiscal_year: r.fy.id, count: result.created.length, total: result.total } })
+      await autopostDuesRunSafe(database, log, result.runId)
       return res.json({
         run: { id: result.runId, label, fiscal_year: r.fy.id, total_count: result.created.length, total_amount: result.total },
         summary: { created: result.created.length, skipped_already_billed: r.rows.filter((x) => x.already_billed).length, skipped_no_rate: r.rows.filter((x) => x.missing_rate).length },
@@ -925,6 +932,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       }).returning('id')
       const entryId = ins[0]?.id ?? ins[0]
       await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_team_entries', recordId: entryId, data: { kind: 'team_entry', team: teamId, entry_kind: kind, amount } })
+      await autopostTeamEntrySafe(database, log, entryId)
       return res.json({ id: entryId })
     } catch (e) { return err(res, req, 'team-entry-save', e) }
   })

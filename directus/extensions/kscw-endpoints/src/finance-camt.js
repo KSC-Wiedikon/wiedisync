@@ -15,6 +15,7 @@
 import { parseCamt, invoiceIdFromScor, invoiceNumbersFromMessage } from './camt.js'
 import { writeUserLog } from './activity-log.js'
 import { recomputeInvoice } from './finance-recompute.js'
+import { autopostInvoiceSafe } from './finance-autopost.js'
 
 export function registerFinanceCamt(router, { database, logger }) {
   const log = logger.child({ extension: 'kscw-endpoints', module: 'finance-camt' })
@@ -92,6 +93,7 @@ export function registerFinanceCamt(router, { database, logger }) {
           return recomputeInvoice(trx, inv.id, { actorName: 'camt import', actorEmail: null, via: 'camt' })
         })
         const after = row?.status
+        await autopostInvoiceSafe(database, log, inv.id)
         if (after === 'paid' && before !== 'paid') {
           summary.auto_confirmed++
           details.push({ status: 'auto_confirmed', invoice: inv.number, ...slim(c) })

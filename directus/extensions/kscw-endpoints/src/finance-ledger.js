@@ -17,6 +17,7 @@
  */
 import { writeUserLog } from './activity-log.js'
 import { planYearEndClose } from './finance-close.js'
+import { loadLedgerSettings, reconcileAllLedger } from './finance-autopost.js'
 
 const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense', 'close']
 const DIVISIONS = ['club', 'vb', 'bb']
@@ -291,5 +292,73 @@ export function registerFinanceLedger(router, { database, logger }) {
       await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_fiscal_years', recordId: id, data: { kind: 'year_end_close', ...out.summary } })
       return res.json(out.summary)
     } catch (e) { return err(res, req, 'close-year', e) }
+  })
+
+  // ── Auto-posting: settings, chart mirror, reconcile ─────────────────────
+  const SETTINGS_ACCT_FIELDS = ['debitoren_account', 'bank_account', 'income_account', 'sponsoring_account', 'bad_debt_account', 'expense_account']
+
+  router.get('/finance/ledger/settings', async (req, res) => {
+    try {
+      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const settings = await loadLedgerSettings(database)
+      return res.json({ settings })
+    } catch (e) { return err(res, req, 'settings', e) }
+  })
+
+  router.put('/finance/ledger/settings', async (req, res) => {
+    try {
+      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const b = req.body || {}
+      const patch = { date_updated: new Date(), updated_by_name: a.name }
+      patch.autopost_enabled = b.autopost_enabled === true
+      // Validate every supplied account id exists; allow null to unset.
+      const ids = SETTINGS_ACCT_FIELDS.map((f) => b[f]).filter((v) => v != null).map(Number)
+      const known = ids.length ? new Set((await database('finance_accounts').whereIn('id', ids).select('id')).map((x) => Number(x.id))) : new Set()
+      for (const f of SETTINGS_ACCT_FIELDS) {
+        if (b[f] == null) { patch[f] = null; continue }
+        if (!known.has(Number(b[f]))) return res.status(400).json({ error: `${f}: account not found` })
+        patch[f] = Number(b[f])
+      }
+      if (patch.autopost_enabled && (!patch.debitoren_account || !patch.bank_account || !patch.income_account))
+        return res.status(400).json({ error: 'Debitoren, Bank and Income accounts must be set before enabling auto-posting' })
+      await database('finance_ledger_settings').where('id', 1).update(patch)
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_ledger_settings', recordId: 1, data: { kind: 'ledger_settings', autopost_enabled: patch.autopost_enabled } })
+      return res.json({ settings: await loadLedgerSettings(database) })
+    } catch (e) { return err(res, req, 'settings-save', e) }
+  })
+
+  // Mirror the ClubDesk chart into the native Kontenplan (copies accounts whose
+  // number isn't already a native account). Lets the native book start from the
+  // existing chart instead of blank.
+  router.post('/finance/ledger/seed-chart', async (req, res) => {
+    try {
+      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const nativeNums = new Set((await database('finance_accounts').where('source', 'native').select('number')).map((x) => x.number))
+      const cd = await database('finance_accounts').where('source', 'clubdesk').select('number', 'name', 'type', 'division')
+      const toAdd = []
+      const seen = new Set()
+      for (const c of cd) {
+        if (!c.number || nativeNums.has(c.number) || seen.has(c.number)) continue
+        seen.add(c.number)
+        toAdd.push({ number: c.number, name: c.name, type: c.type || null, division: c.division || null, active: true, source: 'native' })
+      }
+      if (toAdd.length) await database('finance_accounts').insert(toAdd)
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_accounts', recordId: 0, data: { kind: 'seed_chart_from_clubdesk', added: toAdd.length } })
+      return res.json({ added: toAdd.length, skipped_existing: cd.length - toAdd.length })
+    } catch (e) { return err(res, req, 'seed-chart', e) }
+  })
+
+  // Backfill/reconcile the whole native book from current A/R (idempotent).
+  router.post('/finance/ledger/reconcile', async (req, res) => {
+    try {
+      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const settings = await loadLedgerSettings(database)
+      if (!settings.debitoren_account || !settings.bank_account || !settings.income_account)
+        return res.status(400).json({ error: 'Map the Debitoren, Bank and Income accounts in settings first' })
+      const fiscalYear = Number(req.body?.fiscal_year) || null
+      const summary = await reconcileAllLedger(database, settings, { fiscalYear })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_transactions', recordId: 0, data: { kind: 'ledger_reconcile', ...summary } })
+      return res.json(summary)
+    } catch (e) { return err(res, req, 'reconcile', e) }
   })
 }
