@@ -3258,12 +3258,29 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   const VB_ADMIN_EMAIL = 'thamayanth.kanagalingam@uzh.ch'
   const BB_ADMIN_EMAIL = 'kscwiedikonbasketball@gmail.com'
 
-  function getApprovalRecipients(membershipType) {
+  // Resolve members carrying the sport's admin role (bb_admin / vb_admin) so
+  // role holders — e.g. the youth admin — are looped in on approvals without
+  // hardcoding their address. Mirrors the submit-time notification's resolution.
+  async function getSportAdminRoleEmails(membershipType) {
+    const adminRole = membershipType === 'basketball' ? 'bb_admin'
+      : membershipType === 'volleyball' ? 'vb_admin' : null
+    if (!adminRole) return []
+    const rows = await database('members')
+      .join('directus_users', 'members.user', 'directus_users.id')
+      .whereNotNull('directus_users.email')
+      .whereRaw("members.role::jsonb @> ?", [JSON.stringify(adminRole)])
+      .select('directus_users.email')
+    return [...new Set(rows.map(r => r.email.toLowerCase()))]
+  }
+
+  async function getApprovalRecipients(membershipType) {
+    // Sport-admin role holders ride along as CC (the fixed alias stays the TO).
+    const roleCc = await getSportAdminRoleEmails(membershipType)
     switch (membershipType) {
       case 'basketball':
-        return { to: [BB_ADMIN_EMAIL], cc: [OWNER_EMAIL] }
+        return { to: [BB_ADMIN_EMAIL], cc: [OWNER_EMAIL, ...roleCc] }
       case 'volleyball':
-        return { to: [VB_ADMIN_EMAIL, RADO_EMAIL], cc: [OWNER_EMAIL] }
+        return { to: [VB_ADMIN_EMAIL, RADO_EMAIL], cc: [OWNER_EMAIL, ...roleCc] }
       default: // passive, unknown
         return { to: [OWNER_EMAIL], cc: [] }
     }
@@ -3611,7 +3628,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           const csv = buildRegistrationCSV(reg)
           const csvBuffer = Buffer.from(csv, 'utf-8')
           const filename = `anmeldung_${reg.nachname}_${reg.vorname}_${reg.reference_number}.csv`
-          const recipients = getApprovalRecipients(reg.membership_type)
+          const recipients = await getApprovalRecipients(reg.membership_type)
           const adminCsvCopy = {
             de: {
               name: 'Name', type: 'Typ', team: 'Team', email: 'E-Mail', ref: 'Referenz',
@@ -3630,8 +3647,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           const toLower = (recipients.to || []).map(e => e.toLowerCase())
           const toBuckets = await bucketEmailsByLocale(database, toLower)
           const ccBuckets = await bucketEmailsByLocale(database, ccLower)
-          // CC riders on the same locale bucket; if their bucket has no TO, promote them to TO
-          for (const loc of ['de', 'en']) {
+          // CC riders on the same locale bucket; if their bucket has no TO, promote them to TO.
+          // Iterate every bucket (not just de/en) so a role-CC'd admin in another
+          // language isn't silently dropped — fall back to the German copy.
+          for (const loc of ['de', 'gsw', 'en', 'fr', 'it']) {
             let tos = toBuckets[loc]
             const ccs = ccBuckets[loc].filter(e => !tos.includes(e))
             if (!tos.length && !ccs.length) continue
@@ -3639,7 +3658,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
               tos = ccs
               ccBuckets[loc] = []
             }
-            const c = adminCsvCopy[loc]
+            const c = adminCsvCopy[loc] || adminCsvCopy.de
             const adminCsvBody = buildInfoCard([
               { label: c.name, value: `${reg.vorname} ${reg.nachname}`, halfWidth: true },
               { label: c.type, value: reg.membership_type, halfWidth: true },
