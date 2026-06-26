@@ -1,4 +1,4 @@
--- Migration 155: per-member notification opt-out preferences.
+-- Migration 156: per-member notification opt-out preferences.
 --
 -- Adds five boolean opt-in flags to members (default TRUE = keep receiving) so a
 -- member — typically an admin or coach drowning in operational alerts — can

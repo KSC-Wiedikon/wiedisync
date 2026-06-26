@@ -231,7 +231,7 @@ export default {
   invalidIban: 'Bitte gib eine gültige IBAN ein',
   requiredProfileFields: 'Vorname, Nachname und E-Mail sind erforderlich',
   invalidEmail: 'Bitte eine gültige E-Mail-Adresse eingeben',
-  // Notification preferences (migration 155)
+  // Notification preferences (migration 156)
   emailNotifyTitle: 'E-Mail-Benachrichtigungen',
   emailNotifyHint: 'Wähle, welche Benachrichtigungen du erhalten möchtest. Wenn du eine ausschaltest, wird diese Benachrichtigung unterdrückt — die Glocke in der App zeigt sie weiterhin an.',
   emailNotifyRegistrations: 'Neue Anmeldungen',

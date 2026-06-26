@@ -136,7 +136,7 @@ export interface Member extends BaseRecord {
   auto_confirm_trainings: boolean
   auto_confirm_games: boolean
   auto_confirm_events: boolean
-  // Per-member notification opt-out (migration 155). Default-on; opt-out
+  // Per-member notification opt-out (migration 156). Default-on; opt-out
   // suppresses the email (or the form push) only — never the in-app bell.
   email_notify_registrations?: boolean
   email_notify_join_requests?: boolean

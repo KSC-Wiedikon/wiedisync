@@ -27,7 +27,7 @@ async function getSportAdminEmails(database, membershipType) {
   const rows = await database('members')
     .join('directus_users', 'members.user', 'directus_users.id')
     .whereNotNull('directus_users.email')
-    // Migration 155: skip admins who opted out of new-registration emails.
+    // Migration 156: skip admins who opted out of new-registration emails.
     .where('members.email_notify_registrations', true)
     .andWhere(function () {
       this.whereRaw("members.role::jsonb @> '\"admin\"'")

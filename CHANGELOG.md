@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.12.0 — 2026-06-26
+
+### Choose which emails you receive
+- Your profile has a new **Email notifications** section: switch off the alerts you don't want — new registrations, team join requests, form submissions, club news, and event invitations.
+- Each toggle only appears if you can actually receive that alert (join-request alerts show for coaches and team responsibles, for example). Turning one off silences the email — or, for form submissions, the push notification — while the in-app bell still shows it.
+- Everything stays on by default, so nothing changes until you opt out.
+
+### Finance
+- A **"Sync now"** button triggers the ClubDesk finance import on demand instead of waiting for the nightly run, plus reliability fixes to the finance sync.
+
 ## v1.11.0 — 2026-06-26
 
 ### Club accounting, built in: your own double-entry ledger

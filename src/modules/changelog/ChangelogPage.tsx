@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.11.0'
+const APP_VERSION = '1.12.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,26 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.12.0',
+    date: '26.06.2026',
+    sections: [
+      {
+        title: 'Choose which emails you receive',
+        items: [
+          'Your profile has a new "Email notifications" section: switch off the alerts you don\'t want — new registrations, team join requests, form submissions, club news, and event invitations.',
+          'Each toggle only appears if you can actually receive that alert (join-request alerts show for coaches and team responsibles, for example). Turning one off silences the email — or, for form submissions, the push notification — while the in-app bell still shows it.',
+          'Everything stays on by default, so nothing changes until you opt out.',
+        ],
+      },
+      {
+        title: 'Finance',
+        items: [
+          'A "Sync now" button triggers the ClubDesk finance import on demand instead of waiting for the nightly run, plus reliability fixes to the finance sync.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.11.0',
     date: '26.06.2026',

@@ -96,7 +96,7 @@ function AutoSignInCard() {
 }
 
 /**
- * Per-member notification opt-out toggles — migration 155. Default-on flags;
+ * Per-member notification opt-out toggles — migration 156. Default-on flags;
  * turning one off suppresses that email (or, for form submissions, that push) in
  * the backend send paths — never the in-app notification bell. Each row only
  * shows to people who can actually receive that notification, so a plain member

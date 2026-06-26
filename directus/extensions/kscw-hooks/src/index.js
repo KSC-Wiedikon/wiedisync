@@ -1317,7 +1317,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           const recipients = await database('members')
             .whereIn('id', memberIds)
             .whereNotNull('email')
-            // Migration 155: respect per-member opt-out. Push fanout is unaffected.
+            // Migration 156: respect per-member opt-out. Push fanout is unaffected.
             .where('email_notify_announcements', true)
             .select('id', 'email', 'first_name', 'language')
 

@@ -1568,7 +1568,7 @@ export default {
               },
             }
             for (const coach of coachMembers) {
-              // Migration 155: skip email for opted-out coaches/TRs. The in-app
+              // Migration 156: skip email for opted-out coaches/TRs. The in-app
               // notification (above) and push (below) still go out.
               if (!coach.email || coach.email_notify_join_requests === false) continue
               const code = TJR_LANG_TO_CODE[coach.language] || 'de'

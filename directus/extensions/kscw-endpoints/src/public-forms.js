@@ -69,7 +69,7 @@ async function notifyOwner(db, form, log) {
       body: JSON.stringify({ title: form.title }), activity_type: 'form',
       activity_id: String(form.id), team: null, read: false,
     })))
-    // Migration 155: forms send no email — the push is the only intrusive
+    // Migration 156: forms send no email — the push is the only intrusive
     // channel, so the opt-out suppresses just the push.
     const pushIds = active.filter(r => r.email_notify_form_submissions !== false).map(r => r.id)
     if (pushIds.length > 0) {
