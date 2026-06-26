@@ -338,6 +338,8 @@ export default {
   anmeldungenDocLizenz: 'Lizenzantrag',
   anmeldungenDocSelfDecl: 'Self Declaration',
   anmeldungenDocNatDecl: 'National Team Decl.',
+  anmeldungenDocIdFront: 'Ausweis Vorderseite',
+  anmeldungenDocIdBack: 'Ausweis Rückseite',
 
   // Daten-Explorer
   explorerTitle: 'Daten-Explorer',

@@ -48,6 +48,8 @@ interface Registration extends BaseRecord {
   bb_doc_lizenz: string | null
   bb_doc_selfdecl: string | null
   bb_doc_natdecl: string | null
+  id_upload_front: string | null
+  id_upload_back: string | null
 }
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
@@ -596,6 +598,38 @@ function ExpandedDetails({
     { key: 'bb_doc_selfdecl', label: t('anmeldungenDocSelfDecl') },
     { key: 'bb_doc_natdecl', label: t('anmeldungenDocNatDecl') },
   ]
+  const idDocs: { key: keyof Registration; label: string }[] = [
+    { key: 'id_upload_front', label: t('anmeldungenDocIdFront') },
+    { key: 'id_upload_back', label: t('anmeldungenDocIdBack') },
+  ]
+
+  const renderDoc = ({ key, label }: { key: keyof Registration; label: string }) => {
+    const fileId = reg[key] as string | null
+    if (!fileId) {
+      return (
+        <div
+          key={key}
+          className="flex items-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-400 dark:border-gray-600"
+        >
+          <FileText className="h-4 w-4" />
+          <span>{label}</span>
+          <span className="ml-auto text-xs">—</span>
+        </div>
+      )
+    }
+    const url = assetUrl(fileId)
+    return (
+      <button
+        key={key}
+        onClick={() => onPreviewFile({ url, label })}
+        className="flex items-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-700 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300 dark:hover:bg-orange-900"
+      >
+        <FileText className="h-4 w-4" />
+        <span className="truncate">{label}</span>
+        <ExternalLink className="ml-auto h-3.5 w-3.5 shrink-0" />
+      </button>
+    )
+  }
 
   return (
     <div className="border-t border-gray-200 px-4 py-3 dark:border-gray-700">
@@ -631,33 +665,10 @@ function ExpandedDetails({
             {t('anmeldungenDocuments')}
           </h4>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {bbDocs.map(({ key, label }) => {
-              const fileId = reg[key] as string | null
-              if (!fileId) {
-                return (
-                  <div
-                    key={key}
-                    className="flex items-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-400 dark:border-gray-600"
-                  >
-                    <FileText className="h-4 w-4" />
-                    <span>{label}</span>
-                    <span className="ml-auto text-xs">—</span>
-                  </div>
-                )
-              }
-              const url = assetUrl(fileId)
-              return (
-                <button
-                  key={key}
-                  onClick={() => onPreviewFile({ url, label })}
-                  className="flex items-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-700 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300 dark:hover:bg-orange-900"
-                >
-                  <FileText className="h-4 w-4" />
-                  <span className="truncate">{label}</span>
-                  <ExternalLink className="ml-auto h-3.5 w-3.5 shrink-0" />
-                </button>
-              )
-            })}
+            {bbDocs.map(renderDoc)}
+          </div>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {idDocs.map(renderDoc)}
           </div>
         </div>
       )}
