@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.11.0 — 2026-06-26
+
+### Club accounting, built in: your own double-entry ledger
+- Finance gains a new **Ledger** tab — a full **double-entry book of record** inside wiedisync, so the club can keep its own accounts (Buchhaltung) rather than depend on an external tool.
+- **It runs itself.** Once enabled, the ledger **auto-posts** from the club's own activity: every invoice issued, payment, reminder fee, credit note, refund, write-off and per-team sponsoring becomes the correct journal entry, with the receivables (Debitoren) control account kept reconciled (overpayments go to a prepayment account, not negative A/R; cancellations and amount changes self-correct).
+- **Mirror your chart in one click** — "Seed chart from ClubDesk" copies the existing Kontenplan into the native book; then map the bank/receivables/income control accounts and switch auto-posting on.
+- Everything a set of books needs: a **journal** (post + reverse entries), a **trial balance** (Saldenbilanz), and a guided **year-end close** (Jahresabschluss) that books the result into equity and carries balances into the next year. A **"Reconcile now"** button backfills/realigns the ledger with the rest of finance.
+- **Closed years are locked** at the database level — posted entries can no longer be edited or deleted, only corrected with a reversal, as proper accounting requires.
+- Built with three independent adversarial reviews of the money-critical paths (settlement, year-end close, auto-posting); all findings fixed and verified.
+
 ## v1.10.0 — 2026-06-25
 
 ### Scheduling mailbox: its own tab, with a Volleyball/Basketball switch
