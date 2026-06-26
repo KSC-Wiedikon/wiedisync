@@ -8,7 +8,7 @@ import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
   useLedgerAccounts, useLedgerEntries, useLedgerTrialBalance, useLedgerFiscalYears, useLedgerSettings,
   createLedgerAccount, editLedgerAccount, postLedgerEntry, reverseLedgerEntry, deleteLedgerEntry,
-  closeLedgerYear, saveLedgerSettings, reconcileLedger, formatChf, toNum,
+  closeLedgerYear, saveLedgerSettings, reconcileLedger, useLedgerIncomeMap, saveLedgerIncomeMap, formatChf, toNum,
   ACCOUNT_TYPES, type LedgerAccount, type LedgerSettings,
 } from '../../hooks/useFinance'
 
@@ -362,7 +362,55 @@ function AutopostSettings() {
   const { data: settings } = useLedgerSettings()
   const { data: accounts } = useLedgerAccounts()
   if (!settings) return <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-  return <AutopostForm key={settings.id + ':' + settings.autopost_enabled} settings={settings} accounts={accounts ?? []} onSaved={() => qc.invalidateQueries({ queryKey: ['finance'] })} />
+  return (
+    <div className="space-y-6">
+      <AutopostForm key={settings.id + ':' + settings.autopost_enabled} settings={settings} accounts={accounts ?? []} onSaved={() => qc.invalidateQueries({ queryKey: ['finance'] })} />
+      <IncomeByCategory accounts={accounts ?? []} />
+    </div>
+  )
+}
+
+function IncomeByCategory({ accounts }: { accounts: LedgerAccount[] }) {
+  const { data } = useLedgerIncomeMap()
+  const qc = useQueryClient()
+  if (!data || data.categories.length === 0) return null
+  return <IncomeByCategoryForm key={data.map.map((m) => `${m.fee_category}:${m.account}`).join('|')} categories={data.categories} map={data.map} accounts={accounts} onSaved={() => qc.invalidateQueries({ queryKey: ['finance', 'ledger-income-map'] })} />
+}
+
+function IncomeByCategoryForm({ categories, map, accounts, onSaved }: { categories: string[]; map: { fee_category: string; account: number | null }[]; accounts: LedgerAccount[]; onSaved: () => void }) {
+  const { t } = useTranslation('finance')
+  const incomeAccts = accounts.filter((a) => a.type === 'income')
+  const [sel, setSel] = useState<Record<string, string>>(() => Object.fromEntries(map.map((m) => [m.fee_category, m.account ? String(m.account) : ''])))
+  const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [msg, setMsg] = useState('')
+  async function save() {
+    setBusy(true); setError(''); setMsg('')
+    try {
+      const entries = categories.map((c) => ({ fee_category: c, account: sel[c] ? Number(sel[c]) : null }))
+      await saveLedgerIncomeMap(entries); setMsg(t('ledSettingsSaved')); onSaved()
+    } catch (e) { setError(apiErr(e, t('ledActionError'))) } finally { setBusy(false) }
+  }
+  return (
+    <div className="max-w-xl space-y-3 border-t border-gray-200 pt-5 dark:border-gray-700">
+      <div>
+        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{t('ledIncomeByCategory')}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledIncomeByCategoryHint')}</p>
+      </div>
+      <div className="space-y-2">
+        {categories.map((c) => (
+          <div key={c} className="grid grid-cols-2 items-center gap-2">
+            <span className="text-sm text-gray-700 dark:text-gray-300">{c}</span>
+            <select value={sel[c] || ''} onChange={(e) => setSel((s) => ({ ...s, [c]: e.target.value }))} className={selectCls}>
+              <option value="">{t('ledDefaultIncome')}</option>
+              {incomeAccts.map((a) => <option key={a.id} value={a.id}>{a.number} · {a.name}</option>)}
+            </select>
+          </div>
+        ))}
+      </div>
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {msg && <p className="text-sm text-green-700 dark:text-green-400">{msg}</p>}
+      <button type="button" disabled={busy} onClick={save} className={btnPrimary}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings2 className="h-4 w-4" />}{t('save')}</button>
+    </div>
+  )
 }
 
 function AutopostForm({ settings, accounts, onSaved }: { settings: LedgerSettings; accounts: LedgerAccount[]; onSaved: () => void }) {

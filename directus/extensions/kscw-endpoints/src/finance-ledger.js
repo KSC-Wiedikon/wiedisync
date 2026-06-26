@@ -367,4 +367,36 @@ export function registerFinanceLedger(router, { database, logger }) {
       return res.json(summary)
     } catch (e) { return err(res, req, 'reconcile', e) }
   })
+
+  // ── Per-category dues income mapping (migration 154) ────────────────────
+  router.get('/finance/ledger/income-map', async (req, res) => {
+    try {
+      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const map = await database('finance_income_account_map').select('fee_category', 'account')
+      const fromMembers = await database('members').whereNotNull('beitragskategorie').distinct('beitragskategorie').pluck('beitragskategorie')
+      const fromInvoices = await database('finance_invoices').where('source', 'native').whereNotNull('fee_category').distinct('fee_category').pluck('fee_category')
+      const categories = [...new Set([...fromMembers, ...fromInvoices, ...map.map((m) => m.fee_category)])].filter(Boolean).sort()
+      return res.json({ categories, map })
+    } catch (e) { return err(res, req, 'income-map', e) }
+  })
+
+  router.patch('/finance/ledger/income-map', async (req, res) => {
+    try {
+      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const entries = Array.isArray(req.body?.entries) ? req.body.entries : []
+      const acctIds = entries.map((e) => e.account).filter((v) => v != null).map(Number)
+      const known = acctIds.length ? new Set((await database('finance_accounts').whereIn('id', acctIds).select('id')).map((x) => Number(x.id))) : new Set()
+      for (const e of entries) {
+        const cat = (e.fee_category || '').toString().trim()
+        if (!cat) continue
+        if (e.account == null) { await database('finance_income_account_map').where('fee_category', cat).del(); continue }
+        if (!known.has(Number(e.account))) return res.status(400).json({ error: `account not found for category "${cat}"` })
+        await database('finance_income_account_map')
+          .insert({ fee_category: cat, account: Number(e.account), updated_by_name: a.name, date_updated: new Date() })
+          .onConflict('fee_category').merge(['account', 'updated_by_name', 'date_updated'])
+      }
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_income_account_map', recordId: 0, data: { kind: 'income_map', count: entries.length } })
+      return res.json({ map: await database('finance_income_account_map').select('fee_category', 'account') })
+    } catch (e) { return err(res, req, 'income-map-save', e) }
+  })
 }

@@ -21,6 +21,7 @@ const CHANGELOG: ChangelogEntry[] = [
           'Finance has a new "Ledger" tab — a full double-entry book of record inside wiedisync, so the club can keep its own accounts instead of relying on an external tool.',
           'It runs itself: once turned on, the ledger posts automatically from the club\'s activity — every invoice, payment, reminder fee, credit note, refund, write-off and per-team sponsoring becomes the right journal entry, with receivables kept in balance.',
           'Your existing ClubDesk chart of accounts is shared with the ledger — just map the bank, receivables and income accounts and switch auto-posting on.',
+          'Dues income can be booked per membership category — map each category (Passivmitglieder, Aktivmitglieder, J+S …) to its own income account to mirror ClubDesk\'s breakdown.',
           'Everything a set of books needs: a journal you can post and reverse entries in, a trial balance, and a guided year-end close (Jahresabschluss) that moves the result into equity and carries balances into the next year. A "Reconcile now" button keeps the ledger in step with the rest of finance.',
           'Closed years are locked — entries can no longer be changed, only corrected with a reversal, the way proper accounting requires.',
         ],

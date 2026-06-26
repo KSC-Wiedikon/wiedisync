@@ -621,3 +621,9 @@ export const closeLedgerYear = (fiscalYearId: number, input: { equity_account: n
 export const saveLedgerSettings = (input: Partial<LedgerSettings>) => kscwApi<{ settings: LedgerSettings }>('/finance/ledger/settings', { method: 'PATCH', body: input })
 export const reconcileLedger = (fiscalYear?: number | null) => kscwApi<{ invoices: number; team_entries: number; posted: number; skipped: Record<string, number> }>('/finance/ledger/reconcile', { method: 'POST', body: { fiscal_year: fiscalYear ?? null } })
 export const seedLedgerChart = () => kscwApi<{ added: number; skipped_existing: number }>('/finance/ledger/seed-chart', { method: 'POST' })
+
+export interface IncomeMapEntry { fee_category: string; account: number | null }
+export function useLedgerIncomeMap(enabled = true) {
+  return useQuery({ queryKey: ['finance', 'ledger-income-map'], queryFn: () => kscwApi<{ categories: string[]; map: IncomeMapEntry[] }>('/finance/ledger/income-map'), enabled })
+}
+export const saveLedgerIncomeMap = (entries: IncomeMapEntry[]) => kscwApi<{ map: IncomeMapEntry[] }>('/finance/ledger/income-map', { method: 'PATCH', body: { entries } })

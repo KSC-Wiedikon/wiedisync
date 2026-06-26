@@ -32,6 +32,12 @@ async function acctMap(database) {
   return new Map(rows.map((r) => [Number(r.id), r]))
 }
 
+/** fee_category → income account, for per-category dues income (migration 154). */
+async function incomeMapFor(database) {
+  const rows = await database('finance_income_account_map').whereNotNull('account').select('fee_category', 'account')
+  return new Map(rows.map((r) => [r.fee_category, Number(r.account)]))
+}
+
 /** Insert one auto-posted native journal entry, idempotent on (ref_kind, ref_id).
  *  `db` may be a knex transaction. A unique-index race throws → caller rolls back. */
 async function postAutoEntry(db, { kind, refId, dateISO, text, debitId, creditId, amount, actorName, acctById }) {
@@ -70,10 +76,13 @@ async function deleteInvoiceAutoposts(database, invoiceId, paymentIds) {
 }
 
 /** Ensure a native invoice's journal entries exist + stay reconciled (atomic). */
-export async function reconcileInvoiceLedger(database, invoiceId, settings, acctById) {
+export async function reconcileInvoiceLedger(database, invoiceId, settings, acctById, incomeMap) {
   acctById = acctById || (await acctMap(database))
+  incomeMap = incomeMap || (await incomeMapFor(database))
   const inv = await database('finance_invoices').where('id', invoiceId).andWhere('source', 'native').first()
   if (!inv) return { skipped: 'not-native' }
+  // Per-category dues income → the mapped account; everything else → the default.
+  const incomeAcct = (inv.fee_category && incomeMap.get(inv.fee_category)) || settings.income_account
   const pays = await database('finance_payments').where('invoice', invoiceId)
     .orderBy([{ column: 'payment_date', order: 'asc' }, { column: 'id', order: 'asc' }])
     .select('id', 'amount', 'entry_type', 'payment_date')
@@ -92,7 +101,7 @@ export async function reconcileInvoiceLedger(database, invoiceId, settings, acct
     // 1. Issue posting — create, or self-heal the amount if the invoice changed.
     const existingIssue = await trx('finance_transactions').where({ source: 'native', auto: true, ref_kind: 'issue', ref_id: inv.id }).first('id', 'amount_chf', 'fiscal_year')
     if (!existingIssue) {
-      results.push(await postAutoEntry(trx, { kind: 'issue', refId: inv.id, dateISO: issueDate, text: `Rechnung ${inv.number || inv.id}`, debitId: settings.debitoren_account, creditId: settings.income_account, amount: total, acctById }))
+      results.push(await postAutoEntry(trx, { kind: 'issue', refId: inv.id, dateISO: issueDate, text: `Rechnung ${inv.number || inv.id}`, debitId: settings.debitoren_account, creditId: incomeAcct, amount: total, acctById }))
     } else if (round2(existingIssue.amount_chf) !== total) {
       const fy = await trx('finance_fiscal_years').where('id', existingIssue.fiscal_year).first('status')
       if (fy?.status !== 'closed') { await trx('finance_transactions').where('id', existingIssue.id).update({ amount_chf: total, date_updated: new Date() }); results.push({ healed: existingIssue.id, to: total }) }
@@ -116,7 +125,7 @@ export async function reconcileInvoiceLedger(database, invoiceId, settings, acct
         if (fromPrepay > 0) results.push(await post('settle_over', prepay || settings.debitoren_account, settings.bank_account, fromPrepay, 'refund'))
       } else if (et === 'credit_note') {
         const applied = round2(Math.min(amt, Math.max(0, open))); open = round2(open - applied)
-        if (applied > 0) results.push(await post('settle', settings.income_account, settings.debitoren_account, applied, 'credit note'))
+        if (applied > 0) results.push(await post('settle', incomeAcct, settings.debitoren_account, applied, 'credit note'))
       } else if (et === 'writeoff') {
         const applied = round2(Math.min(amt, Math.max(0, open))); open = round2(open - applied)
         if (applied > 0) results.push(await post('settle', settings.bad_debt_account, settings.debitoren_account, applied, 'write-off'))
@@ -161,8 +170,9 @@ export async function autopostDuesRunSafe(database, logger, runId) {
     const s = await loadLedgerSettings(database)
     if (!s.autopost_enabled) return
     const acctById = await acctMap(database)
+    const incomeMap = await incomeMapFor(database)
     const invs = await database('finance_invoices').where('dues_run', runId).andWhere('source', 'native').select('id')
-    for (const inv of invs) await reconcileInvoiceLedger(database, inv.id, s, acctById)
+    for (const inv of invs) await reconcileInvoiceLedger(database, inv.id, s, acctById, incomeMap)
   } catch (e) { logger?.warn?.({ msg: `autopost dues-run ${runId} failed: ${e.message}` }) }
 }
 
@@ -178,11 +188,12 @@ export async function removeAutopostForPaymentSafe(database, logger, paymentId) 
 /** Bulk backfill/reconcile — make the whole native book reflect current A/R. */
 export async function reconcileAllLedger(database, settings, { fiscalYear } = {}) {
   const acctById = await acctMap(database)
+  const incomeMap = await incomeMapFor(database)
   const summary = { invoices: 0, team_entries: 0, posted: 0, healed: 0, cancelled_cleaned: 0, skipped: {} }
   const bump = (res) => { for (const r of [].concat(res)) { if (r?.posted) summary.posted++; else if (r?.healed) summary.healed++; else if (r?.skipped) summary.skipped[r.skipped] = (summary.skipped[r.skipped] || 0) + 1 } }
   const invs = await database('finance_invoices').where('source', 'native').select('id', 'status')
   for (const inv of invs) {
-    const r = await reconcileInvoiceLedger(database, inv.id, settings, acctById)
+    const r = await reconcileInvoiceLedger(database, inv.id, settings, acctById, incomeMap)
     if (r.cancelled) summary.cancelled_cleaned++
     else if (r.results) { summary.invoices++; bump(r.results) }
   }
