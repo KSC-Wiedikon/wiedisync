@@ -236,6 +236,8 @@ export function registerEventNotify(router, { services, database, getSchema, log
           const members = await db('members')
             .whereIn('id', memberIdArray)
             .whereNotNull('email')
+            // Migration 155: respect per-member opt-out. Push (above) is unaffected.
+            .where('email_notify_events', true)
             .select('id', 'email', 'first_name', 'language')
 
           const dateStr = event.start_date

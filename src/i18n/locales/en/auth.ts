@@ -231,4 +231,12 @@ export default {
   invalidIban: 'Please enter a valid IBAN',
   requiredProfileFields: 'First name, last name and email are required',
   invalidEmail: 'Please enter a valid email address',
+  // Notification preferences (migration 155)
+  emailNotifyTitle: 'Email notifications',
+  emailNotifyHint: "Choose which alerts you want to receive. Turning one off silences that notification — the in-app bell still shows it.",
+  emailNotifyRegistrations: 'New registrations',
+  emailNotifyJoinRequests: 'Team join requests',
+  emailNotifyFormSubmissions: 'Form submissions',
+  emailNotifyAnnouncements: 'Club news',
+  emailNotifyEvents: 'Event invitations',
 } as const

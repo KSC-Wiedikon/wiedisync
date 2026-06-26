@@ -58,21 +58,29 @@ async function notifyOwner(db, form, log) {
       }
     }
     if (recipients.size === 0) return
-    const active = await db('members').whereIn('id', [...recipients]).andWhere('wiedisync_active', true).select('id')
+    const active = await db('members').whereIn('id', [...recipients]).andWhere('wiedisync_active', true)
+      .select('id', 'email_notify_form_submissions')
     const ids = active.map(r => r.id)
     if (ids.length === 0) return
+    // In-app notification bell goes to every active recipient (unaffected by the
+    // opt-out, mirroring how the email categories keep their in-app entry).
     await db('notifications').insert(ids.map(rid => ({
       member: rid, type: 'form_submission', title: 'form_submission',
       body: JSON.stringify({ title: form.title }), activity_type: 'form',
       activity_id: String(form.id), team: null, read: false,
     })))
-    const { sendPushToMembers } = await import('./web-push.js')
-    const { sendLocalizedPush } = await import('./push-i18n.js')
-    await sendLocalizedPush(
-      db, ids,
-      (pids, title, body) => sendPushToMembers(db, pids, title, body, `${FRONTEND_URL}/forms`, `form-sub-${form.id}`, log),
-      'formSubmission.title', 'formSubmission.body', { title: form.title },
-    )
+    // Migration 155: forms send no email — the push is the only intrusive
+    // channel, so the opt-out suppresses just the push.
+    const pushIds = active.filter(r => r.email_notify_form_submissions !== false).map(r => r.id)
+    if (pushIds.length > 0) {
+      const { sendPushToMembers } = await import('./web-push.js')
+      const { sendLocalizedPush } = await import('./push-i18n.js')
+      await sendLocalizedPush(
+        db, pushIds,
+        (pids, title, body) => sendPushToMembers(db, pids, title, body, `${FRONTEND_URL}/forms`, `form-sub-${form.id}`, log),
+        'formSubmission.title', 'formSubmission.body', { title: form.title },
+      )
+    }
   } catch (err) {
     log.warn(`public form owner-notify failed: ${err.message}`)
   }

@@ -95,6 +95,83 @@ function AutoSignInCard() {
   )
 }
 
+/**
+ * Per-member notification opt-out toggles — migration 155. Default-on flags;
+ * turning one off suppresses that email (or, for form submissions, that push) in
+ * the backend send paths — never the in-app notification bell. Each row only
+ * shows to people who can actually receive that notification, so a plain member
+ * sees just club news + event invitations.
+ */
+type NotifyRow = {
+  key: string
+  field: keyof Pick<
+    NonNullable<ReturnType<typeof useAuth>['user']>,
+    | 'email_notify_registrations'
+    | 'email_notify_join_requests'
+    | 'email_notify_form_submissions'
+    | 'email_notify_announcements'
+    | 'email_notify_events'
+  >
+  label: string
+  show: boolean
+}
+
+function EmailNotificationCard() {
+  const { user, isAdmin, isCoach, teamResponsibleIds } = useAuth()
+  const { t } = useTranslation('auth')
+  const isLeader = isCoach || teamResponsibleIds.length > 0
+
+  const allRows: NotifyRow[] = [
+    { key: 'registrations', field: 'email_notify_registrations', label: t('emailNotifyRegistrations'), show: isAdmin },
+    { key: 'joinRequests', field: 'email_notify_join_requests', label: t('emailNotifyJoinRequests'), show: isLeader },
+    { key: 'forms', field: 'email_notify_form_submissions', label: t('emailNotifyFormSubmissions'), show: isLeader },
+    { key: 'announcements', field: 'email_notify_announcements', label: t('emailNotifyAnnouncements'), show: true },
+    { key: 'events', field: 'email_notify_events', label: t('emailNotifyEvents'), show: true },
+  ]
+  const rows = allRows.filter((r) => r.show)
+
+  // Default-on: an undefined flag (older row, or before the migration lands)
+  // reads as "receiving".
+  const [state, setState] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(allRows.map((r) => [r.key, user?.[r.field] !== false])),
+  )
+  const [saving, setSaving] = useState<string | null>(null)
+
+  if (!user || rows.length === 0) return null
+
+  async function toggle(row: NotifyRow, val: boolean) {
+    setState((s) => ({ ...s, [row.key]: val }))
+    setSaving(row.key)
+    try {
+      await updateRecord('members', user!.id, { [row.field]: val })
+    } catch {
+      setState((s) => ({ ...s, [row.key]: !val })) // revert on failure
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  return (
+    <div className="mt-8">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('emailNotifyTitle')}</h2>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('emailNotifyHint')}</p>
+      <div className="mt-3 divide-y divide-gray-100 rounded-lg border bg-white dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800">
+        {rows.map((r) => (
+          <div key={r.key} className="flex min-h-[44px] items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{r.label}</span>
+            <Switch
+              checked={state[r.key]}
+              disabled={saving === r.key}
+              onCheckedChange={(v) => toggle(r, v)}
+              aria-label={r.label}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function ProfilePage() {
   const { user, coachTeamIds, primarySport, refreshTeamContext } = useAuth()
   const { t } = useTranslation('auth')
@@ -338,6 +415,9 @@ export default function ProfilePage() {
 
       {/* Auto sign-in preferences */}
       <AutoSignInCard />
+
+      {/* Email / notification preferences */}
+      <EmailNotificationCard />
 
       {/* Contact Info */}
       <div className="mt-8">

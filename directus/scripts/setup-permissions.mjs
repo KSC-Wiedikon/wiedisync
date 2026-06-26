@@ -340,6 +340,11 @@ const MEMBER_EDITABLE_FIELDS = [
   'iban_confirmed',
   // 2026-06-01 migration 077: per-member auto-confirm RSVP opt-in (profile toggles)
   'auto_confirm_trainings', 'auto_confirm_games', 'auto_confirm_events',
+  // 2026-06-26 migration 155: per-member notification opt-out (profile toggles).
+  // Default-on flags; opt-out suppresses the email (or the form push) only —
+  // enforced in the send paths, never the in-app notification bell.
+  'email_notify_registrations', 'email_notify_join_requests',
+  'email_notify_form_submissions', 'email_notify_announcements', 'email_notify_events',
 ]
 
 /** Public fields for teams */

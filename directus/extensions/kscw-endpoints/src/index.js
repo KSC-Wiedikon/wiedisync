@@ -1527,7 +1527,7 @@ export default {
             const mailService = new MailService({ schema, knex: database })
             const coachMembers = await database('members')
               .whereIn('id', recipientIds)
-              .select('email', 'first_name', 'language')
+              .select('email', 'first_name', 'language', 'email_notify_join_requests')
             // Per-recipient locale: members.language → 5-bucket
             const TJR_LANG_TO_CODE = { german: 'de', swiss_german: 'gsw', english: 'en', french: 'fr', italian: 'it' }
             const TJR = {
@@ -1568,7 +1568,9 @@ export default {
               },
             }
             for (const coach of coachMembers) {
-              if (!coach.email) continue
+              // Migration 155: skip email for opted-out coaches/TRs. The in-app
+              // notification (above) and push (below) still go out.
+              if (!coach.email || coach.email_notify_join_requests === false) continue
               const code = TJR_LANG_TO_CODE[coach.language] || 'de'
               const tt = TJR[code]
               const bodyHtml =
