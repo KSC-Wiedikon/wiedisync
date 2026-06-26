@@ -508,6 +508,7 @@ export default {
   ledSeedChart: 'Kontenplan aus ClubDesk',
   ledReconcile: 'Jetzt abgleichen',
   ledAutopostEnable: 'Buchungen automatisch erstellen',
+  ledAutopostNeedsAccounts: 'Zuerst oben Debitoren, Bank und Ertrag zuordnen.',
   ledNone: 'Keines',
   ledSettingsSaved: 'Einstellungen gespeichert.',
   ledSeeded: '{{added}} Konten hinzugefügt.',

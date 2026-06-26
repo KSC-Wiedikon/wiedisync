@@ -513,6 +513,7 @@ export default {
   ledSeedChart: 'Seed chart from ClubDesk',
   ledReconcile: 'Reconcile now',
   ledAutopostEnable: 'Post journal entries automatically',
+  ledAutopostNeedsAccounts: 'Map Receivables, Bank and Income above first.',
   ledNone: 'None',
   ledSettingsSaved: 'Settings saved.',
   ledSeeded: '{{added}} accounts added.',

@@ -371,6 +371,7 @@ function AutopostForm({ settings, accounts, onSaved }: { settings: LedgerSetting
   const [map, setMap] = useState<Record<string, string>>(() => Object.fromEntries(MAP_FIELDS.map((f) => [f.key, settings[f.key] ? String(settings[f.key]) : ''])))
   const [busy, setBusy] = useState(''); const [error, setError] = useState(''); const [msg, setMsg] = useState('')
   const optsFor = (types: string[]) => accounts.filter((a) => a.type && types.includes(a.type)).map((a) => <option key={a.id} value={a.id}>{a.number} · {a.name}</option>)
+  const ready = !!map.debitoren_account && !!map.bank_account && !!map.income_account // required for auto-posting
 
   async function save() {
     setBusy('save'); setError(''); setMsg('')
@@ -388,9 +389,6 @@ function AutopostForm({ settings, accounts, onSaved }: { settings: LedgerSetting
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={!!busy} onClick={reconcile} className={btnGhost}>{busy === 'recon' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{t('ledReconcile')}</button>
       </div>
-      <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />{t('ledAutopostEnable')}
-      </label>
       <div className="space-y-3">
         {MAP_FIELDS.map((f) => (
           <div key={f.key}><label htmlFor={`map-${f.key}`} className={labelCls}>{t(f.label)}</label>
@@ -399,6 +397,10 @@ function AutopostForm({ settings, accounts, onSaved }: { settings: LedgerSetting
             </select></div>
         ))}
       </div>
+      <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+        <input type="checkbox" checked={enabled && ready} disabled={!ready} onChange={(e) => setEnabled(e.target.checked)} />{t('ledAutopostEnable')}
+      </label>
+      {!ready && <p className="text-xs text-amber-600 dark:text-amber-400">{t('ledAutopostNeedsAccounts')}</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {msg && <p className="text-sm text-green-700 dark:text-green-400">{msg}</p>}
       <button type="button" disabled={busy === 'save'} onClick={save} className={btnPrimary}>{busy === 'save' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings2 className="h-4 w-4" />}{t('save')}</button>
