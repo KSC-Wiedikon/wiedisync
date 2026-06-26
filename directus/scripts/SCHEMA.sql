@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-25T09:47:08.356Z
+-- Generated:   2026-06-26T10:05:24.673Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -563,6 +563,29 @@ CREATE FUNCTION public.clubdesk_offliz_to_dx(offliz text) RETURNS text
     WHEN offliz = 'OTN'  THEN 'otn_bb'
     ELSE NULL
   END;
+$$;
+
+
+--
+-- Name: finance_native_txn_lock(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.finance_native_txn_lock() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE fy_status text;
+DECLARE r finance_transactions;
+BEGIN
+  r := CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  IF r.source = 'native' THEN
+    SELECT status INTO fy_status FROM finance_fiscal_years WHERE id = r.fiscal_year;
+    IF fy_status = 'closed' THEN
+      RAISE EXCEPTION 'Cannot % a native ledger entry in a closed fiscal year — post a reversal in an open year instead', lower(TG_OP);
+    END IF;
+  END IF;
+  RETURN r;
+END;
 $$;
 
 
@@ -1488,9 +1511,12 @@ CREATE FUNCTION public.trg_scorer_delegation_validate() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-  -- Keep the same_team flag (UI grouping only). Do NOT auto-accept: every
-  -- delegation stays 'pending' until the recipient accepts it.
+  -- Keep the same_team flag (UI grouping only).
   NEW.same_team := (NEW.from_team = NEW.to_team);
+  -- Every delegation starts pending; only the recipient's accept may flip it.
+  IF TG_OP = 'INSERT' THEN
+    NEW.status := 'pending';
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -2733,6 +2759,58 @@ ALTER SEQUENCE public.finance_accounts_id_seq OWNED BY public.finance_accounts.i
 
 
 --
+-- Name: finance_billing_contacts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_billing_contacts (
+    id integer NOT NULL,
+    kind character varying(16) DEFAULT 'sponsor'::character varying NOT NULL,
+    name character varying(255) NOT NULL,
+    email character varying(255),
+    address character varying(255),
+    plz character varying(10),
+    ort character varying(100),
+    billing_iban character varying(34),
+    notes character varying(255),
+    active boolean DEFAULT true NOT NULL,
+    source character varying(16) DEFAULT 'native'::character varying NOT NULL,
+    created_by_name character varying(255),
+    created_by_email character varying(255),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone,
+    user_created uuid,
+    CONSTRAINT finance_billing_contacts_kind_check CHECK (((kind)::text = ANY ((ARRAY['sponsor'::character varying, 'parent'::character varying, 'ex_member'::character varying, 'company'::character varying, 'other'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE finance_billing_contacts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_billing_contacts IS 'Non-member billing recipients (sponsors/parents/companies/ex-members). A native invoice can be billed to one via finance_invoices.contact; recipient_name/email are snapshotted at create time.';
+
+
+--
+-- Name: finance_billing_contacts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_billing_contacts_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_billing_contacts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_billing_contacts_id_seq OWNED BY public.finance_billing_contacts.id;
+
+
+--
 -- Name: finance_budget_lines; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2874,6 +2952,117 @@ ALTER SEQUENCE public.finance_dues_runs_id_seq OWNED BY public.finance_dues_runs
 
 
 --
+-- Name: finance_dunning_notices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_dunning_notices (
+    id integer NOT NULL,
+    invoice integer NOT NULL,
+    level smallint NOT NULL,
+    reminder_fee numeric(12,2) DEFAULT 0 NOT NULL,
+    channel character varying(16) DEFAULT 'manual'::character varying NOT NULL,
+    recipient_email character varying(255),
+    sent_at timestamp with time zone,
+    created_by_name character varying(255),
+    created_by_email character varying(255),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    CONSTRAINT finance_dunning_notices_channel_check CHECK (((channel)::text = ANY ((ARRAY['email'::character varying, 'manual'::character varying])::text[]))),
+    CONSTRAINT finance_dunning_notices_level_check CHECK (((level >= 1) AND (level <= 3)))
+);
+
+
+--
+-- Name: finance_dunning_notices_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_dunning_notices_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_dunning_notices_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_dunning_notices_id_seq OWNED BY public.finance_dunning_notices.id;
+
+
+--
+-- Name: finance_email_jobs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_email_jobs (
+    id integer NOT NULL,
+    dues_run integer,
+    status character varying(16) DEFAULT 'running'::character varying NOT NULL,
+    test_mode boolean DEFAULT true NOT NULL,
+    total integer DEFAULT 0 NOT NULL,
+    sent integer DEFAULT 0 NOT NULL,
+    failed integer DEFAULT 0 NOT NULL,
+    error text,
+    created_by_name character varying(255),
+    created_by_email character varying(255),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone,
+    CONSTRAINT finance_email_jobs_status_check CHECK (((status)::text = ANY ((ARRAY['running'::character varying, 'done'::character varying, 'failed'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE finance_email_jobs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_email_jobs IS 'Background dues-run email sends: one row per send, progressed (sent/failed) as the worker chunks through. The UI polls it; a recent running row blocks a duplicate send.';
+
+
+--
+-- Name: finance_email_jobs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_email_jobs_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_email_jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_email_jobs_id_seq OWNED BY public.finance_email_jobs.id;
+
+
+--
+-- Name: finance_email_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_email_settings (
+    id smallint DEFAULT 1 NOT NULL,
+    test_mode boolean DEFAULT true NOT NULL,
+    test_recipient character varying(255),
+    updated_by_name character varying(255),
+    updated_by_email character varying(255),
+    date_updated timestamp with time zone,
+    CONSTRAINT finance_email_settings_singleton CHECK ((id = 1))
+);
+
+
+--
+-- Name: TABLE finance_email_settings; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_email_settings IS 'Singleton (id=1) finance email switch. test_mode=true (default) redirects every dues-run email to test_recipient so members are never emailed until an admin turns it off.';
+
+
+--
 -- Name: finance_fiscal_years; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2888,6 +3077,9 @@ CREATE TABLE public.finance_fiscal_years (
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
     user_created uuid,
     user_updated uuid,
+    closed_on date,
+    closed_by_name character varying(255),
+    closed_by_email character varying(255),
     CONSTRAINT finance_fiscal_years_source_check CHECK (((source)::text = ANY ((ARRAY['clubdesk'::character varying, 'native'::character varying])::text[]))),
     CONSTRAINT finance_fiscal_years_status_check CHECK (((status)::text = ANY ((ARRAY['open'::character varying, 'closed'::character varying])::text[])))
 );
@@ -3108,6 +3300,9 @@ CREATE TABLE public.finance_invoices (
     cancelled_at timestamp with time zone,
     reference_type character varying(8),
     dues_run integer,
+    email_sent_at timestamp with time zone,
+    dunning_level smallint DEFAULT 0 NOT NULL,
+    contact integer,
     CONSTRAINT finance_invoices_source_check CHECK (((source)::text = ANY ((ARRAY['clubdesk'::character varying, 'native'::character varying])::text[])))
 );
 
@@ -3148,6 +3343,20 @@ COMMENT ON COLUMN public.finance_invoices.dues_run IS 'Native dues invoice: the 
 
 
 --
+-- Name: COLUMN finance_invoices.email_sent_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.email_sent_at IS 'When this native dues invoice was emailed to the member (LIVE send only). NULL = not yet; used to skip already-emailed invoices on a resumed/retried run. Test-mode sends never set it.';
+
+
+--
+-- Name: COLUMN finance_invoices.dunning_level; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.dunning_level IS 'Highest dunning level issued for this native invoice (0=none, 1/2/3). Denormalised from finance_dunning_notices.';
+
+
+--
 -- Name: finance_invoices_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -3165,6 +3374,38 @@ CREATE SEQUENCE public.finance_invoices_id_seq
 --
 
 ALTER SEQUENCE public.finance_invoices_id_seq OWNED BY public.finance_invoices.id;
+
+
+--
+-- Name: finance_ledger_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_ledger_settings (
+    id integer DEFAULT 1 NOT NULL,
+    autopost_enabled boolean DEFAULT false NOT NULL,
+    debitoren_account integer,
+    bank_account integer,
+    income_account integer,
+    sponsoring_account integer,
+    bad_debt_account integer,
+    expense_account integer,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by_name character varying(255),
+    prepayment_account integer,
+    CONSTRAINT finance_ledger_settings_singleton CHECK ((id = 1))
+);
+
+
+--
+-- Name: finance_native_entry_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_native_entry_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
 
 --
@@ -3202,6 +3443,12 @@ CREATE TABLE public.finance_payments (
     debtor_name character varying(255),
     match_status character varying(16),
     clubdesk_guess integer,
+    entry_type character varying(16) DEFAULT 'payment'::character varying NOT NULL,
+    note character varying(255),
+    created_by_name character varying(255),
+    created_by_email character varying(255),
+    payout integer,
+    CONSTRAINT finance_payments_entry_type_check CHECK (((entry_type)::text = ANY ((ARRAY['payment'::character varying, 'credit_note'::character varying, 'refund'::character varying, 'writeoff'::character varying])::text[]))),
     CONSTRAINT finance_payments_source_check CHECK (((source)::text = ANY ((ARRAY['clubdesk'::character varying, 'native'::character varying])::text[])))
 );
 
@@ -3218,6 +3465,13 @@ COMMENT ON TABLE public.finance_payments IS 'Individual payments against invoice
 --
 
 COMMENT ON COLUMN public.finance_payments.match_status IS 'How the camt credit was reconciled: native (matched a native invoice by SCOR/QRR ref → auto-confirmed) | clubdesk_guess (fuzzy candidate flagged, NOT applied) | unmatched.';
+
+
+--
+-- Name: COLUMN finance_payments.entry_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_payments.entry_type IS 'payment (money in: cash/twint/bank/camt) | credit_note (non-cash reduction) | writeoff (uncollectable) | refund (money returned). NULL legacy rows = payment.';
 
 
 --
@@ -3291,6 +3545,56 @@ ALTER SEQUENCE public.finance_payouts_id_seq OWNED BY public.finance_payouts.id;
 
 
 --
+-- Name: finance_team_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_team_entries (
+    id integer NOT NULL,
+    team integer NOT NULL,
+    fiscal_year integer,
+    kind character varying(16) DEFAULT 'sponsoring'::character varying NOT NULL,
+    amount numeric(12,2) NOT NULL,
+    label character varying(255),
+    sponsor character varying(255),
+    entry_date date,
+    note character varying(255),
+    created_by_name character varying(255),
+    created_by_email character varying(255),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    CONSTRAINT finance_team_entries_amount_check CHECK ((amount >= (0)::numeric)),
+    CONSTRAINT finance_team_entries_kind_check CHECK (((kind)::text = ANY ((ARRAY['sponsoring'::character varying, 'income'::character varying, 'expense'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE finance_team_entries; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_team_entries IS 'Per-team finance ledger: sponsoring/other income (IN) and bills/costs (OUT), per team + fiscal year. The teams-summary endpoint nets these with team-tagged native invoices.';
+
+
+--
+-- Name: finance_team_entries_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_team_entries_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_team_entries_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_team_entries_id_seq OWNED BY public.finance_team_entries.id;
+
+
+--
 -- Name: finance_transactions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3315,6 +3619,12 @@ CREATE TABLE public.finance_transactions (
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
     user_created uuid,
     user_updated uuid,
+    created_by_name character varying(255),
+    created_by_email character varying(255),
+    reversal_of integer,
+    ref_kind character varying(24),
+    ref_id integer,
+    auto boolean DEFAULT false NOT NULL,
     CONSTRAINT finance_transactions_source_check CHECK (((source)::text = ANY ((ARRAY['clubdesk'::character varying, 'native'::character varying])::text[])))
 );
 
@@ -3331,6 +3641,27 @@ COMMENT ON TABLE public.finance_transactions IS 'Double-entry ledger mirrored fr
 --
 
 COMMENT ON COLUMN public.finance_transactions.amount_chf IS 'Amount in CHF (nullable). ClubDesk exports Swiss-formatted (1''234.56) — the importer strips the apostrophe. NULL on collective-invoice header rows (Typ ''Rechnung (Sammel)''), which carry no amount; the postings are on the Sammelposition child rows.';
+
+
+--
+-- Name: COLUMN finance_transactions.reversal_of; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_transactions.reversal_of IS 'For a native correction: the entry this one reverses (debit/credit swapped). NULL for normal postings.';
+
+
+--
+-- Name: COLUMN finance_transactions.ref_kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_transactions.ref_kind IS 'Auto-post link: issue|settle|team (the A/R event that produced this journal entry).';
+
+
+--
+-- Name: COLUMN finance_transactions.ref_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_transactions.ref_id IS 'Auto-post link: the finance_invoices.id (issue), finance_payments.id (settle), or finance_team_entries.id (team).';
 
 
 --
@@ -4413,6 +4744,7 @@ CREATE TABLE public.members (
     sektion character varying(32),
     billing_iban character varying(34),
     iban_confirmed boolean DEFAULT false NOT NULL,
+    never_dun boolean DEFAULT false NOT NULL,
     CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb))
 );
 
@@ -5259,6 +5591,8 @@ CREATE TABLE public.scheduling_emails (
     read_at timestamp with time zone,
     date_created timestamp with time zone DEFAULT now() NOT NULL,
     assigned_opponent integer,
+    account character varying(16) DEFAULT 'volleyball'::character varying NOT NULL,
+    CONSTRAINT scheduling_emails_account_check CHECK (((account)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying])::text[]))),
     CONSTRAINT scheduling_emails_direction_check CHECK (((direction)::text = ANY ((ARRAY['in'::character varying, 'out'::character varying])::text[])))
 );
 
@@ -5296,6 +5630,13 @@ COMMENT ON COLUMN public.scheduling_emails.read_at IS 'Set when a spielplaner op
 --
 
 COMMENT ON COLUMN public.scheduling_emails.assigned_opponent IS 'Manual override of the read-time opponent classification: the game_scheduling_opponents.id a spielplaner pinned this email chain to. Soft reference (no FK; opponents are recreated on resync). NULL = use auto-classification.';
+
+
+--
+-- Name: COLUMN scheduling_emails.account; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scheduling_emails.account IS 'Which Migadu mailbox this row belongs to: volleyball (default, back-compat) | basketball. Dedup is per-account: UNIQUE (account, message_id). Set by the scheduling-mailbox sync/reply path from the active account config.';
 
 
 --
@@ -6675,6 +7016,13 @@ ALTER TABLE ONLY public.finance_accounts ALTER COLUMN id SET DEFAULT nextval('pu
 
 
 --
+-- Name: finance_billing_contacts id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_billing_contacts ALTER COLUMN id SET DEFAULT nextval('public.finance_billing_contacts_id_seq'::regclass);
+
+
+--
 -- Name: finance_budget_lines id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -6693,6 +7041,20 @@ ALTER TABLE ONLY public.finance_dues_rates ALTER COLUMN id SET DEFAULT nextval('
 --
 
 ALTER TABLE ONLY public.finance_dues_runs ALTER COLUMN id SET DEFAULT nextval('public.finance_dues_runs_id_seq'::regclass);
+
+
+--
+-- Name: finance_dunning_notices id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_dunning_notices ALTER COLUMN id SET DEFAULT nextval('public.finance_dunning_notices_id_seq'::regclass);
+
+
+--
+-- Name: finance_email_jobs id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_email_jobs ALTER COLUMN id SET DEFAULT nextval('public.finance_email_jobs_id_seq'::regclass);
 
 
 --
@@ -6742,6 +7104,13 @@ ALTER TABLE ONLY public.finance_payments ALTER COLUMN id SET DEFAULT nextval('pu
 --
 
 ALTER TABLE ONLY public.finance_payouts ALTER COLUMN id SET DEFAULT nextval('public.finance_payouts_id_seq'::regclass);
+
+
+--
+-- Name: finance_team_entries id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_team_entries ALTER COLUMN id SET DEFAULT nextval('public.finance_team_entries_id_seq'::regclass);
 
 
 --
@@ -7310,6 +7679,14 @@ ALTER TABLE ONLY public.finance_accounts
 
 
 --
+-- Name: finance_billing_contacts finance_billing_contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_billing_contacts
+    ADD CONSTRAINT finance_billing_contacts_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: finance_budget_lines finance_budget_lines_fy_account_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7339,6 +7716,38 @@ ALTER TABLE ONLY public.finance_dues_rates
 
 ALTER TABLE ONLY public.finance_dues_runs
     ADD CONSTRAINT finance_dues_runs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_dunning_notices finance_dunning_notices_invoice_level_uq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_dunning_notices
+    ADD CONSTRAINT finance_dunning_notices_invoice_level_uq UNIQUE (invoice, level);
+
+
+--
+-- Name: finance_dunning_notices finance_dunning_notices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_dunning_notices
+    ADD CONSTRAINT finance_dunning_notices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_email_jobs finance_email_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_email_jobs
+    ADD CONSTRAINT finance_email_jobs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_email_settings finance_email_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_email_settings
+    ADD CONSTRAINT finance_email_settings_pkey PRIMARY KEY (id);
 
 
 --
@@ -7398,6 +7807,14 @@ ALTER TABLE ONLY public.finance_invoices
 
 
 --
+-- Name: finance_ledger_settings finance_ledger_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_settings
+    ADD CONSTRAINT finance_ledger_settings_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: finance_payments finance_payments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7411,6 +7828,14 @@ ALTER TABLE ONLY public.finance_payments
 
 ALTER TABLE ONLY public.finance_payouts
     ADD CONSTRAINT finance_payouts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_team_entries finance_team_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_team_entries
+    ADD CONSTRAINT finance_team_entries_pkey PRIMARY KEY (id);
 
 
 --
@@ -7766,11 +8191,11 @@ ALTER TABLE ONLY public.scheduling_blocks
 
 
 --
--- Name: scheduling_emails scheduling_emails_message_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: scheduling_emails scheduling_emails_account_message_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.scheduling_emails
-    ADD CONSTRAINT scheduling_emails_message_id_unique UNIQUE (message_id);
+    ADD CONSTRAINT scheduling_emails_account_message_id_unique UNIQUE (account, message_id);
 
 
 --
@@ -8117,6 +8542,27 @@ CREATE INDEX finance_dues_runs_fy_idx ON public.finance_dues_runs USING btree (f
 
 
 --
+-- Name: finance_dunning_notices_invoice_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_dunning_notices_invoice_idx ON public.finance_dunning_notices USING btree (invoice);
+
+
+--
+-- Name: finance_email_jobs_one_running; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX finance_email_jobs_one_running ON public.finance_email_jobs USING btree (dues_run) WHERE ((status)::text = 'running'::text);
+
+
+--
+-- Name: finance_email_jobs_run_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_email_jobs_run_idx ON public.finance_email_jobs USING btree (dues_run, id);
+
+
+--
 -- Name: finance_imports_type_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8194,6 +8640,13 @@ CREATE INDEX finance_invoices_member_status_idx ON public.finance_invoices USING
 
 
 --
+-- Name: finance_invoices_native_overdue_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_invoices_native_overdue_idx ON public.finance_invoices USING btree (due_date) WHERE (((source)::text = 'native'::text) AND ((status)::text = ANY ((ARRAY['open'::character varying, 'partial'::character varying])::text[])));
+
+
+--
 -- Name: finance_invoices_status_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8236,6 +8689,13 @@ CREATE INDEX finance_payouts_member_idx ON public.finance_payouts USING btree (m
 
 
 --
+-- Name: finance_team_entries_team_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_team_entries_team_idx ON public.finance_team_entries USING btree (team, fiscal_year);
+
+
+--
 -- Name: finance_transactions_clubdesk_id_uidx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8268,6 +8728,20 @@ CREATE INDEX finance_transactions_debit_idx ON public.finance_transactions USING
 --
 
 CREATE INDEX finance_transactions_fy_idx ON public.finance_transactions USING btree (fiscal_year);
+
+
+--
+-- Name: finance_transactions_native_fy_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_transactions_native_fy_idx ON public.finance_transactions USING btree (fiscal_year) WHERE ((source)::text = 'native'::text);
+
+
+--
+-- Name: finance_tx_autopost_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX finance_tx_autopost_uidx ON public.finance_transactions USING btree (ref_kind, ref_id) WHERE ((auto = true) AND ((source)::text = 'native'::text));
 
 
 --
@@ -9072,7 +9546,7 @@ CREATE INDEX scheduling_emails_date_sent_idx ON public.scheduling_emails USING b
 -- Name: scheduling_emails_unread_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX scheduling_emails_unread_idx ON public.scheduling_emails USING btree (direction) WHERE (read_at IS NULL);
+CREATE INDEX scheduling_emails_unread_idx ON public.scheduling_emails USING btree (account, direction) WHERE (read_at IS NULL);
 
 
 --
@@ -9346,6 +9820,13 @@ CREATE TRIGGER trg_activity_chat_event_delete AFTER DELETE ON public.events FOR 
 --
 
 CREATE TRIGGER trg_events_notify AFTER INSERT OR DELETE OR UPDATE ON public.events FOR EACH ROW EXECUTE FUNCTION public.trg_events_notify();
+
+
+--
+-- Name: finance_transactions trg_finance_native_txn_lock; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_finance_native_txn_lock BEFORE INSERT OR DELETE OR UPDATE ON public.finance_transactions FOR EACH ROW EXECUTE FUNCTION public.finance_native_txn_lock();
 
 
 --
@@ -9711,6 +10192,22 @@ ALTER TABLE ONLY public.finance_dues_runs
 
 
 --
+-- Name: finance_dunning_notices finance_dunning_notices_invoice_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_dunning_notices
+    ADD CONSTRAINT finance_dunning_notices_invoice_fk FOREIGN KEY (invoice) REFERENCES public.finance_invoices(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finance_email_jobs finance_email_jobs_dues_run_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_email_jobs
+    ADD CONSTRAINT finance_email_jobs_dues_run_fkey FOREIGN KEY (dues_run) REFERENCES public.finance_dues_runs(id) ON DELETE CASCADE;
+
+
+--
 -- Name: finance_invoice_documents finance_invoice_documents_file_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9732,6 +10229,14 @@ ALTER TABLE ONLY public.finance_invoice_documents
 
 ALTER TABLE ONLY public.finance_invoice_member_overrides
     ADD CONSTRAINT finance_invoice_member_overrides_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finance_invoices finance_invoices_contact_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_invoices
+    ADD CONSTRAINT finance_invoices_contact_fkey FOREIGN KEY (contact) REFERENCES public.finance_billing_contacts(id) ON DELETE SET NULL;
 
 
 --
@@ -9783,6 +10288,62 @@ ALTER TABLE ONLY public.finance_invoices
 
 
 --
+-- Name: finance_ledger_settings finance_ledger_settings_bad_debt_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_settings
+    ADD CONSTRAINT finance_ledger_settings_bad_debt_account_fkey FOREIGN KEY (bad_debt_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_ledger_settings finance_ledger_settings_bank_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_settings
+    ADD CONSTRAINT finance_ledger_settings_bank_account_fkey FOREIGN KEY (bank_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_ledger_settings finance_ledger_settings_debitoren_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_settings
+    ADD CONSTRAINT finance_ledger_settings_debitoren_account_fkey FOREIGN KEY (debitoren_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_ledger_settings finance_ledger_settings_expense_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_settings
+    ADD CONSTRAINT finance_ledger_settings_expense_account_fkey FOREIGN KEY (expense_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_ledger_settings finance_ledger_settings_income_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_settings
+    ADD CONSTRAINT finance_ledger_settings_income_account_fkey FOREIGN KEY (income_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_ledger_settings finance_ledger_settings_prepayment_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_settings
+    ADD CONSTRAINT finance_ledger_settings_prepayment_account_fkey FOREIGN KEY (prepayment_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_ledger_settings finance_ledger_settings_sponsoring_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_settings
+    ADD CONSTRAINT finance_ledger_settings_sponsoring_account_fkey FOREIGN KEY (sponsoring_account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
+
+
+--
 -- Name: finance_payments finance_payments_clubdesk_guess_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9799,11 +10360,19 @@ ALTER TABLE ONLY public.finance_payments
 
 
 --
--- Name: finance_payments finance_payments_invoice_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: finance_payments finance_payments_invoice_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.finance_payments
-    ADD CONSTRAINT finance_payments_invoice_fkey FOREIGN KEY (invoice) REFERENCES public.finance_invoices(id) ON DELETE CASCADE;
+    ADD CONSTRAINT finance_payments_invoice_fk FOREIGN KEY (invoice) REFERENCES public.finance_invoices(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finance_payments finance_payments_payout_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payments
+    ADD CONSTRAINT finance_payments_payout_fkey FOREIGN KEY (payout) REFERENCES public.finance_payouts(id) ON DELETE SET NULL;
 
 
 --
@@ -9812,6 +10381,22 @@ ALTER TABLE ONLY public.finance_payments
 
 ALTER TABLE ONLY public.finance_payouts
     ADD CONSTRAINT finance_payouts_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finance_team_entries finance_team_entries_fiscal_year_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_team_entries
+    ADD CONSTRAINT finance_team_entries_fiscal_year_fkey FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_team_entries finance_team_entries_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_team_entries
+    ADD CONSTRAINT finance_team_entries_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
 
 
 --
@@ -9844,6 +10429,14 @@ ALTER TABLE ONLY public.finance_transactions
 
 ALTER TABLE ONLY public.finance_transactions
     ADD CONSTRAINT finance_transactions_import_batch_fkey FOREIGN KEY (import_batch) REFERENCES public.finance_imports(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_transactions finance_transactions_reversal_of_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_transactions
+    ADD CONSTRAINT finance_transactions_reversal_of_fkey FOREIGN KEY (reversal_of) REFERENCES public.finance_transactions(id) ON DELETE SET NULL;
 
 
 --
