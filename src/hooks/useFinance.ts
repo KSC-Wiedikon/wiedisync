@@ -40,9 +40,10 @@ export function useMyInvoices() {
 // ── Native-invoice write actions (all hit the Vorstand/recipient-gated endpoints) ──
 
 export interface CreateInvoiceInput {
-  recipient_type: 'member' | 'team'
+  recipient_type: 'member' | 'team' | 'contact'
   member?: number
   team?: number
+  contact?: number
   amount: number
   subject: string
   due_date?: string | null
@@ -360,3 +361,226 @@ export interface DuesRunInvoice {
 /** A dues run's non-cancelled invoices (finance/board) — for the bulk QR-bill PDF. */
 export const fetchDuesRunInvoices = (id: number) =>
   kscwApi<{ run: { id: number; label: string | null }; invoices: DuesRunInvoice[] }>(`/finance/dues-runs/${id}/invoices`)
+
+// ── Dues-run email send + the global TEST MODE switch (migration 140) ──
+
+export interface FinanceEmailSettings {
+  test_mode: boolean
+  test_recipient: string | null
+}
+/** The finance email test-mode switch (finance/board). */
+export function useFinanceEmailSettings(enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'email-settings'],
+    queryFn: () => kscwApi<FinanceEmailSettings>('/finance/email-settings'),
+    enabled,
+  })
+}
+export const saveFinanceEmailSettings = (input: FinanceEmailSettings) =>
+  kscwApi<FinanceEmailSettings>('/finance/email-settings', { method: 'PUT', body: input })
+
+export interface DuesEmailPreview {
+  mode: 'dry_run'
+  test_mode: boolean
+  test_recipient: string | null
+  would_send: number
+  no_email: number
+  total: number
+  recipients: Array<{ invoice: string | null; name: string | null; email: string | null }>
+}
+export interface DuesEmailJobStart {
+  job_id: number
+  total: number
+  test_mode: boolean
+  mode: 'test' | 'live'
+}
+export interface DuesEmailJob {
+  id: number
+  status: 'running' | 'done' | 'failed'
+  test_mode: boolean
+  total: number
+  sent: number
+  failed: number
+  error: string | null
+  date_created: string | null
+}
+/** Dry-run preview — who WOULD be emailed (no send). */
+export const previewDuesEmails = (id: number) =>
+  kscwApi<DuesEmailPreview>(`/finance/dues-runs/${id}/send-emails`, { method: 'POST', body: { dry_run: true } })
+/** Kick off the send (runs in the background; poll fetchDuesEmailJob for progress).
+ *  Test mode redirects all to the test recipient; live emails members. */
+export const sendDuesEmails = (id: number) =>
+  kscwApi<DuesEmailJobStart>(`/finance/dues-runs/${id}/send-emails`, { method: 'POST', body: { dry_run: false, confirm: true } })
+/** Latest send job for a run (progress polling). */
+export const fetchDuesEmailJob = (id: number) =>
+  kscwApi<{ job: DuesEmailJob | null }>(`/finance/dues-runs/${id}/email-job`)
+
+// ── Settlement ledger — partial payments, cash, credit notes, refunds, write-offs (migration 143) ──
+
+export type PaymentEntryType = 'payment' | 'credit_note' | 'refund' | 'writeoff'
+export interface InvoicePayment {
+  id: number
+  payment_date: string | null
+  amount: number | string
+  entry_type: PaymentEntryType
+  method: string | null
+  note: string | null
+  created_by_name: string | null
+  camt_reference: string | null
+  source: string
+}
+/** The settlement ledger for one invoice (finance/board). */
+export function useInvoicePayments(invoiceId: string | number | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'invoice-payments', String(invoiceId ?? '')],
+    queryFn: () => kscwApi<{ payments: InvoicePayment[] }>(`/finance/invoices/${invoiceId}/payments`),
+    enabled: enabled && invoiceId != null && invoiceId !== '',
+    select: (r) => r.payments,
+  })
+}
+export interface RecordPaymentInput {
+  amount: number
+  entry_type: PaymentEntryType
+  method?: string | null
+  payment_date?: string | null
+  note?: string | null
+}
+export const recordInvoicePayment = (id: string | number, input: RecordPaymentInput) =>
+  kscwApi<{ invoice: FinanceInvoice; payment_id: number }>(`/finance/invoices/${id}/payments`, { method: 'POST', body: input })
+export const deleteInvoicePayment = (id: string | number, paymentId: number) =>
+  kscwApi<{ invoice: FinanceInvoice }>(`/finance/invoices/${id}/payments/${paymentId}`, { method: 'DELETE' })
+
+// ── Per-team finance — sponsoring income + team bills (migration 145) ──
+
+export interface TeamSummaryRow {
+  team: number
+  team_name: string
+  income: number
+  expense: number
+  net: number
+  invoice_total: number
+  invoice_open: number
+}
+/** Per-team income/expense/net + open bills for a fiscal year (finance/board). */
+export function useTeamsSummary(fiscalYearId: string | number | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'teams-summary', String(fiscalYearId ?? '')],
+    queryFn: () => kscwApi<{ teams: TeamSummaryRow[] }>(`/finance/teams-summary${fiscalYearId ? `?fiscal_year=${fiscalYearId}` : ''}`),
+    enabled,
+    select: (r) => r.teams,
+  })
+}
+
+export type TeamEntryKind = 'sponsoring' | 'income' | 'expense'
+export interface TeamEntry {
+  id: number
+  team: number
+  fiscal_year: number | null
+  kind: TeamEntryKind
+  amount: number | string
+  label: string | null
+  sponsor: string | null
+  entry_date: string | null
+  note: string | null
+  created_by_name: string | null
+}
+/** A team's finance entries (finance/board). */
+export function useTeamEntries(teamId: string | number | null | undefined, fiscalYearId: string | number | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'team-entries', String(teamId ?? ''), String(fiscalYearId ?? '')],
+    queryFn: () => kscwApi<{ entries: TeamEntry[] }>(`/finance/team-entries?team=${teamId}${fiscalYearId ? `&fiscal_year=${fiscalYearId}` : ''}`),
+    enabled: enabled && teamId != null && teamId !== '',
+    select: (r) => r.entries,
+  })
+}
+export interface TeamEntryInput {
+  team: number
+  fiscal_year?: number | null
+  kind: TeamEntryKind
+  amount: number
+  label?: string | null
+  sponsor?: string | null
+  entry_date?: string | null
+  note?: string | null
+}
+export const recordTeamEntry = (input: TeamEntryInput) =>
+  kscwApi<{ id: number }>('/finance/team-entries', { method: 'POST', body: input })
+export const deleteTeamEntry = (id: number) =>
+  kscwApi<{ ok: true; removed: number }>(`/finance/team-entries/${id}`, { method: 'DELETE' })
+
+// ── Budget vs actual — fills the dormant finance_budget_lines (migration 114) ──
+
+export interface FinanceBudgetLine {
+  id: string | number
+  fiscal_year: string | number
+  account: string | number
+  amount_budgeted: number | string
+  notes: string | null
+}
+/** Budget lines for a fiscal year (board/finance — items API, already granted). */
+export function useFinanceBudget(fiscalYearId: string | number | null | undefined, enabled = true) {
+  return useCollection<FinanceBudgetLine>('finance_budget_lines', {
+    filter: fiscalYearId ? { fiscal_year: { _eq: fiscalYearId } } : undefined,
+    enabled: enabled && !!fiscalYearId,
+    all: true,
+  })
+}
+export const saveBudgetLine = (input: { fiscal_year: number; account: number; amount_budgeted: number; notes?: string | null }) =>
+  kscwApi<{ budget: FinanceBudgetLine }>('/finance/budget', { method: 'POST', body: input })
+export const deleteBudgetLine = (id: number) =>
+  kscwApi<{ ok: true }>(`/finance/budget/${id}`, { method: 'DELETE' })
+
+// ── Dunning / Mahnwesen — reminders on overdue native invoices (migration 146) ──
+
+export interface DunningCandidate {
+  id: number
+  number: string | null
+  recipient_name: string | null
+  recipient_email: string | null
+  amount: number | string
+  open_amount: number | string
+  due_date: string | null
+  dunning_level: number
+  member: number | null
+  never_dun: boolean | null
+}
+/** Overdue native invoices for the dunning console (finance/board). */
+export function useDunningCandidates(enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'dunning-candidates'],
+    queryFn: () => kscwApi<{ candidates: DunningCandidate[]; today: string }>('/finance/dunning/candidates'),
+    enabled,
+  })
+}
+export interface EscalateInput { level: number; reminder_fee?: number; send_email?: boolean; force?: boolean }
+export const escalateDunning = (id: number, input: EscalateInput) =>
+  kscwApi<{ ok: true; level: number; channel: string; send_result: string }>(`/finance/dunning/${id}/escalate`, { method: 'POST', body: input })
+export const setMemberNeverDun = (memberId: number, value: boolean) =>
+  kscwApi<{ ok: true; never_dun: boolean }>(`/finance/members/${memberId}/never-dun`, { method: 'POST', body: { value } })
+
+// ── Billing contacts — invoice non-members (sponsors/parents/companies, mig 147) ──
+
+export interface BillingContact {
+  id: number
+  kind: string
+  name: string
+  email: string | null
+  address: string | null
+  plz: string | null
+  ort: string | null
+  billing_iban: string | null
+  notes: string | null
+}
+/** Active billing contacts (finance/board). */
+export function useBillingContacts(enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'contacts'],
+    queryFn: () => kscwApi<{ contacts: BillingContact[] }>('/finance/contacts'),
+    enabled,
+    select: (r) => r.contacts,
+  })
+}
+export const createBillingContact = (input: { kind: string; name: string; email?: string | null; billing_iban?: string | null; notes?: string | null }) =>
+  kscwApi<{ contact: BillingContact }>('/finance/contacts', { method: 'POST', body: input })
+export const deleteBillingContact = (id: number) =>
+  kscwApi<{ ok: true }>(`/finance/contacts/${id}`, { method: 'DELETE' })

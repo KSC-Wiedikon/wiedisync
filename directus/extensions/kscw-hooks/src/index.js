@@ -386,38 +386,43 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   }
 
-  // Defense-in-depth: strip `role` from the update payload unless the caller
-  // is admin / superuser. The Directus field-level permission on members.role
-  // SHOULD be admin-only — but the action hook below escalates `members.role`
-  // to a Directus user role, so a single misconfigured field perm would let
-  // any member self-promote to Superuser. Fail closed at the filter layer.
+  // Defense-in-depth: strip privilege-bearing flags from the payload unless the
+  // caller is admin / superuser. The Directus field-level permissions SHOULD be
+  // admin-only — but the action hooks below escalate each of these into a real
+  // Directus role / policy attachment, so a single misconfigured field perm
+  // would let any member self-promote. Fail closed at the filter layer.
+  //   role          → syncMemberRole (base Directus role, incl. Superuser)
+  //   is_spielplaner → ensureTerminplanungAccess (club-wide scheduling policy)
+  //   finance        → reconcileFinanceAccess (finance policy)
+  const PRIVILEGE_FLAGS = ['role', 'is_spielplaner', 'finance']
   filter('members.items.update', async (payload, _meta, context) => {
-    if (!payload || !('role' in payload)) return payload
+    if (!payload || !PRIVILEGE_FLAGS.some((f) => f in payload)) return payload
     const userId = context?.accountability?.user
     if (!userId) return payload // system-context update (cron/hook) — trust
     const m = await database('members').where('user', userId).select('role').first()
     const roles = Array.isArray(m?.role) ? m.role : []
     if (roles.includes('admin') || roles.includes('superuser')) return payload
-    delete payload.role
-    log.warn({ msg: '[role-sync] non-admin attempted members.role update — stripped', userId })
+    for (const f of PRIVILEGE_FLAGS) {
+      if (f in payload) { delete payload[f]; log.warn({ msg: `[priv-strip] non-admin attempted members.${f} update — stripped`, userId }) }
+    }
     return payload
   })
 
   // Same guard on CREATE. Directus does NOT enforce field-level permission
   // filters on create payloads, so without this a non-admin members.create
-  // could smuggle `role:["superuser"]` — which the action('members.items.create')
-  // → syncMemberRole path would then escalate to a Directus Superuser role.
-  // System context (no accountability.user — cron/hook/registration backend)
-  // and admins keep their role write; everyone else gets `role` stripped.
+  // could smuggle role/is_spielplaner/finance — which the action hooks would
+  // then escalate. System context (no accountability.user — cron/hook/
+  // registration backend) and admins keep the write; everyone else is stripped.
   filter('members.items.create', async (payload, _meta, context) => {
-    if (!payload || !('role' in payload)) return payload
+    if (!payload || !PRIVILEGE_FLAGS.some((f) => f in payload)) return payload
     const userId = context?.accountability?.user
     if (!userId) return payload // system-context create (cron/hook) — trust
     const m = await database('members').where('user', userId).select('role').first()
     const roles = Array.isArray(m?.role) ? m.role : []
     if (roles.includes('admin') || roles.includes('superuser')) return payload
-    delete payload.role
-    log.warn({ msg: '[role-sync] non-admin attempted members.role on create — stripped', userId })
+    for (const f of PRIVILEGE_FLAGS) {
+      if (f in payload) { delete payload[f]; log.warn({ msg: `[priv-strip] non-admin attempted members.${f} on create — stripped`, userId }) }
+    }
     return payload
   })
 
@@ -2171,11 +2176,30 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     bb_timekeeper: { member: 'bb_timekeeper_member', team: 'bb_timekeeper_duty_team', name: 'bb_timekeeper_confirmed_by_name', at: 'bb_timekeeper_confirmed_at' },
     bb_24s_official: { member: 'bb_24s_official', team: 'bb_24s_duty_team', name: 'bb_24s_confirmed_by_name', at: 'bb_24s_confirmed_at' },
   }
-  async function transferDelegatedDuty(delegationId) {
+  async function transferDelegatedDuty(delegationId, accountability) {
     const d = await database('scorer_delegations').where('id', delegationId).first()
     if (!d || d.status !== 'accepted' || !d.game || !d.to_member) return
     const cols = DELEG_ROLE_MEMBER[d.role]
     if (!cols) { log.warn(`[delegation-transfer] unknown role ${d.role} on delegation ${delegationId}`); return }
+    // Security (HOOK-1 / PG-1): this raw-knex games write bypasses the
+    // LEADER-only games.update permission. For a non-admin items-API actor,
+    // only allow the transfer when (a) the acting user is the RECIPIENT
+    // accepting — never the sender self-accepting a duty onto a victim — AND
+    // (b) the delegator actually currently holds the duty being handed off.
+    // Admin / system context (no accountability.user) bypasses; the accept
+    // ENDPOINT does its own recipient + duty-ownership checks.
+    if (accountability?.user && !accountability.admin) {
+      const actor = await database('members').where('user', accountability.user).first('id')
+      if (!actor || Number(actor.id) !== Number(d.to_member)) {
+        log.warn(`[delegation-transfer] ${delegationId}: acting user is not the recipient — refusing transfer`)
+        return
+      }
+      const game = await database('games').where('id', d.game).first(cols.member)
+      if (!game || game[cols.member] == null || Number(game[cols.member]) !== Number(d.from_member)) {
+        log.warn(`[delegation-transfer] ${delegationId}: delegator ${d.from_member} does not currently hold ${d.role} on game ${d.game} — refusing`)
+        return
+      }
+    }
     const updates = { [cols.member]: d.to_member }
     if (cols.team && !d.same_team && d.to_team) updates[cols.team] = d.to_team
     const m = await database('members').where('id', d.to_member).first('first_name', 'last_name')
@@ -2183,13 +2207,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     updates[cols.at] = new Date().toISOString()
     await database('games').where('id', d.game).update(updates)
   }
-  action('scorer_delegations.items.create', async ({ key }) => {
-    try { if (key != null) await transferDelegatedDuty(key) }
+  action('scorer_delegations.items.create', async ({ key }, context) => {
+    try { if (key != null) await transferDelegatedDuty(key, context?.accountability) }
     catch (err) { log.error({ msg: `[delegation-transfer] create: ${err.message}`, stack: err.stack }) }
   })
-  action('scorer_delegations.items.update', async ({ keys, payload }) => {
+  action('scorer_delegations.items.update', async ({ keys, payload }, context) => {
     if (!payload || payload.status !== 'accepted') return
-    try { for (const k of keys) await transferDelegatedDuty(k) }
+    try { for (const k of keys) await transferDelegatedDuty(k, context?.accountability) }
     catch (err) { log.error({ msg: `[delegation-transfer] update: ${err.message}`, stack: err.stack }) }
   })
 
@@ -3246,7 +3270,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   }
 
   function csvEscapeHook(val) {
-    const s = String(val ?? '')
+    let s = String(val ?? '')
+    // Neutralize spreadsheet formula injection (HOOK-3): a cell beginning with
+    // = + - @ (or tab/CR) can execute when an admin opens the emailed CSV in
+    // Excel/LibreOffice/ClubDesk. Prefix with a single quote so it stays text.
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s
     if (s.includes(';') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"'
     return s
   }
@@ -3965,6 +3993,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       return payload
     })
   }
+
+  // Audit-integrity (PERM-2): user_logs has a Member create grant (the FE
+  // fire-and-forget logActivity), but it was unfiltered + unstamped, letting a
+  // member POST a log row attributed to ANY member (forging the audit trail
+  // that /admin/audit surfaces). Force the actor to the caller's own member id
+  // so client-supplied `user` can't be spoofed. System/admin context passes.
+  filter('user_logs.items.create', async (payload, _meta, { database: db, accountability }) => {
+    if (!payload) return payload
+    if (!accountability?.user || accountability.admin) return payload // system / admin — trust
+    const me = await db('members').where('user', accountability.user).select('id').first()
+    if (me) payload.user = me.id
+    return payload
+  })
 
   // member_teams delete scope — the policy grants the row-level delete filter,
   // but Directus delete filters key on the junction id, and a coach's delete

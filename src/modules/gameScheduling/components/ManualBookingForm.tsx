@@ -214,9 +214,10 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
           {t('manualHomeGame')}{selectedHome?.booked ? ` (${t('manualOverwrite')})` : ''}
         </label>
         {homeOn && homeFixtures.length > 1 && (
-          <label className="mt-2 block">
+          <label htmlFor="mbf-home-fixture" className="mt-2 block">
             <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualWhichGame')}</span>
             <select
+              id="mbf-home-fixture"
               value={homeFixtureId}
               onChange={(e) => { setHomeFixtureId(e.target.value); applyHomePrefill(homeFixtures.find((o) => String(o.id ?? '') === e.target.value)) }}
               className={`${inputCls} dark:bg-gray-800`}
@@ -231,18 +232,18 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
         )}
         {homeOn && (
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <label className="col-span-2 sm:col-span-1">
+            <label htmlFor="mbf-home-date" className="col-span-2 sm:col-span-1">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualDate')}</span>
-              <input type="date" value={homeDate} min={minDate} max={maxDate} onChange={(e) => { setHomeDate(e.target.value); refreshCtx('home', e.target.value) }} className={inputCls} />
+              <input id="mbf-home-date" type="date" value={homeDate} min={minDate} max={maxDate} onChange={(e) => { setHomeDate(e.target.value); refreshCtx('home', e.target.value) }} className={inputCls} />
               <WeekdayHint date={homeDate} className="mt-0.5 block" />
             </label>
-            <label>
+            <label htmlFor="mbf-home-start">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualStart')}</span>
-              <input type="time" value={homeStart} onChange={(e) => setHomeStart(e.target.value)} className={inputCls} />
+              <input id="mbf-home-start" type="time" value={homeStart} onChange={(e) => setHomeStart(e.target.value)} className={inputCls} />
             </label>
-            <label className="col-span-2 sm:col-span-1">
+            <label htmlFor="mbf-home-hall" className="col-span-2 sm:col-span-1">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualHall')}</span>
-              <select value={homeHall} onChange={(e) => setHomeHall(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+              <select id="mbf-home-hall" value={homeHall} onChange={(e) => setHomeHall(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
                 <option value="">{t('manualSelectHall')}</option>
                 {orderedHalls.map((h) => (
                   <option key={h.id} value={h.id}>
@@ -273,9 +274,10 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
           {t('manualAwayGame')}{selectedAway?.booked ? ` (${t('manualOverwrite')})` : ''}
         </label>
         {awayOn && awayFixtures.length > 1 && (
-          <label className="mt-2 block">
+          <label htmlFor="mbf-away-fixture" className="mt-2 block">
             <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualWhichGame')}</span>
             <select
+              id="mbf-away-fixture"
               value={awayFixtureId}
               onChange={(e) => { setAwayFixtureId(e.target.value); applyAwayPrefill(awayFixtures.find((o) => String(o.id ?? '') === e.target.value)) }}
               className={`${inputCls} dark:bg-gray-800`}
@@ -290,18 +292,18 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
         )}
         {awayOn && (
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <label className="col-span-2 sm:col-span-1">
+            <label htmlFor="mbf-away-date" className="col-span-2 sm:col-span-1">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualDate')}</span>
-              <input type="date" value={awayDate} min={minDate} max={maxDate} onChange={(e) => { setAwayDate(e.target.value); refreshCtx('away', e.target.value) }} className={inputCls} />
+              <input id="mbf-away-date" type="date" value={awayDate} min={minDate} max={maxDate} onChange={(e) => { setAwayDate(e.target.value); refreshCtx('away', e.target.value) }} className={inputCls} />
               <WeekdayHint date={awayDate} className="mt-0.5 block" />
             </label>
-            <label>
+            <label htmlFor="mbf-away-start">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualStart')}</span>
-              <input type="time" value={awayStart} onChange={(e) => setAwayStart(e.target.value)} className={inputCls} />
+              <input id="mbf-away-start" type="time" value={awayStart} onChange={(e) => setAwayStart(e.target.value)} className={inputCls} />
             </label>
-            <label className="col-span-2">
+            <label htmlFor="mbf-away-place" className="col-span-2">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualPlace')}</span>
-              <input type="text" value={awayPlace} onChange={(e) => setAwayPlace(e.target.value)} placeholder={t('manualPlacePlaceholder')} className={inputCls} />
+              <input id="mbf-away-place" type="text" value={awayPlace} onChange={(e) => setAwayPlace(e.target.value)} placeholder={t('manualPlacePlaceholder')} className={inputCls} />
             </label>
           </div>
         )}

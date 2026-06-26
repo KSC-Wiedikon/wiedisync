@@ -55,7 +55,7 @@ export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onRei
       await navigator.clipboard.writeText(link)
       toast.success(t('linkCopied'))
     } catch {
-      toast.error('Copy failed')
+      toast.error(t('linkCopyFailed'))
     }
   }
 

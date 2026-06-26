@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Loader2, PlayCircle, ListChecks, Download } from 'lucide-react'
+import { Plus, Trash2, Loader2, PlayCircle, ListChecks, Download, Mail } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
@@ -9,6 +9,7 @@ import {
   type DuesPreviewResult, type DuesPreviewRow, type DuesRun,
 } from '../../hooks/useFinance'
 import { downloadInvoiceBillsPdf } from './qrBillPdf'
+import { DuesEmailSettings, SendDuesEmailModal } from './DuesEmail'
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
 const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
@@ -100,6 +101,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
 
   // Download every bill in a run as one multi-page PDF (print/post or attach).
   const [billBusy, setBillBusy] = useState<number | null>(null)
+  const [emailTarget, setEmailTarget] = useState<DuesRun | null>(null)
   async function downloadBills(run: DuesRun) {
     setBillBusy(run.id); setRunErr('')
     try {
@@ -205,11 +207,11 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
 
         <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
           <div>
-            <span className={labelCls}>{t('duesPickCategories')}</span>
+            <span id="dues-pick-categories-label" className={labelCls}>{t('duesPickCategories')}</span>
             {categories.length === 0 ? (
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('duesNoActiveCategories')}</p>
             ) : (
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <div role="group" aria-labelledby="dues-pick-categories-label" className="mt-1.5 flex flex-wrap gap-1.5">
                 {categories.map((c) => (
                   <button key={c} type="button" onClick={() => toggleCat(c)}
                     className={`rounded-full border px-3 py-1 text-xs font-medium ${selected.includes(c)
@@ -227,8 +229,8 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
               {t('duesOnlyActive')}
             </label>
             <div>
-              <label className={labelCls}>{t('duesRunDueDate')}</label>
-              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
+              <label htmlFor="dues-run-due-date" className={labelCls}>{t('duesRunDueDate')}</label>
+              <input id="dues-run-due-date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
             </div>
             <button type="button" disabled={!selected.length || pvBusy} onClick={runPreview}
               className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
@@ -290,6 +292,9 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
         </div>
       </section>
 
+      {/* ── Email sending (global test-mode switch) ────────────── */}
+      <DuesEmailSettings />
+
       {/* ── Past runs ──────────────────────────────────────────── */}
       <section>
         <h2 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{t('duesRunsTitle')}</h2>
@@ -324,6 +329,12 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                             {billBusy === run.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}{t('duesDownloadBills')}
                           </button>
                         )}
+                        {run.status !== 'cancelled' && run.total_count > 0 && (
+                          <button type="button" onClick={() => setEmailTarget(run)}
+                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                            <Mail className="h-3.5 w-3.5" />{t('duesEmailSendShort')}
+                          </button>
+                        )}
                         {run.status !== 'cancelled' && (
                           <button type="button" onClick={() => cancelRun(run.id)}
                             className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
@@ -339,6 +350,8 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
           </div>
         )}
       </section>
+
+      <SendDuesEmailModal key={emailTarget?.id ?? 'none'} run={emailTarget} onClose={() => setEmailTarget(null)} />
     </div>
   )
 }

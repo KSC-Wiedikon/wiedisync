@@ -423,6 +423,10 @@ const FINANCE_MEMBER_BILLING_FIELDS = [
 /** Private folder for invoice PDFs (migration 134). Members can't read this folder
  *  (their directus_files read is folder-less-only); finance + board get a scoped read. */
 const FINANCE_INVOICE_FOLDER = 'f1a0d0c5-0000-4000-8000-000000000001'
+/** Private folder for feedback screenshots (migration 074). Can contain a member's
+ *  authenticated screen / PII — must NOT be member-readable (audit PERM-1, 2026-06-25);
+ *  only Vorstand / Sport Admin review them via a folder-scoped read below. */
+const FEEDBACK_FOLDER = 'feedbac0-0000-4000-8000-000000000001'
 
 // ── Main ──────────────────────────────────��──────────────────────
 
@@ -641,14 +645,16 @@ async function main() {
   for (const col of MEMBER_READ_ALL) {
     await setPermRead(MEMBER_POLICY, col)
   }
-  // Files: everything EXCEPT the private finance-invoice folder (migration 134,
-  // 2026-06-24). Invoice PDFs contain a member's billing details and must not be
-  // member-readable via /assets. SURGICAL exclusion (not folder-less-only) so all
-  // existing member file access is unchanged — folder-less photos AND the feedback
-  // screenshots that Vorstand/Sport Admin review still load. Null-folder files don't
-  // match a bare _neq, hence the _or. Finance + board re-add the folder below.
+  // Files: folder-less files PLUS any foldered file that is NOT in a private
+  // folder. Two folders are private: finance-invoice (migration 134) holds a
+  // member's billing PDFs, and feedback (migration 074) holds feedback
+  // screenshots that can contain a member's authenticated screen / PII. Neither
+  // may be member-readable via /assets (audit PERM-1, 2026-06-25 — previously
+  // only the finance folder was excluded, so any member could enumerate +
+  // download every feedback screenshot). Null-folder files don't match a bare
+  // _nin, hence the _or. Finance + board re-add their folder below.
   await setPermRead(MEMBER_POLICY, 'directus_files', {
-    _or: [{ folder: { _null: true } }, { folder: { _neq: FINANCE_INVOICE_FOLDER } }],
+    _or: [{ folder: { _null: true } }, { folder: { _nin: [FINANCE_INVOICE_FOLDER, FEEDBACK_FOLDER] } }],
   })
 
   // ── Team-scoped reads (migration 032 / 033) ─────────────────

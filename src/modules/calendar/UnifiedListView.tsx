@@ -51,7 +51,7 @@ export default function UnifiedListView({ entries, onEntryClick }: UnifiedListVi
         currentKey = key
         groups.push({
           dateKey: key,
-          label: formatDate(entry.date, 'EEEE, MMMM d, yyyy'),
+          label: formatDate(entry.date, 'EEEE, d. MMMM yyyy'),
           entries: [],
         })
       }

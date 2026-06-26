@@ -20,6 +20,7 @@ const parser = new XMLParser({
   removeNSPrefix: true,   // strip <ns:Ntry> → Ntry so navigation is prefix-agnostic
   parseTagValue: false,   // keep amounts/refs as strings (no float coercion)
   trimValues: true,
+  processEntities: false, // no DTD/entity expansion — kills billion-laughs DoS
 })
 
 const arr = (x) => (x == null ? [] : Array.isArray(x) ? x : [x])
@@ -69,6 +70,12 @@ function structuredRef(tx) {
  * }>}}
  */
 export function parseCamt(xml) {
+  // A legitimate ISO 20022 camt file never declares a DOCTYPE. Reject any input
+  // carrying one so a crafted DTD (entity-expansion / billion-laughs) can't be
+  // smuggled in — belt-and-suspenders with processEntities:false above.
+  if (/<!DOCTYPE/i.test(String(xml ?? ''))) {
+    throw new Error('Invalid camt file: DOCTYPE is not allowed')
+  }
   const doc = parser.parse(xml)
   const root = doc?.Document
   if (!root) throw new Error('Not a camt file (no <Document> root)')

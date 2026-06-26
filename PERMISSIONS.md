@@ -1,6 +1,6 @@
 # Permissions reference — KSCW Directus
 
-Canonical role × collection × action map. Reflects the live state through migration 111 (2026-06-15). Updated by reviewers as part of every permission change.
+Canonical role × collection × action map. Reflects the live state through migration 149 (2026-06-25). Updated by reviewers as part of every permission change. (Schema-only migrations 104–149 carry no permission rows; the per-collection posture for the finance-batch collections — 138–147 — is in the dated history below.)
 
 > Migrations 104–111 (2026-06-10..06-15) are all schema-only — they carry no permission rows and add no plpgsql functions needing `search_path`, so this doc's role tables are unchanged by them; only the version anchor moved. The Forms permission surface (migrations 086–089) is documented in the role tables below.
 
@@ -212,7 +212,8 @@ Per-user policy (migrations 132/133), attached to members with `finance` in thei
 | members | read | none (club-wide) | `FINANCE_MEMBER_FIELDS` — contact + `adresse/plz/ort` + `iban` + `ahv_nummer` + `beitragskategorie` + membership + billing_*. UNION-ed with the member policy's `MEMBER_VISIBLE_FIELDS`, so this only widens finance's view |
 | members | update | none (club-wide) | `FINANCE_MEMBER_BILLING_FIELDS` only — the alternate billing contact (migration 133). No other member field is writable here |
 | member_teams | read | none | Team context |
-| finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides | read | none | Full club finance read (same set as Vorstand) |
+| finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides, finance_payouts | read | none | Full club finance read (same set as Vorstand; `finance_payouts` migration 137) |
+| finance_dues_rates, finance_dues_runs | read | none | Dues-rate table + dues-run history (migration 138). Vorstand + Finance only |
 | finance_invoice_documents | create/read/update/delete | none | Invoice PDF attachment links (migration 134). Vorstand gets read |
 | directus_files | create | none | Upload invoice PDFs (frontend sets `folder` = the private finance folder) |
 | directus_files | read | `folder = <finance folder>` | View the private invoice PDFs via /assets. Folder-less files come via the member policy; members are excluded from THIS folder (read narrowed to `_or[null, ≠finance]`) |
@@ -314,5 +315,7 @@ ORDER BY table_name;
 > **2026-05-23 — Restored public `events` + `news` for kscw-website.** Migration 035 dropped Public read on `events` on the mistaken assumption the website didn't consume it, silently emptying the homepage events + `/weiteres/kalender`; `news` had never been granted (homepage News showed "no news"). Re-added both to Public as field-scoped reads (`PUBLIC_EVENT_FIELDS` / `PUBLIC_NEWS_FIELDS`, non-PII); `news` limited to published, non-future posts. RSVP junctions (`events_teams` / `participations`) stay private — 035's privacy fix is intact. Applied dev→prod via `db:setup-perms`; smoke green.
 
 > **2026-05-12 — Deep-audit LEADER tightening.** Removed unfiltered LEADER reads on `members`, `participations`, `absences`, `user_logs`, and unfiltered LEADER updates on `games`, `trainings`, `events`. All now use the coach/TR-of-the-target-team filter pattern; `members.read` adds a `LEADER_TEAM_MEMBER_FIELDS` whitelist that excludes `ahv_nummer`. LEADER lost `user_logs.read` entirely — audit access goes through `/kscw/admin/audit` (admin-only). See SECURITY.md "2026-05-12" block for the full per-finding ledger.
+
+> **2026-06-25 — Finance batch collections (migrations 138–147) — deny-by-default + endpoint-only writes (DEV; prod pending).** All WRITES go exclusively through `canManageFinance`-gated `/kscw/finance/*` endpoints (raw-knex system connection) — **no items-API write grant for any role** (load-bearing). READ scope per collection: `finance_dues_rates` + `finance_dues_runs` → **Vorstand + Finance** (intentional, dashboard). `finance_email_settings`, `finance_email_jobs`, `finance_team_entries`, `finance_dunning_notices`, `finance_billing_contacts` → **none / admin-only** (deny-by-default — they hold sponsor emails/IBANs, the treasurer test inbox, dunning state). New cols `finance_invoices.dunning_level`/`email_sent_at`/`contact`/`dues_run`, `finance_payments.entry_type`, `members.never_dun` are in **no** scoped field-whitelist → endpoint-only. Caveat: `members.never_dun` rides the pre-existing **Sport Admin `members.*` wildcard** (which already exposes `iban`/`ahv_nummer`) — accepted/open, see SECURITY.md 2026-06-25. Recommend a `db:smoke` 403 assertion on `/items/finance_billing_contacts` + `/items/finance_email_settings` so an accidental future grant turns the deploy red.
 
 </details>

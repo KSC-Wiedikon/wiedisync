@@ -505,7 +505,7 @@ export default function ScorerRow({
           ? 'confirmSelfAssignArrival_bb'
           : `confirmSelfAssignArrival_${confirmRole}` as const
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setConfirmRole(null)}>
+          <div role="dialog" aria-modal="true" aria-label={t('confirmSelfAssignTitle')} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setConfirmRole(null)}>
             <div className="mx-4 w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-gray-800" onClick={(e) => e.stopPropagation()}>
               {/* Header */}
               <div className="border-b border-gray-100 px-5 pb-4 pt-5 dark:border-gray-700">

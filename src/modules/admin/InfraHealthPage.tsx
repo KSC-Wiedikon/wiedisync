@@ -514,7 +514,7 @@ export default function InfraHealthPage() {
       }
     } catch { /* skip slow queries on error */ }
 
-    setLastCheck(new Date().toLocaleTimeString(currentLocale(), { hour12: false }))
+    setLastCheck(new Date().toLocaleTimeString('de-CH', { hour12: false }))
     setLoading(false)
   }, [t])
 

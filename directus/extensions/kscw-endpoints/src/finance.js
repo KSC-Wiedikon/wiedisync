@@ -25,6 +25,9 @@
  * Raw-knex writes → every mutation calls writeUserLog (CLAUDE.md actor-capture).
  */
 import { writeUserLog } from './activity-log.js'
+import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './email-template.js'
+import { renderInvoiceQrBillPdf } from './finance-qrbill.js'
+import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -54,7 +57,62 @@ function pickRate(rates, category, sektion) {
       || null
 }
 
-export function registerFinance(router, { database, logger }) {
+/** Reject after `ms` so one hung send can't stall a whole chunk. */
+function withTimeout(promise, ms, label) {
+  let t
+  const timeout = new Promise((_, reject) => { t = setTimeout(() => reject(new Error(label || 'timeout')), ms) })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(t))
+}
+
+/** Compose a dues-invoice notification email (German — the club's canonical
+ *  language). In test mode a banner shows where it WOULD have gone. The body only
+ *  promises a PDF when one is actually attached. */
+function composeDuesEmail(inv, amount, runLabel, { testMode, realRecipient, hasAttachment }) {
+  const amountStr = `CHF ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const rows = [
+    { label: 'Rechnung', value: inv.number || '–', halfWidth: true },
+    { label: 'Betrag', value: amountStr, halfWidth: true },
+    { label: 'Betreff', value: inv.subject || '–' },
+  ]
+  if (inv.reference_type === 'SCOR' && inv.reference) rows.push({ label: 'Referenz', value: inv.reference })
+  const payLine = hasAttachment
+    ? 'Die QR-Rechnung ist als PDF angehängt. Du kannst sie auch direkt in der App mit QR-Rechnung oder TWINT bezahlen.'
+    : 'Du kannst diese Rechnung direkt in der App mit QR-Rechnung oder TWINT bezahlen.'
+  let body = buildInfoCard(rows)
+    + `<div style="font-size:14px;color:#cbd5e1;margin-top:12px">${payLine}</div>`
+  if (testMode) body = buildAlertBox('warning', 'Testmodus', `Diese E-Mail wäre an ${realRecipient || 'das Mitglied'} gegangen.`) + body
+  const firstName = (inv.recipient_name || '').trim().split(/\s+/)[0]
+  return buildEmailLayout(body, {
+    title: 'Mitgliederbeitrag',
+    subtitle: runLabel || '',
+    greeting: firstName ? `Hallo ${firstName}` : 'Hallo',
+    ctaUrl: `${FRONTEND_URL}/finance/dues`,
+    ctaLabel: 'Rechnung ansehen',
+  })
+}
+
+/** Compose a payment reminder (Mahnung) email. */
+function composeDunningEmail(inv, total, level, fee, { testMode, realRecipient }) {
+  const chf = (n) => `CHF ${Number(n).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const rows = [
+    { label: 'Rechnung', value: inv.number || '–', halfWidth: true },
+    { label: 'Offener Betrag', value: chf(total), halfWidth: true },
+  ]
+  if (fee > 0) rows.push({ label: 'Mahngebühr', value: chf(fee) })
+  if (inv.reference_type === 'SCOR' && inv.reference) rows.push({ label: 'Referenz', value: inv.reference })
+  let body = buildAlertBox('warning', `${level}. Mahnung`, 'Diese Rechnung ist noch offen. Bitte begleiche den Betrag bald.')
+    + buildInfoCard(rows)
+    + '<div style="font-size:14px;color:#cbd5e1;margin-top:12px">Die QR-Rechnung ist als PDF angehängt. Falls bereits bezahlt, bitte diese Mahnung ignorieren.</div>'
+  if (testMode) body = buildAlertBox('info', 'Testmodus', `Diese Mahnung wäre an ${realRecipient || 'das Mitglied'} gegangen.`) + body
+  const firstName = (inv.recipient_name || '').trim().split(/\s+/)[0]
+  return buildEmailLayout(body, {
+    title: `${level}. Mahnung`, subtitle: inv.number || '',
+    greeting: firstName ? `Hallo ${firstName}` : 'Hallo',
+    ctaUrl: `${FRONTEND_URL}/finance/dues`, ctaLabel: 'Rechnung ansehen',
+  })
+}
+
+export function registerFinance(router, { database, logger, services, getSchema }) {
   const log = logger.child({ extension: 'kscw-endpoints', module: 'finance' })
 
   function err(res, req, endpoint, e, code = 500) {
@@ -95,6 +153,7 @@ export function registerFinance(router, { database, logger }) {
 
   const todayISO = () => new Date().toISOString().slice(0, 10)
   const round2 = (n) => Math.round(Number(n) * 100) / 100
+  const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim())
 
   async function fiscalYearIdForDate(iso) {
     const fy = await database('finance_fiscal_years')
@@ -110,7 +169,7 @@ export function registerFinance(router, { database, logger }) {
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
 
       const b = req.body || {}
-      const recipientType = b.recipient_type === 'team' ? 'team' : 'member'
+      const recipientType = ['team', 'contact'].includes(b.recipient_type) ? b.recipient_type : 'member'
       const amount = round2(b.amount)
       const subject = (b.subject || '').toString().trim()
       const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(b.due_date || '') ? b.due_date : null
@@ -118,18 +177,24 @@ export function registerFinance(router, { database, logger }) {
       if (!(amount > 0)) return res.status(400).json({ error: 'amount must be greater than 0' })
       if (!subject) return res.status(400).json({ error: 'subject is required' })
 
-      let memberId = null, teamId = null, recipientName = null, recipientEmail = null
+      let memberId = null, teamId = null, contactId = null, recipientName = null, recipientEmail = null
       if (recipientType === 'member') {
         memberId = Number(b.member)
         const tgt = Number.isInteger(memberId) ? await database('members').where('id', memberId).first('id', 'first_name', 'last_name', 'email') : null
         if (!tgt) return res.status(400).json({ error: 'member not found' })
         recipientName = [tgt.first_name, tgt.last_name].filter(Boolean).join(' ').trim() || null
         recipientEmail = tgt.email || null
-      } else {
+      } else if (recipientType === 'team') {
         teamId = Number(b.team)
         const tgt = Number.isInteger(teamId) ? await database('teams').where('id', teamId).first('id', 'name') : null
         if (!tgt) return res.status(400).json({ error: 'team not found' })
         recipientName = tgt.name || null
+      } else {
+        contactId = Number(b.contact)
+        const tgt = Number.isInteger(contactId) ? await database('finance_billing_contacts').where('id', contactId).first('id', 'name', 'email') : null
+        if (!tgt) return res.status(400).json({ error: 'contact not found' })
+        recipientName = tgt.name || null
+        recipientEmail = tgt.email || null
       }
 
       const invoiceDate = todayISO()
@@ -152,6 +217,7 @@ export function registerFinance(router, { database, logger }) {
         recipient_email: recipientEmail,
         member: memberId,
         team: teamId,
+        contact: contactId,
         fiscal_year: await fiscalYearIdForDate(invoiceDate),
         source: 'native',
         created_by_name: mem?.name || null,
@@ -243,23 +309,99 @@ export function registerFinance(router, { database, logger }) {
       const mem = await actingMember(req)
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
-      const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
-      if (!inv) return res.status(404).json({ error: 'Not found' })
-      if (!['open', 'pending_confirmation'].includes(inv.status)) return res.status(409).json({ error: `Invoice is ${inv.status}` })
-      const [row] = await database('finance_invoices').where('id', id).update({
-        status: 'paid',
-        amount_paid: inv.amount,
-        open_amount: 0,
-        closed_on: todayISO(),
-        confirmed_at: new Date(),
-        confirmed_by_name: mem?.name || null,
-        confirmed_by_email: mem?.email || null,
-        confirmed_via: 'manual',
-        date_updated: new Date(),
-      }).returning('*')
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'confirm_payment', via: 'manual' } })
-      return res.json({ invoice: row })
+      // Confirm = record a payment for whatever cash is still owed (derived from the
+      // ledger, clamped), then recompute — all in one transaction with a row lock so
+      // a double-click / concurrent camt credit can't double-count.
+      const out = await database.transaction(async (trx) => {
+        const inv = await trx('finance_invoices').where('id', id).andWhere('source', 'native').forUpdate().first()
+        if (!inv) return { code: 404, msg: 'Not found' }
+        if (!['open', 'pending_confirmation', 'partial'].includes(inv.status)) return { code: 409, msg: `Invoice is ${inv.status}` }
+        const entries = await trx('finance_payments').where('invoice', id).select('amount', 'entry_type')
+        const remaining = round2(deriveSettlement(entries, inv.amount, inv.status).open_amount)
+        if (remaining > 0.005) {
+          await trx('finance_payments').insert({
+            invoice: id, amount: remaining, entry_type: 'payment',
+            method: inv.reported_paid_method || 'manual', payment_date: todayISO(),
+            source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+          })
+        }
+        const row = await recomputeInvoice(trx, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
+        return { row, remaining }
+      })
+      if (out.code) return res.status(out.code).json({ error: out.msg })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'confirm_payment', via: 'manual', amount: out.remaining } })
+      return res.json({ invoice: out.row })
     } catch (e) { return err(res, req, 'confirm', e) }
+  })
+
+  // ── Settlement ledger entries — partial payments, cash, credit notes, refunds, write-offs ──
+  const ENTRY_TYPES = ['payment', 'credit_note', 'refund', 'writeoff']
+
+  // POST /finance/invoices/:id/payments — record one entry, then recompute settlement
+  router.post('/finance/invoices/:id/payments', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const b = req.body || {}
+      const entryType = ENTRY_TYPES.includes(b.entry_type) ? b.entry_type : 'payment'
+      const amount = round2(b.amount)
+      if (!(amount > 0)) return res.status(400).json({ error: 'amount must be greater than 0' })
+      const method = (entryType === 'payment' || entryType === 'refund') ? (PAY_METHODS.includes(b.method) ? b.method : 'other') : null
+      const paymentDate = /^\d{4}-\d{2}-\d{2}$/.test(b.payment_date || '') ? b.payment_date : todayISO()
+      const note = (b.note || '').toString().trim().slice(0, 255) || null
+
+      const out = await database.transaction(async (trx) => {
+        const inv = await trx('finance_invoices').where('id', id).andWhere('source', 'native').forUpdate().first()
+        if (!inv) return { code: 404, msg: 'Not found (native invoice expected)' }
+        if (inv.status === 'cancelled') return { code: 409, msg: 'Invoice is cancelled' }
+        const ins = await trx('finance_payments').insert({
+          invoice: id, amount, entry_type: entryType, method, payment_date: paymentDate, note,
+          source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+        }).returning('id')
+        const paymentId = ins[0]?.id ?? ins[0]
+        const row = await recomputeInvoice(trx, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
+        return { row, paymentId }
+      })
+      if (out.code) return res.status(out.code).json({ error: out.msg })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_payments', recordId: out.paymentId, data: { kind: 'manual_payment', entry_type: entryType, invoice: id, amount } })
+      return res.json({ invoice: out.row, payment_id: out.paymentId })
+    } catch (e) { return err(res, req, 'record-payment', e) }
+  })
+
+  // DELETE /finance/invoices/:id/payments/:pid — undo a manual entry (camt rows excluded)
+  router.delete('/finance/invoices/:id/payments/:pid', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const pid = Number(req.params.pid)
+      const out = await database.transaction(async (trx) => {
+        await trx('finance_invoices').where('id', id).andWhere('source', 'native').forUpdate().first('id') // lock
+        const p = await trx('finance_payments').where('id', pid).andWhere('invoice', id).first('id', 'method')
+        if (!p) return { code: 404, msg: 'Not found' }
+        if (p.method === 'camt') return { code: 409, msg: 'camt entries are not deletable here (re-import is idempotent)' }
+        await trx('finance_payments').where('id', pid).del()
+        const row = await recomputeInvoice(trx, id, { actorName: mem?.name || null, actorEmail: mem?.email || null, via: 'manual' })
+        return { row }
+      })
+      if (out.code) return res.status(out.code).json({ error: out.msg })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_payments', recordId: pid, data: { kind: 'delete_payment', invoice: id } })
+      return res.json({ invoice: out.row })
+    } catch (e) { return err(res, req, 'delete-payment', e) }
+  })
+
+  // GET /finance/invoices/:id/payments — the settlement ledger for one invoice
+  router.get('/finance/invoices/:id/payments', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const rows = await database('finance_payments').where('invoice', id)
+        .orderBy([{ column: 'payment_date', order: 'asc' }, { column: 'id', order: 'asc' }])
+        .select('id', 'payment_date', 'amount', 'entry_type', 'method', 'note', 'created_by_name', 'camt_reference', 'source')
+      return res.json({ payments: rows })
+    } catch (e) { return err(res, req, 'list-payments', e) }
   })
 
   // ── POST /finance/invoices/:id/cancel — void a native invoice ───────────
@@ -588,5 +730,436 @@ export function registerFinance(router, { database, logger }) {
         .select('id', 'number', 'recipient_name', 'subject', 'amount', 'open_amount', 'status', 'reference', 'reference_type')
       return res.json({ run, invoices })
     } catch (e) { return err(res, req, 'dues-run-invoices', e) }
+  })
+
+  // ── Dues-run email send + the global TEST MODE switch (migration 140) ────
+  // test_mode (default ON) redirects EVERY send to test_recipient, so no member
+  // is ever emailed until an admin turns it off. Layered guards: dry_run preview
+  // (default) → test-mode redirect → explicit confirm for a live send.
+
+  const emailSettings = async () => {
+    const s = await database('finance_email_settings').where('id', 1).first()
+    return { test_mode: s ? s.test_mode !== false : true, test_recipient: s?.test_recipient || null }
+  }
+
+  // GET /finance/email-settings — current test-mode + recipient
+  router.get('/finance/email-settings', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      return res.json(await emailSettings())
+    } catch (e) { return err(res, req, 'email-settings', e) }
+  })
+
+  // PUT /finance/email-settings — flip test mode / set the test recipient (logged)
+  router.put('/finance/email-settings', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const testMode = req.body?.test_mode !== false // default ON; only explicit false disables
+      const testRecipient = (req.body?.test_recipient || '').toString().trim() || null
+      if (testRecipient && !isEmail(testRecipient)) return res.status(400).json({ error: 'test_recipient must be a valid email address' })
+      await database('finance_email_settings')
+        .insert({ id: 1, test_mode: testMode, test_recipient: testRecipient, updated_by_name: mem?.name || null, updated_by_email: mem?.email || null, date_updated: new Date() })
+        .onConflict('id').merge()
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_email_settings', recordId: 1, data: { kind: 'finance_email_test_mode', test_mode: testMode, test_recipient: testRecipient } })
+      return res.json(await emailSettings())
+    } catch (e) { return err(res, req, 'email-settings-save', e) }
+  })
+
+  // POST /finance/dues-runs/:id/send-emails — preview (default) or send.
+  router.post('/finance/dues-runs/:id/send-emails', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const run = await database('finance_dues_runs').where('id', id).first('id', 'label')
+      if (!run) return res.status(404).json({ error: 'Not found' })
+      const dryRun = req.body?.dry_run !== false // default true = preview, no send
+      const confirm = req.body?.confirm === true
+      const settings = await emailSettings()
+
+      const invoices = await database('finance_invoices')
+        .where('dues_run', id).whereNot('status', 'cancelled')
+        .select('id', 'number', 'recipient_name', 'recipient_email', 'subject', 'amount', 'open_amount', 'reference', 'reference_type', 'email_sent_at')
+      const emailable = invoices.filter((i) => (i.recipient_email || '').trim())
+      const noEmail = invoices.length - emailable.length
+      // Live sends skip invoices already emailed (idempotent resume after a crash);
+      // test mode re-sends all so it stays repeatable.
+      const withEmail = settings.test_mode ? emailable : emailable.filter((i) => !i.email_sent_at)
+
+      if (dryRun) {
+        return res.json({
+          mode: 'dry_run', test_mode: settings.test_mode, test_recipient: settings.test_recipient,
+          would_send: withEmail.length, no_email: noEmail, total: invoices.length,
+          recipients: withEmail.slice(0, 300).map((i) => ({ invoice: i.number, name: i.recipient_name, email: i.recipient_email })),
+        })
+      }
+      if (!confirm) return res.status(400).json({ error: 'confirm required for a real send' })
+      if (settings.test_mode && !settings.test_recipient) return res.status(400).json({ error: 'Set a test recipient first (test mode is on)' })
+      if (!withEmail.length) return res.status(409).json({ error: 'No recipients with an email' })
+
+      // At-most-one running send per run. Reap a stuck 'running' row (crashed
+      // worker; its date_updated/created is older than the staleness window) so the
+      // partial-unique index can't lock sending forever — then let the DB index
+      // enforce atomicity (TOCTOU-proof, unlike a check-then-insert).
+      const staleBefore = new Date(Date.now() - 15 * 60 * 1000)
+      await database('finance_email_jobs').where('dues_run', id).where('status', 'running')
+        .whereRaw('coalesce(date_updated, date_created) < ?', [staleBefore])
+        .update({ status: 'failed', error: 'worker_lost', date_updated: new Date() })
+
+      let jobId
+      try {
+        const jobIns = await database('finance_email_jobs').insert({
+          dues_run: id, status: 'running', test_mode: settings.test_mode, total: withEmail.length,
+          sent: 0, failed: 0, created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+        }).returning('id')
+        jobId = jobIns[0]?.id ?? jobIns[0]
+      } catch (e) {
+        if (e?.code === '23505') return res.status(409).json({ error: 'A send is already running for this run' })
+        throw e
+      }
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_email_jobs', recordId: jobId, data: { kind: 'dues_email_send', run: id, test_mode: settings.test_mode, total: withEmail.length } })
+
+      // Respond immediately; send in the background, chunked, updating job progress.
+      res.status(202).json({ job_id: jobId, total: withEmail.length, test_mode: settings.test_mode, mode: settings.test_mode ? 'test' : 'live' })
+
+      const CHUNK = 20
+      void (async () => {
+        const schema = await getSchema()
+        const { MailService } = services
+        const mail = new MailService({ schema, knex: database })
+        let sent = 0, failed = 0, lastError = null
+        for (let i = 0; i < withEmail.length; i += CHUNK) {
+          for (const inv of withEmail.slice(i, i + CHUNK)) {
+            const amount = Number(inv.open_amount) > 0 ? Number(inv.open_amount) : Number(inv.amount)
+            const to = settings.test_mode ? settings.test_recipient : inv.recipient_email
+            try {
+              // Render the QR-bill first so the body only promises a PDF when one attaches.
+              const attachments = []
+              try {
+                const message = [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n')
+                const pdf = await renderInvoiceQrBillPdf({
+                  amount, number: inv.number, recipientName: inv.recipient_name, subject: inv.subject,
+                  message, reference: inv.reference_type === 'SCOR' ? inv.reference : null,
+                })
+                attachments.push({ filename: `${inv.number || 'Rechnung'}.pdf`, content: pdf, contentType: 'application/pdf' })
+              } catch (pe) { log.warn?.({ msg: `dues qr-bill render failed: ${pe.message}`, invoice: inv.number }) }
+              const html = composeDuesEmail(inv, amount, run.label, { testMode: settings.test_mode, realRecipient: inv.recipient_email, hasAttachment: attachments.length > 0 })
+              await withTimeout(mail.send({ to, subject: `${settings.test_mode ? '[TEST] ' : ''}Mitgliederbeitrag${run.label ? ` ${run.label}` : ''} — ${inv.number}`, html, ...(attachments.length ? { attachments } : {}) }), 60000, 'mail.send timeout')
+              // Mark LIVE sends so a resumed/retried run skips them (no double-email). Test sends don't mark.
+              if (!settings.test_mode) { try { await database('finance_invoices').where('id', inv.id).update({ email_sent_at: new Date() }) } catch { /* noop */ } }
+              sent++
+            } catch (e) { failed++; lastError = e?.message || String(e); log.warn?.({ msg: `dues email failed: ${e?.message}`, invoice: inv.number }) }
+          }
+          await database('finance_email_jobs').where('id', jobId).update({ sent, failed, date_updated: new Date() })
+        }
+        // All-failed is a terminal failure the operator must see, not a green 'done'.
+        const finalStatus = sent === 0 && failed > 0 ? 'failed' : 'done'
+        const finalError = sent === 0 && failed > 0 ? `Alle ${failed} Sendungen fehlgeschlagen${lastError ? `: ${lastError}` : ''}`.slice(0, 500) : null
+        await database('finance_email_jobs').where('id', jobId).update({ status: finalStatus, sent, failed, error: finalError, date_updated: new Date() })
+      })().catch(async (e) => {
+        log.error?.({ msg: `dues email job ${jobId} crashed: ${e.message}`, stack: e.stack })
+        try { await database('finance_email_jobs').where('id', jobId).update({ status: 'failed', error: String(e.message || e).slice(0, 500), date_updated: new Date() }) } catch { /* noop */ }
+      })
+    } catch (e) { return err(res, req, 'dues-send-emails', e) }
+  })
+
+  // GET /finance/dues-runs/:id/email-job — latest send job for progress polling
+  router.get('/finance/dues-runs/:id/email-job', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const job = await database('finance_email_jobs').where('dues_run', id)
+        .orderBy('id', 'desc').first('id', 'status', 'test_mode', 'total', 'sent', 'failed', 'error', 'date_created', 'date_updated')
+      // A crashed worker can't update its own row; surface a long-idle 'running' job
+      // as failed so the UI poller terminates instead of spinning forever.
+      if (job && job.status === 'running') {
+        const last = job.date_updated || job.date_created
+        if (last && Date.now() - new Date(last).getTime() > 15 * 60 * 1000) { job.status = 'failed'; job.error = job.error || 'worker_lost' }
+      }
+      return res.json({ job: job || null })
+    } catch (e) { return err(res, req, 'dues-email-job', e) }
+  })
+
+  // ── Per-team finance entries + summary (sponsoring + bills, migration 145) ──
+  const TEAM_KINDS = ['sponsoring', 'income', 'expense']
+
+  // GET /finance/team-entries?team=&fiscal_year=
+  router.get('/finance/team-entries', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const teamId = Number(req.query.team)
+      const fyId = Number(req.query.fiscal_year)
+      let q = database('finance_team_entries')
+        .orderBy([{ column: 'entry_date', order: 'desc' }, { column: 'id', order: 'desc' }])
+        .select('id', 'team', 'fiscal_year', 'kind', 'amount', 'label', 'sponsor', 'entry_date', 'note', 'created_by_name')
+      if (Number.isInteger(teamId)) q = q.where('team', teamId)
+      if (Number.isInteger(fyId)) q = q.where('fiscal_year', fyId)
+      return res.json({ entries: await q.limit(500) })
+    } catch (e) { return err(res, req, 'team-entries', e) }
+  })
+
+  // POST /finance/team-entries — record a sponsoring/income/expense entry
+  router.post('/finance/team-entries', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const b = req.body || {}
+      const teamId = Number(b.team)
+      const tgt = Number.isInteger(teamId) ? await database('teams').where('id', teamId).first('id') : null
+      if (!tgt) return res.status(400).json({ error: 'team not found' })
+      const kind = TEAM_KINDS.includes(b.kind) ? b.kind : 'sponsoring'
+      const amount = round2(b.amount)
+      if (!(amount >= 0)) return res.status(400).json({ error: 'amount must be >= 0' })
+      const fyId = Number.isInteger(Number(b.fiscal_year)) ? Number(b.fiscal_year) : await fiscalYearIdForDate(todayISO())
+      const entryDate = /^\d{4}-\d{2}-\d{2}$/.test(b.entry_date || '') ? b.entry_date : todayISO()
+      const ins = await database('finance_team_entries').insert({
+        team: teamId, fiscal_year: fyId, kind, amount,
+        label: (b.label || '').toString().trim().slice(0, 255) || null,
+        sponsor: (b.sponsor || '').toString().trim().slice(0, 255) || null,
+        entry_date: entryDate, note: (b.note || '').toString().trim().slice(0, 255) || null,
+        created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+      }).returning('id')
+      const entryId = ins[0]?.id ?? ins[0]
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_team_entries', recordId: entryId, data: { kind: 'team_entry', team: teamId, entry_kind: kind, amount } })
+      return res.json({ id: entryId })
+    } catch (e) { return err(res, req, 'team-entry-save', e) }
+  })
+
+  // DELETE /finance/team-entries/:id
+  router.delete('/finance/team-entries/:id', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const removed = await database('finance_team_entries').where('id', id).del()
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_team_entries', recordId: id, data: { removed } })
+      return res.json({ ok: true, removed })
+    } catch (e) { return err(res, req, 'team-entry-delete', e) }
+  })
+
+  // GET /finance/teams-summary?fiscal_year= — per-team income/expense/net + open bills
+  router.get('/finance/teams-summary', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const fyId = Number(req.query.fiscal_year)
+      const hasFy = Number.isInteger(fyId)
+      const entries = await database('finance_team_entries')
+        .modify((qb) => { if (hasFy) qb.where('fiscal_year', fyId) }).select('team', 'kind', 'amount')
+      const invs = await database('finance_invoices')
+        .where('source', 'native').whereNotNull('team').whereNot('status', 'cancelled')
+        .modify((qb) => { if (hasFy) qb.where('fiscal_year', fyId) }).select('team', 'amount', 'open_amount')
+      const map = new Map()
+      const bump = (tid) => { const k = Number(tid); if (!map.has(k)) map.set(k, { team: k, income: 0, expense: 0, invoice_total: 0, invoice_open: 0 }); return map.get(k) }
+      for (const e of entries) { const m = bump(e.team); const a = Number(e.amount) || 0; if (e.kind === 'expense') m.expense += a; else m.income += a }
+      for (const i of invs) { const m = bump(i.team); m.invoice_total += Number(i.amount) || 0; m.invoice_open += Number(i.open_amount) || 0 }
+      const ids = [...map.keys()]
+      const teams = ids.length ? await database('teams').whereIn('id', ids).select('id', 'name') : []
+      const nameById = new Map(teams.map((t) => [Number(t.id), t.name]))
+      const rows = [...map.values()].map((m) => ({
+        team: m.team, team_name: nameById.get(m.team) || `#${m.team}`,
+        income: round2(m.income), expense: round2(m.expense), net: round2(m.income - m.expense),
+        invoice_total: round2(m.invoice_total), invoice_open: round2(m.invoice_open),
+      })).sort((a, b) => a.team_name.localeCompare(b.team_name))
+      return res.json({ teams: rows })
+    } catch (e) { return err(res, req, 'teams-summary', e) }
+  })
+
+  // ── Budget lines — fills the dormant finance_budget_lines (budget vs actual) ──
+  router.post('/finance/budget', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const b = req.body || {}
+      const fiscalYear = Number(b.fiscal_year)
+      const account = Number(b.account)
+      const amount = round2(b.amount_budgeted)
+      if (!Number.isInteger(fiscalYear) || !Number.isInteger(account)) return res.status(400).json({ error: 'fiscal_year and account required' })
+      const notes = (b.notes || '').toString().trim() || null
+      const existing = await database('finance_budget_lines').where({ fiscal_year: fiscalYear, account }).first('id')
+      let row
+      if (existing) {
+        const upd = await database('finance_budget_lines').where('id', existing.id).update({ amount_budgeted: amount, notes, source: 'native', date_updated: new Date() }).returning('*')
+        row = upd[0]
+      } else {
+        const ins = await database('finance_budget_lines').insert({ fiscal_year: fiscalYear, account, amount_budgeted: amount, notes, source: 'native' }).returning('*')
+        row = ins[0]
+      }
+      await writeUserLog(database, log, { accountability: req.accountability, action: existing ? 'update' : 'create', collection: 'finance_budget_lines', recordId: row.id, data: { fiscal_year: fiscalYear, account, amount } })
+      return res.json({ budget: row })
+    } catch (e) { return err(res, req, 'budget-save', e) }
+  })
+
+  router.delete('/finance/budget/:id', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const removed = await database('finance_budget_lines').where('id', id).del()
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_budget_lines', recordId: id, data: { removed } })
+      return res.json({ ok: true, removed })
+    } catch (e) { return err(res, req, 'budget-delete', e) }
+  })
+
+  // ── Dunning / Mahnwesen — reminders on overdue native invoices (migration 146) ──
+
+  // GET /finance/dunning/candidates — overdue native invoices + never-dun + level
+  router.get('/finance/dunning/candidates', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const today = todayISO()
+      const rows = await database('finance_invoices as fi')
+        .leftJoin('members as m', 'm.id', 'fi.member')
+        .where('fi.source', 'native').whereIn('fi.status', ['open', 'partial'])
+        .whereNotNull('fi.due_date').where('fi.due_date', '<', today).where('fi.open_amount', '>', 0)
+        .select('fi.id', 'fi.number', 'fi.recipient_name', 'fi.recipient_email', 'fi.amount', 'fi.open_amount',
+          'fi.due_date', 'fi.dunning_level', 'fi.member', 'm.never_dun')
+        .orderBy('fi.due_date', 'asc').limit(500)
+      return res.json({ candidates: rows, today })
+    } catch (e) { return err(res, req, 'dunning-candidates', e) }
+  })
+
+  // POST /finance/dunning/:id/escalate — record the next Mahnung (+ optional reminder email)
+  router.post('/finance/dunning/:id/escalate', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
+      if (!inv) return res.status(404).json({ error: 'Not found (native invoice expected)' })
+      if (!['open', 'partial'].includes(inv.status)) return res.status(409).json({ error: `Invoice is ${inv.status}` })
+      const level = Number(req.body?.level)
+      if (![1, 2, 3].includes(level)) return res.status(400).json({ error: 'level must be 1, 2 or 3' })
+      if (level !== (inv.dunning_level || 0) + 1) return res.status(409).json({ error: `Next level is ${(inv.dunning_level || 0) + 1}` })
+      const fee = round2(req.body?.reminder_fee || 0)
+      const sendEmail = req.body?.send_email === true
+
+      let forcedNeverDun = false
+      if (inv.member) {
+        const m = await database('members').where('id', inv.member).first('never_dun')
+        if (m?.never_dun) {
+          if (req.body?.force !== true) return res.status(409).json({ error: 'Member is flagged never-dun', never_dun: true })
+          forcedNeverDun = true // overriding the opt-out — record it for audit
+        }
+      }
+
+      let channel = 'manual', sentAt = null, sendResult = 'not_sent'
+      if (sendEmail && (inv.recipient_email || '').trim()) {
+        const settings = await emailSettings()
+        const to = settings.test_mode ? settings.test_recipient : inv.recipient_email
+        if (settings.test_mode && !settings.test_recipient) { sendResult = 'no_test_recipient' }
+        else if (to) {
+          try {
+            const schema = await getSchema()
+            const { MailService } = services
+            const mail = new MailService({ schema, knex: database })
+            const open = Number(inv.open_amount) > 0 ? Number(inv.open_amount) : Number(inv.amount)
+            const total = round2(open + fee)
+            const html = composeDunningEmail(inv, total, level, fee, { testMode: settings.test_mode, realRecipient: inv.recipient_email })
+            const attachments = []
+            try {
+              const message = [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n')
+              const pdf = await renderInvoiceQrBillPdf({ amount: total, number: inv.number, recipientName: inv.recipient_name, subject: inv.subject, message, reference: inv.reference_type === 'SCOR' ? inv.reference : null })
+              attachments.push({ filename: `${inv.number || 'Mahnung'}.pdf`, content: pdf, contentType: 'application/pdf' })
+            } catch { /* send without attachment */ }
+            await withTimeout(mail.send({ to, subject: `${settings.test_mode ? '[TEST] ' : ''}${level}. Mahnung — ${inv.number}`, html, ...(attachments.length ? { attachments } : {}) }), 60000, 'mahnung send timeout')
+            channel = 'email'; sentAt = new Date(); sendResult = settings.test_mode ? 'test' : 'sent'
+          } catch (e) { sendResult = 'send_failed'; log.warn?.({ msg: `mahnung email failed: ${e.message}`, invoice: inv.number }) }
+        }
+      }
+
+      try {
+        await database('finance_dunning_notices').insert({
+          invoice: id, level, reminder_fee: fee, channel, recipient_email: inv.recipient_email || null,
+          sent_at: sentAt, created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+        })
+      } catch (e) { if (e?.code === '23505') return res.status(409).json({ error: `Level ${level} already issued` }); throw e }
+      await database('finance_invoices').where('id', id).update({ dunning_level: level, dunning_status: `Mahnung ${level}`, date_updated: new Date() })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_dunning_notices', recordId: id, data: { kind: 'dunning_escalate', invoice: id, level, fee, channel, send_result: sendResult, ...(forcedNeverDun ? { forced_never_dun: true, member: inv.member } : {}) } })
+      return res.json({ ok: true, level, channel, send_result: sendResult })
+    } catch (e) { return err(res, req, 'dunning-escalate', e) }
+  })
+
+  // GET /finance/dunning/:id/history — notices for one invoice
+  router.get('/finance/dunning/:id/history', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const notices = await database('finance_dunning_notices').where('invoice', id)
+        .orderBy('level', 'asc').select('id', 'level', 'reminder_fee', 'channel', 'sent_at', 'created_by_name', 'date_created')
+      return res.json({ notices })
+    } catch (e) { return err(res, req, 'dunning-history', e) }
+  })
+
+  // POST /finance/members/:id/never-dun — toggle the per-member opt-out
+  router.post('/finance/members/:id/never-dun', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      const value = req.body?.value === true
+      const m = Number.isInteger(id) ? await database('members').where('id', id).first('id') : null
+      if (!m) return res.status(404).json({ error: 'Not found' })
+      await database('members').where('id', id).update({ never_dun: value })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'members', recordId: id, data: { kind: 'never_dun', value } })
+      return res.json({ ok: true, never_dun: value })
+    } catch (e) { return err(res, req, 'never-dun', e) }
+  })
+
+  // ── Billing contacts — invoice non-members (sponsors/parents/companies, mig 147) ──
+  const CONTACT_KINDS = ['sponsor', 'parent', 'ex_member', 'company', 'other']
+
+  router.get('/finance/contacts', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const contacts = await database('finance_billing_contacts').where('active', true)
+        .orderBy('name').select('id', 'kind', 'name', 'email', 'address', 'plz', 'ort', 'billing_iban', 'notes').limit(1000)
+      return res.json({ contacts })
+    } catch (e) { return err(res, req, 'contacts', e) }
+  })
+
+  router.post('/finance/contacts', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const b = req.body || {}
+      const name = (b.name || '').toString().trim()
+      if (!name) return res.status(400).json({ error: 'name is required' })
+      const cEmail = (b.email || '').toString().trim()
+      if (cEmail && !isEmail(cEmail)) return res.status(400).json({ error: 'email must be a valid address' })
+      const kind = CONTACT_KINDS.includes(b.kind) ? b.kind : 'sponsor'
+      const ins = await database('finance_billing_contacts').insert({
+        kind, name,
+        email: (b.email || '').toString().trim() || null,
+        address: (b.address || '').toString().trim() || null,
+        plz: (b.plz || '').toString().trim() || null,
+        ort: (b.ort || '').toString().trim() || null,
+        billing_iban: (b.billing_iban || '').toString().replace(/\s+/g, '').toUpperCase() || null,
+        notes: (b.notes || '').toString().trim().slice(0, 255) || null,
+        source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+      }).returning('*')
+      const row = ins[0]
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_billing_contacts', recordId: row.id, data: { kind, name } })
+      return res.json({ contact: row })
+    } catch (e) { return err(res, req, 'contact-save', e) }
+  })
+
+  // Soft-deactivate (keeps history on invoices that referenced the contact)
+  router.delete('/finance/contacts/:id', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      await database('finance_billing_contacts').where('id', id).update({ active: false, date_updated: new Date() })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_billing_contacts', recordId: id, data: { kind: 'deactivate_contact' } })
+      return res.json({ ok: true })
+    } catch (e) { return err(res, req, 'contact-delete', e) }
   })
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Search, Check, X, Link2, Loader2, Upload } from 'lucide-react'
+import { Plus, Search, Check, X, Link2, Loader2, Upload, Coins } from 'lucide-react'
 import Modal from '../../components/Modal'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { useCollection } from '../../lib/query'
@@ -9,10 +9,11 @@ import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
   useFinanceInvoices, formatChf, isNativeInvoice,
   createNativeInvoice, confirmInvoice, cancelInvoice, linkInvoiceMember,
-  importCamt, type CamtImportResult,
+  importCamt, useBillingContacts, createBillingContact, type CamtImportResult,
 } from '../../hooks/useFinance'
 import type { FinanceInvoice } from './types'
 import type { Member, Team } from '../../types'
+import PaymentLedgerModal from './PaymentLedgerModal'
 
 /** Searchable single-member picker (mirrors MemberMultiSelect's dropdown). */
 function MemberPicker({ value, onChange }: { value: Member | null; onChange: (m: Member | null) => void }) {
@@ -72,30 +73,44 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
   const { t } = useTranslation('finance')
   const { data: teamsRaw } = useTeams('all')
   const teams = (teamsRaw ?? []) as Team[]
-  const [recipientType, setRecipientType] = useState<'member' | 'team'>('member')
+  const [recipientType, setRecipientType] = useState<'member' | 'team' | 'contact'>('member')
   const [member, setMember] = useState<Member | null>(null)
   const [teamId, setTeamId] = useState('')
+  const [contactId, setContactId] = useState('')
+  const [newContact, setNewContact] = useState(false)
+  const [cName, setCName] = useState(''); const [cEmail, setCEmail] = useState(''); const [cKind, setCKind] = useState('sponsor')
   const [amount, setAmount] = useState('')
   const [subject, setSubject] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [category, setCategory] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const { data: contacts } = useBillingContacts(open)
 
   function reset() {
-    setRecipientType('member'); setMember(null); setTeamId(''); setAmount(''); setSubject(''); setDueDate(''); setCategory(''); setError('')
+    setRecipientType('member'); setMember(null); setTeamId(''); setContactId(''); setNewContact(false)
+    setCName(''); setCEmail(''); setCKind('sponsor'); setAmount(''); setSubject(''); setDueDate(''); setCategory(''); setError('')
   }
   const amt = Number(amount.replace(',', '.'))
-  const valid = amt > 0 && subject.trim() && (recipientType === 'member' ? !!member : !!teamId)
+  const recipientValid = recipientType === 'member' ? !!member
+    : recipientType === 'team' ? !!teamId
+    : (newContact ? !!cName.trim() : !!contactId)
+  const valid = amt > 0 && !!subject.trim() && recipientValid
 
   async function submit() {
     if (!valid) return
     setBusy(true); setError('')
     try {
+      let contactRef = recipientType === 'contact' ? Number(contactId) : undefined
+      if (recipientType === 'contact' && newContact) {
+        const r = await createBillingContact({ kind: cKind, name: cName.trim(), email: cEmail.trim() || null })
+        contactRef = r.contact.id
+      }
       await createNativeInvoice({
         recipient_type: recipientType,
         member: recipientType === 'member' ? Number(member!.id) : undefined,
         team: recipientType === 'team' ? Number(teamId) : undefined,
+        contact: recipientType === 'contact' ? contactRef : undefined,
         amount: amt,
         subject: subject.trim(),
         due_date: dueDate || null,
@@ -113,47 +128,72 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
     <Modal open={open} onClose={onClose} title={t('createInvoiceTitle')}>
       <div className="space-y-4">
         <div>
-          <span className={labelCls}>{t('recipientType')}</span>
-          <div className="mt-1 flex gap-2">
-            {(['member', 'team'] as const).map((rt) => (
+          <span id="inv-recipient-type-label" className={labelCls}>{t('recipientType')}</span>
+          <div role="group" aria-labelledby="inv-recipient-type-label" className="mt-1 flex gap-2">
+            {(['member', 'team', 'contact'] as const).map((rt) => (
               <button key={rt} type="button" onClick={() => setRecipientType(rt)}
                 className={`flex-1 rounded-md border px-3 py-2 text-sm ${recipientType === rt ? 'border-brand-500 bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'border-gray-200 text-gray-600 dark:border-gray-600 dark:text-gray-300'}`}>
-                {rt === 'member' ? t('recipientMember') : t('recipientTeam')}
+                {rt === 'member' ? t('recipientMember') : rt === 'team' ? t('recipientTeam') : t('recipientContact')}
               </button>
             ))}
           </div>
         </div>
 
-        {recipientType === 'member' ? (
+        {recipientType === 'member' && (
           <div><span className={labelCls}>{t('recipientMember')}</span><div className="mt-1"><MemberPicker value={member} onChange={setMember} /></div></div>
-        ) : (
+        )}
+        {recipientType === 'team' && (
           <div>
-            <span className={labelCls}>{t('recipientTeam')}</span>
-            <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+            <label htmlFor="inv-team" className={labelCls}>{t('recipientTeam')}</label>
+            <select id="inv-team" value={teamId} onChange={(e) => setTeamId(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
               <option value="">{t('selectTeam')}</option>
               {teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
             </select>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('teamInvoiceHint')}</p>
           </div>
         )}
+        {recipientType === 'contact' && (
+          <div className="space-y-2">
+            <label htmlFor="inv-contact" className={labelCls}>{t('recipientContact')}</label>
+            {!newContact ? (
+              <>
+                <select id="inv-contact" value={contactId} onChange={(e) => setContactId(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+                  <option value="">{t('selectContact')}</option>
+                  {(contacts ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}{c.email ? ` · ${c.email}` : ''}</option>)}
+                </select>
+                <button type="button" onClick={() => setNewContact(true)} className="text-xs text-brand-600 hover:underline dark:text-brand-400">{t('contactNew')}</button>
+              </>
+            ) : (
+              <div className="space-y-2 rounded-md border border-gray-200 p-2 dark:border-gray-700">
+                <input value={cName} onChange={(e) => setCName(e.target.value)} placeholder={t('contactName')} aria-label={t('contactName')} className={inputCls} />
+                <input value={cEmail} onChange={(e) => setCEmail(e.target.value)} type="email" placeholder={t('contactEmail')} aria-label={t('contactEmail')} className={inputCls} />
+                <select value={cKind} onChange={(e) => setCKind(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+                  {['sponsor', 'parent', 'company', 'ex_member', 'other'].map((k) => <option key={k} value={k}>{t(`contactKind_${k}`)}</option>)}
+                </select>
+                <button type="button" onClick={() => setNewContact(false)} className="text-xs text-gray-500 hover:underline dark:text-gray-400">{t('contactPickExisting')}</button>
+              </div>
+            )}
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('contactInvoiceHint')}</p>
+          </div>
+        )}
 
         <div>
-          <label className={labelCls}>{t('invoiceSubject')}</label>
-          <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('invoiceSubjectPlaceholder')} className={inputCls} />
+          <label htmlFor="inv-subject" className={labelCls}>{t('invoiceSubject')}</label>
+          <input id="inv-subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('invoiceSubjectPlaceholder')} className={inputCls} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelCls}>{t('invoiceAmount')}</label>
-            <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
+            <label htmlFor="inv-amount" className={labelCls}>{t('invoiceAmount')}</label>
+            <input id="inv-amount" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>{t('invoiceDueDate')}</label>
-            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
+            <label htmlFor="inv-duedate" className={labelCls}>{t('invoiceDueDate')}</label>
+            <input id="inv-duedate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
           </div>
         </div>
         <div>
-          <label className={labelCls}>{t('invoiceCategory')}</label>
-          <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder={t('invoiceCategoryPlaceholder')} className={inputCls} />
+          <label htmlFor="inv-category" className={labelCls}>{t('invoiceCategory')}</label>
+          <input id="inv-category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder={t('invoiceCategoryPlaceholder')} className={inputCls} />
         </div>
 
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -313,6 +353,7 @@ export default function InvoiceManager() {
   const invoices = invoicesRaw ?? []
   const [showCreate, setShowCreate] = useState(false)
   const [linkTarget, setLinkTarget] = useState<FinanceInvoice | null>(null)
+  const [paymentTarget, setPaymentTarget] = useState<FinanceInvoice | null>(null)
   const [orphanSearch, setOrphanSearch] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
 
@@ -337,7 +378,7 @@ export default function InvoiceManager() {
 
   const statusLabel = (s: string | null) => {
     const map: Record<string, string> = {
-      open: t('statusOpen'), pending_confirmation: t('statusPendingConfirmation'), paid: t('statusPaid'), cancelled: t('statusCancelled'),
+      open: t('statusOpen'), pending_confirmation: t('statusPendingConfirmation'), partial: t('statusPartial'), paid: t('statusPaid'), cancelled: t('statusCancelled'),
     }
     return map[s ?? ''] ?? s ?? '–'
   }
@@ -380,10 +421,16 @@ export default function InvoiceManager() {
                     <TableCell className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{statusLabel(inv.status)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1.5">
-                        {(inv.status === 'pending_confirmation' || inv.status === 'open') && (
+                        {['pending_confirmation', 'open', 'partial'].includes(inv.status ?? '') && (
                           <button type="button" disabled={busyId === inv.id} onClick={() => act(inv.id, confirmInvoice)}
                             className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50">
                             <Check className="h-3.5 w-3.5" />{t('confirmPaymentCta')}
+                          </button>
+                        )}
+                        {inv.status !== 'cancelled' && (
+                          <button type="button" onClick={() => setPaymentTarget(inv)}
+                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                            <Coins className="h-3.5 w-3.5" />{t('payButton')}
                           </button>
                         )}
                         {inv.status !== 'paid' && inv.status !== 'cancelled' && (
@@ -462,6 +509,7 @@ export default function InvoiceManager() {
 
       <CreateInvoiceModal open={showCreate} onClose={() => setShowCreate(false)} onDone={() => refetch()} />
       <LinkMemberModal invoice={linkTarget} onClose={() => setLinkTarget(null)} onDone={() => refetch()} />
+      <PaymentLedgerModal invoice={paymentTarget} onClose={() => setPaymentTarget(null)} onChanged={() => refetch()} />
     </div>
   )
 }

@@ -197,6 +197,9 @@ export default {
   teamPageOnlyHint: 'Wenn deaktiviert, erscheint der Sponsor auch auf der Homepage und Sponsorenseite',
   sponsorSaved: 'Sponsor gespeichert',
   sponsorDeleted: 'Sponsor entfernt',
+  sponsorSaveError: 'Sponsor konnte nicht gespeichert werden',
+  sponsorDeleteError: 'Sponsor konnte nicht gelöscht werden',
+  sponsorUpdateError: 'Sponsor konnte nicht aktualisiert werden',
   // Staff management (coaches & team responsibles)
   manageStaff: 'Staff verwalten',
   manageStaffTitle: 'Trainer & Teamverantwortliche',

@@ -1,11 +1,11 @@
 export default {
   title: 'Events',
   subtitle: 'Club events and activities',
-  newEvent: 'New Event',
-  editEvent: 'Edit Event',
+  newEvent: 'New event',
+  editEvent: 'Edit event',
   noEvents: 'No events',
   noEventsDescription: 'No events planned yet.',
-  deleteEvent: 'Delete Event',
+  deleteEvent: 'Delete event',
   deleteConfirm: 'Are you sure you want to delete this event?',
   showPast: 'Past events',
 
@@ -26,7 +26,7 @@ export default {
   meeting: 'Meeting',
   tournament: 'Tournament',
   trainingsweekend: 'Trainingsweekend',
-  friendly: 'Friendly Game',
+  friendly: 'Friendly game',
   other: 'Other',
   respondBy: 'Respond by',
   respondByHint: 'Reminder 1 day before',

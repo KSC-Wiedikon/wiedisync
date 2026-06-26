@@ -14,9 +14,12 @@ import AccountExplorer from './AccountExplorer'
 import AccountLedger from './AccountLedger'
 import InvoiceManager from './InvoiceManager'
 import DuesRunManager from './DuesRunManager'
+import TeamFinance from './TeamFinance'
+import BudgetTab from './BudgetTab'
+import DunningConsole from './DunningConsole'
 import FinanceMemberExplorer from './FinanceMemberExplorer'
 
-type Tab = 'overview' | 'income' | 'balance' | 'accounts' | 'invoices' | 'dues' | 'members' | 'sync'
+type Tab = 'overview' | 'income' | 'budget' | 'balance' | 'accounts' | 'invoices' | 'dues' | 'dunning' | 'members' | 'teams' | 'sync'
 
 /** Aggregate debit/credit totals per account number from a set of transactions. */
 function statsFrom(rows: FinanceTransaction[]) {
@@ -120,7 +123,7 @@ export default function FinancePage() {
   const { t } = useTranslation('finance')
   // Tab lives in the URL (?tab=) so a refresh / shared link keeps the view.
   const [searchParams, setSearchParams] = useSearchParams()
-  const TABS: Tab[] = ['overview', 'income', 'balance', 'accounts', 'invoices', 'dues', 'members', 'sync']
+  const TABS: Tab[] = ['overview', 'income', 'budget', 'balance', 'accounts', 'invoices', 'dues', 'dunning', 'members', 'teams', 'sync']
   const tabParam = searchParams.get('tab') as Tab | null
   const tab: Tab = tabParam && TABS.includes(tabParam) ? tabParam : 'overview'
   const setTab = (next: Tab) => setSearchParams((prev) => {
@@ -223,11 +226,14 @@ export default function FinancePage() {
           <div className="flex flex-wrap gap-1.5">
             <TabBtn active={tab === 'overview'} label={t('tabOverview')} onClick={() => setTab('overview')} />
             <TabBtn active={tab === 'income'} label={t('tabIncome')} onClick={() => setTab('income')} />
+            <TabBtn active={tab === 'budget'} label={t('tabBudget')} onClick={() => setTab('budget')} />
             <TabBtn active={tab === 'balance'} label={t('tabBalance')} onClick={() => setTab('balance')} />
             <TabBtn active={tab === 'accounts'} label={t('tabAccounts')} onClick={() => setTab('accounts')} />
             <TabBtn active={tab === 'invoices'} label={t('tabInvoices')} onClick={() => setTab('invoices')} />
             <TabBtn active={tab === 'dues'} label={t('tabDues')} onClick={() => setTab('dues')} />
+            <TabBtn active={tab === 'dunning'} label={t('tabDunning')} onClick={() => setTab('dunning')} />
             <TabBtn active={tab === 'members'} label={t('tabMembers')} onClick={() => setTab('members')} />
+            <TabBtn active={tab === 'teams'} label={t('tabTeams')} onClick={() => setTab('teams')} />
             <TabBtn active={tab === 'sync'} label={t('tabSync')} onClick={() => setTab('sync')} />
           </div>
 
@@ -236,6 +242,15 @@ export default function FinancePage() {
 
           {/* ── Dues run (recurring/batch membership-dues billing) ── */}
           {tab === 'dues' && <DuesRunManager fiscalYearId={String(activeFyId)} fiscalYearLabel={activeFyLabel} />}
+
+          {/* ── Per-team finance (sponsoring + bills) ── */}
+          {tab === 'teams' && <TeamFinance fiscalYearId={String(activeFyId)} fiscalYearLabel={activeFyLabel} />}
+
+          {/* ── Dunning / Mahnwesen ── */}
+          {tab === 'dunning' && <DunningConsole />}
+
+          {/* ── Budget vs actual ── */}
+          {tab === 'budget' && <BudgetTab rows={accountRows.filter((a) => a.type === 'income' || a.type === 'expense')} fiscalYearId={String(activeFyId)} fiscalYearLabel={activeFyLabel} />}
 
           {/* ── Members (per-member finance: contact, billing, invoices) ── */}
           {tab === 'members' && <FinanceMemberExplorer />}

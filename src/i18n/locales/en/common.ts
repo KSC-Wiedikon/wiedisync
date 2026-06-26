@@ -74,8 +74,8 @@ export default {
   status: 'Status',
   select: 'Select...',
   allHalls: 'All halls',
-  clubHalls: 'Club Halls',
-  searchResults: 'More Results',
+  clubHalls: 'Club halls',
+  searchResults: 'More results',
   searching: 'Searching...',
   locationPlaceholder: 'Search location...',
 

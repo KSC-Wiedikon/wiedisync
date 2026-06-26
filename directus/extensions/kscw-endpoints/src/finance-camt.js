@@ -14,6 +14,7 @@
  */
 import { parseCamt, invoiceIdFromScor, invoiceNumbersFromMessage } from './camt.js'
 import { writeUserLog } from './activity-log.js'
+import { recomputeInvoice } from './finance-recompute.js'
 
 export function registerFinanceCamt(router, { database, logger }) {
   const log = logger.child({ extension: 'kscw-endpoints', module: 'finance-camt' })
@@ -66,6 +67,7 @@ export function registerFinanceCamt(router, { database, logger }) {
       if (!actor.ok) return res.status(403).json({ error: 'Forbidden' })
       const xml = req.body?.xml
       if (typeof xml !== 'string' || xml.length < 20) return res.status(400).json({ error: 'xml body required' })
+      if (xml.length > 8_000_000) return res.status(413).json({ error: 'camt file too large (max ~8 MB)' })
 
       let parsed
       try { parsed = parseCamt(xml) } catch (e) { return res.status(422).json({ error: `Could not parse camt: ${e.message}` }) }
@@ -81,24 +83,32 @@ export function registerFinanceCamt(router, { database, logger }) {
 
       // Auto-confirm a matched NATIVE invoice (by SCOR ref or by message number).
       const applyNative = async (inv, c) => {
-        await database('finance_payments').insert(payRow(c, importId, { invoice: inv.id, match_status: 'native' }))
-        const settles = c.amount + 1e-9 >= Number(inv.amount)
-        if (settles && ['open', 'pending_confirmation'].includes(inv.status)) {
-          await database('finance_invoices').where('id', inv.id).update({
-            status: 'paid', amount_paid: inv.amount, open_amount: 0, closed_on: todayISO(),
-            confirmed_at: new Date(), confirmed_by_name: 'camt import', confirmed_via: 'camt', date_updated: new Date(),
-          })
+        // Lock the invoice + insert + recompute atomically so a re-import or concurrent
+        // confirm can't double-count. Settlement is derived from the full ledger.
+        const before = inv.status
+        const row = await database.transaction(async (trx) => {
+          await trx('finance_invoices').where('id', inv.id).forUpdate().first('id')
+          await trx('finance_payments').insert(payRow(c, importId, { invoice: inv.id, match_status: 'native', entry_type: 'payment' }))
+          return recomputeInvoice(trx, inv.id, { actorName: 'camt import', actorEmail: null, via: 'camt' })
+        })
+        const after = row?.status
+        if (after === 'paid' && before !== 'paid') {
           summary.auto_confirmed++
           details.push({ status: 'auto_confirmed', invoice: inv.number, ...slim(c) })
+        } else if (after === 'paid') {
+          details.push({ status: 'native_already_settled', invoice: inv.number, invoiceAmount: Number(inv.amount), ...slim(c) })
         } else {
-          details.push({ status: settles ? 'native_already_settled' : 'native_partial', invoice: inv.number, invoiceAmount: Number(inv.amount), ...slim(c) })
+          details.push({ status: 'native_partial', invoice: inv.number, invoiceAmount: Number(inv.amount), ...slim(c) })
         }
       }
 
       for (const c of parsed.credits) {
         if (!(c.amount > 0)) { summary.skipped++; continue }
         if (c.currency && c.currency !== 'CHF') { summary.skipped++; details.push({ status: 'skipped', reason: 'non-CHF', ...slim(c) }); continue }
-        if (c.uid && await database('finance_payments').where('camt_reference', c.uid).first('id')) { summary.duplicates++; continue }
+        // No stable bank reference → can't dedup a re-import → skip rather than risk
+        // double-recording the payment on the next import.
+        if (!c.uid) { summary.skipped++; details.push({ status: 'skipped', reason: 'no bank reference', ...slim(c) }); continue }
+        if (await database('finance_payments').where('camt_reference', c.uid).first('id')) { summary.duplicates++; continue }
 
         // 1) native match by SCOR reference (verified against the stored reference)
         const invId = invoiceIdFromScor(c.reference)

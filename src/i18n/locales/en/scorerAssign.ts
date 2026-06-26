@@ -1,10 +1,10 @@
 export default {
-  title: 'Scorer Assignment',
+  title: 'Scorer assignment',
   subtitle: 'Automatically assign scorer and scoreboard duty teams to home games.',
 
   // Actions
-  runAlgorithm: 'Run Algorithm',
-  saveAll: 'Save All',
+  runAlgorithm: 'Run algorithm',
+  saveAll: 'Save all',
   saving: 'Saving...',
   running: 'Computing...',
 
@@ -24,7 +24,7 @@ export default {
   conflicts: 'Conflicts',
 
   // Summary
-  teamSummary: 'Team Summary',
+  teamSummary: 'Team summary',
   teamName: 'Team',
   scorerCount: 'Scorer',
   scoreboardCount: 'Scoreboard',

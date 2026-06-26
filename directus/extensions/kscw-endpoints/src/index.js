@@ -37,6 +37,7 @@ import { registerEventNotify } from './event-notify.js'
 import { registerMessaging } from './messaging.js'
 import { registerBroadcastRoutes } from './broadcast.js'
 import { registerActivitiesWithParticipations } from './activities.js'
+import { writeUserLog } from './activity-log.js'
 import { registerSvLicence } from './sv-licence.js'
 import { registerMigrationsStatus } from './migrations-status.js'
 import { registerSyncStatus } from './sync-status.js'
@@ -48,6 +49,7 @@ import { registerSqlAi } from './sql-ai.js'
 import { registerExpenseUpload } from './expense-upload.js'
 import { registerFinance } from './finance.js'
 import { registerFinanceCamt } from './finance-camt.js'
+import { registerFinanceLedger } from './finance-ledger.js'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -68,7 +70,7 @@ async function verifyTurnstile(token) {
   const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `secret=${TURNSTILE_SECRET}&response=${token}`,
+    body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: String(token || '') }).toString(),
   })
   const data = await resp.json()
   return data.success === true
@@ -1409,6 +1411,7 @@ export default {
         // Verify email was OTP-confirmed
         const verification = await database('email_verifications')
           .where('email', email).where('verified', true)
+          .where('expires_at', '>', new Date().toISOString())
           .orderBy('id', 'desc').first()
         if (!verification) {
           return res.status(400).json({ error: 'Email not verified' })
@@ -1702,12 +1705,28 @@ export default {
         const memberField = ROLE_MEMBER[d.role]
         const teamField = ROLE_TEAM[d.role]
         if (memberField) {
+          // Audit HOOK-1: this raw-knex games write bypasses the LEADER-only
+          // games.update permission. Only hand off a duty the delegator actually
+          // currently holds — refuse if the game's current duty member isn't the
+          // sender (blocks reassigning/hijacking an arbitrary game's assignment).
+          const game = await database('games').where('id', d.game).first(memberField)
+          if (!game) return res.status(404).json({ error: 'Game not found' })
+          if (game[memberField] == null || String(game[memberField]) !== String(d.from_member)) {
+            return res.status(403).json({ error: 'Delegator no longer holds this duty' })
+          }
           const updates = { [memberField]: d.to_member }
           if (teamField && !d.same_team) updates[teamField] = d.to_team
           await database('games').where('id', d.game).update(updates)
         }
 
         await database('scorer_delegations').where('id', delegation_id).update({ status: 'accepted' })
+
+        // Audit EP-SCH-3: record the actor for this raw-knex duty reassignment.
+        await writeUserLog(database, log, {
+          accountability: req.accountability,
+          action: 'update', collection: 'games', recordId: String(d.game),
+          data: { what: 'scorer_delegation_accept', delegation_id, role: d.role, from_member: d.from_member, to_member: d.to_member },
+        }).catch(() => {})
 
         // Notify sender
         await database('notifications').insert({
@@ -1747,6 +1766,12 @@ export default {
 
         await database('scorer_delegations').where('id', delegation_id)
           .update({ status: 'declined' })
+        // Audit EP-SCH-3: record the actor for this raw-knex status mutation.
+        await writeUserLog(database, log, {
+          accountability: req.accountability,
+          action: 'update', collection: 'scorer_delegations', recordId: String(delegation_id),
+          data: { what: 'scorer_delegation_decline', role: d.role, to_member: d.to_member },
+        }).catch(() => {})
         if (d) {
           await database('notifications').insert({
             member: d.from_member, type: 'duty_delegation_declined',
@@ -2144,6 +2169,7 @@ export default {
     registerExpenseUpload(router, ctx)
     registerFinance(router, ctx)
     registerFinanceCamt(router, ctx)
+    registerFinanceLedger(router, ctx)
 
     log.info('KSCW endpoints loaded: ~63 routes')
   },

@@ -37,7 +37,7 @@ export default {
   impressum: 'Mentions legales',
   infraHealth: 'Infrastructure',
   dataHealth: 'Qualite des donnees',
-  auditLog: 'Audit Log',
+  auditLog: 'Audit log',
   sqlWorkspace: 'Atelier SQL',
   bugfixes: 'Bugfixes',
   status: 'Statut',

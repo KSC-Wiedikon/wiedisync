@@ -3,8 +3,8 @@ export default {
   subtitle: 'Centralized absence management',
 
   // Tabs
-  tabMyAbsences: 'My Absences',
-  tabTeamAbsences: 'Team Absences',
+  tabMyAbsences: 'My absences',
+  tabTeamAbsences: 'Team absences',
 
   // Actions
   newAbsence: 'New absence',
@@ -43,11 +43,11 @@ export default {
   errorSaving: 'Error saving absence',
 
   // Modal titles
-  newAbsenceTitle: 'New Absence',
-  editAbsenceTitle: 'Edit Absence',
+  newAbsenceTitle: 'New absence',
+  editAbsenceTitle: 'Edit absence',
 
   // Delete dialog
-  deleteTitle: 'Delete Absence',
+  deleteTitle: 'Delete absence',
   deleteMessage: 'Are you sure you want to delete this absence?',
 
   // Empty states
@@ -64,7 +64,7 @@ export default {
 
   // Import
   importAbsences: 'Import',
-  importTitle: 'Import Absences',
+  importTitle: 'Import absences',
   importDescription: 'Upload a CSV or Excel file with multiple absences.',
   importDownloadTemplate: 'Download template',
   importPreview: 'Preview',
@@ -87,10 +87,10 @@ export default {
   blockingHint: 'When on, these dates become unavailable for scheduling games. Turn it off for absences where you won\'t play anyway (e.g. injury, maternity leave) so the rest of the team can still be scheduled.',
 
   // Weekly unavailability
-  tabWeeklyUnavailability: 'Weekly Unavailability',
-  newWeekly: 'New Weekly',
-  newWeeklyTitle: 'New Weekly Unavailability',
-  editWeeklyTitle: 'Edit Weekly Unavailability',
+  tabWeeklyUnavailability: 'Weekly unavailability',
+  newWeekly: 'New weekly',
+  newWeeklyTitle: 'New weekly unavailability',
+  editWeeklyTitle: 'Edit weekly unavailability',
   daysOfWeek: 'Days of week',
   noteOptional: 'Note (optional)',
   editedByStaffOn: 'Edited by team staff on {{at}}',
@@ -103,7 +103,7 @@ export default {
   atLeastOneDay: 'Select at least one day',
   noWeeklyAbsences: 'No weekly unavailabilities',
   noWeeklyAbsencesDescription: 'Set up recurring weekly unavailabilities.',
-  deleteWeeklyTitle: 'Delete Weekly Unavailability',
+  deleteWeeklyTitle: 'Delete weekly unavailability',
   deleteWeeklyMessage: 'Are you sure you want to delete this weekly unavailability?',
 
   // Day abbreviations

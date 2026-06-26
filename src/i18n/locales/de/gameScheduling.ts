@@ -298,6 +298,7 @@ export default {
   revokeInvite: 'Widerrufen',
   confirmRevoke: 'Diese Einladung wirklich widerrufen?',
   linkCopied: 'Link kopiert',
+  linkCopyFailed: 'Link konnte nicht kopiert werden',
   inviteReissued: 'Neuer Link generiert',
   inviteRevoked: 'Einladung widerrufen',
   invitesCreated: '{{count}} Einladungen erstellt',

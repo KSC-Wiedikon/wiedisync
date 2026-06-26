@@ -46,7 +46,7 @@ export default {
           body: 'Your personal dashboard: upcoming games, trainings, and tasks at a glance.',
         },
         profile: {
-          title: 'My Profile',
+          title: 'My profile',
           body: 'View and edit your personal information, contact details, and notification settings.',
         },
         language: {

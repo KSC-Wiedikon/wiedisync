@@ -10,23 +10,32 @@ import crypto from 'crypto';
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || '';
 const WEBSITE_URL = process.env.KSCW_WEBSITE_URL || 'https://kscw-website.pages.dev';
 
-async function verifyTurnstile(token) {
+async function verifyTurnstile(token, remoteip) {
   // Fail closed when the secret is missing — a misconfigured container would
   // otherwise turn this public endpoint into an unauthenticated email-relay.
   if (!TURNSTILE_SECRET) {
     console.error('[newsletter] TURNSTILE_SECRET not configured — rejecting request');
     return false;
   }
+  const params = new URLSearchParams({ secret: TURNSTILE_SECRET, response: String(token) });
+  if (remoteip) params.set('remoteip', String(remoteip));
   const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `secret=${TURNSTILE_SECRET}&response=${token}`,
+    body: params.toString(),
   });
   return (await resp.json()).success === true;
 }
 
 export function registerNewsletter(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'newsletter' });
+
+  // Anti-email-bomb throttle (defense-in-depth behind Turnstile): 5 subscribe
+  // attempts / hour / IP and 3 / hour / target email. Each subscribe triggers a
+  // verification email, so an unthrottled endpoint could be abused to mail-bomb
+  // an arbitrary address even with a valid Turnstile token.
+  const subscribeIp = new Map();    // ip → { count, resetAt }
+  const subscribeEmail = new Map(); // email → { count, resetAt }
 
   // POST /kscw/newsletter/subscribe
   router.post('/newsletter/subscribe', async (req, res) => {
@@ -37,7 +46,32 @@ export function registerNewsletter(router, { database, logger, services, getSche
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) return res.status(400).json({ error: 'Invalid email' });
 
-      if (!turnstile_token || !(await verifyTurnstile(turnstile_token))) {
+      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+      const now = Date.now();
+      const ipEntry = subscribeIp.get(ip);
+      if (ipEntry && now < ipEntry.resetAt) {
+        if (ipEntry.count >= 5) return res.status(429).json({ error: 'Too many requests' });
+        ipEntry.count++;
+      } else {
+        subscribeIp.set(ip, { count: 1, resetAt: now + 3600000 });
+      }
+      if (subscribeIp.size > 1000) {
+        for (const [k, v] of subscribeIp) { if (now > v.resetAt) subscribeIp.delete(k); }
+      }
+
+      const emailKey = email.toLowerCase();
+      const emEntry = subscribeEmail.get(emailKey);
+      if (emEntry && now < emEntry.resetAt) {
+        if (emEntry.count >= 3) return res.status(429).json({ error: 'Too many requests' });
+        emEntry.count++;
+      } else {
+        subscribeEmail.set(emailKey, { count: 1, resetAt: now + 3600000 });
+      }
+      if (subscribeEmail.size > 5000) {
+        for (const [k, v] of subscribeEmail) { if (now > v.resetAt) subscribeEmail.delete(k); }
+      }
+
+      if (!turnstile_token || !(await verifyTurnstile(turnstile_token, ip))) {
         return res.status(400).json({ error: 'Captcha verification failed' });
       }
 

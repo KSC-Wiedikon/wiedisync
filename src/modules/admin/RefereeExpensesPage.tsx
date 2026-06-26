@@ -102,7 +102,7 @@ export default function RefereeExpensesPage() {
         <select
           value={teamFilter}
           onChange={(e) => setTeamFilter(e.target.value)}
-          className="rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:text-gray-100"
+          className="rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         >
           <option value="">{t('refereeExpensesAllTeams')}</option>
           {vbTeams.map((team) => (
@@ -115,7 +115,7 @@ export default function RefereeExpensesPage() {
         <select
           value={seasonFilter}
           onChange={(e) => setSeasonFilter(e.target.value)}
-          className="rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:text-gray-100"
+          className="rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         >
           <option value="">{t('refereeExpensesAllSeasons')}</option>
           {seasons.map((s) => (

@@ -62,7 +62,7 @@ function GameTableRow({ game, teams, showTeam, showDate }: { game: Game; teams: 
     <TableRow data-tour="spielplanung-game-card" className="align-top">
       {showDate && (
         <TableCell className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-          {formatDate(parseDate(dateStr), 'MM/dd/yyyy')}
+          {formatDate(parseDate(dateStr), 'dd.MM.yyyy')}
         </TableCell>
       )}
       <TableCell className="whitespace-nowrap text-sm font-medium text-gray-700 dark:text-gray-300 w-14">
@@ -110,7 +110,7 @@ function ByDateView({ games, teams }: { games: Game[]; teams: Team[] }) {
         const d = parseDate(dateStr)
         groups.push({
           date: dateStr,
-          label: formatDate(d, 'EEEE, MMMM d, yyyy'),
+          label: formatDate(d, 'EEEE, d. MMMM yyyy'),
           games: [],
         })
       }

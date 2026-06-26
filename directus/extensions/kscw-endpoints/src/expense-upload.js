@@ -111,10 +111,13 @@ function requireMember(req) {
   }
 }
 
-/** Load a directus_files row + its raw bytes from local storage. */
-async function loadFile(database, fileId) {
+/** Load a directus_files row + its raw bytes from local storage.
+ *  Scoped to the caller (uploaded_by = ownerId) so a member can't OCR/exfiltrate
+ *  another user's file by id — incl. the private invoice PDFs. 404 (not 403) on a
+ *  mismatch avoids an existence oracle. */
+async function loadFile(database, fileId, ownerId) {
   const row = await database('directus_files')
-    .where({ id: fileId })
+    .where({ id: fileId, uploaded_by: ownerId })
     .first('id', 'filename_disk', 'filename_download', 'type', 'filesize')
   if (!row || !row.filename_disk) {
     const err = new Error('File not found')
@@ -171,7 +174,7 @@ export function registerExpenseUpload(router, { database, logger, services, getS
       const fileId = String(req.body?.fileId ?? '').trim()
       if (!fileId) return res.status(400).json({ error: 'fileId required' })
 
-      const { row, bytes } = await loadFile(database, fileId)
+      const { row, bytes } = await loadFile(database, fileId, userId)
       const b64 = bytes.toString('base64')
       const isPdf = row.type === 'application/pdf'
       const fileBlock = isPdf
@@ -270,7 +273,7 @@ export function registerExpenseUpload(router, { database, logger, services, getS
       const submitterName = member ? `${member.first_name || ''} ${member.last_name || ''}`.trim() : 'Unknown member'
       const submitterEmail = member?.email || null
 
-      const { row, bytes } = await loadFile(database, fileId)
+      const { row, bytes } = await loadFile(database, fileId, userId)
 
       const fmtAmount = `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       const rows = [

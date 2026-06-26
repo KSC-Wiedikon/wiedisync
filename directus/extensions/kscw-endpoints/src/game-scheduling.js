@@ -230,9 +230,22 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!team_name || !contact_name || !contact_email || !kscw_team) {
         return res.status(400).json({ error: 'team_name, contact_name, contact_email, kscw_team required' })
       }
+      // Audit EP-SCH-2: mirror the sibling public form (Turnstile + per-IP limit
+      // + email-format validation), and never insert/email for a non-existent team.
+      if (!rateLimit(registerAttempts, req, 8, 10 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many requests. Please try again later.' })
+      }
+      if (!EMAIL_RE.test(String(contact_email))) {
+        return res.status(400).json({ error: 'Invalid email address' })
+      }
       const lang = VALID_LANGS.includes(String(language || '').toLowerCase()) ? String(language).toLowerCase() : null
       if (!turnstile_token || !(await verifyTurnstile(turnstile_token))) {
         return res.status(400).json({ error: 'Captcha verification failed' })
+      }
+
+      const teamRow = await database('teams').where('id', kscw_team).first('id')
+      if (!teamRow) {
+        return res.status(400).json({ error: 'Invalid team' })
       }
 
       const token = crypto.randomBytes(16).toString('hex')
@@ -298,6 +311,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   const tokenAttempts = new Map() // ip → { count, resetAt }
   const writeAttempts = new Map() // ip → { count, resetAt }
   const langAttempts = new Map()  // ip → { count, resetAt } — language flips (generous)
+  const registerAttempts = new Map() // ip → { count, resetAt } — public opponent self-registration (audit EP-SCH-2)
 
   function rateLimit(map, req, maxAttempts, windowMs) {
     // 2026-05-12 audit #20: prefer CF-Connecting-IP (set by Cloudflare Tunnel)

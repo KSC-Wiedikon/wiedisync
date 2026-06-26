@@ -48,7 +48,7 @@ async function verifyTurnstile(token) {
   const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `secret=${TURNSTILE_SECRET}&response=${token}`,
+    body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: String(token) }).toString(),
   })
   return (await resp.json()).success === true
 }
@@ -422,8 +422,20 @@ function buildAdminNotificationEmail(reg, locale = 'de') {
 
 // ── Endpoint ────────────────────────────────────────────────────
 
+// directus_files primary keys are UUIDs — reject anything else so the public
+// file-attach route can't point a registration's file columns at an arbitrary
+// string value.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export function registerRegistration(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'registration' })
+
+  // Per-IP throttle for the public /registration/:id/files route. The route
+  // authorizes writes by matching a short (~4-digit) reference_number, so without
+  // a limiter an attacker could brute-force references and overwrite a victim's
+  // uploaded ID/document file pointers (IDOR). 10 attempts / 10 min per IP, with
+  // a tighter lockout once reference mismatches (the brute-force signal) pile up.
+  const fileAttachIp = new Map() // ip → { count, resetAt, mismatches }
 
   // POST /kscw/registration — create new registration
   router.post('/registration', async (req, res) => {
@@ -564,6 +576,23 @@ export function registerRegistration(router, { database, logger, services, getSc
       const { id } = req.params
       if (!id) return res.status(400).json({ error: 'id required' })
 
+      // Rate limit + brute-force lockout (reference_number is short, so this is
+      // the real protection against IDOR overwrites — see fileAttachIp above).
+      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown'
+      const now = Date.now()
+      const ipEntry = fileAttachIp.get(ip)
+      if (ipEntry && now < ipEntry.resetAt) {
+        if (ipEntry.count >= 10 || ipEntry.mismatches >= 5) {
+          return res.status(429).json({ error: 'Too many requests' })
+        }
+        ipEntry.count++
+      } else {
+        fileAttachIp.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000, mismatches: 0 })
+      }
+      if (fileAttachIp.size > 1000) {
+        for (const [k, v] of fileAttachIp) { if (now > v.resetAt) fileAttachIp.delete(k) }
+      }
+
       const schema = await getSchema()
       const { ItemsService, FilesService } = services
       const itemsService = new ItemsService('registrations', { schema, knex: database })
@@ -584,14 +613,19 @@ export function registerRegistration(router, { database, logger, services, getSc
         return res.status(404).json({ error: 'Registration not found' })
       }
       if (reg.reference_number !== reference_number) {
+        // Track mismatches for the brute-force lockout above.
+        const e = fileAttachIp.get(ip)
+        if (e) e.mismatches = (e.mismatches || 0) + 1
         return res.status(403).json({ error: 'Invalid reference number' })
       }
+      // Only accept well-formed directus_files UUIDs — never an arbitrary value.
+      const fileId = (v) => (typeof v === 'string' && UUID_RE.test(v)) ? v : null
       const update = {}
-      if (id_upload_front) update.id_upload_front = id_upload_front
-      if (id_upload_back) update.id_upload_back = id_upload_back
-      if (bb_doc_lizenz) update.bb_doc_lizenz = bb_doc_lizenz
-      if (bb_doc_selfdecl) update.bb_doc_selfdecl = bb_doc_selfdecl
-      if (bb_doc_natdecl) update.bb_doc_natdecl = bb_doc_natdecl
+      if (fileId(id_upload_front)) update.id_upload_front = id_upload_front
+      if (fileId(id_upload_back)) update.id_upload_back = id_upload_back
+      if (fileId(bb_doc_lizenz)) update.bb_doc_lizenz = bb_doc_lizenz
+      if (fileId(bb_doc_selfdecl)) update.bb_doc_selfdecl = bb_doc_selfdecl
+      if (fileId(bb_doc_natdecl)) update.bb_doc_natdecl = bb_doc_natdecl
 
       if (Object.keys(update).length) {
         await itemsService.updateOne(id, update)

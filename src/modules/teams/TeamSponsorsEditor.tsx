@@ -100,7 +100,7 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
       resetForm()
       fetchSponsors()
     } catch {
-      toast.error('Error saving sponsor')
+      toast.error(t('sponsorSaveError'))
     }
   }
 
@@ -113,7 +113,7 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
       setDeleteTarget(null)
       fetchSponsors()
     } catch {
-      toast.error('Error deleting sponsor')
+      toast.error(t('sponsorDeleteError'))
     }
   }
 
@@ -124,7 +124,7 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
       logActivity('update', 'sponsors', sp.id, { team_page_only: next })
       setSponsors((prev) => prev.map((s) => (s.id === sp.id ? { ...s, team_page_only: next } : s)))
     } catch {
-      toast.error('Error updating sponsor')
+      toast.error(t('sponsorUpdateError'))
     }
   }
 
@@ -149,7 +149,7 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
             <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
               {editingId ? t('editSponsor') : t('addSponsor')}
             </span>
-            <button type="button" onClick={resetForm} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <button type="button" onClick={resetForm} aria-label={t('common:close')} className="flex min-h-[44px] min-w-[44px] items-center justify-center text-gray-400 hover:text-gray-600 sm:min-h-0 sm:min-w-0 dark:hover:text-gray-300">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -229,10 +229,10 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
                 <span className="hidden text-xs text-gray-500 dark:text-gray-400 sm:inline">{t('teamPageOnly')}</span>
               </div>
               <div className="flex items-center gap-1">
-                <button type="button" onClick={() => openEditForm(sp)} className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300">
+                <button type="button" onClick={() => openEditForm(sp)} aria-label={t('common:edit')} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 sm:min-h-0 sm:min-w-0 dark:hover:bg-gray-700 dark:hover:text-gray-300">
                   <Pencil className="h-4 w-4" />
                 </button>
-                <button type="button" onClick={() => setDeleteTarget(sp)} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+                <button type="button" onClick={() => setDeleteTarget(sp)} aria-label={t('common:delete')} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 sm:min-h-0 sm:min-w-0 dark:hover:bg-red-900/20 dark:hover:text-red-400">
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
