@@ -380,7 +380,7 @@ export function useFinanceEmailSettings(enabled = true) {
   })
 }
 export const saveFinanceEmailSettings = (input: FinanceEmailSettings) =>
-  kscwApi<FinanceEmailSettings>('/finance/email-settings', { method: 'PUT', body: input })
+  kscwApi<FinanceEmailSettings>('/finance/email-settings', { method: 'PATCH', body: input })
 
 export interface DuesEmailPreview {
   mode: 'dry_run'
@@ -618,6 +618,6 @@ export const postLedgerEntry = (input: { debit_account: number; credit_account: 
 export const reverseLedgerEntry = (id: number) => kscwApi<{ entry: LedgerEntry }>(`/finance/ledger/entries/${id}/reverse`, { method: 'POST' })
 export const deleteLedgerEntry = (id: number) => kscwApi<{ ok: true }>(`/finance/ledger/entries/${id}`, { method: 'DELETE' })
 export const closeLedgerYear = (fiscalYearId: number, input: { equity_account: number; opening_account: number; dry_run?: boolean }) => kscwApi<{ income: number; expense: number; net: number; closing_entries: number; opening_entries: number; next_fiscal_year: number; dry_run?: boolean }>(`/finance/ledger/fiscal-years/${fiscalYearId}/close`, { method: 'POST', body: input })
-export const saveLedgerSettings = (input: Partial<LedgerSettings>) => kscwApi<{ settings: LedgerSettings }>('/finance/ledger/settings', { method: 'PUT', body: input })
+export const saveLedgerSettings = (input: Partial<LedgerSettings>) => kscwApi<{ settings: LedgerSettings }>('/finance/ledger/settings', { method: 'PATCH', body: input })
 export const reconcileLedger = (fiscalYear?: number | null) => kscwApi<{ invoices: number; team_entries: number; posted: number; skipped: Record<string, number> }>('/finance/ledger/reconcile', { method: 'POST', body: { fiscal_year: fiscalYear ?? null } })
 export const seedLedgerChart = () => kscwApi<{ added: number; skipped_existing: number }>('/finance/ledger/seed-chart', { method: 'POST' })

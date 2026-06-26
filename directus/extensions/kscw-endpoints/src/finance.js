@@ -761,7 +761,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
   })
 
   // PUT /finance/email-settings — flip test mode / set the test recipient (logged)
-  router.put('/finance/email-settings', async (req, res) => {
+  router.patch('/finance/email-settings', async (req, res) => {
     try {
       const mem = await actingMember(req)
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })

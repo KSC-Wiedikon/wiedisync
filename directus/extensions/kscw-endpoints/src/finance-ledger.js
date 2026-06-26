@@ -307,7 +307,7 @@ export function registerFinanceLedger(router, { database, logger }) {
     } catch (e) { return err(res, req, 'settings', e) }
   })
 
-  router.put('/finance/ledger/settings', async (req, res) => {
+  router.patch('/finance/ledger/settings', async (req, res) => {
     try {
       const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
       const b = req.body || {}
