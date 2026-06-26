@@ -33,7 +33,7 @@ export default {
   // Sync-Status
   tabSync: 'Sync',
   lastSync: 'Letzte Synchronisation',
-  autoSyncNote: 'Finanzen werden per CSV-Export aus ClubDesk importiert (derzeit auf Anfrage).',
+  autoSyncNote: 'Finanzen werden jede Nacht um 04:00 automatisch aus ClubDesk synchronisiert.',
   syncHistory: 'Synchronisationsverlauf',
   noSyncs: 'Noch keine Synchronisationen.',
   colWhen: 'Wann',

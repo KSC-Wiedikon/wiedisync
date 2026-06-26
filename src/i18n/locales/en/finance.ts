@@ -34,7 +34,7 @@ export default {
   // Sync status
   tabSync: 'Sync',
   lastSync: 'Last sync',
-  autoSyncNote: 'Finances are imported from ClubDesk via CSV export (currently on demand).',
+  autoSyncNote: 'Finances sync automatically from ClubDesk every night at 04:00.',
   syncHistory: 'Sync history',
   noSyncs: 'No syncs yet.',
   colWhen: 'When',
