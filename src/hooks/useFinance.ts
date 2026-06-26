@@ -590,7 +590,7 @@ export const deleteBillingContact = (id: number) =>
 
 // ── Native ledger (book of record) ──────────────────────────────────────
 export interface LedgerAccount { id: number; number: string; name: string; type: string | null; division: string | null; active: boolean; source: string }
-export interface LedgerEntry { id: number; beleg: string | null; booking_date: string | null; text: string | null; debit_account: number | null; debit_account_number: string | null; debit_account_name: string | null; credit_account: number | null; credit_account_number: string | null; credit_account_name: string | null; amount_chf: string | number; typ: string | null; reversal_of: number | null; created_by_name: string | null }
+export interface LedgerEntry { id: number; beleg: string | null; booking_date: string | null; text: string | null; debit_account: number | null; debit_account_number: string | null; debit_account_name: string | null; credit_account: number | null; credit_account_number: string | null; credit_account_name: string | null; amount_chf: string | number; typ: string | null; reversal_of: number | null; created_by_name: string | null; source: string }
 export interface TrialBalanceRow { account: number; number: string; name: string; type: string | null; division: string | null; nominal: boolean; debit: number; credit: number; balance: number }
 export interface LedgerFiscalYear { id: number; label: string | null; starts_on: string; ends_on: string; status: string; closed_on: string | null; closed_by_name: string | null }
 export interface LedgerSettings { id: number; autopost_enabled: boolean; debitoren_account: number | null; bank_account: number | null; income_account: number | null; sponsoring_account: number | null; bad_debt_account: number | null; expense_account: number | null; prepayment_account: number | null }
@@ -627,3 +627,4 @@ export function useLedgerIncomeMap(enabled = true) {
   return useQuery({ queryKey: ['finance', 'ledger-income-map'], queryFn: () => kscwApi<{ categories: string[]; map: IncomeMapEntry[] }>('/finance/ledger/income-map'), enabled })
 }
 export const saveLedgerIncomeMap = (entries: IncomeMapEntry[]) => kscwApi<{ map: IncomeMapEntry[] }>('/finance/ledger/income-map', { method: 'PATCH', body: { entries } })
+export const autoMapIncome = () => kscwApi<{ matched: number; total: number; applied: { fee_category: string; account: number; account_label: string }[] }>('/finance/ledger/income-map/auto', { method: 'POST' })

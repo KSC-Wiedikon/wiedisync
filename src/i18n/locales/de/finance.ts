@@ -507,6 +507,8 @@ export default {
   ledIncomeByCategory: 'Beitragsertrag nach Kategorie',
   ledIncomeByCategoryHint: 'Jede Mitgliederkategorie auf ihr eigenes Ertragskonto buchen (wie ClubDesk). Nicht zugeordnete Kategorien verwenden das Standard-Ertragskonto oben.',
   ledDefaultIncome: 'Standard-Ertragskonto',
+  ledAutoMap: 'Auto-Zuordnung',
+  ledAutoMapped: '{{matched}} von {{total}} Kategorien automatisch zugeordnet — unten prüfen und speichern.',
   ledAutopostHint: 'Die Auto-Buchung füllt das Hauptbuch aus Rechnungen, Zahlungen und Teamfinanzen. Die Steuerkonten (Bank, Debitoren, Ertrag…) aus dem Kontenplan zuordnen, dann einschalten.',
   ledSeedChart: 'Kontenplan aus ClubDesk',
   ledReconcile: 'Jetzt abgleichen',

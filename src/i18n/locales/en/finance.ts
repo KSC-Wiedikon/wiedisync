@@ -512,6 +512,8 @@ export default {
   ledIncomeByCategory: 'Dues income by category',
   ledIncomeByCategoryHint: 'Send each membership category to its own income account (mirrors ClubDesk). Categories left unset use the default income account above.',
   ledDefaultIncome: 'Default income account',
+  ledAutoMap: 'Auto-map',
+  ledAutoMapped: 'Auto-mapped {{matched}} of {{total}} categories — review below and save.',
   ledAutopostHint: 'Auto-posting populates the ledger from invoices, payments and team finance. Map the control accounts (Bank, Receivables, Income…) from your chart, then turn it on.',
   ledSeedChart: 'Seed chart from ClubDesk',
   ledReconcile: 'Reconcile now',

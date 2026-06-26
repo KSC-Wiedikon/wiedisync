@@ -100,12 +100,13 @@ export function registerFinanceLedger(router, { database, logger }) {
     try {
       const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
       const fyId = Number(req.query.fiscal_year)
-      let q = database('finance_transactions').where('source', 'native')
+      // Show the native book AND the imported ClubDesk journal (read-only history).
+      let q = database('finance_transactions').whereIn('source', ['native', 'clubdesk'])
         .orderBy([{ column: 'booking_date', order: 'desc' }, { column: 'id', order: 'desc' }])
         .select('id', 'beleg', 'booking_date', 'text', 'debit_account', 'debit_account_number', 'debit_account_name',
-          'credit_account', 'credit_account_number', 'credit_account_name', 'amount_chf', 'fiscal_year', 'typ', 'reversal_of', 'created_by_name')
+          'credit_account', 'credit_account_number', 'credit_account_name', 'amount_chf', 'fiscal_year', 'typ', 'reversal_of', 'created_by_name', 'source')
       if (Number.isInteger(fyId)) q = q.where('fiscal_year', fyId)
-      return res.json({ entries: await q.limit(1000) })
+      return res.json({ entries: await q.limit(2000) })
     } catch (e) { return err(res, req, 'entries', e) }
   })
 
@@ -191,7 +192,8 @@ export function registerFinanceLedger(router, { database, logger }) {
     try {
       const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
       const fyId = Number(req.query.fiscal_year)
-      const txs = await database('finance_transactions').where('source', 'native')
+      // Native book + imported ClubDesk journal, so the trial balance shows the real books.
+      const txs = await database('finance_transactions').whereIn('source', ['native', 'clubdesk'])
         .modify((qb) => { if (Number.isInteger(fyId)) qb.where('fiscal_year', fyId) })
         .select('debit_account', 'credit_account', 'amount_chf')
       const sums = new Map() // acctId → { debit, credit }
@@ -398,5 +400,38 @@ export function registerFinanceLedger(router, { database, logger }) {
       await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_income_account_map', recordId: 0, data: { kind: 'income_map', count: entries.length } })
       return res.json({ map: await database('finance_income_account_map').select('fee_category', 'account') })
     } catch (e) { return err(res, req, 'income-map-save', e) }
+  })
+
+  // Auto-fill unmapped categories → income account by name match (Passiv→Passivmitglieder,
+  // VB→Aktivmitglieder VB, BB→Aktivmitglieder BB). Never overwrites a manual mapping.
+  router.post('/finance/ledger/income-map/auto', async (req, res) => {
+    try {
+      const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
+      const income = await database('finance_accounts').where('type', 'income').andWhere('active', true).select('id', 'number', 'name')
+      const fromMembers = await database('members').whereNotNull('beitragskategorie').distinct('beitragskategorie').pluck('beitragskategorie')
+      const fromInvoices = await database('finance_invoices').where('source', 'native').whereNotNull('fee_category').distinct('fee_category').pluck('fee_category')
+      const categories = [...new Set([...fromMembers, ...fromInvoices])].filter(Boolean)
+      const existing = new Set((await database('finance_income_account_map').whereNotNull('account').pluck('fee_category')))
+      const nameHas = (acc, ...kw) => kw.every((k) => acc.name.toLowerCase().includes(k))
+      const match = (cat) => {
+        const c = cat.toLowerCase()
+        if (c.includes('passiv')) return income.find((x) => nameHas(x, 'passiv'))
+        const sport = /(^|\W)bb(\W|$)|basketball/.test(c) ? 'bb' : (/(^|\W)vb(\W|$)|volleyball/.test(c) ? 'vb' : null)
+        if (sport) return income.find((x) => nameHas(x, 'aktivmitglieder', sport)) || income.find((x) => x.name.toLowerCase().includes(sport))
+        return null
+      }
+      const applied = []
+      for (const cat of categories) {
+        if (existing.has(cat)) continue
+        const acc = match(cat)
+        if (!acc) continue
+        await database('finance_income_account_map')
+          .insert({ fee_category: cat, account: acc.id, updated_by_name: `${a.name || ''} (auto)`.trim(), date_updated: new Date() })
+          .onConflict('fee_category').merge(['account', 'updated_by_name', 'date_updated'])
+        applied.push({ fee_category: cat, account: acc.id, account_label: `${acc.number} ${acc.name}` })
+      }
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_income_account_map', recordId: 0, data: { kind: 'income_map_auto', matched: applied.length, total: categories.length } })
+      return res.json({ matched: applied.length, total: categories.length, applied })
+    } catch (e) { return err(res, req, 'income-map-auto', e) }
   })
 }

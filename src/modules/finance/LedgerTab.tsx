@@ -8,7 +8,7 @@ import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
   useLedgerAccounts, useLedgerEntries, useLedgerTrialBalance, useLedgerFiscalYears, useLedgerSettings,
   createLedgerAccount, editLedgerAccount, postLedgerEntry, reverseLedgerEntry, deleteLedgerEntry,
-  closeLedgerYear, saveLedgerSettings, reconcileLedger, useLedgerIncomeMap, saveLedgerIncomeMap, formatChf, toNum,
+  closeLedgerYear, saveLedgerSettings, reconcileLedger, useLedgerIncomeMap, saveLedgerIncomeMap, autoMapIncome, formatChf, toNum,
   ACCOUNT_TYPES, type LedgerAccount, type LedgerSettings,
 } from '../../hooks/useFinance'
 
@@ -101,14 +101,14 @@ function Journal({ fyId, fyClosed }: { fyId: string; fyClosed?: boolean }) {
               {rows.map((e) => (
                 <TableRow key={e.id} className="border-gray-200 dark:border-gray-700">
                   <TableCell className="whitespace-nowrap text-gray-600 dark:text-gray-400">{e.booking_date ? formatDateCompactZurich(e.booking_date) : '–'}</TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{e.beleg || '–'}{e.typ && e.typ !== 'Standard' ? <span className="ml-1 rounded bg-gray-100 px-1 text-[10px] dark:bg-gray-700">{e.typ}</span> : null}</TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{e.beleg || '–'}{e.typ && e.typ !== 'Standard' ? <span className="ml-1 rounded bg-gray-100 px-1 text-[10px] dark:bg-gray-700">{e.typ}</span> : null}{e.source === 'clubdesk' ? <span className="ml-1 rounded bg-blue-50 px-1 text-[10px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">ClubDesk</span> : null}</TableCell>
                   <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">{e.text || '–'}
                     <span className="block text-[11px] text-gray-400 sm:hidden">{e.debit_account_number} → {e.credit_account_number}</span></TableCell>
                   <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{e.debit_account_number} {e.debit_account_name}</TableCell>
                   <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{e.credit_account_number} {e.credit_account_name}</TableCell>
                   <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(toNum(e.amount_chf))}</TableCell>
                   <TableCell className="text-right">
-                    {!fyClosed && (
+                    {!fyClosed && e.source === 'native' && (
                       <div className="flex justify-end gap-1">
                         <button type="button" title={t('ledReverse')} aria-label={t('ledReverse')} disabled={busy === e.id} onClick={() => reverse(e.id)} className="rounded-md border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:hover:bg-gray-700">{busy === e.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}</button>
                         {!e.beleg?.startsWith('AP-') && <button type="button" title={t('delete')} aria-label={t('delete')} disabled={busy === e.id} onClick={() => remove(e.id)} className="rounded-md border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50 hover:text-red-600 disabled:opacity-50 dark:border-gray-600 dark:hover:bg-gray-700"><Trash2 className="h-3.5 w-3.5" /></button>}
@@ -389,11 +389,18 @@ function IncomeByCategoryForm({ categories, map, accounts, onSaved }: { categori
       await saveLedgerIncomeMap(entries); setMsg(t('ledSettingsSaved')); onSaved()
     } catch (e) { setError(apiErr(e, t('ledActionError'))) } finally { setBusy(false) }
   }
+  async function auto() {
+    setBusy(true); setError(''); setMsg('')
+    try { const r = await autoMapIncome(); setMsg(t('ledAutoMapped', { matched: r.matched, total: r.total })); onSaved() } catch (e) { setError(apiErr(e, t('ledActionError'))) } finally { setBusy(false) }
+  }
   return (
     <div className="max-w-xl space-y-3 border-t border-gray-200 pt-5 dark:border-gray-700">
-      <div>
-        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{t('ledIncomeByCategory')}</p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledIncomeByCategoryHint')}</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{t('ledIncomeByCategory')}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledIncomeByCategoryHint')}</p>
+        </div>
+        <button type="button" disabled={busy} onClick={auto} className={`${btnGhost} shrink-0`}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{t('ledAutoMap')}</button>
       </div>
       <div className="space-y-2">
         {categories.map((c) => (
