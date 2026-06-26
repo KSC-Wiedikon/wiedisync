@@ -17,9 +17,10 @@ import DuesRunManager from './DuesRunManager'
 import TeamFinance from './TeamFinance'
 import BudgetTab from './BudgetTab'
 import DunningConsole from './DunningConsole'
+import LedgerTab from './LedgerTab'
 import FinanceMemberExplorer from './FinanceMemberExplorer'
 
-type Tab = 'overview' | 'income' | 'budget' | 'balance' | 'accounts' | 'invoices' | 'dues' | 'dunning' | 'members' | 'teams' | 'sync'
+type Tab = 'overview' | 'income' | 'budget' | 'balance' | 'ledger' | 'accounts' | 'invoices' | 'dues' | 'dunning' | 'members' | 'teams' | 'sync'
 
 /** Aggregate debit/credit totals per account number from a set of transactions. */
 function statsFrom(rows: FinanceTransaction[]) {
@@ -123,7 +124,7 @@ export default function FinancePage() {
   const { t } = useTranslation('finance')
   // Tab lives in the URL (?tab=) so a refresh / shared link keeps the view.
   const [searchParams, setSearchParams] = useSearchParams()
-  const TABS: Tab[] = ['overview', 'income', 'budget', 'balance', 'accounts', 'invoices', 'dues', 'dunning', 'members', 'teams', 'sync']
+  const TABS: Tab[] = ['overview', 'income', 'budget', 'balance', 'ledger', 'accounts', 'invoices', 'dues', 'dunning', 'members', 'teams', 'sync']
   const tabParam = searchParams.get('tab') as Tab | null
   const tab: Tab = tabParam && TABS.includes(tabParam) ? tabParam : 'overview'
   const setTab = (next: Tab) => setSearchParams((prev) => {
@@ -231,6 +232,7 @@ export default function FinancePage() {
             <TabBtn active={tab === 'income'} label={t('tabIncome')} onClick={() => setTab('income')} />
             <TabBtn active={tab === 'budget'} label={t('tabBudget')} onClick={() => setTab('budget')} />
             <TabBtn active={tab === 'balance'} label={t('tabBalance')} onClick={() => setTab('balance')} />
+            <TabBtn active={tab === 'ledger'} label={t('tabLedger')} onClick={() => setTab('ledger')} />
             <TabBtn active={tab === 'accounts'} label={t('tabAccounts')} onClick={() => setTab('accounts')} />
             <TabBtn active={tab === 'invoices'} label={t('tabInvoices')} onClick={() => setTab('invoices')} />
             <TabBtn active={tab === 'dues'} label={t('tabDues')} onClick={() => setTab('dues')} />
@@ -351,6 +353,7 @@ export default function FinancePage() {
           )}
 
           {/* ── Accounts (drill-down tree) ───────────────────────── */}
+          {tab === 'ledger' && <LedgerTab fiscalYearId={activeFyId} />}
           {tab === 'accounts' && <AccountExplorer accounts={accounts} transactions={transactions} />}
 
           {/* ── Sync status ──────────────────────────────────────── */}

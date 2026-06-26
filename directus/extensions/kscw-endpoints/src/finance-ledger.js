@@ -295,7 +295,9 @@ export function registerFinanceLedger(router, { database, logger }) {
   })
 
   // ── Auto-posting: settings, chart mirror, reconcile ─────────────────────
-  const SETTINGS_ACCT_FIELDS = ['debitoren_account', 'bank_account', 'income_account', 'sponsoring_account', 'bad_debt_account', 'expense_account']
+  const SETTINGS_ACCT_FIELDS = ['debitoren_account', 'bank_account', 'income_account', 'sponsoring_account', 'bad_debt_account', 'expense_account', 'prepayment_account']
+  // Infer an account type from the Swiss Verein chart number range when ClubDesk left it null.
+  const inferType = (num) => { const n = String(num || ''); if (n.startsWith('28')) return 'equity'; const c = n[0]; return ({ 1: 'asset', 2: 'liability', 3: 'income', 4: 'expense', 5: 'expense', 6: 'expense', 7: 'expense', 8: 'expense', 9: 'close' })[c] || null }
 
   router.get('/finance/ledger/settings', async (req, res) => {
     try {
@@ -340,7 +342,7 @@ export function registerFinanceLedger(router, { database, logger }) {
       for (const c of cd) {
         if (!c.number || nativeNums.has(c.number) || seen.has(c.number)) continue
         seen.add(c.number)
-        toAdd.push({ number: c.number, name: c.name, type: c.type || null, division: c.division || null, active: true, source: 'native' })
+        toAdd.push({ number: c.number, name: c.name, type: c.type || inferType(c.number), division: c.division || null, active: true, source: 'native' })
       }
       if (toAdd.length) await database('finance_accounts').insert(toAdd)
       await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_accounts', recordId: 0, data: { kind: 'seed_chart_from_clubdesk', added: toAdd.length } })

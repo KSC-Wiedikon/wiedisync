@@ -587,3 +587,37 @@ export const createBillingContact = (input: { kind: string; name: string; email?
   kscwApi<{ contact: BillingContact }>('/finance/contacts', { method: 'POST', body: input })
 export const deleteBillingContact = (id: number) =>
   kscwApi<{ ok: true }>(`/finance/contacts/${id}`, { method: 'DELETE' })
+
+// ── Native ledger (book of record) ──────────────────────────────────────
+export interface LedgerAccount { id: number; number: string; name: string; type: string | null; division: string | null; active: boolean; source: string }
+export interface LedgerEntry { id: number; beleg: string | null; booking_date: string | null; text: string | null; debit_account: number | null; debit_account_number: string | null; debit_account_name: string | null; credit_account: number | null; credit_account_number: string | null; credit_account_name: string | null; amount_chf: string | number; typ: string | null; reversal_of: number | null; created_by_name: string | null }
+export interface TrialBalanceRow { account: number; number: string; name: string; type: string | null; division: string | null; nominal: boolean; debit: number; credit: number; balance: number }
+export interface LedgerFiscalYear { id: number; label: string | null; starts_on: string; ends_on: string; status: string; closed_on: string | null; closed_by_name: string | null }
+export interface LedgerSettings { id: number; autopost_enabled: boolean; debitoren_account: number | null; bank_account: number | null; income_account: number | null; sponsoring_account: number | null; bad_debt_account: number | null; expense_account: number | null; prepayment_account: number | null }
+export const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense', 'close'] as const
+
+export function useLedgerAccounts(enabled = true, all = false) {
+  return useQuery({ queryKey: ['finance', 'ledger-accounts', all], queryFn: () => kscwApi<{ accounts: LedgerAccount[] }>(`/finance/ledger/accounts${all ? '?active=all' : ''}`), enabled, select: (r) => r.accounts })
+}
+export function useLedgerEntries(fiscalYearId?: string | number | null, enabled = true) {
+  return useQuery({ queryKey: ['finance', 'ledger-entries', String(fiscalYearId ?? '')], queryFn: () => kscwApi<{ entries: LedgerEntry[] }>(`/finance/ledger/entries${fiscalYearId ? `?fiscal_year=${fiscalYearId}` : ''}`), enabled, select: (r) => r.entries })
+}
+export function useLedgerTrialBalance(fiscalYearId?: string | number | null, enabled = true) {
+  return useQuery({ queryKey: ['finance', 'ledger-trial', String(fiscalYearId ?? '')], queryFn: () => kscwApi<{ rows: TrialBalanceRow[]; totals: { debit: number; credit: number; balanced: boolean } }>(`/finance/ledger/trial-balance${fiscalYearId ? `?fiscal_year=${fiscalYearId}` : ''}`), enabled })
+}
+export function useLedgerFiscalYears(enabled = true) {
+  return useQuery({ queryKey: ['finance', 'ledger-fy'], queryFn: () => kscwApi<{ fiscal_years: LedgerFiscalYear[] }>('/finance/ledger/fiscal-years'), enabled, select: (r) => r.fiscal_years })
+}
+export function useLedgerSettings(enabled = true) {
+  return useQuery({ queryKey: ['finance', 'ledger-settings'], queryFn: () => kscwApi<{ settings: LedgerSettings }>('/finance/ledger/settings'), enabled, select: (r) => r.settings })
+}
+
+export const createLedgerAccount = (input: { number: string; name: string; type: string; division?: string | null }) => kscwApi<{ account: LedgerAccount }>('/finance/ledger/accounts', { method: 'POST', body: input })
+export const editLedgerAccount = (id: number, input: { name?: string; active?: boolean }) => kscwApi<{ account: LedgerAccount }>(`/finance/ledger/accounts/${id}`, { method: 'PATCH', body: input })
+export const postLedgerEntry = (input: { debit_account: number; credit_account: number; amount: number; text?: string; booking_date?: string; fiscal_year?: number }) => kscwApi<{ entry: LedgerEntry }>('/finance/ledger/entries', { method: 'POST', body: input })
+export const reverseLedgerEntry = (id: number) => kscwApi<{ entry: LedgerEntry }>(`/finance/ledger/entries/${id}/reverse`, { method: 'POST' })
+export const deleteLedgerEntry = (id: number) => kscwApi<{ ok: true }>(`/finance/ledger/entries/${id}`, { method: 'DELETE' })
+export const closeLedgerYear = (fiscalYearId: number, input: { equity_account: number; opening_account: number; dry_run?: boolean }) => kscwApi<{ income: number; expense: number; net: number; closing_entries: number; opening_entries: number; next_fiscal_year: number; dry_run?: boolean }>(`/finance/ledger/fiscal-years/${fiscalYearId}/close`, { method: 'POST', body: input })
+export const saveLedgerSettings = (input: Partial<LedgerSettings>) => kscwApi<{ settings: LedgerSettings }>('/finance/ledger/settings', { method: 'PUT', body: input })
+export const reconcileLedger = (fiscalYear?: number | null) => kscwApi<{ invoices: number; team_entries: number; posted: number; skipped: Record<string, number> }>('/finance/ledger/reconcile', { method: 'POST', body: { fiscal_year: fiscalYear ?? null } })
+export const seedLedgerChart = () => kscwApi<{ added: number; skipped_existing: number }>('/finance/ledger/seed-chart', { method: 'POST' })

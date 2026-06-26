@@ -423,6 +423,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         status: 'cancelled', open_amount: 0, cancelled_at: new Date(), date_updated: new Date(),
       }).returning('*')
       await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'cancel_native_invoice' } })
+      await autopostInvoiceSafe(database, log, id) // removes any standing ledger postings
       return res.json({ invoice: row })
     } catch (e) { return err(res, req, 'cancel', e) }
   })
@@ -702,6 +703,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         .update({ status: 'cancelled', open_amount: 0, cancelled_at: new Date(), date_updated: new Date() })
       await database('finance_dues_runs').where('id', id).update({ status: 'cancelled' })
       await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_dues_runs', recordId: id, data: { kind: 'dues_run_cancel', cancelled } })
+      await autopostDuesRunSafe(database, log, id) // cancelled invoices → remove their ledger postings
       return res.json({ ok: true, cancelled })
     } catch (e) { return err(res, req, 'dues-cancel', e) }
   })
