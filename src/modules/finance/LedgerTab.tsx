@@ -25,7 +25,9 @@ export default function LedgerTab({ fiscalYearId }: { fiscalYearId?: string | nu
   const { t } = useTranslation('finance')
   const [section, setSection] = useState<Section>('journal')
   const { data: years } = useLedgerFiscalYears()
-  const [fyId, setFyId] = useState<string>(String(fiscalYearId ?? ''))
+  // Follows the single global fiscal-year selector in the FinancePage header — no
+  // second dropdown here.
+  const fyId = String(fiscalYearId ?? '')
   const activeFy = useMemo(() => (years ?? []).find((y) => String(y.id) === fyId) ?? (years ?? [])[0], [years, fyId])
   const effFy = activeFy ? String(activeFy.id) : ''
 
@@ -47,11 +49,6 @@ export default function LedgerTab({ fiscalYearId }: { fiscalYearId?: string | nu
             <s.icon className="h-4 w-4" />{s.label}
           </button>
         ))}
-        {(section === 'journal' || section === 'trial' || section === 'close') && (years?.length ?? 0) > 0 && (
-          <select value={effFy} onChange={(e) => setFyId(e.target.value)} className={`${selectCls} ml-auto w-auto mt-0`}>
-            {(years ?? []).map((y) => <option key={y.id} value={y.id}>{y.label || `${y.starts_on}–${y.ends_on}`}{y.status === 'closed' ? ` (${t('ledClosed')})` : ''}</option>)}
-          </select>
-        )}
       </div>
 
       {section === 'journal' && <Journal fyId={effFy} fyClosed={activeFy?.status === 'closed'} />}

@@ -7,7 +7,7 @@
  *   const { mutate } = useCreate('participations')
  */
 
-import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { fetchItems, fetchAllItems, fetchItem, countItems, createRecord, updateRecord, deleteRecord, kscwApi, stringifyIds } from './api'
 import { captureApiError } from './sentry'
@@ -21,6 +21,9 @@ export const queryClient = new QueryClient({
       gcTime: 5 * 60_000,       // 5min garbage collection
       refetchOnWindowFocus: false,
       retry: 1,
+      // Keep showing the previous result while a query with a changed key (e.g. a new
+      // fiscal year / filter) refetches — no blank/“whole page reloading” flash.
+      placeholderData: keepPreviousData,
     },
     mutations: {
       onError: (error) => {

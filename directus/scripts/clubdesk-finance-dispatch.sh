@@ -12,9 +12,13 @@ flock -n 9 || exit 0   # a previous dispatcher is still running
 
 psqlc() { docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -tAc "$1"; }
 
-# Atomically claim a queued request.
-claim=$(psqlc "UPDATE finance_ledger_settings SET sync_state='running' WHERE id=1 AND sync_requested_at IS NOT NULL AND sync_state <> 'running' RETURNING 'go'" 2>/dev/null || true)
-[ "$claim" = "go" ] || exit 0
+# Recover a stuck 'running' (a dispatch that died mid-sync) so it can't block forever.
+psqlc "UPDATE finance_ledger_settings SET sync_state='idle', sync_requested_at=NULL, sync_message='Reset (stale run)' WHERE id=1 AND sync_state='running' AND sync_requested_at < now() - interval '15 minutes'" >/dev/null 2>&1 || true
+
+# Atomically claim a queued request. CTE so the top-level statement is a SELECT —
+# a bare UPDATE…RETURNING via psql -tAc also prints the "UPDATE 1" command tag.
+claim=$(psqlc "WITH u AS (UPDATE finance_ledger_settings SET sync_state='running' WHERE id=1 AND sync_requested_at IS NOT NULL AND sync_state <> 'running' RETURNING 1) SELECT count(*) FROM u" 2>/dev/null || echo 0)
+[ "$claim" = "1" ] || exit 0
 
 echo "=== dispatch: finance sync requested — running $(date -u +%FT%TZ) ==="
 if /opt/clubdesk-sync/clubdesk-finance-sync.sh; then
