@@ -9,8 +9,10 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 - Each toggle only appears if you can actually receive that alert (join-request alerts show for coaches and team responsibles, for example). Turning one off silences the email — or, for form submissions, the push notification — while the in-app bell still shows it.
 - Everything stays on by default, so nothing changes until you opt out.
 
-### Finance
-- A **"Sync now"** button triggers the ClubDesk finance import on demand instead of waiting for the nightly run, plus reliability fixes to the finance sync.
+### Finance: the Ledger shows your real books, and stays current
+- The Ledger's **Journal** and **Trial balance** now include your imported **ClubDesk bookings** (marked "ClubDesk", read-only), so the book of record reflects your actual accounting — the native entries you post in wiedisync layer on top.
+- **ClubDesk finance now syncs automatically every night**, and a **"Sync now"** button (Finance → Sync) refreshes it on demand instead of waiting for the nightly run.
+- **One fiscal-year selector** for the whole Finance area (the Ledger's duplicate dropdown is gone), and changing the year — or any filter — no longer blanks and reloads the page.
 
 ## v1.11.0 — 2026-06-26
 

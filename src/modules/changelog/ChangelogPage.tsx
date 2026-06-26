@@ -24,9 +24,11 @@ const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
-        title: 'Finance',
+        title: 'Finance: the Ledger shows your real books, and stays current',
         items: [
-          'A "Sync now" button triggers the ClubDesk finance import on demand instead of waiting for the nightly run, plus reliability fixes to the finance sync.',
+          'The Ledger\'s Journal and Trial balance now show your imported ClubDesk bookings (marked "ClubDesk"), so the book of record reflects your actual accounting — native entries you post in wiedisync layer on top.',
+          'Finances now sync automatically from ClubDesk every night, and a "Sync now" button (Finance → Sync) refreshes them on demand.',
+          'One fiscal-year selector for the whole Finance area, and changing the year (or any filter) no longer blanks and reloads the page.',
         ],
       },
     ],
