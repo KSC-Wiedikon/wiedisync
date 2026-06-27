@@ -341,6 +341,16 @@ export default {
   anmeldungenDocIdFront: 'Ausweis Vorderseite',
   anmeldungenDocIdBack: 'Ausweis Rückseite',
 
+  // ClubDesk Mitglieder-Sync (Superadmin)
+  clubdeskSyncDown: 'Von ClubDesk herunterladen',
+  clubdeskSyncing: 'Synchronisiert…',
+  clubdeskSyncNote: 'Die aktuellen Mitgliederdaten werden von ClubDesk geladen — das kann eine Minute dauern.',
+  clubdeskSyncDone: 'Mitgliederdaten von ClubDesk synchronisiert.',
+  clubdeskSyncFailed: 'Synchronisation fehlgeschlagen.',
+  clubdeskSyncTimeout: 'Die Synchronisation dauert länger als erwartet — sie läuft im Hintergrund weiter.',
+  clubdeskSyncInProgress: 'Eine Synchronisation läuft bereits.',
+  clubdeskLastSync: 'Zuletzt synchronisiert {{time}}',
+
   // Daten-Explorer
   explorerTitle: 'Daten-Explorer',
   explorerRefresh: 'Neu laden',

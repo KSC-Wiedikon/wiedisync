@@ -4,6 +4,7 @@
  */
 
 import { buildEmailLayout, buildInfoCard, bucketEmailsByLocale } from './email-template.js'
+import { writeUserLog } from './activity-log.js'
 
 const OWNER_EMAIL = 'luca.canepa@gmail.com'
 const ADMIN_EMAIL = 'kontakt@kscw.ch'
@@ -153,6 +154,63 @@ function buildChangesTable(changes, locale = 'de') {
 
 export function registerClubdeskUpdate(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'clubdesk-update' })
+
+  // ── Superadmin gate (ClubDesk member sync is a top-tier, club-wide action) ──
+  // Directus admins pass straight through; otherwise the caller must hold the
+  // 'superuser' or 'admin' member role. Mirrors finance-ledger.js gate(), tighter.
+  async function superGate(req) {
+    if (req.accountability?.admin) return true
+    const userId = req.accountability?.user
+    if (!userId) return false
+    const m = await database('members').where('user', userId).first('role')
+    if (!m) return false
+    const roles = Array.isArray(m.role)
+      ? m.role
+      : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
+    return ['superuser', 'admin'].some((r) => roles.includes(r))
+  }
+
+  // ── On-demand ClubDesk MEMBER sync (superadmin "Sync down" button) ──────────
+  // POST sets a request flag on the singleton clubdesk_member_sync row; a host
+  // dispatcher cron (clubdesk-member-dispatch.sh) claims it, runs clubdesk-sync.sh,
+  // and writes back down_state. GET is polled by the button. Sync-up lands later.
+  router.get('/clubdesk-member-sync', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const s = await database('clubdesk_member_sync').where('id', 1)
+        .first('down_state', 'down_message', 'down_requested_at', 'down_finished_at')
+      return res.json({
+        state: s?.down_state || 'idle',
+        message: s?.down_message || null,
+        requested_at: s?.down_requested_at || null,
+        finished_at: s?.down_finished_at || null,
+      })
+    } catch (err) {
+      log.error({ msg: `clubdesk-member-sync status: ${err.message}`, endpoint: 'clubdesk-member-sync', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  router.post('/clubdesk-member-sync', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const s = await database('clubdesk_member_sync').where('id', 1).first('down_state')
+      if (['queued', 'running'].includes(s?.down_state)) {
+        return res.status(409).json({ error: 'A sync is already in progress', state: s.down_state })
+      }
+      await database('clubdesk_member_sync').where('id', 1).update({
+        down_requested_at: new Date(), down_state: 'queued', down_message: null, down_finished_at: null,
+      })
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update',
+        collection: 'clubdesk_member_sync', recordId: 1, data: { kind: 'clubdesk_member_sync_request', direction: 'down' },
+      })
+      return res.json({ state: 'queued' })
+    } catch (err) {
+      log.error({ msg: `clubdesk-member-sync trigger: ${err.message}`, endpoint: 'clubdesk-member-sync', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
 
   router.post('/clubdesk-update', async (req, res) => {
     try {

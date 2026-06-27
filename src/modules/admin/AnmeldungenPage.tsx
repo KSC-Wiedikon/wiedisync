@@ -7,6 +7,7 @@ import { useReportPageLoading } from '../../hooks/usePageReady'
 import { assetUrl } from '../../lib/api'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import TeamChip from '../../components/TeamChip'
+import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
 import { formatDate } from '../../utils/dateHelpers'
 import { toast } from 'sonner'
 import {
@@ -274,9 +275,12 @@ export default function AnmeldungenPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('anmeldungenTitle')}</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('anmeldungenDescription')}</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('anmeldungenTitle')}</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('anmeldungenDescription')}</p>
+        </div>
+        {isGlobalAdmin && <ClubdeskMemberSyncButton className="shrink-0" />}
       </div>
 
       {/* Filters */}

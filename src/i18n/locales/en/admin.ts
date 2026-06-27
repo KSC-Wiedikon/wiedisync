@@ -341,6 +341,16 @@ export default {
   anmeldungenDocIdFront: 'ID front',
   anmeldungenDocIdBack: 'ID back',
 
+  // ClubDesk member sync (superadmin)
+  clubdeskSyncDown: 'Sync down from ClubDesk',
+  clubdeskSyncing: 'Syncing…',
+  clubdeskSyncNote: 'Pulling the latest member data from ClubDesk — this can take a minute.',
+  clubdeskSyncDone: 'Member data synced from ClubDesk.',
+  clubdeskSyncFailed: 'Sync failed.',
+  clubdeskSyncTimeout: 'Sync is taking longer than expected — it keeps running in the background.',
+  clubdeskSyncInProgress: 'A sync is already in progress.',
+  clubdeskLastSync: 'Last synced {{time}}',
+
   // Data Explorer
   explorerTitle: 'Data explorer',
   explorerRefresh: 'Refresh',
