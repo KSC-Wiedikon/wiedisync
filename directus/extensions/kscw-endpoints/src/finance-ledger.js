@@ -299,7 +299,9 @@ export function registerFinanceLedger(router, { database, logger }) {
   // ── Auto-posting: settings, chart mirror, reconcile ─────────────────────
   const SETTINGS_ACCT_FIELDS = ['debitoren_account', 'bank_account', 'income_account', 'sponsoring_account', 'bad_debt_account', 'expense_account', 'prepayment_account']
   // Infer an account type from the Swiss Verein chart number range when ClubDesk left it null.
-  const inferType = (num) => { const n = String(num || ''); if (n.startsWith('28')) return 'equity'; const c = n[0]; return ({ 1: 'asset', 2: 'liability', 3: 'income', 4: 'expense', 5: 'expense', 6: 'expense', 7: 'expense', 8: 'expense', 9: 'close' })[c] || null }
+  // 28xx + 29xx → equity, matching import-clubdesk-finance.mjs accountType() so the
+  // seed-chart fallback and the importer can't disagree (e.g. close picker eligibility).
+  const inferType = (num) => { const n = String(num || ''); if (n.startsWith('28') || n.startsWith('29')) return 'equity'; const c = n[0]; return ({ 1: 'asset', 2: 'liability', 3: 'income', 4: 'expense', 5: 'expense', 6: 'expense', 7: 'expense', 8: 'expense', 9: 'close' })[c] || null }
 
   router.get('/finance/ledger/settings', async (req, res) => {
     try {

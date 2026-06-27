@@ -18,7 +18,15 @@ export interface FinanceReport {
 export type ExportFormat = 'pdf' | 'xlsx' | 'pptx'
 
 const BRAND = '4F46E5' // brand-600 indigo
-const money = (n: number | string) => new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0)
+// Format a money cell. Empty/blank cells stay blank (e.g. the trial-balance total
+// row's balance column); non-numeric values surface as-is rather than silently
+// becoming 0.00; negative-zero is clamped to 0.00.
+const money = (n: number | string) => {
+  if (n === '' || n == null) return ''
+  const x = typeof n === 'number' ? n : Number(n)
+  if (!Number.isFinite(x)) return String(n)
+  return new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Object.is(x, -0) ? 0 : x)
+}
 const todayZ = () => new Date().toLocaleDateString('de-CH')
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -33,7 +41,8 @@ async function exportXlsx(report: FinanceReport, filename: string) {
   const ExcelJS = (await import('exceljs')).default
   const wb = new ExcelJS.Workbook()
   wb.creator = 'wiedisync'
-  const ws = wb.addWorksheet(report.title.slice(0, 31))
+  // exceljs forbids * ? : \ / [ ] in worksheet names (and caps at 31 chars).
+  const ws = wb.addWorksheet(report.title.replace(/[\\/?*:[\]]/g, ' ').slice(0, 31) || 'Report')
   const n = report.columns.length
   ws.mergeCells(1, 1, 1, n); const t = ws.getCell(1, 1); t.value = report.org; t.font = { bold: true, size: 14 }
   ws.mergeCells(2, 1, 2, n); const s = ws.getCell(2, 1); s.value = `${report.title} — ${report.period}`; s.font = { size: 11, color: { argb: 'FF888888' } }
@@ -54,8 +63,11 @@ async function exportXlsx(report: FinanceReport, filename: string) {
       report.columns.forEach((c, i) => {
         const cell = xr.getCell(i + 1)
         const v = row.cells[i]
-        if (c.type === 'money') { cell.value = typeof v === 'number' ? v : Number(v) || 0; cell.numFmt = '#,##0.00'; cell.alignment = { horizontal: 'right' } }
-        else cell.value = v ?? ''
+        if (c.type === 'money') {
+          if (v === '' || v == null) cell.value = null
+          else { cell.value = typeof v === 'number' ? v : Number(v) || 0; cell.numFmt = '#,##0.00' }
+          cell.alignment = { horizontal: 'right' }
+        } else cell.value = v ?? ''
         if (row.bold) cell.font = { bold: true }
       })
       r++
@@ -74,9 +86,13 @@ async function exportPdf(report: FinanceReport, filename: string) {
   const M = 40
   doc.setFontSize(16); doc.setFont('helvetica', 'bold'); doc.text(report.org, M, 50)
   doc.setFontSize(11); doc.setFont('helvetica', 'normal'); doc.setTextColor(120); doc.text(`${report.title} — ${report.period}`, M, 68); doc.setTextColor(0)
+  const ph = doc.internal.pageSize.getHeight()
   let y = 88
   for (const sec of report.sections) {
-    if (sec.heading) { doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.text(sec.heading, M, y); y += 6 }
+    if (sec.heading) {
+      if (y > ph - 80) { doc.addPage(); y = 50 }  // keep the heading with its table
+      doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.text(sec.heading, M, y); y += 6
+    }
     autoTable(doc, {
       startY: y,
       head: [report.columns.map((c) => c.label)],
@@ -119,7 +135,10 @@ async function exportPptx(report: FinanceReport, filename: string) {
 }
 
 export function exportReport(format: ExportFormat, report: FinanceReport, filename: string) {
-  if (format === 'xlsx') return exportXlsx(report, filename)
-  if (format === 'pptx') return exportPptx(report, filename)
-  return exportPdf(report, filename)
+  // Fiscal-year labels like "2026/27" contain a slash — sanitise so it can't break
+  // the download filename / path.
+  const safe = filename.replace(/[/\\:*?"<>|]+/g, '-')
+  if (format === 'xlsx') return exportXlsx(report, safe)
+  if (format === 'pptx') return exportPptx(report, safe)
+  return exportPdf(report, safe)
 }
