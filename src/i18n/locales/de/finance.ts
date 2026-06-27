@@ -409,6 +409,11 @@ export default {
   budgetColVariance: 'Abweichung',
   budgetVarianceNote: 'Abweichung ist günstig (grün), wenn Einnahmen über Budget liegen oder Ausgaben darunter bleiben.',
   exportCsv: 'CSV exportieren',
+  export: 'Export',
+  exportPdf: 'PDF',
+  exportExcel: 'Excel',
+  exportPpt: 'PowerPoint',
+  total: 'Total',
 
   // Mahnwesen
   tabDunning: 'Mahnungen',

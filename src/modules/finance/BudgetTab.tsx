@@ -4,6 +4,8 @@ import { Download, Loader2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { useFinanceBudget, saveBudgetLine, formatChf, toNum } from '../../hooks/useFinance'
 import { downloadCsv } from './financeExport'
+import ReportExportMenu from './ReportExportMenu'
+import type { FinanceReport } from './reportExport'
 
 export interface BudgetRow { id: string | number; number: string; name: string; type: string | null; bal: number }
 
@@ -42,6 +44,14 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
     const line = (r: BudgetRow) => [r.number, r.name, toNum(budgetOf(r.id)).toFixed(2), r.bal.toFixed(2), variance(r).toFixed(2)]
     downloadCsv(`budget-${fiscalYearLabel || fiscalYearId}`, [t('colAccount'), t('budgetColName'), t('budgetColBudget'), t('budgetColActual'), t('budgetColVariance')],
       [...income.map(line), ...expense.map(line)])
+  }
+  const budgetReport = (): FinanceReport => {
+    const line = (r: BudgetRow) => ({ cells: [`${r.number} · ${r.name}`, budgetOf(r.id), r.bal, variance(r)] })
+    return {
+      title: t('tabBudget'), org: 'KSC Wiedikon', period: fiscalYearLabel || fiscalYearId,
+      columns: [{ label: t('colAccount'), type: 'text' }, { label: t('budgetColBudget'), type: 'money' }, { label: t('budgetColActual'), type: 'money' }, { label: t('budgetColVariance'), type: 'money' }],
+      sections: [{ heading: t('income'), rows: income.map(line) }, { heading: t('expense'), rows: expense.map(line) }],
+    }
   }
 
   const section = (title: string, list: BudgetRow[]) => (
@@ -95,10 +105,13 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-gray-500 dark:text-gray-400">{t('budgetHint', { year: fiscalYearLabel })}</p>
-        <button type="button" onClick={exportCsv}
-          className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
-          <Download className="h-4 w-4" />{t('exportCsv')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={exportCsv}
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+            <Download className="h-4 w-4" />{t('exportCsv')}
+          </button>
+          <ReportExportMenu build={budgetReport} filename={`budget-${fiscalYearLabel || fiscalYearId}`} />
+        </div>
       </div>
       {income.length > 0 && section(t('income'), income)}
       {expense.length > 0 && section(t('expense'), expense)}

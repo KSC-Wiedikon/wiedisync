@@ -20,6 +20,8 @@ import BudgetTab from './BudgetTab'
 import DunningConsole from './DunningConsole'
 import LedgerTab from './LedgerTab'
 import FinanceMemberExplorer from './FinanceMemberExplorer'
+import ReportExportMenu from './ReportExportMenu'
+import type { FinanceReport } from './reportExport'
 
 type Tab = 'overview' | 'income' | 'budget' | 'balance' | 'ledger' | 'accounts' | 'invoices' | 'dues' | 'dunning' | 'members' | 'teams' | 'sync'
 
@@ -223,6 +225,28 @@ export default function FinancePage() {
   const result = totalIncome - totalExpense
   const totalAssets = sum(assetRows)
   const totalLiabEq = sum(liabEqRows)
+
+  // Report models for the PDF / Excel / PowerPoint export.
+  const ORG = 'KSC Wiedikon'
+  const fyLabel = activeFyLabel || String(activeFyId)
+  const acctCell = (a: AcctRow) => `${a.number} · ${a.name}`
+  const incomeReport = (): FinanceReport => ({
+    title: t('tabIncome'), org: ORG, period: fyLabel,
+    columns: [{ label: t('colAccount'), type: 'text' }, { label: 'CHF', type: 'money' }],
+    sections: [
+      { heading: t('income'), rows: [...incomeRows.map((a) => ({ cells: [acctCell(a), a.bal] })), { cells: [t('totalIncome'), totalIncome], bold: true }] },
+      { heading: t('expense'), rows: [...expenseRows.map((a) => ({ cells: [acctCell(a), a.bal] })), { cells: [t('totalExpenses'), totalExpense], bold: true }] },
+      { rows: [{ cells: [t('netResult'), result], bold: true }] },
+    ],
+  })
+  const balanceReport = (): FinanceReport => ({
+    title: t('tabBalance'), org: ORG, period: fyLabel,
+    columns: [{ label: t('colAccount'), type: 'text' }, { label: 'CHF', type: 'money' }],
+    sections: [
+      { heading: t('assets'), rows: [...assetRows.map((a) => ({ cells: [acctCell(a), a.bal] })), { cells: [t('totalAssets'), totalAssets], bold: true }] },
+      { heading: t('liabilitiesEquity'), rows: [...liabEqRows.map((a) => ({ cells: [acctCell(a), a.bal] })), { cells: [t('totalLiabEquity'), totalLiabEq], bold: true }] },
+    ],
+  })
   const treasury = useMemo(() => accountRows.filter((a) => a.number.startsWith('10')).reduce((s, a) => s + a.bal, 0), [accountRows])
   const outstanding = useMemo(() => invoices.filter(isOpenInvoice).reduce((acc, i) => acc + toNum(i.open_amount), 0), [invoices])
 
@@ -366,6 +390,7 @@ export default function FinancePage() {
           {/* ── Income statement (P&L) ───────────────────────────── */}
           {tab === 'income' && (
             <div className="space-y-5">
+              <div className="flex justify-end"><ReportExportMenu build={incomeReport} filename={`income-statement-${fyLabel}`} /></div>
               <StatementTable title={t('income')} rows={incomeRows} total={totalIncome} totalLabel={t('totalIncome')} accLabel={t('colAccount')} amtLabel={t('colAmount')}
                 expandedNum={expandedAcct} onToggle={toggleAcct} renderDetail={(a) => <AccountLedger account={a} transactions={plTransactions} nameByNum={nameByNum} />} />
               <StatementTable title={t('expense')} rows={expenseRows} total={totalExpense} totalLabel={t('totalExpenses')} accLabel={t('colAccount')} amtLabel={t('colAmount')}
@@ -382,6 +407,7 @@ export default function FinancePage() {
           {/* ── Balance sheet ────────────────────────────────────── */}
           {tab === 'balance' && (
             <div className="space-y-5">
+              <div className="flex justify-end"><ReportExportMenu build={balanceReport} filename={`balance-sheet-${fyLabel}`} /></div>
               <StatementTable title={t('assets')} rows={assetRows} total={totalAssets} totalLabel={t('totalAssets')} accLabel={t('colAccount')} amtLabel={t('colAmount')}
                 expandedNum={expandedAcct} onToggle={toggleAcct} renderDetail={(a) => <AccountLedger account={a} transactions={transactions} nameByNum={nameByNum} />} />
               <StatementTable title={t('liabilitiesEquity')} rows={liabEqRows} total={totalLiabEq} totalLabel={t('totalLiabEquity')} accLabel={t('colAccount')} amtLabel={t('colAmount')}

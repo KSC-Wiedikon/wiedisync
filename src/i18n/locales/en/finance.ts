@@ -414,6 +414,11 @@ export default {
   budgetColVariance: 'Variance',
   budgetVarianceNote: 'Variance is favourable (green) when income beats budget or expenses stay under it.',
   exportCsv: 'Export CSV',
+  export: 'Export',
+  exportPdf: 'PDF',
+  exportExcel: 'Excel',
+  exportPpt: 'PowerPoint',
+  total: 'Total',
 
   // Dunning / Mahnwesen
   tabDunning: 'Reminders',

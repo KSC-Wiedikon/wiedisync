@@ -5,6 +5,8 @@ import { Loader2, Plus, Undo2, Trash2, BookOpen, ListTree, Scale, Lock, Settings
 import Modal from '../../components/Modal'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
+import ReportExportMenu from './ReportExportMenu'
+import type { FinanceReport } from './reportExport'
 import {
   useLedgerAccounts, useLedgerEntries, useLedgerTrialBalance, useLedgerFiscalYears, useLedgerSettings,
   createLedgerAccount, editLedgerAccount, postLedgerEntry, reverseLedgerEntry, deleteLedgerEntry,
@@ -53,7 +55,7 @@ export default function LedgerTab({ fiscalYearId }: { fiscalYearId?: string | nu
 
       {section === 'journal' && <Journal fyId={effFy} fyClosed={activeFy?.status === 'closed'} />}
       {section === 'accounts' && <Accounts />}
-      {section === 'trial' && <TrialBalance fyId={effFy} />}
+      {section === 'trial' && <TrialBalance fyId={effFy} period={activeFy?.label || effFy} />}
       {section === 'close' && <CloseYear fy={activeFy} />}
       {section === 'settings' && <AutopostSettings />}
     </div>
@@ -246,15 +248,23 @@ function NewAccountModal({ open, onClose, onDone }: { open: boolean; onClose: ()
 }
 
 /* ── Trial balance ───────────────────────────────────────────────────── */
-function TrialBalance({ fyId }: { fyId: string }) {
+function TrialBalance({ fyId, period }: { fyId: string; period: string }) {
   const { t } = useTranslation('finance')
   const { data } = useLedgerTrialBalance(fyId || null, !!fyId)
   const rows = data?.rows ?? []
+  const report = (): FinanceReport => ({
+    title: t('ledTrialBalance'), org: 'KSC Wiedikon', period,
+    columns: [{ label: t('ledColNumber'), type: 'text' }, { label: t('ledColName'), type: 'text' }, { label: t('ledColDebit'), type: 'money' }, { label: t('ledColCredit'), type: 'money' }, { label: t('ledColBalance'), type: 'money' }],
+    sections: [{ rows: [...rows.map((r) => ({ cells: [r.number, r.name, r.debit, r.credit, r.balance] })), { cells: [t('total'), '', data?.totals.debit ?? 0, data?.totals.credit ?? 0, ''], bold: true }] }],
+  })
   return (
     <div className="space-y-3">
       {data && (
-        <div className={`rounded-md px-3 py-2 text-sm ${data.totals.balanced ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'}`}>
-          {t('ledColDebit')} {formatChf(data.totals.debit)} · {t('ledColCredit')} {formatChf(data.totals.credit)} · {data.totals.balanced ? t('ledBalanced') : t('ledUnbalanced')}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className={`rounded-md px-3 py-2 text-sm ${data.totals.balanced ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'}`}>
+            {t('ledColDebit')} {formatChf(data.totals.debit)} · {t('ledColCredit')} {formatChf(data.totals.credit)} · {data.totals.balanced ? t('ledBalanced') : t('ledUnbalanced')}
+          </div>
+          {rows.length > 0 && <ReportExportMenu build={report} filename={`trial-balance-${period}`} />}
         </div>
       )}
       {rows.length === 0 ? (

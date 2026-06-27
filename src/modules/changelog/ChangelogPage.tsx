@@ -28,6 +28,7 @@ const CHANGELOG: ChangelogEntry[] = [
         items: [
           'The Ledger\'s Journal and Trial balance now show your imported ClubDesk bookings (marked "ClubDesk"), so the book of record reflects your actual accounting — native entries you post in wiedisync layer on top.',
           'Finances now sync automatically from ClubDesk every night, and a "Sync now" button (Finance → Sync) refreshes them on demand.',
+          'Export the income statement, balance sheet, budget and trial balance as a polished PDF, Excel workbook or PowerPoint deck — an "Export" button on each report.',
           'One fiscal-year selector for the whole Finance area, and changing the year (or any filter) no longer blanks and reloads the page.',
         ],
       },

@@ -12,6 +12,7 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 ### Finance: the Ledger shows your real books, and stays current
 - The Ledger's **Journal** and **Trial balance** now include your imported **ClubDesk bookings** (marked "ClubDesk", read-only), so the book of record reflects your actual accounting — the native entries you post in wiedisync layer on top.
 - **ClubDesk finance now syncs automatically every night**, and a **"Sync now"** button (Finance → Sync) refreshes it on demand instead of waiting for the nightly run.
+- **Export reports** — the income statement, balance sheet, budget and trial balance each get an **Export** button producing a polished **PDF**, **Excel** workbook (real numeric cells) or **PowerPoint** deck.
 - **One fiscal-year selector** for the whole Finance area (the Ledger's duplicate dropdown is gone), and changing the year — or any filter — no longer blanks and reloads the page.
 
 ## v1.11.0 — 2026-06-26
