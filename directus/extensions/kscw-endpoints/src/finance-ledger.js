@@ -95,13 +95,25 @@ export function registerFinanceLedger(router, { database, logger }) {
     } catch (e) { return err(res, req, 'account-edit', e) }
   })
 
+  // The native ledger and the imported ClubDesk journal are two representations of the
+  // SAME economic events (the importer even sync-confirms native invoices against their
+  // ClubDesk counterpart). They must NEVER be summed together — balances would
+  // double-count. Show the native book once it has entries for the scope; until then
+  // show the imported ClubDesk journal. This keeps the journal/trial-balance on the same
+  // single book as the year-end close (which is native-only).
+  const ledgerSources = async (fyId) => {
+    const q = database('finance_transactions').where('source', 'native')
+    if (Number.isInteger(fyId)) q.where('fiscal_year', fyId)
+    return (await q.first('id')) ? ['native'] : ['clubdesk']
+  }
+
   // ── Journal entries ─────────────────────────────────────────────────────
   router.get('/finance/ledger/entries', async (req, res) => {
     try {
       const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
       const fyId = Number(req.query.fiscal_year)
-      // Show the native book AND the imported ClubDesk journal (read-only history).
-      let q = database('finance_transactions').whereIn('source', ['native', 'clubdesk'])
+      // One book at a time — never mix native + ClubDesk (they mirror the same events).
+      let q = database('finance_transactions').whereIn('source', await ledgerSources(fyId))
         .orderBy([{ column: 'booking_date', order: 'desc' }, { column: 'id', order: 'desc' }])
         .select('id', 'beleg', 'booking_date', 'text', 'debit_account', 'debit_account_number', 'debit_account_name',
           'credit_account', 'credit_account_number', 'credit_account_name', 'amount_chf', 'fiscal_year', 'typ', 'reversal_of', 'created_by_name', 'source')
@@ -192,8 +204,9 @@ export function registerFinanceLedger(router, { database, logger }) {
     try {
       const a = await gate(req); if (!a.ok) return res.status(403).json({ error: 'Forbidden' })
       const fyId = Number(req.query.fiscal_year)
-      // Native book + imported ClubDesk journal, so the trial balance shows the real books.
-      const txs = await database('finance_transactions').whereIn('source', ['native', 'clubdesk'])
+      // Single book (see ledgerSources) — never SUM native + ClubDesk or every shared
+      // account's balance doubles. Matches the native-only year-end close.
+      const txs = await database('finance_transactions').whereIn('source', await ledgerSources(fyId))
         .modify((qb) => { if (Number.isInteger(fyId)) qb.where('fiscal_year', fyId) })
         .select('debit_account', 'credit_account', 'amount_chf')
       const sums = new Map() // acctId → { debit, credit }
