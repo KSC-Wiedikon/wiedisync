@@ -4,6 +4,7 @@ import { useMutation } from '../../../hooks/useMutation'
 import { useAuth } from '../../../hooks/useAuth'
 import { useRealtime } from '../../../hooks/useRealtime'
 import type { Poll, PollVote } from '../../../types'
+import { relId, memberName } from '../../../utils/relations'
 
 export function usePolls(teamId: string) {
   const { user } = useAuth()
@@ -96,6 +97,10 @@ export function usePollVotes(pollId: string) {
 
   const { data: votesRaw, refetch, isLoading } = useCollection<PollVote>('poll_votes', {
     filter: pollId ? { poll: { _eq: pollId } } : { id: { _eq: -1 } },
+    // Expand the voter so managers can see per-member answers (non-anonymous
+    // polls). Non-managers only ever receive their own vote row (poll_votes
+    // read is OWN_MEMBER for them), so this leaks nothing.
+    fields: ['id', 'poll', 'member', 'selected_options', 'member.id', 'member.first_name', 'member.last_name'],
     all: true,
     enabled: !!pollId,
   })
@@ -107,7 +112,8 @@ export function usePollVotes(pollId: string) {
     if (e.record.poll === pollId) refetch()
   })
 
-  const myVote = votes.find(v => v.member === user?.id)
+  // `member` may arrive expanded (object) now, so compare via relId.
+  const myVote = votes.find(v => relId(v.member) === user?.id)
 
   const vote = useCallback(async (selectedOptions: number[]) => {
     if (!user) return
@@ -123,16 +129,21 @@ export function usePollVotes(pollId: string) {
     refetch()
   }, [user, pollId, myVote, create, update, refetch])
 
-  // Compute results: count votes per option index
+  // Compute results: count votes per option index, and (when the voter is
+  // expanded) collect who picked each option so managers can see per-member
+  // answers. For multi-choice a voter appears under every option they selected.
   const getResults = () => {
     const counts: Record<number, number> = {}
-    const voters: Record<number, string[]> = {}  // option index -> member IDs
+    const voters: Record<number, Array<{ id: string; name: string }>> = {}
     votes.forEach(v => {
-      const selected = v.selected_options as number[]
+      const m = v.member as unknown as string | { id: string | number; first_name?: string; last_name?: string }
+      const id = relId(m)
+      const name = (typeof m === 'object' && m ? memberName(m) : '') || id
+      const selected = (v.selected_options as number[]) ?? []
       selected.forEach(idx => {
         counts[idx] = (counts[idx] || 0) + 1
         if (!voters[idx]) voters[idx] = []
-        voters[idx].push(v.member)
+        voters[idx].push({ id, name })
       })
     })
     return { counts, voters, totalVotes: votes.length }
