@@ -109,9 +109,29 @@ export async function registerWindow(jar, windowUniqueId) {
   // 2. Socket.IO namespace CONNECT packet ("40")
   const conn = await fetch(`${base}?${qs({ sid })}`, { method: 'POST', headers: { ...H, 'Content-Type': 'text/plain;charset=UTF-8' }, body: '40' });
   if (!conn.ok) throw new Error(`socket.io connect HTTP ${conn.status}`);
-  // 3. Poll once for the namespace ack — the server registers the window here.
+  // 3. Poll once for the namespace ack ("40{sid}").
   await fetch(`${base}?${qs({ sid })}`, { headers: H }).catch(() => {});
-  return { sessionKey, sid };
+  // 4. UPGRADE to WebSocket and KEEP IT OPEN. Since ~2026-06-25 VolleyManager
+  //    requires the editing window to be a LIVE websocket (not just the polling
+  //    registration the 06-22 fix did) before it accepts a write — polling-only now
+  //    yields 403 "Access denied" again. Confirmed via browser HAR 2026-06-28: the
+  //    winning updateGame's window did the Engine.IO upgrade (2probe→3probe→5) and
+  //    held the socket open. Node 22 global WebSocket; the headers option carries
+  //    the auth cookie + Origin. The CALLER MUST close the returned socket after the
+  //    write (it answers server pings until then).
+  const wsUrl = `${base.replace(/^http/, 'ws')}?${qs({ sid, transport: 'websocket' })}`;
+  const ws = new WebSocket(wsUrl, { headers: { Cookie: jar.header(), Origin: VM_BASE, 'User-Agent': UA } });
+  await new Promise((resolve, reject) => {
+    const to = setTimeout(() => reject(new Error('ws upgrade timeout')), 10000);
+    ws.addEventListener('open', () => ws.send('2probe'));
+    ws.addEventListener('message', (ev) => {
+      const d = String(ev.data);
+      if (d === '3probe') { ws.send('5'); clearTimeout(to); resolve(); } // Engine.IO upgrade done
+      else if (d === '2') ws.send('3');                                  // ping → pong (keep-alive)
+    });
+    ws.addEventListener('error', (e) => { clearTimeout(to); reject(new Error(`ws upgrade error: ${e?.message || 'unknown'}`)); });
+  });
+  return { sessionKey, sid, ws };
 }
 
 // ─── CSRF extraction ─────────────────────────────────────────────────
