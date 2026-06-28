@@ -56,6 +56,41 @@ export function usePolls(teamId: string) {
   return { polls, isLoading, addPoll, closePoll, deletePoll }
 }
 
+// Open, still-actionable polls across several teams — used by the home-screen
+// surveys widget so polls (which otherwise live only on the team page) are easy
+// to find. Returns close/delete mutations so managers can act inline.
+export function useActivePolls(teamIds: string[]) {
+  const { data: pollsRaw, refetch, isLoading } = useCollection<Poll>('polls', {
+    filter: teamIds.length > 0
+      ? { _and: [{ team: { _in: teamIds } }, { status: { _eq: 'open' } }] }
+      : { id: { _eq: -1 } },
+    sort: ['-date_created'],
+    all: true,
+    enabled: teamIds.length > 0,
+  })
+  // The deadline doesn't auto-close a poll (status stays 'open'), so drop polls
+  // whose deadline has passed — they're no longer actionable on the home screen.
+  const polls = (pollsRaw ?? []).filter(p => !p.deadline || new Date(p.deadline) >= new Date())
+
+  const { update: updatePoll, remove: removePoll } = useMutation<Poll>('polls')
+
+  useRealtime<Poll>('polls', (e) => {
+    if (e.record.team != null && teamIds.includes(String(e.record.team))) refetch()
+  })
+
+  const closePoll = useCallback(async (pollId: string) => {
+    await updatePoll(pollId, { status: 'closed' })
+    refetch()
+  }, [updatePoll, refetch])
+
+  const deletePoll = useCallback(async (pollId: string) => {
+    await removePoll(pollId)
+    refetch()
+  }, [removePoll, refetch])
+
+  return { polls, isLoading, closePoll, deletePoll, refetch }
+}
+
 export function usePollVotes(pollId: string) {
   const { user } = useAuth()
 

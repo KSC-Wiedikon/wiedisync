@@ -1199,6 +1199,22 @@ async function main() {
   await setPerm(LEADER_POLICY, 'polls', 'update')
   await setPerm(LEADER_POLICY, 'polls', 'delete')
 
+  // Poll votes — read every vote on polls for teams I coach / am responsible for,
+  // so the poll creator/manager can see live results before the deadline
+  // (decision 2026-06-28). Members still read only their own vote (member policy);
+  // this unions on top via the leader policy. The UI shows aggregate counts only,
+  // matching the board's existing read-all + counts-only display posture.
+  await setPermRead(LEADER_POLICY, 'poll_votes', {
+    poll: {
+      team: {
+        _or: [
+          { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+          { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        ],
+      },
+    },
+  })
+
   // Team requests — read + update
   await setPermRead(LEADER_POLICY, 'team_requests')
   await setPerm(LEADER_POLICY, 'team_requests', 'update')

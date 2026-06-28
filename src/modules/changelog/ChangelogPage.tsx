@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.14.0'
+const APP_VERSION = '1.15.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.15.0',
+    date: '28.06.2026',
+    sections: [
+      {
+        title: 'Surveys are easier to find — and managers see live replies',
+        items: [
+          'Active surveys now appear on the home screen, right under the news — open polls for your teams show up there so you can vote without digging into a team page.',
+          'Team managers (coaches & team responsibles) can now see a poll\'s replies live: the running tally is visible at any time, not only after the deadline. Everyone else still sees results once they\'ve voted or the deadline has passed.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.14.0',
     date: '28.06.2026',

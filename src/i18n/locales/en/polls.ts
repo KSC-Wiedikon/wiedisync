@@ -1,5 +1,6 @@
 export default {
   title: 'Polls',
+  activePolls: 'Active polls',
   createPoll: 'Create poll',
   question: 'Question',
   questionPlaceholder: 'What do you want to ask?',

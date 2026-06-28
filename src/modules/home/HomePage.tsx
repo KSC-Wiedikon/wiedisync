@@ -36,6 +36,7 @@ import InstallBanner from '../guide/install/InstallBanner'
 import FormFillModal from '../forms/FormFillModal'
 import { useFillableForms, type FillableForm } from '../../hooks/useFillableForms'
 import YourDuesCard from '../finance/YourDuesCard'
+import HomePollsCard from '../polls/HomePollsCard'
 
 type ExpandedGame = Game & {
   kscw_team?: Team & BaseRecord | string
@@ -59,7 +60,7 @@ export default function HomePage() {
   const { t: tf } = useTranslation('forms')
   const { t: tg } = useTranslation('games')
 
-  const { user, isApproved, primarySport, coachTeamIds } = useAuth()
+  const { user, isApproved, primarySport, coachTeamIds, isCoachOf } = useAuth()
   const { items: fillableForms, refetch: refetchForms } = useFillableForms()
   const [fillItem, setFillItem] = useState<FillableForm | null>(null)
   // IBAN nudge — finance needs every member's up-to-date IBAN. Show a dismissible
@@ -561,6 +562,12 @@ export default function HomePage() {
           onSubmitted={() => { setFillItem(null); refetchForms() }}
           onCancel={() => setFillItem(null)}
         />
+      )}
+
+      {/* Active surveys — polls otherwise live only on the team page and are
+          easy to miss. Renders null when the user's teams have no open polls. */}
+      {user && isApproved && hasTeams && (
+        <HomePollsCard teamIds={userTeamIds} canManage={isCoachOf} />
       )}
 
       {/* Your dues — member's open invoices (renders null when nothing is open) */}
