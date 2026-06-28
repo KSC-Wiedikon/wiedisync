@@ -379,6 +379,21 @@ export function registerGameScheduling(router, { database, logger, services, get
     return member.is_spielplaner === true // club-wide (documented design) — unrestricted
   }
 
+  // Superadmin-only gate for club-wide settings (the global blocked-dates blackout).
+  // Directus admin OR the 'superuser'/'admin' member role — tighter than
+  // isAdminOrSpielplaner (a spielplaner must NOT edit the club-wide blackout).
+  async function isSuperadmin(req) {
+    if (req.accountability?.admin) return true
+    const userId = req.accountability?.user
+    if (!userId) return false
+    const m = await database('members').where('user', userId).first('role')
+    if (!m) return false
+    const roles = Array.isArray(m.role)
+      ? m.role
+      : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
+    return roles.includes('superuser') || roles.includes('admin')
+  }
+
   // Who (KSCW side) is performing this action — resolved from the authenticated
   // member, for the booking audit line ("Confirmed by …", migration 112). Best
   // effort: returns {name:null,email:null} for an admin token with no linked
@@ -954,6 +969,13 @@ export function registerGameScheduling(router, { database, logger, services, get
       return out
     }
 
+    // Club-wide blocked dates (superadmin blackout, migration 160) — no HOME games
+    // for ANY team on these days. Fetched once; checked in validate() below for
+    // every team, on top of each team's own scheduling_blocks.
+    const globalBlockRows = await database('scheduling_global_blocks')
+      .select(database.raw('start_date::text as s'), database.raw('end_date::text as e'))
+    const globalBlockDates = new Set(globalBlockRows.flatMap((r) => expandDays(r.s, r.e)))
+
     // Per-team caches (a season has few teams; many opponents reuse them).
     const teamCache = new Map()
     const getTeamCtx = async (teamId) => {
@@ -1024,6 +1046,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       const day = ymdOf(slot.date)
       if (ctx.eventDates.has(day)) return { valid: false, reason: 'team_event' }
       if (ctx.blockDates.has(day)) return { valid: false, reason: 'team_block' }
+      if (globalBlockDates.has(day)) return { valid: false, reason: 'club_block' }
       if (closureRows.some((c) => c.hall === slot.hall
         && day >= String(c.s).slice(0, 10) && day <= String(c.e).slice(0, 10))) {
         return { valid: false, reason: 'hall_closed' }
@@ -1762,6 +1785,14 @@ export function registerGameScheduling(router, { database, logger, services, get
             .from('scheduling_blocks as sb')
             .whereRaw('sb.team = ?', [opponent.kscw_team])
             .whereRaw('game_scheduling_slots.date BETWEEN sb.start_date AND sb.end_date')
+        })
+        // Club-wide blackout (migration 160) — superadmin "no games" dates for the
+        // whole club, on top of the per-team block above. Home-slot filter, same as
+        // a per-team block but team-agnostic.
+        .whereNotExists(function () {
+          this.select(database.raw('1'))
+            .from('scheduling_global_blocks as gb')
+            .whereRaw('game_scheduling_slots.date BETWEEN gb.start_date AND gb.end_date')
         })
         // Hall closures (e.g. gcal-synced Hallen-geschlossen / external hall use)
         // block HOME slots whose own hall is closed that day — you can't host
@@ -3435,6 +3466,13 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (home) {
         if (!DATE_RE.test(String(home.date || ''))) return res.status(400).json({ error: 'home.date must be YYYY-MM-DD' })
         if (outsideWindow(String(home.date))) return res.status(400).json({ error: windowError() })
+        // Club-wide blackout (migration 160): no HOME game on a superadmin-blocked
+        // date, even via manual booking — remove the block first to override.
+        {
+          const blocked = await database('scheduling_global_blocks')
+            .whereRaw('? BETWEEN start_date AND end_date', [String(home.date)]).first('id')
+          if (blocked) return res.status(400).json({ error: 'This date is blocked club-wide (no home games). Remove the block to book it.' })
+        }
         if (!home.start_time || !TIME_RE.test(String(home.start_time))) return res.status(400).json({ error: 'home.start_time must be HH:MM' })
         if (home.end_time && !TIME_RE.test(String(home.end_time))) return res.status(400).json({ error: 'home.end_time must be HH:MM' })
         if (!home.hall) return res.status(400).json({ error: 'home.hall required' })
@@ -4256,6 +4294,62 @@ export function registerGameScheduling(router, { database, logger, services, get
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `block-slot: ${err.message}`, endpoint: 'terminplanung/admin/block-slot', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── Club-wide blocked dates (superadmin blackout, migration 160) ─────────────
+  // Blocking a date range stops HOME games for EVERY team on those days (on top of
+  // the per-team scheduling_blocks). GET: planners may read (to show on the
+  // calendar). POST/DELETE: superadmin only.
+  const DATE_YMD_RE = /^\d{4}-\d{2}-\d{2}$/
+  router.get('/terminplanung/admin/club-blocked-dates', async (req, res) => {
+    try {
+      if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Forbidden' })
+      const blocks = await database('scheduling_global_blocks')
+        .select('id', database.raw('start_date::text as start_date'), database.raw('end_date::text as end_date'),
+          'reason', database.raw('date_created::text as date_created'))
+        .orderBy('start_date')
+      res.json({ blocks })
+    } catch (err) {
+      log.error({ msg: `club-blocked-dates list: ${err.message}`, endpoint: 'terminplanung/admin/club-blocked-dates', stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  router.post('/terminplanung/admin/club-blocked-dates', async (req, res) => {
+    try {
+      if (!(await isSuperadmin(req))) return res.status(403).json({ error: 'Superadmin only' })
+      const { start_date, end_date, reason } = req.body || {}
+      if (!DATE_YMD_RE.test(String(start_date || ''))) return res.status(400).json({ error: 'start_date must be YYYY-MM-DD' })
+      const end = DATE_YMD_RE.test(String(end_date || '')) ? String(end_date) : String(start_date)
+      if (end < String(start_date)) return res.status(400).json({ error: 'end_date must be on/after start_date' })
+      let createdBy = null
+      const uid = req.accountability?.user
+      if (uid) { const mm = await database('members').where('user', uid).first('id'); createdBy = mm?.id || null }
+      const ins = await database('scheduling_global_blocks')
+        .insert({ start_date, end_date: end, reason: reason ? String(reason).slice(0, 500) : null, created_by: createdBy })
+        .returning('id')
+      const id = ins[0]?.id ?? ins[0]
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'scheduling_global_blocks', recordId: id, data: { kind: 'club_block_create', start_date, end_date: end, reason: reason || null } })
+      res.json({ id, start_date, end_date: end, reason: reason || null })
+    } catch (err) {
+      log.error({ msg: `club-blocked-dates create: ${err.message}`, endpoint: 'terminplanung/admin/club-blocked-dates', stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  router.delete('/terminplanung/admin/club-blocked-dates/:id', async (req, res) => {
+    try {
+      if (!(await isSuperadmin(req))) return res.status(403).json({ error: 'Superadmin only' })
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+      const n = await database('scheduling_global_blocks').where('id', id).del()
+      if (!n) return res.status(404).json({ error: 'Not found' })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'scheduling_global_blocks', recordId: id, data: { kind: 'club_block_delete' } })
+      res.json({ success: true })
+    } catch (err) {
+      log.error({ msg: `club-blocked-dates delete: ${err.message}`, endpoint: 'terminplanung/admin/club-blocked-dates', stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

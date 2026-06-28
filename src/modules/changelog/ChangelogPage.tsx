@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.13.0'
+const APP_VERSION = '1.14.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.14.0',
+    date: '28.06.2026',
+    sections: [
+      {
+        title: 'Scheduling: block dates from the settings',
+        items: [
+          'New "Blocked dates (whole club)" setting (Scheduling → Settings) — block days where no team plays home games (club holidays, tournaments, hall-wide events). Editable only by a superadmin; coaches\' own per-team blocks still apply on top.',
+          'The closed dates (hall closures) — automatic ones from school holidays and the calendar sync, plus manual closures — are now managed right there in Settings too.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.13.0',
     date: '28.06.2026',

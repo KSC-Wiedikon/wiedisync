@@ -613,4 +613,26 @@ export default {
   vmPickTitle: 'VolleyManager-Spiel wählen',
   vmPickHint: 'Zwei Heimspiele passen zu diesem Gegner — wähle das im VolleyManager zu aktualisierende.',
   vmPickNone: 'Keine Spiele zur Auswahl.',
+
+  // Klubweite gesperrte Daten (Superadmin)
+  clubBlockTitle: 'Gesperrte Daten (ganzer Klub)',
+  clubBlockDescription: 'Sperre Daten, an denen kein Team Heimspiele austrägt — Klubferien, Turniere, hallenweite Anlässe. Die teameigenen Sperren der Trainer gelten zusätzlich. Nur du kannst dies bearbeiten.',
+  clubBlockFrom: 'Von',
+  clubBlockTo: 'Bis (optional)',
+  clubBlockReasonPlaceholder: 'Grund (optional)',
+  clubBlockAdd: 'Sperren',
+  clubBlockAdded: 'Daten gesperrt.',
+  clubBlockError: 'Sperre konnte nicht gespeichert werden.',
+  clubBlockEmpty: 'Noch keine klubweit gesperrten Daten.',
+  clubBlockColDates: 'Daten',
+  clubBlockColReason: 'Grund',
+  clubBlockRemove: 'Sperre entfernen',
+  clubBlockRemoveConfirm: 'Diesen klubweit gesperrten Zeitraum entfernen? An diesen Tagen sind Heimspiele wieder erlaubt.',
+
+  // Geschlossene Daten (Hallenschliessungen) in den Einstellungen
+  closedDatesTitle: 'Geschlossene Daten (Hallen)',
+  closedDatesDescription: 'Tage, an denen die Hallen geschlossen sind — Schulferien und Kalender-Sync (automatisch) sowie manuelle Schliessungen. Eine geschlossene Halle sperrt dort Heimspiele. Hier verwaltest du sie alle.',
+  closedDatesAuto: '{{count}} automatisch',
+  closedDatesManual: '{{count}} manuell',
+  closedDatesManage: 'Geschlossene Daten verwalten',
 }

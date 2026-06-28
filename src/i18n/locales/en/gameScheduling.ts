@@ -615,4 +615,26 @@ export default {
   vmPickTitle: 'Choose the VolleyManager fixture',
   vmPickHint: 'Two home games match this opponent — pick the one to update in VolleyManager.',
   vmPickNone: 'No fixtures to choose.',
+
+  // Club-wide blocked dates (superadmin)
+  clubBlockTitle: 'Blocked dates (whole club)',
+  clubBlockDescription: 'Block dates where no team plays home games — club holidays, tournaments, hall-wide events. Coaches’ own per-team blocks still apply on top. Only you can edit this.',
+  clubBlockFrom: 'From',
+  clubBlockTo: 'To (optional)',
+  clubBlockReasonPlaceholder: 'Reason (optional)',
+  clubBlockAdd: 'Block',
+  clubBlockAdded: 'Dates blocked.',
+  clubBlockError: 'Could not save the block.',
+  clubBlockEmpty: 'No club-wide blocked dates yet.',
+  clubBlockColDates: 'Dates',
+  clubBlockColReason: 'Reason',
+  clubBlockRemove: 'Remove block',
+  clubBlockRemoveConfirm: 'Remove this club-wide blocked date range? Home games will be allowed again on those days.',
+
+  // Closed dates (hall closures) in settings
+  closedDatesTitle: 'Closed dates (halls)',
+  closedDatesDescription: 'Days the halls are closed — school holidays and calendar sync (automatic) plus manual closures. A closed hall blocks home games there. Manage them all here.',
+  closedDatesAuto: '{{count}} automatic',
+  closedDatesManual: '{{count}} manual',
+  closedDatesManage: 'Manage closed dates',
 }
