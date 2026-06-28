@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Clock, Lock, Trash2 } from 'lucide-react'
+import { Clock, EyeOff, Lock, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Poll } from '../../types'
 import { formatDateZurich } from '../../utils/dateHelpers'
@@ -30,8 +30,11 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
   // hasn't voted yet still gets the result bars — made tappable below via
   // `canVote` so they can cast a vote without losing sight of the running tally.
   const showResults = hasVoted || !isOpen || deadlinePassed || canManage
+  // Managers see per-member answers (who picked what) — but only on
+  // non-anonymous polls. An anonymous poll stays totals-only even for managers.
+  const showVoters = canManage && !poll.anonymous
 
-  const { counts, totalVotes } = getResults()
+  const { counts, voters, totalVotes } = getResults()
 
   // Find the max vote count for highlighting
   const maxCount = Math.max(0, ...Object.values(counts))
@@ -97,6 +100,14 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
         </div>
       )}
 
+      {/* Anonymous hint — tells a manager why per-member answers aren't shown. */}
+      {canManage && poll.anonymous && (
+        <div className="mb-3 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+          <EyeOff className="h-3.5 w-3.5" />
+          <span>{t('anonymousNote')}</span>
+        </div>
+      )}
+
       {/* Options */}
       <div className="space-y-2">
         {poll.options.map((option, idx) => {
@@ -136,24 +147,30 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
               </>
             )
 
-            if (canVote) {
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => toggleOption(idx)}
-                  className={`relative block w-full overflow-hidden rounded-md text-left transition-opacity hover:opacity-90 ${
-                    isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
-                  }`}
-                >
-                  {bar}
-                </button>
-              )
-            }
+            const voterNames = showVoters ? (voters[idx] ?? []).map((v) => v.name).filter(Boolean) : []
 
             return (
-              <div key={idx} className="relative overflow-hidden rounded-md">
-                {bar}
+              <div key={idx} className="space-y-1">
+                {canVote ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleOption(idx)}
+                    className={`relative block w-full overflow-hidden rounded-md text-left transition-opacity hover:opacity-90 ${
+                      isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
+                    }`}
+                  >
+                    {bar}
+                  </button>
+                ) : (
+                  <div className="relative overflow-hidden rounded-md">{bar}</div>
+                )}
+                {/* Per-member answers (managers, non-anonymous polls only). */}
+                {voterNames.length > 0 && (
+                  <p className="px-1 text-xs leading-snug text-gray-500 dark:text-gray-400">
+                    <span className="text-gray-400 dark:text-gray-500">{t('votedBy')}: </span>
+                    {voterNames.join(', ')}
+                  </p>
+                )}
               </div>
             )
           }

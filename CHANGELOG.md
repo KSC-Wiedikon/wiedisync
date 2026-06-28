@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.16.0 — 2026-06-28
+
+### Polls: managers can see who voted
+- **Team managers (coaches & team responsibles) now see per-member answers** on a poll — who picked each option — beneath each result, not just the totals.
+- This respects the poll's **Anonymous** setting (chosen when creating the poll): an anonymous poll stays totals-only, even for managers.
+
 ## v1.15.0 — 2026-06-28
 
 ### Surveys are easier to find — and managers see live replies

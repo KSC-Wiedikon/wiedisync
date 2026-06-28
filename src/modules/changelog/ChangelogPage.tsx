@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.15.0'
+const APP_VERSION = '1.16.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.16.0',
+    date: '28.06.2026',
+    sections: [
+      {
+        title: 'Polls: managers can see who voted',
+        items: [
+          'Team managers (coaches & team responsibles) now see per-member answers on a poll — who picked each option — beneath each result, not just the totals.',
+          'This respects the poll\'s Anonymous setting (chosen when creating the poll): an anonymous poll stays totals-only, even for managers.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.15.0',
     date: '28.06.2026',
