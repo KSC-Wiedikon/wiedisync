@@ -3513,6 +3513,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       log.info({ msg: 'Shell member created from registration', memberId, email })
     }
 
+    // Flag the member for the next ClubDesk sync-up push (a new shell needs
+    // creating in ClubDesk; a re-linked member may have gained contact fields
+    // above). Best-effort — never fail the registration over the push flag.
+    try {
+      await db('members').where('id', memberId).update({ clubdesk_push_pending: true })
+    } catch (flagErr) {
+      log.warn({ msg: `clubdesk push-flag (registration) failed: ${flagErr.message}`, memberId })
+    }
+
     // 3. Link to team(s) based on rolle
     if (reg.team && reg.membership_type !== 'passive') {
       const teamNames = reg.team.split(',').map(t => t.trim()).filter(Boolean)

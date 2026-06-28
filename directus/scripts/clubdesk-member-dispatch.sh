@@ -14,8 +14,11 @@ DIR=/opt/clubdesk-sync
 PG=supabase-db-vek42jyj0owoutoouq29aisq
 DB="${DB:-postgres}"
 
-exec 9>"$DIR/.member-dispatch.lock"
-flock -n 9 || exit 0   # a previous dispatcher is still running
+# Per-env claim lock so the dev and prod dispatchers process their own requests
+# independently (DB=postgres for prod, directus_kscw_dev for dev). The actual
+# ClubDesk scrape is serialised separately on the shared .sync.lock below.
+exec 9>"$DIR/.member-dispatch-${DB}.lock"
+flock -n 9 || exit 0   # a previous dispatcher (same env) is still running
 
 psqlc() { docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -tAc "$1"; }
 
@@ -28,7 +31,9 @@ claim=$(psqlc "WITH u AS (UPDATE clubdesk_member_sync SET down_state='running' W
 [ "$claim" = "1" ] || exit 0
 
 echo "=== dispatch: member sync requested — running $(date -u +%FT%TZ) ==="
-if /opt/clubdesk-sync/clubdesk-sync.sh; then
+# Serialise the ClubDesk login against the up/finance/weekly scrapes (one session
+# per account) — blocking, so a concurrent scrape makes us wait, not collide.
+if flock "$DIR/.sync.lock" /opt/clubdesk-sync/clubdesk-sync.sh; then
   psqlc "UPDATE clubdesk_member_sync SET down_state='done', down_requested_at=NULL, down_finished_at=now(), down_message='Synced from ClubDesk' WHERE id=1"
   echo "=== dispatch: done ==="
 else
