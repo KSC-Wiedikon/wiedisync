@@ -91,8 +91,15 @@ export default function ParticipationSummary({
   const tentativeParts = playerData.filter(p => p.status === 'tentative')
   const tentative = tentativeParts.length
   const tentativeGuests = tentativeParts.reduce((sum, p) => sum + (p.guest_count ?? 0), 0)
-  const declined = playerData.filter(p => p.status === 'declined').length
+  const declinedParts = playerData.filter(p => p.status === 'declined')
+  const declined = declinedParts.length
   const waitlisted = playerData.filter(p => p.status === 'waitlisted').length
+
+  // Guests ride on their host's participation row. A host who is out (declined,
+  // typically auto-declined while on holiday) can still register a guest — e.g. a
+  // tryout player — who IS coming. So a declined host's guests still count toward
+  // attendance even though the host themselves is absent.
+  const declinedGuests = declinedParts.reduce((sum, p) => sum + (p.guest_count ?? 0), 0)
 
   // Coach present: count staff-only confirmed + player-coaches confirmed (via coachMemberIds)
   const staffOnlyConfirmed = staffData.filter(p => p.status === 'confirmed')
@@ -101,10 +108,13 @@ export default function ParticipationSummary({
     : []
   const staffConfirmed = staffOnlyConfirmed.length + playerCoachConfirmed.length
   const staffConfirmedGuests = staffOnlyConfirmed.reduce((sum, p) => sum + (p.guest_count ?? 0), 0)
+  const staffDeclinedGuests = staffData
+    .filter(p => p.status === 'declined')
+    .reduce((sum, p) => sum + (p.guest_count ?? 0), 0)
 
   // Total for green counter = players + all guests + extra non-member signups
   // (coaches excluded from number; extraConfirmed is only > 0 for the mixed tournament event)
-  const allGuests = confirmedGuests + staffConfirmedGuests
+  const allGuests = confirmedGuests + staffConfirmedGuests + declinedGuests + staffDeclinedGuests
   const confirmedTotal = confirmed + allGuests + extraConfirmed
   const hasGuestBreakdown = allGuests > 0
 
