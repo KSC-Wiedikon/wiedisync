@@ -63,6 +63,10 @@ const DOC_FIELDS: (keyof Registration)[] = [
 ]
 const countDocs = (reg: Registration): number => DOC_FIELDS.filter((k) => reg[k]).length
 
+// Registration form stores free-text gender lowercase ("männlich"); display capitalized.
+const capitalizeFirst = (s: string): string =>
+  s ? s.charAt(0).toUpperCase() + s.slice(1) : s
+
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
 
 // ── CSV export (ClubDesk format) ───────────────────────────────
@@ -576,8 +580,9 @@ function ExpandedDetails({
   const [edits, setEdits] = useState<Record<string, string>>({})
   const hasChanges = Object.keys(edits).length > 0
 
-  const field = (key: keyof Registration, label: string, opts?: { type?: string; full?: boolean }) => {
-    const original = (reg[key] as string) ?? ''
+  const field = (key: keyof Registration, label: string, opts?: { type?: string; full?: boolean; display?: (v: string) => string }) => {
+    const raw = (reg[key] as string) ?? ''
+    const original = opts?.display ? opts.display(raw) : raw
     const value = edits[key] ?? original
     return (
       <div className={opts?.full ? 'sm:col-span-2' : ''}>
@@ -657,7 +662,7 @@ function ExpandedDetails({
         {field('ort', t('anmeldungenCity'))}
         {field('geburtsdatum', t('anmeldungenDob'), { type: 'date' })}
         {field('nationalitaet', t('anmeldungenNationality'))}
-        {field('geschlecht', t('anmeldungenGender'))}
+        {field('geschlecht', t('anmeldungenGender'), { display: capitalizeFirst })}
         {field('rolle', t('anmeldungenFunction'))}
         {field('team', t('anmeldungenTeam'))}
         {field('beitragskategorie', t('anmeldungenFeeCategory'))}

@@ -287,6 +287,15 @@ const T = {
 const REG_LOCALES = ['de', 'gsw', 'en', 'fr', 'it']
 function t(locale) { return T[locale] || T.de }
 
+// Capitalize the first letter for display. The registration form stores
+// free-text gender ("männlich") and the membership_type enum ("basketball")
+// in lowercase — both should render capitalized in emails ("Männlich",
+// "Basketball"). Returns the input unchanged when falsy/non-string.
+function capFirst(s) {
+  if (!s || typeof s !== 'string') return s
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 function buildSummaryCard(reg, locale) {
   const l = t(locale)
   const dob = reg.geburtsdatum ? formatDateCH(reg.geburtsdatum) : '-'
@@ -299,7 +308,7 @@ function buildSummaryCard(reg, locale) {
     { label: l.phone, value: reg.telefon_mobil || '-' },
     { label: l.address, value: `${reg.adresse || ''}, ${reg.plz || ''} ${reg.ort || ''}` },
     { label: l.nationality, value: reg.nationalitaet || '-', halfWidth: true },
-    { label: l.gender, value: reg.geschlecht || '-', halfWidth: true },
+    { label: l.gender, value: capFirst(reg.geschlecht) || '-', halfWidth: true },
     ...(reg.lizenz ? [{ label: l.licence, value: reg.lizenz }] : []),
     ...(reg.schiedsrichter_stufe ? [{ label: l.refLevel, value: reg.schiedsrichter_stufe }] : []),
     { label: l.ref, value: reg.reference_number },
@@ -384,7 +393,7 @@ function buildAdminNotificationEmail(reg, locale = 'de') {
 
   const summary = buildInfoCard([
     { label: l.name, value: `${reg.vorname} ${reg.nachname}`, halfWidth: true },
-    { label: l.adminType, value: reg.membership_type, halfWidth: true },
+    { label: l.adminType, value: capFirst(reg.membership_type), halfWidth: true },
     { label: l.team, value: reg.team || '-', halfWidth: true },
     { label: l.fee, value: reg.beitragskategorie || '-', halfWidth: true },
     { label: l.email, value: reg.email, halfWidth: true },
@@ -415,7 +424,7 @@ function buildAdminNotificationEmail(reg, locale = 'de') {
 
   return buildEmailLayout(body, {
     title: l.adminTitle,
-    subtitle: `${reg.vorname} ${reg.nachname} — ${reg.membership_type}`,
+    subtitle: `${reg.vorname} ${reg.nachname} — ${capFirst(reg.membership_type)}`,
     sport,
     ctaUrl: 'https://wiedisync.kscw.ch/admin/anmeldungen',
     ctaLabel: l.adminCta,
@@ -539,7 +548,7 @@ export function registerRegistration(router, { database, logger, services, getSc
           const lAdmin = T[loc] || T.de
           await mail.send({
             to: tos,
-            subject: lAdmin.adminSubject(reg.vorname, reg.nachname, reg.membership_type),
+            subject: lAdmin.adminSubject(reg.vorname, reg.nachname, capFirst(reg.membership_type)),
             html: buildAdminNotificationEmail(reg, loc),
           })
         }
@@ -550,7 +559,7 @@ export function registerRegistration(router, { database, logger, services, getSc
         const ownerLAdmin = T[locale] || T.de
         await mail.send({
           to: [OWNER_EMAIL],
-          subject: ownerLAdmin.adminSubject(reg.vorname, reg.nachname, reg.membership_type),
+          subject: ownerLAdmin.adminSubject(reg.vorname, reg.nachname, capFirst(reg.membership_type)),
           html: buildAdminNotificationEmail(reg, locale),
         })
       } catch (emailErr) {
