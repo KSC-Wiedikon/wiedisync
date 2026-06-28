@@ -18,8 +18,10 @@ PG=supabase-db-vek42jyj0owoutoouq29aisq
 DB="${DB:-postgres}"
 PW_IMG=mcr.microsoft.com/playwright:v1.60.0-jammy
 
-exec 9>"$DIR/.up-dispatch.lock"
-flock -n 9 || exit 0   # a previous up-dispatcher is still running
+# Per-env claim lock (dev vs prod process their own requests independently); the
+# ClubDesk scrape itself is serialised on the shared .sync.lock further down.
+exec 9>"$DIR/.up-dispatch-${DB}.lock"
+flock -n 9 || exit 0   # a previous up-dispatcher (same env) is still running
 
 psqlc() { docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -tAc "$1"; }
 
