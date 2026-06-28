@@ -1,5 +1,6 @@
 export default {
   title: 'Umfragen',
+  activePolls: 'Aktive Umfragen',
   createPoll: 'Umfrage erstellen',
   question: 'Frage',
   questionPlaceholder: 'Was möchtest du fragen?',

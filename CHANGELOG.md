@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.15.0 — 2026-06-28
+
+### Surveys are easier to find — and managers see live replies
+- **Active surveys now appear on the home screen**, right under the news — open polls for your teams show up there so you can vote without digging into a team page.
+- **Team managers (coaches & team responsibles) can now see a poll's replies live**: the running tally is visible at any time, not only after the deadline. Everyone else still sees results once they've voted or the deadline has passed.
+
 ## v1.14.0 — 2026-06-28
 
 ### Scheduling: block dates from the settings

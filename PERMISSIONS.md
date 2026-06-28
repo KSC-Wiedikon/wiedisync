@@ -167,6 +167,7 @@ Inherits everything from Member. Adds:
 | tasks | create / update / delete | scoped via teams.coach | 026 |
 | task_templates | read / create / update | scoped via teams.coach | 026 |
 | polls | create / update / delete | scoped via teams.coach | 026 |
+| poll_votes | read | all votes on polls for teams I coach/TR (`poll.team.coach/team_responsible.members_id.user = $CURRENT_USER`) — lets the poll manager see live results before the deadline; unions on top of the member's own-vote read. UI shows aggregate counts only | **2026-06-28** |
 | team_requests | read / update | none | |
 | absences | read | own + members on teams I coach/TR | Doc drift fixed 2026-06-10 — read is NOT unfiltered. Scoped to the coach/TR-of-the-target-team filter (`member.member_teams.team.{coach,team_responsible}.members_id.user = $CURRENT_USER`, plus own), same scope as the CUD rows (2026-05-12 audit closed the full-club absence-notes dump) |
 | notifications | create | none | |

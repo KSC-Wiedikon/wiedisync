@@ -24,7 +24,12 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
   const hasVoted = !!myVote
   const deadlinePassed = poll.deadline ? new Date(poll.deadline) < new Date() : false
   const canVote = isOpen && !hasVoted && !deadlinePassed
-  const showResults = hasVoted || !isOpen || deadlinePassed
+  // Managers (coach/TR/board) see the live tally at any time so they can monitor
+  // replies before the deadline (decision 2026-06-28). Everyone else sees results
+  // once they've voted, the poll closed, or the deadline passed. A manager who
+  // hasn't voted yet still gets the result bars — made tappable below via
+  // `canVote` so they can cast a vote without losing sight of the running tally.
+  const showResults = hasVoted || !isOpen || deadlinePassed || canManage
 
   const { counts, totalVotes } = getResults()
 
@@ -102,9 +107,11 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
           const isTopOption = count === maxCount && maxCount > 0
 
           if (showResults) {
-            // Result bar view
-            return (
-              <div key={idx} className="relative overflow-hidden rounded-md">
+            // Result bar view. The fill + label are identical whether or not the
+            // viewer can act; only the wrapper differs (tappable <button> when the
+            // viewer can still vote, e.g. a manager who hasn't voted yet).
+            const bar = (
+              <>
                 <div
                   className={`absolute inset-y-0 left-0 rounded-md transition-all ${
                     isTopOption
@@ -126,6 +133,27 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
                     {pct}%
                   </span>
                 </div>
+              </>
+            )
+
+            if (canVote) {
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => toggleOption(idx)}
+                  className={`relative block w-full overflow-hidden rounded-md text-left transition-opacity hover:opacity-90 ${
+                    isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
+                  }`}
+                >
+                  {bar}
+                </button>
+              )
+            }
+
+            return (
+              <div key={idx} className="relative overflow-hidden rounded-md">
+                {bar}
               </div>
             )
           }
