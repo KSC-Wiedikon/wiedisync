@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.12.0'
+const APP_VERSION = '1.13.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.13.0',
+    date: '28.06.2026',
+    sections: [
+      {
+        title: 'Keep member data in sync with ClubDesk (admins)',
+        items: [
+          'A new "Sync down from ClubDesk" button (Registrations page) pulls the latest member data from ClubDesk on demand, instead of waiting for the weekly sync.',
+          'A new "Sync up to ClubDesk" opens a review modal that previews exactly which members are new or changed, lets you choose which to push, then writes them into ClubDesk — updating existing contacts (matched by email) rather than creating duplicates — and shows the result.',
+          'Both are admin-only, and the sync-up always shows a preview for you to confirm before anything is written to ClubDesk.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.12.0',
     date: '26.06.2026',

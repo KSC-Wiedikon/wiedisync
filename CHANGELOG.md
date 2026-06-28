@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.13.0 — 2026-06-28
+
+### Keep member data in sync with ClubDesk (admins)
+- A new **"Sync down from ClubDesk"** button (Registrations page) pulls the latest member data from ClubDesk on demand, instead of waiting for the weekly sync.
+- A new **"Sync up to ClubDesk"** opens a **review modal** that previews exactly which members are new or changed, lets you choose which to push, then writes them into ClubDesk — **updating existing contacts** (matched by email) rather than creating duplicates — and shows the result.
+- Both are admin-only, and the sync-up always shows a preview to confirm before anything is written to ClubDesk.
+
 ## v1.12.0 — 2026-06-26
 
 ### Choose which emails you receive
