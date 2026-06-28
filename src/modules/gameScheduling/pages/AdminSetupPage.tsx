@@ -16,6 +16,7 @@ import SpielsamstageEditor from '../components/SpielsamstageEditor'
 import SlotGenerationPanel from '../components/SlotGenerationPanel'
 import TeamSlotConfigPanel from '../components/TeamSlotConfigPanel'
 import GapConfigPanel from '../components/GapConfigPanel'
+import ClubBlockedDatesPanel from '../components/ClubBlockedDatesPanel'
 import DerbyPanel from '../components/DerbyPanel'
 import ExcelImportPanel from '../components/ExcelImportPanel'
 import InvitesPanel from '../components/InvitesPanel'
@@ -32,7 +33,7 @@ interface RolloverResult {
 export default function AdminSetupPage() {
   const { t } = useTranslation('gameScheduling')
   const confirm = useConfirm()
-  const { hasAdminAccessToSport, isGlobalAdmin, is_spielplaner } = useAuth()
+  const { hasAdminAccessToSport, isGlobalAdmin, isSuperAdmin, is_spielplaner } = useAuth()
   const { season, allSeasons, isLoading, createSeason, updateSeason, setSeason, refetch: refetchSeasons } = useGameSchedulingSeason()
   const { generateSlots, slots, isLoading: slotsLoading } = useAdminBookings(season?.id)
   const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams()
@@ -195,6 +196,9 @@ export default function AdminSetupPage() {
 
           {/* Config panels — two cards per row on desktop */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+            {/* Club-wide blocked dates (superadmin only) — blackout days with no home games */}
+            {isSuperAdmin && <ClubBlockedDatesPanel />}
+
             {/* Game-spacing gaps (home / proposals / lenient 3rd proposal) */}
             <GapConfigPanel gapConfig={season.gap_config} onUpdate={handleUpdateGapConfig} />
 
