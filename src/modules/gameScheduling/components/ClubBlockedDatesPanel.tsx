@@ -88,24 +88,28 @@ export default function ClubBlockedDatesPanel() {
       </div>
       <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">{t('clubBlockDescription')}</p>
 
-      {/* Add form */}
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
-        <label className="flex flex-col text-xs text-gray-500 dark:text-gray-400">
-          {t('clubBlockFrom')}
-          <input type="date" value={start} onChange={(e) => setStart(e.target.value)}
-            className="mt-0.5 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
-        </label>
-        <label className="flex flex-col text-xs text-gray-500 dark:text-gray-400">
-          {t('clubBlockTo')}
-          <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)}
-            className="mt-0.5 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
-        </label>
-        <input type="text" value={reason} maxLength={120} placeholder={t('clubBlockReasonPlaceholder')}
-          onChange={(e) => setReason(e.target.value)}
-          className="flex-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
-        <Button type="button" size="sm" onClick={add} disabled={!start || saving} className="gap-1.5">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{t('clubBlockAdd')}
-        </Button>
+      {/* Add form — dates on one row, reason + button below (fits a half-width card) */}
+      <div className="mb-4 space-y-2">
+        <div className="flex gap-2">
+          <label className="flex min-w-0 flex-1 flex-col text-xs text-gray-500 dark:text-gray-400 sm:max-w-[10rem]">
+            {t('clubBlockFrom')}
+            <input type="date" value={start} onChange={(e) => setStart(e.target.value)}
+              className="mt-0.5 w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
+          </label>
+          <label className="flex min-w-0 flex-1 flex-col text-xs text-gray-500 dark:text-gray-400 sm:max-w-[10rem]">
+            {t('clubBlockTo')}
+            <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)}
+              className="mt-0.5 w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
+          </label>
+        </div>
+        <div className="flex gap-2">
+          <input type="text" value={reason} maxLength={120} placeholder={t('clubBlockReasonPlaceholder')}
+            onChange={(e) => setReason(e.target.value)}
+            className="min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
+          <Button type="button" size="sm" onClick={add} disabled={!start || saving} className="shrink-0 gap-1.5">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{t('clubBlockAdd')}
+          </Button>
+        </div>
       </div>
 
       {/* List */}
