@@ -1,6 +1,6 @@
 import { Fragment, useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink } from 'lucide-react'
+import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink, ArrowUpFromLine } from 'lucide-react'
 import { useCollection, useUpdate } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -8,6 +8,8 @@ import { assetUrl } from '../../lib/api'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import TeamChip from '../../components/TeamChip'
 import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
+import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
+import { Button } from '../../components/ui/button'
 import { formatDate } from '../../utils/dateHelpers'
 import { toast } from 'sonner'
 import {
@@ -62,6 +64,10 @@ const DOC_FIELDS: (keyof Registration)[] = [
   'id_upload_back',
 ]
 const countDocs = (reg: Registration): number => DOC_FIELDS.filter((k) => reg[k]).length
+
+// Registration form stores free-text gender lowercase ("männlich"); display capitalized.
+const capitalizeFirst = (s: string): string =>
+  s ? s.charAt(0).toUpperCase() + s.slice(1) : s
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
 
@@ -152,6 +158,7 @@ const SPORT_STYLES = {
 export default function AnmeldungenPage() {
   const { t } = useTranslation('admin')
   const { isGlobalAdmin, isVbAdmin, isBbAdmin } = useAuth()
+  const [syncUpOpen, setSyncUpOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -280,8 +287,16 @@ export default function AnmeldungenPage() {
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('anmeldungenTitle')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('anmeldungenDescription')}</p>
         </div>
-        {isGlobalAdmin && <ClubdeskMemberSyncButton className="shrink-0" />}
+        {isGlobalAdmin && (
+          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+            <ClubdeskMemberSyncButton />
+            <Button type="button" variant="outline" size="sm" onClick={() => setSyncUpOpen(true)} className="gap-2">
+              <ArrowUpFromLine className="h-4 w-4" />{t('clubdeskUpButton')}
+            </Button>
+          </div>
+        )}
       </div>
+      {isGlobalAdmin && <ClubdeskSyncUpModal open={syncUpOpen} onOpenChange={setSyncUpOpen} />}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -576,8 +591,9 @@ function ExpandedDetails({
   const [edits, setEdits] = useState<Record<string, string>>({})
   const hasChanges = Object.keys(edits).length > 0
 
-  const field = (key: keyof Registration, label: string, opts?: { type?: string; full?: boolean }) => {
-    const original = (reg[key] as string) ?? ''
+  const field = (key: keyof Registration, label: string, opts?: { type?: string; full?: boolean; display?: (v: string) => string }) => {
+    const raw = (reg[key] as string) ?? ''
+    const original = opts?.display ? opts.display(raw) : raw
     const value = edits[key] ?? original
     return (
       <div className={opts?.full ? 'sm:col-span-2' : ''}>
@@ -657,7 +673,7 @@ function ExpandedDetails({
         {field('ort', t('anmeldungenCity'))}
         {field('geburtsdatum', t('anmeldungenDob'), { type: 'date' })}
         {field('nationalitaet', t('anmeldungenNationality'))}
-        {field('geschlecht', t('anmeldungenGender'))}
+        {field('geschlecht', t('anmeldungenGender'), { display: capitalizeFirst })}
         {field('rolle', t('anmeldungenFunction'))}
         {field('team', t('anmeldungenTeam'))}
         {field('beitragskategorie', t('anmeldungenFeeCategory'))}

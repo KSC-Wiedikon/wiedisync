@@ -115,6 +115,46 @@ function buildCsv(data, teamNames) {
   return CSV_HEADERS.join(',') + '\n' + row.map(escCsv).join(',')
 }
 
+// ── Sync-up push CSV (member → ClubDesk import) ─────────────────────────────
+// Headers are the EXACT ClubDesk field names so the import wizard auto-maps every
+// column (verified live 2026-06-27 — "Telefon Privat" not "Telefon", "AHV Nummer"
+// not "AHV-Nummer"). Semicolon-delimited (ClubDesk's import default). CONTACT
+// fields only — never groups/teams/membership category (ClubDesk-managed).
+const CD_PUSH_HEADERS = [
+  'Anrede', 'Vorname', 'Nachname', 'E-Mail', 'Telefon Privat', 'Adresse',
+  'PLZ', 'Ort', 'Geburtsdatum', 'Nationalität', 'Geschlecht', 'AHV Nummer',
+]
+
+function fmtBirthdateDDMMYYYY(v) {
+  if (!v) return ''
+  const iso = (v instanceof Date) ? v.toISOString().slice(0, 10) : String(v)
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : ''
+}
+
+// Semicolon-CSV cell: neutralise spreadsheet-formula injection, then quote.
+function cdCell(val) {
+  let s = String(val ?? '')
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+  return (s.includes(';') || s.includes('"') || s.includes('\n'))
+    ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+function buildPushCsv(members) {
+  const rows = members.map((m) => [
+    m.anrede, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
+    fmtBirthdateDDMMYYYY(m.birthdate), m.nationalitaet,
+    m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '', m.ahv_nummer,
+  ].map(cdCell).join(';'))
+  return CD_PUSH_HEADERS.join(';') + '\n' + rows.join('\n') + '\n'
+}
+
+// Member fields the push CSV reads (also the preview fetch set).
+const PUSH_FIELDS = [
+  'id', 'anrede', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
+  'ort', 'birthdate', 'nationalitaet', 'sex', 'ahv_nummer', 'clubdesk_id', 'clubdesk_push_changes',
+]
+
 // Escape user-controlled strings before interpolating into the admin email
 // body. Without this, a member could submit `<img src=x onerror=…>` as one of
 // the changed values and the admin's webmail client would render the payload.
@@ -212,6 +252,91 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
+  // ── Sync-UP: preview what would be pushed to ClubDesk ───────────────────────
+  // changed  = members edited in wiedisync since the last push AND linked to a
+  //            ClubDesk contact (clubdesk_id) → ClubDesk will UPDATE them.
+  // unlinked = members with no clubdesk_id (new registrations + divergent-email /
+  //            non-member rows) → the superadmin decides per-member whether to
+  //            create them (a divergent-email member would otherwise duplicate).
+  router.get('/clubdesk-member-sync/up-preview', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const changedRows = await database('members')
+        .where('clubdesk_push_pending', true).whereNotNull('clubdesk_id')
+        .select('id', 'first_name', 'last_name', 'email', 'clubdesk_id', 'clubdesk_push_changes')
+        .orderBy('last_name')
+      const changed = changedRows.map((m) => {
+        let changes = []
+        try { changes = Array.isArray(m.clubdesk_push_changes) ? m.clubdesk_push_changes : (m.clubdesk_push_changes ? JSON.parse(m.clubdesk_push_changes) : []) } catch { changes = [] }
+        return { id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email, clubdesk_id: m.clubdesk_id, changes }
+      })
+      const unlinkedRows = await database('members')
+        .whereNull('clubdesk_id')
+        .select('id', 'first_name', 'last_name', 'email')
+        .orderBy('last_name')
+      const unlinked = unlinkedRows.map((m) => {
+        const e = (m.email || '').toLowerCase()
+        const likelyNonMember = e.includes('@kscw.clubdesk.com') || e.startsWith('system@') || e.endsWith('@kscw.ch')
+        return { id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email, likely_non_member: likelyNonMember }
+      })
+      return res.json({ changed, unlinked })
+    } catch (err) {
+      log.error({ msg: `up-preview: ${err.message}`, endpoint: 'clubdesk-member-sync/up-preview', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── Sync-UP: commit — stash the approved CSV + member ids, enqueue the push ──
+  // The host up-dispatcher reads up_csv, runs the import scraper (commit), clears
+  // clubdesk_push_pending for up_member_ids, and writes up_result.
+  router.post('/clubdesk-member-sync/up', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const ids = Array.isArray(req.body?.member_ids) ? req.body.member_ids.map(Number).filter((n) => Number.isInteger(n)) : []
+      if (!ids.length) return res.status(400).json({ error: 'member_ids required' })
+      const s = await database('clubdesk_member_sync').where('id', 1).first('up_state')
+      if (['queued', 'running'].includes(s?.up_state)) {
+        return res.status(409).json({ error: 'A sync-up is already in progress', state: s.up_state })
+      }
+      const members = await database('members').whereIn('id', ids).select(PUSH_FIELDS)
+      if (!members.length) return res.status(400).json({ error: 'No matching members' })
+      const csv = buildPushCsv(members)
+      await database('clubdesk_member_sync').where('id', 1).update({
+        up_requested_at: new Date(), up_state: 'queued', up_message: null, up_finished_at: null,
+        up_csv: csv, up_member_ids: JSON.stringify(members.map((m) => m.id)), up_result: null,
+      })
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update',
+        collection: 'clubdesk_member_sync', recordId: 1,
+        data: { kind: 'clubdesk_member_sync_request', direction: 'up', member_count: members.length },
+      })
+      return res.json({ state: 'queued', count: members.length })
+    } catch (err) {
+      log.error({ msg: `up-commit: ${err.message}`, endpoint: 'clubdesk-member-sync/up', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  router.get('/clubdesk-member-sync/up-status', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const s = await database('clubdesk_member_sync').where('id', 1)
+        .first('up_state', 'up_message', 'up_requested_at', 'up_finished_at', 'up_result')
+      let result = null
+      try { result = s?.up_result ? (typeof s.up_result === 'object' ? s.up_result : JSON.parse(s.up_result)) : null } catch { result = null }
+      return res.json({
+        state: s?.up_state || 'idle',
+        message: s?.up_message || null,
+        requested_at: s?.up_requested_at || null,
+        finished_at: s?.up_finished_at || null,
+        result,
+      })
+    } catch (err) {
+      log.error({ msg: `up-status: ${err.message}`, endpoint: 'clubdesk-member-sync/up-status', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   router.post('/clubdesk-update', async (req, res) => {
     try {
       // Auth check
@@ -294,6 +419,19 @@ ${buildChangesTable(changes, loc)}
           html: emailHtml,
           attachments: [{ filename, content: csvString, contentType: 'text/csv' }],
         })
+      }
+
+      // Flag the member for the next ClubDesk sync-up push and remember the field
+      // diff (the superadmin modal echoes it). The email-to-admin path stays as the
+      // manual fallback; the flag enables the automated push. Best-effort — a flag
+      // failure must not fail the member's edit.
+      try {
+        await database('members').where('id', member_id).update({
+          clubdesk_push_pending: true,
+          clubdesk_push_changes: JSON.stringify(changes),
+        })
+      } catch (flagErr) {
+        log.warn({ msg: `clubdesk push-flag failed: ${flagErr.message}`, member_id })
       }
 
       log.info({ msg: 'ClubDesk update email sent', member_id, changes: changes.length })
