@@ -628,4 +628,11 @@ export default {
   clubBlockColReason: 'Grund',
   clubBlockRemove: 'Sperre entfernen',
   clubBlockRemoveConfirm: 'Diesen klubweit gesperrten Zeitraum entfernen? An diesen Tagen sind Heimspiele wieder erlaubt.',
+
+  // Geschlossene Daten (Hallenschliessungen) in den Einstellungen
+  closedDatesTitle: 'Geschlossene Daten (Hallen)',
+  closedDatesDescription: 'Tage, an denen die Hallen geschlossen sind — Schulferien und Kalender-Sync (automatisch) sowie manuelle Schliessungen. Eine geschlossene Halle sperrt dort Heimspiele. Hier verwaltest du sie alle.',
+  closedDatesAuto: '{{count}} automatisch',
+  closedDatesManual: '{{count}} manuell',
+  closedDatesManage: 'Geschlossene Daten verwalten',
 }

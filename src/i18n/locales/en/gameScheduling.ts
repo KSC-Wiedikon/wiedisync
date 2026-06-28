@@ -630,4 +630,11 @@ export default {
   clubBlockColReason: 'Reason',
   clubBlockRemove: 'Remove block',
   clubBlockRemoveConfirm: 'Remove this club-wide blocked date range? Home games will be allowed again on those days.',
+
+  // Closed dates (hall closures) in settings
+  closedDatesTitle: 'Closed dates (halls)',
+  closedDatesDescription: 'Days the halls are closed — school holidays and calendar sync (automatic) plus manual closures. A closed hall blocks home games there. Manage them all here.',
+  closedDatesAuto: '{{count}} automatic',
+  closedDatesManual: '{{count}} manual',
+  closedDatesManage: 'Manage closed dates',
 }

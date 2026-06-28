@@ -17,6 +17,7 @@ import SlotGenerationPanel from '../components/SlotGenerationPanel'
 import TeamSlotConfigPanel from '../components/TeamSlotConfigPanel'
 import GapConfigPanel from '../components/GapConfigPanel'
 import ClubBlockedDatesPanel from '../components/ClubBlockedDatesPanel'
+import ClosedDatesPanel from '../components/ClosedDatesPanel'
 import DerbyPanel from '../components/DerbyPanel'
 import ExcelImportPanel from '../components/ExcelImportPanel'
 import InvitesPanel from '../components/InvitesPanel'
@@ -198,6 +199,9 @@ export default function AdminSetupPage() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
             {/* Club-wide blocked dates (superadmin only) — blackout days with no home games */}
             {isSuperAdmin && <ClubBlockedDatesPanel />}
+
+            {/* Closed dates / hall closures (auto + manual) — admins manage here too */}
+            {isGlobalAdmin && <ClosedDatesPanel />}
 
             {/* Game-spacing gaps (home / proposals / lenient 3rd proposal) */}
             <GapConfigPanel gapConfig={season.gap_config} onUpdate={handleUpdateGapConfig} />

@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.14.0 — 2026-06-28
+
+### Scheduling: block dates from the settings
+- New **"Blocked dates (whole club)"** setting (Scheduling → Settings) — block days where no team plays home games (club holidays, tournaments, hall-wide events). Editable only by a superadmin; coaches' own per-team blocks still apply on top.
+- The **closed dates** (hall closures) — automatic ones from school holidays and the calendar sync, plus manual closures — are now managed right there in Settings too.
+
 ## v1.13.0 — 2026-06-28
 
 ### Keep member data in sync with ClubDesk (admins)
