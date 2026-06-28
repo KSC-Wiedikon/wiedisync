@@ -4,7 +4,7 @@ import { House, Plane } from 'lucide-react'
 import CalendarGrid from '../../../components/CalendarGrid'
 import Modal from '../../../components/Modal'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table'
-import { fetchAllItems } from '../../../lib/api'
+import { fetchAllItems, kscwApi } from '../../../lib/api'
 import { toDateKey, getSeasonYear, formatDate } from '../../../utils/dateUtils'
 import { toZurichDateString } from '../../../utils/dateHelpers'
 import { relId } from '../../../utils/relations'
@@ -24,6 +24,7 @@ type EntryKind =
   | 'away_proposed'
   | 'blocked'      // a reserved KWI court (derby hall hold / BB Friday split)
   | 'team_block'   // a scheduling_blocks "no games" period for the team
+  | 'club_block'   // a scheduling_global_blocks club-wide blackout (all teams)
   | 'team_event'   // a team event that blocks games that day
 
 /** An intra-club game (e.g. the H1↔H3 derby) — not a booking; comes from `games`.
@@ -116,11 +117,12 @@ const CHIP: Record<EntryKind, string> = {
   away_proposed: 'border border-dashed border-orange-500 bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
   blocked: 'bg-gray-300 text-gray-600 line-through dark:bg-gray-600 dark:text-gray-300',
   team_block: 'bg-rose-200 text-rose-800 dark:bg-rose-900/50 dark:text-rose-200',
+  club_block: 'bg-red-300 text-red-900 dark:bg-red-950/70 dark:text-red-100',
   team_event: 'bg-purple-200 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
 }
 
 // Kinds that represent "a game can't happen here" rather than a game itself.
-const isBlockerKind = (k: EntryKind) => k === 'blocked' || k === 'team_block' || k === 'team_event'
+const isBlockerKind = (k: EntryKind) => k === 'blocked' || k === 'team_block' || k === 'club_block' || k === 'team_event'
 
 export default function SchedulingCalendar({ slots, bookings, teams, season, games = [], title, showAbsences }: Props) {
   const { t } = useTranslation('gameScheduling')
@@ -253,6 +255,18 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       .catch(() => { if (!cancelled) setBlocks([]) })
     return () => { cancelled = true }
   }, [teamIds, startYear])
+
+  // Club-wide blocked dates (scheduling_global_blocks, superadmin blackout) — no
+  // HOME games for ANY team, so they're shown on every view (not team-scoped).
+  // Read via the scheduling endpoint; a non-admin viewer just gets none.
+  const [clubBlocks, setClubBlocks] = useState<{ id: number; start_date: string; end_date: string; reason: string | null }[]>([])
+  useEffect(() => {
+    let cancelled = false
+    kscwApi<{ blocks: { id: number; start_date: string; end_date: string; reason: string | null }[] }>('/terminplanung/admin/club-blocked-dates')
+      .then((r) => { if (!cancelled) setClubBlocks(r.blocks || []) })
+      .catch(() => { if (!cancelled) setClubBlocks([]) })
+    return () => { cancelled = true }
+  }, [])
 
   // Team events that block games (a tournament weekend, a team trip). The backend
   // drops every slot whose date falls in a linked event, so they too vanish
@@ -509,6 +523,22 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       }
     }
 
+    // Club-wide blocked dates (scheduling_global_blocks) — one chip per day, no
+    // team (applies to all). The itemsByDate guard shows them regardless of the
+    // team filter so they appear on every view.
+    for (const cb of clubBlocks) {
+      const start = parseYmd(cb.start_date); const end = parseYmd(cb.end_date)
+      if (!start || !end) continue
+      const reason = (cb.reason || '').trim()
+      for (let d = new Date(start), guard = 0; d <= end && guard < 400; d.setDate(d.getDate() + 1), guard++) {
+        out.push({
+          id: `cblk-${cb.id}-${toDateKey(d)}`, date: new Date(d), kind: 'club_block', label: t('clubBlockLegend'),
+          teamId: '', detail: reason || undefined,
+          title: `${t('clubBlockLegend')}${reason ? `: ${reason}` : ''}`,
+        })
+      }
+    }
+
     // Team events that block games (tournament weekend, team trip). events.*_date
     // are timestamptz stored at midnight Europe/Zurich (e.g. 22:00Z in summer), so
     // parseYmd's UTC `.slice(0,10)` would land a day early (Sat→Fri). Pin to the
@@ -528,7 +558,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       }
     }
     return out
-  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, blocks, teamEvents])
+  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, blocks, clubBlocks, teamEvents])
 
   // Teams that actually appear in the calendar, for the filter chips.
   const filterableTeams = useMemo(() => {
@@ -553,7 +583,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   const itemsByDate = useMemo(() => {
     const map = new Map<string, SchedEntry[]>()
     for (const e of entries) {
-      if (!(teamFilter.size === 0 || teamFilter.has(e.teamId))) continue
+      // Club blocks apply to every team, so they ignore the team filter.
+      if (e.kind !== 'club_block' && !(teamFilter.size === 0 || teamFilter.has(e.teamId))) continue
       const k = toDateKey(e.date)
       const arr = map.get(k) ?? []
       arr.push(e)
@@ -578,6 +609,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     { kind: 'home_proposed', label: t('legendHomeProposed') },
     { kind: 'away_proposed', label: t('legendAwayProposed') },
     { kind: 'blocked', label: t('reserved') },
+    // Club-wide blackout — shown on every view (not team-scoped) when any exist.
+    ...(clubBlocks.length ? [{ kind: 'club_block' as EntryKind, label: t('clubBlockLegend') }] : []),
     // "No games" + event blockers are per-team only — keep them out of the
     // all-teams overview legend too.
     ...(isTeamScoped ? [
@@ -593,6 +626,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     away_proposed: t('legendAwayProposed'),
     blocked: t('reserved'),
     team_block: t('blockNoGames'),
+    club_block: t('clubBlockLegend'),
     team_event: t('teamEventLabel'),
     open: t('legendOpen'),
   }), [t])

@@ -628,6 +628,7 @@ export default {
   clubBlockColReason: 'Grund',
   clubBlockRemove: 'Sperre entfernen',
   clubBlockRemoveConfirm: 'Diesen klubweit gesperrten Zeitraum entfernen? An diesen Tagen sind Heimspiele wieder erlaubt.',
+  clubBlockLegend: 'Keine Spiele (ganzer Klub)',
 
   // Geschlossene Daten (Hallenschliessungen) in den Einstellungen
   closedDatesTitle: 'Geschlossene Daten (Hallen)',
