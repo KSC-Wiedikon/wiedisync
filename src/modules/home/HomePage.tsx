@@ -524,6 +524,13 @@ export default function HomePage() {
         />
       )}
 
+      {/* Active surveys — placed right under the news feed so polls (which
+          otherwise live only on the team page) are easy to find. Renders null
+          when the user's teams have no open polls. */}
+      {user && isApproved && hasTeams && (
+        <HomePollsCard teamIds={userTeamIds} canManage={isCoachOf} />
+      )}
+
       {/* Forms to fill — surfaced here because the /forms nav item is author-only. */}
       {user && isApproved && fillableForms.length > 0 && (
         <div className="mb-6 lg:flex lg:flex-col lg:items-center">
@@ -562,12 +569,6 @@ export default function HomePage() {
           onSubmitted={() => { setFillItem(null); refetchForms() }}
           onCancel={() => setFillItem(null)}
         />
-      )}
-
-      {/* Active surveys — polls otherwise live only on the team page and are
-          easy to miss. Renders null when the user's teams have no open polls. */}
-      {user && isApproved && hasTeams && (
-        <HomePollsCard teamIds={userTeamIds} canManage={isCoachOf} />
       )}
 
       {/* Your dues — member's open invoices (renders null when nothing is open) */}
