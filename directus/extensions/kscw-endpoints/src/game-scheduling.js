@@ -4305,7 +4305,10 @@ export function registerGameScheduling(router, { database, logger, services, get
   const DATE_YMD_RE = /^\d{4}-\d{2}-\d{2}$/
   router.get('/terminplanung/admin/club-blocked-dates', async (req, res) => {
     try {
-      if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Forbidden' })
+      // Read is open to any authenticated user — the dates are non-sensitive and
+      // the scheduling calendar surfaces them so a blocked day isn't a mystery.
+      // (POST/DELETE below stay superadmin-only.)
+      if (!req.accountability?.user) return res.status(401).json({ error: 'Authentication required' })
       const blocks = await database('scheduling_global_blocks')
         .select('id', database.raw('start_date::text as start_date'), database.raw('end_date::text as end_date'),
           'reason', database.raw('date_created::text as date_created'))

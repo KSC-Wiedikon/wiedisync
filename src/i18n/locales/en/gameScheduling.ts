@@ -630,6 +630,7 @@ export default {
   clubBlockColReason: 'Reason',
   clubBlockRemove: 'Remove block',
   clubBlockRemoveConfirm: 'Remove this club-wide blocked date range? Home games will be allowed again on those days.',
+  clubBlockLegend: 'No games (whole club)',
 
   // Closed dates (hall closures) in settings
   closedDatesTitle: 'Closed dates (halls)',
