@@ -11,7 +11,7 @@ import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
 import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
 import { Button } from '../../components/ui/button'
 import { formatDate } from '../../utils/dateHelpers'
-import { localizeCountry } from '../../utils/countryName'
+import { localizeCountry, localizeCountryName } from '../../utils/countryName'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -681,7 +681,7 @@ function ExpandedDetails({
         {field('plz', 'PLZ')}
         {field('ort', t('anmeldungenCity'))}
         {field('geburtsdatum', t('anmeldungenDob'), { type: 'date' })}
-        {field('nationalitaet', t('anmeldungenNationality'), { display: (v) => localizeCountry(reg.nationalitaet_code, v) })}
+        {field('nationalitaet', t('anmeldungenNationality'), { display: (v) => reg.nationalitaet_code ? localizeCountry(reg.nationalitaet_code, v) : localizeCountryName(v) })}
         {field('geschlecht', t('anmeldungenGender'), { display: localizeGender })}
         {field('rolle', t('anmeldungenFunction'))}
         {field('team', t('anmeldungenTeam'))}
