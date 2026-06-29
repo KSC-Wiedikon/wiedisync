@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { Pencil, Save, X, Loader2 } from 'lucide-react'
 import { fetchItem, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
+import { localizeCountryName } from '../../../utils/countryName'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 
@@ -250,10 +251,13 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
     }
   }, [memberId])
 
+  // Reset edit mode whenever the loaded member changes — intentional sync reset.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     void load()
     setEditMode(false)
   }, [load, reloadKey])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // All keys (flat) — for change counters
   const keys = useMemo(() => (record ? Object.keys(record) : []), [record])
@@ -427,7 +431,7 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
                     {/* Card body — value or input */}
                     <div className="text-sm">
                       {!editMode || isReadOnly ? (
-                        <DisplayValue value={original} kind={kind} />
+                        <DisplayValue value={original} kind={kind} fieldKey={key} />
                       ) : (
                         <FieldEditor
                           fieldKey={key}
@@ -448,9 +452,13 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
   )
 }
 
-function DisplayValue({ value, kind }: { value: unknown; kind: FieldKind }) {
+function DisplayValue({ value, kind, fieldKey }: { value: unknown; kind: FieldKind; fieldKey?: string }) {
   if (value == null || value === '') {
     return <span className="text-muted-foreground">—</span>
+  }
+  // Country name stored free-text (ClubDesk German / member-typed) → viewer's language.
+  if (fieldKey === 'nationalitaet') {
+    return <span className="break-words text-foreground">{localizeCountryName(String(value))}</span>
   }
   if (kind === 'bool') {
     return (
