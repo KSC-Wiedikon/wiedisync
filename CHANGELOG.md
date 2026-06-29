@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.17.0 — 2026-06-29
+
+### Scheduling: lone Saturday games move to the small hall
+- A Saturday home game that is the **only one at its time** is now placed automatically in **KWI C** (the single hall) — freeing the double hall (**KWI A+B**) for basketball. Two games at the same time take KWI A+B, three fill A+B+C.
+- The rule is **self-healing**: it runs whenever a game is booked, moved or cancelled, and the affected games are re-pushed to VolleyManager so the venue stays correct. A new **"Optimize now"** button (Scheduling → Settings) applies it on demand. Closure-aware (never targets a hall closed that day) and only touches KWI home games.
+
 ## v1.16.0 — 2026-06-28
 
 ### Polls: managers can see who voted

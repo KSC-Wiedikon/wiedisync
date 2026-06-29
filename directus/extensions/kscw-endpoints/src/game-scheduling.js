@@ -1533,6 +1533,114 @@ export function registerGameScheduling(router, { database, logger, services, get
     }
   })
 
+  // ── Saturday hall rule (KWI gym is shared with basketball) ────────────────
+  // The KWI gym is a double hall (KWI A + KWI B) plus a single hall (KWI C). A
+  // lone Saturday home game only needs one court, so it belongs in KWI C —
+  // leaving the double hall (A+B) free for basketball. Two games at the same
+  // time take the double hall (A+B); three fill A+B+C. The rule is self-healing:
+  // it runs on every booking change (via reconcileBookingsToGames and the direct
+  // confirm/manual/delete endpoints), so adding or removing a game at a given
+  // time re-sorts that time's halls automatically. Only KWI home games are
+  // touched (Döltschi / away / other venues are left alone) and a hall closed
+  // that day is never targeted. Concurrency is grouped by exact start time — the
+  // Spielsamstag grid is fixed and 2.5 h apart, so two games never overlap
+  // across adjacent times.
+
+  // Resolve the KWI A/B/C hall ids by name (robust to a hall re-id between
+  // dev/prod). Returns { A, B, C } with null for any that's missing.
+  async function kwiHallIds(db = database) {
+    const rows = await db('halls')
+      .whereRaw("LOWER(name) IN ('kwi a', 'kwi b', 'kwi c')")
+      .select('id', 'name')
+    const byName = {}
+    for (const r of rows) byName[String(r.name).trim().toLowerCase()] = r.id
+    return { A: byName['kwi a'] ?? null, B: byName['kwi b'] ?? null, C: byName['kwi c'] ?? null }
+  }
+
+  // Normalize the hall of every confirmed Saturday KWI home game in a season per
+  // the rule above. Updates game_scheduling_slots.hall in place; returns the list
+  // of bookings whose hall changed so the caller can re-push them to VolleyManager
+  // (this function never pushes — separation of concerns). Idempotent: re-running
+  // with no concurrency change moves nothing.
+  async function rebalanceSaturdayHalls(seasonId, { db = database } = {}) {
+    const kwi = await kwiHallIds(db)
+    if (!kwi.A || !kwi.B || !kwi.C) return { moved: [], groups: 0 } // halls missing → no-op
+    const kwiIds = [kwi.A, kwi.B, kwi.C]
+
+    // Confirmed, still-upcoming home games this season sitting in a KWI hall,
+    // with their booking. Past/played games are skipped — their hall is settled
+    // and VM rejects edits to a played game.
+    const rows = await db('game_scheduling_slots as s')
+      .join('game_scheduling_bookings as b', 'b.slot', 's.id')
+      .where('b.type', 'home_slot_pick').where('b.status', 'confirmed')
+      .where('s.season', seasonId).where('s.status', 'booked')
+      .whereRaw('s.date >= CURRENT_DATE')
+      .whereIn('s.hall', kwiIds)
+      .select('s.id as slot_id', 's.hall', 'b.id as booking_id', 'b.svrz_game_id',
+        db.raw('s.date::text as d'), db.raw('s.start_time::text as st'))
+
+    // Group Saturday slots by date|start_time.
+    const groups = new Map()
+    for (const r of rows) {
+      const ymd = String(r.d).slice(0, 10)
+      if (!isSaturday(ymd)) continue
+      const key = `${ymd}|${String(r.st).slice(0, 5)}`
+      if (!groups.has(key)) groups.set(key, { ymd, items: [] })
+      groups.get(key).items.push(r)
+    }
+    if (!groups.size) return { moved: [], groups: 0 }
+
+    // Which KWI halls are closed on a given date (cached per date).
+    const closedCache = new Map()
+    const closedKwiOn = async (ymd) => {
+      if (closedCache.has(ymd)) return closedCache.get(ymd)
+      const closed = await db('hall_closures')
+        .whereIn('hall', kwiIds)
+        .whereRaw('?::date BETWEEN start_date AND end_date', [ymd])
+        .pluck('hall')
+      const set = new Set(closed.map(Number))
+      closedCache.set(ymd, set)
+      return set
+    }
+
+    const moved = []
+    for (const { ymd, items } of groups.values()) {
+      const closed = await closedKwiOn(ymd)
+      const isOpen = (id) => !closed.has(Number(id))
+      // Lone game → C first (fallback A, B). Pairs/trios → the double hall A+B
+      // first, then C. Filter to halls that are open that day.
+      const pref = (items.length === 1 ? [kwi.C, kwi.A, kwi.B] : [kwi.A, kwi.B, kwi.C]).filter(isOpen)
+      // Deterministic item order (by slot id) so re-runs are stable.
+      const sorted = [...items].sort((a, b) => Number(a.slot_id) - Number(b.slot_id))
+      for (let i = 0; i < sorted.length; i++) {
+        const it = sorted[i]
+        const target = pref[i] // undefined if more games than open halls → leave as-is
+        if (!target || Number(it.hall) === Number(target)) continue
+        await db('game_scheduling_slots').where('id', it.slot_id).update({ hall: target })
+        moved.push({ slotId: it.slot_id, bookingId: it.booking_id, svrzId: it.svrz_game_id || null, date: ymd, from: it.hall, to: target })
+      }
+    }
+    return { moved, groups: groups.size }
+  }
+
+  // Background, staggered VM re-push for bookings whose hall the Saturday rebalance
+  // changed. Staggered so a big first run doesn't hit VolleyManager with dozens of
+  // simultaneous logins (no batch VM API — each push is a child process). Detached
+  // from the request lifecycle: callers never await it.
+  function repushMovedBookings(moved, { excludeBookingId = null } = {}) {
+    const list = (moved || []).filter((m) => m && m.bookingId && Number(m.bookingId) !== Number(excludeBookingId))
+    if (!list.length) return
+    ;(async () => {
+      for (const m of list) {
+        try {
+          await database('game_scheduling_bookings').where('id', m.bookingId).update({ vm_push_status: 'queued', vm_push_error: null })
+          await spawnVmPush(m.bookingId, { svrzId: m.svrzId || null })
+        } catch (e) { log.warn(`Saturday-hall VM re-push failed (booking ${m.bookingId}): ${e.message}`) }
+        await new Promise((r) => setTimeout(r, 700)) // stagger child spawns
+      }
+    })().catch((e) => log.warn(`Saturday-hall VM re-push batch failed: ${e.message}`))
+  }
+
   // ── Mirror confirmed bookings into the `games` collection ─────────────────
   // Booked games only reach the member-facing calendars once a `games` row
   // exists, but the SV national feed (sv-sync) lags the scheduling tool by
@@ -1545,7 +1653,13 @@ export function registerGameScheduling(router, { database, logger, services, get
   // status 'completed' are never touched.
   async function reconcileBookingsToGames(seasonId, { silent = false } = {}) {
     const seasonRow = await database('game_scheduling_seasons').where('id', seasonId).first()
-    if (!seasonRow) return { created: 0, updated: 0, skipped: 0 }
+    if (!seasonRow) return { created: 0, updated: 0, skipped: 0, moved: [] }
+
+    // Normalize Saturday KWI halls FIRST so the games mirror below reflects the
+    // corrected slot halls. Self-heals any path that lands here (confirm-away,
+    // sync-away, the reconcile/optimize endpoints). Best-effort.
+    let rebalanced = { moved: [], groups: 0 }
+    try { rebalanced = await rebalanceSaturdayHalls(seasonId) } catch (e) { log.warn(`Saturday hall rebalance failed: ${e.message}`) }
 
     const opps = await database('game_scheduling_opponents as o')
       .where('o.season', seasonId)
@@ -1658,7 +1772,9 @@ export function registerGameScheduling(router, { database, logger, services, get
     } else {
       await apply(database)
     }
-    return { created, updated, skipped }
+    // Re-push to VM any booking the Saturday rebalance moved (background, staggered).
+    repushMovedBookings(rebalanced.moved)
+    return { created, updated, skipped, moved: rebalanced.moved }
   }
 
   // POST /kscw/terminplanung/admin/reconcile-games { season, silent? } — manual
@@ -1673,6 +1789,28 @@ export function registerGameScheduling(router, { database, logger, services, get
       res.json(await reconcileBookingsToGames(seasonId, { silent }))
     } catch (err) {
       log.error({ msg: `reconcile-games: ${err.message}`, endpoint: 'terminplanung/admin/reconcile-games', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/terminplanung/admin/rebalance-saturday-halls { season } — run the
+  // Saturday hall rule now (lone game → KWI C, pairs → KWI A+B). The rule also
+  // runs automatically on every booking change; this is the admin "do it now /
+  // show me what moved" trigger. Reconcile does the rebalance, mirrors the new
+  // halls into `games`, and queues the VM re-push for every moved game.
+  router.post('/terminplanung/admin/rebalance-saturday-halls', async (req, res) => {
+    try {
+      if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+      const seasonId = req.body?.season
+      if (!seasonId) return res.status(400).json({ error: 'season required' })
+      const result = await reconcileBookingsToGames(seasonId, { silent: true })
+      const moved = result.moved || []
+      if (moved.length) {
+        await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'game_scheduling_slots', recordId: null, data: { kind: 'rebalance_saturday_halls', season: seasonId, moved: moved.length } })
+      }
+      res.json({ moved: moved.length, details: moved })
+    } catch (err) {
+      log.error({ msg: `rebalance-saturday-halls: ${err.message}`, endpoint: 'terminplanung/admin/rebalance-saturday-halls', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
@@ -2601,6 +2739,13 @@ export function registerGameScheduling(router, { database, logger, services, get
         log.warn(`confirm-home email failed: ${mailErr.message}`)
       }
 
+      // Apply the Saturday hall rule before pushing so VolleyManager receives the
+      // final hall (a lone Saturday game lands in KWI C, not the gym this team's
+      // open slots are in). Any OTHER game this booking bumped (a previously-lone
+      // game now sharing the time → A+B) is re-pushed in the background.
+      let satReb = { moved: [] }
+      try { satReb = await rebalanceSaturdayHalls(opponent.season) } catch (e) { log.warn(`confirm-home Saturday rebalance failed: ${e.message}`) }
+
       // Push the confirmed date/time/hall into VolleyManager (best-effort). A
       // fixture-keyed booking pushes to exactly that VM game — no needs_pick
       // ambiguity when the pairing has several home fixtures.
@@ -2610,6 +2755,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       } catch (pushErr) {
         log.warn(`confirm-home VM push enqueue failed: ${pushErr.message}`)
       }
+      repushMovedBookings(satReb.moved, { excludeBookingId: booking_id })
 
       // Mirror into `games` so the new fixture shows on member calendars right
       // away (fire-and-forget; sv-sync adopts the row later).
@@ -3541,13 +3687,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           }).returning('id')
           homeBookingId = typeof insHome[0] === 'object' ? insHome[0].id : insHome[0]
         })
-        // Push the manually-booked date/time/hall into VolleyManager (best-effort).
-        if (homeBookingId) {
-          try {
-            await database('game_scheduling_bookings').where('id', homeBookingId).update({ vm_push_status: 'queued', vm_push_error: null })
-            await spawnVmPush(homeBookingId, { svrzId: homeTarget.fixtureId || null })
-          } catch (pushErr) { log.warn(`manual-booking VM push enqueue failed: ${pushErr.message}`) }
-        }
+        // VM push happens below, after the Saturday hall rule has settled the
+        // final hall (so a lone Saturday game pushes as KWI C, not the picked hall).
       }
 
       if (away) {
@@ -3573,6 +3714,19 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (away) await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'game_scheduling_bookings', recordId: null, data: { kind: 'manual_away', opponent: opponent.id, date: away.date } })
 
       await database('game_scheduling_opponents').where('id', opponent.id).update({ status: 'booked' })
+
+      // Apply the Saturday hall rule before pushing so VM receives the final hall
+      // (a lone Saturday game lands in KWI C). Then push this home booking and any
+      // other game it bumped (a previously-lone game now sharing the time → A+B).
+      let satReb = { moved: [] }
+      try { satReb = await rebalanceSaturdayHalls(opponent.season) } catch (e) { log.warn(`manual-booking Saturday rebalance failed: ${e.message}`) }
+      if (home && homeBookingId) {
+        try {
+          await database('game_scheduling_bookings').where('id', homeBookingId).update({ vm_push_status: 'queued', vm_push_error: null })
+          await spawnVmPush(homeBookingId, { svrzId: homeTarget.fixtureId || null })
+        } catch (pushErr) { log.warn(`manual-booking VM push enqueue failed: ${pushErr.message}`) }
+      }
+      repushMovedBookings(satReb.moved, { excludeBookingId: homeBookingId })
 
       // Mirror into `games` so the manual booking shows on member calendars
       // right away (fire-and-forget; sv-sync adopts the row later).
@@ -3646,6 +3800,14 @@ export function registerGameScheduling(router, { database, logger, services, get
         recordId: bookingId,
         data: { kind: isHome ? 'delete_confirmed_home' : 'delete_confirmed_away', opponent: opponent.id, freed_slot: isHome ? booking.slot : null },
       })
+
+      // Freeing a slot can leave a previously-paired Saturday game alone at its
+      // time → spill it back into KWI C. Re-push any game whose hall moved, then
+      // mirror the new halls into `games`.
+      let satReb = { moved: [] }
+      try { satReb = await rebalanceSaturdayHalls(opponent.season) } catch (e) { log.warn(`delete-booking Saturday rebalance failed: ${e.message}`) }
+      repushMovedBookings(satReb.moved)
+      reconcileBookingsToGames(opponent.season).catch((e) => log.warn(`delete-booking games reconcile failed: ${e.message}`))
 
       res.json({ success: true })
     } catch (err) {

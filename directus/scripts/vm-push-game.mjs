@@ -276,10 +276,16 @@ async function main() {
   // (see vm-client.registerWindow). Kept right before the update so the
   // Engine.IO session (~20s ping timeout) is still live when updateGame runs.
   // Non-fatal: if registration fails the update surfaces the same 403 as before.
-  try { await registerWindow(jar, ctx.wuid); }
+  let rw = null;
+  try { rw = await registerWindow(jar, ctx.wuid); }
   catch (e) { log(`window registration failed (continuing): ${e.message}`); }
   const codes = await vmValidate(pairs);
-  await vmUpdate(pairs, codes);
+  try {
+    await vmUpdate(pairs, codes);
+  } finally {
+    // Close the live editing-window socket once the write is done (or failed).
+    try { rw?.ws?.close(); } catch { /* ignore */ }
+  }
 
   // Verify
   const after = (await vmSearchHome()).find((x) => (x.__identity || x.persistenceObjectIdentifier) === svrzId);
