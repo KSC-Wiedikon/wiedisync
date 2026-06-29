@@ -16,6 +16,7 @@ export type IssueKey =
   | 'missingTime'
   | 'nonPaddedTime'
   | 'noTeamAssignment'
+  | 'missingSex'
 
 export interface DataIssue {
   id: string
@@ -28,6 +29,12 @@ export interface DataIssue {
   autoFixable: boolean
   fixValue?: string
   fixAction?: FixAction
+  /**
+   * Non-auto fix that needs an admin choice (no single deterministic value).
+   * The component renders inline choice buttons and calls manualFix(issue, value).
+   * 'sex' → male/female. Such issues are excluded from "Fix all".
+   */
+  manualKind?: 'sex'
 }
 
 export interface CollectionHealth {
@@ -190,6 +197,34 @@ async function checkMembers(): Promise<CollectionHealth> {
     }
   }
 
+  // Missing sex → manual review (m/f is a choice, not a deterministic auto-fix).
+  // Independent of the team-assignment filter above: surface EVERY member without
+  // a sex so it can be set by hand. The Volleymanager sync only ever set sex for
+  // licensed volleyball players, and ClubDesk sync-down never propagated it — so
+  // anyone outside that path (basketball, passive, new signups) lands here.
+  // Skip the service/system account(s) — they aren't people and would be permanent
+  // un-fixable noise (same heuristic as the ClubDesk sync's non-member guard).
+  const sexless = await fetchAllItems<Record<string, unknown>>('members', {
+    fields: ['id', 'first_name', 'last_name', 'email'],
+    filter: { _or: [{ sex: { _null: true } }, { sex: { _empty: true } }] },
+    sort: ['last_name', 'first_name'],
+  })
+  for (const m of sexless) {
+    const email = String(m['email'] || '').toLowerCase()
+    if (email.startsWith('system@') || email.includes('@kscw.clubdesk.com')) continue
+    const name = `${m['first_name'] || ''} ${m['last_name'] || ''}`.trim() || String(m['id'])
+    issues.push({
+      id: String(m['id']),
+      collection: 'members',
+      field: 'sex',
+      severity: 'warning',
+      issueKey: 'missingSex',
+      detail: name,
+      autoFixable: false,
+      manualKind: 'sex',
+    })
+  }
+
   return { collection: 'members', total: members.length, issues }
 }
 
@@ -198,6 +233,14 @@ async function checkMembers(): Promise<CollectionHealth> {
 export async function runAllChecks(): Promise<CollectionHealth[]> {
   const [games, members] = await Promise.all([checkGames(), checkMembers()])
   return [games, members]
+}
+
+/**
+ * Apply an admin-chosen value for a manual-fix issue (e.g. sex → 'm' | 'f').
+ * Separate from autoFix because there is no single deterministic fixValue.
+ */
+export async function manualFix(issue: DataIssue, value: string): Promise<void> {
+  await updateRecord(issue.collection, issue.id, { [issue.field]: value })
 }
 
 export async function autoFix(issue: DataIssue): Promise<void> {

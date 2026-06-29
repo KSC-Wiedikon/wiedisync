@@ -1455,6 +1455,23 @@ export default {
           throw createErr
         }
 
+        // If this email already filed a membership registration, carry its
+        // self-reported gender onto the member. Signup otherwise creates a bare
+        // member whose sex the gender→sex pipeline (Volleymanager / ClubDesk
+        // sync-down) never sets for basketball / passive / brand-new members —
+        // so it stays empty and surfaces in Data Health → "Missing sex". This
+        // links the two records (update, don't duplicate). männlich→m, weiblich→f.
+        let regSex = null
+        try {
+          const reg = await database('registrations')
+            .whereRaw('LOWER(email) = ?', [email])
+            .orderBy('id', 'desc')
+            .first('geschlecht')
+          const g = String(reg?.geschlecht || '').trim().toLowerCase()
+          if (['männlich', 'male', 'mann', 'man', 'm'].includes(g)) regSex = 'm'
+          else if (['weiblich', 'female', 'frau', 'woman', 'f'].includes(g)) regSex = 'f'
+        } catch { /* registration lookup is best-effort — never block signup */ }
+
         // Check if signup email matches an existing member's vm_email (Volleymanager claim)
         const vmMatch = await database('members')
           .whereRaw('LOWER(vm_email) = ?', [email])
@@ -1470,6 +1487,8 @@ export default {
             wiedisync_active: true,
             language: language || vmMatch.language || 'german',
             requested_team: vmMatch.coach_approved_team ? null : team,
+            // Only fill from the registration if VM never set it — never overwrite.
+            ...(regSex && !vmMatch.sex ? { sex: regSex } : {}),
           })
           member = vmMatch
           log.info(`VM email claim: member ${vmMatch.id} (${vmMatch.first_name} ${vmMatch.last_name}) claimed via vm_email=${email}`)
@@ -1485,6 +1504,7 @@ export default {
             wiedisync_active: true,
             language: language || 'german',
             birthdate_visibility: 'hidden',
+            ...(regSex ? { sex: regSex } : {}),
           }).returning('id')
           member = newMember
         }

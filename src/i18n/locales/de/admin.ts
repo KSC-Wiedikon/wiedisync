@@ -133,6 +133,9 @@ export default {
   dhIssueMissingTime: 'Zeit fehlt',
   dhIssueNonPaddedTime: 'Zeit ohne führende Null',
   dhIssueNoTeamAssignment: 'Keine Teamzuordnung',
+  dhIssueMissingSex: 'Geschlecht fehlt',
+  dhSetMale: 'Männlich',
+  dhSetFemale: 'Weiblich',
 
   // Audit Log
   auditTitle: 'Audit Log',
