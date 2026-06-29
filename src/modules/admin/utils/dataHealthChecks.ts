@@ -206,7 +206,7 @@ async function checkMembers(): Promise<CollectionHealth> {
   // un-fixable noise (same heuristic as the ClubDesk sync's non-member guard).
   const sexless = await fetchAllItems<Record<string, unknown>>('members', {
     fields: ['id', 'first_name', 'last_name', 'email'],
-    filter: { _or: [{ sex: { _null: true } }, { sex: { _empty: true } }] },
+    filter: { _or: [{ sex: { _null: true } }, { sex: { _eq: '' } }] },
     sort: ['last_name', 'first_name'],
   })
   for (const m of sexless) {
