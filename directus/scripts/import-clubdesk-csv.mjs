@@ -265,7 +265,48 @@ const psqlInput =
   "  ort = COALESCE(NULLIF(btrim(t.ort),''), mt.ort), phone = COALESCE(NULLIF(btrim(t.phone),''), mt.phone)\n" +
   'FROM mt WHERE t.id = mt.id;\n' +
   'COMMIT;\n' +
-  "SELECT 'members_with_address' AS metric, (SELECT count(*) FROM members WHERE NULLIF(btrim(adresse),'') IS NOT NULL) AS value;\n"
+  "SELECT 'members_with_address' AS metric, (SELECT count(*) FROM members WHERE NULLIF(btrim(adresse),'') IS NOT NULL) AS value;\n" +
+  // ── Link members.clubdesk_id from staging (the sync-up "is this contact already
+  // in ClubDesk?" key) ────────────────────────────────────────────────────────
+  // Migration 158 did this once, but only matched email + a ONE-directional first-
+  // name prefix (member-name LIKE clubdesk-name||'%'), so a member stored under a
+  // short form ("Alex") never linked to the full ClubDesk name ("Alexander") even
+  // with an identical email AND licence — leaving them falsely listed as "not yet
+  // in ClubDesk" and at risk of being DUPLICATED on sync-up. Re-link on every sync,
+  // NULL-only (never clobber a manual/existing link): (1) licence (1:1, authoritative,
+  // no name needed); (2) email(+alt) + last-name equality + SYMMETRIC first-name
+  // prefix (handles Alex↔Alexander, Nico↔Nicolas, Sharu↔Sharusanth). last-name
+  // equality guards a shared family email from cross-linking parent↔child. Only
+  // unambiguous matches (one distinct clubdesk_id) are applied. Own transaction.
+  'BEGIN;\n' +
+  'WITH cd AS (\n' +
+  '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
+  "         lower(btrim(lizenznummer)) lic, lower(btrim(nachname)) nachname,\n" +
+  "         lower(split_part(btrim(vorname),' ',1)) vn1\n" +
+  "  FROM clubdesk_export WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL),\n" +
+  'lic_match AS (\n' +
+  '  SELECT mm.id, min(cd.cdid) cdid FROM members mm\n' +
+  "  JOIN cd ON cd.lic <> '' AND cd.lic = lower(btrim(mm.license_nr))\n" +
+  "  WHERE mm.clubdesk_id IS NULL AND NULLIF(btrim(mm.license_nr),'') IS NOT NULL\n" +
+  '  GROUP BY mm.id HAVING count(DISTINCT cd.cdid) = 1)\n' +
+  'UPDATE members m SET clubdesk_id = lic_match.cdid\n' +
+  '  FROM lic_match WHERE m.id = lic_match.id AND m.clubdesk_id IS NULL;\n' +
+  'WITH cd AS (\n' +
+  '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
+  "         lower(btrim(nachname)) nachname, lower(split_part(btrim(vorname),' ',1)) vn1\n" +
+  "  FROM clubdesk_export WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL),\n" +
+  'email_match AS (\n' +
+  '  SELECT mm.id, min(cd.cdid) cdid FROM members mm\n' +
+  "  JOIN cd ON NULLIF(btrim(mm.email),'') IS NOT NULL AND lower(btrim(mm.email)) IN (cd.email, cd.email_alt)\n" +
+  '       AND lower(btrim(mm.last_name)) = cd.nachname\n' +
+  "       AND (lower(split_part(btrim(mm.first_name),' ',1)) LIKE cd.vn1 || '%'\n" +
+  "            OR cd.vn1 LIKE lower(split_part(btrim(mm.first_name),' ',1)) || '%')\n" +
+  '  WHERE mm.clubdesk_id IS NULL\n' +
+  '  GROUP BY mm.id HAVING count(DISTINCT cd.cdid) = 1)\n' +
+  'UPDATE members m SET clubdesk_id = email_match.cdid\n' +
+  '  FROM email_match WHERE m.id = email_match.id AND m.clubdesk_id IS NULL;\n' +
+  'COMMIT;\n' +
+  "SELECT 'members_linked_clubdesk' AS metric, (SELECT count(*) FROM members WHERE clubdesk_id IS NOT NULL) AS value;\n"
 
 if (EMIT_SQL) {
   // Flush fully before exiting: process.exit() right after writing a large
