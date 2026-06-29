@@ -11,6 +11,7 @@ import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
 import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
 import { Button } from '../../components/ui/button'
 import { formatDate } from '../../utils/dateHelpers'
+import { localizeCountry } from '../../utils/countryName'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -35,6 +36,7 @@ interface Registration extends BaseRecord {
   ort: string | null
   geburtsdatum: string | null
   nationalitaet: string | null
+  nationalitaet_code: string | null
   geschlecht: string | null
   team: string | null
   beitragskategorie: string | null
@@ -679,7 +681,7 @@ function ExpandedDetails({
         {field('plz', 'PLZ')}
         {field('ort', t('anmeldungenCity'))}
         {field('geburtsdatum', t('anmeldungenDob'), { type: 'date' })}
-        {field('nationalitaet', t('anmeldungenNationality'))}
+        {field('nationalitaet', t('anmeldungenNationality'), { display: (v) => localizeCountry(reg.nationalitaet_code, v) })}
         {field('geschlecht', t('anmeldungenGender'), { display: localizeGender })}
         {field('rolle', t('anmeldungenFunction'))}
         {field('team', t('anmeldungenTeam'))}
