@@ -11,6 +11,7 @@ import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
 import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
 import { Button } from '../../components/ui/button'
 import { formatDate } from '../../utils/dateHelpers'
+import { localizeCountry } from '../../utils/countryName'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -35,6 +36,7 @@ interface Registration extends BaseRecord {
   ort: string | null
   geburtsdatum: string | null
   nationalitaet: string | null
+  nationalitaet_code: string | null
   geschlecht: string | null
   team: string | null
   beitragskategorie: string | null
@@ -65,9 +67,6 @@ const DOC_FIELDS: (keyof Registration)[] = [
 ]
 const countDocs = (reg: Registration): number => DOC_FIELDS.filter((k) => reg[k]).length
 
-// Registration form stores free-text gender lowercase ("männlich"); display capitalized.
-const capitalizeFirst = (s: string): string =>
-  s ? s.charAt(0).toUpperCase() + s.slice(1) : s
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
 
@@ -591,6 +590,16 @@ function ExpandedDetails({
   const [edits, setEdits] = useState<Record<string, string>>({})
   const hasChanges = Object.keys(edits).length > 0
 
+  // The form stores gender as the German canonical value (männlich/weiblich)
+  // regardless of the submitter's language — show it in the viewer's locale.
+  // Reuses the shared dhSetMale/dhSetFemale labels (same admin namespace).
+  const localizeGender = (v: string): string => {
+    const g = v.trim().toLowerCase()
+    if (['männlich', 'male', 'm', 'mann', 'man'].includes(g)) return t('dhSetMale')
+    if (['weiblich', 'female', 'f', 'frau', 'woman'].includes(g)) return t('dhSetFemale')
+    return v
+  }
+
   const field = (key: keyof Registration, label: string, opts?: { type?: string; full?: boolean; display?: (v: string) => string }) => {
     const raw = (reg[key] as string) ?? ''
     const original = opts?.display ? opts.display(raw) : raw
@@ -672,8 +681,8 @@ function ExpandedDetails({
         {field('plz', 'PLZ')}
         {field('ort', t('anmeldungenCity'))}
         {field('geburtsdatum', t('anmeldungenDob'), { type: 'date' })}
-        {field('nationalitaet', t('anmeldungenNationality'))}
-        {field('geschlecht', t('anmeldungenGender'), { display: capitalizeFirst })}
+        {field('nationalitaet', t('anmeldungenNationality'), { display: (v) => localizeCountry(reg.nationalitaet_code, v) })}
+        {field('geschlecht', t('anmeldungenGender'), { display: localizeGender })}
         {field('rolle', t('anmeldungenFunction'))}
         {field('team', t('anmeldungenTeam'))}
         {field('beitragskategorie', t('anmeldungenFeeCategory'))}

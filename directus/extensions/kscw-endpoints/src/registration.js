@@ -489,6 +489,7 @@ export function registerRegistration(router, { database, logger, services, getSc
         ort: body.ort || null,
         geburtsdatum: body.geburtsdatum || null,
         nationalitaet: body.nationalitaet || null,
+        nationalitaet_code: (body.nationalitaet_code || '').trim().toUpperCase().slice(0, 2) || null,
         geschlecht: body.geschlecht || null,
         ahv_nummer: body.ahv_nummer || null,
         team: Array.isArray(body.team) ? body.team.join(', ') : (body.team || null),
