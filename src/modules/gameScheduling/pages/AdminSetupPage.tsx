@@ -18,6 +18,7 @@ import TeamSlotConfigPanel from '../components/TeamSlotConfigPanel'
 import GapConfigPanel from '../components/GapConfigPanel'
 import ClubBlockedDatesPanel from '../components/ClubBlockedDatesPanel'
 import ClosedDatesPanel from '../components/ClosedDatesPanel'
+import SaturdayHallPanel from '../components/SaturdayHallPanel'
 import DerbyPanel from '../components/DerbyPanel'
 import ExcelImportPanel from '../components/ExcelImportPanel'
 import InvitesPanel from '../components/InvitesPanel'
@@ -202,6 +203,9 @@ export default function AdminSetupPage() {
 
             {/* Closed dates / hall closures (auto + manual) — admins manage here too */}
             {isGlobalAdmin && <ClosedDatesPanel />}
+
+            {/* Saturday hall rule — lone Saturday game → KWI C (frees A+B for basketball) */}
+            <SaturdayHallPanel seasonId={season.id} />
 
             {/* Game-spacing gaps (home / proposals / lenient 3rd proposal) */}
             <GapConfigPanel gapConfig={season.gap_config} onUpdate={handleUpdateGapConfig} />

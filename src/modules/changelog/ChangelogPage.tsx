@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.16.0'
+const APP_VERSION = '1.17.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.17.0',
+    date: '29.06.2026',
+    sections: [
+      {
+        title: 'Scheduling: lone Saturday games move to the small hall',
+        items: [
+          'A Saturday home game that is the only one at its time is now placed automatically in KWI C (the single hall) — freeing the double hall (KWI A+B) for basketball. Two games at the same time take KWI A+B, three fill A+B+C.',
+          'This runs by itself whenever a game is booked, moved or cancelled, and VolleyManager is kept in sync. A new "Optimize now" button (Scheduling → Settings) applies it on demand.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.16.0',
     date: '28.06.2026',

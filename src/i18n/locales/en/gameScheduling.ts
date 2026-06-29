@@ -616,6 +616,15 @@ export default {
   vmPickHint: 'Two home games match this opponent — pick the one to update in VolleyManager.',
   vmPickNone: 'No fixtures to choose.',
 
+  // Saturday hall rule
+  saturdayHallTitle: 'Saturday hall optimization',
+  saturdayHallDescription: 'A lone Saturday home game only needs one court, so it is placed in KWI C — leaving the double hall (KWI A+B) free for basketball. Two games at the same time take KWI A+B, three fill A+B+C. This runs automatically whenever a game is booked, moved or cancelled; use the button to apply it now and re-push the affected games to VolleyManager.',
+  saturdayHallButton: 'Optimize now',
+  saturdayHallMoved_one: '{{count}} game moved. The changed games are being re-pushed to VolleyManager.',
+  saturdayHallMoved_other: '{{count}} games moved. The changed games are being re-pushed to VolleyManager.',
+  saturdayHallNone: 'Already optimal — nothing to move.',
+  saturdayHallError: 'Could not optimize the Saturday halls.',
+
   // Club-wide blocked dates (superadmin)
   clubBlockTitle: 'Blocked dates (whole club)',
   clubBlockDescription: 'Block dates where no team plays home games — club holidays, tournaments, hall-wide events. Coaches’ own per-team blocks still apply on top. Only you can edit this.',

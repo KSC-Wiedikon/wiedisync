@@ -614,6 +614,15 @@ export default {
   vmPickHint: 'Zwei Heimspiele passen zu diesem Gegner — wähle das im VolleyManager zu aktualisierende.',
   vmPickNone: 'Keine Spiele zur Auswahl.',
 
+  // Hallenregel Samstag
+  saturdayHallTitle: 'Hallenoptimierung Samstag',
+  saturdayHallDescription: 'Ein einzelnes Heimspiel am Samstag braucht nur ein Feld und wird darum in die KWI C gelegt — so bleibt die Doppelhalle (KWI A+B) frei für Basketball. Zwei Spiele zur selben Zeit nutzen KWI A+B, drei füllen A+B+C. Das läuft automatisch bei jeder Buchung, Verschiebung oder Absage; mit dem Knopf wendest du es sofort an und schiebst die betroffenen Spiele neu in den VolleyManager.',
+  saturdayHallButton: 'Jetzt optimieren',
+  saturdayHallMoved_one: '{{count}} Spiel verschoben. Die geänderten Spiele werden neu in den VolleyManager geschoben.',
+  saturdayHallMoved_other: '{{count}} Spiele verschoben. Die geänderten Spiele werden neu in den VolleyManager geschoben.',
+  saturdayHallNone: 'Bereits optimal — nichts zu verschieben.',
+  saturdayHallError: 'Die Samstagshallen konnten nicht optimiert werden.',
+
   // Klubweite gesperrte Daten (Superadmin)
   clubBlockTitle: 'Gesperrte Daten (ganzer Klub)',
   clubBlockDescription: 'Sperre Daten, an denen kein Team Heimspiele austrägt — Klubferien, Turniere, hallenweite Anlässe. Die teameigenen Sperren der Trainer gelten zusätzlich. Nur du kannst dies bearbeiten.',
