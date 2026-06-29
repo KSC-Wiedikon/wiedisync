@@ -368,4 +368,7 @@ export default {
   dhIssueMissingTime: 'Orario mancante',
   dhIssueNonPaddedTime: 'Orario senza zero iniziale',
   dhIssueNoTeamAssignment: 'Nessuna assegnazione di squadra',
+  dhIssueMissingSex: 'Sesso mancante',
+  dhSetMale: 'Maschile',
+  dhSetFemale: 'Femminile',
 } as const

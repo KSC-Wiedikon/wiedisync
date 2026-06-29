@@ -133,6 +133,9 @@ export default {
   dhIssueMissingTime: 'Missing time',
   dhIssueNonPaddedTime: 'Non-padded time',
   dhIssueNoTeamAssignment: 'No team assignment',
+  dhIssueMissingSex: 'Missing sex',
+  dhSetMale: 'Male',
+  dhSetFemale: 'Female',
 
   // Audit Log
   auditTitle: 'Audit log',

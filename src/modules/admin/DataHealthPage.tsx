@@ -12,7 +12,7 @@ import {
 } from '../../components/ui/table'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import {
-  runAllChecks, autoFix, autoFixAll,
+  runAllChecks, autoFix, autoFixAll, manualFix,
   type CollectionHealth, type DataIssue, type IssueKey,
 } from './utils/dataHealthChecks'
 
@@ -24,6 +24,7 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   missingTime: 'dhIssueMissingTime',
   nonPaddedTime: 'dhIssueNonPaddedTime',
   noTeamAssignment: 'dhIssueNoTeamAssignment',
+  missingSex: 'dhIssueMissingSex',
 }
 
 function severityIcon(severity: DataIssue['severity']) {
@@ -49,6 +50,7 @@ function CollectionCard({
   const [expanded, setExpanded] = useState(health.issues.length > 0)
   const [fixingId, setFixingId] = useState<string | null>(null)
   const [fixingAll, setFixingAll] = useState(false)
+  const [manualFixingId, setManualFixingId] = useState<string | null>(null)
 
   const hasIssues = health.issues.length > 0
   const fixableCount = health.issues.filter((i) => i.autoFixable).length
@@ -72,6 +74,19 @@ function CollectionCard({
       toast.error(t('dhFixFailed'))
     } finally {
       setFixingId(null)
+    }
+  }
+
+  async function handleManualFix(issue: DataIssue, value: string) {
+    setManualFixingId(issue.id)
+    try {
+      await manualFix(issue, value)
+      toast.success(`${t('dhFixed')}: ${issue.detail}`)
+      onFixed()
+    } catch {
+      toast.error(t('dhFixFailed'))
+    } finally {
+      setManualFixingId(null)
     }
   }
 
@@ -209,7 +224,23 @@ function CollectionCard({
                     </p>
                   </TableCell>
                   <TableCell className="text-right align-top">
-                    {issue.autoFixable && (
+                    {issue.manualKind === 'sex' ? (
+                      <div className="inline-flex flex-col gap-1.5 sm:flex-row">
+                        {(['m', 'f'] as const).map((val) => (
+                          <button
+                            key={val}
+                            onClick={() => handleManualFix(issue, val)}
+                            disabled={manualFixingId === issue.id}
+                            aria-busy={manualFixingId === issue.id}
+                            className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                          >
+                            {manualFixingId === issue.id
+                              ? t('dhFixing')
+                              : val === 'm' ? t('dhSetMale') : t('dhSetFemale')}
+                          </button>
+                        ))}
+                      </div>
+                    ) : issue.autoFixable ? (
                       <button
                         onClick={() => handleFixOne(issue)}
                         disabled={fixingId === issue.id}
@@ -224,7 +255,7 @@ function CollectionCard({
                           ? t('dhFixing')
                           : issue.fixAction === 'delete' ? t('dhDelete') : t('dhFix')}
                       </button>
-                    )}
+                    ) : null}
                   </TableCell>
                 </TableRow>
               ))}
