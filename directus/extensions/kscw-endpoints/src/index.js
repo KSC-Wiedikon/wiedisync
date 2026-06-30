@@ -1430,6 +1430,16 @@ export default {
         if (existingDirectusUser) {
           return res.status(400).json({ error: 'Email already registered', code: 'email_exists' })
         }
+        // Also catch the SECONDARY email of an already-active member (vm_email —
+        // e.g. the ClubDesk address kept after a duplicate merge). Without this,
+        // signing up with that address would create a fresh duplicate instead of
+        // recognising the existing account. They should log in / reset instead.
+        const existingByVmEmail = await database('members')
+          .whereRaw('LOWER(vm_email) = ?', [email]).whereNotNull('user')
+          .select('id').first()
+        if (existingByVmEmail) {
+          return res.status(400).json({ error: 'Email already registered', code: 'email_exists' })
+        }
 
         const schema = await getSchema()
         const { UsersService } = services

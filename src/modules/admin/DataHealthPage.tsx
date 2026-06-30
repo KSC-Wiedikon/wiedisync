@@ -12,7 +12,7 @@ import {
 } from '../../components/ui/table'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import {
-  runAllChecks, autoFix, autoFixAll, manualFix,
+  runAllChecks, autoFix, autoFixAll, manualFix, linkClubdesk,
   type CollectionHealth, type DataIssue, type IssueKey,
 } from './utils/dataHealthChecks'
 
@@ -25,6 +25,7 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   nonPaddedTime: 'dhIssueNonPaddedTime',
   noTeamAssignment: 'dhIssueNoTeamAssignment',
   missingSex: 'dhIssueMissingSex',
+  clubdeskNameMatch: 'dhIssueClubdeskNameMatch',
 }
 
 function severityIcon(severity: DataIssue['severity']) {
@@ -81,6 +82,19 @@ function CollectionCard({
     setManualFixingId(issue.id)
     try {
       await manualFix(issue, value)
+      toast.success(`${t('dhFixed')}: ${issue.detail}`)
+      onFixed()
+    } catch {
+      toast.error(t('dhFixFailed'))
+    } finally {
+      setManualFixingId(null)
+    }
+  }
+
+  async function handleLinkClubdesk(issue: DataIssue) {
+    setManualFixingId(issue.id)
+    try {
+      await linkClubdesk(issue)
       toast.success(`${t('dhFixed')}: ${issue.detail}`)
       onFixed()
     } catch {
@@ -224,7 +238,16 @@ function CollectionCard({
                     </p>
                   </TableCell>
                   <TableCell className="text-right align-top">
-                    {issue.manualKind === 'sex' ? (
+                    {issue.manualKind === 'clubdeskLink' ? (
+                      <button
+                        onClick={() => handleLinkClubdesk(issue)}
+                        disabled={manualFixingId === issue.id}
+                        aria-busy={manualFixingId === issue.id}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                      >
+                        {manualFixingId === issue.id ? t('dhFixing') : t('dhLink')}
+                      </button>
+                    ) : issue.manualKind === 'sex' ? (
                       <div className="inline-flex flex-col gap-1.5 sm:flex-row">
                         {(['m', 'f'] as const).map((val) => (
                           <button

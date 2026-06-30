@@ -371,4 +371,6 @@ export default {
   dhIssueMissingSex: 'Sexe manquant',
   dhSetMale: 'Homme',
   dhSetFemale: 'Femme',
+  dhIssueClubdeskNameMatch: 'Correspondance ClubDesk (nom seul)',
+  dhLink: 'Lier',
 } as const

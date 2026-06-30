@@ -337,6 +337,94 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
+  // ── Name-only ClubDesk matches (Data Health manual-link check) ──────────────
+  // Members whose first+last name matches a ClubDesk contact but whose email AND
+  // licence both DIVERGE — so the automatic linker (licence / email+name) can't
+  // safely link them. Surfaced in Data Health for a human to confirm: link sets
+  // clubdesk_id and stores the ClubDesk email as a secondary (vm_email). If the
+  // matched ClubDesk contact is already linked to a DIFFERENT member, it's a
+  // likely duplicate-member case (needs a merge, not a link) — flagged, not
+  // offered as a one-click link. clubdesk_export is a staging table not exposed
+  // via the items API, so this join lives server-side. Superadmin only.
+  router.get('/clubdesk-name-matches', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const rows = await database
+        .select(
+          'm.id as member_id', 'm.first_name', 'm.last_name', 'm.email as member_email',
+          'cd.clubdesk_id', 'cd.email as cd_email', 'cd.email_alternativ as cd_email_alt',
+          'cd.lizenznummer as cd_lic', 'linked.id as linked_member_id',
+          'linked.first_name as linked_first', 'linked.last_name as linked_last',
+        )
+        .from('members as m')
+        .join('clubdesk_export as cd', function () {
+          this.on(database.raw('LOWER(BTRIM(cd.vorname)) = LOWER(BTRIM(m.first_name))'))
+            .andOn(database.raw('LOWER(BTRIM(cd.nachname)) = LOWER(BTRIM(m.last_name))'))
+            .andOn(database.raw("NULLIF(BTRIM(cd.clubdesk_id), '') IS NOT NULL"))
+        })
+        .leftJoin('members as linked', database.raw('linked.clubdesk_id = BTRIM(cd.clubdesk_id)'))
+        .whereNull('m.clubdesk_id')
+        .andWhereRaw("LOWER(BTRIM(m.email)) NOT IN (LOWER(BTRIM(cd.email)), LOWER(BTRIM(COALESCE(cd.email_alternativ,''))))")
+        .andWhereRaw("(NULLIF(BTRIM(m.license_nr),'') IS NULL OR LOWER(BTRIM(m.license_nr)) <> LOWER(BTRIM(COALESCE(cd.lizenznummer,''))))")
+        .orderBy(['m.last_name', 'm.first_name'])
+      const candidates = rows.map((r) => ({
+        member_id: r.member_id,
+        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+        member_email: r.member_email,
+        clubdesk_id: String(r.clubdesk_id).trim(),
+        clubdesk_email: r.cd_email || r.cd_email_alt || null,
+        clubdesk_licence: r.cd_lic || null,
+        // When set, the ClubDesk contact is already linked to another member →
+        // duplicate, needs a merge (no one-click link).
+        duplicate_of: r.linked_member_id
+          ? { id: r.linked_member_id, name: `${r.linked_first || ''} ${r.linked_last || ''}`.trim() }
+          : null,
+      }))
+      return res.json({ candidates })
+    } catch (err) {
+      log.error({ msg: `clubdesk-name-matches: ${err.message}`, endpoint: 'clubdesk-name-matches', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // Confirm a name-only match: set the member's clubdesk_id and keep the ClubDesk
+  // email as a secondary (vm_email, fill-only). Refuses if the ClubDesk contact is
+  // already linked to another member (that's a merge, handled elsewhere).
+  router.post('/clubdesk-link', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const memberId = Number(req.body?.member_id)
+      const clubdeskId = String(req.body?.clubdesk_id || '').trim()
+      if (!Number.isInteger(memberId) || !clubdeskId) {
+        return res.status(400).json({ error: 'member_id and clubdesk_id required' })
+      }
+      const member = await database('members').where('id', memberId).first('id', 'clubdesk_id', 'vm_email', 'email')
+      if (!member) return res.status(404).json({ error: 'Member not found' })
+      if (member.clubdesk_id) return res.status(409).json({ error: 'Member already linked' })
+      const taken = await database('members').where('clubdesk_id', clubdeskId).whereNot('id', memberId).first('id')
+      if (taken) return res.status(409).json({ error: 'ClubDesk contact already linked to another member', code: 'duplicate' })
+      const cd = await database('clubdesk_export').whereRaw('BTRIM(clubdesk_id) = ?', [clubdeskId])
+        .first('email', 'email_alternativ')
+      const cdEmail = (cd?.email || cd?.email_alternativ || '').trim() || null
+      const patch = { clubdesk_id: clubdeskId }
+      // Keep the ClubDesk email as secondary unless the member already has a
+      // distinct one. Never overwrite their primary.
+      if (cdEmail && (!member.vm_email || member.vm_email.toLowerCase() === (member.email || '').toLowerCase())) {
+        patch.vm_email = cdEmail
+      }
+      await database('members').where('id', memberId).update(patch)
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update',
+        collection: 'members', recordId: memberId,
+        data: { kind: 'clubdesk_link', clubdesk_id: clubdeskId, vm_email: patch.vm_email || null },
+      })
+      return res.json({ success: true, member_id: memberId, clubdesk_id: clubdeskId, vm_email: patch.vm_email || null })
+    } catch (err) {
+      log.error({ msg: `clubdesk-link: ${err.message}`, endpoint: 'clubdesk-link', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   router.post('/clubdesk-update', async (req, res) => {
     try {
       // Auth check
