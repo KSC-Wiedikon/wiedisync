@@ -1,7 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
+    <!-- The app is fully internationalized (de/en/fr/gsw/it) and sets the active
+         locale itself. Browser auto-translation (iOS Safari etc.) is therefore
+         redundant AND breaks React: it mutates text nodes out-of-band, so React's
+         next commit throws "NotFoundError: The object can not be found here."
+         (insertBefore). Opt out of it; <html lang> is kept in sync in src/i18n. -->
+    <meta name="google" content="notranslate" />
     <link rel="icon" type="image/svg+xml" href="/wiedisync_logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />

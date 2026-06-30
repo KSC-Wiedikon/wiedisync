@@ -410,4 +410,16 @@ i18n.use(initReactI18next).init({
   },
 })
 
+// Keep <html lang> in sync with the active locale. A stale lang attribute (the
+// index.html default is "en") while content renders in another language is what
+// nudges mobile browsers to auto-translate the page — which mutates the DOM out
+// of band and crashes React's reconciler with a NotFoundError on insertBefore.
+// gsw isn't well supported by assistive tech, so expose it as de-CH.
+function syncDocumentLang(lng: string) {
+  if (typeof document === 'undefined') return
+  document.documentElement.lang = lng === 'gsw' ? 'de-CH' : lng
+}
+syncDocumentLang(i18n.language || savedLng)
+i18n.on('languageChanged', syncDocumentLang)
+
 export default i18n
