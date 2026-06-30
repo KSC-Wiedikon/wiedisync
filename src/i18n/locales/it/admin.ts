@@ -373,4 +373,6 @@ export default {
   dhSetFemale: 'Femminile',
   dhIssueClubdeskNameMatch: 'Corrispondenza ClubDesk (solo nome)',
   dhLink: 'Collega',
+  dhIssueClubdeskDeparted: 'Ha lasciato ClubDesk (disattivare?)',
+  dhDeactivate: 'Disattiva',
 } as const

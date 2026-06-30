@@ -18,6 +18,7 @@ export type IssueKey =
   | 'noTeamAssignment'
   | 'missingSex'
   | 'clubdeskNameMatch'
+  | 'clubdeskDeparted'
 
 export interface DataIssue {
   id: string
@@ -36,7 +37,7 @@ export interface DataIssue {
    * 'sex' → male/female buttons (manualFix). 'clubdeskLink' → a single "Link"
    * button (linkClubdesk). Excluded from "Fix all".
    */
-  manualKind?: 'sex' | 'clubdeskLink'
+  manualKind?: 'sex' | 'clubdeskLink' | 'clubdeskDeactivate'
   /** For manualKind 'clubdeskLink': the ClubDesk contact to link to. */
   link?: { clubdeskId: string; clubdeskEmail?: string | null }
 }
@@ -55,6 +56,14 @@ interface ClubdeskNameMatch {
   clubdesk_email: string | null
   clubdesk_licence: string | null
   duplicate_of: { id: number; name: string } | null
+}
+
+interface ClubdeskDeparted {
+  member_id: number
+  member_name: string
+  status: string
+  austritt: string | null
+  current_teams: string[]
 }
 
 // ── Helpers ──
@@ -278,6 +287,28 @@ async function checkMembers(): Promise<CollectionHealth> {
     // the whole check throws — this one is best-effort.)
   }
 
+  // Members still active in wiedisync but who LEFT ClubDesk (non-active status +
+  // an Austritt date). They linger with rosters; flag for a manual deactivate
+  // (sets not-a-member + drops current-season teams). Best-effort.
+  try {
+    const { candidates } = await kscwApi<{ candidates: ClubdeskDeparted[] }>('/clubdesk-departed')
+    for (const c of candidates || []) {
+      const teams = c.current_teams.length ? ` · ${c.current_teams.join(', ')}` : ''
+      issues.push({
+        id: String(c.member_id),
+        collection: 'members',
+        field: 'kscw_membership_active',
+        severity: 'warning',
+        issueKey: 'clubdeskDeparted',
+        detail: `${c.member_name} — ${c.status}${c.austritt ? ` (${c.austritt})` : ''}${teams}`,
+        autoFixable: false,
+        manualKind: 'clubdeskDeactivate',
+      })
+    }
+  } catch {
+    // Best-effort — see above.
+  }
+
   return { collection: 'members', total: members.length, issues }
 }
 
@@ -305,6 +336,17 @@ export async function linkClubdesk(issue: DataIssue): Promise<void> {
   await kscwApi('/clubdesk-link', {
     method: 'POST',
     body: { member_id: Number(issue.id), clubdesk_id: issue.link.clubdeskId },
+  })
+}
+
+/**
+ * Deactivate a member who left ClubDesk: sets not-a-member + inactive and drops
+ * their current-season team assignments (keeps prior-season history).
+ */
+export async function deactivateMember(issue: DataIssue): Promise<void> {
+  await kscwApi('/clubdesk-deactivate', {
+    method: 'POST',
+    body: { member_id: Number(issue.id) },
   })
 }
 

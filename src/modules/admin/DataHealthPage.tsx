@@ -12,7 +12,7 @@ import {
 } from '../../components/ui/table'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import {
-  runAllChecks, autoFix, autoFixAll, manualFix, linkClubdesk,
+  runAllChecks, autoFix, autoFixAll, manualFix, linkClubdesk, deactivateMember,
   type CollectionHealth, type DataIssue, type IssueKey,
 } from './utils/dataHealthChecks'
 
@@ -26,6 +26,7 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   noTeamAssignment: 'dhIssueNoTeamAssignment',
   missingSex: 'dhIssueMissingSex',
   clubdeskNameMatch: 'dhIssueClubdeskNameMatch',
+  clubdeskDeparted: 'dhIssueClubdeskDeparted',
 }
 
 function severityIcon(severity: DataIssue['severity']) {
@@ -95,6 +96,19 @@ function CollectionCard({
     setManualFixingId(issue.id)
     try {
       await linkClubdesk(issue)
+      toast.success(`${t('dhFixed')}: ${issue.detail}`)
+      onFixed()
+    } catch {
+      toast.error(t('dhFixFailed'))
+    } finally {
+      setManualFixingId(null)
+    }
+  }
+
+  async function handleDeactivate(issue: DataIssue) {
+    setManualFixingId(issue.id)
+    try {
+      await deactivateMember(issue)
       toast.success(`${t('dhFixed')}: ${issue.detail}`)
       onFixed()
     } catch {
@@ -238,7 +252,16 @@ function CollectionCard({
                     </p>
                   </TableCell>
                   <TableCell className="text-right align-top">
-                    {issue.manualKind === 'clubdeskLink' ? (
+                    {issue.manualKind === 'clubdeskDeactivate' ? (
+                      <button
+                        onClick={() => handleDeactivate(issue)}
+                        disabled={manualFixingId === issue.id}
+                        aria-busy={manualFixingId === issue.id}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 sm:min-h-0 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
+                      >
+                        {manualFixingId === issue.id ? t('dhFixing') : t('dhDeactivate')}
+                      </button>
+                    ) : issue.manualKind === 'clubdeskLink' ? (
                       <button
                         onClick={() => handleLinkClubdesk(issue)}
                         disabled={manualFixingId === issue.id}

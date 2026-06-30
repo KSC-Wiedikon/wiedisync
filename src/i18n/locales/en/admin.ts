@@ -138,6 +138,8 @@ export default {
   dhSetFemale: 'Female',
   dhIssueClubdeskNameMatch: 'ClubDesk match (name only)',
   dhLink: 'Link',
+  dhIssueClubdeskDeparted: 'Left ClubDesk (deactivate?)',
+  dhDeactivate: 'Deactivate',
 
   // Audit Log
   auditTitle: 'Audit log',

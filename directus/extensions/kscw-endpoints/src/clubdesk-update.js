@@ -425,6 +425,70 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
+  // ── Departed-in-ClubDesk detection (Data Health) ────────────────────────────
+  // Members still active in wiedisync whose linked ClubDesk contact has a
+  // non-active status (Kein Mitglied / Ehemaliges Mitglied / Verstorben) AND an
+  // Austritt date — i.e. they left the club but linger here with rosters. The
+  // Austritt guard excludes legit non-members with no exit date (volunteer
+  // coaches marked "Kein Mitglied", or new signups whose contact isn't activated
+  // yet) so they aren't false-flagged. Manual deactivate only. Superadmin.
+  const DEPARTED_STATUSES = ['Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben']
+  router.get('/clubdesk-departed', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const season = getCurrentSeason()
+      const rows = await database
+        .select('m.id as member_id', 'm.first_name', 'm.last_name', 'cd.status', 'cd.austritt')
+        .from('members as m')
+        .join('clubdesk_export as cd', database.raw('BTRIM(cd.clubdesk_id) = m.clubdesk_id'))
+        .where('m.kscw_membership_active', true)
+        .whereIn(database.raw('BTRIM(cd.status)'), DEPARTED_STATUSES)
+        .whereRaw("NULLIF(BTRIM(cd.austritt), '') IS NOT NULL")
+        .orderBy(['m.last_name', 'm.first_name'])
+      const candidates = []
+      for (const r of rows) {
+        const teams = await database('member_teams as mt').join('teams as t', 't.id', 'mt.team')
+          .where('mt.member', r.member_id).andWhere('mt.season', season).distinct('t.name')
+        candidates.push({
+          member_id: r.member_id,
+          member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+          status: (r.status || '').trim(),
+          austritt: (r.austritt || '').trim() || null,
+          current_teams: teams.map((t) => t.name),
+        })
+      }
+      return res.json({ candidates, season })
+    } catch (err) {
+      log.error({ msg: `clubdesk-departed: ${err.message}`, endpoint: 'clubdesk-departed', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // Deactivate a departed member: not-a-member + inactive, and drop their
+  // current-season team assignments (keep prior-season history). Superadmin.
+  router.post('/clubdesk-deactivate', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const memberId = Number(req.body?.member_id)
+      if (!Number.isInteger(memberId)) return res.status(400).json({ error: 'member_id required' })
+      const member = await database('members').where('id', memberId).first('id', 'clubdesk_id')
+      if (!member) return res.status(404).json({ error: 'Member not found' })
+      const season = getCurrentSeason()
+      const dropped = await database('member_teams').where('member', memberId).andWhere('season', season).del()
+      await database('members').where('id', memberId)
+        .update({ kscw_membership_active: false, wiedisync_active: false })
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update',
+        collection: 'members', recordId: memberId,
+        data: { kind: 'clubdesk_deactivate', season, rosters_dropped: dropped },
+      })
+      return res.json({ success: true, member_id: memberId, rosters_dropped: dropped })
+    } catch (err) {
+      log.error({ msg: `clubdesk-deactivate: ${err.message}`, endpoint: 'clubdesk-deactivate', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   router.post('/clubdesk-update', async (req, res) => {
     try {
       // Auth check
