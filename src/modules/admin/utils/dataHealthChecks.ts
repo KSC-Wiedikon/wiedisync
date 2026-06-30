@@ -1,4 +1,4 @@
-import { fetchAllItems, updateRecord, deleteRecord } from '../../../lib/api'
+import { fetchAllItems, updateRecord, deleteRecord, kscwApi } from '../../../lib/api'
 import { getCurrentSeason, formatDateZurich } from '../../../utils/dateHelpers'
 
 export type IssueSeverity = 'error' | 'warning'
@@ -17,6 +17,7 @@ export type IssueKey =
   | 'nonPaddedTime'
   | 'noTeamAssignment'
   | 'missingSex'
+  | 'clubdeskNameMatch'
 
 export interface DataIssue {
   id: string
@@ -31,16 +32,29 @@ export interface DataIssue {
   fixAction?: FixAction
   /**
    * Non-auto fix that needs an admin choice (no single deterministic value).
-   * The component renders inline choice buttons and calls manualFix(issue, value).
-   * 'sex' → male/female. Such issues are excluded from "Fix all".
+   * The component renders inline controls and dispatches the matching handler.
+   * 'sex' → male/female buttons (manualFix). 'clubdeskLink' → a single "Link"
+   * button (linkClubdesk). Excluded from "Fix all".
    */
-  manualKind?: 'sex'
+  manualKind?: 'sex' | 'clubdeskLink'
+  /** For manualKind 'clubdeskLink': the ClubDesk contact to link to. */
+  link?: { clubdeskId: string; clubdeskEmail?: string | null }
 }
 
 export interface CollectionHealth {
   collection: string
   total: number
   issues: DataIssue[]
+}
+
+interface ClubdeskNameMatch {
+  member_id: number
+  member_name: string
+  member_email: string | null
+  clubdesk_id: string
+  clubdesk_email: string | null
+  clubdesk_licence: string | null
+  duplicate_of: { id: number; name: string } | null
 }
 
 // ── Helpers ──
@@ -225,6 +239,45 @@ async function checkMembers(): Promise<CollectionHealth> {
     })
   }
 
+  // Members whose name matches a ClubDesk contact but whose email + licence
+  // diverge — the auto-linker can't safely link these, so they surface here for
+  // a manual decision. Free contact → one-click "Link" (sets clubdesk_id + keeps
+  // the ClubDesk email as a secondary). Already-linked contact → flagged as a
+  // likely duplicate that needs a merge (no one-click). Backend join: it reads
+  // the clubdesk_export staging table, which isn't exposed via the items API.
+  try {
+    const { candidates } = await kscwApi<{ candidates: ClubdeskNameMatch[] }>('/clubdesk-name-matches')
+    for (const c of candidates || []) {
+      if (c.duplicate_of) {
+        issues.push({
+          id: String(c.member_id),
+          collection: 'members',
+          field: 'clubdesk_id',
+          severity: 'warning',
+          issueKey: 'clubdeskNameMatch',
+          detail: `${c.member_name} — duplicate of #${c.duplicate_of.id} ${c.duplicate_of.name} (ClubDesk ${c.clubdesk_id})`,
+          autoFixable: false,
+        })
+      } else {
+        issues.push({
+          id: String(c.member_id),
+          collection: 'members',
+          field: 'clubdesk_id',
+          severity: 'warning',
+          issueKey: 'clubdeskNameMatch',
+          detail: `${c.member_name} → ClubDesk ${c.clubdesk_id}${c.clubdesk_email ? ` (${c.clubdesk_email})` : ''}`,
+          autoFixable: false,
+          manualKind: 'clubdeskLink',
+          link: { clubdeskId: c.clubdesk_id, clubdeskEmail: c.clubdesk_email },
+        })
+      }
+    }
+  } catch {
+    // Non-fatal: if the name-match endpoint is unavailable, the rest of the
+    // members check still reports. (Surfaced via the page-level toast only if
+    // the whole check throws — this one is best-effort.)
+  }
+
   return { collection: 'members', total: members.length, issues }
 }
 
@@ -241,6 +294,18 @@ export async function runAllChecks(): Promise<CollectionHealth[]> {
  */
 export async function manualFix(issue: DataIssue, value: string): Promise<void> {
   await updateRecord(issue.collection, issue.id, { [issue.field]: value })
+}
+
+/**
+ * Confirm a name-only ClubDesk match: link the member to the ClubDesk contact
+ * (sets clubdesk_id + keeps the ClubDesk email as a secondary, server-side).
+ */
+export async function linkClubdesk(issue: DataIssue): Promise<void> {
+  if (!issue.link) return
+  await kscwApi('/clubdesk-link', {
+    method: 'POST',
+    body: { member_id: Number(issue.id), clubdesk_id: issue.link.clubdeskId },
+  })
 }
 
 export async function autoFix(issue: DataIssue): Promise<void> {

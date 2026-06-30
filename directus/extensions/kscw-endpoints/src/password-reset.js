@@ -133,11 +133,31 @@ export function registerPasswordReset(router, { database, logger, services, getS
 
       const normalizedEmail = email.toLowerCase().trim()
 
-      // Find directus user
-      const user = await database('directus_users')
+      // Find directus user by their login email.
+      let user = await database('directus_users')
         .where('email', normalizedEmail)
         .select('id', 'email')
         .first()
+
+      // Fallback: the typed address may be a member's SECONDARY email
+      // (members.vm_email / members.email — e.g. the ClubDesk address kept after
+      // a duplicate merge). Resolve it to that member's actual login so people
+      // can recover with either of their known emails. Reset link still goes to
+      // the real login address only.
+      if (!user) {
+        const m = await database('members')
+          .whereRaw('LOWER(vm_email) = ?', [normalizedEmail])
+          .orWhereRaw('LOWER(email) = ?', [normalizedEmail])
+          .whereNotNull('user')
+          .select('user')
+          .first()
+        if (m?.user) {
+          user = await database('directus_users')
+            .where('id', m.user)
+            .select('id', 'email')
+            .first()
+        }
+      }
 
       // Always return 204 (don't reveal if email exists)
       if (!user) return res.status(204).end()

@@ -131,6 +131,8 @@ export default {
   dhIssueMissingSex: 'Gschlächt fählt',
   dhSetMale: 'Männlich',
   dhSetFemale: 'Wieblich',
+  dhIssueClubdeskNameMatch: 'ClubDesk-Träffer (nur Name)',
+  dhLink: 'Verbinde',
 
   // Audit Log
   auditTitle: 'Audit Log',
