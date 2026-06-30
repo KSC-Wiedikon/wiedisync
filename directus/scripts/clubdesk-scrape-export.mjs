@@ -114,7 +114,25 @@ async function run() {
     await page.getByText(/\(\d+\s*Eintr/).first().waitFor({ timeout: 20000 })
     await page.waitForTimeout(1500)
     const count = (await page.locator('body').innerText()).match(/Mitglieder\s*\((\d+)\s*Eintr/)
-    log(`Kontakte open${count ? ` — ${count[1]} members listed` : ''}.`)
+    log(`Kontakte open${count ? ` — ${count[1]} members in the default group` : ''}.`)
+
+    // ── 2b. Switch to the "Alle Kontakte" group ───────────────────────
+    // Kontakte opens on the "Mitglieder" group (active members only), which
+    // OMITS non-members and EXITED members (Austritt / "Kein Mitglied"). That
+    // means anyone who leaves the club silently disappears from the sync — they
+    // can never be matched/linked, and wiedisync never learns they left. Select
+    // "Alle Kontakte" (the full contact set) so the export carries everyone with
+    // their membership status, enabling exit detection downstream.
+    log('Selecting the "Alle Kontakte" group…')
+    const alleKontakte = page.getByText('Alle Kontakte', { exact: true }).first()
+    if (!(await alleKontakte.count())) throw new Error('"Alle Kontakte" sidebar entry not found.')
+    await alleKontakte.click()
+    await page.waitForTimeout(2500)
+    // Assert the list header now reflects the full contact set (fail-safe: if the
+    // click missed, the header still says "Mitglieder (…)" and this throws).
+    await page.getByText(/Alle Kontakte\s*\(\d+\s*Eintr/).first().waitFor({ timeout: 20000 })
+    const allCount = (await page.locator('body').innerText()).match(/Alle Kontakte\s*\((\d+)\s*Eintr/)
+    log(`"Alle Kontakte" selected${allCount ? ` — ${allCount[1]} contacts` : ''}.`)
 
     // ── 3. Export dialog ──────────────────────────────────────────────
     log('Opening Export dialog…')
