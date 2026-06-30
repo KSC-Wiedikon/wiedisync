@@ -112,6 +112,38 @@ async function getSlotTeams(database, slotId) {
   return rows.map(r => r.teams_id).filter(t => t != null)
 }
 
+/** Dates a coach has intentionally removed from a slot (deleted the occurrence
+ *  or detached it by editing the time) that the generators must NOT regenerate.
+ *  Backed by `training_slot_skips` (migration 162), keyed (hall_slot, date).
+ *  Returns a Set of YYYY-MM-DD strings. The three generators below filter their
+ *  candidate inserts against this so a removed occurrence stays removed instead
+ *  of respawning on the nightly top-up / next slot edit. */
+async function getSkipSet(database, slotId) {
+  const rows = await database('training_slot_skips')
+    .where('hall_slot', slotId)
+    .select('date')
+  return new Set(rows.map(r => toISODate(parseDate(r.date))))
+}
+
+/** Record a "do not regenerate" tombstone for (slotId, date). Idempotent —
+ *  the unique(hall_slot, date) constraint makes a repeat a no-op. */
+export async function addTrainingSkip(database, slotId, date, userUuid) {
+  if (!slotId || !date) return
+  await database('training_slot_skips')
+    .insert({ hall_slot: slotId, date: toISODate(parseDate(date)), created_by: userUuid || null })
+    .onConflict(['hall_slot', 'date'])
+    .ignore()
+}
+
+/** Clear a tombstone for (slotId, date) — called when a training is (re)created
+ *  or re-attached to the slot for that date, so the occurrence can come back. */
+export async function clearTrainingSkip(database, slotId, date) {
+  if (!slotId || !date) return
+  await database('training_slot_skips')
+    .where({ hall_slot: slotId, date: toISODate(parseDate(date)) })
+    .delete()
+}
+
 /** Snapshot a slot's cascade-relevant fields plus its team junction. Used
  *  by the filter hook to capture pre-state before Directus applies the
  *  update. */
@@ -197,8 +229,9 @@ export async function generateInitialTrainings(database, slotId, log) {
   await withTrainingsNotifySilenced(database, async (trx) => {
     const existing = await trx('trainings').where('hall_slot', slotId).select('date')
     const existingSet = new Set(existing.map(r => toISODate(parseDate(r.date))))
+    const skipSet = await getSkipSet(trx, slotId)
     const inserts = dates
-      .filter(d => !existingSet.has(d))
+      .filter(d => !existingSet.has(d) && !skipSet.has(d))
       .map(d => ({
         team: teamId,
         hall_slot: slotId,
@@ -317,8 +350,9 @@ export async function cascadeSlotUpdate(database, slotId, pre, log) {
         .andWhere('date', '>=', today)
         .select('date')
       const existingSet = new Set(existing.map(r => toISODate(parseDate(r.date))))
+      const skipSet = await getSkipSet(trx, slotId)
       const inserts = desired
-        .filter(d => !existingSet.has(d))
+        .filter(d => !existingSet.has(d) && !skipSet.has(d))
         .map(d => ({
           team: postTeam,
           hall_slot: slotId,
@@ -373,8 +407,9 @@ export async function topUpIndefiniteSlots(database, log, onCreated) {
         .andWhere('date', '>=', today)
         .select('date')
       const existingSet = new Set(existing.map(r => toISODate(parseDate(r.date))))
+      const skipSet = await getSkipSet(database, slotRow.id)
       const inserts = desired
-        .filter(d => !existingSet.has(d))
+        .filter(d => !existingSet.has(d) && !skipSet.has(d))
         .map(d => ({
           team: teamId,
           hall_slot: slotRow.id,

@@ -25,7 +25,7 @@ import { buildEmailLayout, buildInfoCard, buildAlertBox, bucketEmailsByLocale } 
 import { sendLocalizedPush, bucketMembersByLocale, tPush } from '../../kscw-endpoints/src/push-i18n.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
-import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots } from './slot-cascade.js'
+import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
 
 // Frontend URL — env var or auto-detect from Directus PUBLIC_URL
 const FRONTEND_URL = process.env.FRONTEND_URL
@@ -1724,8 +1724,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // When a training is created via Directus, run the auto-RSVP pass.
   // (Slot-cascade bulk inserts call applyTrainingAutoRSVP directly — see
   // the hall_slots.items.create / .update actions and the nightly cron.)
+  // Also clear any regeneration tombstone (migration 162) for this
+  // (hall_slot, date): manually re-adding an occupant means the coach wants
+  // it back, so the slot may regenerate it again later.
   action('trainings.items.create', async ({ key }) => {
     await applyTrainingAutoRSVP(key)
+    try {
+      const row = await database('trainings').where('id', key).first('hall_slot', 'date')
+      if (row?.hall_slot) await clearTrainingSkip(database, row.hall_slot, row.date)
+    } catch (err) {
+      log.error({ msg: `[slot-cascade] clear-skip on training create failed: ${err.message}`, event: 'training_skip_clear_failed', training: key, stack: err.stack })
+    }
   })
 
   action('games.items.create', async ({ key }) => {
@@ -4136,6 +4145,85 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       log.error({ msg: `[slot-cascade] delete cascade failed: ${err.message}`, event: 'slot_cascade_delete_failed', slots: ids, stack: err.stack })
     }
     return keys
+  })
+
+  // ── Training occurrence tombstones (migration 162) ─────────────────
+  // A coach deleting one training, or editing its time so it detaches from its
+  // slot, must STICK — otherwise the slot generator (nightly top-up + on-edit
+  // fill) sees that (hall_slot, date) "missing" and resurrects it (surfaced
+  // 2026-06-30: D4's Monday 20:00 phantom that came back every night). We
+  // tombstone the vacated (hall_slot, date) in `training_slot_skips`; the three
+  // generators in slot-cascade.js filter against it. The cascade's own raw-knex
+  // INSERT/UPDATE/DELETE on `trainings` do NOT fire these items hooks, so only
+  // genuine user/API edits land here — no feedback loop.
+  const pendingTrainingPreState = new Map()
+  const isoDay = (d) => {
+    if (!d) return null
+    if (d instanceof Date) {
+      const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0')
+      return `${y}-${m}-${day}`
+    }
+    return String(d).slice(0, 10)
+  }
+
+  // DELETE → tombstone each slot-linked occurrence (in the filter, before the
+  // row is gone — mirrors the hall_slots delete hook). Standalone trainings
+  // (no hall_slot) need none: nothing regenerates them.
+  filter('trainings.items.delete', async (keys, _meta, ctx) => {
+    const ids = Array.isArray(keys) ? keys : (keys != null ? [keys] : [])
+    if (!ids.length) return keys
+    try {
+      const rows = await database('trainings').whereIn('id', ids).select('hall_slot', 'date')
+      const actor = ctx?.accountability?.user || null
+      for (const row of rows) {
+        if (row?.hall_slot) await addTrainingSkip(database, row.hall_slot, row.date, actor)
+      }
+    } catch (err) {
+      log.error({ msg: `[slot-cascade] delete tombstone failed: ${err.message}`, event: 'training_skip_del_failed', stack: err.stack })
+    }
+    return keys
+  })
+
+  // UPDATE → if an edit moves/detaches a slot-linked occurrence, tombstone the
+  // vacated (slot, date); if it (re)attaches one, clear that tombstone. A pure
+  // time/note/cancel edit keeps (hall_slot, date) put → nothing to do. Pre-state
+  // is snapshotted in the filter (keyed by training id); the action re-reads the
+  // committed post-state and diffs. (Runs alongside the existing cancel-notify
+  // trainings.items.update action — Directus fans out to both.)
+  filter('trainings.items.update', async (payload, meta, ctx) => {
+    try {
+      if (payload && !('hall_slot' in payload) && !('date' in payload)) return payload
+      const keys = Array.isArray(meta?.keys) ? meta.keys : (meta?.key != null ? [meta.key] : [])
+      for (const k of keys) {
+        if (!pendingTrainingPreState.has(k)) {
+          const pre = await database('trainings').where('id', k).first('hall_slot', 'date')
+          if (pre) pendingTrainingPreState.set(k, { pre, actor: ctx?.accountability?.user || null })
+        }
+      }
+    } catch (err) {
+      log.error({ msg: `[slot-cascade] update tombstone snapshot failed: ${err.message}`, event: 'training_skip_upd_snapshot_failed', stack: err.stack })
+    }
+    return payload
+  })
+
+  action('trainings.items.update', async ({ keys }) => {
+    const ids = Array.isArray(keys) ? keys : (keys != null ? [keys] : [])
+    for (const id of ids) {
+      const snap = pendingTrainingPreState.get(id)
+      pendingTrainingPreState.delete(id)
+      if (!snap) continue
+      try {
+        const post = await database('trainings').where('id', id).first('hall_slot', 'date')
+        if (!post) continue
+        const preSlot = snap.pre.hall_slot ?? null
+        const postSlot = post.hall_slot ?? null
+        const samePair = preSlot === postSlot && isoDay(snap.pre.date) === isoDay(post.date)
+        if (preSlot != null && !samePair) await addTrainingSkip(database, preSlot, snap.pre.date, snap.actor)
+        if (postSlot != null && !samePair) await clearTrainingSkip(database, postSlot, post.date)
+      } catch (err) {
+        log.error({ msg: `[slot-cascade] update tombstone failed: ${err.message}`, event: 'training_skip_upd_failed', training: id, stack: err.stack })
+      }
+    }
   })
 
   // Nightly rolling top-up for indefinite training slots — keeps ~12 weeks
