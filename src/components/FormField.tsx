@@ -11,12 +11,14 @@ interface FormFieldProps {
   helperText?: string
   children: ReactNode
   className?: string
+  /** id of the control this label describes, so clicking the label focuses it. */
+  htmlFor?: string
 }
 
-export function FormField({ label, error, helperText, children, className }: FormFieldProps) {
+export function FormField({ label, error, helperText, children, className, htmlFor }: FormFieldProps) {
   return (
     <div className={className}>
-      {label && <Label className="mb-2">{label}</Label>}
+      {label && <Label htmlFor={htmlFor} className="mb-2">{label}</Label>}
       {children}
       {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
       {helperText && !error && <p className="mt-1 text-xs text-muted-foreground">{helperText}</p>}
@@ -36,7 +38,7 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
     const isPassword = type === 'password'
     const [showPassword, setShowPassword] = useState(false)
     return (
-      <FormField label={label} error={error} helperText={helperText}>
+      <FormField label={label} error={error} helperText={helperText} htmlFor={inputId}>
         <div className="relative">
           <Input
             ref={ref}
@@ -73,7 +75,7 @@ export const FormTextarea = forwardRef<HTMLTextAreaElement, FormTextareaProps>(
   ({ label, error, helperText, className, id, ...props }, ref) => {
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined)
     return (
-      <FormField label={label} error={error} helperText={helperText}>
+      <FormField label={label} error={error} helperText={helperText} htmlFor={inputId}>
         <Textarea
           ref={ref}
           id={inputId}
