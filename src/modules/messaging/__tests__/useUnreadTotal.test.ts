@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('../hooks/useConversations', () => ({
-  useConversations: () => ({
+vi.mock('../ConversationsProvider', () => ({
+  useConversationsContext: () => ({
     conversations: [
       { id: 'a', unread_count: 3, muted: false },
       { id: 'b', unread_count: 5, muted: true },   // muted — excluded
@@ -15,7 +15,7 @@ import { useUnreadTotal } from '../hooks/useUnreadTotal'
 
 describe('useUnreadTotal', () => {
   it('sums unread across non-muted conversations', () => {
-    // useConversations is fully mocked so no React runtime is needed
+    // useConversationsContext is fully mocked so no React runtime is needed
     const total = useUnreadTotal()
     expect(total).toBe(5)
   })

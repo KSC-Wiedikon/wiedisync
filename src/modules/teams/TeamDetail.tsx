@@ -28,7 +28,7 @@ import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalen
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { messagingFeatureEnabled } from '../../utils/messagingFeatureFlag'
 import TeamMessagesTab from '../messaging/components/TeamMessagesTab'
-import { useConversations } from '../messaging/hooks/useConversations'
+import { useConversationsContext } from '../messaging/ConversationsProvider'
 import { createRecord, fetchAllItems, fetchItems, updateRecord } from '../../lib/api'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
@@ -840,7 +840,7 @@ function SortHeader({ label, sortKey: key, current, dir, onClick, className = ''
 function TeamMessagesSection({ teamId }: { teamId: string }) {
   const { t } = useTranslation('messaging')
   const { user } = useAuth()
-  const { conversations, isLoading, markRead, toggleMute } = useConversations()
+  const { conversations, isLoading, markRead, toggleMute } = useConversationsContext()
   const [open, setOpen] = useState(true)
   const conv = useMemo(
     () => conversations.find(c => c.type === 'team' && String(c.team) === String(teamId)) ?? null,
