@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Plus } from 'lucide-react'
-import { useConversations } from '../hooks/useConversations'
+import { useConversationsContext } from '../ConversationsProvider'
 import { useMessageRequests } from '../hooks/useMessageRequests'
 import ConversationList from '../components/ConversationList'
 import InboxEmptyState from '../components/InboxEmptyState'
@@ -16,7 +16,7 @@ import { useReportPageLoading } from '../../../hooks/usePageReady'
 export default function InboxPage() {
   const { t } = useTranslation('messaging')
   const { user } = useAuth()
-  const { conversations, isLoading: conversationsLoading } = useConversations()
+  const { conversations, isLoading: conversationsLoading } = useConversationsContext()
   const { requests, isLoading: requestsLoading } = useMessageRequests()
   const [newMsgOpen, setNewMsgOpen] = useState(false)
 

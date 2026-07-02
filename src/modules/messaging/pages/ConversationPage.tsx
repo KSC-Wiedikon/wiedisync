@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../../hooks/useAuth'
-import { useConversations } from '../hooks/useConversations'
+import { useConversationsContext } from '../ConversationsProvider'
 import { useMessageRequests } from '../hooks/useMessageRequests'
 import { useMemberDisplayNames } from '../hooks/useMemberDisplayNames'
 import { messagingFeatureEnabled } from '../../../utils/messagingFeatureFlag'
@@ -33,7 +33,7 @@ export default function ConversationPage() {
   const { t } = useTranslation('messaging')
   const { conversationId = '' } = useParams<{ conversationId: string }>()
   const { user } = useAuth()
-  const { conversations, markRead, toggleMute } = useConversations()
+  const { conversations, markRead, toggleMute } = useConversationsContext()
   const { requests, accept, decline } = useMessageRequests()
 
   const conv = useMemo(

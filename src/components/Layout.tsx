@@ -13,6 +13,7 @@ import NotificationPanel from './NotificationPanel'
 import TopNav from './TopNav'
 import { useCollection } from '../lib/query'
 import ProfileEditModal from '../modules/auth/ProfileEditModal'
+import { ConversationsProvider } from '../modules/messaging/ConversationsProvider'
 import type { MemberTeam, Team } from '../types'
 
 type ExpandedMemberTeam = MemberTeam & { team: Team | string }
@@ -51,6 +52,7 @@ export default function Layout() {
   const authBooting = (isLoading || teamsLoading) && isAuthenticated()
 
   return (
+    <ConversationsProvider>
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-900">
       {/* Chrome + page mount only once auth/team context is ready; while the
           page's own data loads they render underneath <BootOverlay/> (masked). */}
@@ -132,5 +134,6 @@ export default function Layout() {
           (InboxPage, ConversationPage, TeamMessagesTab), not globally,
           so users only see it when they actually engage with messaging. */}
     </div>
+    </ConversationsProvider>
   )
 }

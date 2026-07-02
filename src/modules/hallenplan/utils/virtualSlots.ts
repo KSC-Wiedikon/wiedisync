@@ -313,32 +313,76 @@ export function annotateFreedSlots(
   })
 }
 
-/**
- * Merges real hall_slots with virtual slots, deduplicating recurring slots
- * that have a corresponding training instance for the same day.
- * Also checks for away games that free up recurring training slots without
- * an explicit training record.
- */
-export function mergeVirtualSlots(
-  realSlots: HallSlot[],
-  virtualSlots: HallSlot[],
-  claims: SlotClaim[],
-  closures: HallClosure[],
-  games: Game[],
-  weekDays: Date[],
-  halls: Hall[],
-  teams: Team[],
-): HallSlot[] {
-  const overlaps = (aStart: string, aEnd: string, bStart: string, bEnd: string): boolean => {
-    const as = timeToMinutes(aStart)
-    const ae = timeToMinutes(aEnd)
-    const bs = timeToMinutes(bStart)
-    const be = timeToMinutes(bEnd)
-    return as < be && ae > bs
-  }
+/** True when two [start, end) minute ranges overlap. */
+function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  return aStart < bEnd && aEnd > bStart
+}
 
-  // Find training virtuals linked to a recurring hall_slot → suppress the template
-  const suppressedSlotDays = new Set<string>()
+/** True when two [start, end) HH:MM time ranges overlap. */
+function timeRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
+  return rangesOverlap(timeToMinutes(aStart), timeToMinutes(aEnd), timeToMinutes(bStart), timeToMinutes(bEnd))
+}
+
+/** Extracts the HH:MM start time from a game row, tolerating both "HH:MM"
+ *  and "YYYY-MM-DD HH:MM" storage formats. Returns undefined when absent. */
+function parseGameTime(game: Game): string | undefined {
+  return game.time ? (game.time.includes(' ') ? game.time.split(' ')[1].slice(0, 5) : game.time.slice(0, 5)) : undefined
+}
+
+/** Game occupies the hall from `warmup` before start for `GAME_TOTAL_DURATION`,
+ *  clamped to a 22:00 close. Returns minutes-since-midnight bounds. */
+function gameWarmupRange(gameTime: string): { startMin: number; endMin: number } {
+  const startMin = Math.max(timeToMinutes(gameTime) - GAME_WARMUP_MINUTES, 0)
+  const endMin = Math.min(startMin + GAME_TOTAL_DURATION, 22 * 60)
+  return { startMin, endMin }
+}
+
+type HomeGameRange = { dayIndex: number; hall: string; startMin: number; endMin: number }
+type ClosureRange = { dayIndex: number; hallIds: string[]; startMin: number; endMin: number }
+
+/** Applies a game-like occupancy range to a single already-qualified recurring
+ *  slot: shorten it if it merely precedes the warmup (keeping ≥15min), otherwise
+ *  suppress it. Mutates the shared suppress/shorten collections. */
+function suppressOrShortenForGame(
+  slot: HallSlot,
+  dayIndex: number,
+  gameStartMin: number,
+  gameEndMin: number,
+  suppressedSlotDays: Set<string>,
+  shortenedSlots: Map<string, string>,
+): void {
+  const slotStart = timeToMinutes(slot.start_time)
+  const slotEnd = timeToMinutes(slot.end_time)
+  if (!rangesOverlap(slotStart, slotEnd, gameStartMin, gameEndMin)) return
+
+  const key = `${slot.id}-${dayIndex}`
+  if (slotStart < gameStartMin) {
+    // Slot starts before game warmup → shorten to end at warmup start
+    const newEnd = gameStartMin
+    if (newEnd > slotStart + 15) {
+      // Keep at least 15 min of the slot; if multiple games affect it, use the earliest end
+      const existing = shortenedSlots.get(key)
+      if (!existing || timeToMinutes(existing) > newEnd) {
+        shortenedSlots.set(key, minutesToTime(newEnd))
+      }
+    } else {
+      suppressedSlotDays.add(key)
+    }
+  } else {
+    // Slot starts during/after game warmup → suppress entirely
+    suppressedSlotDays.add(key)
+  }
+}
+
+/** Suppress recurring templates that have a concrete training instance for the
+ *  same day — either linked explicitly via `hall_slot`, or (for unlinked
+ *  trainings) any non-cancelled training overlapping the same hall/day. */
+function collectTrainingSuppressions(
+  virtualSlots: HallSlot[],
+  realSlots: HallSlot[],
+  suppressedSlotDays: Set<string>,
+): void {
+  // Training virtuals linked to a recurring hall_slot → suppress the template
   for (const vs of virtualSlots) {
     if (vs._virtual?.source === 'training') {
       const training = vs._virtual.sourceRecord as Training
@@ -361,18 +405,25 @@ export function mergeVirtualSlots(
         slot.day_of_week !== vs.day_of_week ||
         slot.hall !== vs.hall
       ) continue
-      if (overlaps(slot.start_time, slot.end_time, vs.start_time, vs.end_time)) {
+      if (timeRangesOverlap(slot.start_time, slot.end_time, vs.start_time, vs.end_time)) {
         suppressedSlotDays.add(`${slot.id}-${slot.day_of_week}`)
       }
     }
   }
+}
 
-  // Track slots that need shortening due to home games (key: `${slot.id}-${dayIndex}`, value: new end_time)
-  const shortenedSlots = new Map<string, string>()
-
-  // Suppress recurring templates based on games:
-  // - Away games → free up the team's training slot (shown as "FREI")
-  // - Home games → shorten preceding slot or suppress overlapping slots
+/** Suppress/shorten recurring templates based on games:
+ *  - Away games → free up the team's training slot (later shown as "FREI")
+ *  - Home games → shorten the preceding slot or suppress overlapping slots. */
+function collectGameSuppressions(
+  games: Game[],
+  realSlots: HallSlot[],
+  weekDays: Date[],
+  halls: Hall[],
+  teams: Team[],
+  suppressedSlotDays: Set<string>,
+  shortenedSlots: Map<string, string>,
+): void {
   for (const game of games) {
     if (game.status === 'postponed') continue
     const gameDate = game.date.slice(0, 10)
@@ -392,13 +443,11 @@ export function mergeVirtualSlots(
         }
       }
     } else {
-      // Home game → shorten preceding slot or suppress overlapping slots
-      // BB games span KWI A + KWI B
-      const gameTime = game.time ? (game.time.includes(' ') ? game.time.split(' ')[1].slice(0, 5) : game.time.slice(0, 5)) : undefined
+      // Home game → shorten preceding slot or suppress overlapping slots.
+      // BB games span KWI A + KWI B (via allGameHallIds).
+      const gameTime = parseGameTime(game)
       if (!gameTime) continue
-      const gameStartMin = Math.max(timeToMinutes(gameTime) - GAME_WARMUP_MINUTES, 0)
-      const gameEndMin = Math.min(gameStartMin + GAME_TOTAL_DURATION, 22 * 60)
-
+      const { startMin: gameStartMin, endMin: gameEndMin } = gameWarmupRange(gameTime)
       const gameHallIds = allGameHallIds(game, { teams, halls })
 
       for (const slot of realSlots) {
@@ -407,34 +456,18 @@ export function mergeVirtualSlots(
           !gameHallIds.includes(slot.hall) ||
           slot.day_of_week !== dayIndex
         ) continue
-        const slotStart = timeToMinutes(slot.start_time)
-        const slotEnd = timeToMinutes(slot.end_time)
-        if (slotStart < gameEndMin && slotEnd > gameStartMin) {
-          // Slot overlaps with game range
-          if (slotStart < gameStartMin) {
-            // Slot starts before game warmup → shorten to end at warmup start
-            const newEnd = gameStartMin
-            if (newEnd > slotStart + 15) {
-              // Keep at least 15 min of the slot
-              const key = `${slot.id}-${dayIndex}`
-              const existing = shortenedSlots.get(key)
-              // If multiple games affect this slot, use the earliest end time
-              if (!existing || timeToMinutes(existing) > newEnd) {
-                shortenedSlots.set(key, minutesToTime(newEnd))
-              }
-            } else {
-              suppressedSlotDays.add(`${slot.id}-${dayIndex}`)
-            }
-          } else {
-            // Slot starts during/after game warmup → suppress entirely
-            suppressedSlotDays.add(`${slot.id}-${dayIndex}`)
-          }
-        }
+        suppressOrShortenForGame(slot, dayIndex, gameStartMin, gameEndMin, suppressedSlotDays, shortenedSlots)
       }
     }
   }
+}
 
-  // Suppress recurring slots that overlap with closure-like hall events
+/** Suppress recurring slots overlapping closure-like hall events. */
+function collectClosureEventSuppressions(
+  virtualSlots: HallSlot[],
+  realSlots: HallSlot[],
+  suppressedSlotDays: Set<string>,
+): void {
   for (const vs of virtualSlots) {
     if (vs._virtual?.source !== 'hall_event') continue
     const he = vs._virtual.sourceRecord as HallEvent
@@ -447,15 +480,20 @@ export function mergeVirtualSlots(
     for (const slot of realSlots) {
       if (!slot.recurring || slot.day_of_week !== vs.day_of_week) continue
       if (!closureHallIds.includes(slot.hall)) continue
-      const slotStart = timeToMinutes(slot.start_time)
-      const slotEnd = timeToMinutes(slot.end_time)
-      if (slotStart < closureEnd && slotEnd > closureStart) {
+      if (rangesOverlap(timeToMinutes(slot.start_time), timeToMinutes(slot.end_time), closureStart, closureEnd)) {
         suppressedSlotDays.add(`${slot.id}-${vs.day_of_week}`)
       }
     }
   }
+}
 
-  // Suppress/shorten recurring slots that overlap with BB game hall events
+/** Suppress/shorten recurring slots overlapping BB game hall events. */
+function collectBBGameEventSuppressions(
+  virtualSlots: HallSlot[],
+  realSlots: HallSlot[],
+  suppressedSlotDays: Set<string>,
+  shortenedSlots: Map<string, string>,
+): void {
   for (const vs of virtualSlots) {
     if (vs._virtual?.source !== 'hall_event' || vs.slot_type !== 'game') continue
     const bbHallIds = vs._virtual.spanHallIds ?? [vs.hall]
@@ -465,28 +503,18 @@ export function mergeVirtualSlots(
     for (const slot of realSlots) {
       if (!slot.recurring || slot.day_of_week !== vs.day_of_week) continue
       if (!bbHallIds.includes(slot.hall)) continue
-      const slotStart = timeToMinutes(slot.start_time)
-      const slotEnd = timeToMinutes(slot.end_time)
-      if (slotStart < bbEndMin && slotEnd > bbStartMin) {
-        if (slotStart < bbStartMin) {
-          const newEnd = bbStartMin
-          if (newEnd > slotStart + 15) {
-            const key = `${slot.id}-${vs.day_of_week}`
-            const existing = shortenedSlots.get(key)
-            if (!existing || timeToMinutes(existing) > newEnd) {
-              shortenedSlots.set(key, minutesToTime(newEnd))
-            }
-          } else {
-            suppressedSlotDays.add(`${slot.id}-${vs.day_of_week}`)
-          }
-        } else {
-          suppressedSlotDays.add(`${slot.id}-${vs.day_of_week}`)
-        }
-      }
+      suppressOrShortenForGame(slot, vs.day_of_week, bbStartMin, bbEndMin, suppressedSlotDays, shortenedSlots)
     }
   }
+}
 
-  // Suppress recurring slots on days when their hall has a hall_closures record
+/** Suppress recurring slots on days when their hall has a hall_closures record. */
+function collectHallClosureSuppressions(
+  realSlots: HallSlot[],
+  weekDays: Date[],
+  closures: HallClosure[],
+  suppressedSlotDays: Set<string>,
+): void {
   for (const slot of realSlots) {
     if (!slot.recurring) continue
     for (let dayIdx = 0; dayIdx < weekDays.length; dayIdx++) {
@@ -497,8 +525,16 @@ export function mergeVirtualSlots(
       }
     }
   }
+}
 
-  const filteredReal = realSlots
+/** Drops suppressed recurring slots and applies end-time shortening to the rest.
+ *  Non-recurring slots always pass through untouched. */
+function applySuppressionsAndShortening(
+  realSlots: HallSlot[],
+  suppressedSlotDays: Set<string>,
+  shortenedSlots: Map<string, string>,
+): HallSlot[] {
+  return realSlots
     .filter((slot) => {
       if (!slot.recurring) return true
       const key = `${slot.id}-${slot.day_of_week}`
@@ -511,16 +547,28 @@ export function mergeVirtualSlots(
       if (newEnd) return { ...slot, end_time: newEnd }
       return slot
     })
+}
 
-  // Create freed virtual slots for recurring training slots suppressed by away games
-  // (the away game itself is not rendered, but its training slot shows as "FREI")
+/** Indexes active claims by `${hall_slot}-${date}` for fast lookup. */
+function indexActiveClaims(claims: SlotClaim[]): Map<string, SlotClaim> {
   const claimsByKey = new Map<string, SlotClaim>()
   for (const claim of claims) {
     if (claim.status === 'active') {
       claimsByKey.set(`${claim.hall_slot}-${claim.date.slice(0, 10)}`, claim)
     }
   }
+  return claimsByKey
+}
 
+/** For each away game, surface the team's recurring training slot as a freed
+ *  virtual slot (the away game itself is never rendered). */
+function buildFreedFromAwaySlots(
+  games: Game[],
+  realSlots: HallSlot[],
+  weekDays: Date[],
+  closures: HallClosure[],
+  claimsByKey: Map<string, SlotClaim>,
+): HallSlot[] {
   const freedFromAway: HallSlot[] = []
   for (const game of games) {
     if (game.type !== 'away' || game.status === 'postponed') continue
@@ -555,21 +603,27 @@ export function mergeVirtualSlots(
       }
     }
   }
+  return freedFromAway
+}
 
-  // Annotate virtual slots with freed/claimed metadata
-  const annotated = annotateFreedSlots(virtualSlots, claims, closures)
-
-  // Build a set of home game time ranges per (dayIndex, hall) for suppressing virtual trainings
-  const homeGameRanges: { dayIndex: number; hall: string; startMin: number; endMin: number }[] = []
+/** Builds the per-(day, hall) home-game occupancy ranges used to suppress
+ *  virtual trainings — from both home game rows and BB game hall events. */
+function buildHomeGameRanges(
+  games: Game[],
+  virtualSlots: HallSlot[],
+  weekDays: Date[],
+  halls: Hall[],
+  teams: Team[],
+): HomeGameRange[] {
+  const homeGameRanges: HomeGameRange[] = []
   for (const game of games) {
     if (game.type === 'away' || game.status === 'postponed') continue
     const gameDate = game.date.slice(0, 10)
     const dayIndex = weekDays.findIndex((d) => toISODate(d) === gameDate)
     if (dayIndex === -1) continue
-    const gameTime = game.time ? (game.time.includes(' ') ? game.time.split(' ')[1].slice(0, 5) : game.time.slice(0, 5)) : undefined
+    const gameTime = parseGameTime(game)
     if (!gameTime || !game.hall) continue
-    const gStart = Math.max(timeToMinutes(gameTime) - GAME_WARMUP_MINUTES, 0)
-    const gEnd = Math.min(gStart + GAME_TOTAL_DURATION, 22 * 60)
+    const { startMin: gStart, endMin: gEnd } = gameWarmupRange(gameTime)
 
     const gameHallIds = allGameHallIds(game, { teams, halls })
 
@@ -578,7 +632,7 @@ export function mergeVirtualSlots(
     }
   }
 
-  // Add BB game hall events to homeGameRanges so they also suppress virtual trainings
+  // Add BB game hall events so they also suppress virtual trainings
   for (const vs of virtualSlots) {
     if (vs._virtual?.source !== 'hall_event' || vs.slot_type !== 'game') continue
     const bbHallIds = vs._virtual.spanHallIds ?? [vs.hall]
@@ -588,9 +642,12 @@ export function mergeVirtualSlots(
       homeGameRanges.push({ dayIndex: vs.day_of_week, hall: hid, startMin: bbStart, endMin: bbEnd })
     }
   }
+  return homeGameRanges
+}
 
-  // Build closure ranges from closure-like hall events
-  const closureRanges: { dayIndex: number; hallIds: string[]; startMin: number; endMin: number }[] = []
+/** Builds closure occupancy ranges from closure-like hall events. */
+function buildClosureRanges(virtualSlots: HallSlot[]): ClosureRange[] {
+  const closureRanges: ClosureRange[] = []
   for (const vs of virtualSlots) {
     if (vs._virtual?.source !== 'hall_event') continue
     const he = vs._virtual.sourceRecord as HallEvent
@@ -603,9 +660,20 @@ export function mergeVirtualSlots(
       endMin: timeToMinutes(vs.end_time),
     })
   }
+  return closureRanges
+}
 
-  // Remove virtual slots that are redundant or overlap with closures/games
-  const filteredAnnotated = annotated.filter((vs) => {
+/** Removes annotated virtual slots that are redundant or overlap with closures/games:
+ *  - GCal "Halle geschlossen" events already covered by a hall_closures record
+ *  - virtual trainings overlapping a home game, closure event, or hall_closures record. */
+function filterAnnotatedSlots(
+  annotated: HallSlot[],
+  weekDays: Date[],
+  closures: HallClosure[],
+  homeGameRanges: HomeGameRange[],
+  closureRanges: ClosureRange[],
+): HallSlot[] {
+  return annotated.filter((vs) => {
     const dateStr = toISODate(weekDays[vs.day_of_week])
 
     // Suppress GCal "Halle geschlossen" events when a hall_closures record covers the same hall+date
@@ -632,9 +700,18 @@ export function mergeVirtualSlots(
 
     return true
   })
+}
 
-  // Any recurring training template that survives suppression has no concrete
-  // training/home-game replacement for that day → present it as available.
+/** Any recurring training template that survives suppression has no concrete
+ *  training/home-game replacement for that day → present it as available.
+ *  Returns the freed virtual slots plus the set of `${id}-${day}` keys they
+ *  cover (so the originals can be dropped from the real-slot list). */
+function buildFreedRecurringSlots(
+  filteredReal: HallSlot[],
+  weekDays: Date[],
+  closures: HallClosure[],
+  claimsByKey: Map<string, SlotClaim>,
+): { freedRecurringSlots: HallSlot[]; recurringFreedKeys: Set<string> } {
   const freedRecurringSlots: HallSlot[] = []
   const recurringFreedKeys = new Set<string>()
   for (const slot of filteredReal) {
@@ -662,7 +739,46 @@ export function mergeVirtualSlots(
       },
     } as HallSlot)
   }
+  return { freedRecurringSlots, recurringFreedKeys }
+}
 
+/**
+ * Merges real hall_slots with virtual slots, deduplicating recurring slots
+ * that have a corresponding training instance for the same day.
+ * Also checks for away games that free up recurring training slots without
+ * an explicit training record.
+ */
+export function mergeVirtualSlots(
+  realSlots: HallSlot[],
+  virtualSlots: HallSlot[],
+  claims: SlotClaim[],
+  closures: HallClosure[],
+  games: Game[],
+  weekDays: Date[],
+  halls: Hall[],
+  teams: Team[],
+): HallSlot[] {
+  // Phase 1 — collect which recurring templates to suppress or shorten this week.
+  const suppressedSlotDays = new Set<string>()
+  const shortenedSlots = new Map<string, string>() // key: `${slot.id}-${dayIndex}`, value: new end_time
+  collectTrainingSuppressions(virtualSlots, realSlots, suppressedSlotDays)
+  collectGameSuppressions(games, realSlots, weekDays, halls, teams, suppressedSlotDays, shortenedSlots)
+  collectClosureEventSuppressions(virtualSlots, realSlots, suppressedSlotDays)
+  collectBBGameEventSuppressions(virtualSlots, realSlots, suppressedSlotDays, shortenedSlots)
+  collectHallClosureSuppressions(realSlots, weekDays, closures, suppressedSlotDays)
+
+  const filteredReal = applySuppressionsAndShortening(realSlots, suppressedSlotDays, shortenedSlots)
+
+  // Phase 2 — build the derived virtual slot sets.
+  const claimsByKey = indexActiveClaims(claims)
+  const freedFromAway = buildFreedFromAwaySlots(games, realSlots, weekDays, closures, claimsByKey)
+
+  const annotated = annotateFreedSlots(virtualSlots, claims, closures)
+  const homeGameRanges = buildHomeGameRanges(games, virtualSlots, weekDays, halls, teams)
+  const closureRanges = buildClosureRanges(virtualSlots)
+  const filteredAnnotated = filterAnnotatedSlots(annotated, weekDays, closures, homeGameRanges, closureRanges)
+
+  const { freedRecurringSlots, recurringFreedKeys } = buildFreedRecurringSlots(filteredReal, weekDays, closures, claimsByKey)
   const filteredRealWithoutFreed = filteredReal.filter((slot) => !recurringFreedKeys.has(`${slot.id}-${slot.day_of_week}`))
 
   return [...filteredRealWithoutFreed, ...filteredAnnotated, ...freedFromAway, ...freedRecurringSlots]
