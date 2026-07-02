@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import DOMPurify from 'dompurify'
 import { useTranslation } from 'react-i18next'
 import type { Game, Member, Team, Hall, LicenceType, MemberTeam, ScorerDelegation } from '../../../types'
@@ -186,6 +186,16 @@ export default function ScorerRow({
   const [show24s, setShow24s] = useState(!!game.bb_24s_official)
   // Home-team roster modal (Schreiber only, ±1h around kickoff)
   const [showRoster, setShowRoster] = useState(false)
+
+  // Close the self-assign confirmation dialog on Escape (parity with GameDetailModal).
+  useEffect(() => {
+    if (!confirmRole) return
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setConfirmRole(null)
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [confirmRole])
 
   // The assigned Schreiber (scorer / scorer_scoreboard / bb_scorer — NOT the
   // pure Täfeler/timekeeper roles) may view the home team's roster, but only

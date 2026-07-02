@@ -14,6 +14,7 @@ import { teamIds } from '../../utils/teamColors'
 import { todayLocal, getCurrentSeason, formatSeasonLong } from '../../utils/dateHelpers'
 import { fetchSeasons } from '../../lib/api'
 import { isCupGame } from '../../utils/leagueClassification'
+import { asObj } from '../../utils/relations'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import SportToggle from '../../components/SportToggle'
 import TeamFilterBar from './components/TeamFilterBar'
@@ -246,8 +247,8 @@ export default function GamesPage() {
     // Compute warnings per game
     const warnsByGame = new Map<string, Warning[]>()
     for (const g of games) {
-      const kscwTeamObj = (g as any).kscw_team
-      const sport = (kscwTeamObj != null && typeof kscwTeamObj === 'object' ? kscwTeamObj.sport : undefined) as 'volleyball' | 'basketball' | undefined
+      const kscwTeamObj = asObj<Team>(g.kscw_team)
+      const sport = kscwTeamObj?.sport as 'volleyball' | 'basketball' | undefined
       if (!sport) continue
       const parts = (byGame.get(g.id) ?? []) as ParticipationWithMember[]
       const warnings = getGameWarnings(parts, sport, g.min_participants || undefined)
@@ -322,6 +323,63 @@ export default function GamesPage() {
   // Report to app boot gate — see usePageReady.tsx
   useReportPageLoading(isLoading)
 
+  // Shared renderer for the upcoming (card grid) and results (compact list)
+  // tabs — both split games into league vs Cup sections and render GameCard.
+  const renderGameSections = (variant: 'card' | 'compact') => {
+    const leagueGames = games.filter((g) => !isCupGame(g.league))
+    const cupGames = games.filter((g) => isCupGame(g.league))
+    const showHeadings = leagueGames.length > 0 && cupGames.length > 0
+    const sections: Array<{ key: 'league' | 'cup'; label: string; items: typeof games }> = []
+    if (leagueGames.length > 0) sections.push({ key: 'league', label: t('sectionLeague'), items: leagueGames })
+    if (cupGames.length > 0) sections.push({ key: 'cup', label: t('sectionCup'), items: cupGames })
+    return sections.map((section) => (
+      <div key={section.key} className="mb-6 last:mb-0">
+        {showHeadings && (
+          <h2 className={variant === 'compact'
+            ? 'mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500 md:text-center dark:text-gray-400'
+            : 'mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'}>
+            {section.label}
+          </h2>
+        )}
+        {variant === 'compact' ? (
+          <div data-tour={section.key === 'league' ? 'game-results' : undefined} className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white md:mx-auto md:w-fit dark:bg-gray-800 md:grid md:grid-cols-[auto_auto_auto_auto_auto_auto_auto_1fr]">
+            {section.items.map((g) => (
+              <GameCard
+                key={g.id}
+                game={g}
+                onClick={setSelectedGame}
+                onOpenRoster={setRosterGame}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                variant="compact"
+                participations={participationsByGame.get(g.id)}
+                myParticipation={myParticipationByGame.get(g.id)}
+                warnings={warningsByGame.get(g.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-tour={section.key === 'league' ? 'game-card' : undefined}>
+            {section.items.map((g) => (
+              <GameCard
+                key={g.id}
+                game={g}
+                onClick={setSelectedGame}
+                onOpenRoster={setRosterGame}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                participations={participationsByGame.get(g.id)}
+                myParticipation={myParticipationByGame.get(g.id)}
+                warnings={warningsByGame.get(g.id)}
+                onParticipationSaved={refetchCombined}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    ))
+  }
+
   return (
     <div className="min-w-0">
       <div className="flex items-center gap-2">
@@ -353,39 +411,7 @@ export default function GamesPage() {
               <EmptyState tab={activeTab} />
             ) : (
               <>
-                {(() => {
-                  const leagueGames = games.filter((g) => !isCupGame(g.league))
-                  const cupGames = games.filter((g) => isCupGame(g.league))
-                  const showHeadings = leagueGames.length > 0 && cupGames.length > 0
-                  const sections: Array<{ key: 'league' | 'cup'; label: string; items: typeof games }> = []
-                  if (leagueGames.length > 0) sections.push({ key: 'league', label: t('sectionLeague'), items: leagueGames })
-                  if (cupGames.length > 0) sections.push({ key: 'cup', label: t('sectionCup'), items: cupGames })
-                  return sections.map((section) => (
-                    <div key={section.key} className="mb-6 last:mb-0">
-                      {showHeadings && (
-                        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                          {section.label}
-                        </h2>
-                      )}
-                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-tour={section.key === 'league' ? 'game-card' : undefined}>
-                        {section.items.map((g) => (
-                          <GameCard
-                            key={g.id}
-                            game={g}
-                            onClick={setSelectedGame}
-                            onOpenRoster={setRosterGame}
-                            onEdit={handleEdit}
-                            onDelete={handleDelete}
-                            participations={participationsByGame.get(g.id)}
-                            myParticipation={myParticipationByGame.get(g.id)}
-                            warnings={warningsByGame.get(g.id)}
-                            onParticipationSaved={refetchCombined}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                })()}
+                {renderGameSections('card')}
                 {!showAll && games.length >= INITIAL_LIMIT && (
                   <button
                     onClick={() => setShowAll(true)}
@@ -406,39 +432,7 @@ export default function GamesPage() {
               <EmptyState tab={activeTab} />
             ) : (
               <>
-                {(() => {
-                  const leagueGames = games.filter((g) => !isCupGame(g.league))
-                  const cupGames = games.filter((g) => isCupGame(g.league))
-                  const showHeadings = leagueGames.length > 0 && cupGames.length > 0
-                  const sections: Array<{ key: 'league' | 'cup'; label: string; items: typeof games }> = []
-                  if (leagueGames.length > 0) sections.push({ key: 'league', label: t('sectionLeague'), items: leagueGames })
-                  if (cupGames.length > 0) sections.push({ key: 'cup', label: t('sectionCup'), items: cupGames })
-                  return sections.map((section) => (
-                    <div key={section.key} className="mb-6 last:mb-0">
-                      {showHeadings && (
-                        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500 md:text-center dark:text-gray-400">
-                          {section.label}
-                        </h2>
-                      )}
-                      <div data-tour={section.key === 'league' ? 'game-results' : undefined} className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white md:mx-auto md:w-fit dark:bg-gray-800 md:grid md:grid-cols-[auto_auto_auto_auto_auto_auto_auto_1fr]">
-                        {section.items.map((g) => (
-                          <GameCard
-                            key={g.id}
-                            game={g}
-                            onClick={setSelectedGame}
-                            onOpenRoster={setRosterGame}
-                            onEdit={handleEdit}
-                            onDelete={handleDelete}
-                            variant="compact"
-                            participations={participationsByGame.get(g.id)}
-                            myParticipation={myParticipationByGame.get(g.id)}
-                            warnings={warningsByGame.get(g.id)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                })()}
+                {renderGameSections('compact')}
                 {!showAll && games.length >= INITIAL_LIMIT && (
                   <button
                     onClick={() => setShowAll(true)}

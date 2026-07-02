@@ -259,29 +259,37 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
       })
       const existingSet = new Set(existing.map((t) => t.date.slice(0, 10)))
 
+      const skipCount = previewDates.filter((date) => existingSet.has(date)).length
+      const teamId = slot.team?.[0]
+      const datesToCreate = teamId
+        ? previewDates.filter((date) => !existingSet.has(date))
+        : []
+
+      // Create in parallel chunks instead of a serial await loop (a full-season
+      // generation was ~30 sequential POSTs).
+      const CHUNK_SIZE = 10
       let count = 0
-      let skipCount = 0
-      for (const date of previewDates) {
-        if (existingSet.has(date)) { skipCount++; continue }
-        const teamId = slot.team?.[0]
-        if (!teamId) continue
-        const rec = await createRecord<{id: string}>('trainings', {
-          team: teamId,
-          hall_slot: slot.id,
-          date,
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-          hall: effectiveHallId,
-          cancelled: false,
-          notes,
-          respond_by: computeRespondBy(date, slot.start_time) || null,
-          min_participants: minParticipants ? Number(minParticipants) : null,
-          max_participants: maxParticipants ? Number(maxParticipants) : null,
-          require_note_if_absent: requireNoteIfAbsent,
-          auto_cancel_on_min: autoCancelOnMin,
-        })
-        logActivity('create', 'trainings', rec.id, { team: teamId, date, hall: effectiveHallId })
-        count++
+      for (let i = 0; i < datesToCreate.length; i += CHUNK_SIZE) {
+        await Promise.all(
+          datesToCreate.slice(i, i + CHUNK_SIZE).map(async (date) => {
+            const rec = await createRecord<{ id: string }>('trainings', {
+              team: teamId,
+              hall_slot: slot.id,
+              date,
+              start_time: slot.start_time,
+              end_time: slot.end_time,
+              hall: effectiveHallId,
+              cancelled: false,
+              notes,
+              respond_by: computeRespondBy(date, slot.start_time) || null,
+              min_participants: minParticipants ? Number(minParticipants) : null,
+              max_participants: maxParticipants ? Number(maxParticipants) : null,
+              require_note_if_absent: requireNoteIfAbsent,
+            })
+            logActivity('create', 'trainings', rec.id, { team: teamId, date, hall: effectiveHallId })
+            count++
+          }),
+        )
       }
       setGenerated(count)
       setSkipped(skipCount)

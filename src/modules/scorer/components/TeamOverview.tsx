@@ -92,7 +92,7 @@ export default function TeamOverview({ games, members, sport }: TeamOverviewProp
     }
 
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b, i18n.language))
-  }, [games, memberMap, sport])
+  }, [games, memberMap, sport, i18n.language])
 
   if (teamDuties.length === 0) {
     return (

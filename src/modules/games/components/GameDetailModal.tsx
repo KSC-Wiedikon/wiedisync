@@ -80,6 +80,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
     return parsed?.time ?? ''
   })
   const [fullGame, setFullGame] = useState<Game | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const { update: updateGame } = useMutation<Game>('games')
   const canParticipate = !!user && !!game?.kscw_team && canParticipateIn(relId(game.kscw_team))
   const isStaffParticipant = !!game?.kscw_team && isStaffOnly(relId(game.kscw_team))
@@ -150,8 +151,38 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
 
   useEffect(() => {
     if (!game) return
+    const dialog = dialogRef.current
+    const focusables = () => dialog
+      ? Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), textarea, input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter((el) => el.offsetParent !== null)
+      : []
+    // Initial-focus management: move focus into the dialog on open.
+    focusables()[0]?.focus()
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab' || !dialog) return
+      const items = focusables()
+      if (items.length === 0) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      const active = document.activeElement as HTMLElement | null
+      // Only wrap at the dialog's own edges. When focus is elsewhere (e.g. the
+      // nested roster sub-modal), leave it alone so we don't hijack its tabbing.
+      if (e.shiftKey) {
+        if (active === first) {
+          e.preventDefault()
+          last.focus()
+        }
+      } else if (active === last) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
@@ -205,6 +236,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:rounded-2xl dark:bg-gray-800"
         onClick={(e) => e.stopPropagation()}
       >
@@ -223,13 +255,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
               aria-label={t('common:close', 'Close')}
               className="-mr-2 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 sm:-mr-1 sm:min-h-0 sm:min-w-0 sm:p-1 dark:hover:bg-gray-700"
             >
-            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path
-                fillRule="evenodd"
-                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                clipRule="evenodd"
-              />
-            </svg>
+            <X className="h-5 w-5" />
             </button>
           </div>
 

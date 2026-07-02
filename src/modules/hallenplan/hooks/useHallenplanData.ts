@@ -70,7 +70,7 @@ export function useHallenplanData(
   const closures = closuresData ?? []
 
   // Games for this week (exclude postponed)
-  const { data: gamesRaw, isLoading: gamesLoading } = useCollection<Game>('games', {
+  const { data: gamesRaw, isLoading: gamesLoading, refetch: refetchGames } = useCollection<Game>('games', {
     filter: { _and: [{ date: { _gte: mondayStr } }, { date: { _lte: sundayStr } }, { away_team: { _nnull: true } }, { time: { _nnull: true } }, { _or: [{ status: { _neq: 'postponed' } }, { status: { _null: true } }] }] },
     limit: 100,
     sort: ['date', 'time'],
@@ -90,7 +90,7 @@ export function useHallenplanData(
   const trainings = trainingsRaw ?? []
 
   // Hall events (GCal) for this week
-  const { data: hallEventsRaw, isLoading: hallEventsLoading } = useCollection<HallEvent>('hall_events', {
+  const { data: hallEventsRaw, isLoading: hallEventsLoading, refetch: refetchHallEvents } = useCollection<HallEvent>('hall_events', {
     filter: { _and: [{ date: { _gte: mondayStr } }, { date: { _lte: sundayStr } }] },
     limit: 100,
     sort: ['date', 'start_time'],
@@ -190,6 +190,8 @@ export function useHallenplanData(
     refetchClosures()
     refetchClaims()
     refetchTrainings()
+    refetchGames()
+    refetchHallEvents()
   }
 
   const isLoading =

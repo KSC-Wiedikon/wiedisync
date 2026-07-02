@@ -28,6 +28,9 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null)
 
   // Fetch all games for this league (skip in compact/homepage mode — no accordion).
+  // Deferred until the first row is expanded: the games only feed the accordion
+  // drill-down, so an unexpanded table (the common case, one per league on the
+  // rankings tab) never fires this 500-row query.
   // Scope to the season of the table being shown so old-season games don't leak in.
   const tableSeason = rankings[0]?.season
   const { data: leagueGamesRaw } = useCollection<Game>('games', {
@@ -36,7 +39,7 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
       : { league: { _eq: league } },
     sort: ['-date', '-time'],
     limit: 500,
-    enabled: !compact,
+    enabled: !compact && expandedTeamId !== null,
   })
   const leagueGames = leagueGamesRaw ?? []
 

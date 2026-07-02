@@ -180,7 +180,12 @@ export default function RosterEditor() {
       await updateRecord('members', memberId, { number: num })
       logActivity('update', 'members', memberId, { number: num })
     } catch {
-      setLocalOverrides((prev) => { const next = { ...prev }; delete next[memberId]?.number; return next })
+      setLocalOverrides((prev) => {
+        if (!prev[memberId]) return prev
+        const inner = { ...prev[memberId] }
+        delete inner.number
+        return { ...prev, [memberId]: inner }
+      })
       toast.error(t('common:errorSaving'))
     }
   }
@@ -191,7 +196,12 @@ export default function RosterEditor() {
       await updateRecord('members', memberId, { position: positions })
       logActivity('update', 'members', memberId, { position: positions })
     } catch {
-      setLocalOverrides((prev) => { const next = { ...prev }; delete next[memberId]?.position; return next })
+      setLocalOverrides((prev) => {
+        if (!prev[memberId]) return prev
+        const inner = { ...prev[memberId] }
+        delete inner.position
+        return { ...prev, [memberId]: inner }
+      })
       toast.error(t('common:errorSaving'))
     }
   }
@@ -640,6 +650,8 @@ function DebouncedNumberInput({ value, onChange, suffix }: { value: number | und
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { setLocal(String(value ?? '')) }, [value])
+  // Clear a pending debounced save on unmount so it can't fire after teardown.
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const v = e.target.value
@@ -682,6 +694,12 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
   const socialUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const facebookUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tiktokUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Clear any pending debounced URL saves on unmount so they can't fire late.
+  useEffect(() => () => {
+    if (socialUrlTimer.current) clearTimeout(socialUrlTimer.current)
+    if (facebookUrlTimer.current) clearTimeout(facebookUrlTimer.current)
+    if (tiktokUrlTimer.current) clearTimeout(tiktokUrlTimer.current)
+  }, [])
   // Auto-confirm toggles warn in both directions: turning ON backfills future
   // activities + confirms everyone; turning OFF is forward-only and leaves
   // existing confirmations untouched (not a reset) — both are easy to misread.

@@ -139,8 +139,17 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
               <img
                 src={getFileUrl('members', member.id, member.photo)}
                 alt={displayName}
+                role="button"
+                tabIndex={0}
+                aria-label={displayName}
                 className="h-8 w-8 cursor-pointer rounded-full object-cover"
                 onClick={() => setLightboxOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setLightboxOpen(true)
+                  }
+                }}
               />
               <ImageLightbox
                 src={getFileUrl('members', member.id, member.photo)}

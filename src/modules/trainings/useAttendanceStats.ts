@@ -107,6 +107,27 @@ export function useAttendanceStats(teamId: string | null, range: DateRange) {
         filter: { _and: [{ member: { _in: memberIds } }, { end_date: { _gte: start } }, { start_date: { _lte: end } }] },
       })
 
+      // Pre-index participations + absences once so the per-(training, member) loops
+      // below run in O(trainings × members) instead of O(trainings × members × participations).
+      const partByKey = new Map<string, Participation>()
+      const partByMember = new Map<string, Participation[]>()
+      for (const p of participations) {
+        partByKey.set(`${p.member}|${p.activity_id}`, p)
+        const arr = partByMember.get(String(p.member))
+        if (arr) arr.push(p)
+        else partByMember.set(String(p.member), [p])
+      }
+      const absencesByMember = new Map<string, Absence[]>()
+      for (const a of absences) {
+        const arr = absencesByMember.get(String(a.member))
+        if (arr) arr.push(a)
+        else absencesByMember.set(String(a.member), [a])
+      }
+      const hasCoveringAbsence = (memberId: string, dateKey: string) =>
+        (absencesByMember.get(memberId) ?? []).some(
+          (a) => a.start_date <= dateKey && a.end_date >= dateKey,
+        )
+
       // Build per-member stats
       const memberStats: Record<string, PlayerStats> = {}
 
@@ -133,12 +154,8 @@ export function useAttendanceStats(teamId: string | null, range: DateRange) {
 
         for (const member of members) {
           const s = memberStats[member.id]
-          const participation = participations.find(
-            (p) => p.member === member.id && p.activity_id === training.id,
-          )
-          const hasAbsence = absences.some(
-            (a) => a.member === member.id && a.start_date <= trainingDate && a.end_date >= trainingDate,
-          )
+          const participation = partByKey.get(`${member.id}|${training.id}`)
+          const hasAbsence = hasCoveringAbsence(member.id, trainingDate)
 
           const bucket = classifyAttendance({
             participationStatus: participation?.status ?? null,
@@ -154,7 +171,7 @@ export function useAttendanceStats(teamId: string | null, range: DateRange) {
 
       // Compute last response timestamp per member
       for (const member of members) {
-        const memberParticipations = participations.filter((p) => p.member === member.id)
+        const memberParticipations = partByMember.get(member.id) ?? []
         if (memberParticipations.length > 0) {
           const latest = memberParticipations.reduce((a, b) =>
             (a.date_updated ?? '') > (b.date_updated ?? '') ? a : b
@@ -170,12 +187,8 @@ export function useAttendanceStats(teamId: string | null, range: DateRange) {
         const trend: PlayerStats['trend'] = []
         for (const training of lastTrainings) {
           const trainingDate = training.date.split(' ')[0]
-          const participation = participations.find(
-            (p) => p.member === member.id && p.activity_id === training.id,
-          )
-          const hasAbsence = absences.some(
-            (a) => a.member === member.id && a.start_date <= trainingDate && a.end_date >= trainingDate,
-          )
+          const participation = partByKey.get(`${member.id}|${training.id}`)
+          const hasAbsence = hasCoveringAbsence(member.id, trainingDate)
           const bucket = classifyAttendance({
             participationStatus: participation?.status ?? null,
             hasAbsence,
@@ -193,12 +206,8 @@ export function useAttendanceStats(teamId: string | null, range: DateRange) {
         // Count future trainings where this member has an explicit response
         const futureResponded = futureTrainings.filter((t) => {
           const trainingDate = t.date.split(' ')[0]
-          const hasParticipation = participations.some(
-            (p) => p.member === s.memberId && p.activity_id === t.id,
-          )
-          const hasAbsence = absences.some(
-            (a) => a.member === s.memberId && a.start_date <= trainingDate && a.end_date >= trainingDate,
-          )
+          const hasParticipation = partByKey.has(`${s.memberId}|${t.id}`)
+          const hasAbsence = hasCoveringAbsence(s.memberId, trainingDate)
           return hasParticipation || hasAbsence
         }).length
         const total = pastTrainings.length + futureResponded

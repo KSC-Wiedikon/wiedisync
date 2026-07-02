@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { QRCodeSVG } from 'qrcode.react'
 import Modal from '../../components/Modal'
 import { Button } from '../../components/ui/button'
@@ -43,8 +44,8 @@ export default function InviteExternalUserModal({ open, onClose, teamId, teamNam
         body: { team: teamId, guest_level: selectedLevel },
       })
       setQrUrl(res.url ?? res.invite_url ?? res.link ?? '')
-    } catch (err: any) {
-      setError(err?.message ?? t('common:error'))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('common:error'))
     } finally {
       setLoading(false)
     }
@@ -57,7 +58,7 @@ export default function InviteExternalUserModal({ open, onClose, teamId, teamNam
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Fallback: silent fail
+      toast.error(t('common:error'))
     }
   }
 

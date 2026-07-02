@@ -101,6 +101,26 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
     return out
   }, [rankings])
 
+  // Derive the per-metric ranking rows + totals once per (sections, mode) instead
+  // of recomputing them inside the JSX map on every render (e.g. row expand/collapse).
+  const derivedBySection = useMemo(() => {
+    const bySport = new Map<SportKey, Map<string, { rankingRows: Array<{ teamId: string; value: number }>; total: number | null }>>()
+    for (const section of sections) {
+      const perMetric = new Map<string, { rankingRows: Array<{ teamId: string; value: number }>; total: number | null }>()
+      for (const metric of section.metrics) {
+        const rankingRows = mode === 'perGame'
+          ? computeMetricRankingPerGame(section.rows, metric.getValue)
+          : computeMetricRanking(section.rows, metric.getValue)
+        const total = mode === 'perGame'
+          ? computePerGameAverage(section.rows, metric.getValue)
+          : (section.totals.find((m) => m.key === metric.key)?.value ?? null)
+        perMetric.set(metric.key, { rankingRows, total })
+      }
+      bySport.set(section.sportKey, perMetric)
+    }
+    return bySport
+  }, [sections, mode])
+
   return (
     <div className="mb-6 space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -159,12 +179,9 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
                     {section.metrics.map((metric) => {
                       const rowKey = `${section.sportKey}:${metric.key}`
                       const isExpanded = !!expandedRows[rowKey]
-                      const rankingRows = mode === 'perGame'
-                        ? computeMetricRankingPerGame(section.rows, metric.getValue)
-                        : computeMetricRanking(section.rows, metric.getValue)
-                      const total = mode === 'perGame'
-                        ? computePerGameAverage(section.rows, metric.getValue)
-                        : (section.totals.find((m) => m.key === metric.key)?.value ?? null)
+                      const derived = derivedBySection.get(section.sportKey)?.get(metric.key)
+                      const rankingRows = derived?.rankingRows ?? []
+                      const total = derived?.total ?? null
                       const topValue = rankingRows.length > 0 ? rankingRows[0].value : null
                       const topTeams = topValue === null ? [] : rankingRows.filter((entry) => entry.value === topValue)
                       const leaderPercent = mode === 'absolute' && topValue !== null && total !== null && total > 0

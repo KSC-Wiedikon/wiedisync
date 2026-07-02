@@ -83,7 +83,7 @@ function CategoryEditor({ teamId, category, rule, onChange }: CategoryEditorProp
   const { t } = useTranslation(['fines', 'common'])
   const confirm = useConfirm()
   const [enabled, setEnabled] = useState(rule?.enabled ?? false)
-  const [window, setWindow] = useState<FineResetWindow>(rule?.reset_window ?? 'calendar_month')
+  const [resetWindow, setResetWindow] = useState<FineResetWindow>(rule?.reset_window ?? 'calendar_month')
   const [tiers, setTiers] = useState<FineRuleTier[]>(rule?.tiers ?? [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -92,7 +92,7 @@ function CategoryEditor({ teamId, category, rule, onChange }: CategoryEditorProp
   // Re-sync local state when the parent re-fetches.
   useEffect(() => {
     setEnabled(rule?.enabled ?? false)
-    setWindow(rule?.reset_window ?? 'calendar_month')
+    setResetWindow(rule?.reset_window ?? 'calendar_month')
     setTiers(rule?.tiers ?? [])
   }, [rule?.id, rule?.enabled, rule?.reset_window, rule?.tiers])
 
@@ -129,7 +129,7 @@ function CategoryEditor({ teamId, category, rule, onChange }: CategoryEditorProp
   }
 
   async function handleWindowChange(w: FineResetWindow) {
-    setWindow(w)
+    setResetWindow(w)
     await save({ reset_window: w })
   }
 
@@ -154,8 +154,11 @@ function CategoryEditor({ teamId, category, rule, onChange }: CategoryEditorProp
     handleTiersChange(tiers.filter((_, i) => i !== idx))
   }
 
+  // Update tier fields locally only; persist on blur (below) so typing a digit
+  // into an offense/amount field no longer fires a full fine_rules PATCH per
+  // keystroke. Structural changes (add/remove/toggle) still save immediately.
   function updateTier(idx: number, patch: Partial<FineRuleTier>) {
-    handleTiersChange(tiers.map((tt, i) => (i === idx ? { ...tt, ...patch } : tt)))
+    setTiers((prev) => prev.map((tt, i) => (i === idx ? { ...tt, ...patch } : tt)))
   }
 
   function toggleTierIsMin(idx: number) {
@@ -172,7 +175,7 @@ function CategoryEditor({ teamId, category, rule, onChange }: CategoryEditorProp
     : tiers.map((tt) => {
         const label = tt.offense_min != null ? `${tt.offense_min}+` : String(tt.offense ?? '?')
         return `${label}: ${formatFineAmount(tt.amount)}`
-      }).join(' · ') + ` · ${t(`fines:${windowLabelKey(window)}`).toLowerCase()}`
+      }).join(' · ') + ` · ${t(`fines:${windowLabelKey(resetWindow)}`).toLowerCase()}`
 
   return (
     <div className="space-y-3 px-4 py-3">
@@ -197,7 +200,7 @@ function CategoryEditor({ teamId, category, rule, onChange }: CategoryEditorProp
           <label className="block text-xs text-gray-600 dark:text-gray-400">
             {t('fines:settingsResetWindow')}
             <select
-              value={window}
+              value={resetWindow}
               onChange={(e) => handleWindowChange(e.target.value as FineResetWindow)}
               className="ml-2 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
             >
@@ -228,6 +231,7 @@ function CategoryEditor({ teamId, category, rule, onChange }: CategoryEditorProp
                     onChange={(e) => updateTier(idx, isMin
                       ? { offense_min: parseInt(e.target.value, 10) || 1 }
                       : { offense: parseInt(e.target.value, 10) || 1 })}
+                    onBlur={() => save({ tiers })}
                     className="w-16 rounded-md border border-gray-300 bg-white px-1.5 py-1 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                   />
                   <span className="text-xs text-gray-400">·</span>
@@ -237,6 +241,7 @@ function CategoryEditor({ teamId, category, rule, onChange }: CategoryEditorProp
                     step="0.05"
                     value={tier.amount}
                     onChange={(e) => updateTier(idx, { amount: parseFloat(e.target.value) || 0 })}
+                    onBlur={() => save({ tiers })}
                     className="w-20 rounded-md border border-gray-300 bg-white px-1.5 py-1 text-right text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                   />
                   <span className="text-xs text-gray-500">{t('fines:settingsTierAmount')}</span>
