@@ -38,9 +38,17 @@ const MAX_DATA_BYTES = 4096
 const REDACTED_FIELDS = {
   members: new Set([
     'ahv_nummer', 'birthdate', 'email', 'phone', 'license_nr',
-    'address', 'plz', 'ort', 'nationalitaet', 'anrede', 'sex',
+    // NB: the real column is `adresse` (German). `address` kept only as a
+    // defensive alias in case a field is ever renamed.
+    'address', 'adresse', 'plz', 'ort', 'nationalitaet', 'anrede', 'sex',
     'photo', 'requested_team', 'vm_email',
     'consent_decision', 'consent_prompted_at',
+    // Financial PII (migrations 117 / 133 / 136) — member IBAN + the alternate
+    // billing contact. Editable via items API (self-edit / finance policy), so
+    // members.update payloads land in user_logs unless redacted here.
+    'iban',
+    'billing_name', 'billing_email', 'billing_address', 'billing_plz',
+    'billing_ort', 'billing_phone', 'billing_iban',
   ]),
   directus_users: new Set([
     'email', 'password', 'token', 'tfa_secret',

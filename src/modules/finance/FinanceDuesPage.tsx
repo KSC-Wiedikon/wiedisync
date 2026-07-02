@@ -18,6 +18,7 @@ function StatusBadge({ inv }: { inv: FinanceInvoice }) {
     const s = inv.status ?? ''
     const map: Record<string, [string, string]> = {
       open: ['bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', t('statusOpen')],
+      partial: ['bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', t('statusPartial')],
       pending_confirmation: ['bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', t('statusPendingConfirmation')],
       paid: ['bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', t('statusPaid')],
       cancelled: ['bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', t('statusCancelled')],

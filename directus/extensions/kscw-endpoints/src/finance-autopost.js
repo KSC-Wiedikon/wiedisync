@@ -22,6 +22,62 @@
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100
 const isoDate = (d) => { if (!d) return null; if (typeof d === 'string') return d.slice(0, 10); const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` }
 
+/**
+ * PURE settlement allocator. Given an invoice total + its payments (date order),
+ * produce the double-entry legs that keep Debitoren (A/R control) reconciled to
+ * the sub-ledger. Extracted so the invariants are unit-testable without a DB
+ * (2026-07-02 audit — #1 refund-vs-prepayment, #23 rounding residual). The
+ * caller posts each returned leg idempotently. Also returns the final `open`
+ * receivable and `prepaid` excess for assertions.
+ *
+ *   accounts: { debitoren, bank, income, prepay, badDebt } — account ids;
+ *             prepay/badDebt may be null (fall back to debitoren/income).
+ *   payments: [{ id, amount, entry_type, date }] in ('asc') order.
+ */
+export function planSettlementLegs({ total, payments, invoiceId, issueDate, accounts }) {
+  const legs = []
+  let open = round2(total)
+  let prepaid = 0
+  let sawPayment = false
+  for (const p of payments || []) {
+    const amt = round2(p.amount)
+    const et = p.entry_type || 'payment'
+    const push = (kind, debit, credit, amount, label) => {
+      const a = round2(amount)
+      if (a > 0 && debit != null && credit != null) legs.push({ kind, refId: p.id, debit, credit, amount: a, label, date: p.date })
+    }
+    if (et === 'payment') {
+      sawPayment = true
+      const applied = round2(Math.min(amt, Math.max(0, open))); const excess = round2(amt - applied)
+      open = round2(open - applied); prepaid = round2(prepaid + excess)
+      push('settle', accounts.bank, accounts.debitoren, applied, 'payment')
+      push('settle_over', accounts.bank, accounts.prepay || accounts.debitoren, excess, 'overpayment')
+    } else if (et === 'refund') {
+      // Draw prepaid excess down FIRST (Debit Prepayment / Credit Bank), then
+      // re-open the receivable for any remainder (Debit Debitoren / Credit Bank).
+      const fromPrepay = round2(Math.min(amt, Math.max(0, prepaid))); prepaid = round2(prepaid - fromPrepay)
+      const reopened = round2(Math.min(round2(amt - fromPrepay), Math.max(0, round2(total - open)))); open = round2(open + reopened)
+      push('settle_over', accounts.prepay || accounts.debitoren, accounts.bank, fromPrepay, 'refund')
+      push('settle', accounts.debitoren, accounts.bank, reopened, 'refund')
+    } else if (et === 'credit_note') {
+      const applied = round2(Math.min(amt, Math.max(0, open))); open = round2(open - applied)
+      push('settle', accounts.income, accounts.debitoren, applied, 'credit note')
+    } else if (et === 'writeoff') {
+      const applied = round2(Math.min(amt, Math.max(0, open))); open = round2(open - applied)
+      push('settle', accounts.badDebt, accounts.debitoren, applied, 'write-off')
+    }
+  }
+  // Rounding residual (#23): forgive a ≤1-rappen short-pay to match deriveSettlement.
+  if (open > 0 && open <= 0.01 && sawPayment) {
+    const roundAcct = accounts.badDebt || accounts.income
+    if (roundAcct != null) {
+      legs.push({ kind: 'round', refId: invoiceId, debit: roundAcct, credit: accounts.debitoren, amount: open, label: 'Rundung', date: issueDate })
+      open = 0
+    }
+  }
+  return { legs, open, prepaid }
+}
+
 export async function loadLedgerSettings(database) {
   const s = await database('finance_ledger_settings').where('id', 1).first()
   return s || { id: 1, autopost_enabled: false }
@@ -69,7 +125,7 @@ async function postAutoEntry(db, { kind, refId, dateISO, text, debitId, creditId
 /** Delete an invoice's standing auto-posts (open fiscal year; closed-year rows are
  *  left for a manual reversal — the immutability trigger blocks the delete there). */
 async function deleteInvoiceAutoposts(database, invoiceId, paymentIds) {
-  try { await database('finance_transactions').where({ source: 'native', auto: true, ref_kind: 'issue', ref_id: invoiceId }).del() } catch { /* closed FY */ }
+  try { await database('finance_transactions').where({ source: 'native', auto: true, ref_id: invoiceId }).whereIn('ref_kind', ['issue', 'round']).del() } catch { /* closed FY */ }
   if (paymentIds?.length) {
     try { await database('finance_transactions').where({ source: 'native', auto: true }).whereIn('ref_kind', ['settle', 'settle_over']).whereIn('ref_id', paymentIds).del() } catch { /* closed FY */ }
   }
@@ -108,28 +164,16 @@ export async function reconcileInvoiceLedger(database, invoiceId, settings, acct
       else results.push({ skipped: 'issue-amount-locked' })
     }
 
-    // 2. Settlements — process in date order, tracking the running open receivable.
-    let open = total
-    for (const p of pays) {
-      const amt = round2(p.amount)
-      const et = p.entry_type || 'payment'
-      const date = isoDate(p.payment_date || inv.invoice_date || inv.date_created)
-      const post = (kind, debitId, creditId, amount, label) => postAutoEntry(trx, { kind, refId: p.id, dateISO: date, text: `${label} ${inv.number || inv.id}`, debitId, creditId, amount, acctById })
-      if (et === 'payment') {
-        const applied = round2(Math.min(amt, Math.max(0, open))); const excess = round2(amt - applied); open = round2(open - applied)
-        if (applied > 0) results.push(await post('settle', settings.bank_account, settings.debitoren_account, applied, 'payment'))
-        if (excess > 0) results.push(await post('settle_over', settings.bank_account, prepay || settings.debitoren_account, excess, 'overpayment'))
-      } else if (et === 'refund') {
-        const room = round2(Math.max(0, total - open)); const reopened = round2(Math.min(amt, room)); const fromPrepay = round2(amt - reopened); open = round2(open + reopened)
-        if (reopened > 0) results.push(await post('settle', settings.debitoren_account, settings.bank_account, reopened, 'refund'))
-        if (fromPrepay > 0) results.push(await post('settle_over', prepay || settings.debitoren_account, settings.bank_account, fromPrepay, 'refund'))
-      } else if (et === 'credit_note') {
-        const applied = round2(Math.min(amt, Math.max(0, open))); open = round2(open - applied)
-        if (applied > 0) results.push(await post('settle', incomeAcct, settings.debitoren_account, applied, 'credit note'))
-      } else if (et === 'writeoff') {
-        const applied = round2(Math.min(amt, Math.max(0, open))); open = round2(open - applied)
-        if (applied > 0) results.push(await post('settle', settings.bad_debt_account, settings.debitoren_account, applied, 'write-off'))
-      }
+    // 2. Settlements + rounding residual — allocation is PURE (planSettlementLegs)
+    //    so the ledger invariants are unit-tested (2026-07-02 audit: #1 refund vs
+    //    prepayment, #23 rounding). Post each leg idempotently on (ref_kind, ref_id).
+    const paysForPlan = pays.map((p) => ({ id: p.id, amount: p.amount, entry_type: p.entry_type, date: isoDate(p.payment_date || inv.invoice_date || inv.date_created) }))
+    const { legs } = planSettlementLegs({
+      total, payments: paysForPlan, invoiceId: inv.id, issueDate,
+      accounts: { debitoren: settings.debitoren_account, bank: settings.bank_account, income: incomeAcct, prepay, badDebt: settings.bad_debt_account },
+    })
+    for (const leg of legs) {
+      results.push(await postAutoEntry(trx, { kind: leg.kind, refId: leg.refId, dateISO: leg.date, text: `${leg.label} ${inv.number || inv.id}`, debitId: leg.debit, creditId: leg.credit, amount: leg.amount, acctById }))
     }
   })
   return { invoice: invoiceId, results }
@@ -183,6 +227,18 @@ export async function removeAutopostForPaymentSafe(database, logger, paymentId) 
     if (!s.autopost_enabled) return
     await database('finance_transactions').where({ ref_id: paymentId, auto: true, source: 'native' }).whereIn('ref_kind', ['settle', 'settle_over']).del()
   } catch (e) { logger?.warn?.({ msg: `autopost remove payment ${paymentId} failed: ${e.message}` }) }
+}
+
+/** Remove a deleted team-entry's auto-posted journal entry (open fiscal year only).
+ *  2026-07-02 audit (#9): the team-entry DELETE handler removed the row but not its
+ *  auto-posted GL entry, leaving phantom income/expense that drifts the native book
+ *  from the teams sub-ledger. Mirrors removeAutopostForPaymentSafe. */
+export async function removeAutopostForTeamEntrySafe(database, logger, entryId) {
+  try {
+    const s = await loadLedgerSettings(database)
+    if (!s.autopost_enabled) return
+    await database('finance_transactions').where({ ref_kind: 'team', ref_id: entryId, auto: true, source: 'native' }).del()
+  } catch (e) { logger?.warn?.({ msg: `autopost remove team-entry ${entryId} failed: ${e.message}` }) }
 }
 
 /** Bulk backfill/reconcile — make the whole native book reflect current A/R. */

@@ -1,8 +1,9 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useCollection } from '../../../lib/query'
 import { useMutation } from '../../../hooks/useMutation'
 import { useAuth } from '../../../hooks/useAuth'
 import { useRealtime } from '../../../hooks/useRealtime'
+import { kscwApi } from '../../../lib/api'
 import type { Poll, PollVote } from '../../../types'
 import { relId, memberName } from '../../../utils/relations'
 
@@ -92,14 +93,18 @@ export function useActivePolls(teamIds: string[]) {
   return { polls, isLoading, closePoll, deletePoll, refetch }
 }
 
-export function usePollVotes(pollId: string) {
+export function usePollVotes(poll: Poll, canManage = false) {
+  const pollId = poll.id
+  const anonymous = !!poll.anonymous
   const { user } = useAuth()
 
   const { data: votesRaw, refetch, isLoading } = useCollection<PollVote>('poll_votes', {
     filter: pollId ? { poll: { _eq: pollId } } : { id: { _eq: -1 } },
     // Expand the voter so managers can see per-member answers (non-anonymous
     // polls). Non-managers only ever receive their own vote row (poll_votes
-    // read is OWN_MEMBER for them), so this leaks nothing.
+    // read is OWN_MEMBER for them), so this leaks nothing. As of the 2026-07-02
+    // audit (#5/#14) the manager reads are ALSO scoped to non-anonymous polls,
+    // so for an anonymous poll this returns just the caller's own row.
     fields: ['id', 'poll', 'member', 'selected_options', 'member.id', 'member.first_name', 'member.last_name'],
     all: true,
     enabled: !!pollId,
@@ -108,8 +113,28 @@ export function usePollVotes(pollId: string) {
 
   const { create, update } = useMutation<PollVote>('poll_votes')
 
+  // Anonymous polls: raw vote rows are withheld from managers at the data layer
+  // (anonymity is no longer a UI-only toggle). A manager instead pulls the
+  // identity-free aggregate from GET /kscw/polls/:id/results. `tick` bumps on
+  // realtime vote events so the tally stays live without exposing identities.
+  const [tick, setTick] = useState(0)
+  const [anonCounts, setAnonCounts] =
+    useState<{ counts: Record<number, number>; totalVotes: number } | null>(null)
+  useEffect(() => {
+    // Only anonymous polls viewed by a manager need the counts endpoint. When it
+    // doesn't apply we simply leave anonCounts untouched — getResults() gates on
+    // `anonymous && canManage` so a stale value is never read (and avoiding a
+    // synchronous setState here keeps the effect free of cascading renders).
+    if (!pollId || !anonymous || !canManage) return
+    let cancelled = false
+    kscwApi<{ counts: Record<number, number>; totalVotes: number }>(`/polls/${pollId}/results`)
+      .then((r) => { if (!cancelled) setAnonCounts({ counts: r.counts ?? {}, totalVotes: r.totalVotes ?? 0 }) })
+      .catch(() => { if (!cancelled) setAnonCounts(null) })
+    return () => { cancelled = true }
+  }, [pollId, anonymous, canManage, tick])
+
   useRealtime<PollVote>('poll_votes', (e) => {
-    if (e.record.poll === pollId) refetch()
+    if (e.record.poll === pollId) { refetch(); setTick((t) => t + 1) }
   })
 
   // `member` may arrive expanded (object) now, so compare via relId.
@@ -133,6 +158,11 @@ export function usePollVotes(pollId: string) {
   // expanded) collect who picked each option so managers can see per-member
   // answers. For multi-choice a voter appears under every option they selected.
   const getResults = () => {
+    // Anonymous poll, manager view: return the identity-free endpoint counts.
+    // No `voters` — that's the whole point of anonymity.
+    if (anonymous && canManage && anonCounts) {
+      return { counts: anonCounts.counts, voters: {} as Record<number, Array<{ id: string; name: string }>>, totalVotes: anonCounts.totalVotes }
+    }
     const counts: Record<number, number> = {}
     const voters: Record<number, Array<{ id: string; name: string }>> = {}
     votes.forEach(v => {

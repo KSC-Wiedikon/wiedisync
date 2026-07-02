@@ -654,7 +654,26 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         .onConflict(['account', 'message_id'])
         .ignore()
         .returning('id')
-      res.json({ success: true, id: inserted?.id ?? inserted ?? null })
+      const sentId = inserted?.id ?? inserted ?? null
+      // Actor trail: sending an email + appending to Sent is a state change. Log a
+      // minimal summary only (never the body/attachment bytes).
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'send',
+        collection: 'scheduling_emails',
+        recordId: sentId,
+        data: {
+          kind: 'mailbox_reply',
+          account: acct.sport,
+          to: to.join(','),
+          cc: cc.join(',') || null,
+          subject,
+          reply_to_id: body.reply_to_id ? Number(body.reply_to_id) : null,
+          forward_from_id: body.forward_from_id ? Number(body.forward_from_id) : null,
+          attachments: attachments.length,
+        },
+      })
+      res.json({ success: true, id: sentId })
     } catch (err) { fail(res, 'admin/terminplanung/mailbox/reply', err, req) }
   })
 

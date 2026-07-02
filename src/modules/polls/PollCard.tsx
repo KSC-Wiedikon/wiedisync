@@ -17,7 +17,7 @@ interface PollCardProps {
 export default function PollCard({ poll, canManage, onClose, onDelete }: PollCardProps) {
   const { t } = useTranslation('polls')
   const confirm = useConfirm()
-  const { myVote, isLoading, vote, getResults } = usePollVotes(poll.id)
+  const { myVote, isLoading, vote, getResults } = usePollVotes(poll, canManage)
   const [selected, setSelected] = useState<number[]>([])
 
   const isOpen = poll.status === 'open'

@@ -247,7 +247,12 @@ export function useFinanceImports(enabled = true) {
  * the open balance + not-cancelled rule.
  */
 export function isOpenInvoice(inv: FinanceInvoice): boolean {
-  if (inv.source === 'native') return (inv.status ?? '') === 'open'
+  if (inv.source === 'native') {
+    // 'open' AND 'partial' are both still payable (a partial payment leaves an
+    // open balance); only 'paid' / 'cancelled' close a native invoice.
+    const s = inv.status ?? ''
+    return s !== 'paid' && s !== 'cancelled' && toNum(inv.open_amount) > 0
+  }
   const status = (inv.status ?? '').toLowerCase()
   if (status.includes('storn') || status.includes('cancel')) return false
   return toNum(inv.open_amount) > 0

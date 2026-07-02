@@ -278,6 +278,15 @@ const psqlInput =
   // prefix (handles Alex↔Alexander, Nico↔Nicolas, Sharu↔Sharusanth). last-name
   // equality guards a shared family email from cross-linking parent↔child. Only
   // unambiguous matches (one distinct clubdesk_id) are applied. Own transaction.
+  //
+  // REVERSE-uniqueness guard: HAVING count(DISTINCT cd.cdid)=1 only stops ONE member
+  // matching MANY contacts. It does NOT stop MANY members matching ONE contact — two
+  // family members sharing an email/similar name would otherwise be assigned the SAME
+  // clubdesk_id (there is no UNIQUE constraint on members.clubdesk_id), corrupting
+  // departed-detection (both deactivated when one leaves) and sync-up. So each pass
+  // also filters to cdids that map to exactly ONE candidate member AND are not already
+  // held by another member (NOT EXISTS). A cdid claimed by >1 member is SKIPPED and
+  // reported below ('clubdesk_link_ambiguous') for a human to link manually.
   'BEGIN;\n' +
   'WITH cd AS (\n' +
   '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
@@ -288,9 +297,12 @@ const psqlInput =
   '  SELECT mm.id, min(cd.cdid) cdid FROM members mm\n' +
   "  JOIN cd ON cd.lic <> '' AND cd.lic = lower(btrim(mm.license_nr))\n" +
   "  WHERE mm.clubdesk_id IS NULL AND NULLIF(btrim(mm.license_nr),'') IS NOT NULL\n" +
-  '  GROUP BY mm.id HAVING count(DISTINCT cd.cdid) = 1)\n' +
+  '  GROUP BY mm.id HAVING count(DISTINCT cd.cdid) = 1),\n' +
+  'lic_uniq AS (SELECT cdid FROM lic_match GROUP BY cdid HAVING count(*) = 1)\n' +
   'UPDATE members m SET clubdesk_id = lic_match.cdid\n' +
-  '  FROM lic_match WHERE m.id = lic_match.id AND m.clubdesk_id IS NULL;\n' +
+  '  FROM lic_match JOIN lic_uniq USING (cdid)\n' +
+  '  WHERE m.id = lic_match.id AND m.clubdesk_id IS NULL\n' +
+  '    AND NOT EXISTS (SELECT 1 FROM members x WHERE x.clubdesk_id = lic_match.cdid);\n' +
   'WITH cd AS (\n' +
   '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
   "         lower(btrim(nachname)) nachname, lower(split_part(btrim(vorname),' ',1)) vn1\n" +
@@ -302,11 +314,30 @@ const psqlInput =
   "       AND (lower(split_part(btrim(mm.first_name),' ',1)) LIKE cd.vn1 || '%'\n" +
   "            OR cd.vn1 LIKE lower(split_part(btrim(mm.first_name),' ',1)) || '%')\n" +
   '  WHERE mm.clubdesk_id IS NULL\n' +
-  '  GROUP BY mm.id HAVING count(DISTINCT cd.cdid) = 1)\n' +
+  '  GROUP BY mm.id HAVING count(DISTINCT cd.cdid) = 1),\n' +
+  'email_uniq AS (SELECT cdid FROM email_match GROUP BY cdid HAVING count(*) = 1)\n' +
   'UPDATE members m SET clubdesk_id = email_match.cdid\n' +
-  '  FROM email_match WHERE m.id = email_match.id AND m.clubdesk_id IS NULL;\n' +
+  '  FROM email_match JOIN email_uniq USING (cdid)\n' +
+  '  WHERE m.id = email_match.id AND m.clubdesk_id IS NULL\n' +
+  '    AND NOT EXISTS (SELECT 1 FROM members x WHERE x.clubdesk_id = email_match.cdid);\n' +
   'COMMIT;\n' +
-  "SELECT 'members_linked_clubdesk' AS metric, (SELECT count(*) FROM members WHERE clubdesk_id IS NOT NULL) AS value;\n"
+  "SELECT 'members_linked_clubdesk' AS metric, (SELECT count(*) FROM members WHERE clubdesk_id IS NOT NULL) AS value;\n" +
+  // Report contacts that would have matched MULTIPLE still-unlinked members (skipped
+  // above) so a human can link them manually — "ambiguous, needs manual link".
+  'WITH cd AS (\n' +
+  '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
+  "         lower(btrim(nachname)) nachname, lower(split_part(btrim(vorname),' ',1)) vn1\n" +
+  "  FROM clubdesk_export WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL),\n" +
+  'ambig AS (\n' +
+  '  SELECT cd.cdid, mm.id AS member_id FROM members mm\n' +
+  "  JOIN cd ON NULLIF(btrim(mm.email),'') IS NOT NULL AND lower(btrim(mm.email)) IN (cd.email, cd.email_alt)\n" +
+  '       AND lower(btrim(mm.last_name)) = cd.nachname\n' +
+  "       AND (lower(split_part(btrim(mm.first_name),' ',1)) LIKE cd.vn1 || '%'\n" +
+  "            OR cd.vn1 LIKE lower(split_part(btrim(mm.first_name),' ',1)) || '%')\n" +
+  '  WHERE mm.clubdesk_id IS NULL)\n' +
+  "SELECT 'clubdesk_link_ambiguous' AS metric, cdid,\n" +
+  "       string_agg(member_id::text, ',' ORDER BY member_id) AS member_ids\n" +
+  '  FROM ambig GROUP BY cdid HAVING count(DISTINCT member_id) > 1;\n'
 
 if (EMIT_SQL) {
   // Flush fully before exiting: process.exit() right after writing a large

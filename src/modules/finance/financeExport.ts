@@ -2,7 +2,10 @@
 // Excel (de-CH) opens it cleanly; values with ; " or newlines are quoted.
 export function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]): void {
   const esc = (v: string | number) => {
-    const s = String(v ?? '')
+    let s = String(v ?? '')
+    // Neutralise spreadsheet formula injection: a cell starting with = + - @
+    // (or tab/CR) executes as a formula in Excel/Sheets. Prefix a single quote.
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
     return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
   const body = [headers, ...rows].map((r) => r.map(esc).join(';')).join('\r\n')

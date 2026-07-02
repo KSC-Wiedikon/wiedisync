@@ -60,6 +60,7 @@ function useStatusPill() {
   const { t } = useTranslation('finance')
   return (inv: FinanceInvoice) => {
     const amber = 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+    const orange = 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'
     const blue = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
     const green = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
     const red = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
@@ -67,6 +68,7 @@ function useStatusPill() {
     if (inv.source === 'native') {
       const s = inv.status ?? ''
       if (s === 'open') return { label: t('statusOpen'), cls: amber }
+      if (s === 'partial') return { label: t('statusPartial'), cls: orange }
       if (s === 'pending_confirmation') return { label: t('statusPendingConfirmation'), cls: blue }
       if (s === 'paid') return { label: t('statusPaid'), cls: green }
       if (s === 'cancelled') return { label: t('statusCancelled'), cls: gray }

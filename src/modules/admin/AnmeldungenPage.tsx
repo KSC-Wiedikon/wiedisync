@@ -72,7 +72,10 @@ type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
 
 // ── CSV export (ClubDesk format) ───────────────────────────────
 function csvEscape(val: string): string {
-  const s = String(val ?? '')
+  let s = String(val ?? '')
+  // Neutralize CSV formula injection: prefix a leading formula trigger with an
+  // apostrophe so spreadsheet apps treat attacker-controlled cells as text.
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s
   if (s.includes(';') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"'
   return s
 }

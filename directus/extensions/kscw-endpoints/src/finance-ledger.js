@@ -165,6 +165,14 @@ export function registerFinanceLedger(router, { database, logger }) {
       if (!o) return res.status(404).json({ error: 'Not found (native entry expected)' })
       const fy = await database('finance_fiscal_years').where('id', o.fiscal_year).first('status')
       if (fy?.status === 'closed') return res.status(409).json({ error: 'fiscal year is closed — reverse in an open year' })
+      // Idempotency (#6): a repeat/double-clicked reverse would post multiple
+      // Stornos and silently over-correct the ledger (each Storno balances, so
+      // the trial balance still ties). Reject reversing a reversal, or an entry
+      // that already has one. Migration 165 adds a partial UNIQUE(reversal_of)
+      // backstop for the concurrent-request race.
+      if (o.typ === 'Storno' || o.reversal_of != null) return res.status(409).json({ error: 'Cannot reverse a reversal entry' })
+      const already = await database('finance_transactions').where({ reversal_of: o.id, source: 'native' }).first('id')
+      if (already) return res.status(409).json({ error: 'Entry already reversed' })
       const bookingDate = todayISO()
       const seqRow = await database.raw("SELECT nextval('finance_native_entry_seq')::int AS n")
       const seq = (seqRow.rows ? seqRow.rows[0] : seqRow[0]).n
@@ -271,7 +279,23 @@ export function registerFinanceLedger(router, { database, logger }) {
 
         const txns = await trx('finance_transactions').where('source', 'native').andWhere('fiscal_year', id).select('debit_account', 'credit_account', 'amount_chf')
         const plan = planYearEndClose(txns, accts, { equityId, openingId })
-        const summary = { fiscal_year: id, next_fiscal_year: nextFy.id, income: plan.income, expense: plan.expense, net: plan.net, closing_entries: plan.closing.length, opening_entries: plan.opening.length, balanced: plan.balanced }
+        // Completeness signal (#22): when autopost is on, count native non-cancelled
+        // invoices with NO issue posting — A/R the treasurer may not have reconciled
+        // before closing. Non-blocking (autopost off = manual ledger, where this is
+        // meaningless); surfaced in the summary + dry-run so the UI can warn.
+        const ls = await trx('finance_ledger_settings').where('id', 1).first('autopost_enabled')
+        let unpostedAr = 0
+        if (ls?.autopost_enabled) {
+          const row = await trx('finance_invoices as i')
+            .where('i.source', 'native').andWhereNot('i.status', 'cancelled')
+            .whereNotExists(function () {
+              this.select(trx.raw('1')).from('finance_transactions as t')
+                .whereRaw("t.source = 'native' and t.auto = true and t.ref_kind = 'issue' and t.ref_id = i.id")
+            })
+            .count('* as c').first()
+          unpostedAr = Number(row?.c || 0)
+        }
+        const summary = { fiscal_year: id, next_fiscal_year: nextFy.id, income: plan.income, expense: plan.expense, net: plan.net, closing_entries: plan.closing.length, opening_entries: plan.opening.length, balanced: plan.balanced, unposted_ar: unpostedAr }
         if (!plan.balanced) {
           const residue = Math.abs(plan.clearingResidue) >= 0.005 ? ` (the Eröffnungsbilanz account ${op.number} carries a non-zero balance of ${plan.clearingResidue} — reconcile it first)` : ''
           return { code: 409, msg: `Books do not balance — opening clearing nets to ${plan.clearingNet}${residue}.`, body: { ...summary, clearing_net: plan.clearingNet } }

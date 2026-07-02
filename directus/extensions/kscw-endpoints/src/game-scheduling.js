@@ -1614,8 +1614,24 @@ export function registerGameScheduling(router, { database, logger, services, get
       const sorted = [...items].sort((a, b) => Number(a.slot_id) - Number(b.slot_id))
       for (let i = 0; i < sorted.length; i++) {
         const it = sorted[i]
-        const target = pref[i] // undefined if more games than open halls → leave as-is
-        if (!target || Number(it.hall) === Number(target)) continue
+        // pref[i] is this game's DISTINCT open hall (pref holds distinct ids, so
+        // games 0..pref.length-1 never collide). Once the open KWI halls are
+        // exhausted — more concurrent games than open halls — there is none.
+        const target = i < pref.length ? pref[i] : null
+        if (target == null) {
+          // No distinct open hall remains. The game still sits in a KWI hall
+          // (query filter) that is now either a duplicate of a hall already
+          // assigned above or a closed one — leaving it silently double-books a
+          // court or pins the game to a shut hall. Clear the stale override to
+          // null so the over-subscription surfaces (visible + re-pushed) and
+          // needs manual resolution, instead of being hidden as a valid booking.
+          if (it.hall != null) {
+            await db('game_scheduling_slots').where('id', it.slot_id).update({ hall: null })
+            moved.push({ slotId: it.slot_id, bookingId: it.booking_id, svrzId: it.svrz_game_id || null, date: ymd, from: it.hall, to: null })
+          }
+          continue
+        }
+        if (Number(it.hall) === Number(target)) continue
         await db('game_scheduling_slots').where('id', it.slot_id).update({ hall: target })
         moved.push({ slotId: it.slot_id, bookingId: it.booking_id, svrzId: it.svrz_game_id || null, date: ymd, from: it.hall, to: target })
       }
@@ -1639,6 +1655,26 @@ export function registerGameScheduling(router, { database, logger, services, get
         await new Promise((r) => setTimeout(r, 700)) // stagger child spawns
       }
     })().catch((e) => log.warn(`Saturday-hall VM re-push batch failed: ${e.message}`))
+  }
+
+  // Actor trail for the Saturday rebalance cascade: it can silently move (or, on
+  // over-subscription, null out) OTHER teams' confirmed bookings — a previously
+  // lone game bumped into the A+B double hall when a second game lands at its
+  // time. Record one audit line per bumped booking so the cascade is attributable
+  // to whoever triggered it. The triggering action's own booking is excluded (it
+  // already has its own confirm/manual log line). Best-effort, mirrors the
+  // excludeBookingId filter used by repushMovedBookings.
+  async function logRebalanceMoves(req, moved, { excludeBookingId = null } = {}) {
+    const others = (moved || []).filter((m) => m && m.bookingId && Number(m.bookingId) !== Number(excludeBookingId))
+    for (const m of others) {
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'update',
+        collection: 'game_scheduling_slots',
+        recordId: m.slotId,
+        data: { kind: 'saturday_rebalance_move', booking: m.bookingId, date: m.date, from_hall: m.from ?? null, to_hall: m.to ?? null },
+      })
+    }
   }
 
   // ── Mirror confirmed bookings into the `games` collection ─────────────────
@@ -2756,6 +2792,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         log.warn(`confirm-home VM push enqueue failed: ${pushErr.message}`)
       }
       repushMovedBookings(satReb.moved, { excludeBookingId: booking_id })
+      await logRebalanceMoves(req, satReb.moved, { excludeBookingId: booking_id })
 
       // Mirror into `games` so the new fixture shows on member calendars right
       // away (fire-and-forget; sv-sync adopts the row later).
@@ -3727,6 +3764,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         } catch (pushErr) { log.warn(`manual-booking VM push enqueue failed: ${pushErr.message}`) }
       }
       repushMovedBookings(satReb.moved, { excludeBookingId: homeBookingId })
+      await logRebalanceMoves(req, satReb.moved, { excludeBookingId: homeBookingId })
 
       // Mirror into `games` so the manual booking shows on member calendars
       // right away (fire-and-forget; sv-sync adopts the row later).
@@ -3807,6 +3845,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       let satReb = { moved: [] }
       try { satReb = await rebalanceSaturdayHalls(opponent.season) } catch (e) { log.warn(`delete-booking Saturday rebalance failed: ${e.message}`) }
       repushMovedBookings(satReb.moved)
+      await logRebalanceMoves(req, satReb.moved)
       reconcileBookingsToGames(opponent.season).catch((e) => log.warn(`delete-booking games reconcile failed: ${e.message}`))
 
       res.json({ success: true })
