@@ -100,7 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadTeamContext = useCallback(async (memberId: string | number) => {
     try {
-      const [coachRows, trRows, memberTeams, allTeams, captainTeams, spielplanerRows] = await Promise.all([
+      // allSettled (not all): one failing query must NOT zero every role/team.
+      // A rejected query degrades only its own dimension to [] and is logged;
+      // the others still populate (previously a single transient failure made
+      // the user look like they had no teams/roles at all).
+      const settled = await Promise.allSettled([
         fetchAllItems<{ teams_id: number }>('teams_coaches', {
           filter: { members_id: { _eq: memberId } },
           fields: ['teams_id'],
@@ -127,6 +131,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           fields: ['kscw_team'],
         }),
       ])
+      const pick = <T,>(i: number, collection: string): T[] => {
+        const r = settled[i]
+        if (r.status === 'fulfilled') return r.value as T[]
+        captureApiError(r.reason, { operation: 'loadTeamContext', collection })
+        return []
+      }
+      const coachRows = pick<{ teams_id: number }>(0, 'teams_coaches')
+      const trRows = pick<{ teams_id: number }>(1, 'teams_responsibles')
+      const memberTeams = pick<{ team: number; guest_level: number }>(2, 'member_teams')
+      const allTeams = pick<Pick<Team, 'id' | 'name' | 'sport'>>(3, 'teams')
+      const captainTeams = pick<{ id: number }>(4, 'teams (captain)')
+      const spielplanerRows = pick<{ kscw_team: number }>(5, 'spielplaner_assignments')
 
       const teamMap = new Map(allTeams.map(t => [String(t.id), t]))
       // Skip rows with null team FKs — they shouldn't exist, but if a coach/TR/member_teams row
