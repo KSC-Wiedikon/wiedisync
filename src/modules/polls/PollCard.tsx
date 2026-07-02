@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Clock, EyeOff, Lock, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Poll } from '../../types'
@@ -17,13 +18,23 @@ interface PollCardProps {
 export default function PollCard({ poll, canManage, onClose, onDelete }: PollCardProps) {
   const { t } = useTranslation('polls')
   const confirm = useConfirm()
-  const { myVote, isLoading, vote, getResults } = usePollVotes(poll, canManage)
+  const { myVote, vote, getResults } = usePollVotes(poll, canManage)
   const [selected, setSelected] = useState<number[]>([])
+  // Tracks the create/update mutation itself (not the votes fetch) so a slow
+  // save disables the button and a second tap can't fire a duplicate vote.
+  const [submitting, setSubmitting] = useState(false)
+  // Editing = the voter already voted and tapped "Change vote" to revise their
+  // answer. Voting stays possible until the deadline / the poll closes.
+  const [editing, setEditing] = useState(false)
 
   const isOpen = poll.status === 'open'
   const hasVoted = !!myVote
   const deadlinePassed = poll.deadline ? new Date(poll.deadline) < new Date() : false
-  const canVote = isOpen && !hasVoted && !deadlinePassed
+  // Voting is allowed while the poll is open and before the deadline. A voter
+  // may change their answer up to that point (decision 2026-07-02) — vote()
+  // already updates the existing row, we just re-expose the form on request.
+  const votingOpen = isOpen && !deadlinePassed
+  const canVote = votingOpen && (!hasVoted || editing)
   // Managers (coach/TR/board) see the live tally at any time so they can monitor
   // replies before the deadline (decision 2026-06-28). Everyone else sees results
   // once they've voted, the poll closed, or the deadline passed. A manager who
@@ -51,9 +62,30 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
   }
 
   const handleVote = async () => {
-    if (selected.length === 0) return
-    await vote(selected)
+    if (selected.length === 0 || submitting) return
+    setSubmitting(true)
+    try {
+      await vote(selected)
+      setSelected([])
+      setEditing(false)
+    } catch {
+      // Keep the current selection so the member can retry without re-picking.
+      toast.error(t('common:error'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Enter edit mode pre-filled with the current answer so tapping only adds the
+  // change (important for multi-choice: their existing picks stay selected).
+  const startEditing = () => {
+    setSelected(myVote?.selected_options ?? [])
+    setEditing(true)
+  }
+
+  const cancelEditing = () => {
     setSelected([])
+    setEditing(false)
   }
 
   const handleClose = async () => {
@@ -193,15 +225,30 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
         })}
       </div>
 
-      {/* Vote button */}
+      {/* Vote / change-vote controls */}
       {canVote && (
-        <div className="mt-3">
+        <div className="mt-3 flex items-center gap-2">
           <Button
             size="sm"
             onClick={handleVote}
-            disabled={selected.length === 0 || isLoading}
+            disabled={selected.length === 0 || submitting}
           >
-            {t('vote')}
+            {editing ? t('changeVote') : t('vote')}
+          </Button>
+          {editing && (
+            <Button size="sm" variant="ghost" onClick={cancelEditing} disabled={submitting}>
+              {t('cancelChange')}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* "Change vote" entry point — shown once the voter has an answer and
+          voting is still open, so they can revise it before the deadline. */}
+      {hasVoted && votingOpen && !editing && (
+        <div className="mt-3">
+          <Button size="sm" variant="outline" onClick={startEditing}>
+            {t('changeVote')}
           </Button>
         </div>
       )}
