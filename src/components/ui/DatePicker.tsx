@@ -9,7 +9,8 @@ import { Calendar } from '@/components/ui/calendar'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { toDateKey, formatDateLocale } from '../../utils/dateUtils'
+import { toDateKey } from '../../utils/dateUtils'
+import { formatDateZurich } from '../../utils/dateHelpers'
 
 interface DatePickerProps {
   value: string
@@ -66,7 +67,7 @@ export default function DatePicker({
       : 1900
 
   const displayValue = selectedDate
-    ? formatDateLocale(selectedDate, 'd. MMM yyyy', lang)
+    ? formatDateZurich(selectedDate)
     : ''
 
   const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined)

@@ -3,6 +3,7 @@ import { Clock, MapPin, MessageSquare, UserCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Carpool, CarpoolPassenger } from '../../types'
 import { asObj, relId } from '../../utils/relations'
+import { formatTimeZurich } from '../../utils/dateHelpers'
 
 type DriverInfo = { first_name: string; last_name: string }
 type PassengerInfo = { first_name: string; last_name: string }
@@ -47,7 +48,7 @@ export default function CarpoolCard({ carpool, passengers, currentUserId, onJoin
         </div>
         <div className="flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400">
           <Clock className="h-4 w-4" />
-          <span>{carpool.departure_time}</span>
+          <span>{formatTimeZurich(carpool.departure_time)}</span>
         </div>
       </div>
 

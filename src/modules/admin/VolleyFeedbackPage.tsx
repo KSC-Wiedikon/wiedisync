@@ -5,6 +5,7 @@ import { formatDateZurich } from '../../utils/dateHelpers'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import DashboardSection from './components/DashboardSection'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import TeamChip from '../../components/TeamChip'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -45,21 +46,6 @@ const RATING_I18N_KEYS: Record<(typeof RATING_KEYS)[number], string> = {
   rating_kommunikation: 'vfRatingComm',
 }
 
-const TEAM_COLORS: Record<string, { bg: string; text: string }> = {
-  H1: { bg: '#1e40af', text: '#fff' },
-  H2: { bg: '#2563eb', text: '#fff' },
-  H3: { bg: '#3b82f6', text: '#fff' },
-  Legends: { bg: '#1e3a5f', text: '#fff' },
-  D1: { bg: '#be123c', text: '#fff' },
-  D2: { bg: '#e11d48', text: '#fff' },
-  D3: { bg: '#f43f5e', text: '#1a1a2e' },
-  D4: { bg: '#fb7185', text: '#1a1a2e' },
-  'DU23-1': { bg: '#fda4af', text: '#881337' },
-  'DU23-2': { bg: '#fda4af', text: '#881337' },
-  HU23: { bg: '#60a5fa', text: '#1e3a8a' },
-  HU20: { bg: '#93c5fd', text: '#1e3a8a' },
-}
-
 // ── Helpers ──────────────────────────────────────────────────────
 
 function computeAverages(items: VolleyFeedback[]) {
@@ -88,18 +74,9 @@ function TeamChips({ teams }: { teams: string[] | null }) {
   if (!teams || teams.length === 0) return <span className="text-muted-foreground">—</span>
   return (
     <div className="flex flex-wrap gap-1">
-      {teams.map(t => {
-        const c = TEAM_COLORS[t] || { bg: '#e2e8f0', text: '#333' }
-        return (
-          <span
-            key={t}
-            className="inline-block rounded-full px-2 py-0.5 text-[0.7rem] font-medium"
-            style={{ backgroundColor: c.bg, color: c.text }}
-          >
-            {t}
-          </span>
-        )
-      })}
+      {teams.map(team => (
+        <TeamChip key={team} team={team} label={team} size="sm" />
+      ))}
     </div>
   )
 }

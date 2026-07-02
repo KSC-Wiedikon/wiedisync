@@ -127,13 +127,13 @@ export default function AbsenceCard({ absence, onEdit, onDelete, memberName, can
           <div data-tour="edit-absence" className="flex flex-col items-stretch gap-1 sm:flex-row sm:justify-end sm:gap-2">
             <button
               onClick={() => onEdit(absence)}
-              className="min-h-[36px] rounded px-3 py-1.5 text-sm text-brand-600 hover:bg-brand-50 hover:text-brand-700"
+              className="min-h-[44px] rounded px-3 py-1.5 text-sm text-brand-600 hover:bg-brand-50 hover:text-brand-700"
             >
               {t('common:edit')}
             </button>
             <button
               onClick={() => onDelete(absence.id)}
-              className="min-h-[36px] rounded px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 hover:text-red-800"
+              className="min-h-[44px] rounded px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 hover:text-red-800"
             >
               {t('common:delete')}
             </button>

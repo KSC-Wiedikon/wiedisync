@@ -18,6 +18,7 @@ import ClaimModal from '../hallenplan/components/ClaimModal'
 import ClaimDetailModal from '../hallenplan/components/ClaimDetailModal'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { relId } from '../../utils/relations'
+import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import type { HallSlot, HallClosure, SlotClaim, Game, Training, HallEvent, Hall, Team } from '../../types'
 import type { FreedSlotInfo, SportFilter } from '../hallenplan/HallenplanPage'
 
@@ -129,7 +130,7 @@ export default function HallenplanView() {
         return {
           hallName: hallMap.get(s.hall)?.name || '?',
           dayLabel: t(DAY_KEYS[s.day_of_week] ?? 'dayMonday'),
-          dateStr: slotDate ? `${slotDate.getDate()}.${slotDate.getMonth() + 1}.` : '',
+          dateStr: slotDate ? formatDateCompactZurich(slotDate) : '',
           startTime: s.start_time,
           endTime: s.end_time,
           slot: s,
