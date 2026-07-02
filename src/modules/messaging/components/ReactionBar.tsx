@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useReactions } from '../hooks/useReactions'
+import { useMessageReactions } from '../hooks/useReactions'
 import { SmilePlus } from 'lucide-react'
 
 const COMMON_EMOJIS = ['👍', '❤️', '😂', '🎉', '🔥', '👏', '😮', '🙏']
@@ -9,7 +9,7 @@ type Props = { messageId: string; className?: string }
 
 export default function ReactionBar({ messageId, className = '' }: Props) {
   const { t } = useTranslation('messaging')
-  const { groupedCounts, myReactions, toggle } = useReactions(messageId)
+  const { groupedCounts, myReactions, toggle } = useMessageReactions(messageId)
   const [pickerOpen, setPickerOpen] = useState(false)
 
   const hasAny = groupedCounts.size > 0

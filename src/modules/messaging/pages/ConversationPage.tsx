@@ -7,6 +7,7 @@ import { useMessageRequests } from '../hooks/useMessageRequests'
 import { useMemberDisplayNames } from '../hooks/useMemberDisplayNames'
 import { messagingFeatureEnabled } from '../../../utils/messagingFeatureFlag'
 import ThreadView from '../components/ThreadView'
+import { ReactionsProvider } from '../hooks/useReactions'
 import RequestCard from '../components/RequestCard'
 import ConsentModal from '../components/ConsentModal'
 import { resolveRequestHeader } from '../utils/resolveRequestHeader'
@@ -84,14 +85,16 @@ export default function ConversationPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <BackToInbox />
-      <ThreadView
-        conversation={conv}
-        onMarkRead={markRead}
-        onToggleMute={toggleMute}
-        title={otherName}
-        composerDisabled={composerDisabled}
-        header={bannerNode}
-      />
+      <ReactionsProvider conversationId={conv.id}>
+        <ThreadView
+          conversation={conv}
+          onMarkRead={markRead}
+          onToggleMute={toggleMute}
+          title={otherName}
+          composerDisabled={composerDisabled}
+          header={bannerNode}
+        />
+      </ReactionsProvider>
       <ConsentModal />
     </div>
   )
