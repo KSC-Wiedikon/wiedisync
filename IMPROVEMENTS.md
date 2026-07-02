@@ -6,6 +6,32 @@ Generated 2026-07-02 from a 9-reader inventory of `src/` (212 units). **311 impr
 
 **Phase 2 order:** top→bottom. Within each impact tier, safe items come first (auto-applied, build-verified, committed `improve: <item>`), then gated items (paused for approval).
 
+---
+
+## Phase 2 — execution log (2026-07-02)
+
+Executed the safe tier (A+B+C: mechanical + ARIA + keyboard-nav a11y + contained architectural refactors) via 9 parallel implementers over disjoint file slices, then integrated centrally: **`npm run build` green (tsc+vite), 0 NEW rules-of-hooks violations, 0 NEW test failures** (the 3 remaining test failures — 2 stale `dateHelpers` `dd.mm.yy` expectations vs the CLAUDE.md `dd.mm.yyyy` convention, 1 `wadmin` knex-not-installed — are all pre-existing). Poll-anonymity enforcement verified intact after the `usePoll` refactor. ~110 items implemented across **116 files** (incl. 3 dead-code deletions); committed in 9 area commits (`improve(<area>): …`) + the 7 earlier high/medium items; pushed to `dev`.
+
+| Slice | Files changed | Notable |
+|---|---|---|
+| ui-primitives | 6 | aria-busy/aria-invalid, semantic Card `<h3>/<p>`, cva/dead-class cleanup |
+| components A+B | 22 | a11y roles + **keyboard nav** on selects/menus/dialogs, N+1→Map/batch, dedup, unmount/localStorage safety |
+| hooks | 11 | `Promise.allSettled` degradation, type-guards (drop `any`), derived state, `captureApiError` |
+| lib/utils | 8 | consolidated dup helpers, API error capture, recursive PII scrub, Safari-safe date parse |
+| finance/sched/msg | 10 | AdminDashboard memo hoisted above early-returns, error-surfacing, unmount-safe timers |
+| teamplay | 25 | pre-indexed attendance stats (O(n²)→O(n)), a11y, parallel/deferred fetches, save-on-blur |
+| social | 18 (+3 del) | poll/carpool/event error-handling + a11y, batched session sync, `useQuery` caching, dead-code removal |
+| admin/auth/forms | 14 | parallel probes/fetches, a11y pickers, CSV formula guards, error-surfacing |
+
+**Skipped (by design), recurring themes** — left as follow-ups:
+- **Cross-slice shared-module extractions**: a shared `<RoleGuard>` (5 route files), `<LanguageSelect>`, `<ActivityParticipation>` (GameCard/TrainingCard/TrainingDetailModal), a shared events util, shared calendar entry-style/palette modules, `useJunctionIds`, `lib/api.ts` `aggregate`/`createItems` helpers. Each spans multiple files + a new module → needs a focused pass.
+- **Risky large refactors**: `hallenplan` `mergeVirtualSlots` split; `useReactions`/`useConversations` lift-to-provider; the two-shadcn-generation standardization.
+- **Held (gated, awaiting approval)**: app-wide sizing (button/select/calendar 44px touch targets), `dd.mm.yyyy`↔date-format changes, `<Table>` default wrapping, `TeamChip` colorization, anything touching Directus schema/permissions.
+
+Individual checkboxes below reflect the pre-batch state; the table above is the authoritative execution record for this pass.
+
+---
+
 ## High impact (13)
 
 ### ✅ Safe (7)
