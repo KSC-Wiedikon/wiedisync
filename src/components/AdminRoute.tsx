@@ -1,12 +1,10 @@
 import type { ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
+import RoleGuard from './RoleGuard'
 
 export default function AdminRoute({ children }: { children: ReactNode }) {
-  const { isAdmin, isLoading, teamsLoading } = useAuth()
-
-  if (isLoading || teamsLoading) return null
-  if (!isAdmin) return <Navigate to="/" replace />
-
-  return <>{children}</>
+  return (
+    <RoleGuard redirects={[{ when: (a) => !a.isAdmin, to: '/' }]}>
+      {children}
+    </RoleGuard>
+  )
 }

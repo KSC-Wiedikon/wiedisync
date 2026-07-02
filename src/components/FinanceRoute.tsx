@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
+import RoleGuard from './RoleGuard'
 
 /**
  * Finance dashboard route guard. Opens for the board (Vorstand/admins) OR the
@@ -9,10 +8,9 @@ import { useAuth } from '../hooks/useAuth'
  * gates finance reads (KSCW Finance policy) + writes (canManageFinance).
  */
 export default function FinanceRoute({ children }: { children: ReactNode }) {
-  const { canAccessFinance, isLoading, teamsLoading } = useAuth()
-
-  if (isLoading || teamsLoading) return null
-  if (!canAccessFinance) return <Navigate to="/" replace />
-
-  return <>{children}</>
+  return (
+    <RoleGuard redirects={[{ when: (a) => !a.canAccessFinance, to: '/' }]}>
+      {children}
+    </RoleGuard>
+  )
 }
