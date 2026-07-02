@@ -117,7 +117,7 @@ export default function ScorerPage() {
     if (!reminderSetting) return
     setReminderToggling(true)
     try {
-      await updateRecord('app_settings', reminderSetting.id, { requestKey: null })
+      await updateRecord('app_settings', reminderSetting.id, { enabled: !remindersEnabled })
       refetchSettings()
     } catch (err) {
       console.error('Failed to toggle reminders:', err)

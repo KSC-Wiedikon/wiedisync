@@ -36,6 +36,17 @@ interface AuditStats {
   archive_days: number
 }
 
+interface AuditFilters {
+  collection: string
+  action: string
+  level: string
+  actor: string
+  recordId: string
+  search: string
+  from: string
+  to: string
+}
+
 const ACTIONS = ['create', 'update', 'delete', 'auth', 'system', 'error']
 const LEVELS = ['info', 'warn', 'error']
 
@@ -197,14 +208,19 @@ export default function AuditLogPage() {
   // refetches keep the page visible and use the inline refresh state.
   useReportPageLoading(loading && !result)
 
-  const fetchLogs = useCallback(async (p = 1) => {
+  const fetchLogs = useCallback(async (p = 1, override?: Partial<AuditFilters>) => {
+    // Merge any explicit overrides over the current state. Callers that mutate a
+    // filter and immediately search (filter-link click, clear) MUST pass the new
+    // values here — reading them back from state in a deferred closure races the
+    // async setState and would search with the previous filter values.
+    const f: AuditFilters = { collection, action, level, actor, recordId, search, from, to, ...override }
     setLoading(true)
     try {
       const res = await kscwApi('/admin/audit', {
         method: 'POST',
         body: {
-          collection, action, level, actor,
-          record_id: recordId, search, from, to,
+          collection: f.collection, action: f.action, level: f.level, actor: f.actor,
+          record_id: f.recordId, search: f.search, from: f.from, to: f.to,
           page: p, per_page: 100,
         },
       }) as AuditResponse
@@ -235,19 +251,20 @@ export default function AuditLogPage() {
     fetchStats()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleSearch() {
+  function handleSearch(override?: Partial<AuditFilters>) {
+    const f: AuditFilters = { collection, action, level, actor, recordId, search, from, to, ...override }
     // Update URL params for bookmarkability
     const params = new URLSearchParams()
-    if (collection) params.set('collection', collection)
-    if (action) params.set('action', action)
-    if (level) params.set('level', level)
-    if (actor) params.set('actor', actor)
-    if (recordId) params.set('record_id', recordId)
-    if (search) params.set('search', search)
-    if (from) params.set('from', from)
-    if (to) params.set('to', to)
+    if (f.collection) params.set('collection', f.collection)
+    if (f.action) params.set('action', f.action)
+    if (f.level) params.set('level', f.level)
+    if (f.actor) params.set('actor', f.actor)
+    if (f.recordId) params.set('record_id', f.recordId)
+    if (f.search) params.set('search', f.search)
+    if (f.from) params.set('from', f.from)
+    if (f.to) params.set('to', f.to)
     setSearchParams(params, { replace: true })
-    fetchLogs(1)
+    fetchLogs(1, override)
   }
 
   function clearFilters() {
@@ -260,16 +277,18 @@ export default function AuditLogPage() {
     setFrom('')
     setTo('')
     setSearchParams({}, { replace: true })
-    // Fetch after state updates
-    setTimeout(() => fetchLogs(1), 0)
+    // Fetch with the cleared values explicitly — the setState calls above are
+    // async, so a deferred fetch that read them back would still see the old ones.
+    fetchLogs(1, { collection: '', action: '', level: '', actor: '', recordId: '', search: '', from: '', to: '' })
   }
 
   function setFilterAndSearch(key: string, value: string) {
-    if (key === 'collection') setCollection(value)
-    if (key === 'actor') setActor(value)
-    if (key === 'record_id') setRecordId(value)
-    // Trigger search after state update
-    setTimeout(() => handleSearch(), 0)
+    const override: Partial<AuditFilters> = {}
+    if (key === 'collection') { setCollection(value); override.collection = value }
+    if (key === 'actor') { setActor(value); override.actor = value }
+    if (key === 'record_id') { setRecordId(value); override.recordId = value }
+    // Search with the new value passed explicitly (state update is async).
+    handleSearch(override)
   }
 
   const hasFilters = collection || action || level || actor || recordId || search || from || to
@@ -386,7 +405,7 @@ export default function AuditLogPage() {
 
         <div className="mt-2 flex items-center gap-2">
           <button
-            onClick={handleSearch}
+            onClick={() => handleSearch()}
             disabled={loading}
             className="flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
           >

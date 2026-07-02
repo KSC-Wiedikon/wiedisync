@@ -115,10 +115,16 @@ function formatICalLocal(date: Date, time: string): string {
 /** Local datetime offset by hours */
 function formatICalLocalOffset(date: Date, time: string, hoursOffset: number): string {
   const [h, m] = time.split(':').map(Number)
-  const newH = h + hoursOffset
-  const y = date.getFullYear()
-  const mo = pad(date.getMonth() + 1)
-  const d = pad(date.getDate())
+  // Roll the hour over 24h and carry into the day so a late event (e.g. 22:00 + 2h)
+  // yields 00:xx on the next day rather than an invalid 24:xx that corrupts the .ics.
+  const totalH = h + hoursOffset
+  const dayCarry = Math.floor(totalH / 24)
+  const newH = ((totalH % 24) + 24) % 24
+  const shifted = new Date(date)
+  shifted.setDate(shifted.getDate() + dayCarry)
+  const y = shifted.getFullYear()
+  const mo = pad(shifted.getMonth() + 1)
+  const d = pad(shifted.getDate())
   return `${y}${mo}${d}T${pad(newH)}${pad(m)}00`
 }
 

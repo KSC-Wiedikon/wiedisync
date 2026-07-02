@@ -169,8 +169,6 @@ export default function SignUpPage() {
     }
   }
 
-  // Existing team IDs for filtering
-  const existingTeamIds = existingTeams.map((t) => t.id)
   const hasExistingTeams = existingTeams.length > 0
 
   // Toggle additional team selection
@@ -180,8 +178,14 @@ export default function SignUpPage() {
     )
   }
 
-  // Available teams for additional selection (exclude existing)
-  const availableTeams = filteredTeams.filter((t) => !existingTeamIds.includes(t.id))
+  // Available teams for additional selection (exclude existing). The check-email
+  // payload carries only {name, sport} with synthetic index ids, so matching on
+  // `id` never excludes the real DB teams — key on name (+ sport when provided).
+  const availableTeams = filteredTeams.filter(
+    (t) => !existingTeams.some(
+      (et) => et.name === t.name && (!et.sport || et.sport === t.sport),
+    ),
+  )
 
   // Complete profile handler (ClubDesk import: set password + profile + team)
   async function handleCompleteProfile(e: React.FormEvent) {

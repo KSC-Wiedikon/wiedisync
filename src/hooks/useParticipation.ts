@@ -1,4 +1,6 @@
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { useCollection } from '../lib/query'
 import { useMutation } from './useMutation'
 import { useAuth } from './useAuth'
@@ -14,6 +16,7 @@ export function useParticipation(
   isStaff?: boolean,
 ) {
   const { user } = useAuth()
+  const { t } = useTranslation('common')
 
   const { data: participationsRaw, refetch } = useCollection<Participation>('participations', {
     filter: user && activityId
@@ -98,10 +101,11 @@ export function useParticipation(
       setSaveConfirmed(true)
       // Skip explicit refetch — realtime subscription handles data sync
     } catch {
-      // Revert optimistic update on failure
+      // Revert optimistic update on failure + let the user know the RSVP didn't save
       setOptimistic(null)
+      toast.error(t('error'))
     }
-  }, [user, participation, activityType, activityId, activityKey, isStaff, sessionId, create, update])
+  }, [user, participation, activityType, activityId, activityKey, isStaff, sessionId, create, update, t])
 
   const clearStatus = useCallback(async () => {
     if (participation) {
@@ -111,11 +115,12 @@ export function useParticipation(
         await remove(participation.id)
         // Skip explicit refetch — realtime subscription handles data sync
       } catch {
-        // Revert — restore the original status
+        // Revert — restore the original status + surface the failure to the user
         setOptimistic({ key: activityKey, status: participation.status })
+        toast.error(t('error'))
       }
     }
-  }, [participation, activityKey, remove])
+  }, [participation, activityKey, remove, t])
 
   // Optimistic status only applies to the activity it was set for; once the
   // user switches activities its key no longer matches and we fall back to the
