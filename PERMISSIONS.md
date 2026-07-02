@@ -1,6 +1,8 @@
 # Permissions reference — KSCW Directus
 
-Canonical role × collection × action map. Reflects the live state through migration 149 (2026-06-25). Updated by reviewers as part of every permission change. (Schema-only migrations 104–149 carry no permission rows; the per-collection posture for the finance-batch collections — 138–147 — is in the dated history below.)
+Canonical role × collection × action map. Reflects the live state through migration 165 (2026-07-02). Updated by reviewers as part of every permission change. (Schema-only migrations 104–165 carry no permission rows; the per-collection posture for the finance-batch collections — 138–147 — is in the dated history below.)
+
+> **2026-07-02 — Deep-review remediation (poll anonymity + scorer-delegation lockdown).** (1) Member `scorer_delegations.update` narrowed from all-fields to `fields:['status']` — the recipient's accept is the only legitimate item-API mutation; the identity columns (`from_member`/`to_member`/`game`/`role`/`to_team`) are now DB-immutable on UPDATE (migration 163). Closes a duty-hijack that bypassed the LEADER-only `games.update`. (2) `poll_votes` identity reads for **LEADER**, **Vorstand**, and **Sport Admin** are now scoped to `poll.anonymous = false` — anonymity was previously UI-only. Managers get anonymous-poll results as identity-free counts via `GET /kscw/polls/:id/results` (manager-gated endpoint). Sport Admin keeps create/update/delete on `poll_votes` for oversight. Full Directus admins still bypass all filters by design. See SECURITY.md "2026-07-02".
 
 > Migrations 104–111 (2026-06-10..06-15) are all schema-only — they carry no permission rows and add no plpgsql functions needing `search_path`, so this doc's role tables are unchanged by them; only the version anchor moved. The Forms permission surface (migrations 086–089) is documented in the role tables below.
 
@@ -123,7 +125,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | absences | create / update / delete | `OWN_MEMBER` (create self-scoped 2026-05-31 audit) |
 | notifications | update / delete | own |
 | push_subscriptions | create / update / delete | `OWN_MEMBER` (create self-scoped 2026-05-31 audit) |
-| scorer_delegations | create / update | create = `from_member = $CURRENT_USER`; update = own (from/to) (create self-scoped 2026-05-31 audit) |
+| scorer_delegations | create / update | create = `from_member = $CURRENT_USER`; update = own (from/to), **fields `['status']` only** (2026-07-02 audit — identity cols DB-immutable via migration 163) |
 | user_logs | create | none |
 | feedback | create | none |
 | tasks | update | own (assigned/claimed) |
@@ -167,7 +169,7 @@ Inherits everything from Member. Adds:
 | tasks | create / update / delete | scoped via teams.coach | 026 |
 | task_templates | read / create / update | scoped via teams.coach | 026 |
 | polls | create / update / delete | scoped via teams.coach | 026 |
-| poll_votes | read | all votes on polls for teams I coach/TR (`poll.team.coach/team_responsible.members_id.user = $CURRENT_USER`) — lets the poll manager see live results before the deadline; unions on top of the member's own-vote read. UI shows aggregate counts only | **2026-06-28** |
+| poll_votes | read | votes on **non-anonymous** polls for teams I coach/TR (`poll.anonymous = false` AND `poll.team.coach/team_responsible.members_id.user = $CURRENT_USER`) — per-member answers before the deadline; unions on the member's own-vote read. Anonymous-poll results come from `GET /kscw/polls/:id/results` (counts only). `anonymous = false` scope added 2026-07-02 audit (#5/#14) | **2026-06-28 / 2026-07-02** |
 | team_requests | read / update | none | |
 | absences | read | own + members on teams I coach/TR | Doc drift fixed 2026-06-10 — read is NOT unfiltered. Scoped to the coach/TR-of-the-target-team filter (`member.member_teams.team.{coach,team_responsible}.members_id.user = $CURRENT_USER`, plus own), same scope as the CUD rows (2026-05-12 audit closed the full-club absence-notes dump) |
 | notifications | create | none | |

@@ -448,6 +448,12 @@ export function registerRegistration(router, { database, logger, services, getSc
   // a tighter lockout once reference mismatches (the brute-force signal) pile up.
   const fileAttachIp = new Map() // ip → { count, resetAt, mismatches }
 
+  // Per-IP throttle for the public /registration create route. Turnstile already
+  // gates it, but each accepted submission fans out several staff/owner
+  // notification emails — a solved or misconfigured Turnstile shouldn't turn that
+  // into an email amplifier. Defense-in-depth: 5 submissions / 10 min per IP.
+  const registerIp = new Map() // ip → { count, resetAt }
+
   // POST /kscw/registration — create new registration
   router.post('/registration', async (req, res) => {
     try {
@@ -464,6 +470,25 @@ export function registerRegistration(router, { database, logger, services, getSc
       const validTypes = ['volleyball', 'basketball', 'passive']
       if (!validTypes.includes(body.membership_type)) {
         return res.status(400).json({ error: 'Invalid membership_type' })
+      }
+
+      // Per-IP rate limit (defense-in-depth behind Turnstile — each submission
+      // fans out several notification emails). cf-connecting-ip is the real
+      // client IP; the leftmost XFF value is attacker-spoofable behind CF.
+      const xff = req.headers['x-forwarded-for']
+      const ip = req.headers['cf-connecting-ip']
+        || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
+        || req.ip || 'unknown'
+      const now = Date.now()
+      const regEntry = registerIp.get(ip)
+      if (regEntry && now < regEntry.resetAt) {
+        if (regEntry.count >= 5) return res.status(429).json({ error: 'Too many requests. Please try again later.' })
+        regEntry.count++
+      } else {
+        registerIp.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000 })
+      }
+      if (registerIp.size > 1000) {
+        for (const [k, v] of registerIp) { if (now > v.resetAt) registerIp.delete(k) }
       }
 
       if (!body.turnstile_token || !(await verifyTurnstile(body.turnstile_token))) {
@@ -590,7 +615,13 @@ export function registerRegistration(router, { database, logger, services, getSc
 
       // Rate limit + brute-force lockout (reference_number is short, so this is
       // the real protection against IDOR overwrites — see fileAttachIp above).
-      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown'
+      // cf-connecting-ip is the real client IP: CF appends the client to XFF, so
+      // the leftmost XFF value is attacker-spoofable and would hand each spoofed
+      // header a fresh bucket, defeating the limiter + lockout below.
+      const xff = req.headers['x-forwarded-for']
+      const ip = req.headers['cf-connecting-ip']
+        || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
+        || req.ip || 'unknown'
       const now = Date.now()
       const ipEntry = fileAttachIp.get(ip)
       if (ipEntry && now < ipEntry.resetAt) {

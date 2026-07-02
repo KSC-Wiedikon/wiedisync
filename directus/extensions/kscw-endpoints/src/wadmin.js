@@ -107,6 +107,52 @@ export function parseQuery(q) {
   return out
 }
 
+// Audit 2026-07-02 (#4, HIGH): the item routes run readByQuery on an
+// ItemsService built with `accountability: { admin: true }` (RLS-bypass) and
+// `assertCollection` only validates the TOP-LEVEL collection. A section-scoped
+// (non-superuser) Website Admin could therefore deep-expand a granted section
+// into member PII, e.g. `?fields=invited_members.members_id.email,...ahv_nummer`
+// on `events`, exfiltrating the whole member directory. Relational traversal is
+// never used by the admin UI for these sections (it passes flat scalar fields,
+// or none), so for non-superuser callers we reject any relational `fields` /
+// `sort` / `filter`. Managers (superuser) keep full flexibility — they can read
+// members via their own role regardless.
+function filterHasRelational(node) {
+  if (!node || typeof node !== 'object') return false
+  for (const [k, v] of Object.entries(node)) {
+    if (k === '_and' || k === '_or') {
+      const arr = Array.isArray(v) ? v : []
+      if (arr.some((sub) => filterHasRelational(sub))) return true
+      continue
+    }
+    if (k.startsWith('_')) continue // operator at this level — scalar op, fine
+    // k is a field key. A plain scalar filter is `{ field: { _op: ... } }`.
+    // If the value object holds a NON-operator key, it's a nested relation walk.
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      if (Object.keys(v).some((kk) => !kk.startsWith('_'))) return true
+    }
+  }
+  return false
+}
+
+export function assertScalarQuery(query) {
+  const reject = (msg) => { const e = new Error(msg); e.status = 400; throw e }
+  if (Array.isArray(query.fields)) {
+    if (query.fields.some((f) => typeof f === 'string' && f.includes('.'))) {
+      reject('relational fields are not allowed for a section-scoped admin')
+    }
+  }
+  if (Array.isArray(query.sort)) {
+    if (query.sort.some((s) => typeof s === 'string' && s.replace(/^-/, '').includes('.'))) {
+      reject('relational sort is not allowed for a section-scoped admin')
+    }
+  }
+  if (query.filter && filterHasRelational(query.filter)) {
+    reject('relational filter is not allowed for a section-scoped admin')
+  }
+  return query
+}
+
 export async function isManagerUser(database, userId) {
   return isManager(await resolveRoleName(database, userId))
 }
@@ -150,7 +196,18 @@ export function registerWadmin(router, ctx) {
     if (!assertCollection(section, collection)) {
       res.status(403).json({ error: 'resource_out_of_scope', collection }); return null
     }
+    // #4: remember whether this caller is a full manager. Section-scoped
+    // (non-superuser) callers may not use relational query traversal (see
+    // assertScalarQuery) against the RLS-bypassing admin ItemsService.
+    req.wadminSuper = a.isSuperuser === true
     return collection
+  }
+
+  // Read query for GET routes: unrestricted for managers, scalar-only for
+  // section-scoped admins (blocks the #4 PII-exfil via relational `fields`).
+  function readQuery(req) {
+    const q = parseQuery(req.query)
+    return req.wadminSuper ? q : assertScalarQuery(q)
   }
 
   router.get('/wadmin/me', async (req, res) => {
@@ -166,13 +223,13 @@ export function registerWadmin(router, ctx) {
 
   router.get('/wadmin/:section/items/:collection', async (req, res) => {
     const c = await guard(req, res); if (!c) return
-    try { res.json({ data: await (await svc(c)).readByQuery(parseQuery(req.query)) }) }
+    try { res.json({ data: await (await svc(c)).readByQuery(readQuery(req)) }) }
     catch (e) { sendErr(res, e) }
   })
 
   router.get('/wadmin/:section/items/:collection/:id', async (req, res) => {
     const c = await guard(req, res); if (!c) return
-    try { res.json({ data: await (await svc(c)).readOne(req.params.id, parseQuery(req.query)) }) }
+    try { res.json({ data: await (await svc(c)).readOne(req.params.id, readQuery(req)) }) }
     catch (e) { sendErr(res, e) }
   })
 

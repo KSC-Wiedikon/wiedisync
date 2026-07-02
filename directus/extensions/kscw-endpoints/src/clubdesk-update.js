@@ -117,12 +117,22 @@ function buildCsv(data, teamNames) {
 
 // ── Sync-up push CSV (member → ClubDesk import) ─────────────────────────────
 // Headers are the EXACT ClubDesk field names so the import wizard auto-maps every
-// column (verified live 2026-06-27 — "Telefon Privat" not "Telefon", "AHV Nummer"
-// not "AHV-Nummer"). Semicolon-delimited (ClubDesk's import default). CONTACT
-// fields only — never groups/teams/membership category (ClubDesk-managed).
+// column (verified live 2026-06-27 — "Telefon Privat" not "Telefon"). Semicolon-
+// delimited (ClubDesk's import default). CONTACT fields only — never groups/teams/
+// membership category (ClubDesk-managed).
+//
+// wiedisync is NOT the source of truth for Anrede, Nationalität or AHV Nummer:
+// the down-sync (import-clubdesk-csv.mjs) never populates members.anrede/
+// nationalitaet/ahv_nummer, so they are always NULL here. Pushing them would send
+// BLANK cells and — if ClubDesk overwrites on import — wipe the authoritative
+// Anrede/Nationalität/AHV in the legal register. They are therefore DELIBERATELY
+// omitted from the push; do NOT re-add without a matching down-sync that fills them.
+// ⚠ VALIDATION: the remaining columns still push the full wiedisync value — how
+// ClubDesk's import wizard treats an empty cell (skip vs. blank the field) must be
+// validated against a live import before enabling commit on prod (see up-dispatch).
 const CD_PUSH_HEADERS = [
-  'Anrede', 'Vorname', 'Nachname', 'E-Mail', 'Telefon Privat', 'Adresse',
-  'PLZ', 'Ort', 'Geburtsdatum', 'Nationalität', 'Geschlecht', 'AHV Nummer',
+  'Vorname', 'Nachname', 'E-Mail', 'Telefon Privat', 'Adresse',
+  'PLZ', 'Ort', 'Geburtsdatum', 'Geschlecht',
 ]
 
 function fmtBirthdateDDMMYYYY(v) {
@@ -141,18 +151,21 @@ function cdCell(val) {
 }
 
 function buildPushCsv(members) {
+  // Column order MUST match CD_PUSH_HEADERS. anrede/nationalitaet/ahv_nummer are
+  // intentionally excluded (wiedisync doesn't own them — see CD_PUSH_HEADERS).
   const rows = members.map((m) => [
-    m.anrede, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
-    fmtBirthdateDDMMYYYY(m.birthdate), m.nationalitaet,
-    m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '', m.ahv_nummer,
+    m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
+    fmtBirthdateDDMMYYYY(m.birthdate),
+    m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
   ].map(cdCell).join(';'))
   return CD_PUSH_HEADERS.join(';') + '\n' + rows.join('\n') + '\n'
 }
 
-// Member fields the push CSV reads (also the preview fetch set).
+// Member fields the push CSV reads (also the preview fetch set). anrede/
+// nationalitaet/ahv_nummer are no longer selected — they are never pushed.
 const PUSH_FIELDS = [
-  'id', 'anrede', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
-  'ort', 'birthdate', 'nationalitaet', 'sex', 'ahv_nummer', 'clubdesk_id', 'clubdesk_push_changes',
+  'id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
+  'ort', 'birthdate', 'sex', 'clubdesk_id', 'clubdesk_push_changes',
 ]
 
 // Escape user-controlled strings before interpolating into the admin email
@@ -270,8 +283,15 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         try { changes = Array.isArray(m.clubdesk_push_changes) ? m.clubdesk_push_changes : (m.clubdesk_push_changes ? JSON.parse(m.clubdesk_push_changes) : []) } catch { changes = [] }
         return { id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email, clubdesk_id: m.clubdesk_id, changes }
       })
+      // Exclude members already pushed as "new" but not yet linked back: the
+      // up-dispatcher stamps clubdesk_pushed_at on every pushed row, so an unlinked
+      // (clubdesk_id IS NULL) member with a clubdesk_pushed_at is "pushed, awaiting
+      // link" — offering it again would DUPLICATE the contact in ClubDesk. It
+      // reappears here only once a write-back sets its clubdesk_id (TODO: scrape the
+      // new ClubDesk [Id] back — see clubdesk-member-up-dispatch.sh).
       const unlinkedRows = await database('members')
         .whereNull('clubdesk_id')
+        .whereNull('clubdesk_pushed_at')
         .select('id', 'first_name', 'last_name', 'email')
         .orderBy('last_name')
       const unlinked = unlinkedRows.map((m) => {
@@ -473,6 +493,27 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!Number.isInteger(memberId)) return res.status(400).json({ error: 'member_id required' })
       const member = await database('members').where('id', memberId).first('id', 'clubdesk_id')
       if (!member) return res.status(404).json({ error: 'Member not found' })
+      // Re-verify the departed condition server-side before mutating — the Data
+      // Health list the caller acted on can be stale, and a mis-linked clubdesk_id
+      // shared by two members must never deactivate the wrong person. Require: the
+      // member is linked, the clubdesk_id maps 1:1 (exactly one member holds it),
+      // and the linked ClubDesk contact is STILL in a departed status with an
+      // Austritt date (same predicate as /clubdesk-departed).
+      if (!member.clubdesk_id) {
+        return res.status(409).json({ error: 'Member is not linked to a ClubDesk contact', code: 'not_linked' })
+      }
+      const sharing = await database('members').where('clubdesk_id', member.clubdesk_id).count('id as n').first()
+      if (Number(sharing?.n) !== 1) {
+        return res.status(409).json({ error: 'clubdesk_id is shared by multiple members — resolve the duplicate link first', code: 'ambiguous_link' })
+      }
+      const departed = await database('clubdesk_export')
+        .whereRaw('BTRIM(clubdesk_id) = ?', [member.clubdesk_id])
+        .whereIn(database.raw('BTRIM(status)'), DEPARTED_STATUSES)
+        .whereRaw("NULLIF(BTRIM(austritt), '') IS NOT NULL")
+        .first('clubdesk_id')
+      if (!departed) {
+        return res.status(409).json({ error: 'ClubDesk contact is not in a departed status — refresh Data Health', code: 'not_departed' })
+      }
       const season = getCurrentSeason()
       const dropped = await database('member_teams').where('member', memberId).andWhere('season', season).del()
       await database('members').where('id', memberId)
@@ -581,6 +622,13 @@ ${buildChangesTable(changes, loc)}
         await database('members').where('id', member_id).update({
           clubdesk_push_pending: true,
           clubdesk_push_changes: JSON.stringify(changes),
+        })
+        // Audit: this raw-knex write bypasses Directus's activity/revision trail,
+        // so record WHO flagged the member for the next ClubDesk sync-up push.
+        await writeUserLog(database, log, {
+          accountability: req.accountability, action: 'update',
+          collection: 'members', recordId: member_id,
+          data: { kind: 'clubdesk_push_flag', fields: changes.map((c) => c.field) },
         })
       } catch (flagErr) {
         log.warn({ msg: `clubdesk push-flag failed: ${flagErr.message}`, member_id })

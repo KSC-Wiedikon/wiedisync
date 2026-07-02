@@ -12,7 +12,25 @@
 set -uo pipefail
 DIR=/opt/clubdesk-sync
 PG=supabase-db-vek42jyj0owoutoouq29aisq
-DB="${DB:-postgres}"
+
+# ── Single env selection (claim/write-back DB must never diverge from the sync
+# TARGET) ────────────────────────────────────────────────────────────────────────
+# CLUBDESK_ENV is the ONE knob: it derives BOTH the DB this dispatcher claims/writes
+# back to AND (exported) the DB clubdesk-sync.sh loads, using the SAME dev/prod
+# mapping as clubdesk-sync.sh. This makes it impossible for a mis-wired cron to claim
+# on dev while syncing prod (or vice-versa). Fail fast on a bad env, and — for legacy
+# crons that still set DB directly — fail fast if that explicit DB disagrees.
+DB_REQUESTED="${DB:-}"   # capture any explicit override BEFORE we derive the real DB
+CLUBDESK_ENV="${CLUBDESK_ENV:-prod}"
+case "$CLUBDESK_ENV" in
+  prod) DB=postgres ;;
+  dev)  DB=directus_kscw_dev ;;
+  *) echo "FATAL: bad CLUBDESK_ENV '$CLUBDESK_ENV' (expected dev|prod)" >&2; exit 1 ;;
+esac
+if [ -n "$DB_REQUESTED" ] && [ "$DB_REQUESTED" != "$DB" ]; then
+  echo "FATAL: explicit DB=$DB_REQUESTED conflicts with CLUBDESK_ENV=$CLUBDESK_ENV (→ $DB)" >&2; exit 1
+fi
+export CLUBDESK_ENV   # clubdesk-sync.sh derives the SAME DB from this
 
 # Per-env claim lock so the dev and prod dispatchers process their own requests
 # independently (DB=postgres for prod, directus_kscw_dev for dev). The actual

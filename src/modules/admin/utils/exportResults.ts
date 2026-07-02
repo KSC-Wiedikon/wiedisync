@@ -20,6 +20,8 @@ export function toTSV(columns: string[], rows: unknown[][]): string {
 /** RFC 4180 CSV — quotes fields containing commas, quotes, or newlines */
 export function toCSV(columns: string[], rows: unknown[][]): string {
   const escape = (s: string) => {
+    // Neutralise spreadsheet formula injection (leading = + - @ / tab / CR).
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
     if (s.includes(',') || s.includes('"') || s.includes('\n')) {
       return `"${s.replace(/"/g, '""')}"`
     }

@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 # Host dispatcher for the superadmin "Sync up to ClubDesk" action (cron, every
 # minute). Claims a queued up-request from clubdesk_member_sync, writes the stashed
-# CSV (transcoded to CP1252 for ClubDesk), runs the import scraper in COMMIT mode
-# under the shared ClubDesk-session lock, clears clubdesk_push_pending for the
-# pushed members, and writes back up_state + up_result. Twin of the down dispatcher.
+# CSV (transcoded to CP1252 for ClubDesk), runs the import scraper (dry-run preview
+# first, then commit only if enabled) under the shared ClubDesk-session lock, clears
+# clubdesk_push_pending for the pushed members, and writes back up_state + up_result.
+# Twin of the down dispatcher.
 #
 # Install at /opt/clubdesk-sync/ and wire to root crontab, e.g.:
-#   * * * * * CLUBDESK_ENV=dev DB=directus_kscw_dev /opt/clubdesk-sync/clubdesk-member-up-dispatch.sh >> /opt/clubdesk-sync/up-dispatch.log 2>&1
+#   * * * * * DB=directus_kscw_dev /opt/clubdesk-sync/clubdesk-member-up-dispatch.sh >> /opt/clubdesk-sync/up-dispatch.log 2>&1
 #
 # ⚠ up_csv carries member PII (AHV/address) — the file is trap-cleaned and up_csv is
 #   nulled in the DB after the run; never let either linger.
-# ⚠ Commit WRITES to the club's legal member record — only ever reached after a
-#   superadmin approved the set in the modal (the endpoint stashed the CSV).
+# ⚠ Commit WRITES to the club's legal member record. It is gated behind an explicit
+#   CLUBDESK_UP_COMMIT=1 (default = dry-run only) AND a successful dry-run preview, so
+#   a mis-wired cron can never silently write to ClubDesk. Commit is only ever reached
+#   after a superadmin approved the set in the modal (the endpoint stashed the CSV).
 set -uo pipefail
 DIR=/opt/clubdesk-sync
 PG=supabase-db-vek42jyj0owoutoouq29aisq
@@ -45,17 +48,57 @@ if [ ! -s "$CSVUTF" ]; then
 fi
 iconv -f UTF-8 -t WINDOWS-1252//TRANSLIT "$CSVUTF" > "$CSV" 2>/dev/null || cp "$CSVUTF" "$CSV"
 
-# 2. Run the import scraper in COMMIT mode under the shared ClubDesk-session lock
-#    (serialises against the down/weekly/finance scrapes — one session per account).
-#    Capture the JSON result (last stdout line); scraper logs go to up-run.log.
+# 2. Push to ClubDesk. Two-phase for safety (both phases run under the shared
+#    ClubDesk-session lock — one session per account — against the down/weekly/finance
+#    scrapes). Capture the JSON result (last stdout line); scraper logs → up-run.log.
+#  (a) ALWAYS run a dry-run 'preview' first: ClubDesk uploads + maps the CSV and reports
+#      the pre-commit summary, then backs out WITHOUT writing. Proves the CSV maps
+#      cleanly before we ever touch the legal register.
+#  (b) COMMIT (write) only if the preview succeeded AND commit is explicitly enabled
+#      via CLUBDESK_UP_COMMIT=1. Default = dry-run only.
+#  ⚠ VALIDATION: ClubDesk's import-wizard commit behaviour (how it treats empty cells,
+#    whether it truly UPDATES vs DUPLICATES a matched contact) must be validated on a
+#    live import before enabling CLUBDESK_UP_COMMIT=1 on prod. Leave it unset until then.
+COMMIT_ENABLED="${CLUBDESK_UP_COMMIT:-0}"
+
+PREVIEW=$(flock "$DIR/.sync.lock" docker run --rm -w /work -v "$DIR":/work --env-file "$DIR/.env" "$PW_IMG" \
+  node /work/clubdesk-scrape-import.mjs /work/up-import.csv preview 2>>"$DIR/up-run.log" | tail -1)
+echo "preview result: $PREVIEW"
+
+# Preview OK = the scraper reached the summary (numeric total) with no error field.
+if printf '%s' "$PREVIEW" | grep -q '"error"' || ! printf '%s' "$PREVIEW" | grep -q '"total":[0-9]'; then
+  if [ -n "$PREVIEW" ]; then RES_ESC=${PREVIEW//\'/\'\'}; RESSQL="'${RES_ESC}'::jsonb"; else RESSQL='NULL'; fi
+  psqlc "UPDATE clubdesk_member_sync SET up_state='failed', up_requested_at=NULL, up_finished_at=now(), up_message='Dry-run preview failed — see up-run.log', up_result=${RESSQL}, up_csv=NULL WHERE id=1"
+  echo "=== up-dispatch: FAILED (preview) ==="; exit 0
+fi
+
+if [ "$COMMIT_ENABLED" != "1" ]; then
+  RES_ESC=${PREVIEW//\'/\'\'}
+  # Dry-run only: nothing was written, so clubdesk_push_pending stays set for a real
+  # commit later. Do NOT touch members here.
+  psqlc "UPDATE clubdesk_member_sync SET up_state='done', up_requested_at=NULL, up_finished_at=now(), up_message='Dry-run OK — commit disabled (set CLUBDESK_UP_COMMIT=1 to write)', up_result='${RES_ESC}'::jsonb, up_csv=NULL WHERE id=1"
+  echo "=== up-dispatch: dry-run OK, commit disabled ==="; exit 0
+fi
+
 RES=$(flock "$DIR/.sync.lock" docker run --rm -w /work -v "$DIR":/work --env-file "$DIR/.env" "$PW_IMG" \
   node /work/clubdesk-scrape-import.mjs /work/up-import.csv commit 2>>"$DIR/up-run.log" | tail -1)
 echo "scraper result: $RES"
 
 if printf '%s' "$RES" | grep -q '"committed":true'; then
   RES_ESC=${RES//\'/\'\'}
-  # 3. Clear push flags for the pushed members + stamp pushed_at, write result.
-  psqlc "UPDATE members SET clubdesk_push_pending=false, clubdesk_pushed_at=now(), clubdesk_push_changes=NULL WHERE id IN (SELECT jsonb_array_elements_text(up_member_ids)::int FROM clubdesk_member_sync WHERE id=1)" >/dev/null 2>&1 || true
+  # 3a. Stamp EVERY pushed member with clubdesk_pushed_at. For a newly-created
+  #     (unlinked, clubdesk_id IS NULL) member this doubles as the "pushed, awaiting
+  #     link" marker: the shell can't scrape the new ClubDesk [Id] back, so the
+  #     up-preview endpoint excludes stamped-but-unlinked members to stop a second
+  #     push DUPLICATING them in ClubDesk.
+  #     TODO write-back: a follow-up should scrape the new ClubDesk [Id] for these rows
+  #     and set members.clubdesk_id, converting the marker into a real link.
+  psqlc "UPDATE members SET clubdesk_pushed_at=now() WHERE id IN (SELECT jsonb_array_elements_text(up_member_ids)::int FROM clubdesk_member_sync WHERE id=1)" >/dev/null 2>&1 || true
+  # 3b. Clear the pending flag ONLY for members whose edit-set is the one we actually
+  #     pushed. A member edited again BETWEEN the stash (up_requested_at) and this push
+  #     has a newer date_updated, so we KEEP clubdesk_push_pending=true and their newer
+  #     edit is picked up on the next run instead of being silently dropped.
+  psqlc "UPDATE members m SET clubdesk_push_pending=false, clubdesk_push_changes=NULL FROM clubdesk_member_sync s WHERE s.id=1 AND m.id IN (SELECT jsonb_array_elements_text(s.up_member_ids)::int) AND (m.date_updated IS NULL OR m.date_updated <= s.up_requested_at)" >/dev/null 2>&1 || true
   psqlc "UPDATE clubdesk_member_sync SET up_state='done', up_requested_at=NULL, up_finished_at=now(), up_message='Pushed to ClubDesk', up_result='${RES_ESC}'::jsonb, up_csv=NULL WHERE id=1"
   echo "=== up-dispatch: done ==="
 else

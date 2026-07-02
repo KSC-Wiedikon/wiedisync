@@ -4157,6 +4157,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // INSERT/UPDATE/DELETE on `trainings` do NOT fire these items hooks, so only
   // genuine user/API edits land here — no feedback loop.
   const pendingTrainingPreState = new Map()
+  // The filter snapshots pre-state keyed by training id and the action drains
+  // it. If an update is aborted AFTER this filter runs (a later filter throws,
+  // a DB constraint rejects the write), the matching action never fires and the
+  // entry would leak for the process lifetime. Stamp each entry and sweep stale
+  // ones (a filter→action cycle is sub-second; 5 min is a generous ceiling).
+  const PRESTATE_TTL_MS = 5 * 60 * 1000
+  const prunePendingTrainingPreState = () => {
+    if (pendingTrainingPreState.size === 0) return
+    const cutoff = Date.now() - PRESTATE_TTL_MS
+    for (const [k, v] of pendingTrainingPreState) {
+      if (!v || v.ts == null || v.ts < cutoff) pendingTrainingPreState.delete(k)
+    }
+  }
   const isoDay = (d) => {
     if (!d) return null
     if (d instanceof Date) {
@@ -4193,11 +4206,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   filter('trainings.items.update', async (payload, meta, ctx) => {
     try {
       if (payload && !('hall_slot' in payload) && !('date' in payload)) return payload
+      prunePendingTrainingPreState()
       const keys = Array.isArray(meta?.keys) ? meta.keys : (meta?.key != null ? [meta.key] : [])
       for (const k of keys) {
         if (!pendingTrainingPreState.has(k)) {
           const pre = await database('trainings').where('id', k).first('hall_slot', 'date')
-          if (pre) pendingTrainingPreState.set(k, { pre, actor: ctx?.accountability?.user || null })
+          if (pre) pendingTrainingPreState.set(k, { pre, actor: ctx?.accountability?.user || null, ts: Date.now() })
         }
       }
     } catch (err) {

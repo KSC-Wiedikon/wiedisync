@@ -861,9 +861,17 @@ async function main() {
   // Scorer delegations — read/create/update own. 2026-05-31 security audit:
   // create was unfiltered, letting a member fabricate a delegation FROM a
   // teammate. Self-scope create on `from_member` (the delegating side).
+  // 2026-07-02 audit (#3, HIGH): the update grant was `fields:['*']`, so a
+  // member who is a party to a delegation could PATCH `from_member`/`to_member`/
+  // `game`/`role` (identity of the transfer) and flip `status='accepted'`,
+  // driving the delegation-transfer hook to reassign someone else's LEADER-only
+  // scorer/timekeeper duty (migration 148 only forces status on INSERT). The
+  // ONLY legitimate item-API update is the recipient's accept, so the update is
+  // now restricted to `status`; migration 163 makes the identity columns
+  // immutable at the DB layer as a backstop.
   await setPermRead(MEMBER_POLICY, 'scorer_delegations', OWN_DELEGATION)
   await setPerm(MEMBER_POLICY, 'scorer_delegations', 'create', OWN_DELEGATION_FROM)
-  await setPerm(MEMBER_POLICY, 'scorer_delegations', 'update', OWN_DELEGATION)
+  await setPerm(MEMBER_POLICY, 'scorer_delegations', 'update', OWN_DELEGATION, ['status'])
 
   // Team invites — read own
   await setPermRead(MEMBER_POLICY, 'team_invites', { member: { user: { _eq: '$CURRENT_USER' } } })
@@ -1200,12 +1208,16 @@ async function main() {
   await setPerm(LEADER_POLICY, 'polls', 'delete')
 
   // Poll votes — read every vote on polls for teams I coach / am responsible for,
-  // so the poll creator/manager can see live results before the deadline
+  // so the poll creator/manager can see per-member answers before the deadline
   // (decision 2026-06-28). Members still read only their own vote (member policy);
-  // this unions on top via the leader policy. The UI shows aggregate counts only,
-  // matching the board's existing read-all + counts-only display posture.
+  // this unions on top via the leader policy.
+  // 2026-07-02 audit (#5/#14): anonymous poll votes still persist `member`, so
+  // this grant de-anonymized anonymous polls for the coach (anonymity was a
+  // UI-only toggle). Scoped to NON-anonymous polls; managers get anonymous-poll
+  // results as identity-free counts via GET /kscw/polls/:id/results.
   await setPermRead(LEADER_POLICY, 'poll_votes', {
     poll: {
+      anonymous: { _eq: false },
       team: {
         _or: [
           { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
@@ -1414,7 +1426,10 @@ async function main() {
     'members', 'member_teams', 'participations', 'absences',
     'notifications', 'scorer_delegations', 'team_invites',
     'user_logs', 'feedback', 'tasks', 'task_templates',
-    'poll_votes', 'team_requests', 'push_subscriptions',
+    'team_requests', 'push_subscriptions',
+    // NB: `poll_votes` intentionally NOT here — granted below scoped to
+    // non-anonymous polls only (2026-07-02 audit #5/#14). Board reads anonymous
+    // results as identity-free counts via GET /kscw/polls/:id/results.
     'game_scheduling_seasons', 'game_scheduling_slots',
     'game_scheduling_opponents', 'game_scheduling_bookings',
     'announcements',
@@ -1443,6 +1458,9 @@ async function main() {
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)
   }
+  // poll_votes — non-anonymous only (2026-07-02 audit #5/#14). Anonymous-poll
+  // results come from the counts endpoint, not raw vote rows.
+  await setPermRead(VORSTAND_POLICY, 'poll_votes', { poll: { anonymous: { _eq: false } } })
   // Read the private invoice-PDF folder so the board can open attachments via
   // /assets (members can't — their directus_files read is folder-less-only).
   await setPermRead(VORSTAND_POLICY, 'directus_files', { folder: { _eq: FINANCE_INVOICE_FOLDER } })
@@ -1475,7 +1493,9 @@ async function main() {
     'teams_coaches', 'teams_responsibles', 'events_members',
     'volley_feedback',
     'tasks', 'task_templates', 'carpools', 'carpool_passengers',
-    'polls', 'poll_votes', 'team_requests', 'registrations',
+    // NB: `poll_votes` NOT here — granted below with a non-anonymous read scope
+    // (2026-07-02 audit #5/#14) while keeping create/update/delete for oversight.
+    'polls', 'team_requests', 'registrations',
     'game_scheduling_seasons', 'game_scheduling_slots',
     'game_scheduling_opponents', 'game_scheduling_bookings',
     'query_templates', 'sv_vm_check',
@@ -1494,6 +1514,13 @@ async function main() {
   for (const col of SPORT_ADMIN_FULL_CRUD) {
     await setPermCRUD(SPORT_ADMIN_POLICY, col)
   }
+  // poll_votes — read non-anonymous polls only (2026-07-02 audit #5/#14); keep
+  // create/update/delete for oversight/correction. Anonymous results via the
+  // counts endpoint. (Full Directus admins still bypass all filters by design.)
+  await setPermRead(SPORT_ADMIN_POLICY, 'poll_votes', { poll: { anonymous: { _eq: false } } })
+  await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'create')
+  await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'update')
+  await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'delete')
   // Restricted: read/create/update only on members + teams (delete blocked).
   for (const col of ['members', 'teams']) {
     await setPerm(SPORT_ADMIN_POLICY, col, 'create')

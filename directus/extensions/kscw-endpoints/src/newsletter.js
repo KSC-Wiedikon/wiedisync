@@ -46,7 +46,13 @@ export function registerNewsletter(router, { database, logger, services, getSche
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) return res.status(400).json({ error: 'Invalid email' });
 
-      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+      // cf-connecting-ip is the real client IP: CF appends the client to XFF, so
+      // the leftmost XFF value is attacker-spoofable and would hand each spoofed
+      // header a fresh limiter bucket (and a spoofed Turnstile remoteip below).
+      const xff = req.headers['x-forwarded-for'];
+      const ip = req.headers['cf-connecting-ip']
+        || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
+        || req.ip || 'unknown';
       const now = Date.now();
       const ipEntry = subscribeIp.get(ip);
       if (ipEntry && now < ipEntry.resetAt) {

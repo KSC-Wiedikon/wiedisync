@@ -106,17 +106,24 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
     setBillBusy(run.id); setRunErr('')
     try {
       const { invoices } = await fetchDuesRunInvoices(run.id)
-      const bills = invoices.map((inv) => {
-        const open = toNum(inv.open_amount)
-        return {
-          number: inv.number,
-          recipientName: inv.recipient_name,
-          amount: open > 0 ? open : toNum(inv.amount),
-          message: [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n') || null,
-          reference: inv.reference_type === 'SCOR' ? inv.reference : null,
-        }
-      })
-      if (!bills.some((b) => b.amount >= 0.01)) { setRunErr(t('duesBillsEmpty')); return }
+      const bills = invoices
+        // Never re-bill a settled invoice — a full-amount QR slip would let a
+        // paid member pay twice.
+        .filter((inv) => inv.status !== 'paid')
+        .map((inv) => {
+          // Bill only the still-open balance. Fall back to the full amount only
+          // when open_amount is genuinely unknown (null), never when it's 0 (paid).
+          const open = inv.open_amount == null ? toNum(inv.amount) : toNum(inv.open_amount)
+          return {
+            number: inv.number,
+            recipientName: inv.recipient_name,
+            amount: open,
+            message: [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n') || null,
+            reference: inv.reference_type === 'SCOR' ? inv.reference : null,
+          }
+        })
+        .filter((b) => b.amount >= 0.01)
+      if (!bills.length) { setRunErr(t('duesBillsEmpty')); return }
       const safe = String(run.label || run.id).replace(/[^\w.-]+/g, '-')
       await downloadInvoiceBillsPdf(bills, `dues-${safe}.pdf`, t('duesBillsPdfTitle', { run: run.label || `#${run.id}` }))
     } catch { setRunErr(t('duesBillsError')) } finally { setBillBusy(null) }

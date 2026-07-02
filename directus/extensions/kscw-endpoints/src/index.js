@@ -14,6 +14,7 @@ import { registerPasswordReset } from './password-reset.js'
 import { registerICalFeed } from './ical-feed.js'
 import { registerPublicEvents } from './public-events.js'
 import { registerForms } from './forms.js'
+import { registerPollResults } from './poll-results.js'
 import { registerPublicForms } from './public-forms.js'
 import { registerGCalSync } from './gcal-sync.js'
 import { registerSchulferienSync } from './schulferien-sync.js'
@@ -2186,6 +2187,7 @@ export default {
     registerBugfixes(router, ctx)
     registerEventNotify(router, ctx)
     registerForms(router, ctx, { logEndpointError, requireAuth })
+    registerPollResults(router, ctx, { logEndpointError, requireAuth })
     registerPublicForms(router, ctx, { ipRateLimit })
     registerMessaging(router, ctx)
     registerBroadcastRoutes(router, ctx)

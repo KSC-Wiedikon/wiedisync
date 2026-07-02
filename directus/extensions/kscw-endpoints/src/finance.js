@@ -28,7 +28,7 @@ import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './email-template.js'
 import { renderInvoiceQrBillPdf } from './finance-qrbill.js'
 import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
-import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe } from './finance-autopost.js'
+import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe, removeAutopostForTeamEntrySafe } from './finance-autopost.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -419,6 +419,17 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
       if (!inv) return res.status(404).json({ error: 'Not found' })
       if (inv.status === 'paid') return res.status(409).json({ error: 'Cannot cancel a paid invoice' })
+      // #8/#10: a partially-paid invoice still has real cash recorded in
+      // finance_payments. Cancelling zeroes open_amount and (with autopost) the
+      // reconcile deletes the settle legs for that cash — understating the GL
+      // Bank while the payment rows remain, so the control account no longer
+      // reconciles to the sub-ledger. Require the treasurer to refund / write
+      // off the received cash first (net cash = payments − refunds).
+      const payAgg = await database('finance_payments').where('invoice', id)
+        .select(database.raw("COALESCE(SUM(CASE WHEN COALESCE(entry_type,'payment')='payment' THEN amount WHEN entry_type='refund' THEN -amount ELSE 0 END),0) AS net_cash"))
+        .first()
+      const netCash = Math.round((Number(payAgg?.net_cash) || 0) * 100) / 100
+      if (netCash > 0.005) return res.status(409).json({ error: 'Cannot cancel an invoice with received payments — record a refund or write-off first', received: netCash })
       const [row] = await database('finance_invoices').where('id', id).update({
         status: 'cancelled', open_amount: 0, cancelled_at: new Date(), date_updated: new Date(),
       }).returning('*')
@@ -636,15 +647,31 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const body = req.body || {}
       const r = await resolveDuesCohort(body)
       if (r.error) return res.status(400).json({ error: r.error })
-      const billable = r.rows.filter((x) => !x.missing_rate && !x.already_billed)
-      if (!billable.length) return res.status(409).json({ error: 'Nothing to bill (no members with a rate that are not already billed)' })
+      // #21: never mint a 0-CHF invoice — a rate of 0 would create an "open"
+      // invoice with open_amount 0 for the whole cohort. Skip amount ≤ 0.
+      const billable = r.rows.filter((x) => !x.missing_rate && !x.already_billed && round2(x.amount) > 0)
+      if (!billable.length) return res.status(409).json({ error: 'Nothing to bill (no members with a positive rate that are not already billed)' })
 
       const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(body.due_date || '') ? body.due_date : null
       const invoiceDate = todayISO()
       const fyLabel = r.fy.label
       const label = (body.label || '').toString().trim() || `Dues ${fyLabel}`
+      // #7: advisory-lock namespace so concurrent dues issues serialize per FY.
+      const DUES_ISSUE_LOCK_NS = 19283
 
       const result = await database.transaction(async (trx) => {
+        // #7: serialize issuance per fiscal year — the UNIQUE(dues_run, member)
+        // index is per-run and does NOT span runs, so two overlapping issue calls
+        // would each mint a full cohort into distinct runs (double-billing). Take
+        // a transaction advisory lock, then RE-CHECK who is already billed inside
+        // the lock (the cohort's `already_billed` was computed before the txn).
+        await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [DUES_ISSUE_LOCK_NS, r.fy.id])
+        const billedNow = new Set((await trx('finance_invoices')
+          .where('fiscal_year', r.fy.id).whereNotNull('dues_run').whereNotNull('member')
+          .whereNot('status', 'cancelled').pluck('member')).map(Number))
+        const toBill = billable.filter((x) => !billedNow.has(Number(x.member)))
+        if (!toBill.length) return { runId: null, created: [], total: 0 }
+
         const runIns = await trx('finance_dues_runs').insert({
           fiscal_year: r.fy.id, label,
           filter_json: JSON.stringify({ categories: r.categories, sektion: r.sektion, only_active: r.onlyActive, due_date: dueDate }),
@@ -654,7 +681,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
         const created = []
         let total = 0
-        for (const x of billable) {
+        for (const x of toBill) {
           const seqRow = await trx.raw("SELECT nextval('finance_native_invoice_seq')::int AS n")
           const seq = (seqRow.rows ? seqRow.rows[0] : seqRow[0]).n
           const number = `N-${invoiceDate.slice(0, 4)}-${String(seq).padStart(4, '0')}`
@@ -680,11 +707,18 @@ export function registerFinance(router, { database, logger, services, getSchema 
         return { runId, created, total }
       })
 
+      // A concurrent run beat us to the whole cohort (advisory-lock re-check).
+      if (!result.runId) return res.status(409).json({ error: 'Nothing to bill — the cohort was already billed by a concurrent run' })
       await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_dues_runs', recordId: result.runId, data: { kind: 'dues_run_issue', fiscal_year: r.fy.id, count: result.created.length, total: result.total } })
       await autopostDuesRunSafe(database, log, result.runId)
       return res.json({
         run: { id: result.runId, label, fiscal_year: r.fy.id, total_count: result.created.length, total_amount: result.total },
-        summary: { created: result.created.length, skipped_already_billed: r.rows.filter((x) => x.already_billed).length, skipped_no_rate: r.rows.filter((x) => x.missing_rate).length },
+        summary: {
+          created: result.created.length,
+          skipped_already_billed: r.rows.filter((x) => x.already_billed).length,
+          skipped_no_rate: r.rows.filter((x) => x.missing_rate).length,
+          skipped_zero_rate: r.rows.filter((x) => !x.missing_rate && round2(x.amount) <= 0).length,
+        },
         details: result.created,
       })
     } catch (e) { return err(res, req, 'dues-issue', e) }
@@ -946,6 +980,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
       const removed = await database('finance_team_entries').where('id', id).del()
+      // #9: also drop the entry's auto-posted GL journal entry, else it lingers
+      // as phantom income/expense (the DELETE mirrors the payment-delete path).
+      if (removed) await removeAutopostForTeamEntrySafe(database, log, id)
       await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_team_entries', recordId: id, data: { removed } })
       return res.json({ ok: true, removed })
     } catch (e) { return err(res, req, 'team-entry-delete', e) }
