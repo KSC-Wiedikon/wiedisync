@@ -19,6 +19,7 @@ import NotificationPanel from '../../components/NotificationPanel'
 import GameDetailModal from '../games/components/GameDetailModal'
 import TrainingDetailModal from '../trainings/TrainingDetailModal'
 import EventDetailModal from '../events/EventDetailModal'
+import { asTeams, getEventDateBadgeParts } from '../events/eventHelpers'
 import AnnouncementRow from './components/AnnouncementRow'
 import AnnouncementDetailModal from './components/AnnouncementDetailModal'
 import { useAnnouncements } from '../../hooks/useAnnouncements'
@@ -1313,11 +1314,7 @@ function HomeSections({
 
 function EventRow({ event, onClick, participationStatus }: { event: EventExpanded; onClick: () => void; participationStatus?: string }) {
   const effectiveStatus = participationStatus
-  const teams = (Array.isArray(event.teams)
-    ? (event.teams as unknown[])
-        .map((t) => (t as { teams_id?: Team | number | string })?.teams_id ?? t)
-        .filter((t): t is Team => t != null && typeof t === 'object' && 'name' in t)
-    : [])
+  const teams = asTeams(event.teams)
 
   const statusBorderColor: Record<string, string> = {
     confirmed: 'bg-green-500 dark:bg-green-400',
@@ -1345,13 +1342,7 @@ function EventRow({ event, onClick, participationStatus }: { event: EventExpande
         {/* Content row: date badge + details */}
         <div className="flex items-start gap-2.5">
           {(() => {
-            const startZh = toZurichDateString(event.start_date)
-            const endZh = toZurichDateString(event.end_date)
-            const isMultiDay = !!endZh && endZh !== startZh
-            const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich', day: 'numeric' })
-            const monthFmt = new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', month: 'short' })
-            const startDay = dayFmt.format(new Date(event.start_date))
-            const startMonth = monthFmt.format(new Date(event.start_date))
+            const { isMultiDay, startDay, startMonth, endDay, endMonth } = getEventDateBadgeParts(event.start_date, event.end_date)
             if (!isMultiDay) {
               return (
                 <div className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-900/40">
@@ -1360,8 +1351,6 @@ function EventRow({ event, onClick, participationStatus }: { event: EventExpande
                 </div>
               )
             }
-            const endDay = dayFmt.format(new Date(event.end_date))
-            const endMonth = monthFmt.format(new Date(event.end_date))
             return (
               <div className="flex h-9 shrink-0 items-center gap-1 rounded-lg bg-brand-50 px-1.5 dark:bg-brand-900/40">
                 <div className="flex flex-col items-center justify-center leading-none">

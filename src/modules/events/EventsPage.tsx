@@ -18,23 +18,9 @@ import EventDetailModal from './EventDetailModal'
 import EventForm from './EventForm'
 import { Button } from '@/components/ui/button'
 import { isFeatureEnabled } from '../../utils/featureToggles'
-import type { Event, Team, Participation } from '../../types'
+import { asTeams, teamId } from './eventHelpers'
+import type { Event, Participation } from '../../types'
 import { TourPageButton } from '../guide/TourPageButton'
-
-function asTeams(teams: unknown[] | null | undefined): Team[] {
-  if (!Array.isArray(teams) || teams.length === 0) return []
-  return teams
-    .map((t: any) => t?.teams_id ?? t)
-    .filter((t): t is Team => t != null && typeof t === 'object' && 'name' in t)
-}
-
-function teamId(val: unknown): string {
-  if (!val) return ''
-  if (typeof val === 'string') return val
-  if (typeof val === 'number') return String(val)
-  const obj = (val as any)?.teams_id ?? val
-  return typeof obj === 'object' ? String((obj as any).id ?? '') : String(obj ?? '')
-}
 
 export default function EventsPage() {
   const { t } = useTranslation('events')
