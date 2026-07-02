@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import TeamMultiSelect from '../../components/TeamMultiSelect'
 import { teamNameToColorKey } from '../../utils/teamColors'
+import { relId } from '../../utils/relations'
 import { useTeams } from '../../hooks/useTeams'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
@@ -147,9 +148,11 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
     }
     if (selectedTeamIds.length > 0) {
       filtered = filtered.filter((e) => {
-        // Games: check source.kscw_team; Trainings: check source.team
+        // Games: check source.kscw_team; Trainings: check source.team.
+        // kscw_team is EXPANDED to an object by useCalendarData, so extract the
+        // id via relId (was compared as an object → filter dropped all games).
         const src = e.source as Record<string, unknown>
-        const teamId = (src.kscw_team ?? src.team ?? '') as string
+        const teamId = relId(src.kscw_team ?? src.team)
         return !teamId || selectedTeamIds.includes(teamId)
       })
     }
