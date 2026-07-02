@@ -13,40 +13,9 @@ import { useMutation } from '../../hooks/useMutation'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
 import { formatDate, formatTime, getDeadlineDate } from '../../utils/dateHelpers'
-import type { Event, Team, Participation } from '../../types'
+import { asTeams, teamId, isHtml, isSameDay } from './eventHelpers'
+import type { Event, Participation } from '../../types'
 import CancelActivityButton from '../../components/CancelActivityButton'
-
-/** Extract Team objects from Directus M2M junction array (events_teams[].teams_id) */
-function asTeams(teams: unknown[] | null | undefined): Team[] {
-  if (!Array.isArray(teams) || teams.length === 0) return []
-  // Directus M2M: [{ teams_id: Team }] or [{ teams_id: number }] or [Team] or [string]
-  return teams
-    .map((t: any) => t?.teams_id ?? t)
-    .filter((t): t is Team => t != null && typeof t === 'object' && 'name' in t)
-}
-
-function teamId(val: unknown): string {
-  if (!val) return ''
-  if (typeof val === 'string') return val
-  if (typeof val === 'number') return String(val)
-  const obj = (val as any)?.teams_id ?? val
-  return typeof obj === 'object' ? String((obj as any).id ?? '') : String(obj ?? '')
-}
-
-const eventTypeColors: Record<string, { bg: string; text: string }> = {
-  verein: { bg: '#dbeafe', text: '#1e40af' },
-  social: { bg: '#dcfce7', text: '#166534' },
-  meeting: { bg: '#fef3c7', text: '#92400e' },
-  tournament: { bg: '#fee2e2', text: '#991b1b' },
-  trainingsweekend: { bg: '#ffedd5', text: '#9a3412' },
-  friendly: { bg: '#ccfbf1', text: '#115e59' },
-  other: { bg: '#f3f4f6', text: '#374151' },
-}
-
-/** Check if a string contains HTML tags */
-function isHtml(str: string): boolean {
-  return /<[a-z][\s\S]*>/i.test(str)
-}
 
 interface EventCardProps {
   event: Event
@@ -99,7 +68,7 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
       {/* Top row: badge + title + actions */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <StatusBadge status={event.event_type} colorMap={eventTypeColors} />
+          <StatusBadge status={event.event_type} />
           <h2 className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{event.title}</h2>
         </div>
         <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -156,9 +125,9 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
       <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
         {formatDate(event.start_date)}
         {!event.all_day && `, ${formatTime(event.start_date)}`}
-        {!event.all_day && event.start_date?.split('T')[0] === event.end_date?.split('T')[0]
+        {!event.all_day && isSameDay(event.start_date, event.end_date)
           ? `–${formatTime(event.end_date)}`
-          : event.start_date?.split('T')[0] !== event.end_date?.split('T')[0] && (
+          : !isSameDay(event.start_date, event.end_date) && (
             ` — ${formatDate(event.end_date)}${!event.all_day ? `, ${formatTime(event.end_date)}` : ''}`
           )}
         {event.all_day && ` · ${t('allDay')}`}

@@ -55,15 +55,20 @@ export function useCarpool(gameId: string) {
       passenger: user.id,
       status: 'confirmed',
     })
-    // Check if full
+    // Check if full — recompute from freshly-fetched passengers rather than the
+    // stale closure. The closed-over `passengers` predates this insert (and any
+    // concurrent joins), so `length + 1` can miss the full transition. The
+    // refetched list already includes the row we just created, so no `+ 1`.
+    const { data: freshPassengers } = await refetchPassengers()
     const carpool = carpools.find(c => c.id === carpoolId)
-    const currentPassengers = passengers.filter(p => p.carpool === carpoolId && p.status === 'confirmed')
-    if (carpool && currentPassengers.length + 1 >= carpool.seats_available) {
+    const confirmedCount = (freshPassengers ?? []).filter(
+      p => p.carpool === carpoolId && p.status === 'confirmed',
+    ).length
+    if (carpool && confirmedCount >= carpool.seats_available) {
       await updateCarpool(carpoolId, { status: 'full' })
     }
-    refetchPassengers()
     refetchCarpools()
-  }, [user, carpools, passengers, createPassenger, updateCarpool, refetchPassengers, refetchCarpools])
+  }, [user, carpools, createPassenger, updateCarpool, refetchPassengers, refetchCarpools])
 
   const leaveRide = useCallback(async (carpoolId: string) => {
     if (!user) return

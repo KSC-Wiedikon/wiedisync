@@ -148,8 +148,8 @@ export default function ScorerAssignPage() {
   async function handleSaveAll() {
     setSaving(true)
     setSaveMsg(null)
-    let updated = 0
     try {
+      const tasks: Array<{ gameId: string; fields: Partial<Game> }> = []
       if (sportTab === 'volleyball') {
         for (const a of vbAssignments) {
           if (a.conflicts.some((c) => c.key === 'existingKept')) continue
@@ -158,21 +158,27 @@ export default function ScorerAssignPage() {
           if (a.scorerTeamId) fields.scorer_duty_team = a.scorerTeamId
           if (a.scoreboardTeamId) fields.scoreboard_duty_team = a.scoreboardTeamId
           if (a.combinedTeamId) fields.scorer_scoreboard_duty_team = a.combinedTeamId
-          await updateRecord('games', a.gameId, fields)
-          logActivity('update', 'games', a.gameId, fields)
-          updated++
+          tasks.push({ gameId: a.gameId, fields })
         }
       } else {
         for (const a of bbAssignments) {
           if (a.conflicts.some((c) => c.key === 'existingKept')) continue
           if (!a.dutyTeamId) continue
-          const fields: Partial<Game> = { bb_duty_team: a.dutyTeamId }
-          await updateRecord('games', a.gameId, fields)
-          logActivity('update', 'games', a.gameId, fields)
-          updated++
+          tasks.push({ gameId: a.gameId, fields: { bb_duty_team: a.dutyTeamId } })
         }
       }
-      setSaveMsg({ text: t('saveSuccess', { count: updated }), error: false })
+      // Save in parallel chunks instead of a serial await loop (a whole season is
+      // hundreds of sequential PATCHes).
+      const CHUNK_SIZE = 10
+      for (let i = 0; i < tasks.length; i += CHUNK_SIZE) {
+        await Promise.all(
+          tasks.slice(i, i + CHUNK_SIZE).map(async ({ gameId, fields }) => {
+            await updateRecord('games', gameId, fields)
+            logActivity('update', 'games', gameId, fields)
+          }),
+        )
+      }
+      setSaveMsg({ text: t('saveSuccess', { count: tasks.length }), error: false })
     } catch {
       setSaveMsg({ text: t('saveError'), error: true })
     } finally {

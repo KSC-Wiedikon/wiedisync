@@ -383,31 +383,34 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
     // Find sibling trainings with same hall_slot, excluding the one we already updated
     const filter = { _and: [{ hall_slot: { _eq: source.hall_slot } }, { id: { _neq: source.id } }, { date: { _gte: todayLocal() } }] }
 
-    if (editScope === 'same_day') {
-      // Same day of week: compute from source training date
-      const dayOfWeek = new Date(source.date).getDay()
-      // No day-of-week filter available, so we fetch all and filter client-side
-      const allSiblings = await fetchAllItems<Training>('trainings', {
-        filter,
-        sort: ['date'],
-      })
-      const sameDaySiblings = allSiblings.filter(
-        (t) => new Date(t.date).getDay() === dayOfWeek,
+    // Resolve the siblings to update: 'same_day' keeps only the source's weekday
+    // (no day-of-week filter in Directus → fetch all + filter client-side); the
+    // default ('all recurring') updates every future sibling sharing the slot.
+    const allSiblings = await fetchAllItems<Training>('trainings', {
+      filter,
+      sort: ['date'],
+    })
+    const siblings = editScope === 'same_day'
+      ? allSiblings.filter((t) => new Date(t.date).getDay() === new Date(source.date).getDay())
+      : allSiblings
+
+    // Apply in parallel chunks instead of a serial await loop (an "all recurring"
+    // edit was dozens of sequential PATCHes). allSettled so one failed sibling
+    // doesn't abort the rest of the series; a failure is still surfaced so the
+    // user isn't left thinking every occurrence saved.
+    const CHUNK_SIZE = 10
+    let failures = 0
+    for (let i = 0; i < siblings.length; i += CHUNK_SIZE) {
+      const results = await Promise.allSettled(
+        siblings.slice(i, i + CHUNK_SIZE).map(async (sibling) => {
+          await updateRecord('trainings', sibling.id, bulkData)
+          logActivity('update', 'trainings', sibling.id, bulkData)
+        }),
       )
-      for (const sibling of sameDaySiblings) {
-        await updateRecord('trainings', sibling.id, bulkData)
-        logActivity('update', 'trainings', sibling.id, bulkData)
-      }
-    } else {
-      // All recurring
-      const allSiblings = await fetchAllItems<Training>('trainings', {
-        filter,
-        sort: ['date'],
-      })
-      for (const sibling of allSiblings) {
-        await updateRecord('trainings', sibling.id, bulkData)
-        logActivity('update', 'trainings', sibling.id, bulkData)
-      }
+      failures += results.filter((r) => r.status === 'rejected').length
+    }
+    if (failures > 0) {
+      throw new Error(`bulkUpdateSiblings: ${failures} sibling update(s) failed`)
     }
   }
 

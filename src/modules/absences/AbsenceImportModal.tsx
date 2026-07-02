@@ -55,19 +55,26 @@ export default function AbsenceImportModal({ open, onClose, onComplete }: Absenc
     let created = 0
     let failed = 0
 
-    for (const row of validRows) {
-      try {
-        await createRecord('absences', {
-          member: user.id,
-          start_date: row.start_date,
-          end_date: row.end_date,
-          reason: row.normalizedReason,
-          reason_detail: row.reason_detail,
-          affects: row.normalizedAffects,
-        })
-        created++
-      } catch {
-        failed++
+    // Insert in bounded-concurrency batches so a large import isn't N serial
+    // round-trips, while still counting per-row failures.
+    const CONCURRENCY = 10
+    for (let i = 0; i < validRows.length; i += CONCURRENCY) {
+      const batch = validRows.slice(i, i + CONCURRENCY)
+      const settled = await Promise.allSettled(
+        batch.map((row) =>
+          createRecord('absences', {
+            member: user.id,
+            start_date: row.start_date,
+            end_date: row.end_date,
+            reason: row.normalizedReason,
+            reason_detail: row.reason_detail,
+            affects: row.normalizedAffects,
+          }),
+        ),
+      )
+      for (const r of settled) {
+        if (r.status === 'fulfilled') created++
+        else failed++
       }
     }
 

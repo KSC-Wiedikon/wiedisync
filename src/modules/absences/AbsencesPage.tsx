@@ -10,6 +10,7 @@ import { relId, asObj } from '../../utils/relations'
 import { useTeamAbsences } from '../../hooks/useTeamAbsences'
 import TeamMultiSelect from '../../components/TeamMultiSelect'
 import { teamNameToColorKey } from '../../utils/teamColors'
+import { toISODate } from '../../utils/dateHelpers'
 import EmptyState from '../../components/EmptyState'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -110,7 +111,7 @@ export default function AbsencesPage() {
     fields: ['*', 'member.*'],
   })
   const myAbsences = myAbsencesRaw ?? []
-  const today = new Date().toISOString().slice(0, 10)
+  const today = toISODate(new Date())
   const upcomingAbsences = myAbsences.filter((a) => (a.end_date ?? '9999-12-31') >= today)
   const pastAbsences = myAbsences.filter((a) => a.end_date && a.end_date < today)
 
@@ -432,11 +433,11 @@ function TeamWeeklySection({
   isCoachLike: boolean
 }) {
   const { t } = useTranslation('absences')
-  const today = new Date().toISOString().slice(0, 10)
+  const today = toISODate(new Date())
   const farFuture = (() => {
     const d = new Date()
     d.setFullYear(d.getFullYear() + 2)
-    return d.toISOString().slice(0, 10)
+    return toISODate(d)
   })()
   const { absences, memberMap, isLoading } = useTeamAbsences(teamIds, today, farFuture)
   const [excludedMembers, setExcludedMembers] = useState<Set<string>>(new Set())

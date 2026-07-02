@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Car, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { useCarpool } from './hooks/useCarpool'
 import CarpoolCard from './CarpoolCard'
 import CarpoolOfferForm from './CarpoolOfferForm'
@@ -48,9 +49,7 @@ export default function CarpoolSection({ gameId }: CarpoolSectionProps) {
 
       {/* Content */}
       <div className="mt-3 space-y-3">
-        {isLoading && (
-          <div className="py-4 text-center text-sm text-zinc-400 dark:text-zinc-500">...</div>
-        )}
+        {isLoading && <LoadingSpinner size="sm" />}
 
         {!isLoading && carpools.length === 0 && (
           <div className="rounded-lg border border-dashed border-zinc-300 p-6 text-center dark:border-zinc-600">

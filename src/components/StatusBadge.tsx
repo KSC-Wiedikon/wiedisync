@@ -11,8 +11,10 @@ const defaultColors: Record<string, string> = {
   // Roles
   user: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
   player: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
-  coach: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  captain: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  // Team-leadership badges (MemberRow): blue coach / amber captain / violet TR —
+  // matches the former inline `roleColors` hex, now with dark-mode variants.
+  coach: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  captain: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
   team_responsible: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400',
   vorstand: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
   admin: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
@@ -66,25 +68,10 @@ const labelMap: Record<string, string> = {
 
 interface StatusBadgeProps {
   status: string
-  /** @deprecated Use the built-in color map instead */
-  colorMap?: Record<string, { bg: string; text: string }>
   className?: string
 }
 
-export default function StatusBadge({ status, colorMap, className = '' }: StatusBadgeProps) {
-  // Legacy inline-style path for callers still using colorMap
-  if (colorMap) {
-    const colors = colorMap[status] ?? colorMap.other ?? { bg: '#f3f4f6', text: '#374151' }
-    return (
-      <span
-        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${className}`}
-        style={{ backgroundColor: colors.bg, color: colors.text }}
-      >
-        {labelMap[status] ?? status}
-      </span>
-    )
-  }
-
+export default function StatusBadge({ status, className = '' }: StatusBadgeProps) {
   const colorClass = defaultColors[status] ?? defaultColors.other
 
   return (

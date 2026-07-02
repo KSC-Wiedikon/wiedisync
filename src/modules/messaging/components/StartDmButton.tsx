@@ -21,9 +21,7 @@ export default function StartDmButton({ recipientId, label, variant = 'default',
   const nav = useNavigate()
   const [loading, setLoading] = useState(false)
 
-  if (!messagingFeatureEnabled(user?.id) || !user?.id || String(recipientId) === String(user.id)) return null
-  if (user.communications_dm_enabled !== true) return null
-
+  // Hoisted above the early returns below so hook call order stays unconditional.
   const onClick = useCallback(async () => {
     setLoading(true)
     try {
@@ -43,6 +41,9 @@ export default function StartDmButton({ recipientId, label, variant = 'default',
       else                                                toast.error(t('errors.generic'))
     } finally { setLoading(false) }
   }, [recipientId, nav, t])
+
+  if (!messagingFeatureEnabled(user?.id) || !user?.id || String(recipientId) === String(user.id)) return null
+  if (user.communications_dm_enabled !== true) return null
 
   return (
     <Button onClick={onClick} disabled={loading} variant={variant} size={size} aria-label={t('startDm')}>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { API_URL, kscwApi } from '../lib/api'
+import { captureApiError } from '../lib/sentry'
 import { toast } from 'sonner'
 
 interface PushState {
@@ -94,7 +95,10 @@ export function usePushNotifications() {
       setState(s => ({ ...s, subscribed: true, loading: false }))
       return true
     } catch (err) {
-      console.error('[push] Subscribe failed:', err)
+      // Route to Sentry/JSONL — the browser push APIs (permission, PushManager,
+      // VAPID fetch) don't go through the api.ts helpers, so console-only would
+      // hide Brave/FCM blocks + quota/network failures from the error log.
+      captureApiError(err, { operation: 'usePushNotifications.subscribe' })
       const msg = (err instanceof Error ? err.message : '') || ''
       // Detect push service failures (Brave blocks FCM, network issues, etc.)
       if (msg.includes('push service') || msg.includes('AbortError') || err instanceof DOMException) {
@@ -106,7 +110,7 @@ export function usePushNotifications() {
       setState(s => ({ ...s, loading: false }))
       return false
     }
-  }, [state.supported, state.loading])
+  }, [state.supported, state.loading, t])
 
   const unsubscribe = useCallback(async () => {
     if (!state.supported || state.loading) return false
@@ -133,12 +137,12 @@ export function usePushNotifications() {
       setState(s => ({ ...s, subscribed: false, loading: false }))
       return true
     } catch (err) {
-      console.error('[push] Unsubscribe failed:', err)
+      captureApiError(err, { operation: 'usePushNotifications.unsubscribe' })
       toast.error(t('pushUnsubscribeFailed'))
       setState(s => ({ ...s, loading: false }))
       return false
     }
-  }, [state.supported, state.loading])
+  }, [state.supported, state.loading, t])
 
   return {
     ...state,

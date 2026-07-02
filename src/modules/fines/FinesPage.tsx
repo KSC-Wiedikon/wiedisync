@@ -100,8 +100,8 @@ export default function FinesPage() {
   // Report to app boot gate — see usePageReady.tsx
   useReportPageLoading(pageLoading)
 
-  const memberMap = new Map((membersRaw ?? []).map((m) => [String(m.id), m]))
-  const teamMap = new Map((teamsRaw ?? []).map((tm) => [String(tm.id), tm]))
+  const memberMap = useMemo(() => new Map((membersRaw ?? []).map((m) => [String(m.id), m])), [membersRaw])
+  const teamMap = useMemo(() => new Map((teamsRaw ?? []).map((tm) => [String(tm.id), tm])), [teamsRaw])
 
   // Leader-only team picker
   const leaderTeams = (teamsRaw ?? []).filter((tm) => coachTeamIds.includes(String(tm.id)))

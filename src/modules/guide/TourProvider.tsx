@@ -56,7 +56,13 @@ function loadState(): TourState {
 }
 
 function saveState(state: TourState) {
-  localStorage.setItem(TOUR_STORAGE_KEY, JSON.stringify(state))
+  try {
+    localStorage.setItem(TOUR_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // Private-mode / quota-exceeded: persistence is best-effort. Swallow so the
+    // persistence useEffect can't throw and break render (loadState is guarded
+    // the same way).
+  }
 }
 
 // ── Provider ─────────────────────────────────────────────────────────

@@ -2,7 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { Clock, MapPin, MessageSquare, UserCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Carpool, CarpoolPassenger } from '../../types'
-import { asObj } from '../../utils/relations'
+import { asObj, relId } from '../../utils/relations'
+import { formatTimeZurich } from '../../utils/dateHelpers'
 
 type DriverInfo = { first_name: string; last_name: string }
 type PassengerInfo = { first_name: string; last_name: string }
@@ -27,12 +28,9 @@ export default function CarpoolCard({ carpool, passengers, currentUserId, onJoin
   const taken = passengers.length
   const total = carpool.seats_available
   const isFull = carpool.status === 'full'
-  const driverId = typeof carpool.driver === 'object' ? (carpool.driver as unknown as { id: string }).id : carpool.driver
-  const isDriver = driverId === currentUserId
-  const isPassenger = passengers.some(p => {
-    const pid = typeof p.passenger === 'object' ? (p.passenger as unknown as { id: string }).id : p.passenger
-    return pid === currentUserId
-  })
+  // relId handles both the expanded-object and bare-ID shapes, so no manual casts.
+  const isDriver = !!currentUserId && relId(carpool.driver) === currentUserId
+  const isPassenger = !!currentUserId && passengers.some(p => relId(p.passenger) === currentUserId)
   const progressPct = Math.min((taken / total) * 100, 100)
 
   return (
@@ -50,7 +48,7 @@ export default function CarpoolCard({ carpool, passengers, currentUserId, onJoin
         </div>
         <div className="flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400">
           <Clock className="h-4 w-4" />
-          <span>{carpool.departure_time}</span>
+          <span>{formatTimeZurich(carpool.departure_time)}</span>
         </div>
       </div>
 

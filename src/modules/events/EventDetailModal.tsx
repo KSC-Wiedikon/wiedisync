@@ -20,39 +20,11 @@ import BroadcastButton from '../broadcast/BroadcastButton'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus } from 'lucide-react'
 import { teamCoachIds } from '../../utils/relations'
-import type { Event, Team, EventSession, Participation, VolleyPosition } from '../../types'
+import { asTeams, teamId, isHtml, isSameDay } from './eventHelpers'
+import type { Event, EventSession, Participation, VolleyPosition } from '../../types'
 import CancelActivityButton from '../../components/CancelActivityButton'
 
 const VOLLEY_POSITIONS: VolleyPosition[] = ['Setter', 'Outside', 'Middle', 'Opposite', 'Libero', 'Universal']
-
-function asTeams(teams: unknown[] | null | undefined): Team[] {
-  if (!Array.isArray(teams) || teams.length === 0) return []
-  return teams
-    .map((t: any) => t?.teams_id ?? t)
-    .filter((t): t is Team => t != null && typeof t === 'object' && 'name' in t)
-}
-
-function teamId(val: unknown): string {
-  if (!val) return ''
-  if (typeof val === 'string') return val
-  if (typeof val === 'number') return String(val)
-  const obj = (val as any)?.teams_id ?? val
-  return typeof obj === 'object' ? String((obj as any).id ?? '') : String(obj ?? '')
-}
-
-const eventTypeColors: Record<string, { bg: string; text: string }> = {
-  verein: { bg: '#dbeafe', text: '#1e40af' },
-  social: { bg: '#dcfce7', text: '#166534' },
-  meeting: { bg: '#fef3c7', text: '#92400e' },
-  tournament: { bg: '#fee2e2', text: '#991b1b' },
-  trainingsweekend: { bg: '#ffedd5', text: '#9a3412' },
-  friendly: { bg: '#ccfbf1', text: '#115e59' },
-  other: { bg: '#f3f4f6', text: '#374151' },
-}
-
-function isHtml(str: string): boolean {
-  return /<[a-z][\s\S]*>/i.test(str)
-}
 
 interface EventDetailModalProps {
   event: Event | null
@@ -123,7 +95,7 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
         <div className="space-y-4">
           {/* Type badge + teams */}
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={event.event_type} colorMap={eventTypeColors} />
+            <StatusBadge status={event.event_type} />
             {event.cancelled && (
               <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
                 {t('cancelled')}
@@ -146,7 +118,7 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
               <Calendar className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
               <span>
                 {formatDate(event.start_date)}
-                {event.start_date !== event.end_date && ` — ${formatDate(event.end_date)}`}
+                {!isSameDay(event.start_date, event.end_date) && ` — ${formatDate(event.end_date)}`}
                 {event.all_day && ` · ${t('allDay')}`}
               </span>
             </div>

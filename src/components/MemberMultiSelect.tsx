@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCollection } from '../lib/query'
 import { X, Search, Check } from 'lucide-react'
@@ -13,6 +13,7 @@ export default function MemberMultiSelect({ selected, onChange }: MemberMultiSel
   const { t } = useTranslation('invitations')
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
+  const listboxId = useId()
 
   const { data: membersRaw } = useCollection<Member>('members', {
     filter: { wiedisync_active: { _eq: true } },
@@ -60,6 +61,11 @@ export default function MemberMultiSelect({ selected, onChange }: MemberMultiSel
           <Search className="h-4 w-4 text-muted-foreground" />
           <input
             type="text"
+            role="combobox"
+            aria-expanded={open && filtered.length > 0}
+            aria-controls={open && filtered.length > 0 ? listboxId : undefined}
+            aria-autocomplete="list"
+            aria-haspopup="listbox"
             value={search}
             onChange={e => { setSearch(e.target.value); setOpen(true) }}
             onFocus={() => setOpen(true)}
@@ -69,17 +75,19 @@ export default function MemberMultiSelect({ selected, onChange }: MemberMultiSel
         </div>
 
         {open && filtered.length > 0 && (
-          <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+          <div id={listboxId} role="listbox" aria-multiselectable="true" className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
             {filtered.slice(0, 50).map(m => {
               const isSelected = selected.includes(String(m.id))
               return (
                 <button
                   key={m.id}
                   type="button"
+                  role="option"
+                  aria-selected={isSelected}
                   onClick={() => toggle(m.id)}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
-                  <div className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-brand-500 bg-brand-500 text-white' : 'border-gray-300 dark:border-gray-500'}`}>
+                  <div aria-hidden="true" className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-brand-500 bg-brand-500 text-white' : 'border-gray-300 dark:border-gray-500'}`}>
                     {isSelected && <Check className="h-3 w-3" />}
                   </div>
                   <span className="dark:text-gray-100">{m.first_name} {m.last_name}</span>

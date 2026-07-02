@@ -6,6 +6,7 @@ import { useCollection } from '../../lib/query'
 import TeamChip from '../../components/TeamChip'
 import { teamNameToColorKey } from '../../utils/teamColors'
 import { formatDate } from '../../utils/dateHelpers'
+import { toCSV } from './utils/exportResults'
 import { asObj } from '../../utils/relations'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -80,7 +81,9 @@ export default function RefereeExpensesPage() {
         e.notes || '',
       ]
     })
-    const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    // Shared RFC 4180 encoder \u2014 also neutralises spreadsheet formula injection
+    // (notes / team names are user-controllable).
+    const csv = toCSV(header, rows)
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

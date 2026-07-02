@@ -112,6 +112,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               <input
                 autoFocus
                 type="text"
+                aria-label={promptState?.message || promptState?.title || t('confirmTitle')}
                 value={promptValue}
                 placeholder={promptState?.placeholder}
                 onChange={(e) => setPromptValue(e.target.value)}

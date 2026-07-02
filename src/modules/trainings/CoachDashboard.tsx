@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BarChart3 } from 'lucide-react'
 import { useAttendanceStats } from './useAttendanceStats'
@@ -25,8 +25,8 @@ export default function CoachDashboard({ teamId }: CoachDashboardProps) {
   })
   const team = teamRows?.[0]
 
-  const today = todayLocal()
-  const defaultFrom = mostRecent01June(today)
+  const today = useMemo(() => todayLocal(), [])
+  const defaultFrom = useMemo(() => mostRecent01June(today), [today])
   const defaultTo = today
 
   const [from, setFrom] = useState<string>(team?.dashboard_range_from ?? defaultFrom)

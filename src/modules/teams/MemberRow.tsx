@@ -32,12 +32,6 @@ interface MemberRowProps {
   isEditing?: boolean
 }
 
-export const roleColors: Record<string, { bg: string; text: string }> = {
-  captain: { bg: '#fef3c7', text: '#92400e' },
-  coach: { bg: '#dbeafe', text: '#1e40af' },
-  team_responsible: { bg: '#ede9fe', text: '#5b21b6' },
-}
-
 type LeadershipRole = 'coach' | 'captain' | 'team_responsible'
 const LEADERSHIP_ROLES: LeadershipRole[] = ['coach', 'captain', 'team_responsible']
 const roleI18nKeys: Record<LeadershipRole, string> = {
@@ -139,8 +133,17 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
               <img
                 src={getFileUrl('members', member.id, member.photo)}
                 alt={displayName}
+                role="button"
+                tabIndex={0}
+                aria-label={displayName}
                 className="h-8 w-8 cursor-pointer rounded-full object-cover"
                 onClick={() => setLightboxOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setLightboxOpen(true)
+                  }
+                }}
               />
               <ImageLightbox
                 src={getFileUrl('members', member.id, member.photo)}
@@ -310,7 +313,7 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
               className="flex items-center gap-1 text-xs"
             >
               {role ? (
-                <StatusBadge status={role} colorMap={roleColors} />
+                <StatusBadge status={role} />
               ) : (
                 <span className="text-gray-400 hover:text-brand-600">+</span>
               )}
@@ -343,7 +346,7 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
             )}
           </div>
         ) : (
-          role ? <StatusBadge status={role} colorMap={roleColors} /> : null
+          role ? <StatusBadge status={role} /> : null
         )}
       </td>
     </tr>

@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Bug, Lightbulb, MessageCircle, Paperclip, X, ExternalLink, ChevronDown, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
@@ -88,37 +89,44 @@ export default function FeedbackPage() {
   })
   const submissions = submissionsRaw ?? []
 
-  // GitHub issues
-  const [issues, setIssues] = useState<GitHubIssue[]>([])
-  const [issuesLoading, setIssuesLoading] = useState(true)
+  // GitHub issues — cached via react-query so remounting the page doesn't refetch
+  // within the stale window, and an error/rate-limit response surfaces an explicit
+  // error state instead of silently showing "no issues".
   const [showClosed, setShowClosed] = useState(false)
 
-  useEffect(() => {
-    fetch(`https://api.github.com/repos/${GITHUB_REPO}/issues?state=all&per_page=50&sort=created&direction=desc`)
-      .then((r) => r.json())
-      .then((data: Array<Record<string, unknown>>) => {
-        // GitHub API returns PRs in issues endpoint — filter them out
-        const mapped: GitHubIssue[] = data
-          .filter((d) => !d.pull_request)
-          .map((d) => ({
-            number: d.number as number,
-            title: d.title as string,
-            state: d.state as string,
-            body: (d.body as string) ?? '',
-            labels: ((d.labels as Array<Record<string, string>>) ?? []).map((l) => ({
-              name: l.name,
-              color: l.color,
-            })),
-            comments: [],
-            createdAt: d.created_at as string,
-            closedAt: (d.closed_at as string) ?? null,
-            url: d.html_url as string,
-          }))
-        setIssues(mapped)
-      })
-      .catch(() => {})
-      .finally(() => setIssuesLoading(false))
-  }, [])
+  const {
+    data: issues = [],
+    isLoading: issuesLoading,
+    isError: issuesError,
+  } = useQuery<GitHubIssue[]>({
+    queryKey: ['github-issues', GITHUB_REPO],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/issues?state=all&per_page=50&sort=created&direction=desc`)
+      if (!r.ok) throw new Error(`GitHub API ${r.status}`)
+      const data: unknown = await r.json()
+      // A rate-limited / error response is an object ({ message, ... }), not an
+      // array — guard so we throw (→ error state) rather than crash inside .filter.
+      if (!Array.isArray(data)) throw new Error('Unexpected GitHub response')
+      // GitHub API returns PRs in the issues endpoint — filter them out.
+      return (data as Array<Record<string, unknown>>)
+        .filter((d) => !d.pull_request)
+        .map((d) => ({
+          number: d.number as number,
+          title: d.title as string,
+          state: d.state as string,
+          body: (d.body as string) ?? '',
+          labels: ((d.labels as Array<Record<string, string>>) ?? []).map((l) => ({
+            name: l.name,
+            color: l.color,
+          })),
+          comments: [] as GitHubComment[],
+          createdAt: d.created_at as string,
+          closedAt: (d.closed_at as string) ?? null,
+          url: d.html_url as string,
+        }))
+    },
+  })
 
   const openIssues = useMemo(() => issues.filter((i) => i.state === 'open'), [issues])
   const closedIssues = useMemo(() => issues.filter((i) => i.state === 'closed'), [issues])
@@ -328,6 +336,8 @@ export default function FeedbackPage() {
 
         {issuesLoading ? (
           <div className="py-4 text-center text-sm text-gray-400">{t('loadingIssues')}</div>
+        ) : issuesError ? (
+          <p className="text-sm text-red-500 dark:text-red-400">{t('error')}</p>
         ) : issues.length === 0 ? (
           <p className="text-sm text-gray-400 dark:text-gray-500">{t('noIssues')}</p>
         ) : (

@@ -1,5 +1,24 @@
 import { useState, useEffect, useRef } from 'react'
+import { captureApiError } from '../lib/sentry'
 import type { LocationResult } from '../types'
+
+// Minimal shapes for the Places API responses we consume — a field rename on
+// Google's side now surfaces at compile time instead of yielding empty results.
+interface PlacePrediction {
+  placeId?: string
+  place?: string
+  text?: { text?: string }
+  structuredFormat?: { mainText?: { text?: string }; secondaryText?: { text?: string } }
+}
+interface AutocompleteSuggestion { placePrediction?: PlacePrediction }
+interface AutocompleteResponse { suggestions?: AutocompleteSuggestion[] }
+interface AddressComponent { longText?: string; types?: string[] }
+interface PlaceDetails {
+  displayName?: { text?: string }
+  formattedAddress?: string
+  location?: { latitude?: number; longitude?: number }
+  addressComponents?: AddressComponent[]
+}
 
 // SECURITY: This Google Places API key is inherently client-side — Places
 // Autocomplete runs in the browser, so the key is inlined into the static bundle
@@ -55,12 +74,12 @@ export function useGooglePlacesSearch(query: string, options?: { enabled?: boole
         })
 
         if (!res.ok) throw new Error(`Places API: ${res.status}`)
-        const data = await res.json()
+        const data: AutocompleteResponse = await res.json()
         const suggestions = data.suggestions ?? []
 
         // Fetch place details for each suggestion to get coordinates
-        const mapped: LocationResult[] = await Promise.all(
-          suggestions.slice(0, 5).map(async (s: any) => {
+        const mapped: (LocationResult | null)[] = await Promise.all(
+          suggestions.slice(0, 5).map(async (s: AutocompleteSuggestion) => {
             const place = s.placePrediction
             if (!place) return null
 
@@ -77,10 +96,10 @@ export function useGooglePlacesSearch(query: string, options?: { enabled?: boole
               )
 
               if (!detailRes.ok) return fallbackResult(place)
-              const detail = await detailRes.json()
+              const detail: PlaceDetails = await detailRes.json()
 
               const city = detail.addressComponents?.find(
-                (c: any) => c.types?.includes('locality'),
+                (c: AddressComponent) => c.types?.includes('locality'),
               )?.longText || ''
 
               return {
@@ -103,6 +122,10 @@ export function useGooglePlacesSearch(query: string, options?: { enabled?: boole
         setResults(mapped.filter((r): r is LocationResult => r !== null))
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return
+        // Capture non-abort failures (over-quota / mis-restricted key / network)
+        // so the billing-DoS risk the file header warns about is diagnosable
+        // instead of silently yielding "no results".
+        captureApiError(err, { operation: 'useGooglePlacesSearch', endpoint: 'places.googleapis.com' })
         setResults([])
       } finally {
         if (!controller.signal.aborted) setIsLoading(false)
@@ -118,7 +141,7 @@ export function useGooglePlacesSearch(query: string, options?: { enabled?: boole
   return { results, isLoading }
 }
 
-function fallbackResult(place: any): LocationResult {
+function fallbackResult(place: PlacePrediction): LocationResult {
   return {
     name: place.structuredFormat?.mainText?.text || place.text?.text || '',
     address: place.structuredFormat?.secondaryText?.text || '',

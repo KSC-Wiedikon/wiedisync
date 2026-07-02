@@ -335,6 +335,24 @@ export default function ParticipationRosterModal({
       : regularLoading
   const isLoading = (isClubWide ? clubWideLoading || clubWidePartsLoading : membersLoading) || participationsLoading
 
+  // O(1) participation lookups per member — avoids the O(members × participations)
+  // linear scans in getMemberStatus / statusLabelText / the per-row render.
+  // `first`   = first row per member (any), mirrors `.find(p => p.member === id)`.
+  // `preferred` = non-staff row if present else the first row, mirrors
+  //              `.find(non-staff) ?? .find(any)` used for visible/edited status.
+  const participationByMember = useMemo(() => {
+    const first = new Map<string, Participation>()
+    const preferred = new Map<string, Participation>()
+    for (const p of participations) {
+      if (!first.has(p.member)) first.set(p.member, p)
+      if (!p.is_staff && !preferred.has(p.member)) preferred.set(p.member, p)
+    }
+    for (const [member, p] of first) {
+      if (!preferred.has(member)) preferred.set(member, p)
+    }
+    return { first, preferred }
+  }, [participations])
+
   // Staff-side note edit. Creates a participation row with `status: null` if
   // none exists yet (lets a coach attach context like "Out for the season"
   // to a player who hasn't RSVPed). Saving an empty string explicitly
@@ -679,8 +697,7 @@ export default function ParticipationRosterModal({
     // what the roster modal is rendering ("did this person say they're coming
     // as a player?"). Matches the dedupe applied to `playerParticipations` so
     // visible-list status, summary counts, and export rows stay coherent.
-    const p = participations.find(p => p.member === memberId && !p.is_staff)
-      ?? participations.find(p => p.member === memberId)
+    const p = participationByMember.preferred.get(memberId)
     // Explicit user RSVP wins over an absence overlay: the BEFORE UPDATE
     // trigger (migration 038) clears `auto_declined_by` to NULL the moment a
     // user changes `status`, so a row with a null marker is definitively
@@ -841,7 +858,7 @@ export default function ParticipationRosterModal({
     // Only render the absence-flavoured label when the decline was actually
     // driven by the absence: row missing, or row still carries the auto
     // marker (cron wrote it). A user-set status overrides absence overlay.
-    const p = participations.find((pt) => pt.member === memberId)
+    const p = participationByMember.first.get(memberId)
     const isAbsenceDecline = absentMemberIds.has(memberId) && baseStatus === 'declined' && (p == null || p.auto_declined_by != null)
     if (isAbsenceDecline) {
       const isWeekly = coveringAbsenceByMember.get(String(memberId))?.type === 'weekly'
@@ -891,7 +908,7 @@ export default function ParticipationRosterModal({
     }
     const sortedMembers = [...filteredMemberList].sort(byLastName)
     const rows: RosterExportRow[] = sortedMembers.map((m) => {
-      const p = participations.find((pt) => pt.member === m.id && !pt.is_staff) ?? participations.find((pt) => pt.member === m.id) ?? null
+      const p = participationByMember.preferred.get(m.id) ?? null
       const status = getMemberStatus(m.id)
       const absenceReason = getMemberAbsenceReason(m.id)
       const role = leadershipRoles.get(m.id)
@@ -1351,7 +1368,7 @@ export default function ParticipationRosterModal({
         <div className="rounded-lg border dark:border-gray-700">
           {filteredMemberList.map((member) => {
             const status = getMemberStatus(member.id)
-            const participation = participations.find(p => p.member === member.id)
+            const participation = participationByMember.first.get(member.id)
 
             return (
               <div
@@ -1464,7 +1481,7 @@ export default function ParticipationRosterModal({
                   >
                     <select
                       autoFocus
-                      defaultValue={participations.find(p => p.member === member.id && !p.is_staff)?.status ?? participations.find(p => p.member === member.id)?.status ?? ''}
+                      defaultValue={participationByMember.preferred.get(member.id)?.status ?? participationByMember.first.get(member.id)?.status ?? ''}
                       onChange={(e) => handleStatusChange(member.id, e.target.value)}
                       className="shrink-0 rounded-md border border-gray-300 bg-white px-1.5 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
                     >
@@ -1476,7 +1493,7 @@ export default function ParticipationRosterModal({
                     <input
                       type="text"
                       placeholder={t('addNotePlaceholder', { defaultValue: 'Note…' })}
-                      defaultValue={participations.find(p => p.member === member.id && !p.is_staff)?.note ?? participations.find(p => p.member === member.id)?.note ?? ''}
+                      defaultValue={participationByMember.preferred.get(member.id)?.note ?? participationByMember.first.get(member.id)?.note ?? ''}
                       onBlur={(e) => handleNoteChange(member.id, e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
                       className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"

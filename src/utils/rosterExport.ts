@@ -111,6 +111,18 @@ class ExportLibraryError extends Error {
   }
 }
 
+/** Get a 2D canvas context or throw an actionable error. Context allocation can
+ *  fail for a large multi-page roster on a memory-constrained mobile browser;
+ *  without this guard the `!` assertion below throws a raw "Cannot read
+ *  properties of null" TypeError instead of something the user can act on. */
+function get2dContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    throw new Error('Could not render the PDF — your browser ran out of memory for this roster. Try exporting fewer rows, or use CSV / a desktop browser.')
+  }
+  return ctx
+}
+
 async function loadHtmlToImage() {
   try { return await import('html-to-image') }
   catch (err) { throw new ExportLibraryError('image', err) }
@@ -208,7 +220,7 @@ export async function exportRosterPdf(node: HTMLElement, meta: RosterExportMeta)
     const canvas = document.createElement('canvas')
     canvas.width = img.width
     canvas.height = img.height
-    canvas.getContext('2d')!.drawImage(img, 0, 0)
+    get2dContext(canvas).drawImage(img, 0, 0)
 
     const pageSliceHeightPx = (usableH / usableW) * img.width
     let yPx = 0
@@ -218,7 +230,7 @@ export async function exportRosterPdf(node: HTMLElement, meta: RosterExportMeta)
       const slice = document.createElement('canvas')
       slice.width = img.width
       slice.height = sliceH
-      slice.getContext('2d')!.drawImage(canvas, 0, yPx, img.width, sliceH, 0, 0, img.width, sliceH)
+      get2dContext(slice).drawImage(canvas, 0, yPx, img.width, sliceH, 0, 0, img.width, sliceH)
       const sliceMm = (sliceH / img.width) * usableW
       if (pageIdx > 0) pdf.addPage()
       pdf.addImage(slice.toDataURL('image/png'), 'PNG', margin, margin, usableW, sliceMm)

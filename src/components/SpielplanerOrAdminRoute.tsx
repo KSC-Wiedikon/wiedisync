@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
+import RoleGuard from './RoleGuard'
 
 export interface SpielplanerAccess {
   isAdmin: boolean
@@ -13,11 +12,21 @@ export function canAccessSpielplanung(auth: SpielplanerAccess): boolean {
 }
 
 export default function SpielplanerOrAdminRoute({ children }: { children: ReactNode }) {
-  const { isAdmin, is_spielplaner, spielplanerTeamIds, isLoading, teamsLoading } = useAuth()
-
-  if (isLoading || teamsLoading) return null
-  if (!canAccessSpielplanung({ isAdmin, is_spielplaner, spielplanerTeamIds })) {
-    return <Navigate to="/" replace />
-  }
-  return <>{children}</>
+  return (
+    <RoleGuard
+      redirects={[
+        {
+          when: (a) =>
+            !canAccessSpielplanung({
+              isAdmin: a.isAdmin,
+              is_spielplaner: a.is_spielplaner,
+              spielplanerTeamIds: a.spielplanerTeamIds,
+            }),
+          to: '/',
+        },
+      ]}
+    >
+      {children}
+    </RoleGuard>
+  )
 }

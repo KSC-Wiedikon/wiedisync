@@ -22,15 +22,19 @@ function TeamEntries({ teamId, fiscalYearId, onChanged }: { teamId: number; fisc
   const { t } = useTranslation('finance')
   const { data: entries, refetch } = useTeamEntries(teamId, fiscalYearId)
   const [busyDel, setBusyDel] = useState<number | null>(null)
+  const [delErr, setDelErr] = useState('')
   const kindLabel = (k: string) => ({ sponsoring: t('teamKindSponsoring'), income: t('teamKindIncome'), expense: t('teamKindExpense') }[k] ?? k)
   async function remove(id: number) {
     if (!window.confirm(t('teamEntryDeleteSure'))) return
-    setBusyDel(id)
-    try { await deleteTeamEntry(id); await refetch(); onChanged() } finally { setBusyDel(null) }
+    setBusyDel(id); setDelErr('')
+    try { await deleteTeamEntry(id); await refetch(); onChanged() }
+    catch (e) { setDelErr(apiErr(e, t('ledActionError'))) }
+    finally { setBusyDel(null) }
   }
   const rows = entries ?? []
   if (rows.length === 0) return <p className="py-3 text-center text-xs text-gray-400">{t('teamNoEntries')}</p>
   return (
+    <>
     <div className="rounded-md border border-gray-200 dark:border-gray-700">
       <Table>
         <TableBody>
@@ -54,6 +58,8 @@ function TeamEntries({ teamId, fiscalYearId, onChanged }: { teamId: number; fisc
         </TableBody>
       </Table>
     </div>
+    {delErr && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{delErr}</p>}
+    </>
   )
 }
 

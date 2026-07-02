@@ -88,7 +88,7 @@ export default function AssignmentEditor({
     return list.sort((a, b) =>
       `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`, i18n.language),
     )
-  }, [members, requiredLicence, teamValue, teamMemberIds, personValue, guestMemberIds])
+  }, [members, requiredLicence, teamValue, teamMemberIds, personValue, guestMemberIds, i18n.language])
 
   const assignedPerson = useMemo(() => {
     if (!personValue) return null

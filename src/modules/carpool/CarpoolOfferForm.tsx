@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea'
 interface CarpoolOfferFormProps {
   open: boolean
   onClose: () => void
-  onSubmit: (data: { seats_available: number; departure_time: string; departure_location: string; notes?: string }) => void
+  onSubmit: (data: { seats_available: number; departure_time: string; departure_location: string; notes?: string }) => void | Promise<void>
 }
 
 export default function CarpoolOfferForm({ open, onClose, onSubmit }: CarpoolOfferFormProps) {
@@ -24,22 +25,32 @@ export default function CarpoolOfferForm({ open, onClose, onSubmit }: CarpoolOff
   const [time, setTime] = useState('')
   const [location, setLocation] = useState('')
   const [notes, setNotes] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!time || !location) return
-    onSubmit({
-      seats_available: seats,
-      departure_time: time,
-      departure_location: location,
-      notes: notes || undefined,
-    })
-    // Reset form
-    setSeats(4)
-    setTime('')
-    setLocation('')
-    setNotes('')
-    onClose()
+    if (!time || !location || submitting) return
+    setSubmitting(true)
+    try {
+      // Await so we only reset + close on success — a failed offer keeps the
+      // dialog open with the entered details intact.
+      await onSubmit({
+        seats_available: seats,
+        departure_time: time,
+        departure_location: location,
+        notes: notes || undefined,
+      })
+      // Reset form
+      setSeats(4)
+      setTime('')
+      setLocation('')
+      setNotes('')
+      onClose()
+    } catch {
+      toast.error(t('common:errorSaving'))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -99,7 +110,7 @@ export default function CarpoolOfferForm({ open, onClose, onSubmit }: CarpoolOff
             <Button type="button" variant="outline" onClick={onClose}>
               {t('common:cancel', 'Cancel')}
             </Button>
-            <Button type="submit">
+            <Button type="submit" disabled={submitting}>
               {t('offerRide')}
             </Button>
           </DialogFooter>

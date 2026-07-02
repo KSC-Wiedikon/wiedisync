@@ -16,15 +16,10 @@ import { LANGUAGES, type BackendLanguage } from '../../i18n/languageConfig'
 import { backendLangToI18n } from '../../utils/languageMap'
 import { OtpInput } from '../../components/OtpInput'
 import { Checkbox } from '@/components/ui/checkbox'
-import deFlag from '../../assets/flags/de.svg'
-import gbFlag from '../../assets/flags/gb.svg'
-import frFlag from '../../assets/flags/fr.svg'
-import itFlag from '../../assets/flags/it.svg'
-import chFlag from '../../assets/flags/ch.svg'
+import LanguageSelect from '@/components/LanguageSelect'
 import type { Team } from '../../types'
 import { createRecord, kscwApi, updateRecord } from '../../lib/api'
 
-const flagMap: Record<string, string> = { de: deFlag, gb: gbFlag, fr: frFlag, it: itFlag, ch: chFlag }
 const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
 
 type Step = 'email' | 'otp-verify' | 'otp-claim' | 'register' | 'complete-profile'
@@ -230,13 +225,16 @@ export default function SignUpPage() {
         }
         await updateRecord('members', memberId, updateData)
 
-        for (const teamId of additionalTeamIds) {
-          await createRecord('team_requests', {
-            member: memberId,
-            team: teamId,
-            status: 'pending',
-          })
-        }
+        // Create all team requests concurrently instead of serial round-trips.
+        await Promise.all(
+          additionalTeamIds.map((teamId) =>
+            createRecord('team_requests', {
+              member: memberId,
+              team: teamId,
+              status: 'pending',
+            }),
+          ),
+        )
       }
 
       // If user has existing teams → auto-approved → home
@@ -339,21 +337,7 @@ export default function SignUpPage() {
 
               {/* Language */}
               <FormField label={t('language')}>
-                <Select value={selectedLanguage} onValueChange={(v) => handleLanguageChange(v as BackendLanguage)}>
-                  <SelectTrigger className="min-h-[44px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LANGUAGES.map((lang) => (
-                      <SelectItem key={lang.backendValue} value={lang.backendValue}>
-                        <span className="flex items-center gap-2">
-                          <img src={flagMap[lang.flag]} alt="" className={`${lang.flag === 'ch' ? 'w-[15px] h-[15px]' : 'w-5 h-[15px]'} rounded-[2px]`} />
-                          {lang.nativeName}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <LanguageSelect value={selectedLanguage} onChange={handleLanguageChange} />
               </FormField>
 
               <Turnstile

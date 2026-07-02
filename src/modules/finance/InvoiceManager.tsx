@@ -214,14 +214,17 @@ function LinkMemberModal({ invoice, onClose, onDone }: { invoice: FinanceInvoice
   const [member, setMember] = useState<Member | null>(null)
   const [scope, setScope] = useState<'email' | 'invoice'>('email')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   const hasEmail = !!(invoice?.recipient_email || '').trim()
 
   async function submit() {
     if (!invoice || !member) return
-    setBusy(true)
+    setBusy(true); setError('')
     try {
       await linkInvoiceMember(invoice.id, Number(member.id), hasEmail ? scope : 'invoice')
       setMember(null); onDone(); onClose()
+    } catch (err) {
+      setError((err as { body?: { error?: string } })?.body?.error || t('ledActionError'))
     } finally { setBusy(false) }
   }
 
@@ -244,6 +247,7 @@ function LinkMemberModal({ invoice, onClose, onDone }: { invoice: FinanceInvoice
               ))}
             </div>
           )}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">{t('cancel')}</button>
             <button type="button" disabled={!member || busy} onClick={submit}

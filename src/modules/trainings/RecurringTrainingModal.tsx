@@ -12,7 +12,7 @@ import type { TeamSettings } from '../../types'
 import TeamChip from '../../components/TeamChip'
 import DatePicker from '@/components/ui/DatePicker'
 import { Switch } from '@/components/ui/switch'
-import { createRecord, fetchAllItems, fetchItem } from '../../lib/api'
+import { createRecords, fetchAllItems, fetchItem } from '../../lib/api'
 import { relId, asObj } from '../../utils/relations'
 
 type SlotExpanded = HallSlot & {
@@ -259,13 +259,17 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
       })
       const existingSet = new Set(existing.map((t) => t.date.slice(0, 10)))
 
+      const skipCount = previewDates.filter((date) => existingSet.has(date)).length
+      const teamId = slot.team?.[0]
+      const datesToCreate = teamId
+        ? previewDates.filter((date) => !existingSet.has(date))
+        : []
+
+      // Create every occurrence in ONE batch request instead of N parallel POSTs
+      // (a full-season generation was ~30 separate calls).
       let count = 0
-      let skipCount = 0
-      for (const date of previewDates) {
-        if (existingSet.has(date)) { skipCount++; continue }
-        const teamId = slot.team?.[0]
-        if (!teamId) continue
-        const rec = await createRecord<{id: string}>('trainings', {
+      if (datesToCreate.length > 0) {
+        const payloads = datesToCreate.map((date) => ({
           team: teamId,
           hall_slot: slot.id,
           date,
@@ -278,10 +282,12 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
           min_participants: minParticipants ? Number(minParticipants) : null,
           max_participants: maxParticipants ? Number(maxParticipants) : null,
           require_note_if_absent: requireNoteIfAbsent,
-          auto_cancel_on_min: autoCancelOnMin,
+        }))
+        const created = await createRecords<{ id: string }>('trainings', payloads)
+        created.forEach((rec, i) => {
+          logActivity('create', 'trainings', rec.id, { team: teamId, date: datesToCreate[i], hall: effectiveHallId })
         })
-        logActivity('create', 'trainings', rec.id, { team: teamId, date, hall: effectiveHallId })
-        count++
+        count = created.length
       }
       setGenerated(count)
       setSkipped(skipCount)

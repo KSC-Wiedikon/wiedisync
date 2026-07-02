@@ -6,11 +6,19 @@ import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb } from 
 import i18n from '../i18n'
 import { backendLangToI18n } from '../utils/languageMap'
 import { getCurrentSeason } from '../utils/dateHelpers'
-import type { Member, Team } from '../types'
+import { LICENCE_TYPES } from '../types'
+import type { Member, Team, LicenceType } from '../types'
 
 // ── Types ───────────────────────────────────────────────────────────
 
 type MemberUser = Member & { id: string }
+
+/** Base roles carried on `members.role` — typed off the Member enum so a renamed
+ *  role fails at compile time instead of silently never matching. */
+type BaseRole = Member['role'][number]
+const BASE_ROLES: readonly BaseRole[] = ['vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser', 'finance']
+const isBaseRole = (r: string): r is BaseRole => (BASE_ROLES as readonly string[]).includes(r)
+const isLicenceFlag = (r: string): r is LicenceType => (LICENCE_TYPES as readonly string[]).includes(r)
 
 export interface AuthContextValue {
   user: MemberUser | null
@@ -100,7 +108,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadTeamContext = useCallback(async (memberId: string | number) => {
     try {
-      const [coachRows, trRows, memberTeams, allTeams, captainTeams, spielplanerRows] = await Promise.all([
+      // allSettled (not all): one failing query must NOT zero every role/team.
+      // A rejected query degrades only its own dimension to [] and is logged;
+      // the others still populate (previously a single transient failure made
+      // the user look like they had no teams/roles at all).
+      const settled = await Promise.allSettled([
         fetchAllItems<{ teams_id: number }>('teams_coaches', {
           filter: { members_id: { _eq: memberId } },
           fields: ['teams_id'],
@@ -127,6 +139,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           fields: ['kscw_team'],
         }),
       ])
+      const pick = <T,>(i: number, collection: string): T[] => {
+        const r = settled[i]
+        if (r.status === 'fulfilled') return r.value as T[]
+        captureApiError(r.reason, { operation: 'loadTeamContext', collection })
+        return []
+      }
+      const coachRows = pick<{ teams_id: number }>(0, 'teams_coaches')
+      const trRows = pick<{ teams_id: number }>(1, 'teams_responsibles')
+      const memberTeams = pick<{ team: number; guest_level: number }>(2, 'member_teams')
+      const allTeams = pick<Pick<Team, 'id' | 'name' | 'sport'>>(3, 'teams')
+      const captainTeams = pick<{ id: number }>(4, 'teams (captain)')
+      const spielplanerRows = pick<{ kscw_team: number }>(5, 'spielplaner_assignments')
 
       const teamMap = new Map(allTeams.map(t => [String(t.id), t]))
       // Skip rows with null team FKs — they shouldn't exist, but if a coach/TR/member_teams row
@@ -333,15 +357,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const matchesRole = useCallback((role: string): boolean => {
     if (!user) return false
-    if (['vorstand', 'admin', 'vb_admin', 'bb_admin', 'superuser', 'finance'].includes(role)) {
-      return (user.role ?? []).includes(role as any)
+    if (isBaseRole(role)) {
+      return (user.role ?? []).includes(role)
     }
     if (role === 'coach') return coachTeamIds.length > 0
     if (role === 'team_responsible') return teamResponsibleIds.length > 0
     if (role === 'captain') return captainTeamIds.length > 0
-    if (['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb'].includes(role)) {
+    if (isLicenceFlag(role)) {
       // Migration 067: licences are now per-flag booleans on the user record.
-      return (user as any)[role] === true
+      return user[role] === true
     }
     if (role === 'is_spielplaner') return isSpielplaner
     return false

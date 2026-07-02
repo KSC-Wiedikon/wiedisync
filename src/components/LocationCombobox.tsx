@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -28,11 +28,13 @@ export default function LocationCombobox({
   const [search, setSearch] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listboxId = useId()
 
   const { results: hallResults } = useHallSearch(search)
   const { results: placesResults, isLoading: placesLoading } = useGooglePlacesSearch(search)
 
   const hasResults = hallResults.length > 0 || placesResults.length > 0 || placesLoading
+  const listboxOpen = open && hasResults
 
   // Close on outside click
   useEffect(() => {
@@ -71,6 +73,11 @@ export default function LocationCombobox({
         <input
           ref={inputRef}
           type="text"
+          role="combobox"
+          aria-expanded={listboxOpen}
+          aria-controls={listboxOpen ? listboxId : undefined}
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
           value={value}
           onChange={handleInputChange}
           onFocus={handleFocus}
@@ -86,7 +93,7 @@ export default function LocationCombobox({
 
       {open && hasResults && (
         <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-md">
-          <div className="max-h-[200px] overflow-y-auto p-1">
+          <div id={listboxId} role="listbox" className="max-h-[200px] overflow-y-auto p-1">
             {hallResults.length > 0 && (
               <div>
                 <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">{t('clubHalls')}</div>
@@ -94,6 +101,8 @@ export default function LocationCombobox({
                   <button
                     key={`hall-${r.name}-${r.address}`}
                     type="button"
+                    role="option"
+                    aria-selected={false}
                     onClick={() => handleSelect(r)}
                     className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
                   >
@@ -121,6 +130,8 @@ export default function LocationCombobox({
                   <button
                     key={`places-${i}`}
                     type="button"
+                    role="option"
+                    aria-selected={false}
                     onClick={() => handleSelect(r)}
                     className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
                   >

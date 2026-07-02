@@ -5,6 +5,7 @@ import CategoryMultiSelect from '../../components/CategoryMultiSelect'
 import TeamMultiSelect from '../../components/TeamMultiSelect'
 import { useTeams } from '../../hooks/useTeams'
 import { teamNameToColorKey } from '../../utils/teamColors'
+import { sourceColors } from './entryStyle'
 import type { CalendarFilterState, SourceFilter } from '../../types/calendar'
 
 interface CalendarFiltersProps {
@@ -22,14 +23,14 @@ export default function CalendarFilters({ open, onClose, filters, onChange, allo
   const { t: tc } = useTranslation('common')
 
   const allSourceOptions = [
-    { value: 'game-home', label: t('gameTypeHome'), color: { bg: '#4A55A2', text: '#ffffff', border: '#3b4590' }, group: t('filterGroupGames') },
-    { value: 'game-away', label: t('gameTypeAway'), color: { bg: '#FFC832', text: '#78350f', border: '#e6b42d' }, group: t('filterGroupGames') },
-    { value: 'scorer-duty', label: t('sourceScorerDuty'), color: { bg: '#6366f1', text: '#ffffff', border: '#4f46e5' }, group: t('filterGroupGames') },
-    { value: 'training', label: t('sourceTrainings'), color: { bg: '#16a34a', text: '#ffffff', border: '#15803d' }, group: t('filterGroupActivities') },
-    { value: 'event', label: t('sourceEvents'), color: { bg: '#7e22ce', text: '#ffffff', border: '#6b21a8' }, group: t('filterGroupActivities') },
-    { value: 'hall', label: t('sourceHallHW'), color: { bg: '#0891b2', text: '#ffffff', border: '#0e7490' }, group: t('filterGroupVenue') },
-    { value: 'closure', label: t('sourceClosures'), color: { bg: '#dc2626', text: '#ffffff', border: '#b91c1c' }, group: t('filterGroupVenue') },
-    { value: 'absence', label: t('sourceAbsences'), color: { bg: '#374151', text: '#ffffff', border: '#1f2937' }, group: t('filterGroupOther') },
+    { value: 'game-home', label: t('gameTypeHome'), color: sourceColors['game-home'], group: t('filterGroupGames') },
+    { value: 'game-away', label: t('gameTypeAway'), color: sourceColors['game-away'], group: t('filterGroupGames') },
+    { value: 'scorer-duty', label: t('sourceScorerDuty'), color: sourceColors['scorer-duty'], group: t('filterGroupGames') },
+    { value: 'training', label: t('sourceTrainings'), color: sourceColors.training, group: t('filterGroupActivities') },
+    { value: 'event', label: t('sourceEvents'), color: sourceColors.event, group: t('filterGroupActivities') },
+    { value: 'hall', label: t('sourceHallHW'), color: sourceColors.hall, group: t('filterGroupVenue') },
+    { value: 'closure', label: t('sourceClosures'), color: sourceColors.closure, group: t('filterGroupVenue') },
+    { value: 'absence', label: t('sourceAbsences'), color: sourceColors.absence, group: t('filterGroupOther') },
   ]
   const sourceOptions = allowedSources
     ? allSourceOptions.filter((o) => allowedSources.includes(o.value as SourceFilter))

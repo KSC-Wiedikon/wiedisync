@@ -46,7 +46,7 @@ export function useScorerDelegations() {
       toTeamId: string,
     ) => {
       const sameTeam = fromTeamId === toTeamId
-      const record = await createRecord<{ id: string }>('scorer_delegations', {
+      const record = await createRecord<ScorerDelegation>('scorer_delegations', {
         game: gameId,
         role,
         from_member: userId,
@@ -61,7 +61,7 @@ export function useScorerDelegations() {
       })
       logActivity('create', 'scorer_delegations', record.id, { game: gameId, role, to_member: toMemberId, same_team: sameTeam })
       refetch()
-      return record as unknown as ScorerDelegation
+      return record
     },
     [userId, refetch],
   )

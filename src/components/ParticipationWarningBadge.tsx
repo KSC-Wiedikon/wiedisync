@@ -13,11 +13,14 @@ interface Props {
   namespace?: string
 }
 
+// Severity order: lower rank sorts first (most severe on top).
+const LEVEL_RANK: Record<string, number> = { red: 0, yellow: 1 }
+
 export default function ParticipationWarningBadge({ warnings, namespace = 'participation' }: Props) {
   const { t } = useTranslation(namespace)
 
   const sorted = useMemo(
-    () => [...warnings].sort((a, b) => (a.level === 'red' ? -1 : 1) - (b.level === 'red' ? -1 : 1)),
+    () => [...warnings].sort((a, b) => (LEVEL_RANK[a.level] ?? 99) - (LEVEL_RANK[b.level] ?? 99)),
     [warnings],
   )
 

@@ -30,6 +30,10 @@ export function useAdminBookings(seasonId: string | undefined) {
   // or re-mount can leave an older fetch in flight whose results arrive last.
   // Mirrors the `latestKeyRef` pattern in useTeamAbsences/useTeamMembers.
   const latestKeyRef = useRef<string | undefined>(undefined)
+  // vmPush schedules a delayed follow-up refetch to catch the terminal VM push
+  // status; track it so it can be cancelled if the dashboard unmounts within 6s.
+  const vmPushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (vmPushTimerRef.current) clearTimeout(vmPushTimerRef.current) }, [])
 
   const fetchAll = useCallback(async () => {
     if (!seasonId) return
@@ -166,7 +170,8 @@ export function useAdminBookings(seasonId: string | undefined) {
       body: { booking_id: Number(bookingId), ...(svrzPersistenceId ? { svrz_persistence_id: svrzPersistenceId } : {}) },
     })
     await fetchAll()
-    setTimeout(() => { fetchAll() }, 6000)
+    if (vmPushTimerRef.current) clearTimeout(vmPushTimerRef.current)
+    vmPushTimerRef.current = setTimeout(() => { fetchAll() }, 6000)
   }, [fetchAll])
 
   const generateSlots = useCallback(async (seasonIdParam: string) => {

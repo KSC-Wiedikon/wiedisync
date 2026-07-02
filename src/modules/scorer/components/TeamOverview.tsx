@@ -5,7 +5,7 @@ import type { ExpandedGame } from './ScorerRow'
 import { asObj } from '../../../utils/relations'
 import { DutyStatus } from './ScorerRow'
 import TeamChip from '../../../components/TeamChip'
-import { formatTime } from '../../../utils/dateHelpers'
+import { formatTime, formatDateZurich } from '../../../utils/dateHelpers'
 
 interface TeamOverviewProps {
   games: Game[]
@@ -22,14 +22,8 @@ interface DutyEntry {
   memberName: string | null
 }
 
-function getDateFormatter(locale: string) {
-  const loc = locale.startsWith('gsw') || locale === 'de' ? 'de-CH' : locale === 'en' ? 'en-GB' : locale
-  return new Intl.DateTimeFormat(loc, { weekday: 'short', day: 'numeric', month: 'short' })
-}
-
 export default function TeamOverview({ games, members, sport }: TeamOverviewProps) {
   const { t, i18n } = useTranslation('scorer')
-  const dateFormatter = useMemo(() => getDateFormatter(i18n.language), [i18n.language])
 
   const memberMap = useMemo(() => {
     const map = new Map<string, Member>()
@@ -92,7 +86,7 @@ export default function TeamOverview({ games, members, sport }: TeamOverviewProp
     }
 
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b, i18n.language))
-  }, [games, memberMap, sport])
+  }, [games, memberMap, sport, i18n.language])
 
   if (teamDuties.length === 0) {
     return (
@@ -126,7 +120,7 @@ export default function TeamOverview({ games, members, sport }: TeamOverviewProp
               <div key={`${entry.game.id}-${entry.dutyType}-${i}`} className="flex items-center gap-3 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {dateFormatter.format(new Date(entry.game.date + 'T00:00:00'))} · {entry.game.time ? formatTime(entry.game.time) : ''}
+                    {formatDateZurich(entry.game.date)} · {entry.game.time ? formatTime(entry.game.time) : ''}
                   </div>
                   <div className="truncate text-sm font-medium dark:text-gray-200">
                     {entry.game.home_team} – {entry.game.away_team}

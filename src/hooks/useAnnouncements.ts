@@ -36,12 +36,13 @@ export function pickTranslation(
  * v1 audience filter: `all` always visible; `sport` matches user's primarySport
  * (or shown when primarySport='both'). `teams`/`roles` reserved for v2.
  *
- * Audit note (F2): the audience filter applied here is **client-side only**.
- * Directus permission rules cannot traverse member_teams.team.sport from the
- * current user, so the server returns all published announcements and this
- * hook narrows by primarySport. A direct API call could reveal sport-targeted
- * posts to members of the other sport. Acceptable for v1 (low-sensitivity
- * content) — revisit if announcements ever carry confidential payload.
+ * Audit note (F2): the sport audience narrowing IS applied server-side — the
+ * `sportFilter` below is part of the Directus `_and/_or` query, so a member of
+ * one sport is not sent the other sport's `sport`-targeted rows by the API.
+ * What is NOT enforced is `teams`/`roles` targeting: those audience types are
+ * not matched by this filter and therefore never surfaced yet (reserved for
+ * v2). Acceptable for v1 (low-sensitivity content) — revisit when teams/roles
+ * audiences ship or announcements carry confidential payload.
  */
 export function useAnnouncements(opts?: { limit?: number }) {
   const { user, isApproved, primarySport } = useAuth()
@@ -82,7 +83,10 @@ export function useAnnouncements(opts?: { limit?: number }) {
       })
       setItems(result)
     } catch {
-      // silently fail (collection may not exist yet on dev)
+      // Empty feed on failure. fetchItems already reports the error via
+      // captureApiError (Sentry + JSONL), so a genuine permission/500 is
+      // observable — this fallback only keeps the UI from breaking when the
+      // collection is absent (e.g. not yet migrated on dev).
       setItems([])
     } finally {
       setIsLoading(false)

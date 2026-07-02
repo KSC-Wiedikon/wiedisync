@@ -20,6 +20,29 @@ import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 
+/** Count confirmed attendance vs excused (covering absence) across activities. */
+function computeAttendance(
+  activities: Array<{ id: string; date: string }>,
+  participations: Participation[],
+  seasonAbsences: Absence[],
+): { total: number; present: number } {
+  let present = 0
+  let excused = 0
+  for (const activity of activities) {
+    const activityDate = activity.date.split(' ')[0]
+    const hasAbsence = seasonAbsences.some(
+      (a) => a.start_date <= activityDate && a.end_date >= activityDate,
+    )
+    if (hasAbsence) {
+      excused++
+    } else {
+      const p = participations.find((p) => p.activity_id === activity.id)
+      if (p?.status === 'confirmed') present++
+    }
+  }
+  return { total: activities.length - excused, present }
+}
+
 export default function PlayerProfile() {
   const { t } = useTranslation('teams')
   const { t: tm } = useTranslation('messaging')
@@ -62,78 +85,42 @@ export default function PlayerProfile() {
       .finally(() => setLoading(false))
   }, [memberId])
 
-  // Training attendance
+  // Training + game attendance in a single batch. Both stats share the same
+  // member participations + season absences, so they're fetched once here (was
+  // two effects × 3 queries with participations/absences fetched redundantly).
   useEffect(() => {
     if (!memberId || !memberTeams?.length) return
     const teamIds = memberTeams.map((mt) => relId(mt.team))
+    let cancelled = false
     Promise.all([
       fetchAllItems<{ id: string; date: string }>('trainings', {
         filter: { _and: [{ team: { _in: teamIds } }, { date: { _gte: start } }, { date: { _lte: end } }, { cancelled: { _eq: false } }] },
         fields: ['id', 'date'],
       }),
-      fetchAllItems<Participation>('participations', {
-        filter: { _and: [{ member: { _eq: memberId } }, { activity_type: { _eq: 'training' } }] },
-      }),
-      fetchAllItems<Absence>('absences', {
-        filter: { _and: [{ member: { _eq: memberId } }, { end_date: { _gte: start } }, { start_date: { _lte: end } }] },
-      }),
-    ])
-      .then(([trainings, participations, seasonAbsences]) => {
-        let present = 0
-        let excused = 0
-        for (const training of trainings) {
-          const trainingDate = training.date.split(' ')[0]
-          const hasAbsence = seasonAbsences.some(
-            (a) => a.start_date <= trainingDate && a.end_date >= trainingDate,
-          )
-          if (hasAbsence) {
-            excused++
-          } else {
-            const p = participations.find((p) => p.activity_id === training.id)
-            if (p?.status === 'confirmed') present++
-          }
-        }
-        const countable = trainings.length - excused
-        setTrainingStats({ total: countable, present })
-      })
-      .catch(() => setTrainingStats(null))
-  }, [memberId, memberTeams, start, end])
-
-  // Game attendance
-  useEffect(() => {
-    if (!memberId || !memberTeams?.length) return
-    const teamIds = memberTeams.map((mt) => relId(mt.team))
-    Promise.all([
       fetchAllItems<{ id: string; date: string }>('games', {
         filter: { _and: [{ kscw_team: { _in: teamIds } }, { date: { _gte: start } }, { date: { _lte: end } }, { _or: [{ status: { _neq: 'postponed' } }, { status: { _null: true } }] }] },
         fields: ['id', 'date'],
       }),
       fetchAllItems<Participation>('participations', {
-        filter: { _and: [{ member: { _eq: memberId } }, { activity_type: { _eq: 'game' } }] },
+        filter: { member: { _eq: memberId } },
       }),
       fetchAllItems<Absence>('absences', {
         filter: { _and: [{ member: { _eq: memberId } }, { end_date: { _gte: start } }, { start_date: { _lte: end } }] },
       }),
     ])
-      .then(([games, participations, seasonAbsences]) => {
-        let present = 0
-        let excused = 0
-        for (const game of games) {
-          const gameDate = game.date.split(' ')[0]
-          const hasAbsence = seasonAbsences.some(
-            (a) => a.start_date <= gameDate && a.end_date >= gameDate,
-          )
-          if (hasAbsence) {
-            excused++
-          } else {
-            const p = participations.find((p) => p.activity_id === game.id)
-            if (p?.status === 'confirmed') present++
-          }
-        }
-        const countable = games.length - excused
-        setGameStats({ total: countable, present })
+      .then(([trainings, games, participations, seasonAbsences]) => {
+        if (cancelled) return
+        const trainingParts = participations.filter((p) => p.activity_type === 'training')
+        const gameParts = participations.filter((p) => p.activity_type === 'game')
+        setTrainingStats(computeAttendance(trainings, trainingParts, seasonAbsences))
+        setGameStats(computeAttendance(games, gameParts, seasonAbsences))
       })
-      .catch(() => setGameStats(null))
+      .catch(() => {
+        if (cancelled) return
+        setTrainingStats(null)
+        setGameStats(null)
+      })
+    return () => { cancelled = true }
   }, [memberId, memberTeams, start, end])
 
   // Report to app boot gate — see usePageReady.tsx

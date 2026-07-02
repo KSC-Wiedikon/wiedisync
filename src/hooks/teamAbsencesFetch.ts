@@ -1,4 +1,4 @@
-import { fetchAllItems, fetchItem } from '../lib/api'
+import { fetchAllItems } from '../lib/api'
 import type { Absence, Member, MemberTeam, Team } from '../types'
 import { asObj, relId, flattenMemberIds } from '../utils/relations'
 
@@ -62,13 +62,22 @@ export async function fetchTeamAbsences(
   // expansion Directus returns the M2M junction row IDs (teams_coaches.id) which
   // look like member IDs but aren't (ghost roster bug, 2026-05-12).
   const validTeamIds = teamIds.filter((id) => id != null && id !== '' && id !== 'null' && id !== 'undefined')
-  for (const teamId of validTeamIds) {
+  if (validTeamIds.length > 0) {
+    // Single batched fetch (was N serial fetchItem round-trips). Still expands
+    // `coach.members_id` / `team_responsible.members_id` — bare M2M aliases are
+    // junction-row IDs, not member IDs (ghost-roster bug, 2026-05-12).
+    let teams: Record<string, unknown>[] = []
     try {
-      const team = await fetchItem<Record<string, unknown>>('teams', teamId, {
-        fields: ['name', 'sport', 'coach.members_id', 'team_responsible.members_id'],
+      teams = await fetchAllItems<Record<string, unknown>>('teams', {
+        filter: { id: { _in: validTeamIds } },
+        fields: ['id', 'name', 'sport', 'coach.members_id', 'team_responsible.members_id'],
       })
+    } catch {
+      // team batch fetch failed — continue without coach/TR expansion
+    }
+    for (const team of teams) {
       const teamRef: MemberTeamRef = {
-        id: String(teamId),
+        id: String(relId(team.id)),
         name: (team.name as string) ?? '',
         sport: team.sport as MemberTeamRef['sport'],
       }
@@ -80,8 +89,6 @@ export async function fetchTeamAbsences(
           addTeamRef(String(id), teamRef)
         }
       }
-    } catch {
-      // team fetch failed — continue
     }
   }
 

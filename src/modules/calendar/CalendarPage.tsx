@@ -22,7 +22,7 @@ import {
   endOfWeek,
   formatDate,
 } from '../../utils/dateUtils'
-import { SlidersHorizontal, ClipboardList } from 'lucide-react'
+import { SlidersHorizontal, ClipboardList, TrafficCone, Star, CircleX, CalendarOff } from 'lucide-react'
 import BasketballIcon from '../../components/BasketballIcon'
 import VolleyballIcon from '../../components/VolleyballIcon'
 import type { CalendarViewMode, CalendarFilterState, SourceFilter, CalendarEntry } from '../../types/calendar'
@@ -31,15 +31,12 @@ import { useCollection } from '../../lib/query'
 import { isSchedulableTeam } from '../gameScheduling/utils/schedulableTeams'
 import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalendar'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import { entryIconColor } from './entryStyle'
 
 /** Inline type icon for the overflow modal */
 const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'volleyball' | 'basketball'; className?: string }) => {
   if (type === 'training') {
-    return (
-      <svg className={`h-3 w-3 shrink-0 ${className}`} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6 20h12l-1.5-5H7.5L6 20zM7 13h10l-1.5-5h-7L7 13zM9 6h6l-.75-2.5a1 1 0 00-.96-.72h-2.58a1 1 0 00-.96.72L9 6z" />
-      </svg>
-    )
+    return <TrafficCone className={`h-3 w-3 shrink-0 ${className}`} strokeWidth={2.5} />
   }
   if (type === 'game') {
     return sport === 'basketball'
@@ -47,27 +44,13 @@ const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'voll
       : <VolleyballIcon className="h-3 w-3 shrink-0" filled />
   }
   if (type === 'event') {
-    return (
-      <svg className={`h-3 w-3 shrink-0 ${className}`} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z" />
-      </svg>
-    )
+    return <Star className={`h-3 w-3 shrink-0 ${className}`} fill="currentColor" strokeWidth={2} />
   }
   if (type === 'closure') {
-    return (
-      <svg className={`h-3 w-3 shrink-0 ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-        <circle cx="12" cy="12" r="10" />
-        <path strokeLinecap="round" d="M15 9l-6 6M9 9l6 6" />
-      </svg>
-    )
+    return <CircleX className={`h-3 w-3 shrink-0 ${className}`} strokeWidth={2.5} />
   }
   if (type === 'absence') {
-    return (
-      <svg className={`h-3 w-3 shrink-0 ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-        <circle cx="12" cy="8" r="4" />
-        <path strokeLinecap="round" d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" />
-      </svg>
-    )
+    return <CalendarOff className={`h-3 w-3 shrink-0 ${className}`} strokeWidth={2.5} />
   }
   if (type === 'scorer-duty') {
     return <ClipboardList className={`h-3 w-3 shrink-0 ${className}`} strokeWidth={2.5} />
@@ -76,23 +59,6 @@ const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'voll
     return <BasketballIcon className="h-3 w-3 shrink-0" filled />
   }
   return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-current ${className}`} />
-}
-
-const iconColors: Record<string, string> = {
-  game: 'text-brand-500',
-  'game-home': 'text-brand-500',
-  'game-away': 'text-amber-500',
-  training: 'text-green-500',
-  closure: 'text-red-500',
-  event: 'text-purple-500',
-  hall: 'text-cyan-500',
-  absence: 'text-gray-900 dark:text-gray-100',
-  'scorer-duty': 'text-indigo-500',
-}
-
-function entryIconColor(entry: CalendarEntry): string {
-  if (entry.type === 'game' && entry.gameType) return iconColors[`game-${entry.gameType}`] || 'text-brand-500'
-  return iconColors[entry.type] || 'text-gray-500'
 }
 
 export default function CalendarPage() {

@@ -47,14 +47,19 @@ export function useTeamMembers(
     const key = `${safeTeamId}:${season ?? ''}`
     latestKeyRef.current = key
     try {
-      const team = await fetchItem<Team>('teams', safeTeamId, { fields: ['id', 'sport'] })
+      // The member_teams query doesn't depend on the team record (sport is only
+      // used afterwards for normalization), so run both in parallel to halve the
+      // latency on every roster / team-detail open.
       const filter: Record<string, unknown> = { team: { _eq: safeTeamId } }
       if (season) filter.season = { _eq: season }
-      const result = await fetchAllItems<ExpandedMemberTeam>('member_teams', {
-        filter,
-        fields: ['*', 'member.*'],
-        sort: ['member'],
-      })
+      const [team, result] = await Promise.all([
+        fetchItem<Team>('teams', safeTeamId, { fields: ['id', 'sport'] }),
+        fetchAllItems<ExpandedMemberTeam>('member_teams', {
+          filter,
+          fields: ['*', 'member.*'],
+          sort: ['member'],
+        }),
+      ])
       const updates: Promise<unknown>[] = []
       const normalized = result.map((mt) => {
         const member = asObj<Member>(mt.member)
@@ -117,27 +122,10 @@ export function useMultiTeamMembers(teamIds: string[]) {
 
     latestKeyRef.current = key
 
-    // Single team — delegate to simpler path
-    if (safeIds.length === 1) {
-      setError(null)
-      try {
-        const result = await fetchAllItems<ExpandedMemberTeam>('member_teams', {
-          filter: { team: { _eq: safeIds[0] } },
-          fields: ['*', 'member.*'],
-          sort: ['member'],
-        })
-        if (latestKeyRef.current !== key) return
-        setMembers(result)
-      } catch (err) {
-        if (latestKeyRef.current === key) {
-          setError(err instanceof Error ? err : new Error(String(err)))
-        }
-      } finally {
-        if (latestKeyRef.current === key) setLoadedKey(key)
-      }
-      return
-    }
-
+    // Single-level junction fetch (`member_teams` filtered by `team: { _in }`)
+    // to sidestep the deep-M2M-filter-vs-policy silent-[] trap. `_in` with one
+    // id behaves like `_eq`, and the dedupe below is a no-op for a single team,
+    // so both cases share this one path.
     setError(null)
     try {
       const result = await fetchAllItems<ExpandedMemberTeam>('member_teams', {

@@ -466,6 +466,83 @@ export default function AdminDashboardPage() {
   // (e.g. 10.02.2026 for a 2026/27 season).
   const manualDateWindow = useMemo(() => computeSeasonWindow(season), [season])
 
+  // Schedulable volleyball teams. Memoised (and declared before the early returns
+  // so the hook order stays stable) so a search-box keystroke doesn't refilter
+  // the whole team list, and the derivations below reuse one array.
+  const volleyballTeams = useMemo(() => (teams || []).filter(isSchedulableTeam), [teams])
+
+  // id → slot lookup, reused by opponent search + the VM-alert derivations.
+  // Memoised so typing in the search box doesn't rebuild the Map every keystroke.
+  const slotByIdAll = useMemo(() => new Map(slots.map(s => [String(s.id), s])), [slots])
+
+  // Confirmed away games whose agreed date/time DIFFERS from VolleyManager (red).
+  // "Not updated yet" (unset) is fine and excluded — only genuine conflicts. The
+  // away-vm-check endpoint already scopes this to the teams the user manages.
+  // Memoised so a search keystroke doesn't rebuild oppById/teamNameById/bookingById.
+  const awayMismatches = useMemo(() => {
+    const entries = Object.entries(awayVmChecks).filter(([, c]) => c.status === 'mismatch')
+    if (!entries.length) return []
+    const oppById = new Map(opponents.map((o) => [String(o.id), o]))
+    const teamNameById = new Map(volleyballTeams.map((tm) => [String(tm.id), tm.name]))
+    const bookingById = new Map(bookings.map((b) => [String(b.id), b]))
+    return entries.map(([bid, c]) => {
+      const b = bookingById.get(bid)
+      const oid = b ? String(typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent) : ''
+      const opp = oid ? oppById.get(oid) : null
+      return {
+        bid,
+        opp: opp ? (opp.team_name || opp.club_name) : `#${bid}`,
+        team: opp ? (teamNameById.get(String(opp.kscw_team)) || '') : '',
+        agreed: c.agreed,
+        vm: c.vm,
+      }
+    })
+  }, [awayVmChecks, opponents, volleyballTeams, bookings])
+
+  // Away fixtures VolleyManager has scheduled but we never confirmed a slot —
+  // shown in the same alert with a one-click "create from VM" Sync button.
+  const awayUnbooked = useMemo(() => {
+    if (!awayVmUnbooked.length) return []
+    const oppById = new Map(opponents.map((o) => [String(o.id), o]))
+    const teamNameById = new Map(volleyballTeams.map((tm) => [String(tm.id), tm.name]))
+    return awayVmUnbooked.map((u) => {
+      const opp = oppById.get(String(u.opponent_id))
+      return {
+        key: `${u.opponent_id}:${u.svrz_game_id}`,
+        opponentId: String(u.opponent_id),
+        svrzGameId: String(u.svrz_game_id),
+        opp: opp ? (opp.team_name || opp.club_name) : `#${u.opponent_id}`,
+        team: opp ? (teamNameById.get(String(opp.kscw_team)) || '') : '',
+        vm: u.vm,
+      }
+    })
+  }, [awayVmUnbooked, opponents, volleyballTeams])
+
+  // Confirmed home games not (yet) in VolleyManager — never pushed / push failed
+  // (not_pushed) — or whose VM date drifted from our slot after we pushed
+  // (mismatch). Each gets a one-click "Re-push to VM". The home-vm-check endpoint
+  // already scopes this to the teams the user manages.
+  const homeVmAlerts = useMemo(() => {
+    const entries = Object.entries(homeVmChecks).filter(([, c]) => c.status === 'not_pushed' || c.status === 'mismatch')
+    if (!entries.length) return []
+    const oppById = new Map(opponents.map((o) => [String(o.id), o]))
+    const teamNameById = new Map(volleyballTeams.map((tm) => [String(tm.id), tm.name]))
+    const bookingById = new Map(bookings.map((b) => [String(b.id), b]))
+    return entries.map(([bid, c]) => {
+      const b = bookingById.get(bid)
+      const oid = b ? String(typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent) : ''
+      const opp = oid ? oppById.get(oid) : null
+      return {
+        bid,
+        opp: opp ? (opp.team_name || opp.club_name) : `#${bid}`,
+        team: opp ? (teamNameById.get(String(opp.kscw_team)) || '') : '',
+        status: c.status,
+        agreed: c.agreed,
+        vm: c.vm,
+      }
+    })
+  }, [homeVmChecks, opponents, volleyballTeams, bookings])
+
   // Only the very first load blanks the page. After data has loaded once,
   // confirming a proposal refetches in the background without flashing the page.
   // Wait for ALL the content data (season, bookings, teams, intra-club games) so
@@ -489,8 +566,6 @@ export default function AdminDashboardPage() {
     )
   }
 
-  const volleyballTeams = (teams || []).filter(isSchedulableTeam)
-
   const getTeamOpponents = (teamId: string) =>
     opponents.filter(o => String(o.kscw_team) === String(teamId))
 
@@ -510,7 +585,6 @@ export default function AdminDashboardPage() {
   // and yyyy-mm-dd forms. Active search filters the accordion to matching
   // opponent cards and force-expands the teams that still have matches.
   const searchQuery = search.trim().toLowerCase()
-  const slotByIdAll = new Map(slots.map(s => [String(s.id), s]))
   const dateForms = (ymd: unknown): string[] => {
     const m = String(ymd ?? '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/)
     return m ? [`${m[3]}.${m[2]}.${m[1]}`, `${m[3]}.${m[2]}.${m[1].slice(2)}`, `${m[1]}-${m[2]}-${m[3]}`] : []
@@ -630,73 +704,6 @@ export default function AdminDashboardPage() {
     acc.notProposed += s.notProposed
     return acc
   }, { homeConfirmed: 0, awayConfirmed: 0, gamesTotal: 0, toConfirm: 0, notProposed: 0 })
-
-  // Confirmed away games whose agreed date/time DIFFERS from VolleyManager (red).
-  // "Not updated yet" (unset) is fine and excluded — only genuine conflicts. The
-  // away-vm-check endpoint already scopes this to the teams the user manages.
-  const awayMismatches = (() => {
-    const entries = Object.entries(awayVmChecks).filter(([, c]) => c.status === 'mismatch')
-    if (!entries.length) return []
-    const oppById = new Map(opponents.map((o) => [String(o.id), o]))
-    const teamNameById = new Map(volleyballTeams.map((tm) => [String(tm.id), tm.name]))
-    const bookingById = new Map(bookings.map((b) => [String(b.id), b]))
-    return entries.map(([bid, c]) => {
-      const b = bookingById.get(bid)
-      const oid = b ? String(typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent) : ''
-      const opp = oid ? oppById.get(oid) : null
-      return {
-        bid,
-        opp: opp ? (opp.team_name || opp.club_name) : `#${bid}`,
-        team: opp ? (teamNameById.get(String(opp.kscw_team)) || '') : '',
-        agreed: c.agreed,
-        vm: c.vm,
-      }
-    })
-  })()
-
-  // Away fixtures VolleyManager has scheduled but we never confirmed a slot —
-  // shown in the same alert with a one-click "create from VM" Sync button.
-  const awayUnbooked = (() => {
-    if (!awayVmUnbooked.length) return []
-    const oppById = new Map(opponents.map((o) => [String(o.id), o]))
-    const teamNameById = new Map(volleyballTeams.map((tm) => [String(tm.id), tm.name]))
-    return awayVmUnbooked.map((u) => {
-      const opp = oppById.get(String(u.opponent_id))
-      return {
-        key: `${u.opponent_id}:${u.svrz_game_id}`,
-        opponentId: String(u.opponent_id),
-        svrzGameId: String(u.svrz_game_id),
-        opp: opp ? (opp.team_name || opp.club_name) : `#${u.opponent_id}`,
-        team: opp ? (teamNameById.get(String(opp.kscw_team)) || '') : '',
-        vm: u.vm,
-      }
-    })
-  })()
-
-  // Confirmed home games not (yet) in VolleyManager — never pushed / push failed
-  // (not_pushed) — or whose VM date drifted from our slot after we pushed
-  // (mismatch). Each gets a one-click "Re-push to VM". The home-vm-check endpoint
-  // already scopes this to the teams the user manages.
-  const homeVmAlerts = (() => {
-    const entries = Object.entries(homeVmChecks).filter(([, c]) => c.status === 'not_pushed' || c.status === 'mismatch')
-    if (!entries.length) return []
-    const oppById = new Map(opponents.map((o) => [String(o.id), o]))
-    const teamNameById = new Map(volleyballTeams.map((tm) => [String(tm.id), tm.name]))
-    const bookingById = new Map(bookings.map((b) => [String(b.id), b]))
-    return entries.map(([bid, c]) => {
-      const b = bookingById.get(bid)
-      const oid = b ? String(typeof b.opponent === 'object' ? (b.opponent as GameSchedulingOpponent).id : b.opponent) : ''
-      const opp = oid ? oppById.get(oid) : null
-      return {
-        bid,
-        opp: opp ? (opp.team_name || opp.club_name) : `#${bid}`,
-        team: opp ? (teamNameById.get(String(opp.kscw_team)) || '') : '',
-        status: c.status,
-        agreed: c.agreed,
-        vm: c.vm,
-      }
-    })
-  })()
 
   return (
     <div className="space-y-6">

@@ -73,9 +73,27 @@ export interface CamtImportResult {
 export const importCamt = (xml: string) =>
   kscwApi<CamtImportResult>('/finance/camt-import', { method: 'POST', body: { xml } })
 
+// Explicit field selections (mirror the module interfaces) so these whole-table
+// board reads don't pull every DB column into memory on each dashboard open —
+// same rationale as FINANCE_MEMBER_FIELDS / PAYOUT_FIELDS below.
+const INVOICE_FIELDS = [
+  'id', 'clubdesk_id', 'number', 'invoice_date', 'subject', 'amount', 'status', 'dunning_status',
+  'due_date', 'amount_paid', 'open_amount', 'overpaid_amount', 'written_off_amount', 'payment_method',
+  'reference', 'fee_category', 'closed_on', 'recipient_name', 'recipient_email', 'member', 'fiscal_year',
+  'source', 'reference_type', 'team', 'team_name', 'reported_paid_at', 'reported_paid_method',
+  'reported_paid_by', 'confirmed_at', 'confirmed_via', 'cancelled_at',
+]
+const TRANSACTION_FIELDS = [
+  'id', 'clubdesk_id', 'typ', 'beleg', 'booking_date', 'text', 'debit_account_number', 'debit_account_name',
+  'credit_account_number', 'credit_account_name', 'amount_chf', 'fiscal_year',
+]
+const ACCOUNT_FIELDS = ['id', 'number', 'name', 'type', 'division', 'active']
+const IMPORT_FIELDS = ['id', 'import_type', 'filename', 'imported_at', 'imported_by_name', 'imported_by_email', 'row_count', 'fiscal_year_label']
+
 /** All invoices (board only — gated by the Vorstand read policy). */
 export function useFinanceInvoices(enabled = true) {
   return useCollection<FinanceInvoice>('finance_invoices', {
+    fields: INVOICE_FIELDS,
     sort: ['-invoice_date'],
     enabled,
     all: true,
@@ -89,6 +107,7 @@ export function useFinanceTransactions(fiscalYearId?: string | null, enabled = t
   if (source) filter.source = { _eq: source }
   return useCollection<FinanceTransaction>('finance_transactions', {
     filter: Object.keys(filter).length ? filter : undefined,
+    fields: TRANSACTION_FIELDS,
     sort: ['-booking_date'],
     enabled,
     all: true,
@@ -98,6 +117,7 @@ export function useFinanceTransactions(fiscalYearId?: string | null, enabled = t
 /** Chart of accounts (board only). */
 export function useFinanceAccounts(enabled = true) {
   return useCollection<FinanceAccount>('finance_accounts', {
+    fields: ACCOUNT_FIELDS,
     sort: ['number'],
     enabled,
     all: true,
@@ -234,6 +254,7 @@ export function useMyPayouts() {
 /** Import/sync provenance history, newest first (board only). */
 export function useFinanceImports(enabled = true) {
   return useCollection<FinanceImport>('finance_imports', {
+    fields: IMPORT_FIELDS,
     sort: ['-imported_at'],
     enabled,
     all: true,

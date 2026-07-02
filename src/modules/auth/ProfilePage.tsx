@@ -54,6 +54,17 @@ function AutoSignInCard() {
   })
   const [saving, setSaving] = useState<string | null>(null)
 
+  // Re-sync from the auth user when it refreshes elsewhere (the useState
+  // initializer only runs on mount). Keyed on the specific flags so it's a
+  // no-op unless a value actually changes.
+  useEffect(() => {
+    setState({
+      trainings: !!user?.auto_confirm_trainings,
+      games: !!user?.auto_confirm_games,
+      events: !!user?.auto_confirm_events,
+    })
+  }, [user?.auto_confirm_trainings, user?.auto_confirm_games, user?.auto_confirm_events])
+
   if (!user) return null
 
   const rows: { key: 'trainings' | 'games' | 'events'; field: string; label: string }[] = [
@@ -137,6 +148,19 @@ function EmailNotificationCard() {
   )
   const [saving, setSaving] = useState<string | null>(null)
 
+  // Re-sync from the auth user when it refreshes elsewhere (the useState
+  // initializer only runs on mount). Keyed on the specific opt-out flags.
+  useEffect(() => {
+    setState(Object.fromEntries(allRows.map((r) => [r.key, user?.[r.field] !== false])))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    user?.email_notify_registrations,
+    user?.email_notify_join_requests,
+    user?.email_notify_form_submissions,
+    user?.email_notify_announcements,
+    user?.email_notify_events,
+  ])
+
   if (!user || rows.length === 0) return null
 
   async function toggle(row: NotifyRow, val: boolean) {
@@ -212,7 +236,9 @@ export default function ProfilePage() {
       await updateRecord('team_requests', requestId, { status: 'cancelled' })
       refetchRequests()
     } catch {
-      // ignore
+      // updateRecord already captured the error; surface it so a failed cancel
+      // isn't mistaken for success (was a silent swallow).
+      toast.error(t('errorSaving'))
     }
   }
 

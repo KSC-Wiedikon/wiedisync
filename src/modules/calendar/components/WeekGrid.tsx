@@ -11,129 +11,16 @@ import {
   formatDate,
   DAY_HEADERS,
 } from '../../../utils/dateUtils'
-import { getDay } from 'date-fns'
-
-/* ── colours ─────────────────────────────────────────────── */
-
-const barColors: Record<string, { bg: string; text: string; darkBg: string; darkText: string }> = {
-  'game-home': { bg: 'bg-brand-200', text: 'text-brand-900', darkBg: 'dark:bg-brand-800', darkText: 'dark:text-brand-100' },
-  'game-away': { bg: 'bg-amber-200', text: 'text-amber-900', darkBg: 'dark:bg-amber-800', darkText: 'dark:text-amber-100' },
-  game:        { bg: 'bg-brand-200', text: 'text-brand-900', darkBg: 'dark:bg-brand-800', darkText: 'dark:text-brand-100' },
-  training:    { bg: 'bg-green-200', text: 'text-green-900', darkBg: 'dark:bg-green-800', darkText: 'dark:text-green-100' },
-  closure:     { bg: 'bg-red-200', text: 'text-red-900', darkBg: 'dark:bg-red-800', darkText: 'dark:text-red-100' },
-  event:       { bg: 'bg-purple-200', text: 'text-purple-900', darkBg: 'dark:bg-purple-800', darkText: 'dark:text-purple-100' },
-  hall:        { bg: 'bg-cyan-200', text: 'text-cyan-900', darkBg: 'dark:bg-cyan-800', darkText: 'dark:text-cyan-100' },
-  absence:     { bg: 'bg-gray-900', text: 'text-white', darkBg: 'dark:bg-gray-100', darkText: 'dark:text-gray-900' },
-  'scorer-duty': { bg: 'bg-indigo-200', text: 'text-indigo-900', darkBg: 'dark:bg-indigo-800', darkText: 'dark:text-indigo-100' },
-}
-
-function colorKey(e: CalendarEntry): string {
-  if (e.type === 'game' && e.gameType) return `game-${e.gameType}`
-  return e.type
-}
-
-function blockClasses(e: CalendarEntry): string {
-  const c = barColors[colorKey(e)] ?? barColors.game
-  return `${c.bg} ${c.text} ${c.darkBg} ${c.darkText}`
-}
-
-/* ── time helpers ─────────────────────────────────────────── */
-
-const HOUR_HEIGHT = 48 // px per hour
-const TOP_PAD = 12     // px padding above first hour line
-
-/** Get time range for a day: Mon-Fri 17:00-22:00, Sat-Sun 10:30-20:30 */
-function getDayTimeRange(date: Date): { startMin: number; endMin: number } {
-  const dow = getDay(date) // 0=Sun, 6=Sat
-  if (dow === 0 || dow === 6) {
-    return { startMin: 10 * 60 + 30, endMin: 20 * 60 + 30 } // 10:30–20:30
-  }
-  return { startMin: 17 * 60, endMin: 22 * 60 } // 17:00–22:00
-}
-
-/** Compute the widest time range across multiple days */
-function getVisibleRange(days: Date[]): { startMin: number; endMin: number } {
-  let min = Infinity
-  let max = -Infinity
-  for (const d of days) {
-    const r = getDayTimeRange(d)
-    if (r.startMin < min) min = r.startMin
-    if (r.endMin > max) max = r.endMin
-  }
-  return { startMin: min, endMin: max }
-}
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + (m || 0)
-}
-
-function minutesToOffset(minutes: number, rangeStartMin: number): number {
-  return TOP_PAD + ((minutes - rangeStartMin) / 60) * HOUR_HEIGHT
-}
-
-function formatHour(minutes: number): string {
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m === 0 ? `${String(h).padStart(2, '0')}:00` : `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
-
-/* ── overlap layout ──────────────────────────────────────── */
-
-interface PositionedEvent {
-  entry: CalendarEntry
-  top: number
-  height: number
-  left: number   // fraction 0-1
-  width: number  // fraction 0-1
-}
-
-function layoutOverlaps(entries: CalendarEntry[], rangeStartMin: number): PositionedEvent[] {
-  if (entries.length === 0) return []
-
-  const items = entries
-    .filter((e) => e.startTime)
-    .map((e) => {
-      const startMin = timeToMinutes(e.startTime!)
-      const endMin = e.endTime ? timeToMinutes(e.endTime) : startMin + 60
-      return { entry: e, startMin, endMin }
-    })
-    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin)
-
-  // Assign columns using greedy algorithm
-  const columns: typeof items[number][][] = []
-
-  for (const item of items) {
-    let placed = false
-    for (const col of columns) {
-      if (col[col.length - 1].endMin <= item.startMin) {
-        col.push(item)
-        placed = true
-        break
-      }
-    }
-    if (!placed) {
-      columns.push([item])
-    }
-  }
-
-  const totalCols = columns.length
-  const result: PositionedEvent[] = []
-
-  for (let colIdx = 0; colIdx < columns.length; colIdx++) {
-    for (const item of columns[colIdx]) {
-      result.push({
-        entry: item.entry,
-        top: minutesToOffset(item.startMin, rangeStartMin),
-        height: Math.max(((item.endMin - item.startMin) / 60) * HOUR_HEIGHT, 18),
-        left: colIdx / totalCols,
-        width: 1 / totalCols,
-      })
-    }
-  }
-
-  return result
-}
+import { blockClasses } from '../entryStyle'
+import {
+  HOUR_HEIGHT,
+  TOP_PAD,
+  minutesToOffset,
+  layoutOverlaps,
+  computeTimeRange,
+  buildHourLabels,
+  type PositionedEvent,
+} from '../weekGridLayout'
 
 /* ── component ───────────────────────────────────────────── */
 
@@ -160,40 +47,12 @@ export default function WeekGrid({
   const weekDays = eachDayOfInterval(weekMonday, weekSunday)
 
   // Compute time range for the whole week, tightened to actual entries
-  const timeRange = useMemo(() => {
-    const base = getVisibleRange(weekDays)
-    let earliestMin = Infinity
-    let latestMin = -Infinity
-    for (const e of entries) {
-      if (e.allDay || e.endDate || !e.startTime) continue
-      for (const day of weekDays) {
-        if (isSameDay(e.date, day)) {
-          const sm = timeToMinutes(e.startTime)
-          earliestMin = Math.min(earliestMin, sm)
-          latestMin = Math.max(latestMin, e.endTime ? timeToMinutes(e.endTime) : sm + 60)
-        }
-      }
-    }
-    if (earliestMin === Infinity) return base
-    const smartStart = Math.floor((earliestMin - 30) / 60) * 60
-    const smartEnd = Math.max(latestMin, base.endMin)
-    return {
-      startMin: Math.max(smartStart, 0),
-      endMin: Math.ceil(smartEnd / 60) * 60,
-    }
-  }, [weekDays, entries])
+  const timeRange = useMemo(() => computeTimeRange(weekDays, entries), [weekDays, entries])
   const totalHours = (timeRange.endMin - timeRange.startMin) / 60
   const totalHeight = totalHours * HOUR_HEIGHT + TOP_PAD
 
   // Generate hour labels
-  const hourLabels = useMemo(() => {
-    const labels: { minutes: number; label: string }[] = []
-    const firstHour = Math.ceil(timeRange.startMin / 60) * 60
-    for (let m = firstHour; m <= timeRange.endMin; m += 60) {
-      labels.push({ minutes: m, label: formatHour(m) })
-    }
-    return labels
-  }, [timeRange])
+  const hourLabels = useMemo(() => buildHourLabels(timeRange), [timeRange])
 
   // Scroll to first hour on mount
   useEffect(() => {
@@ -224,7 +83,7 @@ export default function WeekGrid({
   const positionedByDay = useMemo(() => {
     const result: Map<string, PositionedEvent[]> = new Map()
     for (const [key, dayEntries] of timedByDay) {
-      result.set(key, layoutOverlaps(dayEntries, timeRange.startMin))
+      result.set(key, layoutOverlaps(dayEntries, timeRange.startMin, 18))
     }
     return result
   }, [timedByDay, timeRange])

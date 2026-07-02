@@ -1,16 +1,15 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Users, Plus } from 'lucide-react'
-import { useCollection } from '../../lib/query'
+import { useCollection, useAggregate } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import EmptyState from '../../components/EmptyState'
 import { Button } from '../../components/ui/button'
 import TeamRequestModal from '../auth/TeamRequestModal'
 import TeamCard from './TeamCard'
-import type { Team, MemberTeam } from '../../types'
+import type { Team } from '../../types'
 import { getCurrentSeason } from '../../utils/dateHelpers'
-import { relId } from '../../utils/relations'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
 export default function TeamsPage() {
@@ -29,11 +28,19 @@ export default function TeamsPage() {
   })
   const teams = teamsRaw ?? []
   const season = getCurrentSeason()
-  const { data: memberTeamsRaw, isLoading: memberTeamsLoading, refetch: refetchMemberTeams } = useCollection<MemberTeam>('member_teams', {
+  // Grouped counts (team × guest_level) instead of pulling every member_teams row
+  // just to tally players vs guests per card. Directus applies the same RLS as a
+  // normal read, so a member still only sees counts for teams they can view.
+  const { data: memberTeamCountsRaw, isLoading: memberTeamsLoading, refetch: refetchMemberTeams } = useAggregate<{
+    team: string | number | null
+    guest_level: number | null
+    count: string | number
+  }>('member_teams', {
+    aggregate: { count: '*' },
+    groupBy: ['team', 'guest_level'],
     filter: { season: { _eq: season } },
-    all: true,
   })
-  const memberTeams = memberTeamsRaw ?? []
+  const memberTeamCounts = memberTeamCountsRaw ?? []
 
   const hasElevatedAccess = effectiveIsAdmin || effectiveIsVorstand
   const effectiveCanViewTeam = (teamId: string) =>
@@ -43,13 +50,15 @@ export default function TeamsPage() {
   const { playersByTeam, guestsByTeam } = useMemo(() => {
     const players: Record<string, number> = {}
     const guests: Record<string, number> = {}
-    for (const mt of memberTeams) {
-      const id = relId(mt.team)
-      if (mt.guest_level > 0) guests[id] = (guests[id] ?? 0) + 1
-      else players[id] = (players[id] ?? 0) + 1
+    for (const row of memberTeamCounts) {
+      if (row.team == null) continue
+      const id = String(row.team)
+      const n = Number(row.count ?? 0)
+      if ((row.guest_level ?? 0) > 0) guests[id] = (guests[id] ?? 0) + n
+      else players[id] = (players[id] ?? 0) + n
     }
     return { playersByTeam: players, guestsByTeam: guests }
-  }, [memberTeams])
+  }, [memberTeamCounts])
 
   const { vbTeams, bbTeams } = useMemo(() => {
     // Women first, then men, then mixed

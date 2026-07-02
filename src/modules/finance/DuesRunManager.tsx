@@ -56,7 +56,8 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
   }
   async function removeRate(id: number) {
     if (!window.confirm(t('duesRateDeleteSure'))) return
-    try { await deleteDuesRate(id); await refetchRates() } catch { /* noop */ }
+    setRErr('')
+    try { await deleteDuesRate(id); await refetchRates() } catch (e) { setRErr(apiErr(e, t('ledActionError'))) }
   }
 
   // ── Run wizard ──
@@ -96,7 +97,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
       const r = await cancelDuesRun(id)
       setRunMsg(t('duesRunCancelled', { count: r.cancelled }))
       await refetchRuns()
-    } catch { setRunErr(t('duesRunCancelError')) }
+    } catch (e) { setRunErr(apiErr(e, t('duesRunCancelError'))) }
   }
 
   // Download every bill in a run as one multi-page PDF (print/post or attach).

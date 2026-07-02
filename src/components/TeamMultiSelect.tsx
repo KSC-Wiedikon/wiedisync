@@ -46,6 +46,32 @@ export default function TeamMultiSelect({ options, selected, onChange, placehold
     }
   }
 
+  // Keyboard support for the custom listbox: Escape closes, arrows open + move
+  // focus between options (Enter/Space toggle via the option button's onClick).
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') {
+      if (open) { setOpen(false); e.stopPropagation() }
+      return
+    }
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        setOpen(true)
+        e.preventDefault()
+      }
+      return
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      const items = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])
+      if (items.length === 0) return
+      const idx = items.findIndex((el) => el === document.activeElement)
+      const next = e.key === 'ArrowDown'
+        ? Math.min(items.length - 1, idx + 1)
+        : Math.max(0, idx - 1)
+      items[idx === -1 ? 0 : next]?.focus()
+    }
+  }
+
   function handleSelectAll() {
     onChange([])
   }
@@ -60,11 +86,13 @@ export default function TeamMultiSelect({ options, selected, onChange, placehold
   const selectedOptions = allSelected ? [] : options.filter((o) => selected.includes(o.value))
 
   return (
-    <div ref={ref} className="relative w-full">
+    <div ref={ref} className="relative w-full" onKeyDown={handleKeyDown}>
       {/* Trigger button */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className="flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 sm:min-h-0"
       >
         <div className="flex flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
@@ -100,10 +128,12 @@ export default function TeamMultiSelect({ options, selected, onChange, placehold
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute left-0 z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+        <div role="listbox" aria-multiselectable="true" className="absolute left-0 z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
           {/* All option */}
           <button
             type="button"
+            role="option"
+            aria-selected={allSelected}
             onClick={handleSelectAll}
             className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${
               allSelected ? 'bg-brand-50 font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-gray-700 dark:text-gray-300'
@@ -190,6 +220,8 @@ function DropdownOption({ option, isSelected, onToggle }: { option: TeamOption; 
   return (
     <button
       type="button"
+      role="option"
+      aria-selected={isSelected}
       onClick={onToggle}
       className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${
         isSelected ? 'bg-gray-100 dark:bg-gray-700/50' : ''

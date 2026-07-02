@@ -7,7 +7,7 @@
 
 import {
   createDirectus, rest, authentication, realtime,
-  readItems, readItem, createItem, updateItem, deleteItem,
+  readItems, readItem, createItem, createItems, updateItem, deleteItem,
   aggregate,
 } from '@directus/sdk'
 import { captureApiError, captureAuthError } from './sentry'
@@ -187,6 +187,30 @@ function isPermissionError(err: unknown): boolean {
   return msg.includes("don't have permission") || msg.includes('does not exist')
 }
 
+/**
+ * Run a Directus SDK request, transparently recovering from the token-refresh
+ * race: the SDK can send an about-to-expire access token that Directus rejects
+ * as the public role ("no permission" / "does not exist"). When that happens
+ * and a session still exists, force one refresh and retry the request once. Any
+ * failure of the refresh-or-retry rethrows the ORIGINAL error so the caller's
+ * captureApiError sees the real cause. Shared by fetchItems + fetchItem so the
+ * recovery logic lives in one place (kscwApi runs a status-based variant since
+ * it inspects the Response rather than a thrown error).
+ */
+async function withAuthRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (err) {
+    if (isPermissionError(err) && isAuthenticated()) {
+      try {
+        await refreshAuth()
+        return await fn()
+      } catch { /* fall through — rethrow the original error */ }
+    }
+    throw err
+  }
+}
+
 // ── Data helpers ────────────────────────────────────────────────────
 
 /**
@@ -275,18 +299,10 @@ export async function fetchItems<T = Record<string, unknown>>(
   if (query?.deep) q.deep = query.deep
   if (query?.search) q.search = query.search
   try {
-    const items = await client.request<T[]>(readItems(collection, q as never))
-    return stringifyIds(items)
+    return await withAuthRetry(() =>
+      client.request<T[]>(readItems(collection, q as never)).then(stringifyIds),
+    )
   } catch (err) {
-    // Token refresh race: SDK sent an expired token, Directus rejected as "root".
-    // Retry once after forcing a token refresh.
-    if (isPermissionError(err) && isAuthenticated()) {
-      try {
-        await refreshAuth()
-        const items = await client.request<T[]>(readItems(collection, q as never))
-        return stringifyIds(items)
-      } catch { /* fall through to original error */ }
-    }
     captureApiError(err, { operation: 'fetchItems', collection, payload: q as Record<string, unknown> })
     throw err
   }
@@ -317,16 +333,10 @@ export async function fetchItem<T = Record<string, unknown>>(
   query?: { fields?: string[] },
 ): Promise<T> {
   try {
-    const item = await client.request<T>(readItem(collection, id, query as never))
-    return stringifyId(item)
+    return await withAuthRetry(() =>
+      client.request<T>(readItem(collection, id, query as never)).then(stringifyId),
+    )
   } catch (err) {
-    if (isPermissionError(err) && isAuthenticated()) {
-      try {
-        await refreshAuth()
-        const item = await client.request<T>(readItem(collection, id, query as never))
-        return stringifyId(item)
-      } catch { /* fall through */ }
-    }
     captureApiError(err, { operation: 'fetchItem', collection, recordId: id })
     throw err
   }
@@ -374,6 +384,44 @@ export async function fetchSeasons(collection: 'games' | 'rankings'): Promise<st
   }
 }
 
+/**
+ * Run a Directus aggregate query (COUNT / SUM / AVG …) with optional `groupBy`.
+ *
+ * Generalises the pattern used by `countItems` + `fetchSeasons`: returns one row
+ * per distinct group so callers can compute grouped totals (e.g. players vs
+ * guests per team) WITHOUT over-fetching every underlying row. IDs in the result
+ * are stringified to match the rest of the app (see `fetchItems` → `stringifyIds`);
+ * aggregate values (`count`, `sum`, …) come back as strings from Directus — wrap
+ * them in `Number(...)` at the call site. Permission filters apply exactly as they
+ * do to a normal read, so counts reflect only rows the requester can see.
+ */
+export async function aggregateItems<R = Record<string, unknown>>(
+  collection: string,
+  opts: {
+    aggregate: Record<string, string | string[]>
+    groupBy?: string[]
+    filter?: Record<string, unknown>
+    sort?: string[]
+  },
+): Promise<R[]> {
+  const query: Record<string, unknown> = {}
+  if (opts.filter) query.filter = opts.filter
+  if (opts.sort) query.sort = opts.sort
+  try {
+    const result = await withAuthRetry(() =>
+      client.request(aggregate(collection, {
+        aggregate: opts.aggregate,
+        groupBy: opts.groupBy,
+        query: Object.keys(query).length ? query : undefined,
+      } as never)),
+    )
+    return stringifyIds(result as R[])
+  } catch (err) {
+    captureApiError(err, { operation: 'aggregateItems', collection })
+    throw err
+  }
+}
+
 /** Create a new item. */
 export async function createRecord<T = Record<string, unknown>>(
   collection: string,
@@ -391,6 +439,25 @@ export async function createRecord<T = Record<string, unknown>>(
       throw err
     }
     captureApiError(err, { operation: 'createRecord', collection, payload: data })
+    throw err
+  }
+}
+
+/**
+ * Batch-create multiple items in a SINGLE request (`POST /items/:collection` with
+ * an array body). Mirrors `createRecord` for arrays — use it instead of firing N
+ * parallel `createRecord` calls (e.g. generating a season of recurring trainings).
+ * Returns the created items with IDs stringified, in input order.
+ */
+export async function createRecords<T = Record<string, unknown>>(
+  collection: string,
+  data: Record<string, unknown>[],
+): Promise<T[]> {
+  try {
+    const items = await client.request<T[]>(createItems(collection, data as never))
+    return stringifyIds(items)
+  } catch (err) {
+    captureApiError(err, { operation: 'createRecords', collection, payload: { count: data.length } })
     throw err
   }
 }
@@ -434,12 +501,25 @@ export async function uploadFile(file: File, folder?: string): Promise<{ id: str
   // metadata — `folder` drops the upload straight into a (private) folder.
   if (folder) fd.append('folder', folder)
   fd.append('file', file)
-  const res = await fetch(`${API_URL}/files`, {
-    method: 'POST',
-    credentials: 'include', // session cookie carries auth (no Bearer header)
-    body: fd,
-  })
-  if (!res.ok) throw new Error(`Upload failed (${res.status})`)
+  let res: Response
+  try {
+    res = await fetch(`${API_URL}/files`, {
+      method: 'POST',
+      credentials: 'include', // session cookie carries auth (no Bearer header)
+      body: fd,
+    })
+  } catch (err) {
+    // Network error (offline, DNS, CORS) — captureApiError downgrades transient
+    // fetch failures to a warn log and skips Sentry.
+    captureApiError(err, { operation: 'uploadFile', collection: 'directus_files' })
+    throw err
+  }
+  if (!res.ok) {
+    const responseBody = await res.text().catch(() => '')
+    const err = new Error(`Upload failed (${res.status})`)
+    captureApiError(err, { operation: 'uploadFile', collection: 'directus_files', status: res.status, responseBody })
+    throw err
+  }
   const { data } = await res.json()
   return { id: String(data.id), name: data.filename_download || file.name }
 }
@@ -451,8 +531,18 @@ export async function uploadFile(file: File, folder?: string): Promise<{ id: str
  * let the tab own it. Throws on 403 (no access) / network error.
  */
 export async function openPrivateAsset(fileId: string): Promise<void> {
-  const res = await fetch(assetUrl(fileId), { credentials: 'include' })
-  if (!res.ok) throw new Error(`Asset ${res.status}`)
+  let res: Response
+  try {
+    res = await fetch(assetUrl(fileId), { credentials: 'include' })
+  } catch (err) {
+    captureApiError(err, { operation: 'openPrivateAsset', collection: 'directus_files', recordId: fileId })
+    throw err
+  }
+  if (!res.ok) {
+    const err = new Error(`Asset ${res.status}`)
+    captureApiError(err, { operation: 'openPrivateAsset', collection: 'directus_files', recordId: fileId, status: res.status })
+    throw err
+  }
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   window.open(url, '_blank', 'noopener')
