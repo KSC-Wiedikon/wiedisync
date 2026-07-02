@@ -230,13 +230,16 @@ export default function SignUpPage() {
         }
         await updateRecord('members', memberId, updateData)
 
-        for (const teamId of additionalTeamIds) {
-          await createRecord('team_requests', {
-            member: memberId,
-            team: teamId,
-            status: 'pending',
-          })
-        }
+        // Create all team requests concurrently instead of serial round-trips.
+        await Promise.all(
+          additionalTeamIds.map((teamId) =>
+            createRecord('team_requests', {
+              member: memberId,
+              team: teamId,
+              status: 'pending',
+            }),
+          ),
+        )
       }
 
       // If user has existing teams → auto-approved → home

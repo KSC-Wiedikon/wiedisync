@@ -5,6 +5,19 @@ interface ChartViewProps {
 
 type ChartType = 'bar' | 'line' | 'pie'
 
+// Per-column type metadata — computed once in ChartView and passed down so the
+// numeric/date scan over every column × row doesn't repeat in each subcomponent.
+interface ColMeta {
+  col: string
+  numeric: boolean
+  date: boolean
+}
+
+interface ChartProps {
+  data: Record<string, unknown>[]
+  colMeta: ColMeta[]
+}
+
 // Brand colors
 const COLORS = ['#4A55A2', '#FFC832', '#22c55e', '#ef4444', '#f97316', '#8b5cf6', '#06b6d4']
 
@@ -21,17 +34,15 @@ function isDateColumn(values: unknown[]): boolean {
   return values.every((v) => typeof v === 'string' && dateRe.test(v))
 }
 
-function detectChartType(data: Record<string, unknown>[], columns: string[]): ChartType {
-  if (data.length === 0 || columns.length === 0) return 'bar'
-
-  const colMeta = columns.map((col) => {
+function computeColMeta(data: Record<string, unknown>[], columns: string[]): ColMeta[] {
+  return columns.map((col) => {
     const values = data.map((row) => row[col])
-    return {
-      col,
-      numeric: isNumeric(values),
-      date: isDateColumn(values),
-    }
+    return { col, numeric: isNumeric(values), date: isDateColumn(values) }
   })
+}
+
+function detectChartType(colMeta: ColMeta[], rowCount: number): ChartType {
+  if (rowCount === 0 || colMeta.length === 0) return 'bar'
 
   const numericCols = colMeta.filter((c) => c.numeric)
   const dateCols = colMeta.filter((c) => c.date && !c.numeric)
@@ -41,7 +52,7 @@ function detectChartType(data: Record<string, unknown>[], columns: string[]): Ch
   if (dateCols.length >= 1 && numericCols.length >= 1) return 'line'
 
   // 1 number column only with few rows → pie chart
-  if (numericCols.length === 1 && textCols.length === 0 && dateCols.length === 0 && data.length < 10) return 'pie'
+  if (numericCols.length === 1 && textCols.length === 0 && dateCols.length === 0 && rowCount < 10) return 'pie'
 
   // 1 text + 1 number → bar (or multi-series bar)
   return 'bar'
@@ -58,13 +69,7 @@ function shortLabel(v: unknown, maxLen = 10): string {
 
 // ─── Bar Chart ─────────────────────────────────────────────────────────────
 
-function BarChart({ data, columns }: ChartViewProps) {
-  const colMeta = columns.map((col) => ({
-    col,
-    numeric: isNumeric(data.map((r) => r[col])),
-    date: isDateColumn(data.map((r) => r[col])),
-  }))
-
+function BarChart({ data, colMeta }: ChartProps) {
   const numericCols = colMeta.filter((c) => c.numeric).map((c) => c.col)
   const xCol = colMeta.find((c) => !c.numeric)?.col ?? null
 
@@ -175,13 +180,7 @@ function BarChart({ data, columns }: ChartViewProps) {
 
 // ─── Line Chart ─────────────────────────────────────────────────────────────
 
-function LineChart({ data, columns }: ChartViewProps) {
-  const colMeta = columns.map((col) => ({
-    col,
-    numeric: isNumeric(data.map((r) => r[col])),
-    date: isDateColumn(data.map((r) => r[col])),
-  }))
-
+function LineChart({ data, colMeta }: ChartProps) {
   const xCol = colMeta.find((c) => c.date && !c.numeric)?.col ?? colMeta.find((c) => !c.numeric)?.col ?? null
   const numericCols = colMeta.filter((c) => c.numeric).map((c) => c.col)
 
@@ -203,9 +202,10 @@ function LineChart({ data, columns }: ChartViewProps) {
   const yTicks = 4
   const yStep = maxVal / yTicks
 
-  // Sort by date if xCol is a date
+  // Sort by date if xCol is a date (reuse the precomputed colMeta flag)
+  const xColIsDate = !!xCol && (colMeta.find((c) => c.col === xCol)?.date ?? false)
   const sorted =
-    xCol && isDateColumn(data.map((r) => r[xCol]))
+    xColIsDate
       ? [...data].sort((a, b) => String(a[xCol] ?? '').localeCompare(String(b[xCol] ?? '')))
       : data
 
@@ -315,12 +315,7 @@ function LineChart({ data, columns }: ChartViewProps) {
 
 // ─── Pie Chart ──────────────────────────────────────────────────────────────
 
-function PieChart({ data, columns }: ChartViewProps) {
-  const colMeta = columns.map((col) => ({
-    col,
-    numeric: isNumeric(data.map((r) => r[col])),
-  }))
-
+function PieChart({ data, colMeta }: ChartProps) {
   const numericCol = colMeta.find((c) => c.numeric)?.col
   const labelCol = colMeta.find((c) => !c.numeric)?.col ?? null
 
@@ -425,7 +420,8 @@ function NoData() {
 export default function ChartView({ data, columns }: ChartViewProps) {
   if (data.length === 0 || columns.length === 0) return <NoData />
 
-  const chartType = detectChartType(data, columns)
+  const colMeta = computeColMeta(data, columns)
+  const chartType = detectChartType(colMeta, data.length)
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
@@ -439,9 +435,9 @@ export default function ChartView({ data, columns }: ChartViewProps) {
       </div>
 
       <div className="text-gray-800 dark:text-gray-200">
-        {chartType === 'bar' && <BarChart data={data} columns={columns} />}
-        {chartType === 'line' && <LineChart data={data} columns={columns} />}
-        {chartType === 'pie' && <PieChart data={data} columns={columns} />}
+        {chartType === 'bar' && <BarChart data={data} colMeta={colMeta} />}
+        {chartType === 'line' && <LineChart data={data} colMeta={colMeta} />}
+        {chartType === 'pie' && <PieChart data={data} colMeta={colMeta} />}
       </div>
     </div>
   )

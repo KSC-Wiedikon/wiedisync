@@ -75,6 +75,15 @@ function formatDate(d: string) {
   return formatDateZurich(d)
 }
 
+// RFC 4180 quote + spreadsheet-formula-injection guard. Feedback/ideas/other
+// text and names are free-text user input, so a cell starting with = + - @
+// (or tab/CR) is prefixed with an apostrophe to keep it inert on open.
+function csvEscape(val: unknown): string {
+  let s = String(val ?? '')
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s
+  return `"${s.replace(/"/g, '""')}"`
+}
+
 function TeamChips({ teams }: { teams: string[] | null }) {
   if (!teams || teams.length === 0) return <span className="text-muted-foreground">—</span>
   return (
@@ -137,7 +146,7 @@ export default function VolleyFeedbackPage() {
       (i.feedback_text || '').replace(/[\r\n]+/g, ' '),
       (i.ideas_text || '').replace(/[\r\n]+/g, ' '),
       (i.other_text || '').replace(/[\r\n]+/g, ' '),
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'))
+    ].map(csvEscape).join(';'))
 
     const csv = '\uFEFF' + headers.join(';') + '\n' + rows.join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })

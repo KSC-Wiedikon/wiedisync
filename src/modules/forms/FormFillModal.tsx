@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '../../hooks/useAuth'
 import { createRecord, updateRecord } from '../../lib/api'
 import FormFieldRenderer from './FormFieldRenderer'
+import { resolveFieldLabel } from './labels'
 import type { FormDef, FieldDef, AnswerValue } from './types'
 
 interface ExistingSubmission {
@@ -45,7 +46,7 @@ function blankAnswers(form: FormDef): Record<string, AnswerValue> {
 }
 
 export default function FormFillModal({ open, form, existing, onSubmitted, onCancel }: Props) {
-  const { t } = useTranslation('forms')
+  const { t, i18n } = useTranslation('forms')
   const { t: tc } = useTranslation('common')
   const { user } = useAuth()
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({})
@@ -66,7 +67,9 @@ export default function FormFillModal({ open, form, existing, onSubmitted, onCan
     setError('')
     const missing = form.fields.find((f) => isMissing(f, answers[f.id] ?? null))
     if (missing) {
-      setError(t('errorRequiredMissing', { field: missing.label }))
+      // Use the locale-resolved label (same one shown on the field), not the
+      // raw base `label`, so the error names the field the user actually sees.
+      setError(t('errorRequiredMissing', { field: resolveFieldLabel(missing, i18n.language) || missing.label }))
       return
     }
     setSaving(true)

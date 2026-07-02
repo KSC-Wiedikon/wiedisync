@@ -382,6 +382,8 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
               <button
                 type="button"
                 onClick={() => setInfoOpen(true)}
+                aria-label={t('websiteVisible')}
+                title={t('websiteVisible')}
                 className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-200 text-[10px] font-bold text-gray-500 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-400 dark:hover:bg-gray-500"
               >
                 i
@@ -449,10 +451,21 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
 
         {/* Position (checkbox dropdown) */}
         <FormField label={t('position')}>
-          <div className="relative">
+          <div
+            className="relative"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && positionDropdownOpen) {
+                e.stopPropagation()
+                setPositionDropdownOpen(false)
+              }
+            }}
+          >
             <button
               type="button"
               onClick={() => setPositionDropdownOpen(!positionDropdownOpen)}
+              aria-haspopup="listbox"
+              aria-expanded={positionDropdownOpen}
+              aria-label={t('position')}
               className="flex min-h-[44px] w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors hover:border-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:border-brand-500"
             >
               <span className={selectedPositions.length === 0 ? 'text-gray-400' : ''}>
@@ -467,7 +480,12 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
             {positionDropdownOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setPositionDropdownOpen(false)} />
-                <div className="absolute left-0 z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800">
+                <div
+                  role="listbox"
+                  aria-multiselectable="true"
+                  aria-label={t('position')}
+                  className="absolute left-0 z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+                >
                   {getSelectablePositions(
                     primarySport === 'both' ? undefined : primarySport,
                     selectedPositions,
@@ -477,6 +495,8 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
                       <button
                         key={p}
                         type="button"
+                        role="option"
+                        aria-selected={active}
                         onClick={() => {
                           setSelectedPositions((prev) =>
                             active ? prev.filter((pos) => pos !== p) : [...prev, p],

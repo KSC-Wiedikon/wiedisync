@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { Fragment, useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { kscwApi } from '../../lib/api'
 import { formatDateZurich } from '../../utils/dateHelpers'
@@ -483,8 +483,8 @@ export default function ClubStatsPage() {
             </thead>
             <tbody>
               {groupBySport(filtered.participation.filter(p => n(p.games_total) > 0 || n(p.trainings_total) > 0)).map(group => (
-                <>
-                  <SportHeading key={`h-${group.sport}`} sport={group.sport} />
+                <Fragment key={group.sport}>
+                  <SportHeading sport={group.sport} />
                   {group.items.map(p => (
                     <tr key={p.team_id} className="border-b border-border/50 hover:bg-muted/30">
                       <td className="py-2 pr-3"><TeamChip team={p.team_name} size="sm" /></td>
@@ -504,7 +504,7 @@ export default function ClubStatsPage() {
                       </td>
                     </tr>
                   ))}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -526,8 +526,8 @@ export default function ClubStatsPage() {
             </thead>
             <tbody>
               {groupBySport(filtered.results).map(group => (
-                <>
-                  <SportHeading key={`h-${group.sport}`} sport={group.sport} />
+                <Fragment key={group.sport}>
+                  <SportHeading sport={group.sport} />
                   {group.items.map(r => (
                     <tr key={`${r.team_id}-${r.season}`} className="border-b border-border/50 hover:bg-muted/30">
                       <td className="py-2 pr-3"><TeamChip team={r.team_name} size="sm" /></td>
@@ -537,7 +537,7 @@ export default function ClubStatsPage() {
                       <td className="py-2 text-center tabular-nums text-red-600 dark:text-red-400">{n(r.total_losses)}</td>
                     </tr>
                   ))}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -560,8 +560,8 @@ export default function ClubStatsPage() {
               </thead>
               <tbody>
                 {groupBySport(filtered.delegations).map(group => (
-                  <>
-                    <SportHeading key={`h-${group.sport}`} sport={group.sport} />
+                  <Fragment key={group.sport}>
+                    <SportHeading sport={group.sport} />
                     {group.items.map(d => (
                       <tr key={d.team_id} className="border-b border-border/50 hover:bg-muted/30">
                         <td className="py-2 pr-3"><TeamChip team={d.team_name} size="sm" /></td>
@@ -571,7 +571,7 @@ export default function ClubStatsPage() {
                         <td className="py-2 text-center tabular-nums text-amber-600 dark:text-amber-400">{n(d.pending)}</td>
                       </tr>
                     ))}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

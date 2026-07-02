@@ -26,6 +26,17 @@ function capitalize(s: string | null | undefined): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
+// Section title i18n keys — shared across the member / training / game detail
+// views (each renders a subset of these sections).
+const SECTION_LABEL_KEY: Record<SectionKey, string> = {
+  participations: 'explorerSectionParticipations',
+  absences: 'explorerSectionAbsences',
+  refereeExpenses: 'explorerSectionRefereeExpenses',
+  scorerDelegations: 'explorerSectionScorerDelegations',
+  hallSlots: 'explorerSectionHallSlots',
+  inactiveMembers: 'explorerSectionInactiveMembers',
+}
+
 export default function ExplorerDetail({ cache, type, id, onSelect, onBack }: Props) {
   const onNavigate = onSelect
   const { t } = useTranslation('admin')
@@ -223,14 +234,6 @@ function renderMember(
   const memberSections: SectionKey[] = showRestrictedSections
     ? ['participations', 'absences', 'refereeExpenses']
     : ['participations', 'absences']
-  const sectionLabelKey: Record<SectionKey, string> = {
-    participations: 'explorerSectionParticipations',
-    absences: 'explorerSectionAbsences',
-    refereeExpenses: 'explorerSectionRefereeExpenses',
-    scorerDelegations: 'explorerSectionScorerDelegations',
-    hallSlots: 'explorerSectionHallSlots',
-    inactiveMembers: 'explorerSectionInactiveMembers',
-  }
 
   const teamName = (tid: string) => cache.teams.find((x) => String(x.id) === tid)?.name ?? tid
 
@@ -266,7 +269,7 @@ function renderMember(
         return (
           <ExplorerSectionCard
             key={s}
-            title={t(sectionLabelKey[s])}
+            title={t(SECTION_LABEL_KEY[s])}
             count={state?.data.length ?? null}
             onExpand={() => related.load('members', String(m.id), s)}
             isLoading={state?.loading}
@@ -704,14 +707,6 @@ function renderTraining(
   t: TFn,
 ) {
   const team = cache.teams.find((tm) => String(tm.id) === String(tr.team))
-  const sectionLabelKey: Record<SectionKey, string> = {
-    participations: 'explorerSectionParticipations',
-    absences: 'explorerSectionAbsences',
-    refereeExpenses: 'explorerSectionRefereeExpenses',
-    scorerDelegations: 'explorerSectionScorerDelegations',
-    hallSlots: 'explorerSectionHallSlots',
-    inactiveMembers: 'explorerSectionInactiveMembers',
-  }
 
   return (
     <>
@@ -730,7 +725,7 @@ function renderTraining(
         return (
           <ExplorerSectionCard
             key={s}
-            title={t(sectionLabelKey[s])}
+            title={t(SECTION_LABEL_KEY[s])}
             count={state?.data.length ?? null}
             onExpand={() => related.load('trainings', String(tr.id), s)}
             isLoading={state?.loading}
@@ -758,14 +753,6 @@ function renderGame(
   const sectionKeys: SectionKey[] = showRestrictedSections
     ? ['participations', 'scorerDelegations']
     : ['participations']
-  const sectionLabelKey: Record<SectionKey, string> = {
-    participations: 'explorerSectionParticipations',
-    absences: 'explorerSectionAbsences',
-    refereeExpenses: 'explorerSectionRefereeExpenses',
-    scorerDelegations: 'explorerSectionScorerDelegations',
-    hallSlots: 'explorerSectionHallSlots',
-    inactiveMembers: 'explorerSectionInactiveMembers',
-  }
 
   // Scoring duties — fields on the game record itself
   const DUTY_FIELDS: { field: string; labelKey: string }[] = [
@@ -822,7 +809,7 @@ function renderGame(
         return (
           <ExplorerSectionCard
             key={s}
-            title={t(sectionLabelKey[s])}
+            title={t(SECTION_LABEL_KEY[s])}
             count={state?.data.length ?? null}
             onExpand={() => related.load('games', String(g.id), s)}
             isLoading={state?.loading}

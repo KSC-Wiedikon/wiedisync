@@ -221,217 +221,175 @@ export default function InfraHealthPage() {
   const runChecks = useCallback(async () => {
     setLoading(true)
 
-    // ── Services ──
-    const svcResults: HealthCheck[] = []
+    // ── Services ── The probes are independent, so fire them concurrently
+    // instead of an 8-request serial chain that stalls the boot gate. Cards
+    // are then assembled in the original display order.
+    const [prodHealth, devHealth, push, hooks, db, errorLog, cfWiedisync, cfWebsite] = await Promise.all([
+      // API Prod (no-cors fallback — same treatment as Dev; avoids racing the
+      // shared hook's useEffect, which populated undefined on first render and
+      // made the Prod card flash "Down" even when reachable)
+      checkEndpoint(`${PROD_URL}/server/health`, true),
+      // API Dev (no-cors fallback — dev server may not whitelist this origin)
+      checkEndpoint(`${DEV_URL}/server/health`, true),
+      // Push Worker (no CORS headers — no-cors fallback, opaque = reachable)
+      checkEndpoint(`${PUSH_WORKER_URL}/health`, true),
+      // Directus extensions deployed (check a known KSCW endpoint)
+      checkEndpoint(`${PROD_URL}/kscw/web-push/vapid-public-key`),
+      // Postgres DB (via Directus — if an items query works, DB is alive)
+      (async (): Promise<{ ok: boolean; ms: number }> => {
+        const start = Date.now()
+        try {
+          await fetchItems('teams', { limit: 1, fields: ['id'] })
+          return { ok: true, ms: Date.now() - start }
+        } catch {
+          return { ok: false, ms: 0 }
+        }
+      })(),
+      // Error Log — today's error count. 'skip' (non-ok response) yields no
+      // card, matching the original `if (res.ok)` guard.
+      (async (): Promise<{ kind: 'ok'; total: number } | { kind: 'skip' } | { kind: 'error' }> => {
+        try {
+          const res = await fetch(`${PROD_URL}/kscw/admin/error-logs?limit=1`, { credentials: 'include' })
+          if (!res.ok) return { kind: 'skip' }
+          const data = await res.json()
+          return { kind: 'ok', total: data.total ?? 0 }
+        } catch {
+          return { kind: 'error' }
+        }
+      })(),
+      // CF Pages — wiedisync (check if frontend is reachable)
+      checkEndpoint('https://wiedisync.kscw.ch/', true),
+      // CF Pages — kscw-website. The prod alias 302-redirects to kscw.ch
+      // (ClubDesk) and is cross-origin, so the browser can't read the response;
+      // a CORS-blocked result means "reachable but unverifiable", not "down".
+      // Treat it as 'unknown' (grey) rather than a false red.
+      checkEndpoint('https://kscw-website.pages.dev/', true),
+    ])
 
-    // API Prod (no-cors fallback — same treatment as Dev; avoids racing the
-    // shared hook's useEffect, which populated undefined on first render and
-    // made the Prod card flash "Down" even when reachable)
-    const prodHealth = await checkEndpoint(`${PROD_URL}/server/health`, true)
     const apiProdOk = prodHealth.ok
-    svcResults.push({
-      name: t('infraPbProd'),
-      status: apiProdOk ? 'healthy' : prodHealth.cors ? 'unknown' : 'down',
-      detail: apiProdOk
-        ? PROD_URL.replace('https://', '')
-        : prodHealth.cors ? 'CORS (cross-origin)' : 'Unreachable',
-      responseTime: apiProdOk ? prodHealth.ms : null,
-    })
-
-    // API Dev (no-cors fallback — dev server may not whitelist this origin)
-    const devHealth = await checkEndpoint(`${DEV_URL}/server/health`, true)
-    svcResults.push({
-      name: t('infraPbDev'),
-      status: devHealth.ok ? 'healthy' : devHealth.cors ? 'unknown' : 'down',
-      detail: devHealth.ok ? DEV_URL.replace('https://', '') : devHealth.cors ? 'CORS (cross-origin)' : `HTTP ${devHealth.status}`,
-      responseTime: devHealth.ok ? devHealth.ms : null,
-    })
-
-    // Cloudflare Tunnel (implied by API Prod reachability)
-    svcResults.push({
-      name: t('infraCfTunnel'),
-      status: apiProdOk ? 'healthy' : 'down',
-      detail: apiProdOk ? 'kscw-vps tunnel active' : 'Tunnel unreachable',
-    })
-
-    // Push Worker (no CORS headers — use no-cors fallback, opaque = reachable)
-    const push = await checkEndpoint(`${PUSH_WORKER_URL}/health`, true)
-    svcResults.push({
-      name: t('infraPushWorker'),
-      status: push.ok ? 'healthy' : 'down',
-      detail: push.ok ? PUSH_WORKER_URL.replace('https://', '') : 'Unreachable',
-      responseTime: push.ok ? push.ms : null,
-    })
-
-    // Directus extensions deployed (check a known KSCW endpoint)
-    const hooks = await checkEndpoint(`${PROD_URL}/kscw/web-push/vapid-public-key`)
-    svcResults.push({
-      name: t('infraHooksDeployed'),
-      status: hooks.ok ? 'healthy' : 'down',
-      detail: hooks.ok ? 'KSCW extensions active' : 'Extensions not responding',
-      responseTime: hooks.ms,
-    })
-
-    // Postgres DB (check via Directus — if items query works, DB is alive)
-    const dbStart = Date.now()
-    try {
-      await fetchItems('teams', { limit: 1, fields: ['id'] })
-      svcResults.push({
-        name: t('infraPostgres'),
-        status: 'healthy',
-        detail: 'coolify-db',
-        responseTime: Date.now() - dbStart,
-      })
-    } catch {
-      svcResults.push({ name: t('infraPostgres'), status: 'down', detail: 'Query failed' })
-    }
-
-    // Error Log — today's error count
-    try {
-      const res = await fetch(`${PROD_URL}/kscw/admin/error-logs?limit=1`, {
-        credentials: 'include',
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const total = data.total ?? 0
-        svcResults.push({
-          name: t('infraErrorLog'),
-          status: total === 0 ? 'healthy' : total <= 10 ? 'healthy' : total <= 50 ? 'stale' : 'down',
-          detail: total === 0 ? t('infraNoErrors') : `${total} ${t('infraErrorsToday')}`,
-          value: total,
-        })
-      }
-    } catch {
-      svcResults.push({ name: t('infraErrorLog'), status: 'unknown', detail: '' })
-    }
-
-    // CF Pages — wiedisync (check if frontend is reachable)
-    const cfWiedisync = await checkEndpoint('https://wiedisync.kscw.ch/', true)
-    svcResults.push({
-      name: 'CF Pages (WiediSync)',
-      status: cfWiedisync.ok ? 'healthy' : 'down',
-      detail: cfWiedisync.ok ? 'wiedisync.kscw.ch' : 'Unreachable',
-      responseTime: cfWiedisync.ok ? cfWiedisync.ms : null,
-    })
-
-    // CF Pages — kscw-website. The prod alias 302-redirects to kscw.ch
-    // (ClubDesk) and is cross-origin, so the browser can't read the response;
-    // a CORS-blocked result means "reachable but unverifiable", not "down".
-    // Treat it as 'unknown' (grey) rather than a false red, matching the
-    // Directus prod card.
-    const cfWebsite = await checkEndpoint('https://kscw-website.pages.dev/', true)
-    svcResults.push({
-      name: 'CF Pages (Website)',
-      status: cfWebsite.ok ? 'healthy' : cfWebsite.cors ? 'unknown' : 'down',
-      detail: cfWebsite.ok ? 'kscw-website.pages.dev' : cfWebsite.cors ? 'Cross-origin (redirects to kscw.ch)' : 'Unreachable',
-      responseTime: cfWebsite.ok ? cfWebsite.ms : null,
-    })
+    const svcResults: HealthCheck[] = [
+      {
+        name: t('infraPbProd'),
+        status: apiProdOk ? 'healthy' : prodHealth.cors ? 'unknown' : 'down',
+        detail: apiProdOk
+          ? PROD_URL.replace('https://', '')
+          : prodHealth.cors ? 'CORS (cross-origin)' : 'Unreachable',
+        responseTime: apiProdOk ? prodHealth.ms : null,
+      },
+      {
+        name: t('infraPbDev'),
+        status: devHealth.ok ? 'healthy' : devHealth.cors ? 'unknown' : 'down',
+        detail: devHealth.ok ? DEV_URL.replace('https://', '') : devHealth.cors ? 'CORS (cross-origin)' : `HTTP ${devHealth.status}`,
+        responseTime: devHealth.ok ? devHealth.ms : null,
+      },
+      // Cloudflare Tunnel (implied by API Prod reachability)
+      {
+        name: t('infraCfTunnel'),
+        status: apiProdOk ? 'healthy' : 'down',
+        detail: apiProdOk ? 'kscw-vps tunnel active' : 'Tunnel unreachable',
+      },
+      {
+        name: t('infraPushWorker'),
+        status: push.ok ? 'healthy' : 'down',
+        detail: push.ok ? PUSH_WORKER_URL.replace('https://', '') : 'Unreachable',
+        responseTime: push.ok ? push.ms : null,
+      },
+      {
+        name: t('infraHooksDeployed'),
+        status: hooks.ok ? 'healthy' : 'down',
+        detail: hooks.ok ? 'KSCW extensions active' : 'Extensions not responding',
+        responseTime: hooks.ms,
+      },
+      db.ok
+        ? { name: t('infraPostgres'), status: 'healthy', detail: 'coolify-db', responseTime: db.ms }
+        : { name: t('infraPostgres'), status: 'down', detail: 'Query failed' },
+      ...(errorLog.kind === 'ok'
+        ? [{
+            name: t('infraErrorLog'),
+            status: (errorLog.total === 0 ? 'healthy' : errorLog.total <= 10 ? 'healthy' : errorLog.total <= 50 ? 'stale' : 'down') as Status,
+            detail: errorLog.total === 0 ? t('infraNoErrors') : `${errorLog.total} ${t('infraErrorsToday')}`,
+            value: errorLog.total,
+          }]
+        : errorLog.kind === 'error'
+          ? [{ name: t('infraErrorLog'), status: 'unknown' as Status, detail: '' }]
+          : []),
+      {
+        name: 'CF Pages (WiediSync)',
+        status: cfWiedisync.ok ? 'healthy' : 'down',
+        detail: cfWiedisync.ok ? 'wiedisync.kscw.ch' : 'Unreachable',
+        responseTime: cfWiedisync.ok ? cfWiedisync.ms : null,
+      },
+      {
+        name: 'CF Pages (Website)',
+        status: cfWebsite.ok ? 'healthy' : cfWebsite.cors ? 'unknown' : 'down',
+        detail: cfWebsite.ok ? 'kscw-website.pages.dev' : cfWebsite.cors ? 'Cross-origin (redirects to kscw.ch)' : 'Unreachable',
+        responseTime: cfWebsite.ok ? cfWebsite.ms : null,
+      },
+    ]
 
     setServices(svcResults)
 
     // Trigger shared hook refresh (updates syncs via useEffect above)
     infraRef.current.refresh()
 
-    // ── Cron Jobs ──
-    const cronResults: HealthCheck[] = []
+    // ── Cron Jobs ── Independent heartbeat probes — run concurrently, then
+    // assemble the cards in their original order.
     const CRON_STALE = 48 * 3600000 // 48h
 
-    // Notifications (created by Postgres triggers on game/training/event CRUD)
-    try {
-      const notif = await fetchItems<{ date_created: string }>('notifications', {
-        limit: 1,
-        sort: ['-date_created'],
-        fields: ['date_created'],
-      })
-      if (notif.length) {
-        const last = notif[0].date_created
-        const diff = Date.now() - new Date(last).getTime()
-        cronResults.push({
-          name: t('infraNotifCron'),
-          status: diff > CRON_STALE ? 'stale' : 'healthy',
-          detail: timeAgo(last, t),
+    // Notification-heartbeat card for a given notification type (or all).
+    const notifCard = async (labelKey: string, type?: string): Promise<HealthCheck> => {
+      try {
+        const rows = await fetchItems<{ date_created: string }>('notifications', {
+          limit: 1,
+          sort: ['-date_created'],
+          ...(type ? { filter: { type: { _eq: type } } } : {}),
+          fields: ['date_created'],
         })
-      } else {
-        cronResults.push({ name: t('infraNotifCron'), status: 'unknown', detail: t('infraNoData') })
+        if (rows.length) {
+          const last = rows[0].date_created
+          const diff = Date.now() - new Date(last).getTime()
+          return { name: t(labelKey), status: diff > CRON_STALE ? 'stale' : 'healthy', detail: timeAgo(last, t) }
+        }
+        return { name: t(labelKey), status: 'unknown', detail: t('infraNoData') }
+      } catch {
+        return { name: t(labelKey), status: 'unknown', detail: '' }
       }
-    } catch {
-      cronResults.push({ name: t('infraNotifCron'), status: 'unknown', detail: '' })
     }
 
-    // Participation Reminders (deadline_reminder notifications from 07:00 UTC cron)
-    try {
-      const reminders = await fetchItems<{ date_created: string }>('notifications', {
-        limit: 1,
-        sort: ['-date_created'],
-        filter: { type: { _eq: 'deadline_reminder' } },
-        fields: ['date_created'],
-      })
-      if (reminders.length) {
-        const last = reminders[0].date_created
-        const diff = Date.now() - new Date(last).getTime()
-        cronResults.push({
-          name: t('infraParticipationCron'),
-          status: diff > CRON_STALE ? 'stale' : 'healthy',
-          detail: timeAgo(last, t),
-        })
-      } else {
-        cronResults.push({ name: t('infraParticipationCron'), status: 'unknown', detail: t('infraNoData') })
-      }
-    } catch {
-      cronResults.push({ name: t('infraParticipationCron'), status: 'unknown', detail: '' })
-    }
-
-    // Upcoming Activity Reminders (06:30 UTC cron)
-    try {
-      const upcoming = await fetchItems<{ date_created: string }>('notifications', {
-        limit: 1,
-        sort: ['-date_created'],
-        filter: { type: { _eq: 'upcoming_activity' } },
-        fields: ['date_created'],
-      })
-      if (upcoming.length) {
-        const last = upcoming[0].date_created
-        const diff = Date.now() - new Date(last).getTime()
-        cronResults.push({
-          name: t('infraUpcomingCron'),
-          status: diff > CRON_STALE ? 'stale' : 'healthy',
-          detail: timeAgo(last, t),
-        })
-      } else {
-        cronResults.push({ name: t('infraUpcomingCron'), status: 'unknown', detail: t('infraNoData') })
-      }
-    } catch {
-      cronResults.push({ name: t('infraUpcomingCron'), status: 'unknown', detail: '' })
-    }
-
-    // Shell Expiry (02:00 UTC — check if any expired shells remain active)
-    try {
-      const expired = await countItems('members', {
-        shell: { _eq: true },
-        kscw_membership_active: { _eq: true },
-        shell_expires: { _lt: new Date().toISOString() },
-      })
-      cronResults.push({
-        name: t('infraShellExpiry'),
-        status: expired === 0 ? 'healthy' : 'stale',
-        detail: expired === 0 ? t('infraAllCleaned') : `${expired} ${t('infraExpiredRemain')}`,
-      })
-    } catch {
-      cronResults.push({ name: t('infraShellExpiry'), status: 'unknown', detail: '' })
-    }
-
-    // Push Delivery (check last push subscription activity)
-    try {
-      const subs = await countItems('push_subscriptions')
-      cronResults.push({
-        name: t('infraPushDelivery'),
-        status: subs > 0 ? 'healthy' : 'stale',
-        detail: `${subs} ${t('infraActiveSubs')}`,
-        value: subs,
-      })
-    } catch {
-      cronResults.push({ name: t('infraPushDelivery'), status: 'unknown', detail: '' })
-    }
+    const cronResults = await Promise.all<HealthCheck>([
+      // Notifications (created by Postgres triggers on game/training/event CRUD)
+      notifCard('infraNotifCron'),
+      // Participation Reminders (deadline_reminder notifications from 07:00 UTC cron)
+      notifCard('infraParticipationCron', 'deadline_reminder'),
+      // Upcoming Activity Reminders (06:30 UTC cron)
+      notifCard('infraUpcomingCron', 'upcoming_activity'),
+      // Shell Expiry (02:00 UTC — check if any expired shells remain active)
+      (async (): Promise<HealthCheck> => {
+        try {
+          const expired = await countItems('members', {
+            shell: { _eq: true },
+            kscw_membership_active: { _eq: true },
+            shell_expires: { _lt: new Date().toISOString() },
+          })
+          return {
+            name: t('infraShellExpiry'),
+            status: expired === 0 ? 'healthy' : 'stale',
+            detail: expired === 0 ? t('infraAllCleaned') : `${expired} ${t('infraExpiredRemain')}`,
+          }
+        } catch {
+          return { name: t('infraShellExpiry'), status: 'unknown', detail: '' }
+        }
+      })(),
+      // Push Delivery (check last push subscription activity)
+      (async (): Promise<HealthCheck> => {
+        try {
+          const subs = await countItems('push_subscriptions')
+          return { name: t('infraPushDelivery'), status: subs > 0 ? 'healthy' : 'stale', detail: `${subs} ${t('infraActiveSubs')}`, value: subs }
+        } catch {
+          return { name: t('infraPushDelivery'), status: 'unknown', detail: '' }
+        }
+      })(),
+    ])
 
     setCrons(cronResults)
 

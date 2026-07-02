@@ -15,6 +15,9 @@ interface CachedEntry {
   data: unknown[]
   loading: boolean
   error: Error | null
+  // Distinguishes "fetched, legitimately empty" from "never fetched" so a
+  // section with zero rows isn't re-queried on every re-expand.
+  loaded: boolean
 }
 
 type CacheMap = Record<string, CachedEntry>
@@ -116,8 +119,11 @@ export function useRelatedEntities() {
   const load = useCallback(
     async (parent: BucketKey, id: string, section: SectionKey) => {
       const key = cacheKey(parent, id, section, epoch)
-      if (cache[key]?.data.length || cache[key]?.loading) return
-      setCache((c) => ({ ...c, [key]: { data: [], loading: true, error: null } }))
+      // A prior successful load (even one that returned []) or an in-flight
+      // request short-circuits; errored entries stay `loaded: false` so a
+      // re-expand can retry them.
+      if (cache[key]?.loaded || cache[key]?.loading) return
+      setCache((c) => ({ ...c, [key]: { data: [], loading: true, error: null, loaded: false } }))
       try {
         const q = QUERIES[section](parent, id)
         const data = await client.request(
@@ -128,12 +134,12 @@ export function useRelatedEntities() {
             limit: -1,
           }),
         ) as unknown[]
-        setCache((c) => ({ ...c, [key]: { data, loading: false, error: null } }))
+        setCache((c) => ({ ...c, [key]: { data, loading: false, error: null, loaded: true } }))
       } catch (err) {
         // Silently set error state — no Sentry capture
         setCache((c) => ({
           ...c,
-          [key]: { data: [], loading: false, error: err as Error },
+          [key]: { data: [], loading: false, error: err as Error, loaded: false },
         }))
       }
     },
