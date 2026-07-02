@@ -9,7 +9,7 @@
 
 import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { fetchItems, fetchAllItems, fetchItem, countItems, createRecord, updateRecord, deleteRecord, kscwApi, stringifyIds } from './api'
+import { fetchItems, fetchAllItems, fetchItem, countItems, aggregateItems, createRecord, updateRecord, deleteRecord, kscwApi, stringifyIds } from './api'
 import { captureApiError } from './sentry'
 
 // ── Query Client ────────────────────────────────────────────────────
@@ -188,7 +188,55 @@ export function useCount(
   })
 }
 
+interface UseAggregateOptions {
+  aggregate: Record<string, string | string[]>
+  groupBy?: string[]
+  filter?: Record<string, unknown>
+  sort?: string[]
+  enabled?: boolean
+  staleTime?: number
+}
+
+/**
+ * Run a Directus aggregate/`groupBy` query with caching. Lets a view compute
+ * grouped totals (e.g. players vs guests per team) without pulling every row.
+ * The key is prefixed with the collection so `invalidateForCollection(collection)`
+ * (and any `keys.collection(collection)` invalidation) refetches it too.
+ */
+export function useAggregate<R = Record<string, unknown>>(
+  collection: string,
+  options: UseAggregateOptions,
+) {
+  const { aggregate, groupBy, filter, sort, enabled = true, staleTime } = options
+  return useQuery<R[]>({
+    queryKey: [collection, 'aggregate', { aggregate, groupBy, filter, sort }],
+    queryFn: () => aggregateItems<R>(collection, { aggregate, groupBy, filter, sort }),
+    enabled,
+    staleTime,
+  })
+}
+
 // ── Mutation hooks ──────────────────────────────────────────────────
+
+/**
+ * Invalidate the caches that depend on a mutated collection. Shared by the
+ * TanStack `useCreate`/`useUpdate`/`useDelete` hooks AND the legacy
+ * `hooks/useMutation.ts` wrapper so every write refreshes the same set of keys.
+ *
+ * The combined activities+participations query (games / trainings pages) lives
+ * under its OWN key (`['activities-with-participations', …]`), so the standard
+ * `keys.collection('participations')` = `['participations']` invalidation misses
+ * it. Without this, clicking an RSVP in the game/training detail modal left the
+ * card grid's participation counter + the viewer's own "reply" banner stale until
+ * a manual reload — realtime was the only other refresh path and isn't guaranteed
+ * on mobile / PWA.
+ */
+export function invalidateForCollection(collection: string) {
+  queryClient.invalidateQueries({ queryKey: keys.collection(collection) })
+  if (collection === 'participations') {
+    queryClient.invalidateQueries({ queryKey: ['activities-with-participations'] })
+  }
+}
 
 interface MutationCallbacks<T = Record<string, unknown>> {
   onSuccess?: (data: T) => void
@@ -200,11 +248,10 @@ export function useCreate<T = Record<string, unknown>>(
   collection: string,
   callbacks?: MutationCallbacks<T>,
 ) {
-  const qc = useQueryClient()
   return useMutation<T, Error, Record<string, unknown>>({
     mutationFn: (data) => createRecord<T>(collection, data),
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: keys.collection(collection) })
+      invalidateForCollection(collection)
       callbacks?.onSuccess?.(data)
     },
     onError: (error) => {
@@ -219,11 +266,10 @@ export function useUpdate<T = Record<string, unknown>>(
   collection: string,
   callbacks?: MutationCallbacks<T>,
 ) {
-  const qc = useQueryClient()
   return useMutation<T, Error, { id: string | number; data: Record<string, unknown> }>({
     mutationFn: ({ id, data }) => updateRecord<T>(collection, id, data),
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: keys.collection(collection) })
+      invalidateForCollection(collection)
       callbacks?.onSuccess?.(data)
     },
     onError: (error, variables) => {
@@ -238,11 +284,10 @@ export function useDelete(
   collection: string,
   callbacks?: MutationCallbacks<void>,
 ) {
-  const qc = useQueryClient()
   return useMutation<void, Error, string | number>({
     mutationFn: (id) => deleteRecord(collection, id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.collection(collection) })
+      invalidateForCollection(collection)
       callbacks?.onSuccess?.(undefined)
     },
     onError: (error, id) => {

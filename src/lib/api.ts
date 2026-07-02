@@ -7,7 +7,7 @@
 
 import {
   createDirectus, rest, authentication, realtime,
-  readItems, readItem, createItem, updateItem, deleteItem,
+  readItems, readItem, createItem, createItems, updateItem, deleteItem,
   aggregate,
 } from '@directus/sdk'
 import { captureApiError, captureAuthError } from './sentry'
@@ -384,6 +384,44 @@ export async function fetchSeasons(collection: 'games' | 'rankings'): Promise<st
   }
 }
 
+/**
+ * Run a Directus aggregate query (COUNT / SUM / AVG …) with optional `groupBy`.
+ *
+ * Generalises the pattern used by `countItems` + `fetchSeasons`: returns one row
+ * per distinct group so callers can compute grouped totals (e.g. players vs
+ * guests per team) WITHOUT over-fetching every underlying row. IDs in the result
+ * are stringified to match the rest of the app (see `fetchItems` → `stringifyIds`);
+ * aggregate values (`count`, `sum`, …) come back as strings from Directus — wrap
+ * them in `Number(...)` at the call site. Permission filters apply exactly as they
+ * do to a normal read, so counts reflect only rows the requester can see.
+ */
+export async function aggregateItems<R = Record<string, unknown>>(
+  collection: string,
+  opts: {
+    aggregate: Record<string, string | string[]>
+    groupBy?: string[]
+    filter?: Record<string, unknown>
+    sort?: string[]
+  },
+): Promise<R[]> {
+  const query: Record<string, unknown> = {}
+  if (opts.filter) query.filter = opts.filter
+  if (opts.sort) query.sort = opts.sort
+  try {
+    const result = await withAuthRetry(() =>
+      client.request(aggregate(collection, {
+        aggregate: opts.aggregate,
+        groupBy: opts.groupBy,
+        query: Object.keys(query).length ? query : undefined,
+      } as never)),
+    )
+    return stringifyIds(result as R[])
+  } catch (err) {
+    captureApiError(err, { operation: 'aggregateItems', collection })
+    throw err
+  }
+}
+
 /** Create a new item. */
 export async function createRecord<T = Record<string, unknown>>(
   collection: string,
@@ -401,6 +439,25 @@ export async function createRecord<T = Record<string, unknown>>(
       throw err
     }
     captureApiError(err, { operation: 'createRecord', collection, payload: data })
+    throw err
+  }
+}
+
+/**
+ * Batch-create multiple items in a SINGLE request (`POST /items/:collection` with
+ * an array body). Mirrors `createRecord` for arrays — use it instead of firing N
+ * parallel `createRecord` calls (e.g. generating a season of recurring trainings).
+ * Returns the created items with IDs stringified, in input order.
+ */
+export async function createRecords<T = Record<string, unknown>>(
+  collection: string,
+  data: Record<string, unknown>[],
+): Promise<T[]> {
+  try {
+    const items = await client.request<T[]>(createItems(collection, data as never))
+    return stringifyIds(items)
+  } catch (err) {
+    captureApiError(err, { operation: 'createRecords', collection, payload: { count: data.length } })
     throw err
   }
 }

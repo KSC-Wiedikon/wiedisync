@@ -12,7 +12,7 @@ import type { TeamSettings } from '../../types'
 import TeamChip from '../../components/TeamChip'
 import DatePicker from '@/components/ui/DatePicker'
 import { Switch } from '@/components/ui/switch'
-import { createRecord, fetchAllItems, fetchItem } from '../../lib/api'
+import { createRecords, fetchAllItems, fetchItem } from '../../lib/api'
 import { relId, asObj } from '../../utils/relations'
 
 type SlotExpanded = HallSlot & {
@@ -265,31 +265,29 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
         ? previewDates.filter((date) => !existingSet.has(date))
         : []
 
-      // Create in parallel chunks instead of a serial await loop (a full-season
-      // generation was ~30 sequential POSTs).
-      const CHUNK_SIZE = 10
+      // Create every occurrence in ONE batch request instead of N parallel POSTs
+      // (a full-season generation was ~30 separate calls).
       let count = 0
-      for (let i = 0; i < datesToCreate.length; i += CHUNK_SIZE) {
-        await Promise.all(
-          datesToCreate.slice(i, i + CHUNK_SIZE).map(async (date) => {
-            const rec = await createRecord<{ id: string }>('trainings', {
-              team: teamId,
-              hall_slot: slot.id,
-              date,
-              start_time: slot.start_time,
-              end_time: slot.end_time,
-              hall: effectiveHallId,
-              cancelled: false,
-              notes,
-              respond_by: computeRespondBy(date, slot.start_time) || null,
-              min_participants: minParticipants ? Number(minParticipants) : null,
-              max_participants: maxParticipants ? Number(maxParticipants) : null,
-              require_note_if_absent: requireNoteIfAbsent,
-            })
-            logActivity('create', 'trainings', rec.id, { team: teamId, date, hall: effectiveHallId })
-            count++
-          }),
-        )
+      if (datesToCreate.length > 0) {
+        const payloads = datesToCreate.map((date) => ({
+          team: teamId,
+          hall_slot: slot.id,
+          date,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          hall: effectiveHallId,
+          cancelled: false,
+          notes,
+          respond_by: computeRespondBy(date, slot.start_time) || null,
+          min_participants: minParticipants ? Number(minParticipants) : null,
+          max_participants: maxParticipants ? Number(maxParticipants) : null,
+          require_note_if_absent: requireNoteIfAbsent,
+        }))
+        const created = await createRecords<{ id: string }>('trainings', payloads)
+        created.forEach((rec, i) => {
+          logActivity('create', 'trainings', rec.id, { team: teamId, date: datesToCreate[i], hall: effectiveHallId })
+        })
+        count = created.length
       }
       setGenerated(count)
       setSkipped(skipCount)
