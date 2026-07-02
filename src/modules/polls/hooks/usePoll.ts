@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCollection } from '../../../lib/query'
 import { useMutation } from '../../../hooks/useMutation'
 import { useAuth } from '../../../hooks/useAuth'
@@ -6,6 +6,25 @@ import { useRealtime } from '../../../hooks/useRealtime'
 import { kscwApi } from '../../../lib/api'
 import type { Poll, PollVote } from '../../../types'
 import { relId, memberName } from '../../../utils/relations'
+
+// Shared close/delete mutation scaffolding for the poll-list hooks
+// (usePolls / useActivePolls) so the "update status → refetch" and
+// "remove → refetch" wiring lives in one place instead of being copy-pasted.
+function usePollActions(refetch: () => void) {
+  const { update: updatePoll, remove: removePoll } = useMutation<Poll>('polls')
+
+  const closePoll = useCallback(async (pollId: string) => {
+    await updatePoll(pollId, { status: 'closed' })
+    refetch()
+  }, [updatePoll, refetch])
+
+  const deletePoll = useCallback(async (pollId: string) => {
+    await removePoll(pollId)
+    refetch()
+  }, [removePoll, refetch])
+
+  return { closePoll, deletePoll }
+}
 
 export function usePolls(teamId: string) {
   const { user } = useAuth()
@@ -18,7 +37,8 @@ export function usePolls(teamId: string) {
   })
   const polls = pollsRaw ?? []
 
-  const { create: createPoll, update: updatePoll, remove: removePoll } = useMutation<Poll>('polls')
+  const { create: createPoll } = useMutation<Poll>('polls')
+  const { closePoll, deletePoll } = usePollActions(refetchPolls)
 
   useRealtime<Poll>('polls', (e) => {
     if (e.record.team === teamId) refetchPolls()
@@ -45,16 +65,6 @@ export function usePolls(teamId: string) {
     refetchPolls()
   }, [user, teamId, createPoll, refetchPolls])
 
-  const closePoll = useCallback(async (pollId: string) => {
-    await updatePoll(pollId, { status: 'closed' })
-    refetchPolls()
-  }, [updatePoll, refetchPolls])
-
-  const deletePoll = useCallback(async (pollId: string) => {
-    await removePoll(pollId)
-    refetchPolls()
-  }, [removePoll, refetchPolls])
-
   return { polls, isLoading, addPoll, closePoll, deletePoll }
 }
 
@@ -74,21 +84,11 @@ export function useActivePolls(teamIds: string[]) {
   // whose deadline has passed — they're no longer actionable on the home screen.
   const polls = (pollsRaw ?? []).filter(p => !p.deadline || new Date(p.deadline) >= new Date())
 
-  const { update: updatePoll, remove: removePoll } = useMutation<Poll>('polls')
+  const { closePoll, deletePoll } = usePollActions(refetch)
 
   useRealtime<Poll>('polls', (e) => {
     if (e.record.team != null && teamIds.includes(String(e.record.team))) refetch()
   })
-
-  const closePoll = useCallback(async (pollId: string) => {
-    await updatePoll(pollId, { status: 'closed' })
-    refetch()
-  }, [updatePoll, refetch])
-
-  const deletePoll = useCallback(async (pollId: string) => {
-    await removePoll(pollId)
-    refetch()
-  }, [removePoll, refetch])
 
   return { polls, isLoading, closePoll, deletePoll, refetch }
 }
@@ -157,7 +157,9 @@ export function usePollVotes(poll: Poll, canManage = false) {
   // Compute results: count votes per option index, and (when the voter is
   // expanded) collect who picked each option so managers can see per-member
   // answers. For multi-choice a voter appears under every option they selected.
-  const getResults = () => {
+  // Memoized so PollCard re-renders don't recompute the tally unless the inputs
+  // actually changed.
+  const results = useMemo(() => {
     // Anonymous poll, manager view: return the identity-free endpoint counts.
     // No `voters` — that's the whole point of anonymity.
     if (anonymous && canManage && anonCounts) {
@@ -177,7 +179,9 @@ export function usePollVotes(poll: Poll, canManage = false) {
       })
     })
     return { counts, voters, totalVotes: votes.length }
-  }
+  }, [anonymous, canManage, anonCounts, votes])
+
+  const getResults = useCallback(() => results, [results])
 
   return { votes, myVote, isLoading, vote, getResults }
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BarChart3, ChevronDown, ChevronRight, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { usePolls } from './hooks/usePoll'
 import PollCard from './PollCard'
 import PollForm from './PollForm'
@@ -44,9 +45,7 @@ export default function PollsSection({ teamId, canManage }: PollsSectionProps) {
       </div>
 
       {/* Loading */}
-      {isLoading && (
-        <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">...</div>
-      )}
+      {isLoading && <LoadingSpinner size="sm" />}
 
       {/* Empty state */}
       {!isLoading && polls.length === 0 && (

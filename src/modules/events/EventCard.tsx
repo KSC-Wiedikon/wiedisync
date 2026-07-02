@@ -16,12 +16,15 @@ import { formatDate, formatTime, getDeadlineDate } from '../../utils/dateHelpers
 import type { Event, Team, Participation } from '../../types'
 import CancelActivityButton from '../../components/CancelActivityButton'
 
+/** Directus M2M junction row shape for events_teams (teams_id may be expanded). */
+type TeamJunction = { teams_id?: Team | number | string }
+
 /** Extract Team objects from Directus M2M junction array (events_teams[].teams_id) */
 function asTeams(teams: unknown[] | null | undefined): Team[] {
   if (!Array.isArray(teams) || teams.length === 0) return []
   // Directus M2M: [{ teams_id: Team }] or [{ teams_id: number }] or [Team] or [string]
   return teams
-    .map((t: any) => t?.teams_id ?? t)
+    .map((t) => (t as TeamJunction)?.teams_id ?? t)
     .filter((t): t is Team => t != null && typeof t === 'object' && 'name' in t)
 }
 
@@ -29,8 +32,8 @@ function teamId(val: unknown): string {
   if (!val) return ''
   if (typeof val === 'string') return val
   if (typeof val === 'number') return String(val)
-  const obj = (val as any)?.teams_id ?? val
-  return typeof obj === 'object' ? String((obj as any).id ?? '') : String(obj ?? '')
+  const obj = (val as TeamJunction).teams_id ?? val
+  return typeof obj === 'object' ? String((obj as { id?: unknown }).id ?? '') : String(obj ?? '')
 }
 
 const eventTypeColors: Record<string, { bg: string; text: string }> = {

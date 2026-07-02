@@ -179,14 +179,17 @@ export default function EventsPage() {
   function handleFormSave() {
     setFormOpen(false)
     setEditingEvent(null)
-    refetch()
+    // No manual refetch: the save mutation invalidates the events cache and the
+    // useRealtime('events') subscription below also refetches — a manual call
+    // here just fires a third redundant round-trip.
   }
 
   async function handleDelete() {
     if (!deletingId) return
     await remove(deletingId)
     setDeletingId(null)
-    refetch()
+    // remove() invalidates the events cache (and realtime refetches too); no
+    // manual refetch needed.
   }
 
   return (

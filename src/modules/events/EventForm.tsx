@@ -321,9 +321,8 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
         await syncSessions(eventId, sessions, existingSessions)
       } else if (event) {
         // Switching from per_day/per_session back to whole — delete all sessions
-        for (const s of existingSessions) {
-          await deleteRecord('event_sessions', s.id)
-        }
+        // (independent rows, so fire in parallel).
+        await Promise.all(existingSessions.map((s) => deleteRecord('event_sessions', s.id)))
       }
 
       onSave()
@@ -711,27 +710,27 @@ async function syncSessions(
   const existingIds = new Set(existing.map((s) => s.id))
   const draftIds = new Set(drafts.filter((d) => d.id).map((d) => d.id!))
 
-  // Delete removed
-  for (const s of existing) {
-    if (!draftIds.has(s.id)) {
-      await deleteRecord('event_sessions', s.id)
-    }
-  }
+  // Delete removed — independent rows, so fire in parallel.
+  await Promise.all(
+    existing
+      .filter((s) => !draftIds.has(s.id))
+      .map((s) => deleteRecord('event_sessions', s.id)),
+  )
 
-  // Create or update
-  for (const d of drafts) {
-    const payload = {
-      event: eventId,
-      date: d.date,
-      start_time: d.start_time,
-      end_time: d.end_time,
-      label: d.label,
-      sort_order: d.sort_order,
-    }
-    if (d.id && existingIds.has(d.id)) {
-      await updateRecord('event_sessions', d.id, payload)
-    } else {
-      await createRecord('event_sessions', payload)
-    }
-  }
+  // Create or update — independent rows, so fire in parallel.
+  await Promise.all(
+    drafts.map((d) => {
+      const payload = {
+        event: eventId,
+        date: d.date,
+        start_time: d.start_time,
+        end_time: d.end_time,
+        label: d.label,
+        sort_order: d.sort_order,
+      }
+      return d.id && existingIds.has(d.id)
+        ? updateRecord('event_sessions', d.id, payload)
+        : createRecord('event_sessions', payload)
+    }),
+  )
 }

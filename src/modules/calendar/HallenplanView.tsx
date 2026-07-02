@@ -17,17 +17,13 @@ import SummaryView from '../hallenplan/components/SummaryView'
 import ClaimModal from '../hallenplan/components/ClaimModal'
 import ClaimDetailModal from '../hallenplan/components/ClaimDetailModal'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import { relId } from '../../utils/relations'
 import type { HallSlot, HallClosure, SlotClaim, Game, Training, HallEvent, Hall, Team } from '../../types'
 import type { FreedSlotInfo, SportFilter } from '../hallenplan/HallenplanPage'
 
 function getTodayDayIndex(): number {
   const dow = new Date().getDay()
   return dow === 0 ? 6 : dow - 1
-}
-
-/** Coerce a slot `team` entry (number | string | expanded object) to a string id. */
-function teamIdOf(t: unknown): string {
-  return String(typeof t === 'object' && t !== null ? (t as { id?: unknown }).id ?? '' : t)
 }
 
 export default function HallenplanView() {
@@ -108,7 +104,7 @@ export default function HallenplanView() {
     const allowedTeams = sportFilter === 'vb' ? teamsBySport.vb : teamsBySport.bb
     return slots.filter((s) => {
       if (!s.team?.length) return true
-      if (!s.team.some(t => allowedTeams.has(teamIdOf(t)))) return false
+      if (!s.team.some(t => allowedTeams.has(relId(t)))) return false
       if (sportFilter === 'vb' && s._virtual?.source === 'hall_event' && s.slot_type === 'game') return false
       return true
     })

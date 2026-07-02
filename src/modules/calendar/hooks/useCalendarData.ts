@@ -76,45 +76,50 @@ function addEventTeamFilter(
   return { _and: conditions }
 }
 
-function gameToEntry(game: Game & { kscw_team?: Team | string; hall?: { name: string } | string }): CalendarEntry {
+/**
+ * Map a game to a calendar entry. With `duty=true` it's rendered as a
+ * scorer/scoreboard-duty entry (its own entry so it auto-appears on the member's
+ * in-app calendar — the analogue of the auto-accepted iCal duty event): duty
+ * entries carry a `duty-` id prefix, the `scorer-duty` type, no team names and
+ * no home/away metadata; regular game entries carry the team + gameType/opponent/
+ * sport and fall back to the away-hall name.
+ */
+function gameToEntry(
+  game: Game & { kscw_team?: Team | string; hall?: { name: string } | string },
+  duty = false,
+): CalendarEntry {
   const expandedTeam = asObj<Team>(game.kscw_team)
   const expandedHall = asObj<{ name: string }>(game.hall)
 
-  return {
-    id: game.id,
-    type: 'game',
+  const base = {
     title: `${game.home_team} - ${game.away_team}`,
     date: parseDate(game.date),
     startTime: game.time ? formatTime(game.time) : null,
     endTime: null,
     allDay: false,
-    location: expandedHall?.name ?? game.away_hall_json?.name ?? '',
-    teamNames: expandedTeam ? [expandedTeam.name] : [],
     description: [game.league, game.round].filter(Boolean).join(' | '),
     source: game,
+  }
+
+  if (duty) {
+    return {
+      ...base,
+      id: `duty-${game.id}`,
+      type: 'scorer-duty',
+      location: expandedHall?.name ?? '',
+      teamNames: [],
+    }
+  }
+
+  return {
+    ...base,
+    id: game.id,
+    type: 'game',
+    location: expandedHall?.name ?? game.away_hall_json?.name ?? '',
+    teamNames: expandedTeam ? [expandedTeam.name] : [],
     gameType: game.type,
     opponent: game.type === 'home' ? game.away_team : game.home_team,
     sport: expandedTeam?.sport ?? (game.source === 'basketplan' ? 'basketball' : 'volleyball'),
-  }
-}
-
-/** A game the current member has a scorer/scoreboard duty on, rendered as its
- *  own entry so it auto-appears on their in-app calendar (the in-app analogue of
- *  the auto-accepted iCal duty event). */
-function scorerDutyToEntry(game: Game & { kscw_team?: Team | string; hall?: { name: string } | string }): CalendarEntry {
-  const expandedHall = asObj<{ name: string }>(game.hall)
-  return {
-    id: `duty-${game.id}`,
-    type: 'scorer-duty',
-    title: `${game.home_team} - ${game.away_team}`,
-    date: parseDate(game.date),
-    startTime: game.time ? formatTime(game.time) : null,
-    endTime: null,
-    allDay: false,
-    location: expandedHall?.name ?? '',
-    teamNames: [],
-    description: [game.league, game.round].filter(Boolean).join(' | '),
-    source: game,
   }
 }
 
@@ -370,7 +375,10 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
     filter: fetchAbsences
       ? { _and: [{ end_date: { _gte: fetchRange.start } }, { start_date: { _lte: fetchRange.end } }] }
       : { id: { _eq: -1 } },
-    fields: ['id', 'member.*', 'start_date', 'end_date', 'reason', 'reason_detail', 'affects', 'type', 'days_of_week', 'blocking'],
+    // Only the disambiguated label needs member fields — scope to id/name so we
+    // don't ship email/phone/birthdate/IBAN etc. to the client (member.* pulled
+    // every column).
+    fields: ['id', 'member.id', 'member.first_name', 'member.last_name', 'start_date', 'end_date', 'reason', 'reason_detail', 'affects', 'type', 'days_of_week', 'blocking'],
     sort: ['start_date'],
     all: true,
   })
@@ -422,7 +430,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       }
     }
     if (fetchTrainings) all.push(...trainings.map(trainingToEntry))
-    if (fetchScorerDuties) all.push(...dutyGames.map(scorerDutyToEntry))
+    if (fetchScorerDuties) all.push(...dutyGames.map((g) => gameToEntry(g, true)))
     if (fetchEvents) all.push(...events.map(eventToEntry))
     // Always compute closure-covered dates from hall_closures (even if not displayed)
     // so GCal "Halle geschlossen" entries can be suppressed when a named closure exists

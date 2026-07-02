@@ -45,6 +45,8 @@ export default function AnnouncementDetailModal({ announcement, onClose }: Props
           <img
             src={heroUrl}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="w-full rounded-lg"
           />
         )}

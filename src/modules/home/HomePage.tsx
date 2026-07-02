@@ -1313,7 +1313,11 @@ function HomeSections({
 
 function EventRow({ event, onClick, participationStatus }: { event: EventExpanded; onClick: () => void; participationStatus?: string }) {
   const effectiveStatus = participationStatus
-  const teams = (Array.isArray(event.teams) ? event.teams.map((t: any) => t?.teams_id ?? t).filter((t): t is Team => t != null && typeof t === 'object' && 'name' in t) : [])
+  const teams = (Array.isArray(event.teams)
+    ? (event.teams as unknown[])
+        .map((t) => (t as { teams_id?: Team | number | string })?.teams_id ?? t)
+        .filter((t): t is Team => t != null && typeof t === 'object' && 'name' in t)
+    : [])
 
   const statusBorderColor: Record<string, string> = {
     confirmed: 'bg-green-500 dark:bg-green-400',

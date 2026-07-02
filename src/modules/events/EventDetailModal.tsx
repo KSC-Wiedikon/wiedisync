@@ -146,7 +146,7 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
               <Calendar className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
               <span>
                 {formatDate(event.start_date)}
-                {event.start_date !== event.end_date && ` — ${formatDate(event.end_date)}`}
+                {event.start_date?.split('T')[0] !== event.end_date?.split('T')[0] && ` — ${formatDate(event.end_date)}`}
                 {event.all_day && ` · ${t('allDay')}`}
               </span>
             </div>

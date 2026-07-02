@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Plus, X } from 'lucide-react'
 import {
   Dialog,
@@ -18,7 +19,7 @@ interface PollFormProps {
     mode: 'single' | 'multi'
     deadline?: string
     anonymous?: boolean
-  }) => void
+  }) => void | Promise<void>
 }
 
 export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
@@ -28,26 +29,36 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
   const [mode, setMode] = useState<'single' | 'multi'>('single')
   const [deadline, setDeadline] = useState('')
   const [anonymous, setAnonymous] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const canSubmit = question.trim().length > 0 && options.filter(o => o.trim()).length >= 2
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!canSubmit) return
-    onSubmit({
-      question: question.trim(),
-      options: options.filter(o => o.trim()).map(o => o.trim()),
-      mode,
-      deadline: deadline || undefined,
-      anonymous,
-    })
-    // Reset form
-    setQuestion('')
-    setOptions(['', ''])
-    setMode('single')
-    setDeadline('')
-    setAnonymous(false)
-    onClose()
+    if (!canSubmit || submitting) return
+    setSubmitting(true)
+    try {
+      // Await so we only reset + close on success — a failed create keeps the
+      // dialog open with the typed question/options intact.
+      await onSubmit({
+        question: question.trim(),
+        options: options.filter(o => o.trim()).map(o => o.trim()),
+        mode,
+        deadline: deadline || undefined,
+        anonymous,
+      })
+      // Reset form
+      setQuestion('')
+      setOptions(['', ''])
+      setMode('single')
+      setDeadline('')
+      setAnonymous(false)
+      onClose()
+    } catch {
+      toast.error(t('common:errorSaving'))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const addOption = () => setOptions([...options, ''])
@@ -103,6 +114,7 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
                     value={opt}
                     onChange={(e) => updateOption(idx, e.target.value)}
                     placeholder={t('optionPlaceholder', { number: idx + 1 })}
+                    aria-label={t('optionPlaceholder', { number: idx + 1 })}
                     className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
                   />
                   {options.length > 2 && (
@@ -206,7 +218,7 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
             <Button type="button" variant="outline" onClick={onClose}>
               {t('common:cancel', 'Cancel')}
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
+            <Button type="submit" disabled={!canSubmit || submitting}>
               {t('createPoll')}
             </Button>
           </div>
