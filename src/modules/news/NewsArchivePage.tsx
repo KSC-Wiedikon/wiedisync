@@ -208,7 +208,7 @@ function NotificationTableRow({
     if (minutes < 60) return String(t('minutesAgo', { count: minutes }))
     const hours = Math.floor(minutes / 60)
     if (hours < 24) return String(t('hoursAgo', { count: hours }))
-    const days = Math.floor(hours / 60 / 24)
+    const days = Math.floor(hours / 24)
     return String(t('daysAgo', { count: days }))
   })()
 
