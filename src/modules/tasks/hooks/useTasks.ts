@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useCollection } from '../../../lib/query'
 import { useMutation } from '../../../hooks/useMutation'
 import { useRealtime } from '../../../hooks/useRealtime'
@@ -26,12 +26,23 @@ export function useTasks(activityType: 'game' | 'training' | 'event', activityId
     }
   })
 
+  // Applying a template calls addTask() several times in one synchronous tick, so
+  // `tasks` state hasn't updated between calls — computing maxOrder from it would
+  // give every new task the same sort_order. Track the running order in a ref that
+  // is re-synced to the server max whenever tasks (re)load, and bump it
+  // synchronously on each create so a burst gets sequential orders.
+  const orderRef = useRef(0)
+  useEffect(() => {
+    orderRef.current = tasks.length > 0
+      ? Math.max(...tasks.map((t) => t.sort_order ?? 0))
+      : 0
+  }, [tasks])
+
   const addTask = useCallback(
     async (label: string, category?: string, assignedTo?: string) => {
       if (!user) return
-      const maxOrder = tasks.length > 0
-        ? Math.max(...tasks.map((t) => t.sort_order ?? 0))
-        : 0
+      const nextOrder = orderRef.current + 1
+      orderRef.current = nextOrder
       await create({
         activity_type: activityType,
         activity_id: activityId,
@@ -41,12 +52,12 @@ export function useTasks(activityType: 'game' | 'training' | 'event', activityId
         claimed_by: '',
         completed: false,
         completed_at: '',
-        sort_order: maxOrder + 1,
+        sort_order: nextOrder,
         created_by: user.id,
       })
       refetch()
     },
-    [user, tasks, activityType, activityId, create, refetch],
+    [user, activityType, activityId, create, refetch],
   )
 
   const updateTask = useCallback(

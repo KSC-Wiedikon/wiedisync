@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { fetchItems } from '../../../lib/api'
-import { useCollection } from '../../../lib/query'
+import { useCollection, useCount } from '../../../lib/query'
 import ResultsTable from './ResultsTable'
 import SchemaViewer from './SchemaViewer'
 import RecordEditModal from './RecordEditModal'
@@ -60,7 +60,12 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
     enabled: !!selected,
   })
   const records = recordsRaw ?? []
-  const total = records.length
+  // The `useCollection` above only returns the CURRENT page (limit PER_PAGE), so
+  // its length can't drive pagination — it would cap totalPages at 1. Fetch the
+  // real row count separately (respects the same filter + the caller's
+  // permissions). Fall back to the page length until the count resolves.
+  const { data: totalCount } = useCount(selected, parsedFilter, { enabled: !!selected })
+  const total = totalCount ?? records.length
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
 
   // Column names for the results table

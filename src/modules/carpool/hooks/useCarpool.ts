@@ -3,6 +3,7 @@ import { useCollection } from '../../../lib/query'
 import { useMutation } from '../../../hooks/useMutation'
 import { useAuth } from '../../../hooks/useAuth'
 import { useRealtime } from '../../../hooks/useRealtime'
+import { relId } from '../../../utils/relations'
 import type { Carpool, CarpoolPassenger } from '../../../types'
 
 export function useCarpool(gameId: string) {
@@ -10,6 +11,9 @@ export function useCarpool(gameId: string) {
 
   const { data: carpoolsRaw, refetch: refetchCarpools, isLoading } = useCollection<Carpool>('carpools', {
     filter: gameId ? { game: { _eq: gameId } } : { id: { _eq: -1 } },
+    // Expand `driver` so CarpoolCard can render the driver's name — without this
+    // `driver` comes back as a bare ID and the card falls back to a generic label.
+    fields: ['*', 'driver.id', 'driver.first_name', 'driver.last_name'],
     all: true,
     enabled: !!gameId,
   })
@@ -19,6 +23,8 @@ export function useCarpool(gameId: string) {
     filter: gameId && carpools.length > 0
       ? { carpool: { _in: carpools.map(c => c.id) } }
       : { id: { _eq: -1 } },
+    // Expand `passenger` so CarpoolCard can render each passenger's name.
+    fields: ['*', 'passenger.id', 'passenger.first_name', 'passenger.last_name'],
     all: true,
     enabled: !!gameId && carpools.length > 0,
   })
@@ -72,7 +78,7 @@ export function useCarpool(gameId: string) {
 
   const leaveRide = useCallback(async (carpoolId: string) => {
     if (!user) return
-    const myRecord = passengers.find(p => p.carpool === carpoolId && p.passenger === user.id && p.status === 'confirmed')
+    const myRecord = passengers.find(p => p.carpool === carpoolId && relId(p.passenger) === user.id && p.status === 'confirmed')
     if (myRecord) {
       await removePassenger(myRecord.id)
       // Reopen if was full
@@ -94,8 +100,8 @@ export function useCarpool(gameId: string) {
   const getPassengersForCarpool = (carpoolId: string) =>
     passengers.filter(p => p.carpool === carpoolId && p.status === 'confirmed')
 
-  const isDriverOfAny = carpools.some(c => c.driver === user?.id && c.status !== 'cancelled')
-  const isPassengerOfAny = passengers.some(p => p.passenger === user?.id && p.status === 'confirmed')
+  const isDriverOfAny = carpools.some(c => relId(c.driver) === user?.id && c.status !== 'cancelled')
+  const isPassengerOfAny = passengers.some(p => relId(p.passenger) === user?.id && p.status === 'confirmed')
 
   return {
     carpools: carpools.filter(c => c.status !== 'cancelled'),
