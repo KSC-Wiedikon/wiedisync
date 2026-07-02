@@ -70,6 +70,8 @@ export default function DatePicker({
     : ''
 
   const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined)
+  const errorId = error && inputId ? `${inputId}-error` : undefined
+  const helpId = helperText && !error && inputId ? `${inputId}-help` : undefined
   const locale = lang === 'de' ? de : enUS
 
   function handleSelect(date: Date | undefined) {
@@ -99,6 +101,8 @@ export default function DatePicker({
             type="button"
             id={inputId}
             disabled={disabled}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={errorId || helpId}
             data-testid="datepicker-trigger"
             className={cn(
               'flex min-h-[44px] min-w-[140px] w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-left text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
@@ -143,8 +147,8 @@ export default function DatePicker({
           </div>
         </PopoverContent>
       </Popover>
-      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
-      {helperText && !error && <p className="mt-1 text-xs text-muted-foreground">{helperText}</p>}
+      {error && <p id={errorId} className="mt-1 text-xs text-destructive">{error}</p>}
+      {helperText && !error && <p id={helpId} className="mt-1 text-xs text-muted-foreground">{helperText}</p>}
     </div>
   )
 }
