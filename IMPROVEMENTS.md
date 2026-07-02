@@ -28,7 +28,15 @@ Executed the safe tier (A+B+C: mechanical + ARIA + keyboard-nav a11y + contained
 - **Risky large refactors**: `hallenplan` `mergeVirtualSlots` split; `useReactions`/`useConversations` lift-to-provider; the two-shadcn-generation standardization.
 - **Held (gated, awaiting approval)**: app-wide sizing (button/select/calendar 44px touch targets), `dd.mm.yyyy`↔date-format changes, `<Table>` default wrapping, `TeamChip` colorization, anything touching Directus schema/permissions.
 
-Individual checkboxes below reflect the pre-batch state; the table above is the authoritative execution record for this pass.
+### Phase 2b — cross-slice refactors + gated UX (2026-07-02, follow-up)
+
+Executed the deferred cross-slice refactors **and** the gated UX batch (approved) via 10 disjoint-file agents → integrated centrally: **build green (52 files), rules-of-hooks 4→3** (the messaging agent fixed the pre-existing `StartDmButton` violation), **0 new test failures**. Committed in 6 themed commits, pushed to `dev`.
+
+- **Refactors (behaviour-preserving):** shared `<RoleGuard>` (8 route guards → thin wrappers); `<LanguageSelect>` (SignUp + ProfileEdit); `<ActivityParticipation>` (GameCard + TrainingCard — `TrainingDetailModal` left, different data flow); `eventHelpers` + unified `StatusBadge` mapping (events + HomePage + MemberRow); shared calendar `entryStyle`/`weekGridLayout`; `lib/api` `aggregate`/`createItems` + shared mutation invalidation; **messaging reactions lifted to conversation level** (drops per-message N+1 fetch/sub); hallenplan `slotViewShared`.
+- **Gated UX (intended visible changes — NEED dev-preview QA):** button `min-h` moved to default size only (icon buttons square, sm shorter again); select/calendar/absence-card 44px touch targets; **`<Table>` cells now wrap on mobile** (nowrap-trap fix — app-wide, verify tables); DatePicker/Hallenplan/scorer/carpool now render Swiss `dd.mm.yyyy`/`HH:MM` via central helpers; calendar month dropdown localized; team colors in VolleyFeedback.
+- **Still open:** `useConversations` provider-lift + `hallenplan mergeVirtualSlots` split (highest-risk, left); the 2 stale `dateHelpers` `dd.mm.yy` tests (contradict the `dd.mm.yyyy` CLAUDE.md convention — decide whether to align the tests).
+
+Individual checkboxes below reflect the pre-batch state; the tables above are the authoritative execution record.
 
 ---
 
