@@ -75,18 +75,22 @@ export default function DunningConsole() {
   const { data, refetch } = useDunningCandidates()
   const [target, setTarget] = useState<DunningCandidate | null>(null)
   const [busyDun, setBusyDun] = useState<number | null>(null)
+  const [err, setErr] = useState('')
   const candidates = data?.candidates ?? []
   const today = data?.today ?? new Date().toISOString().slice(0, 10)
 
   async function toggleNeverDun(c: DunningCandidate) {
     if (!c.member) return
-    setBusyDun(c.member)
-    try { await setMemberNeverDun(c.member, !c.never_dun); await refetch() } finally { setBusyDun(null) }
+    setBusyDun(c.member); setErr('')
+    try { await setMemberNeverDun(c.member, !c.never_dun); await refetch() }
+    catch (e) { setErr(apiErr(e, t('ledActionError'))) }
+    finally { setBusyDun(null) }
   }
 
   return (
     <div className="space-y-4">
       <p className="text-xs text-gray-500 dark:text-gray-400">{t('dunHint')}</p>
+      {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
       {candidates.length === 0 ? (
         <p className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('dunNone')}</p>
       ) : (

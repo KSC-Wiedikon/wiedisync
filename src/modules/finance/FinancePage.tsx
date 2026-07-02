@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
@@ -32,6 +32,10 @@ function SyncNowButton() {
   const qc = useQueryClient()
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
+  // Guard against the polling loop running / setState firing after the Sync tab
+  // (and this button) unmounts mid-poll.
+  const mountedRef = useRef(true)
+  useEffect(() => () => { mountedRef.current = false }, [])
   async function go() {
     setSyncing(true); setError('')
     try {
@@ -39,15 +43,18 @@ function SyncNowButton() {
       const deadline = Date.now() + 240000
       for (;;) {
         await new Promise((r) => setTimeout(r, 5000))
+        if (!mountedRef.current) return
         const s = await fetchClubdeskSyncStatus()
+        if (!mountedRef.current) return
         if (s.state === 'done') break
         if (s.state === 'failed') throw new Error(s.message || t('syncFailed'))
         if (Date.now() > deadline) throw new Error(t('syncTimeout'))
       }
       await qc.invalidateQueries({ queryKey: ['finance'] })
     } catch (e) {
+      if (!mountedRef.current) return
       setError((e as { body?: { error?: string } })?.body?.error || (e as Error)?.message || t('syncFailed'))
-    } finally { setSyncing(false) }
+    } finally { if (mountedRef.current) setSyncing(false) }
   }
   return (
     <div className="mt-3">

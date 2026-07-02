@@ -400,6 +400,11 @@ export function threadIdsForMessage(messages: MailboxMessage[], msgId: number): 
  * opponent card / the per-opponent dialog). Convenience wrapper that classifies
  * the whole list and filters to this opponent — see classifyMessages for the
  * routing rules.
+ *
+ * PERF: this runs a full classifyMessages() pass (union-find over ALL messages)
+ * on every call. Calling it once per opponent row is O(rows × messages) — an
+ * O(n²) trap. When rendering many rows, call classifyMessages() ONCE and reuse
+ * messagesForOwner(messages, id, classification) instead of this wrapper.
  */
 export function messagesForOpponentThread(
   messages: MailboxMessage[],

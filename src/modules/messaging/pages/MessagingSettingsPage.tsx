@@ -5,6 +5,7 @@ import { MessageSquare, MessageSquareOff, Bell, BellOff } from 'lucide-react'
 import SwitchToggle from '@/components/SwitchToggle'
 import { useAuth } from '../../../hooks/useAuth'
 import { messagingApi } from '../api/messaging'
+import type { SettingsBody } from '../api/types'
 import { messagingFeatureEnabled } from '../../../utils/messagingFeatureFlag'
 import ExportDataButton from '../components/ExportDataButton'
 
@@ -21,10 +22,12 @@ export default function MessagingSettingsPage() {
 
   const consentStatus = user.consent_decision ?? 'pending'
 
-  const toggle = async (key: 'team_chat_enabled' | 'dm_enabled' | 'push_preview_content', next: boolean, setter: (v: boolean) => void) => {
+  const toggle = async (key: keyof SettingsBody, next: boolean, setter: (v: boolean) => void) => {
     const prev = { team_chat_enabled: teamChat, dm_enabled: dm, push_preview_content: pushPreview }[key]
     setter(next); setBusy(true)
-    try { await messagingApi.updateSettings({ [key]: next } as any) }
+    const patch: SettingsBody = {}
+    patch[key] = next
+    try { await messagingApi.updateSettings(patch) }
     catch { setter(prev) }
     finally { setBusy(false) }
   }

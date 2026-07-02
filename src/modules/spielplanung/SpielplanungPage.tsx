@@ -89,8 +89,6 @@ export default function SpielplanungPage() {
   // Report to the app boot gate — see usePageReady.tsx
   useReportPageLoading(isLoading)
 
-  const filteredEntries = useMemo(() => entries, [entries])
-
   const editableTeamIds = useMemo(() => {
     if (isAdmin || is_spielplaner) return (teams ?? []).map((t) => String(t.id))
     return spielplanerTeamIds
@@ -268,7 +266,7 @@ export default function SpielplanungPage() {
         <>
           {viewMode === 'calendar' && (
             <CalendarView
-              entries={filteredEntries}
+              entries={entries}
               closedDates={closedDates}
               month={month}
               onMonthChange={setMonth}
@@ -280,7 +278,7 @@ export default function SpielplanungPage() {
           )}
           {viewMode === 'week' && (
             <WeekView
-              entries={filteredEntries}
+              entries={entries}
               weekStart={weekAnchor}
               onWeekChange={setWeekAnchor}
               onGameClick={setSelectedGame}
