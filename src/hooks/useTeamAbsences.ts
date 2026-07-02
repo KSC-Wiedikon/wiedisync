@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRealtime } from './useRealtime'
 import type { Member } from '../types'
 import { fetchTeamAbsences } from './teamAbsencesFetch'
@@ -25,8 +25,9 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
   // loadedKey !== requestedKey stays true forever and no new fetch ever fires.
   const latestKeyRef = useRef<string | null>(null)
 
-  // Stable key for dependency tracking
-  const teamIdsKey = teamIds.join(',')
+  // Stable key for dependency tracking. Sorted so passing the same teams in a
+  // different order doesn't trigger a needless refetch (matches useMultiTeamMembers).
+  const teamIdsKey = teamIds.slice().sort().join(',')
   const requestedKey = teamIds.length === 0 ? null : `${teamIdsKey}|${startDate}|${endDate}`
   const isLoading = loadedKey !== requestedKey
 
@@ -67,11 +68,23 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
     fetch()
   }, [fetch])
 
-  // Realtime: when an absence is created/updated/deleted anywhere, refetch
-  // so team-scope views (e.g. coach creating a weekly for a player) update
-  // immediately instead of leaving the staff member uncertain about whether
-  // the save actually persisted.
-  useRealtime('absences', fetch)
+  // Member ids currently in scope (players + coaches/TRs) — used to gate the
+  // realtime refetch so an absence change for a member outside these teams
+  // doesn't force a full multi-collection refetch during busy periods.
+  const memberIdSet = useMemo(() => {
+    const s = new Set<string>(Object.keys(memberTeams))
+    for (const k of Object.keys(memberMap)) s.add(k)
+    return s
+  }, [memberTeams, memberMap])
+
+  // Realtime: when an absence is created/updated/deleted for a member in the
+  // current scope, refetch so team-scope views (e.g. coach creating a weekly
+  // for a player) update immediately. A delete payload may omit `member`, so
+  // refetch on an unknown member too rather than miss the change.
+  useRealtime<AbsenceWithMember>('absences', (e) => {
+    const mid = e.record?.member
+    if (mid == null || memberIdSet.has(String(mid))) fetch()
+  })
 
   return { absences, memberMap, memberTeams, isLoading, error, refetch: fetch }
 }

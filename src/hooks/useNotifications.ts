@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { fetchItems, updateRecord, deleteRecord } from '../lib/api'
 import { useAuth } from './useAuth'
 import { useRealtime } from './useRealtime'
@@ -7,7 +7,10 @@ import type { Notification } from '../types'
 export function useNotifications() {
   const { user, isLoading: authLoading } = useAuth()
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
+  // Derived from `notifications` (the single source of truth) rather than tracked
+  // as separate state — avoids the side-effect-in-updater fragility and keeps the
+  // count in sync no matter which mutation path changed the list.
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
   const [isLoading, setIsLoading] = useState(true)
   const userIdRef = useRef(user?.id)
   userIdRef.current = user?.id
@@ -19,7 +22,6 @@ export function useNotifications() {
   const fetchNotifications = useCallback(async () => {
     if (authLoading || !user?.id) {
       setNotifications([])
-      setUnreadCount(0)
       setIsLoading(false)
       return
     }
@@ -33,7 +35,6 @@ export function useNotifications() {
       })
       if (latestUserRef.current !== uid) return
       setNotifications(result)
-      setUnreadCount(result.filter((n: Notification) => !n.read).length)
     } catch {
       // silently fail
     } finally {
@@ -50,17 +51,10 @@ export function useNotifications() {
     if (e.record.member !== userIdRef.current) return
     if (e.action === 'create') {
       setNotifications((prev) => [e.record, ...prev].slice(0, 30))
-      setUnreadCount((c) => c + 1)
     } else if (e.action === 'update') {
       setNotifications((prev) => prev.map((n) => (n.id === e.record.id ? e.record : n)))
-      // Recalculate unread
-      setNotifications((prev) => {
-        setUnreadCount(prev.filter((n) => !n.read).length)
-        return prev
-      })
     } else if (e.action === 'delete') {
       setNotifications((prev) => prev.filter((n) => n.id !== e.record.id))
-      setUnreadCount((c) => Math.max(0, c - 1))
     }
   }, undefined, authLoading || !user?.id)
 
@@ -68,34 +62,35 @@ export function useNotifications() {
     try {
       await updateRecord('notifications', id, { read: true })
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
-      setUnreadCount((c) => Math.max(0, c - 1))
     } catch {
-      // silently fail
+      // silently fail (error already reported by updateRecord → captureApiError)
     }
   }, [])
 
   const markAllAsRead = useCallback(async () => {
     const unread = notifications.filter((n) => !n.read)
-    try {
-      await Promise.all(unread.map((n) => updateRecord('notifications', n.id, { read: true })))
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-      setUnreadCount(0)
-    } catch {
-      // silently fail
+    if (unread.length === 0) return
+    // allSettled + reconcile: a partial failure must leave the failed rows unread
+    // instead of flipping the whole UI to "all read" on the first rejection.
+    const results = await Promise.allSettled(
+      unread.map((n) => updateRecord('notifications', n.id, { read: true })),
+    )
+    const succeeded = new Set(
+      unread.filter((_, i) => results[i]?.status === 'fulfilled').map((n) => n.id),
+    )
+    if (succeeded.size > 0) {
+      setNotifications((prev) => prev.map((n) => (succeeded.has(n.id) ? { ...n, read: true } : n)))
     }
   }, [notifications])
 
   const deleteNotification = useCallback(async (id: string) => {
     // Optimistic: remove first, roll back on failure
     const prev = notifications
-    const target = prev.find((n) => n.id === id)
     setNotifications((list) => list.filter((n) => n.id !== id))
-    if (target && !target.read) setUnreadCount((c) => Math.max(0, c - 1))
     try {
       await deleteRecord('notifications', id)
     } catch {
       setNotifications(prev)
-      if (target && !target.read) setUnreadCount((c) => c + 1)
     }
   }, [notifications])
 

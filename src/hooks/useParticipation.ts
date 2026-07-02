@@ -3,8 +3,8 @@ import { useCollection } from '../lib/query'
 import { useMutation } from './useMutation'
 import { useAuth } from './useAuth'
 import { useRealtime } from './useRealtime'
-import type { Participation, Absence, VolleyPosition } from '../types'
-import { absenceCoversActivity } from '../utils/absenceHelpers'
+import { useMyCoveringAbsence } from './useMyCoveringAbsence'
+import type { Participation, VolleyPosition } from '../types'
 
 export function useParticipation(
   activityType: Participation['activity_type'],
@@ -29,14 +29,9 @@ export function useParticipation(
   })
   const participations = participationsRaw ?? []
 
-  const { data: absencesData } = useCollection<Absence>('absences', {
-    filter: user && activityDate
-      ? { _and: [{ member: { _eq: user.id } }, { start_date: { _lte: activityDate } }, { end_date: { _gte: activityDate } }] }
-      : { id: { _eq: -1 } },
-    limit: 5,
-    enabled: !!user && !!activityDate,
-  })
-  const absencesRaw = absencesData ?? []
+  // Covering-absence lookup lives in one place (useMyCoveringAbsence) — reused by
+  // the game/training/event cards + detail modals so the rule can't drift.
+  const { hasAbsence } = useMyCoveringAbsence(activityType, activityDate)
 
   const { create, update, remove } = useMutation<Participation>('participations')
 
@@ -58,10 +53,6 @@ export function useParticipation(
   const [saveConfirmed, setSaveConfirmed] = useState(false)
 
   const participation = participations[0] ?? null
-
-  // Filter absences to those that actually affect this activity type
-  const matchingAbsence = absencesRaw.find((a) => activityDate ? absenceCoversActivity(a, activityType, activityDate) : false)
-  const hasAbsence = !!matchingAbsence
 
   // Auto-decline is handled by the backend (Directus hooks) when absences
   // or activities are created. The frontend only displays the absence state.

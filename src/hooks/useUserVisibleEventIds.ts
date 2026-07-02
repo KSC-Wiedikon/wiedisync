@@ -42,7 +42,11 @@ export function useUserVisibleEventIds(
       setIsLoading(true)
       setError(null)
       try {
-        const [teamJunctions, memberJunctions] = await Promise.all([
+        // allSettled (not all): the two junctions are independent, so a failure
+        // of the team-scope query must not also wipe the user's direct-invite
+        // list (and vice-versa). Each fetchAllItems already reports its own
+        // failure via captureApiError; we only flag `error` if BOTH fail.
+        const [teamRes, memberRes] = await Promise.allSettled([
           teamIds.length > 0
             ? fetchAllItems<{ events_id: string | number }>('events_teams', {
                 filter: { teams_id: { _in: teamIds } },
@@ -57,8 +61,14 @@ export function useUserVisibleEventIds(
             : Promise.resolve([]),
         ])
         if (cancelled) return
+        const teamJunctions = teamRes.status === 'fulfilled' ? teamRes.value : []
+        const memberJunctions = memberRes.status === 'fulfilled' ? memberRes.value : []
         setTeamEventIds([...new Set(teamJunctions.map(j => relId(j.events_id)).filter(Boolean))])
         setInvitedEventIds([...new Set(memberJunctions.map(j => relId(j.events_id)).filter(Boolean))])
+        if (teamRes.status === 'rejected' && memberRes.status === 'rejected') {
+          const reason = teamRes.reason
+          setError(reason instanceof Error ? reason : new Error(String(reason)))
+        }
       } catch (err) {
         if (cancelled) return
         setError(err instanceof Error ? err : new Error(String(err)))
