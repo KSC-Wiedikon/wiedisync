@@ -15,6 +15,8 @@ export default {
   anonymous: 'Vote anonyme',
   anonymousDescription: 'Les votes sont cachés — seuls les totaux sont affichés',
   vote: 'Voter',
+  changeVote: 'Modifier le vote',
+  cancelChange: 'Annuler',
   voted: 'Voté',
   votes: '{{count}} vote(s)',
   results: 'Résultats',

@@ -18,6 +18,8 @@ export default {
   anonymousNote: 'Anonymous poll — individual answers are hidden',
   votedBy: 'Voted by',
   vote: 'Vote',
+  changeVote: 'Change vote',
+  cancelChange: 'Cancel',
   voted: 'Voted',
   votes: '{{count}} vote(s)',
   results: 'Results',

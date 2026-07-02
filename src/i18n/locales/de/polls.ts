@@ -18,6 +18,8 @@ export default {
   anonymousNote: 'Anonyme Umfrage — einzelne Antworten sind verborgen',
   votedBy: 'Abgestimmt von',
   vote: 'Abstimmen',
+  changeVote: 'Stimme ändern',
+  cancelChange: 'Abbrechen',
   voted: 'Abgestimmt',
   votes: '{{count}} Stimme(n)',
   results: 'Ergebnisse',

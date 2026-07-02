@@ -15,6 +15,8 @@ export default {
   anonymous: 'Anonymi Abstimmig',
   anonymousDescription: 'Stimme sind verborge — nur Summe wärde aazeigt',
   vote: 'Abstimme',
+  changeVote: 'Stimm ändere',
+  cancelChange: 'Abbräche',
   voted: 'Abgstimmt',
   votes: '{{count}} Stimm(e)',
   results: 'Ergebnis',
