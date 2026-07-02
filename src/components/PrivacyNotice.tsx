@@ -9,7 +9,12 @@ export default function PrivacyNotice() {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    if (!localStorage.getItem(STORAGE_KEY)) {
+    try {
+      if (!localStorage.getItem(STORAGE_KEY)) {
+        setVisible(true)
+      }
+    } catch {
+      // Storage disabled (e.g. Safari private mode) — show the notice each time.
       setVisible(true)
     }
   }, [])
@@ -17,7 +22,11 @@ export default function PrivacyNotice() {
   if (!visible) return null
 
   const dismiss = () => {
-    localStorage.setItem(STORAGE_KEY, '1')
+    try {
+      localStorage.setItem(STORAGE_KEY, '1')
+    } catch {
+      // Storage disabled — dismiss for this session only.
+    }
     setVisible(false)
   }
 

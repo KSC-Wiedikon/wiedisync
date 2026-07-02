@@ -9,23 +9,15 @@ interface AffectsMultiSelectProps {
   label?: string
 }
 
-const AFFECTS_COLORS: Record<string, { bg: string; text: string; border: string; bgActive: string; textActive: string; borderActive: string }> = {
-  trainings: {
-    bg: 'bg-transparent', text: 'text-gray-500 dark:text-gray-400', border: 'border-gray-300 dark:border-gray-600',
-    bgActive: 'bg-blue-100 dark:bg-blue-900/40', textActive: 'text-blue-700 dark:text-blue-300', borderActive: 'border-blue-300 dark:border-blue-700',
-  },
-  games: {
-    bg: 'bg-transparent', text: 'text-gray-500 dark:text-gray-400', border: 'border-gray-300 dark:border-gray-600',
-    bgActive: 'bg-green-100 dark:bg-green-900/40', textActive: 'text-green-700 dark:text-green-300', borderActive: 'border-green-300 dark:border-green-700',
-  },
-  events: {
-    bg: 'bg-transparent', text: 'text-gray-500 dark:text-gray-400', border: 'border-gray-300 dark:border-gray-600',
-    bgActive: 'bg-purple-100 dark:bg-purple-900/40', textActive: 'text-purple-700 dark:text-purple-300', borderActive: 'border-purple-300 dark:border-purple-700',
-  },
-  all: {
-    bg: 'bg-transparent', text: 'text-gray-500 dark:text-gray-400', border: 'border-gray-300 dark:border-gray-600',
-    bgActive: 'bg-gray-200 dark:bg-gray-700', textActive: 'text-gray-800 dark:text-gray-100', borderActive: 'border-gray-400 dark:border-gray-500',
-  },
+// Inactive pill styling is identical for every value — keep it in one place and
+// only vary the active (selected) colour per value.
+const INACTIVE_PILL = 'bg-transparent text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600'
+
+const AFFECTS_ACTIVE: Record<string, string> = {
+  trainings: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700',
+  games: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700',
+  events: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700',
+  all: 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 border-gray-400 dark:border-gray-500',
 }
 
 export default function AffectsMultiSelect({ selected, onChange, label }: AffectsMultiSelectProps) {
@@ -57,11 +49,11 @@ export default function AffectsMultiSelect({ selected, onChange, label }: Affect
     all: t('affectsAll'),
   }
 
-  function pillClass(active: boolean, colors: typeof AFFECTS_COLORS.all) {
+  function pillClass(active: boolean, value: string) {
     const base = 'inline-flex min-h-[36px] items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors'
     return active
-      ? `${base} ${colors.bgActive} ${colors.textActive} ${colors.borderActive}`
-      : `${base} ${colors.bg} ${colors.text} ${colors.border} hover:bg-gray-50 dark:hover:bg-gray-700/50`
+      ? `${base} ${AFFECTS_ACTIVE[value]}`
+      : `${base} ${INACTIVE_PILL} hover:bg-gray-50 dark:hover:bg-gray-700/50`
   }
 
   return (
@@ -73,7 +65,7 @@ export default function AffectsMultiSelect({ selected, onChange, label }: Affect
         <button
           type="button"
           onClick={() => toggle(ALL_VALUE)}
-          className={pillClass(isAll, AFFECTS_COLORS.all)}
+          className={pillClass(isAll, ALL_VALUE)}
           aria-pressed={isAll}
         >
           {labelMap.all}
@@ -85,7 +77,7 @@ export default function AffectsMultiSelect({ selected, onChange, label }: Affect
               key={value}
               type="button"
               onClick={() => toggle(value)}
-              className={pillClass(active, AFFECTS_COLORS[value])}
+              className={pillClass(active, value)}
               aria-pressed={active}
             >
               {labelMap[value]}

@@ -26,6 +26,15 @@ const COLLECTION: Record<ActivityKind, string> = {
   game: 'games',
 }
 
+// Per-kind i18n keys — keeps the label/confirm wiring flat instead of nesting
+// ternaries over (isCancelled × kind). The reinstate *action* label is shared
+// across kinds, so only reinstate confirmations vary here.
+const CANCEL_KEYS: Record<ActivityKind, { action: string; confirm: string; reinstateConfirm: string }> = {
+  training: { action: 'cancelTrainingAction', confirm: 'cancelTrainingConfirm', reinstateConfirm: 'reinstateTrainingConfirm' },
+  event: { action: 'cancelEventAction', confirm: 'cancelEventConfirm', reinstateConfirm: 'reinstateEventConfirm' },
+  game: { action: 'cancelGameAction', confirm: 'cancelGameConfirm', reinstateConfirm: 'reinstateGameConfirm' },
+}
+
 export default function CancelActivityButton({
   kind,
   activityId,
@@ -47,25 +56,9 @@ export default function CancelActivityButton({
     teamIds.some((id) => isCoachOf(id) || teamResponsibleIds.includes(id))
   if (!canManage) return null
 
-  const actionLabel = isCancelled
-    ? t('reinstateAction')
-    : kind === 'training'
-      ? t('cancelTrainingAction')
-      : kind === 'event'
-        ? t('cancelEventAction')
-        : t('cancelGameAction')
-
-  const confirmText = isCancelled
-    ? kind === 'training'
-      ? t('reinstateTrainingConfirm')
-      : kind === 'event'
-        ? t('reinstateEventConfirm')
-        : t('reinstateGameConfirm')
-    : kind === 'training'
-      ? t('cancelTrainingConfirm')
-      : kind === 'event'
-        ? t('cancelEventConfirm')
-        : t('cancelGameConfirm')
+  const keys = CANCEL_KEYS[kind]
+  const actionLabel = isCancelled ? t('reinstateAction') : t(keys.action)
+  const confirmText = isCancelled ? t(keys.reinstateConfirm) : t(keys.confirm)
 
   async function handleConfirm() {
     setError('')

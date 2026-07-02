@@ -79,7 +79,9 @@ function buildSecondaryItems(
   return { primary, memberTools, finance, spielplaner }
 }
 
-const adminItems = [
+interface NavItem { to: string; labelKey: string; icon: ReactNode }
+
+const adminItems: NavItem[] = [
   { to: '/admin/hallenplan', labelKey: 'hallenplan', icon: <Building2 className={iconClass} /> },
   { to: '/admin/referee-expenses', labelKey: 'refereeExpenses', icon: <Banknote className={iconClass} /> },
   { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: <UserPlus className={iconClass} /> },
@@ -88,6 +90,14 @@ const adminItems = [
   { to: '/admin/explore', labelKey: 'adminExplorer', icon: <Database className={iconClass} /> },
   { to: '/admin/announcements', labelKey: 'announcements', icon: <Megaphone className={iconClass} /> },
   { to: '/admin/reports', labelKey: 'moderationReports', icon: <Flag className={iconClass} /> },
+]
+
+const superAdminItems: NavItem[] = [
+  { to: '/admin/data-health', labelKey: 'dataHealth', icon: <HeartPulse className={iconClass} /> },
+  { to: '/admin/infra', labelKey: 'infraHealth', icon: <Activity className={iconClass} /> },
+  { to: '/admin/audit-log', labelKey: 'auditLog', icon: <ScrollText className={iconClass} /> },
+  { to: '/admin/sql', labelKey: 'sqlWorkspace', icon: <Terminal className={iconClass} /> },
+  { to: '/bugfixes', labelKey: 'bugfixes', icon: <Bug className={iconClass} /> },
 ]
 
 function OptionsAccordion({ theme, toggleTheme, onClose, memberId }: { theme: string; toggleTheme: () => void; onClose?: () => void; memberId?: number | string | null }) {
@@ -230,6 +240,26 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
   const { closing, startClose, onAnimEnd } = useAnimatedClose(onClose)
+
+  // Shared renderer for the internal admin/superadmin NavLinks — identical markup
+  // per item, so drive both sections off their arrays instead of copy-pasting.
+  const renderNavItem = (item: NavItem) => (
+    <NavLink
+      key={item.to}
+      to={item.to}
+      onClick={startClose}
+      className={({ isActive }) =>
+        `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
+          isActive
+            ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
+            : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+        }`
+      }
+    >
+      {item.icon}
+      {t(item.labelKey)}
+    </NavLink>
+  )
 
   // Swipe-down-to-close: matches NotificationPanel + the Vaul-based detail
   // modals (Training/Game/Event). Drag is only consumed when the inner scroll
@@ -400,23 +430,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 {t('admin')}
               </p>
-              {adminItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  onClick={startClose}
-                  className={({ isActive }) =>
-                    `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
-                      isActive
-                        ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                    }`
-                  }
-                >
-                  {item.icon}
-                  {t(item.labelKey)}
-                </NavLink>
-              ))}
+              {adminItems.map(renderNavItem)}
             </>
           )}
 
@@ -426,76 +440,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 {t('superadmin')}
               </p>
-              <NavLink
-                to="/admin/data-health"
-                onClick={startClose}
-                className={({ isActive }) =>
-                  `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`
-                }
-              >
-                <HeartPulse className={iconClass} />
-                {t('dataHealth')}
-              </NavLink>
-              <NavLink
-                to="/admin/infra"
-                onClick={startClose}
-                className={({ isActive }) =>
-                  `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`
-                }
-              >
-                <Activity className={iconClass} />
-                {t('infraHealth')}
-              </NavLink>
-              <NavLink
-                to="/admin/audit-log"
-                onClick={startClose}
-                className={({ isActive }) =>
-                  `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`
-                }
-              >
-                <ScrollText className={iconClass} />
-                {t('auditLog')}
-              </NavLink>
-              <NavLink
-                to="/admin/sql"
-                onClick={startClose}
-                className={({ isActive }) =>
-                  `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`
-                }
-              >
-                <Terminal className={iconClass} />
-                {t('sqlWorkspace')}
-              </NavLink>
-              <NavLink
-                to="/bugfixes"
-                onClick={startClose}
-                className={({ isActive }) =>
-                  `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`
-                }
-              >
-                <Bug className={iconClass} />
-                {t('bugfixes')}
-              </NavLink>
+              {superAdminItems.map(renderNavItem)}
             </>
           )}
         </nav>

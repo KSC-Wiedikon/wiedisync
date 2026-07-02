@@ -19,9 +19,19 @@ interface TeamFilterProps {
  *  string-or-null contract. */
 export default function TeamFilter({ selected, onChange, limitToTeamIds, groupBySport }: TeamFilterProps) {
   const { t } = useTranslation('common')
-  const { data: allTeamsRaw } = useCollection<Team>('teams', { filter: { active: { _eq: true } }, sort: ['name'], limit: 50 })
+  // Fetch all active teams (no hardcoded cap — a club with >50 active teams
+  // would otherwise silently truncate). When scoped, filter server-side by id.
+  const { data: allTeamsRaw } = useCollection<Team>('teams', {
+    filter: limitToTeamIds && limitToTeamIds.length > 0
+      ? { _and: [{ active: { _eq: true } }, { id: { _in: limitToTeamIds } }] }
+      : { active: { _eq: true } },
+    sort: ['name'],
+    all: true,
+  })
   const allTeams = allTeamsRaw ?? []
 
+  // Belt-and-suspenders: keep the client-side narrowing so the option list is
+  // exactly the scoped set even before the refined query resolves.
   const teams = useMemo(() => {
     if (!limitToTeamIds || limitToTeamIds.length === 0) return allTeams
     const idSet = new Set(limitToTeamIds)

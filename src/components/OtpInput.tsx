@@ -20,14 +20,17 @@ export function OtpInput({ onComplete, onResend, loading, error, email }: OtpInp
   const [countdown, setCountdown] = useState(RESEND_COOLDOWN)
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
-  // Countdown timer for resend
+  // Countdown timer for resend. Keyed on whether the countdown is active (not on
+  // the value) so the interval isn't torn down + recreated every tick — it runs
+  // stably until it reaches 0, then the cleanup clears it.
+  const countdownActive = countdown > 0
   useEffect(() => {
-    if (countdown <= 0) return
+    if (!countdownActive) return
     const timer = setInterval(() => {
-      setCountdown((prev) => prev - 1)
+      setCountdown((prev) => (prev <= 1 ? 0 : prev - 1))
     }, 1000)
     return () => clearInterval(timer)
-  }, [countdown])
+  }, [countdownActive])
 
   const focusInput = useCallback((index: number) => {
     if (index >= 0 && index < OTP_LENGTH) {

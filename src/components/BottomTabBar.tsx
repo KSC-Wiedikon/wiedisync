@@ -13,18 +13,24 @@ interface TabItem {
 
 const iconClass = 'h-6 w-6'
 
-const primaryTabs: TabItem[] = [
-  { to: '/', labelKey: 'home', icon: <Home className={iconClass} /> },
-  { to: '/calendar', labelKey: 'calendar', icon: <Calendar className={iconClass} /> },
-  { to: '/games', labelKey: 'gamesShort', icon: <WhistleIcon className={iconClass} /> },
-  { to: '/trainings', labelKey: 'trainings', requiresAuth: true, icon: (
-    <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+/** Trainings tab glyph — kept as a named component (like WhistleIcon) so the tab
+ * config stays free of inline path markup. */
+function TrainingsIcon({ className = iconClass }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M16.05 10.966a5 2.5 0 0 1-8.1 0" />
       <path d="m16.923 14.049 4.48 2.04a1 1 0 0 1 .001 1.831l-8.574 3.9a2 2 0 0 1-1.66 0l-8.574-3.91a1 1 0 0 1 0-1.83l4.484-2.04" />
       <path d="M16.949 14.14a5 2.5 0 1 1-9.9 0L10.063 3.5a2 2 0 0 1 3.874 0z" />
       <path d="M9.194 6.57a5 2.5 0 0 0 5.61 0" />
     </svg>
-  ) },
+  )
+}
+
+const primaryTabs: TabItem[] = [
+  { to: '/', labelKey: 'home', icon: <Home className={iconClass} /> },
+  { to: '/calendar', labelKey: 'calendar', icon: <Calendar className={iconClass} /> },
+  { to: '/games', labelKey: 'gamesShort', icon: <WhistleIcon className={iconClass} /> },
+  { to: '/trainings', labelKey: 'trainings', requiresAuth: true, icon: <TrainingsIcon className={iconClass} /> },
 ]
 
 interface BottomTabBarProps {

@@ -164,6 +164,10 @@ function ParticipationButtonInner({
   const [noteText, setNoteText] = useState('')
   const [noteError, setNoteError] = useState(false)
   const noteInputRef = useRef<HTMLTextAreaElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  // Debounce the guest-count server write so rapid +/- taps issue one mutation,
+  // not one per tap (which can race).
+  const guestWriteTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Sync guest count from existing participation
   useEffect(() => {
@@ -183,6 +187,16 @@ function ParticipationButtonInner({
       noteInputRef.current.focus()
     }
   }, [pendingStatus])
+
+  // Focus the first RSVP option when the menu opens (keyboard access)
+  useEffect(() => {
+    if (menuOpen && !pendingStatus) {
+      menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    }
+  }, [menuOpen, pendingStatus])
+
+  // Flush any pending debounced guest-count write on unmount
+  useEffect(() => () => { if (guestWriteTimer.current) clearTimeout(guestWriteTimer.current) }, [])
 
   const hasSessionMode = participationMode && participationMode !== 'whole' && eventSessions && eventSessions.length > 0
 
@@ -231,11 +245,17 @@ function ParticipationButtonInner({
     setNoteError(false)
   }
 
-  async function handleGuestChange(delta: number) {
+  function handleGuestChange(delta: number) {
     const newCount = Math.max(0, guestCount + delta)
     setGuestCount(newCount)
     if (effectiveStatus && effectiveStatus !== 'declined') {
-      await setStatus(effectiveStatus as Participation['status'], participation?.note ?? '', newCount)
+      const status = effectiveStatus as Participation['status']
+      const note = participation?.note ?? ''
+      if (guestWriteTimer.current) clearTimeout(guestWriteTimer.current)
+      guestWriteTimer.current = setTimeout(() => {
+        guestWriteTimer.current = null
+        setStatus(status, note, newCount)
+      }, 500)
     }
   }
 
@@ -265,6 +285,8 @@ function ParticipationButtonInner({
       <button
         onClick={() => !deadlinePassed && setMenuOpen(!menuOpen)}
         disabled={deadlinePassed}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
         className={`inline-flex min-h-[44px] items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors sm:min-h-0 ${
           deadlinePassed
             ? 'cursor-not-allowed bg-gray-100 text-gray-400 ring-1 ring-red-400 dark:bg-gray-700 dark:text-gray-500 dark:ring-red-500'
@@ -294,7 +316,26 @@ function ParticipationButtonInner({
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => { setMenuOpen(false); handleNoteCancel() }} />
-          <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800">
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-orientation="vertical"
+            tabIndex={-1}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { setMenuOpen(false); handleNoteCancel(); return }
+              if (!pendingStatus && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                e.preventDefault()
+                const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
+                if (items.length === 0) return
+                const idx = items.findIndex((el) => el === document.activeElement)
+                const nextIdx = e.key === 'ArrowDown'
+                  ? (idx + 1) % items.length
+                  : (idx - 1 + items.length) % items.length
+                items[idx === -1 ? 0 : nextIdx]?.focus()
+              }
+            }}
+            className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border bg-white py-1 shadow-lg outline-none dark:border-gray-600 dark:bg-gray-800"
+          >
             {/* Note input view — shown when note is required for decline/tentative */}
             {pendingStatus ? (
               <div className="px-3 py-2">
@@ -349,6 +390,7 @@ function ParticipationButtonInner({
                   return (
                     <button
                       key={status}
+                      role="menuitem"
                       onClick={() => !isDisabledConfirmed && handleSelect(status)}
                       disabled={isDisabledConfirmed}
                       className={`flex w-full items-center gap-2 px-3 py-3 text-left text-sm transition-colors sm:py-2 ${
@@ -375,15 +417,17 @@ function ParticipationButtonInner({
                       <button
                         onClick={() => handleGuestChange(-1)}
                         disabled={guestCount <= 0}
+                        aria-label={t('decreaseGuests', { defaultValue: 'Remove guest' })}
                         className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-30 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                       >
                         −
                       </button>
-                      <span className="min-w-[1.5rem] text-center text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <span className="min-w-[1.5rem] text-center text-sm font-medium text-gray-900 dark:text-gray-100" aria-live="polite">
                         {guestCount}
                       </span>
                       <button
                         onClick={() => handleGuestChange(1)}
+                        aria-label={t('increaseGuests', { defaultValue: 'Add guest' })}
                         className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                       >
                         +

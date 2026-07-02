@@ -93,7 +93,11 @@ export default function LoadingSpinner({
   const caption = label ?? (wantPlayful ? PLAYFUL_MESSAGES[msgIndex] : undefined)
 
   return (
-    <div className={`flex flex-col items-center justify-center ${isSmall ? 'py-8' : 'min-h-[60vh]'}`}>
+    <div
+      role="status"
+      aria-live="polite"
+      className={`flex flex-col items-center justify-center ${isSmall ? 'py-8' : 'min-h-[60vh]'}`}
+    >
       <img
         src="/wiedisync_logo.svg"
         alt="Loading…"

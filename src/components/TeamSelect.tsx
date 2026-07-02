@@ -43,13 +43,42 @@ export default function TeamSelect({
     ? 'flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-xs'
     : 'flex min-h-[44px] w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm sm:min-h-[42px]'
 
+  // Keyboard support for the custom listbox: Escape closes, arrows open + move
+  // focus between options (Enter/Space fire the option button's native onClick).
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (disabled) return
+    if (e.key === 'Escape') {
+      if (open) { setOpen(false); e.stopPropagation() }
+      return
+    }
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        setOpen(true)
+        e.preventDefault()
+      }
+      return
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      const items = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])
+      if (items.length === 0) return
+      const idx = items.findIndex((el) => el === document.activeElement)
+      const next = e.key === 'ArrowDown'
+        ? Math.min(items.length - 1, idx + 1)
+        : Math.max(0, idx - 1)
+      items[idx === -1 ? 0 : next]?.focus()
+    }
+  }
+
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div ref={ref} className={`relative ${className}`} onKeyDown={handleKeyDown}>
       <button
         type="button"
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
         aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className={`${btnBase} border-gray-300 bg-white text-left transition-colors dark:border-gray-600 dark:bg-gray-700 ${
           disabled ? 'cursor-not-allowed opacity-60' : 'hover:border-gray-400 dark:hover:border-gray-500'
         } ${open ? 'border-brand-500 ring-1 ring-brand-500' : ''}`}
@@ -71,10 +100,12 @@ export default function TeamSelect({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 max-h-60 w-full min-w-[140px] overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+        <div role="listbox" aria-label={ariaLabel} className="absolute z-50 mt-1 max-h-60 w-full min-w-[140px] overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
           {/* Empty option */}
           <button
             type="button"
+            role="option"
+            aria-selected={!value}
             onClick={() => { onChange(''); setOpen(false) }}
             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 dark:text-gray-500 dark:hover:bg-gray-700"
           >
@@ -87,6 +118,8 @@ export default function TeamSelect({
               <button
                 key={team.id}
                 type="button"
+                role="option"
+                aria-selected={isSelected}
                 onClick={() => { onChange(team.id); setOpen(false) }}
                 className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors ${
                   isSelected

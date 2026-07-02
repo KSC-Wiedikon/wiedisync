@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, X } from 'lucide-react'
 
@@ -31,9 +31,13 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
   const { t } = useTranslation('common')
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const listboxId = useId()
 
   const allSelected = selected.length === options.length
   const noneSelected = selected.length === 0
+
+  // O(1) membership checks instead of repeated Array.includes across every option.
+  const selectedSet = useMemo(() => new Set(selected), [selected])
 
   // Close on outside click
   useEffect(() => {
@@ -62,20 +66,32 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
     onChange([])
   }
 
-  // Group options if any have a group
-  const hasGroups = options.some((o) => o.group)
-  const groups = hasGroups
-    ? [...new Set(options.map((o) => o.group ?? ''))].filter(Boolean)
-    : []
+  // Group options if any have a group — the option→group partitioning only
+  // depends on `options`, so memoize it (recomputed the full pass on every
+  // parent keystroke otherwise).
+  const { hasGroups, groupedOptions } = useMemo(() => {
+    const has = options.some((o) => o.group)
+    if (!has) return { hasGroups: false, groupedOptions: [] as { group: string; options: CategoryOption[]; values: string[] }[] }
+    const groupNames = [...new Set(options.map((o) => o.group ?? ''))].filter(Boolean)
+    return {
+      hasGroups: true,
+      groupedOptions: groupNames.map((group) => {
+        const groupOptions = options.filter((o) => o.group === group)
+        return { group, options: groupOptions, values: groupOptions.map((o) => o.value) }
+      }),
+    }
+  }, [options])
 
   // Selected options for display
-  const selectedOptions = options.filter((o) => selected.includes(o.value))
+  const selectedOptions = useMemo(() => options.filter((o) => selectedSet.has(o.value)), [options, selectedSet])
 
   const list = (
     <>
       {/* All option */}
       <button
         type="button"
+        role="option"
+        aria-selected={allSelected}
         onClick={allSelected ? handleSelectNone : handleSelectAll}
         className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${
           allSelected ? 'bg-brand-50 font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-gray-700 dark:text-gray-300'
@@ -86,11 +102,9 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
       </button>
 
       {hasGroups ? (
-        groups.map((group) => {
-          const groupOptions = options.filter((o) => o.group === group)
-          const groupValues = groupOptions.map((o) => o.value)
-          const allGroupSelected = groupValues.every((v) => selected.includes(v))
-          const someGroupSelected = groupValues.some((v) => selected.includes(v))
+        groupedOptions.map(({ group, options: groupOptions, values: groupValues }) => {
+          const allGroupSelected = groupValues.every((v) => selectedSet.has(v))
+          const someGroupSelected = groupValues.some((v) => selectedSet.has(v))
 
           function toggleGroup() {
             if (allGroupSelected) {
@@ -101,24 +115,25 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
           }
 
           return (
-            <div key={group}>
+            <div key={group} role="group" aria-label={group}>
               <button
                 type="button"
                 onClick={toggleGroup}
+                aria-pressed={allGroupSelected}
                 className="sticky top-0 flex w-full items-center gap-2.5 bg-gray-50 px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800"
               >
                 <Checkbox checked={allGroupSelected} indeterminate={someGroupSelected && !allGroupSelected} size="sm" />
                 {group}
               </button>
               {groupOptions.map((o) => (
-                <OptionRow key={o.value} option={o} isSelected={selected.includes(o.value)} onToggle={() => toggle(o.value)} />
+                <OptionRow key={o.value} option={o} isSelected={selectedSet.has(o.value)} onToggle={() => toggle(o.value)} />
               ))}
             </div>
           )
         })
       ) : (
         options.map((o) => (
-          <OptionRow key={o.value} option={o} isSelected={selected.includes(o.value)} onToggle={() => toggle(o.value)} />
+          <OptionRow key={o.value} option={o} isSelected={selectedSet.has(o.value)} onToggle={() => toggle(o.value)} />
         ))
       )}
     </>
@@ -126,7 +141,7 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
 
   if (inline) {
     return (
-      <div className="w-full overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-800">
+      <div role="listbox" aria-multiselectable="true" className="w-full overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-800">
         {list}
       </div>
     )
@@ -138,6 +153,9 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
       <button
         type="button"
         onClick={() => setOpen(!open)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
         className="flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 sm:min-h-0"
       >
         <div className="flex flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
@@ -176,7 +194,7 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute left-0 z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+        <div id={listboxId} role="listbox" aria-multiselectable="true" className="absolute left-0 z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
           {list}
         </div>
       )}
@@ -199,6 +217,8 @@ function OptionRow({ option, isSelected, onToggle }: { option: CategoryOption; i
   return (
     <button
       type="button"
+      role="option"
+      aria-selected={isSelected}
       onClick={onToggle}
       className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${
         isSelected ? 'bg-gray-100 dark:bg-gray-700/50' : ''
@@ -213,7 +233,7 @@ function OptionRow({ option, isSelected, onToggle }: { option: CategoryOption; i
 function Checkbox({ checked, indeterminate, size = 'md' }: { checked: boolean; indeterminate?: boolean; size?: 'sm' | 'md' }) {
   const sizeClass = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'
   return (
-    <span className={`flex ${sizeClass} shrink-0 items-center justify-center rounded border-2 transition-colors ${
+    <span aria-hidden="true" className={`flex ${sizeClass} shrink-0 items-center justify-center rounded border-2 transition-colors ${
       checked ? 'border-brand-500 bg-brand-500' : indeterminate ? 'border-brand-400 bg-brand-200 dark:bg-brand-800' : 'border-gray-300 dark:border-gray-500'
     }`}>
       {checked && (

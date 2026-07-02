@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, ArrowRightLeft, BellRing, BellOff, UserPlus, Trash2, ChevronDown, X } from 'lucide-react'
@@ -115,6 +115,31 @@ export default function NotificationPanel({
     return () => { document.body.style.overflow = '' }
   }, [])
 
+  // Modal focus management: focus the dialog on open, restore focus on close.
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    dialogRef.current?.focus()
+    return () => previouslyFocused?.focus?.()
+  }, [])
+
+  // Escape-to-close (keyboard users can't reach the backdrop click / swipe).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') startClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [startClose])
+
+  // Re-render every minute so relative timeAgo() labels don't go stale while
+  // the panel stays open.
+  const [, setNowTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((v) => v + 1), 60000)
+    return () => clearInterval(id)
+  }, [])
+
   function handleClick(n: Notification) {
     if (!n.read) onMarkAsRead(n.id)
     onClose()
@@ -136,6 +161,15 @@ export default function NotificationPanel({
     }
   }
 
+  // Memoize the JSON.parse + regex work per notification id so a re-render
+  // (e.g. the minute tick above) doesn't re-parse every message body.
+  const renderedMessages = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const n of notifications) map.set(n.id, renderMessage(n))
+    return map
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifications, t, tMessaging])
+
   return (
     <div className="fixed inset-0 z-50" onClick={startClose}>
       {/* Backdrop */}
@@ -144,7 +178,12 @@ export default function NotificationPanel({
       {/* Panel — animation/drag transform on this wrapper; scrolling on inner
           container so iOS Safari keeps touch-scroll while transform is active. */}
       <div
-        className={`absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-white dark:bg-gray-800 lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:max-h-[80vh] lg:w-96 lg:rounded-2xl lg:shadow-2xl ${closing ? 'animate-sheet-down lg:animate-fade-out' : 'animate-sheet-up lg:animate-modal-enter'}`}
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notification-panel-title"
+        tabIndex={-1}
+        className={`absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-white outline-none dark:bg-gray-800 lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:max-h-[80vh] lg:w-96 lg:rounded-2xl lg:shadow-2xl ${closing ? 'animate-sheet-down lg:animate-fade-out' : 'animate-sheet-up lg:animate-modal-enter'}`}
         style={dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
         onClick={(e) => e.stopPropagation()}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) onAnimEnd() }}
@@ -170,7 +209,7 @@ export default function NotificationPanel({
 
           {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 pb-3 pt-2 dark:border-gray-700 lg:pt-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <h2 id="notification-panel-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {t('title')}
             </h2>
             <div className="flex items-center gap-3">
@@ -236,7 +275,7 @@ export default function NotificationPanel({
                   {/* Content */}
                   <div className="min-w-0 flex-1 pr-px">
                     <p className={`break-words text-sm text-gray-900 dark:text-gray-100 ${!n.read ? 'font-medium' : ''}`}>
-                      {renderMessage(n)}
+                      {renderedMessages.get(n.id) ?? ''}
                     </p>
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                       <span>{t(typeLabels[n.type] ?? 'activityChange')}</span>

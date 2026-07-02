@@ -6,7 +6,10 @@ import { useRealtime } from '../hooks/useRealtime'
 import { kscwApi } from '../lib/api'
 import type { Participation } from '../types'
 
-const MIXED_TOURNAMENT_EVENT_ID = '5'
+// Sourced from config (CF Pages env var) so a data reseed / different
+// environment doesn't silently break the non-member add-on. Falls back to the
+// current prod record ID when unset.
+const MIXED_TOURNAMENT_EVENT_ID = import.meta.env.VITE_MIXED_TOURNAMENT_EVENT_ID ?? '5'
 
 interface ParticipationSummaryProps {
   activityType: Participation['activity_type']
