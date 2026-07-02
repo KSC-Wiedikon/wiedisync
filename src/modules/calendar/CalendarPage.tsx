@@ -31,6 +31,7 @@ import { useCollection } from '../../lib/query'
 import { isSchedulableTeam } from '../gameScheduling/utils/schedulableTeams'
 import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalendar'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import { entryIconColor } from './entryStyle'
 
 /** Inline type icon for the overflow modal */
 const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'volleyball' | 'basketball'; className?: string }) => {
@@ -58,23 +59,6 @@ const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'voll
     return <BasketballIcon className="h-3 w-3 shrink-0" filled />
   }
   return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-current ${className}`} />
-}
-
-const iconColors: Record<string, string> = {
-  game: 'text-brand-500',
-  'game-home': 'text-brand-500',
-  'game-away': 'text-amber-500',
-  training: 'text-green-500',
-  closure: 'text-red-500',
-  event: 'text-purple-500',
-  hall: 'text-cyan-500',
-  absence: 'text-gray-900 dark:text-gray-100',
-  'scorer-duty': 'text-indigo-500',
-}
-
-function entryIconColor(entry: CalendarEntry): string {
-  if (entry.type === 'game' && entry.gameType) return iconColors[`game-${entry.gameType}`] || 'text-brand-500'
-  return iconColors[entry.type] || 'text-gray-500'
 }
 
 export default function CalendarPage() {

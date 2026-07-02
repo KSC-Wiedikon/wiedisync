@@ -1,9 +1,10 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { HallSlot, HallClosure, Hall, Team } from '../../../types'
-import { toISODate, minutesToTime, timeToMinutes } from '../../../utils/dateHelpers'
+import { toISODate, minutesToTime } from '../../../utils/dateHelpers'
 import { positionSlotsMultiHall, generateTimeLabels, SLOT_HEIGHT, topToMinutes, SLOT_MINUTES, getDayRange, getSmartStartHour, getSmartEndHour } from '../utils/timeGrid'
 import { buildConflictSet } from '../utils/conflictDetection'
+import { useOverlapResolution, useTeamResolver } from '../slotViewShared'
 import SlotBlock from './SlotBlock'
 import ClosureOverlay from './ClosureOverlay'
 
@@ -114,53 +115,9 @@ export default function DaySlotView({
     return map
   }, [positioned])
 
-  // Detect which slots have overlapping siblings in the same hall
-  const overlappingSlotIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const group of slotsByHall.values()) {
-      if (group.length < 2) continue
-      for (let i = 0; i < group.length; i++) {
-        const a = group[i]
-        const aStart = timeToMinutes(a.slot.start_time)
-        const aEnd = timeToMinutes(a.slot.end_time)
-        for (let j = i + 1; j < group.length; j++) {
-          const b = group[j]
-          const bStart = timeToMinutes(b.slot.start_time)
-          const bEnd = timeToMinutes(b.slot.end_time)
-          if (aStart < bEnd && aEnd > bStart) {
-            ids.add(a.slot.id)
-            ids.add(b.slot.id)
-          }
-        }
-      }
-    }
-    return ids
-  }, [slotsByHall])
-
-  // Collect all overlapping slot IDs per hall for cycling
-  const overlapGroupsByHall = useMemo(() => {
-    const map = new Map<string, string[]>()
-    for (const [hallId, group] of slotsByHall.entries()) {
-      const ids = group.filter((p) => overlappingSlotIds.has(p.slot.id)).map((p) => p.slot.id)
-      if (ids.length >= 2) map.set(hallId, ids)
-    }
-    return map
-  }, [slotsByHall, overlappingSlotIds])
-
-  const [boostedMap, setBoostedMap] = useState<Map<string, string>>(new Map())
-
-  const handleSwap = useCallback((hallId: string) => {
-    const ids = overlapGroupsByHall.get(hallId)
-    if (!ids || ids.length < 2) return
-    setBoostedMap((prev) => {
-      const next = new Map(prev)
-      const current = next.get(hallId)
-      const currentIdx = current ? ids.indexOf(current) : -1
-      const nextIdx = (currentIdx + 1) % ids.length
-      next.set(hallId, ids[nextIdx])
-      return next
-    })
-  }, [overlapGroupsByHall])
+  // Overlap resolution (detect overlapping siblings per hall, track which slot is
+  // boosted to the front, cycle on swap) — shared with WeekSlotView.
+  const { overlapGroups: overlapGroupsByHall, boostedMap, handleSwap } = useOverlapResolution(slotsByHall)
 
   function handleCellClick(hallId: string, e: React.MouseEvent<HTMLDivElement>) {
     if (!isAdmin && !isCoach) return
@@ -173,32 +130,8 @@ export default function DaySlotView({
     onEmptyCellClick(dayIndex, time, hallId)
   }
 
-  const teamMap = useMemo(() => {
-    const m = new Map<string, Team>()
-    for (const t of teams) m.set(String(t.id), t)
-    return m
-  }, [teams])
-
-  // Resolve the first identifiable team on the slot, skipping stale archived ids
-  // (e.g. a season rollover that re-linked the new team but left the old one).
-  // The teams we load are active-only, so an archived id resolves to nothing.
-  function resolveTeam(slot: HallSlot): { name?: string; sport?: string } | undefined {
-    for (const tid of slot.team ?? []) {
-      if (tid == null) continue
-      if (typeof tid === 'object') return tid as { name?: string; sport?: string }
-      const found = teamMap.get(String(tid))
-      if (found) return found
-    }
-    return undefined
-  }
-
-  function getTeamName(slot: HallSlot): string {
-    return resolveTeam(slot)?.name ?? ''
-  }
-
-  function getTeamSport(slot: HallSlot): 'volleyball' | 'basketball' | undefined {
-    return resolveTeam(slot)?.sport as 'volleyball' | 'basketball' | undefined
-  }
+  // Team name/sport resolution (skips stale archived team ids) — shared with WeekSlotView.
+  const { getTeamName, getTeamSport } = useTeamResolver(teams)
 
   const { startMin, endMin } = getDayRange(dayIndex)
   const inactiveTopH = Math.max(0, ((startMin - baseMinute) / SLOT_MINUTES) * SLOT_HEIGHT)

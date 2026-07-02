@@ -5,6 +5,7 @@ import { relId } from '../../../utils/relations'
 import { CalendarOff, TrafficCone, CircleX, Star, ClipboardList } from 'lucide-react'
 import BasketballIcon from '../../../components/BasketballIcon'
 import VolleyballIcon from '../../../components/VolleyballIcon'
+import { barColors, dotColors, colorKey, paintKey } from '../entryStyle'
 import {
   startOfMonth,
   endOfMonth,
@@ -49,45 +50,6 @@ const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'voll
   }
   // Fallback dot
   return <span className={`inline-block h-2 w-2 shrink-0 rounded-full bg-current ${className}`} />
-}
-
-/* ── colour helpers ──────────────────────────────────────── */
-
-const barColors: Record<string, { bg: string; text: string; darkBg: string; darkText: string }> = {
-  'game-home': { bg: 'bg-brand-200', text: 'text-brand-900', darkBg: 'dark:bg-brand-800', darkText: 'dark:text-brand-100' },
-  'game-away': { bg: 'bg-amber-200', text: 'text-amber-900', darkBg: 'dark:bg-amber-800', darkText: 'dark:text-amber-100' },
-  game:        { bg: 'bg-brand-200', text: 'text-brand-900', darkBg: 'dark:bg-brand-800', darkText: 'dark:text-brand-100' },
-  training:    { bg: 'bg-green-200', text: 'text-green-900', darkBg: 'dark:bg-green-800', darkText: 'dark:text-green-100' },
-  closure:     { bg: 'bg-red-200', text: 'text-red-900', darkBg: 'dark:bg-red-800', darkText: 'dark:text-red-100' },
-  event:       { bg: 'bg-purple-200', text: 'text-purple-900', darkBg: 'dark:bg-purple-800', darkText: 'dark:text-purple-100' },
-  hall:        { bg: 'bg-cyan-200', text: 'text-cyan-900', darkBg: 'dark:bg-cyan-800', darkText: 'dark:text-cyan-100' },
-  absence:     { bg: 'bg-gray-900', text: 'text-white', darkBg: 'dark:bg-gray-100', darkText: 'dark:text-gray-900' },
-  'scorer-duty': { bg: 'bg-indigo-200', text: 'text-indigo-900', darkBg: 'dark:bg-indigo-800', darkText: 'dark:text-indigo-100' },
-  blue:        { bg: 'bg-blue-200', text: 'text-blue-900', darkBg: 'dark:bg-blue-800', darkText: 'dark:text-blue-100' },
-}
-
-function colorKey(e: CalendarEntry): string {
-  if (e.type === 'game' && e.gameType) return `game-${e.gameType}`
-  return e.type
-}
-
-/** Palette key for colouring — honours an entry's `colorOverride`. The icon
- *  shape still follows `colorKey()`/`type`, so only the colour changes. */
-function paintKey(e: CalendarEntry): string {
-  return e.colorOverride ?? colorKey(e)
-}
-
-const dotColors: Record<string, string> = {
-  'game-home': 'bg-brand-500',
-  'game-away': 'bg-amber-500',
-  game: 'bg-brand-500',
-  training: 'bg-green-500',
-  closure: 'bg-red-500',
-  event: 'bg-purple-500',
-  hall: 'bg-cyan-500',
-  absence: 'bg-gray-900 dark:bg-gray-100',
-  'scorer-duty': 'bg-indigo-500',
-  blue: 'bg-blue-500',
 }
 
 /* ── spanning bar layout algorithm ───────────────────────── */

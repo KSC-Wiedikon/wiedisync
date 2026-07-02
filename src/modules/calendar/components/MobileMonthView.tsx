@@ -14,25 +14,7 @@ import {
   formatDate,
   DAY_HEADERS,
 } from '../../../utils/dateUtils'
-
-/* ── dot colours ─────────────────────────────────────────── */
-
-const dotColors: Record<string, string> = {
-  'game-home': 'bg-brand-500',
-  'game-away': 'bg-amber-500',
-  game: 'bg-brand-500',
-  training: 'bg-green-500',
-  closure: 'bg-red-500',
-  event: 'bg-purple-500',
-  hall: 'bg-cyan-500',
-  absence: 'bg-gray-900 dark:bg-gray-100',
-  'scorer-duty': 'bg-indigo-500',
-}
-
-function colorKey(e: CalendarEntry): string {
-  if (e.type === 'game' && e.gameType) return `game-${e.gameType}`
-  return e.type
-}
+import { dotColors, colorKey } from '../entryStyle'
 
 /** Synthetic-entry id prefix for a collapsed multi-absence row (non-clickable). */
 const ABSENCE_GROUP_PREFIX = 'absence-group:'
