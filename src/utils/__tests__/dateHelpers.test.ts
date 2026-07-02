@@ -43,8 +43,8 @@ describe('formatDateZurich', () => {
 });
 
 describe('formatDateCompactZurich', () => {
-  it('renders dd.mm.yy', () => {
-    expect(formatDateCompactZurich('2026-06-15T12:00:00.000Z')).toBe('15.06.26');
+  it('renders dd.mm.yyyy', () => {
+    expect(formatDateCompactZurich('2026-06-15T12:00:00.000Z')).toBe('15.06.2026');
   });
 });
 
@@ -57,8 +57,8 @@ describe('formatWeekdayZurich', () => {
 });
 
 describe('formatDateTimeCompactZurich', () => {
-  it('renders dd.mm.yy HH:mm', () => {
-    expect(formatDateTimeCompactZurich('2026-04-19T10:30:00.000Z')).toBe('19.04.26 12:30');
+  it('renders dd.mm.yyyy HH:mm', () => {
+    expect(formatDateTimeCompactZurich('2026-04-19T10:30:00.000Z')).toBe('19.04.2026 12:30');
   });
 });
 
