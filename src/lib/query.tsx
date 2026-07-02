@@ -73,7 +73,6 @@ interface UseCollectionOptions {
 
 /**
  * Fetch items from a Directus collection with automatic caching.
- * Fetch items from a Directus collection with automatic caching.
  */
 export function useCollection<T = Record<string, unknown>>(
   collection: string,
@@ -165,8 +164,13 @@ export function useItem<T = Record<string, unknown>>(
   options?: { fields?: string[]; enabled?: boolean },
 ) {
   return useQuery<T>({
-    queryKey: keys.detail(collection, id!),
-    queryFn: () => fetchItem<T>(collection, id!, { fields: options?.fields }),
+    // `enabled: id != null` gates the query, so the sentinel key + guard below are
+    // only ever hit when id is set — no `!` assertion needed to satisfy the types.
+    queryKey: keys.detail(collection, id ?? ''),
+    queryFn: () => {
+      if (id == null) return Promise.reject(new Error('useItem called without an id'))
+      return fetchItem<T>(collection, id, { fields: options?.fields })
+    },
     enabled: (options?.enabled ?? true) && id != null,
   })
 }

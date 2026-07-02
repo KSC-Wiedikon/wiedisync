@@ -10,6 +10,7 @@
 
 import * as Sentry from '@sentry/react'
 import { toError } from '../utils/toError'
+import { isChunkLoadError } from './chunkReload'
 
 const host = typeof window !== 'undefined' ? window.location.hostname : ''
 const isProd = host === 'wiedisync.kscw.ch'
@@ -83,9 +84,10 @@ export function initSentry() {
       // The SDK auto-refreshes or kicks the user to /login; nothing actionable here.
       if (/token expired/i.test(errMsg) || /token has expired/i.test(errMsg)) return null
       // Stale lazy-import chunks after a deploy — App.tsx catches these and hot-reloads
-      // the SPA. Mirror the same regex here so the brief race before reload doesn't
-      // surface as Sentry noise / false-positive regressions on old guide/route PRs.
-      if (/Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Loading chunk \d+ failed|ChunkLoadError|is not a valid JavaScript MIME type|expected a JavaScript(?:-or-Wasm)? module script but the server responded with a MIME type/i.test(errMsg)) return null
+      // the SPA. Reuse chunkReload.ts's single source of truth so the brief race before
+      // reload doesn't surface as Sentry noise / false-positive regressions, and the
+      // pattern can't drift from the reload path.
+      if (isChunkLoadError(errMsg)) return null
       // Strip email-like strings from breadcrumb messages
       if (event.breadcrumbs) {
         for (const bc of event.breadcrumbs) {
@@ -422,15 +424,21 @@ const PII_FIELDS = new Set([
 function scrubPii(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
   for (const [key, val] of Object.entries(obj)) {
-    if (PII_FIELDS.has(key)) {
-      result[key] = '[REDACTED]'
-    } else if (val && typeof val === 'object' && !Array.isArray(val)) {
-      result[key] = scrubPii(val as Record<string, unknown>)
-    } else {
-      result[key] = val
-    }
+    result[key] = PII_FIELDS.has(key) ? '[REDACTED]' : scrubValue(val)
   }
   return result
+}
+
+/**
+ * Recursively scrub a single value: descend into nested objects AND arrays so
+ * PII inside an array of objects (e.g. `{ members: [{ email, first_name }] }`
+ * or a bulk mutation body) is redacted rather than forwarded to Sentry / the
+ * JSONL log unredacted. nFADP-relevant.
+ */
+function scrubValue(val: unknown): unknown {
+  if (Array.isArray(val)) return val.map(scrubValue)
+  if (val && typeof val === 'object') return scrubPii(val as Record<string, unknown>)
+  return val
 }
 
 /**

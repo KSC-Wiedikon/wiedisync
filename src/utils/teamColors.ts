@@ -111,21 +111,31 @@ export const teamIds: Record<string, string> = {
 
 const fallbackColor = { bg: '#6b7280', text: '#ffffff', border: '#4b5563' }
 
+/**
+ * Match a (possibly long) basketball team name against the `BB-` shortcode keys
+ * in `teamColors`, returning the matched key or null. Longest shortcode wins so
+ * "Lions D1"/"H-Classics" beat the bare "D1"/"H1" substrings. Shared by
+ * getTeamColor + teamNameToColorKey so the two can never disagree on which color
+ * a long BB name maps to (they previously used slightly different predicates).
+ */
+function matchBBColorKey(name: string): string | null {
+  const bbKeys = Object.keys(teamColors).filter((k) => k.startsWith('BB-'))
+  bbKeys.sort((a, b) => b.length - a.length)
+  for (const k of bbKeys) {
+    const sc = k.slice(3) // e.g. "H1", "H-Classics", "Lions D1"
+    if (name === sc || name.endsWith(` ${sc}`) || name.startsWith(`${sc} `) || name.includes(` ${sc} `)) return k
+  }
+  return null
+}
+
 export function getTeamColor(teamName: string) {
   const key = teamName.replace(/-\d+$/, '')
   if (teamColors[key]) return teamColors[key]
   if (teamColors[`BB-${key}`]) return teamColors[`BB-${key}`]
 
   // Long basketball names like "Herren 1 H1", "Damen D-Classics 1LR"
-  // Match longest shortCode first to avoid partial matches
-  const bbKeys = Object.keys(teamColors).filter((k) => k.startsWith('BB-'))
-  bbKeys.sort((a, b) => b.length - a.length)
-  for (const k of bbKeys) {
-    const sc = k.slice(3) // e.g. "H1", "H-Classics", "Lions D1"
-    if (key === sc || key.endsWith(` ${sc}`) || key.startsWith(`${sc} `) || key.includes(` ${sc} `)) return teamColors[k]
-  }
-
-  return fallbackColor
+  const matched = matchBBColorKey(key)
+  return matched ? teamColors[matched] : fallbackColor
 }
 
 /** Trim redundant Basketplan league suffix from BB men team display names.
@@ -152,13 +162,5 @@ export function teamNameToColorKey(name: string, sport: 'volleyball' | 'basketba
   if (teamColors[direct]) return direct
 
   // Long basketball names like "Herren 1 H1", "Herren 3 (Unicorns) H4", "Damen D-Classics 1LR"
-  // Try to match against known teamColors keys by checking if the team name contains the short code
-  for (const key of Object.keys(teamColors)) {
-    if (!key.startsWith('BB-')) continue
-    const shortCode = key.slice(3) // e.g. "H1", "H-Classics", "Lions D1"
-    // Match: name ends with shortCode, or name contains shortCode as a word
-    if (name === shortCode || name.endsWith(` ${shortCode}`) || name.includes(`${shortCode} `)) return key
-  }
-
-  return direct // fallback
+  return matchBBColorKey(name) ?? direct // fallback
 }

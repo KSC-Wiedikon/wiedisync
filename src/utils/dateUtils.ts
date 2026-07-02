@@ -23,9 +23,17 @@ export function parseDate(isoString: string): Date {
   return parseISO(isoString)
 }
 
-export function formatDate(date: Date, pattern: string): string {
+/** Format a Date with a date-fns pattern (enUS locale). Named `formatDatePattern`
+ *  to avoid the collision with dateHelpers' `formatDate(str, locale?)` (Intl,
+ *  de-CH, dd.mm.yyyy) — importing the wrong one silently changes the output. */
+export function formatDatePattern(date: Date, pattern: string): string {
   return format(date, pattern, { locale: enUS })
 }
+
+/** @deprecated Use {@link formatDatePattern}. Kept as an alias so existing
+ *  importers keep working; new code should prefer the unambiguous name to avoid
+ *  clashing with dateHelpers' `formatDate`. */
+export const formatDate = formatDatePattern
 
 export function startOfMonth(date: Date): Date {
   return fnsStartOfMonth(date)

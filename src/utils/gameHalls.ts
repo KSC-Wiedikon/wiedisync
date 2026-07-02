@@ -1,12 +1,10 @@
 import type { Hall, Team } from '../types'
+import { relId } from './relations'
 
-export function normalizeRelId(v: unknown): string {
-  if (v == null) return ''
-  if (typeof v === 'object' && 'id' in (v as Record<string, unknown>)) {
-    return String((v as { id: unknown }).id)
-  }
-  return String(v)
-}
+// `relId` (utils/relations.ts) is the canonical relation-ID extractor. Re-exported
+// here under the historical `normalizeRelId` name so existing importers (e.g.
+// useGameConflicts) keep working without a second, drifting implementation.
+export { relId as normalizeRelId } from './relations'
 
 type GameHallFields = {
   hall?: string | number | null
@@ -18,8 +16,8 @@ export function allGameHallIds(
   game: GameHallFields,
   ctx?: { teams?: Team[]; halls?: Hall[] },
 ): string[] {
-  const primary = game.hall ? [normalizeRelId(game.hall)] : []
-  const extras = (game.additional_halls ?? []).map((v) => normalizeRelId(v))
+  const primary = game.hall ? [relId(game.hall)] : []
+  const extras = (game.additional_halls ?? []).map((v) => relId(v))
   const ids = [...primary, ...extras].filter(Boolean)
 
   if (ids.length > 1) return Array.from(new Set(ids))
@@ -28,7 +26,7 @@ export function allGameHallIds(
   // Backward-compat: legacy basketball rows have no additional_halls. If the
   // primary hall is KWI A or KWI B and the team is basketball, span both.
   if (ids.length === 1 && ctx?.teams && ctx?.halls) {
-    const team = ctx.teams.find((t) => String(t.id) === normalizeRelId(game.kscw_team))
+    const team = ctx.teams.find((t) => String(t.id) === relId(game.kscw_team))
     if (team?.sport === 'basketball') {
       const primaryHall = ctx.halls.find((h) => String(h.id) === ids[0])
       if (primaryHall && (primaryHall.name === 'KWI A' || primaryHall.name === 'KWI B')) {

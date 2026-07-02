@@ -195,10 +195,6 @@ export function formatDate(d: string, locale?: string): string {
   return formatDateZurich(d, locale)
 }
 
-export function formatDateShort(d: string): string {
-  return formatDateShortZurich(d)
-}
-
 export function formatWeekday(d: string, locale?: string): string {
   return formatWeekdayZurich(d, locale ?? currentLocale())
 }
@@ -350,7 +346,7 @@ export function parseRespondByTime(
   _fallbackStartTime?: string
 ): { date: string; time: string } | null {
   if (!respondBy) return null;
-  const d = new Date(respondBy.includes('T') ? respondBy : respondBy.replace(' ', 'T') + 'Z');
+  const d = parseFlexible(respondBy);
   if (Number.isNaN(d.getTime())) return null;
   const p = formatZurichParts(d);
   return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
@@ -360,7 +356,7 @@ export function parseRespondByTime(
  * When stored h+m+s in Europe/Zurich are all zero (sentinel for "unset"),
  * fall back to activityStartTime (HH:MM) or 23:59 on the Zurich-local date. */
 export function getDeadlineDate(respondBy: string, activityStartTime?: string): Date {
-  const d = new Date(respondBy.includes('T') ? respondBy : respondBy.replace(' ', 'T') + 'Z');
+  const d = parseFlexible(respondBy);
   if (Number.isNaN(d.getTime())) return new Date(NaN);
   const p = formatZurichParts(d);
   if (p.hour === '00' && p.minute === '00' && p.second === '00') {
