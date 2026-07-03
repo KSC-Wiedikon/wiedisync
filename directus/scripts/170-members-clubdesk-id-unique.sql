@@ -1,4 +1,5 @@
--- Migration 168: one ClubDesk contact per member (reverse-uniqueness backstop).
+-- Migration 170: one ClubDesk contact per member (reverse-uniqueness backstop).
+-- (Renumbered from 168 to leave 167/168 for a parallel signup-tokens WIP.)
 --
 -- Deep audit 2026-07-03 (finding #19). Migration 158's clubdesk_id backfill only
 -- guarded one-member→one-contact (HAVING count(DISTINCT cd.clubdesk_id)=1); the

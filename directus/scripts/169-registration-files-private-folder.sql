@@ -1,4 +1,7 @@
--- Migration 167: private folder for registration ID / licence documents.
+-- Migration 169: private folder for registration ID / licence documents.
+-- (Renumbered from 167 to avoid collision with a parallel 167-signup-tokens WIP.
+--  The folder UUID 'a0000167-...' is just a stable identifier — not tied to the
+--  migration number — and matches the kscw-hooks registration-quarantine hook.)
 --
 -- Deep audit 2026-07-03 (finding #3, HIGH privacy). The public registration form
 -- uploads government-ID scans + basketball licence/declaration docs
