@@ -41,7 +41,11 @@ flock -n 9 || exit 0   # a previous dispatcher (same env) is still running
 psqlc() { docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -tAc "$1"; }
 
 # Recover a stuck 'running' (a dispatch that died mid-sync) so it can't block forever.
-psqlc "UPDATE clubdesk_member_sync SET down_state='idle', down_requested_at=NULL, down_message='Reset (stale run)' WHERE id=1 AND down_state='running' AND down_requested_at < now() - interval '15 minutes'" >/dev/null 2>&1 || true
+# Set 'failed' but KEEP down_requested_at: a superadmin who queued a sync while the run
+# was stuck still has down_requested_at set, and the claim below requires it IS NOT NULL
+# — nulling it here would silently drop that queued request. Leaving it intact lets the
+# next tick re-claim (state<>'running') and retry instead of dropping the work.
+psqlc "UPDATE clubdesk_member_sync SET down_state='failed', down_message='Reset (stale run — will retry)' WHERE id=1 AND down_state='running' AND down_requested_at < now() - interval '15 minutes'" >/dev/null 2>&1 || true
 
 # Atomically claim a queued request. CTE so the top-level statement is a SELECT —
 # a bare UPDATE…RETURNING via psql -tAc also prints the "UPDATE 1" command tag.

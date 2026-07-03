@@ -227,8 +227,10 @@ const psqlInput =
   // ClubDesk. ClubDesk-authoritative fields (beitragskategorie, sektion — members
   // can't edit them) always update; member-editable ones (adresse/plz/ort/phone)
   // fill only when empty so a member's own profile edit is never clobbered.
-  // Matched by licence (1:1) then email(+alt) with a first-name-token guard (same
-  // safe matching as the birthdate passes). Own transaction.
+  // Matched by licence (1:1) then email(+alt) with a last-name equality + first-name-
+  // token guard (same safe matching as the birthdate passes + the clubdesk_id linker).
+  // The last-name guard stops a shared family email (parent↔child) cross-assigning each
+  // other's authoritative Beitragskategorie/address. Own transaction.
   'BEGIN;\n' +
   'WITH cd AS (\n' +
   '  SELECT lower(btrim(lizenznummer)) lic,\n' +
@@ -248,7 +250,7 @@ const psqlInput =
   'FROM mt WHERE t.id = mt.id;\n' +
   'WITH cd AS (\n' +
   '  SELECT lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
-  "         lower(split_part(btrim(vorname),' ',1)) vn1,\n" +
+  "         lower(btrim(nachname)) nachname, lower(split_part(btrim(vorname),' ',1)) vn1,\n" +
   "         left(NULLIF(btrim(adresse),''),255) adresse, left(NULLIF(btrim(plz),''),10) plz, left(NULLIF(btrim(ort),''),100) ort,\n" +
   "         left(NULLIF(btrim(beitragskategorie),''),100) categ, left(NULLIF(btrim(sektion),''),32) sektion,\n" +
   "         left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255) phone\n" +
@@ -257,6 +259,7 @@ const psqlInput =
   '  SELECT DISTINCT ON (mm.id) mm.id, cd.adresse, cd.plz, cd.ort, cd.categ, cd.sektion, cd.phone\n' +
   "  FROM members mm JOIN cd ON NULLIF(btrim(mm.email),'') IS NOT NULL\n" +
   '       AND lower(btrim(mm.email)) IN (cd.email, cd.email_alt)\n' +
+  '       AND lower(btrim(mm.last_name)) = cd.nachname\n' +
   "       AND lower(split_part(btrim(mm.first_name),' ',1)) = cd.vn1\n" +
   '  ORDER BY mm.id, cd.categ NULLS LAST, cd.adresse NULLS LAST)\n' +
   'UPDATE members t SET\n' +
