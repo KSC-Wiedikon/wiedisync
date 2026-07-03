@@ -84,6 +84,10 @@ export default {
   inviteLoading: 'Yladig wird prüeft...',
   inviteGreeting: 'Hallo {{name}}!',
   inviteIntro: 'Dis WiediSync-Konto isch vorbereitet worde. Wähl es Passwort zum s aktiviere.',
+  // Churzi «Was chunt jetz»-Aaleitig im Yladigs-Schritt
+  inviteStepPassword: 'Passwort wähle',
+  inviteStepConfirm: 'Bestätige',
+  inviteStepDone: 'Du bisch dinne',
   inviteInvalidTitle: 'Yladig ungültig',
   inviteInvalidDescription: 'De Yladigslink isch ungültig oder abgloffe. Frög din Trainer oder en Admin nach ere neue Yladig.',
   inviteClaimedTitle: 'Yladig scho bruucht',

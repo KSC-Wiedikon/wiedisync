@@ -84,6 +84,10 @@ export default {
   inviteLoading: 'Verifica dell\'invito...',
   inviteGreeting: 'Ciao {{name}}!',
   inviteIntro: 'Il tuo account WiediSync è stato preparato. Scegli una password per attivarlo.',
+  // Breve guida «cosa succede ora» nel passaggio dell'invito
+  inviteStepPassword: 'Scegli una password',
+  inviteStepConfirm: 'Conferma',
+  inviteStepDone: 'Sei dentro',
   inviteInvalidTitle: 'Invito non valido',
   inviteInvalidDescription: 'Questo link di invito non è valido o è scaduto. Chiedi al tuo allenatore o a un admin un nuovo invito.',
   inviteClaimedTitle: 'Invito già utilizzato',

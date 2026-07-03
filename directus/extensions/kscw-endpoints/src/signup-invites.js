@@ -64,13 +64,16 @@ function firstNamesMatch(a, b) {
 }
 
 // ── Invite email (5 locales, keyed by members.language) ─────────────────────
+// `steps` is a 3-item how-to guide rendered as a numbered list in the email so
+// people know exactly what to do (per the club's onboarding request).
 const INVITE_T = {
   german: {
     subject: 'WiediSync – Dein Konto wartet auf dich',
     title: 'Konto erstellen',
     subtitle: 'KSC Wiedikon',
     greeting: name => `Hallo ${name},`,
-    body: 'Für dich wurde ein WiediSync-Zugang vorbereitet. Klicke auf den Button unten, um dein Passwort festzulegen und dein Konto zu aktivieren.',
+    body: 'Für dich wurde ein WiediSync-Zugang vorbereitet. So aktivierst du dein Konto:',
+    steps: ['Klicke unten auf «Konto erstellen».', 'Wähle ein Passwort und bestätige es.', 'Fertig — du bist angemeldet und siehst Spielpläne, Trainings und Teaminfos.'],
     button: 'Konto erstellen',
     expiry: 'Dieser Link ist 30 Tage gültig und kann nur einmal verwendet werden.',
     ignore: 'Falls du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.',
@@ -80,7 +83,8 @@ const INVITE_T = {
     title: 'Konto erstelle',
     subtitle: 'KSC Wiedikon',
     greeting: name => `Hallo ${name},`,
-    body: 'Für di isch en WiediSync-Zuegang vorbereitet worde. Klick uf de Button unde, zum dis Passwort festzlege und dis Konto z aktiviere.',
+    body: 'Für di isch en WiediSync-Zuegang vorbereitet worde. So aktivisch dis Konto:',
+    steps: ['Klick unde uf «Konto erstelle».', 'Wähl es Passwort und bestätig s.', 'Fertig — du bisch aagmäldet und gsehsch Spielplän, Trainings und Teaminfos.'],
     button: 'Konto erstelle',
     expiry: 'De Link isch 30 Täg gültig und cha nur einisch bruucht werde.',
     ignore: 'Falls du die Yladig nöd erwartet hesch, chasch die E-Mail ignoriere.',
@@ -90,7 +94,8 @@ const INVITE_T = {
     title: 'Create your account',
     subtitle: 'KSC Wiedikon',
     greeting: name => `Hello ${name},`,
-    body: 'A WiediSync access has been prepared for you. Click the button below to set your password and activate your account.',
+    body: 'A WiediSync access has been prepared for you. Here is how to activate your account:',
+    steps: ['Tap "Create account" below.', 'Choose a password and confirm it.', 'Done — you are logged in and can see schedules, trainings, and team info.'],
     button: 'Create account',
     expiry: 'This link is valid for 30 days and can only be used once.',
     ignore: 'If you were not expecting this invitation, you can safely ignore this email.',
@@ -100,7 +105,8 @@ const INVITE_T = {
     title: 'Créer votre compte',
     subtitle: 'KSC Wiedikon',
     greeting: name => `Bonjour ${name},`,
-    body: 'Un accès WiediSync a été préparé pour vous. Cliquez sur le bouton ci-dessous pour définir votre mot de passe et activer votre compte.',
+    body: 'Un accès WiediSync a été préparé pour vous. Voici comment activer votre compte :',
+    steps: ['Cliquez sur « Créer le compte » ci-dessous.', 'Choisissez un mot de passe et confirmez-le.', 'C\'est fait — vous êtes connecté et voyez les calendriers, entraînements et infos d\'équipe.'],
     button: 'Créer le compte',
     expiry: 'Ce lien est valable 30 jours et ne peut être utilisé qu\'une seule fois.',
     ignore: 'Si vous n\'attendiez pas cette invitation, vous pouvez ignorer cet e-mail.',
@@ -110,11 +116,24 @@ const INVITE_T = {
     title: 'Crea il tuo account',
     subtitle: 'KSC Wiedikon',
     greeting: name => `Ciao ${name},`,
-    body: 'Un accesso WiediSync è stato preparato per te. Clicca sul pulsante qui sotto per impostare la tua password e attivare il tuo account.',
+    body: 'Un accesso WiediSync è stato preparato per te. Ecco come attivare il tuo account:',
+    steps: ['Tocca «Crea account» qui sotto.', 'Scegli una password e confermala.', 'Fatto — hai eseguito l\'accesso e vedi calendari, allenamenti e info squadra.'],
     button: 'Crea account',
     expiry: 'Questo link è valido per 30 giorni e può essere utilizzato una sola volta.',
     ignore: 'Se non ti aspettavi questo invito, puoi ignorare questa e-mail.',
   },
+}
+
+// Render a numbered how-to guide as inline-styled HTML (email-safe: no <ol>
+// list-style quirks across clients — explicit numbered rows instead).
+export function buildGuideHtml(steps) {
+  const rows = steps.map((s, i) => (
+    `<tr>` +
+    `<td style="vertical-align:top;padding:4px 10px 4px 0"><span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;background:#4A55A2;color:#fff;border-radius:11px;font-size:12px;font-weight:700">${i + 1}</span></td>` +
+    `<td style="vertical-align:top;padding:4px 0;font-size:13px;color:#cbd5e1;line-height:1.5">${s}</td>` +
+    `</tr>`
+  )).join('')
+  return `<table cellpadding="0" cellspacing="0" style="margin:14px 0">${rows}</table>`
 }
 
 /**
@@ -123,7 +142,7 @@ const INVITE_T = {
 export async function sendSignupInviteEmail(mailService, member, token) {
   const t = INVITE_T[member.language] || INVITE_T.german
   const html = buildEmailLayout(
-    `<div style="font-size:13px;color:#94a3b8;line-height:1.7"><p style="text-align:justify">${t.body}</p><p style="text-align:justify;color:#64748b;font-size:12px">${t.expiry}<br>${t.ignore}</p></div>`,
+    `<div style="font-size:13px;color:#94a3b8;line-height:1.7"><p style="text-align:justify">${t.body}</p>${buildGuideHtml(t.steps)}<p style="text-align:justify;color:#64748b;font-size:12px">${t.expiry}<br>${t.ignore}</p></div>`,
     {
       title: t.title,
       subtitle: t.subtitle,
@@ -132,11 +151,12 @@ export async function sendSignupInviteEmail(mailService, member, token) {
       ctaLabel: t.button,
     }
   )
+  const textSteps = t.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')
   await mailService.send({
     to: member.email,
     subject: t.subject,
     html,
-    text: `${t.body}\n\n${signupInviteUrl(token)}\n\n${t.expiry}`,
+    text: `${t.body}\n\n${textSteps}\n\n${signupInviteUrl(token)}\n\n${t.expiry}`,
   })
 }
 
@@ -246,8 +266,19 @@ export function registerSignupInvites(router, { database, logger, services, getS
       })
 
       log.info(`Signup invite minted for member ${target.id} by member ${actor?.id ?? 'admin'}`)
-      // The token itself is deliberately NOT returned — email-only delivery.
-      res.json({ success: true, email: target.email, expires_at: expiresAt })
+      // Return the invite URL so staff can ALSO show it as a QR code / copy
+      // link in person (the member additionally receives it by email). This
+      // exposes the token to the minting staff member — acceptable because the
+      // minter is already an admin / vorstand / the member's own coach or TR
+      // (trusted, and the mint is writeUserLog'd above), mirroring the existing
+      // team-invite QR flow. See SECURITY.md 2026-07-03.
+      res.json({
+        success: true,
+        email: target.email,
+        expires_at: expiresAt,
+        invite_url: signupInviteUrl(token),
+        member_name: [target.first_name, target.last_name].filter(Boolean).join(' '),
+      })
     } catch (err) {
       log.error({ msg: `signup-invites/create: ${err.message}`, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })

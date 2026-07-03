@@ -84,6 +84,10 @@ export default {
   inviteLoading: 'Einladung wird geprüft...',
   inviteGreeting: 'Hallo {{name}}!',
   inviteIntro: 'Dein WiediSync-Konto wurde vorbereitet. Wähle ein Passwort, um es zu aktivieren.',
+  // Kurze «Was passiert als Nächstes»-Anleitung im Einladungs-Schritt
+  inviteStepPassword: 'Passwort wählen',
+  inviteStepConfirm: 'Bestätigen',
+  inviteStepDone: 'Du bist drin',
   inviteInvalidTitle: 'Einladung ungültig',
   inviteInvalidDescription: 'Dieser Einladungslink ist ungültig oder abgelaufen. Bitte deinen Trainer oder einen Admin um eine neue Einladung.',
   inviteClaimedTitle: 'Einladung bereits verwendet',

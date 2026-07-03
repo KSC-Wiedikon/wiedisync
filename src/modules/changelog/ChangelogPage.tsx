@@ -20,7 +20,7 @@ const CHANGELOG: ChangelogEntry[] = [
         items: [
           'New WiediSync accounts are now created through a personal, single-use invite link — sent automatically when your club registration is approved, or by your coach, team responsible or the club board. This prevents duplicate member records.',
           'Existing members without an account can still activate it the usual way with their registered email address.',
-          'Coaches and team responsibles can send an account invite to roster members who have no login yet (button in the team roster).',
+          'Coaches and team responsibles can send an account invite to roster members who have no login yet — with a QR code to scan in person, plus the link by email. Every invite and approval email now includes a short step-by-step guide.',
         ],
       },
       {

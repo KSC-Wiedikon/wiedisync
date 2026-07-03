@@ -7,7 +7,8 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 ### Account signup by personal invite
 - New WiediSync accounts are created through a **personal, single-use invite link** — sent automatically when a club registration (kscw.ch Anmeldung) is approved, or minted by a coach, team responsible, or the board for an existing member without a login. Open self-registration is closed; this prevents duplicate member records.
 - Existing members can still activate their account with their registered email address (unchanged claim flow).
-- Coaches/TRs get a "send WiediSync invite" action in the team roster for members without a login; admins can resend an invite from the Anmeldungen page.
+- Coaches/TRs get a "send WiediSync invite" action in the team roster for members without a login; it shows a **QR code** to scan in person (the link is also emailed), and admins can resend an invite from the Anmeldungen page.
+- Every invite and approval email now includes a short step-by-step guide so people know exactly how to activate their account.
 
 ### Game planning opens to coaches
 - Coaches and team responsibles can open the game-planning calendar for **their own team** (view only). Booking, confirming, and opponent communication stay with the Spielplaner.

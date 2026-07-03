@@ -199,4 +199,12 @@ export default {
   accountInviteAlreadyClaimed: 'Cette personne a déjà un compte',
   accountInviteNoEmail: 'Ce membre n\'a pas d\'adresse e-mail',
   accountInviteError: 'Impossible d\'envoyer l\'invitation',
+  // Fenêtre QR + guide affichée après la création d'une invitation
+  accountInviteQrTitle: 'Inviter {{name}}',
+  accountInviteStep1: 'Scannez ce code ou ouvrez le lien',
+  accountInviteStep2: 'Choisissez un mot de passe',
+  accountInviteStep3: 'C\'est fait — vous êtes connecté',
+  accountInviteEmailedTo: 'Nous avons aussi envoyé le lien à {{email}}.',
+  accountInviteCopyLink: 'Copier le lien',
+  accountInviteCopied: 'Copié !',
 } as const

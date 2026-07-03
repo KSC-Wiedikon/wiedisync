@@ -23,7 +23,7 @@ import { logCronError, logCronRun, logWarning, logAuthDenial, cleanOldLogs, writ
 import { initSentry } from '../../kscw-endpoints/src/sentry.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, bucketEmailsByLocale } from '../../kscw-endpoints/src/email-template.js'
 import { sendLocalizedPush, bucketMembersByLocale, tPush } from '../../kscw-endpoints/src/push-i18n.js'
-import { mintSignupToken, signupInviteUrl } from '../../kscw-endpoints/src/signup-invites.js'
+import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-endpoints/src/signup-invites.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
@@ -3446,8 +3446,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       approvedSubject: 'Anmeldung bestätigt — KSC Wiedikon',
       approvedGreeting: name => `Hallo ${name},`,
       approvedBody: `<p style="text-align:justify">Deine Anmeldung wurde geprüft und bestätigt. Willkommen beim KSC Wiedikon!</p>
-        <p style="text-align:justify"><strong style="color:#e2e8f0">Nächster Schritt:</strong> Erstelle dein Konto auf unserer Vereinsplattform WiediSync, um Spielpläne, Trainings und Teaminfos zu sehen.</p>
-        <p style="text-align:justify">Bei Fragen erreichst du uns unter <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
+        <p style="text-align:justify"><strong style="color:#e2e8f0">So erstellst du dein Konto auf WiediSync:</strong></p>`,
+      approvedSteps: ['Klicke unten auf den Button.', 'Wähle ein Passwort und bestätige es.', 'Fertig — du siehst Spielpläne, Trainings und Teaminfos.'],
+      approvedContactLine: `<p style="text-align:justify">Bei Fragen erreichst du uns unter <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
       approvedCtaLabel: 'Konto erstellen',
       approvedCtaLabelLogin: 'Zum Login',
       approvedBodyExisting: `<p style="text-align:justify">Deine Anmeldung wurde geprüft und bestätigt. Willkommen beim KSC Wiedikon!</p>
@@ -3471,8 +3472,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       approvedSubject: 'Registration Approved — KSC Wiedikon',
       approvedGreeting: name => `Hello ${name},`,
       approvedBody: `<p style="text-align:justify">Your registration has been reviewed and approved. Welcome to KSC Wiedikon!</p>
-        <p style="text-align:justify"><strong style="color:#e2e8f0">Next step:</strong> Create your account on our club platform WiediSync to see schedules, trainings, and team info.</p>
-        <p style="text-align:justify">For questions, reach us at <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
+        <p style="text-align:justify"><strong style="color:#e2e8f0">How to create your account on WiediSync:</strong></p>`,
+      approvedSteps: ['Tap the button below.', 'Choose a password and confirm it.', 'Done — you can see schedules, trainings, and team info.'],
+      approvedContactLine: `<p style="text-align:justify">For questions, reach us at <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
       approvedCtaLabel: 'Create account',
       approvedCtaLabelLogin: 'Log in',
       approvedBodyExisting: `<p style="text-align:justify">Your registration has been reviewed and approved. Welcome to KSC Wiedikon!</p>
@@ -3790,7 +3792,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             const ctaUrl = inviteToken ? signupInviteUrl(inviteToken)
               : (hasAccount ? `${FRONTEND_URL}/login` : `${FRONTEND_URL}/signup`)
             const ctaLabel = (inviteToken || !hasAccount) ? l.approvedCtaLabel : l.approvedCtaLabelLogin
-            const bodyCopy = hasAccount ? l.approvedBodyExisting : l.approvedBody
+            // Account-less registrants get the numbered how-to guide; people
+            // who already have an account get the "log in" copy (no guide).
+            const guideHtml = (!hasAccount && l.approvedSteps) ? buildGuideHtml(l.approvedSteps) : ''
+            const contactLine = l.approvedContactLine || ''
+            const bodyCopy = hasAccount ? l.approvedBodyExisting : (l.approvedBody + guideHtml + contactLine)
             const tokenNote = inviteToken
               ? `<p style="text-align:justify;color:#64748b;font-size:12px;margin-top:8px">${l.approvedTokenNote}</p>`
               : ''

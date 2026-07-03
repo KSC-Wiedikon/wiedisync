@@ -3,6 +3,8 @@ import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { MailPlus, User, X } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
+import Modal from '../../components/Modal'
 import { logActivity } from '../../utils/logActivity'
 import { coercePositions, getPositionI18nKey, getPositionInitial, getPositionsForSport, getSelectablePositions, isNonPlayingStaff } from '../../utils/memberPositions'
 import { useAuth } from '../../hooks/useAuth'
@@ -64,6 +66,10 @@ export default function RosterEditor() {
   const [uploadingPicture, setUploadingPicture] = useState(false)
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [invitingId, setInvitingId] = useState<string | null>(null)
+  // QR / how-to modal shown after a signup invite is created — an in-person
+  // alternative to the emailed link. Populated from /signup-invites/create.
+  const [inviteResult, setInviteResult] = useState<{ memberName: string; inviteUrl: string; email: string } | null>(null)
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const teamId = team?.id
   // Persist the position-normalization auto-heal only here, and only once the
@@ -209,11 +215,20 @@ export default function RosterEditor() {
     if (invitingId) return
     setInvitingId(String(member.id))
     try {
-      const res = await kscwApi<{ email: string }>('/signup-invites/create', {
+      const res = await kscwApi<{ email?: string; invite_url?: string; member_name?: string }>('/signup-invites/create', {
         method: 'POST',
         body: { member_id: member.id },
       })
-      toast.success(t('accountInviteSent', { email: res.email ?? member.email }))
+      const email = res.email ?? member.email ?? ''
+      // The link is always emailed server-side. When the endpoint also returns a
+      // shareable link, open the QR / how-to modal as an in-person alternative;
+      // otherwise fall back to the plain success toast.
+      if (res.invite_url) {
+        setInviteLinkCopied(false)
+        setInviteResult({ memberName: res.member_name ?? displayName(member), inviteUrl: res.invite_url, email })
+      } else {
+        toast.success(t('accountInviteSent', { email }))
+      }
     } catch (err) {
       const code = (err as Error & { code?: string }).code
       if (code === 'already_claimed') toast.error(t('accountInviteAlreadyClaimed'))
@@ -221,6 +236,17 @@ export default function RosterEditor() {
       else toast.error(t('accountInviteError'))
     } finally {
       setInvitingId(null)
+    }
+  }
+
+  async function handleCopyInviteLink() {
+    if (!inviteResult) return
+    try {
+      await navigator.clipboard.writeText(inviteResult.inviteUrl)
+      setInviteLinkCopied(true)
+      setTimeout(() => setInviteLinkCopied(false), 2000)
+    } catch {
+      toast.error(t('common:error'))
     }
   }
 
@@ -609,6 +635,46 @@ export default function RosterEditor() {
         teamId={team?.id ?? ''}
         teamName={team?.full_name ?? team?.name ?? ''}
       />
+
+      {/* Signup invite: QR + how-to (in-person alternative to the emailed link) */}
+      <Modal
+        open={!!inviteResult}
+        onClose={() => setInviteResult(null)}
+        title={inviteResult ? t('accountInviteQrTitle', { name: inviteResult.memberName }) : ''}
+        size="sm"
+      >
+        {inviteResult && (
+          <div className="space-y-4">
+            <div className="flex justify-center py-1">
+              <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-white">
+                <QRCodeSVG value={inviteResult.inviteUrl} size={190} />
+              </div>
+            </div>
+
+            <ol className="space-y-2 rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-gray-700/40 dark:text-gray-300">
+              {([t('accountInviteStep1'), t('accountInviteStep2'), t('accountInviteStep3')]).map((step, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="font-semibold text-brand-600 dark:text-brand-400">{i + 1}.</span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+
+            <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+              {t('accountInviteEmailedTo', { email: inviteResult.email })}
+            </p>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" size="sm" onClick={() => setInviteResult(null)}>
+                {t('common:close')}
+              </Button>
+              <Button size="sm" onClick={handleCopyInviteLink} disabled={inviteLinkCopied}>
+                {inviteLinkCopied ? t('accountInviteCopied') : t('accountInviteCopyLink')}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Team settings */}
       {team && (

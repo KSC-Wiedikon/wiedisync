@@ -395,6 +395,17 @@ export default function SignUpPage() {
                 {t('inviteIntro')}
               </p>
 
+              {/* What happens next: 3 quick steps (unobtrusive) */}
+              <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-700/40">
+                <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{t('inviteStepPassword')}</span>
+                  <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">&rarr;</span>
+                  <span>{t('inviteStepConfirm')}</span>
+                  <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">&rarr;</span>
+                  <span>{t('inviteStepDone')}</span>
+                </p>
+              </div>
+
               {/* Email (bound to the invite, read-only) */}
               <FormInput
                 type="email"
