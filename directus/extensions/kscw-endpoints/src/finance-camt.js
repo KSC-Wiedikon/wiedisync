@@ -84,6 +84,16 @@ export function registerFinanceCamt(router, { database, logger }) {
 
       // Auto-confirm a matched NATIVE invoice (by SCOR ref or by message number).
       const applyNative = async (inv, c) => {
+        // #11 (2026-07-03 audit): a cancelled native invoice keeps its SCOR reference, so a
+        // late credit still matches it by reference or number. Never record cash against a
+        // cancelled invoice — fall through to the unmatched path so the treasurer reconciles
+        // it by hand (e.g. by re-issuing the bill).
+        if (inv.status === 'cancelled') {
+          await database('finance_payments').insert(payRow(c, importId, { invoice: null, match_status: 'unmatched' }))
+          summary.unmatched++
+          details.push({ status: 'unmatched', reason: 'matched invoice cancelled', invoice: inv.number, ...slim(c) })
+          return
+        }
         // Lock the invoice + insert + recompute atomically so a re-import or concurrent
         // confirm can't double-count. Settlement is derived from the full ledger.
         const before = inv.status

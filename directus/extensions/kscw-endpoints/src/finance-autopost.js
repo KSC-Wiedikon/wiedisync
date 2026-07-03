@@ -23,6 +23,14 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100
 const isoDate = (d) => { if (!d) return null; if (typeof d === 'string') return d.slice(0, 10); const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` }
 
 /**
+ * Shared advisory-lock namespace for fiscal-year serialization (#12, 2026-07-03 audit).
+ * `pg_advisory_xact_lock(FISCAL_YEAR_LOCK_NS, fiscalYearId)` is taken by BOTH the year-end
+ * close (finance-ledger.js) for its whole transaction AND by postAutoEntry before it posts,
+ * so a leg can never slip into a year between the close's txn snapshot and its status flip.
+ */
+export const FISCAL_YEAR_LOCK_NS = 20260703
+
+/**
  * PURE settlement allocator. Given an invoice total + its payments (date order),
  * produce the double-entry legs that keep Debitoren (A/R control) reconciled to
  * the sub-ledger. Extracted so the invariants are unit-testable without a DB
@@ -67,11 +75,23 @@ export function planSettlementLegs({ total, payments, invoiceId, issueDate, acco
       push('settle_over', accounts.prepay || accounts.debitoren, accounts.bank, round2(fromPrepay + overRefund), 'refund')
       push('settle', accounts.debitoren, accounts.bank, reopened, 'refund')
     } else if (et === 'credit_note') {
+      // Reduce the open receivable by what's still open (Debit Income / Credit Debitoren).
+      // Any excess beyond the open bill is money the club now owes back (the invoice was
+      // already covered) → book it as a prepayment (Debit Income / Credit Prepayment), so
+      // Income is reduced by the FULL note and the GL matches deriveSettlement, which counts
+      // the full non-cash amount toward coverage/overpaid (#18, 2026-07-03 review).
       const applied = round2(Math.min(amt, Math.max(0, open))); open = round2(open - applied)
+      const excess = round2(amt - applied); prepaid = round2(prepaid + excess)
       push('settle', accounts.income, accounts.debitoren, applied, 'credit note')
+      push('settle_over', accounts.income, accounts.prepay || accounts.debitoren, excess, 'credit note')
     } else if (et === 'writeoff') {
+      // Same as credit_note but the debit is the bad-debt expense. Excess beyond the open
+      // bill → prepayment, so the write-off's full amount hits the GL and agrees with
+      // deriveSettlement's non-cash coverage (#18, 2026-07-03 review).
       const applied = round2(Math.min(amt, Math.max(0, open))); open = round2(open - applied)
+      const excess = round2(amt - applied); prepaid = round2(prepaid + excess)
       push('settle', accounts.badDebt, accounts.debitoren, applied, 'write-off')
+      push('settle_over', accounts.badDebt, accounts.prepay || accounts.debitoren, excess, 'write-off')
     }
   }
   // Rounding residual (#23): forgive a ≤1-rappen short-pay to match deriveSettlement.
@@ -113,7 +133,13 @@ async function postAutoEntry(db, { kind, refId, dateISO, text, debitId, creditId
   if (existing) return { skipped: 'exists', id: existing.id }
   const fy = await db('finance_fiscal_years').where('starts_on', '<=', dateISO).andWhere('ends_on', '>=', dateISO).orderBy('id').first('id', 'status')
   if (!fy) return { skipped: 'no-fiscal-year' }
-  if (fy.status === 'closed') return { skipped: 'fiscal-year-closed' }
+  // #12 (2026-07-03 audit): serialize with the year-end close on a shared advisory lock
+  // keyed on the fiscal year (the close holds the same lock for its whole txn). Re-read
+  // status UNDER the lock so a close that committed while we were looking up can't let a
+  // leg slip into the just-closed year between its snapshot and the status flip.
+  await db.raw('SELECT pg_advisory_xact_lock(?::int, ?::int)', [FISCAL_YEAR_LOCK_NS, fy.id])
+  const fyLocked = await db('finance_fiscal_years').where('id', fy.id).first('status')
+  if ((fyLocked?.status ?? fy.status) === 'closed') return { skipped: 'fiscal-year-closed' }
   const dr = acctById.get(Number(debitId)), cr = acctById.get(Number(creditId))
   if (!dr || !cr) return { skipped: 'account-missing' }
   const r = await db.raw("SELECT nextval('finance_native_entry_seq')::int AS n")
@@ -179,6 +205,12 @@ export async function reconcileInvoiceLedger(database, invoiceId, settings, acct
     // idempotent by (ref_kind, ref_id) and would otherwise keep a stale ≤1-rappen
     // leg after a later payment. Open FY only (the trigger blocks closed-year del).
     try { await trx('finance_transactions').where({ source: 'native', auto: true, ref_kind: 'round', ref_id: inv.id }).del() } catch { /* closed FY */ }
+    // #5 (2026-07-03 audit): also purge the current payments' settlement legs so a shifted
+    // allocation (e.g. a later overpayment/refund/credit-note re-splitting how an earlier
+    // payment divides between Bank/Debitoren/Prepayment) recomputes from scratch. Without
+    // this, postAutoEntry's (ref_kind, ref_id) idempotency keeps the STALE settle/settle_over
+    // leg and GL Bank stays permanently overstated. Open FY only (trigger blocks closed-year del).
+    if (pays.length) { try { await trx('finance_transactions').where({ source: 'native', auto: true }).whereIn('ref_kind', ['settle', 'settle_over']).whereIn('ref_id', pays.map((p) => p.id)).del() } catch { /* closed FY */ } }
     const paysForPlan = pays.map((p) => ({ id: p.id, amount: p.amount, entry_type: p.entry_type, date: isoDate(p.payment_date || inv.invoice_date || inv.date_created) }))
     const { legs } = planSettlementLegs({
       total, payments: paysForPlan, invoiceId: inv.id, issueDate,
