@@ -80,6 +80,21 @@ export default {
   resetLinkSent: 'Link sent! Check your inbox.',
   tryDifferentEmail: 'Try a different email',
 
+  // Invite-based signup (open self-registration closed)
+  inviteLoading: 'Checking invite...',
+  inviteGreeting: 'Hello {{name}}!',
+  inviteIntro: 'Your WiediSync account has been prepared. Choose a password to activate it.',
+  inviteInvalidTitle: 'Invite not valid',
+  inviteInvalidDescription: 'This invite link is invalid or has expired. Ask your coach or an admin to send you a new invite.',
+  inviteClaimedTitle: 'Invite already used',
+  inviteClaimedDescription: 'This invite has already been used. If that was you, you can simply sign in.',
+  inviteNoEmail: 'No email address is stored for you. Ask an admin to add one first.',
+  inviteEmailInUse: 'This email already has an account — each account needs its own email address. Ask an admin to set a personal email for you first.',
+  inviteRedeemFailed: 'Could not activate the account. Please try again.',
+  registrationClosedTitle: 'Registration is invite-only',
+  registrationClosedDescription: 'We could not find a member with this email. New memberships are handled on the club website — or ask your coach for a WiediSync invite.',
+  registrationClosedWebsiteLink: 'Membership signup on kscw.ch',
+
   // Team selection
   selectTeam: 'Select team',
   selectTeamPlaceholder: 'Choose a team...',

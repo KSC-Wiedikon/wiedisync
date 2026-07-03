@@ -36,7 +36,7 @@ interface SheetItem { to: string; labelKey: string; icon: ReactNode; external?: 
 
 function buildSecondaryItems(
   memberId: number | string | undefined | null,
-  sched: { isAdmin: boolean; isVorstand: boolean; canAccessFinance: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[]; canManageForms: boolean },
+  sched: { isAdmin: boolean; isVorstand: boolean; canAccessFinance: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[]; coachTeamIds: string[]; teamResponsibleIds: string[]; canManageForms: boolean },
 ): { primary: SheetItem[]; memberTools: SheetItem[]; finance: SheetItem[]; spielplaner: SheetItem[] } {
   // Primary = items NOT already on the bottom tab bar (Home/Calendar/Games/
   // Trainings live there); shown ungrouped at the top of the sheet.
@@ -69,9 +69,11 @@ function buildSecondaryItems(
   // out when SCHEDULING_ORIGIN differs from the current origin (SSO makes it
   // seamless), else stay in-app. Full & club Spielplaner land on Match
   // scheduling; a per-team Spielplaner who can't reach it lands on the manual
-  // game calendar.
+  // game calendar — and so do coaches/TRs (read-only planner view in v1).
   const schedExternal = typeof window !== 'undefined' && SCHEDULING_ORIGIN.replace(/\/$/, '') !== window.location.origin
-  const hasSchedulingAccess = sched.isAdmin || sched.is_spielplaner || sched.spielplanerTeamIds.length > 0
+  const hasSchedulingAccess =
+    sched.isAdmin || sched.is_spielplaner || sched.spielplanerTeamIds.length > 0 ||
+    sched.coachTeamIds.length > 0 || sched.teamResponsibleIds.length > 0
   const schedTo = sched.isAdmin || sched.is_spielplaner ? '/admin/terminplanung' : '/admin/spielplanung'
   const spielplaner: SheetItem[] = hasSchedulingAccess
     ? [{ to: schedTo, href: `${SCHEDULING_ORIGIN}${schedTo}`, external: schedExternal, labelKey: 'spielplanung', icon: <CalendarClock className={iconClass} /> }]
@@ -360,7 +362,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
             </>
           )}
           {(!user || !isApproved) ? null : (() => {
-            const groups = buildSecondaryItems(user.id, { isAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, canManageForms })
+            const groups = buildSecondaryItems(user.id, { isAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, canManageForms })
             const renderItem = (item: SheetItem) => (
               item.external ? (
                 <a

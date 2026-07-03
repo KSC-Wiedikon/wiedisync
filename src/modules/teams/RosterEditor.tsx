@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { useParams, Link, Navigate } from 'react-router-dom'
-import { User, X } from 'lucide-react'
+import { MailPlus, User, X } from 'lucide-react'
 import { logActivity } from '../../utils/logActivity'
 import { coercePositions, getPositionI18nKey, getPositionInitial, getPositionsForSport, getSelectablePositions, isNonPlayingStaff } from '../../utils/memberPositions'
 import { useAuth } from '../../hooks/useAuth'
@@ -21,7 +21,7 @@ import { getCurrentSeason } from '../../utils/dateHelpers'
 import type { Team, Member, MemberPosition, MemberTeam, TeamSettings } from '../../types'
 import { Button } from '../../components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
-import { fetchAllItems, fetchItems, updateRecord, uploadFile } from '../../lib/api'
+import { fetchAllItems, fetchItems, kscwApi, updateRecord, uploadFile } from '../../lib/api'
 import { asObj, relId } from '../../utils/relations'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
@@ -63,6 +63,7 @@ export default function RosterEditor() {
   const [guestOverrides, setGuestOverrides] = useState<Record<string, number>>({})
   const [uploadingPicture, setUploadingPicture] = useState(false)
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
+  const [invitingId, setInvitingId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const teamId = team?.id
   // Persist the position-normalization auto-heal only here, and only once the
@@ -199,6 +200,27 @@ export default function RosterEditor() {
         return { ...prev, [memberId]: inner }
       })
       toast.error(t('common:errorSaving'))
+    }
+  }
+
+  // Send a single-use, member-bound WiediSync signup invite (email link) to an
+  // account-less roster member. Backend re-checks the coach/TR/admin permission.
+  async function handleSendInvite(member: Member) {
+    if (invitingId) return
+    setInvitingId(String(member.id))
+    try {
+      const res = await kscwApi<{ email: string }>('/signup-invites/create', {
+        method: 'POST',
+        body: { member_id: member.id },
+      })
+      toast.success(t('accountInviteSent', { email: res.email ?? member.email }))
+    } catch (err) {
+      const code = (err as Error & { code?: string }).code
+      if (code === 'already_claimed') toast.error(t('accountInviteAlreadyClaimed'))
+      else if (code === 'no_email') toast.error(t('accountInviteNoEmail'))
+      else toast.error(t('accountInviteError'))
+    } finally {
+      setInvitingId(null)
     }
   }
 
@@ -344,6 +366,8 @@ export default function RosterEditor() {
                   const selectablePositions = getSelectablePositions(team?.sport, memberPositions)
                   const mtId = String(mt.id)
                   const guestLevel = guestOverrides[mtId] ?? (mt.guest_level as number) ?? 0
+                  // No linked directus_user + has an email → offer the signup invite.
+                  const needsAccountInvite = !member.user && !!member.email?.trim()
 
                   const numberEl = nonPlaying ? (
                     <span className="flex h-7 w-10 mx-auto items-center justify-center text-sm text-gray-400 dark:text-gray-500">—</span>
@@ -484,13 +508,26 @@ export default function RosterEditor() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <button
-                          onClick={() => setRemovingId(mt.id as string)}
-                          className="p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                          title={t('common:remove')}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+                        <div className="flex flex-col items-center gap-0.5 sm:flex-row sm:justify-end sm:gap-1">
+                          {needsAccountInvite && (
+                            <button
+                              onClick={() => handleSendInvite(member)}
+                              disabled={invitingId !== null}
+                              className="flex h-11 w-11 items-center justify-center rounded-md text-brand-600 transition-colors hover:bg-gray-100 hover:text-brand-700 disabled:opacity-50 sm:h-8 sm:w-8 dark:text-brand-400 dark:hover:bg-gray-700 dark:hover:text-brand-300"
+                              title={t('sendAccountInvite')}
+                              aria-label={t('sendAccountInvite')}
+                            >
+                              <MailPlus className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setRemovingId(mt.id as string)}
+                            className="p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            title={t('common:remove')}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )

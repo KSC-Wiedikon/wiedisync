@@ -39,11 +39,13 @@ export default function InviteExternalUserModal({ open, onClose, teamId, teamNam
     setLoading(true)
     setError(null)
     try {
-      const res = await kscwApi<{ url?: string; invite_url?: string; link?: string }>('/team-invites/create', {
+      // The endpoint returns `qr_url` (see kscw-endpoints /team-invites/create);
+      // the legacy keys are kept as fallbacks only.
+      const res = await kscwApi<{ qr_url?: string; url?: string; invite_url?: string; link?: string }>('/team-invites/create', {
         method: 'POST',
         body: { team: teamId, guest_level: selectedLevel },
       })
-      setQrUrl(res.url ?? res.invite_url ?? res.link ?? '')
+      setQrUrl(res.qr_url ?? res.url ?? res.invite_url ?? res.link ?? '')
     } catch (err) {
       setError(err instanceof Error ? err.message : t('common:error'))
     } finally {

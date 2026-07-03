@@ -604,4 +604,7 @@ export default {
   vmPickTitle: 'Scegli la partita VolleyManager',
   vmPickHint: 'Due partite in casa corrispondono a questo avversario — scegli quella da aggiornare in VolleyManager.',
   vmPickNone: 'Nessuna partita da scegliere.',
+
+  // Vista di sola lettura (allenatori / responsabili di squadra, v1)
+  plannerReadOnly: 'Vista di sola lettura — puoi consultare il calendario ma non modificarlo.',
 }

@@ -347,6 +347,13 @@ export default {
   anmeldungenDocNatDecl: 'National Team Decl.',
   anmeldungenDocIdFront: 'Ausweis Vorderseite',
   anmeldungenDocIdBack: 'Ausweis Rückseite',
+  // Anmeldungen — WiediSync-Einladung erneut senden (freigegebene Zeilen)
+  anmeldungenResendInvite: 'Einladung erneut senden',
+  anmeldungenInviteSent: 'Einladung an {{email}} gesendet',
+  anmeldungenInviteAlreadyClaimed: 'Diese Person hat bereits ein Konto',
+  anmeldungenInviteNoEmail: 'Diese Anmeldung hat keine E-Mail-Adresse',
+  anmeldungenInviteNoMember: 'Für diese Anmeldung wurde noch kein Mitglied gefunden',
+  anmeldungenInviteError: 'Einladung konnte nicht gesendet werden',
 
   // ClubDesk Mitglieder-Sync (Superadmin)
   clubdeskSyncDown: 'Von ClubDesk herunterladen',

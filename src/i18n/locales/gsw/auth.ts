@@ -80,6 +80,21 @@ export default {
   resetLinkSent: 'Link gschickt! Lueg in dim Postfach.',
   tryDifferentEmail: 'Anderi E-Mail probiere',
 
+  // Invite-based signup (open self-registration closed)
+  inviteLoading: 'Yladig wird prüeft...',
+  inviteGreeting: 'Hallo {{name}}!',
+  inviteIntro: 'Dis WiediSync-Konto isch vorbereitet worde. Wähl es Passwort zum s aktiviere.',
+  inviteInvalidTitle: 'Yladig ungültig',
+  inviteInvalidDescription: 'De Yladigslink isch ungültig oder abgloffe. Frög din Trainer oder en Admin nach ere neue Yladig.',
+  inviteClaimedTitle: 'Yladig scho bruucht',
+  inviteClaimedDescription: 'Die Yladig isch scho bruucht worde. Falls das du gsi bisch, chasch dich eifach aamälde.',
+  inviteNoEmail: 'Für di isch kei E-Mail-Adrässe hinderleit. Bitte en Admin, zersch eini z ergänze.',
+  inviteEmailInUse: 'Die E-Mail hät scho es Konto — jedes Konto bruucht e eigeni E-Mail-Adrässe. Bitte en Admin, zersch e persönlichi E-Mail für di z hinderlege.',
+  inviteRedeemFailed: 'S Konto hät nöd chönne aktiviert werde. Bitte probier\'s nomal.',
+  registrationClosedTitle: 'Registrierig nur mit Yladig',
+  registrationClosedDescription: 'Mir händ kei Mitglied mit dere E-Mail gfunde. Neui Mitgliedschafte laufed über d Vereinswebsite — oder frög din Trainer nach ere WiediSync-Yladig.',
+  registrationClosedWebsiteLink: 'Zur Aamäldig uf kscw.ch',
+
   // Team selection
   selectTeam: 'Team wähle',
   selectTeamPlaceholder: 'Team uswähle...',

@@ -379,6 +379,31 @@ export function registerGameScheduling(router, { database, logger, services, get
     return member.is_spielplaner === true // club-wide (documented design) — unrestricted
   }
 
+  // Team ids where this Directus user is a coach or team responsible — resolved
+  // member-first (members.user → members_id in the teams_coaches /
+  // teams_responsibles junctions). Feeds canViewTeamScheduling only.
+  async function coachOrTrTeamIds(database, userId) {
+    if (!userId) return []
+    const member = await database('members').where('user', userId).first('id')
+    if (!member) return []
+    const [coachRows, trRows] = await Promise.all([
+      database('teams_coaches').where('members_id', member.id).pluck('teams_id'),
+      database('teams_responsibles').where('members_id', member.id).pluck('teams_id'),
+    ])
+    return [...new Set([...coachRows, ...trRows].map(Number).filter(Number.isFinite))]
+  }
+
+  // READ-ONLY per-team authorisation (v1 coach/TR planner access): true for a
+  // full admin, a club-wide Spielplaner, a per-team scheduler assigned to this
+  // team, OR a coach / team responsible of this team. Apply ONLY to read
+  // endpoints the planner calendar needs — every mutation (confirm, book,
+  // block, invite, manual game) keeps the stricter spielplanerCanManageTeam.
+  async function canViewTeamScheduling(req, teamId) {
+    if (await spielplanerCanManageTeam(req, teamId)) return true
+    const ids = await coachOrTrTeamIds(database, req.accountability?.user)
+    return ids.includes(Number(teamId))
+  }
+
   // Superadmin-only gate for club-wide settings (the global blocked-dates blackout).
   // Directus admin OR the 'superuser'/'admin' member role — tighter than
   // isAdminOrSpielplaner (a spielplaner must NOT edit the club-wide blackout).
@@ -1517,11 +1542,12 @@ export function registerGameScheduling(router, { database, logger, services, get
   // GET /kscw/terminplanung/admin/team-availability?kscw_team=&season= — the
   // spielplaner's view of everything still offerable for one team (home slots
   // tiered + away blocked dates), e.g. to email an opponent or export.
+  // Read-only → coaches/TRs of the team may also view (canViewTeamScheduling).
   router.get('/terminplanung/admin/team-availability', async (req, res) => {
     try {
       const { kscw_team, season } = req.query
       if (!kscw_team || !season) return res.status(400).json({ error: 'kscw_team, season required' })
-      if (!(await spielplanerCanManageTeam(req, kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
+      if (!(await canViewTeamScheduling(req, kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
       const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
       if (!seasonRow) return res.status(404).json({ error: 'season not found' })
       const teamRow = await database('teams').where('id', kscw_team).first()
@@ -5619,7 +5645,9 @@ export function registerGameScheduling(router, { database, logger, services, get
   // invites/remind: homeTotal = home-side fixtures (1 fallback when an opponent
   // has no synced fixtures). The total is floored at the confirmed count so a
   // stale orphan booking on a dropped fixture can never read numerator>total.
-  // Scoped to the teams the caller may manage. Read-only → no actor logging.
+  // Scoped to the teams the caller may manage — or, read-only, coach/view
+  // (canViewTeamScheduling: coaches/TRs see their own team's tallies).
+  // No actor logging.
   router.get('/admin/terminplanung/season-summary', async (req, res) => {
     try {
       const { season } = req.query
@@ -5633,7 +5661,7 @@ export function registerGameScheduling(router, { database, logger, services, get
 
       const allTeamIds = [...new Set(allOpps.map((o) => o.kscw_team))]
       const manageable = new Set()
-      for (const tId of allTeamIds) { if (await spielplanerCanManageTeam(req, tId)) manageable.add(tId) }
+      for (const tId of allTeamIds) { if (await canViewTeamScheduling(req, tId)) manageable.add(tId) }
       const opps = allOpps.filter((o) => manageable.has(o.kscw_team))
 
       // Confirmed bookings per opponent + side (mirrors finalize-notify counts).
@@ -6265,14 +6293,14 @@ export function registerGameScheduling(router, { database, logger, services, get
 
   // GET /kscw/admin/terminplanung/date-context?kscw_team=&dates=YYYY-MM-DD,… — for
   // the manual-booking form: who'd be absent + how each typed date spaces against
-  // the team's nearest already-scheduled games. Admin/spielplaner-only (absent
-  // names) and scoped to the manageable team. Returns { context: { [date]: … } }.
+  // the team's nearest already-scheduled games. Per-team read: schedulers who
+  // manage the team plus (read-only, v1) its coaches/TRs — who already see their
+  // own team's absences in the member app. Returns { context: { [date]: … } }.
   router.get('/admin/terminplanung/date-context', async (req, res) => {
-    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
     try {
       const kscwTeam = Number(req.query.kscw_team)
       if (!kscwTeam) return res.status(400).json({ error: 'kscw_team required' })
-      if (!(await spielplanerCanManageTeam(req, kscwTeam))) return res.status(403).json({ error: 'Not authorized for this team' })
+      if (!(await canViewTeamScheduling(req, kscwTeam))) return res.status(403).json({ error: 'Not authorized for this team' })
       const dates = String(req.query.dates || '')
         .split(',').map((d) => d.trim()).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice(0, 6)
       if (!dates.length) return res.json({ context: {} })

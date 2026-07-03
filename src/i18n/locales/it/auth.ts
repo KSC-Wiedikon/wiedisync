@@ -80,6 +80,21 @@ export default {
   resetLinkSent: 'Link inviato! Controlla la tua casella di posta.',
   tryDifferentEmail: 'Prova con un\'altra email',
 
+  // Invite-based signup (open self-registration closed)
+  inviteLoading: 'Verifica dell\'invito...',
+  inviteGreeting: 'Ciao {{name}}!',
+  inviteIntro: 'Il tuo account WiediSync è stato preparato. Scegli una password per attivarlo.',
+  inviteInvalidTitle: 'Invito non valido',
+  inviteInvalidDescription: 'Questo link di invito non è valido o è scaduto. Chiedi al tuo allenatore o a un admin un nuovo invito.',
+  inviteClaimedTitle: 'Invito già utilizzato',
+  inviteClaimedDescription: 'Questo invito è già stato utilizzato. Se eri tu, puoi semplicemente accedere.',
+  inviteNoEmail: 'Non è registrato alcun indirizzo e-mail per te. Chiedi prima a un admin di aggiungerne uno.',
+  inviteEmailInUse: 'Questa e-mail ha già un account — ogni account richiede un proprio indirizzo e-mail. Chiedi prima a un admin di impostare un\'e-mail personale per te.',
+  inviteRedeemFailed: 'Impossibile attivare l\'account. Riprova.',
+  registrationClosedTitle: 'Registrazione solo su invito',
+  registrationClosedDescription: 'Nessun membro trovato con questa e-mail. Le nuove adesioni si gestiscono sul sito del club — oppure chiedi al tuo allenatore un invito WiediSync.',
+  registrationClosedWebsiteLink: 'Adesione su kscw.ch',
+
   // Team selection
   selectTeam: 'Seleziona squadra',
   selectTeamPlaceholder: 'Scegli una squadra...',

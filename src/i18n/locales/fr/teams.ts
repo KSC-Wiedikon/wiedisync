@@ -193,4 +193,10 @@ export default {
   staffRemoved: '{{name}} retiré(e)',
   removeStaffTitle: 'Retirer le rôle',
   removeStaffMessage: 'Retirer {{name}} ({{role}}) ?',
+  // WiediSync account invite (account-less roster members)
+  sendAccountInvite: 'Envoyer une invitation WiediSync',
+  accountInviteSent: 'Invitation envoyée à {{email}}',
+  accountInviteAlreadyClaimed: 'Cette personne a déjà un compte',
+  accountInviteNoEmail: 'Ce membre n\'a pas d\'adresse e-mail',
+  accountInviteError: 'Impossible d\'envoyer l\'invitation',
 } as const

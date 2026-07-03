@@ -2,6 +2,8 @@
 
 Canonical role × collection × action map. Reflects the live state through migration 165 (2026-07-02). Updated by reviewers as part of every permission change. (Schema-only migrations 104–165 carry no permission rows; the per-collection posture for the finance-batch collections — 138–147 — is in the dated history below.)
 
+> **2026-07-03 — KSCW Spielplaner policy (manual-game writes, no migration).** New orthogonal per-user `KSCW Spielplaner` policy granting `games` create / update / delete, every grant scoped to `source = 'manual'` (fields `*`): update/delete via a `permissions` row filter, create via a scalar `validation` on the payload (the only CREATE-enforceable form) — so VM-synced league games stay Sport-Admin-only even via the raw items API. Fixes the planner 403: `ManualGameModal` / `SpielplanungPage` write `games` via the items API, but the only `games` create/delete rows lived on KSCW Sport Admin — so the real (non-admin) spielplaners couldn't create manual games the UI offers. Attached per-user via `directus_access` to members with `is_spielplaner = true` OR ≥1 `spielplaner_assignments` row, reconciled on every deploy by `setup-permissions.mjs §14` (attach + stale revoke, same pattern as Terminplanung §12). Per-TEAM scope is deliberately NOT at the policy layer (unenforceable on CREATE, and a `kscw_team` filter would lock out club-wide spielplaners) — it's enforced by the kscw-hooks Spielplaner scope guard on `games.items.create/update/delete`. See the "KSCW Spielplaner" section below.
+
 > **2026-07-02 — Deep-review remediation (poll anonymity + scorer-delegation lockdown).** (1) Member `scorer_delegations.update` narrowed from all-fields to `fields:['status']` — the recipient's accept is the only legitimate item-API mutation; the identity columns (`from_member`/`to_member`/`game`/`role`/`to_team`) are now DB-immutable on UPDATE (migration 163). Closes a duty-hijack that bypassed the LEADER-only `games.update`. (2) `poll_votes` identity reads for **LEADER**, **Vorstand**, and **Sport Admin** are now scoped to `poll.anonymous = false` — anonymity was previously UI-only. Managers get anonymous-poll results as identity-free counts via `GET /kscw/polls/:id/results` (manager-gated endpoint). Sport Admin keeps create/update/delete on `poll_votes` for oversight. Full Directus admins still bypass all filters by design. See SECURITY.md "2026-07-02".
 
 > Migrations 104–111 (2026-06-10..06-15) are all schema-only — they carry no permission rows and add no plpgsql functions needing `search_path`, so this doc's role tables are unchanged by them; only the version anchor moved. The Forms permission surface (migrations 086–089) is documented in the role tables below.
@@ -32,6 +34,7 @@ Inheritance (additive): `Sport Admin` → `Team Responsible` → `Member`. `Vors
 
 **Orthogonal policies** — attached per-user via `directus_access` (NOT base roles), layered on top of whatever base role the user holds:
 - `KSCW Terminplanung` — members with `is_spielplaner = true` (game-scheduling).
+- `KSCW Spielplaner` — members with `is_spielplaner = true` OR at least one `spielplaner_assignments` row (per-team spielplaners). Manual-game create/update/delete in the Spielplanung planner, scoped to `source = 'manual'` at the policy layer; team scope is hook-enforced (kscw-hooks games guard). Reconciled by `setup-permissions.mjs §14` on every deploy.
 - `KSCW Finance` — members with the `finance` app-role (treasurer / finance team). Reconciled by the role-sync hook on `members.role` change + `setup-permissions.mjs §13` on every deploy.
 
 ---
@@ -224,6 +227,22 @@ Per-user policy (migrations 132/133), attached to members with `finance` in thei
 **Writes** — native-invoice create/report-paid/confirm/cancel/link + camt import are NOT item-API; they go through `/kscw/finance/*`, gated in code by `canManageFinance` (admin OR role ∈ {vorstand, admin, superuser, **finance**}). So a finance-role user is a full treasurer at the endpoint layer while staying read-only on the items API (except the billing-field write above).
 
 **Frontend** — `canAccessFinance = isVorstand || isFinance` gates the `/admin/finance` tab (`FinanceRoute`) + the per-member explorer (`FinancePage` → Members tab). Billing edit is shown editable only when `isFinance` (a pure board member sees it read-only — they lack the members-update grant).
+
+---
+
+## KSCW Spielplaner (orthogonal — spielplaner members)
+
+Per-user policy (no migration — permission rows only, `setup-permissions.mjs §9d`), attached via `directus_access` to the directus user of every member with `is_spielplaner = true` (club-wide spielplaners) **or** at least one `spielplaner_assignments` row (per-team spielplaners; `assignment.member → members.user`) — NOT a base Directus role. Reconciled on every deploy by `§14` (attach missing + revoke stale, idempotent). Exists so non-admin spielplaners can create/delete manual games in the Spielplanung planner (`ManualGameModal` / `SpielplanungPage` write `games` via the items API) — previously only KSCW Sport Admin carried `games` create/delete.
+
+| Collection | Action | Filter | Notes |
+|---|---|---|---|
+| games | create | `source = 'manual'` — as `validation` on the payload (+ same `permissions` filter) | Fields `*`. Directus doesn't enforce `permissions` on CREATE (no row exists yet); the scalar `validation` against the payload is the enforced gate — only `source: 'manual'` payloads pass |
+| games | update | `source = 'manual'` | Fields `*`. VM-synced league games (`source != 'manual'`) stay Sport-Admin-only |
+| games | delete | `source = 'manual'` | VM-synced league games stay Sport-Admin-only |
+
+**Source scoping is policy-enforced; team scoping is hook-enforced.** All three grants are limited to manual games at the policy layer (`source` is a plain scalar column, so Directus can filter/validate on it for every holder alike). The per-team row/team scope is the kscw-hooks Spielplaner scope guard on `games.items.create/update/delete` (`directus/extensions/kscw-hooks/src/index.js`): manual games require `kscw_team` ∈ the caller's `spielplaner_assignments`; club-wide (`is_spielplaner = true`) members and admins bypass the team check. A `kscw_team` row filter at the policy layer would both be unenforceable on CREATE and lock out club-wide spielplaners — hence hook-enforced.
+
+`games` READ is not granted here — it's already club-wide via the Member policy.
 
 ---
 

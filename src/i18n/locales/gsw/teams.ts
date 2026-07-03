@@ -125,6 +125,12 @@ export default {
   shellAccount: 'Temporär',
   expiresIn: 'lauft in {{days}}T ab',
   extend: 'Verlängere',
+  // WiediSync account invite (account-less roster members)
+  sendAccountInvite: 'WiediSync-Yladig schicke',
+  accountInviteSent: 'Yladig an {{email}} gschickt',
+  accountInviteAlreadyClaimed: 'Die Person hät scho es Konto',
+  accountInviteNoEmail: 'Das Mitglied hät kei E-Mail-Adrässe',
+  accountInviteError: 'D Yladig hät nöd chönne gschickt werde',
 
   // Feature-Toggles
   featureToggles: 'Funktione',

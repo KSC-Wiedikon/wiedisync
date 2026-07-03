@@ -211,7 +211,7 @@ async function deleteLegacyPolicy(name) {
 
 // ── Permission Helpers ────────────��──────────────────────────────
 
-async function setPerm(policyId, collection, action, filter = null, fields = null) {
+async function setPerm(policyId, collection, action, filter = null, fields = null, validation = null) {
   const body = {
     policy: policyId,
     collection,
@@ -219,6 +219,7 @@ async function setPerm(policyId, collection, action, filter = null, fields = nul
     fields: fields || ['*'],
   }
   if (filter) body.permissions = filter
+  if (validation) body.validation = validation
   // NOTE: Directus enforces neither `permissions` nor a relational `validation`
   // filter usefully on CREATE — `permissions` has no existing row to match, and
   // a relational `validation` (e.g. member.user == $CURRENT_USER) can't be
@@ -226,6 +227,8 @@ async function setPerm(policyId, collection, action, filter = null, fields = nul
   // 2026-05-31). Self-scoped CREATE ownership is therefore enforced in the
   // kscw-hooks `*.items.create` filter guard, not here. The `permissions`
   // filter above still scopes READ/UPDATE/DELETE for these collections.
+  // A SCALAR `validation` (e.g. source == manual) IS enforced against the
+  // CREATE payload — pass it via the `validation` param (used by §9d).
 
   try {
     await api('POST', '/permissions', body)
@@ -466,12 +469,21 @@ async function main() {
   const SPORT_ADMIN_POLICY = await findOrCreatePolicy('KSCW Sport Admin', { icon: 'sports', app_access: true })
   const ADMIN_POLICY = await findOrCreatePolicy('KSCW Admin', { icon: 'admin_panel_settings', admin_access: true, app_access: true })
   // Terminplanung (opponent game-scheduling) admin access for club-wide
-  // Spielplaner members. Distinct from the Member-role-attached "KSCW Spielplaner"
-  // policy (which grants scoped manual-game CRUD to every member): this one is
-  // attached only to the directus users of members with is_spielplaner=true
-  // (backfilled in section 12), so the unfiltered game_scheduling perms below are
-  // gated purely by who holds the policy.
+  // Spielplaner members. Distinct from the per-user "KSCW Spielplaner" policy
+  // below (manual-game create/update/delete in the Spielplanung planner): this
+  // one is attached only to the directus users of members with
+  // is_spielplaner=true (backfilled in section 12), so the unfiltered
+  // game_scheduling perms below are gated purely by who holds the policy.
   const TERMINPLANUNG_POLICY = await findOrCreatePolicy('KSCW Terminplanung', { icon: 'event_available', app_access: true })
+  // Spielplaner manual-game writes (create/update/delete on `games`) for the
+  // Spielplanung planner (ManualGameModal / SpielplanungPage via the items
+  // API). Attached per-user (§14) to the directus users of members with
+  // is_spielplaner=true OR at least one spielplaner_assignments row — NOT to
+  // a Directus role. Every grant is scoped to source='manual' rows (VM-synced
+  // league games stay Sport-Admin-only); per-team row/team scope is enforced
+  // server-side by the kscw-hooks Spielplaner scope guard on
+  // games.items.create/update/delete (see §9d).
+  const SPIELPLANER_POLICY = await findOrCreatePolicy('KSCW Spielplaner', { icon: 'edit_calendar', app_access: true })
   // Finance (orthogonal capability, migrations 132/133). Attached per-user to
   // members with 'finance' in their role array (§13) + by the role-sync hook —
   // NOT to a Directus role. Grants club-wide finance reads + member billing-field
@@ -531,6 +543,8 @@ async function main() {
   // Finance is held only by finance members (not every authenticated user), so
   // clearing it here doesn't risk the universally-held-policy "permission wall".
   await clearPolicyPermissions(FINANCE_POLICY, 'Finance')
+  // Spielplaner is likewise held only by spielplaner users (§14) — no "wall" risk.
+  await clearPolicyPermissions(SPIELPLANER_POLICY, 'Spielplaner')
 
   // ── 5. Public permissions ──────────────────────────────────────
 
@@ -1612,6 +1626,42 @@ async function main() {
 
   console.log(`  ✓ Finance permissions set`)
 
+  // ── 9d. Spielplaner permissions ────────────────────────────────
+  //
+  // Manual games in the Spielplanung planner (ManualGameModal / SpielplanungPage)
+  // write `games` rows via the plain items API (useMutation('games')). Before
+  // this policy the only games create/delete rows lived on KSCW Sport Admin, so
+  // every non-admin spielplaner 403'd on a flow the UI offers.
+  //
+  // Two-layer gate (fields '*' on all three grants):
+  //   1. SOURCE scope at the policy layer — every grant is limited to
+  //      source='manual' rows: UPDATE/DELETE via the `permissions` row filter,
+  //      CREATE via a scalar `validation` on the payload (Directus doesn't
+  //      enforce `permissions` on CREATE — no row exists yet — but a scalar
+  //      validation IS enforced; see the setPerm note). VM-synced league games
+  //      (source != 'manual') stay Sport-Admin-only even via the raw API.
+  //   2. TEAM scope at the hook layer — the policy is attached only to
+  //      spielplaner users (section 14): club-wide (is_spielplaner=true) or
+  //      per-team (spielplaner_assignments), so holding it is the items-layer
+  //      gate (same "holding the policy IS the gate" model as Terminplanung
+  //      §9b). Per-team row/team scope can't be a policy filter (unenforceable
+  //      on CREATE + a kscw_team filter would lock out club-wide
+  //      spielplaners); it's enforced by the kscw-hooks Spielplaner scope
+  //      guard on games.items.create/update/delete
+  //      (directus/extensions/kscw-hooks/src/index.js — "Spielplaner scope
+  //      guard"), which checks kscw_team ∈ caller's spielplaner_assignments
+  //      and lets is_spielplaner=true members through club-wide.
+  // (games READ is already club-wide via the Member policy — not repeated here.)
+
+  console.log('\n9d. Spielplaner permissions...')
+
+  const MANUAL_GAME = { source: { _eq: 'manual' } }
+  await setPerm(SPIELPLANER_POLICY, 'games', 'create', MANUAL_GAME, null, MANUAL_GAME)
+  await setPerm(SPIELPLANER_POLICY, 'games', 'update', MANUAL_GAME)
+  await setPerm(SPIELPLANER_POLICY, 'games', 'delete', MANUAL_GAME)
+
+  console.log(`  ✓ Spielplaner permissions set`)
+
   // ── 10. Backfill user-level LEADER access for every coach/TR ───
   //
   // Permission gating must not depend on Directus role assignment. The
@@ -1769,6 +1819,57 @@ async function main() {
     }
   }
   if (finStale.length > 0) console.log(`  ✓ Revoked FINANCE policy from ${finStale.length} ex-finance user(s)`)
+
+  // ── 14. Backfill user-level SPIELPLANER access for spielplaner members ───
+  //
+  // Attach the Spielplaner policy directly to the directus user of every
+  // member who is a spielplaner — club-wide (is_spielplaner=true) OR per-team
+  // (at least one spielplaner_assignments row; assignment.member → members.user).
+  // Same idempotent sync + stale-cleanup pattern as LEADER (§10) /
+  // TERMINPLANUNG (§12) / FINANCE (§13). Holding the policy is the items-layer
+  // gate for manual-game create/update/delete (§9d); per-team row scope is the
+  // kscw-hooks games scope guard. A newly-flagged/assigned member gets access
+  // on the next perms deploy.
+
+  console.log('\n14. Backfilling user-level SPIELPLANER access for spielplaner members...')
+
+  const spWideMembers = await api('GET', '/items/members?filter[is_spielplaner][_eq]=true&fields=user&limit=-1')
+  const spAssignRows = await api('GET', '/items/spielplaner_assignments?fields=member.user&limit=-1')
+  const spielplanerPolicyUserIds = new Set([
+    ...(spWideMembers || []).map(m => m.user),
+    ...(spAssignRows || []).map(a => a?.member?.user),
+  ].filter(Boolean))
+
+  const existingSp = await api('GET', `/access?filter[policy][_eq]=${SPIELPLANER_POLICY}&filter[user][_nnull]=true&fields=user&limit=-1`)
+  const haveSp = new Set((existingSp || []).map(a => a.user).filter(Boolean))
+
+  let spAttached = 0
+  let spSkipped = 0
+  for (const userId of spielplanerPolicyUserIds) {
+    if (haveSp.has(userId)) { spSkipped++; continue }
+    try {
+      await api('POST', '/access', { user: userId, policy: SPIELPLANER_POLICY })
+      spAttached++
+    } catch (e) {
+      if (!e.message.includes('RECORD_NOT_UNIQUE')) {
+        console.warn(`  ⚠ attach SPIELPLANER to ${userId}: ${e.message.slice(0, 100)}`)
+      } else {
+        spSkipped++
+      }
+    }
+  }
+  console.log(`  ✓ Attached SPIELPLANER policy to ${spAttached} user(s) (${spSkipped} already had it, ${spielplanerPolicyUserIds.size} total spielplaner)`)
+
+  const spAccessWithIds = await api('GET', `/access?filter[policy][_eq]=${SPIELPLANER_POLICY}&filter[user][_nnull]=true&fields=id,user&limit=-1`)
+  const spStale = (spAccessWithIds || []).filter(a => a.user && !spielplanerPolicyUserIds.has(a.user))
+  for (const row of spStale) {
+    try {
+      await api('DELETE', `/access/${row.id}`)
+    } catch (e) {
+      console.warn(`  ⚠ revoke SPIELPLANER from ${row.user}: ${e.message.slice(0, 100)}`)
+    }
+  }
+  if (spStale.length > 0) console.log(`  ✓ Revoked SPIELPLANER policy from ${spStale.length} ex-spielplaner user(s)`)
 
   // ── 11. Admin policy (admin_access=true — bypasses all) ────────
 

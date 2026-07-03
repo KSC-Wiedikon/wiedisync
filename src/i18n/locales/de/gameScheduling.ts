@@ -645,4 +645,7 @@ export default {
   closedDatesAuto: '{{count}} automatisch',
   closedDatesManual: '{{count}} manuell',
   closedDatesManage: 'Geschlossene Daten verwalten',
+
+  // Nur-Lese-Ansicht (Trainer / Teamverantwortliche, v1)
+  plannerReadOnly: 'Nur-Lese-Ansicht — du kannst den Spielplan ansehen, aber nichts ändern.',
 }

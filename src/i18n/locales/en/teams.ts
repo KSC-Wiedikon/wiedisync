@@ -125,6 +125,12 @@ export default {
   addExternalUser: 'Add External User',
   shellAccount: 'Temporary',
   expiresIn: 'expires in {{days}}d',
+  // WiediSync account invite (account-less roster members)
+  sendAccountInvite: 'Send WiediSync invite',
+  accountInviteSent: 'Invite sent to {{email}}',
+  accountInviteAlreadyClaimed: 'This person already has an account',
+  accountInviteNoEmail: 'This member has no email address',
+  accountInviteError: 'Could not send the invite',
   extend: 'Extend',
   // Feature toggles
   featureToggles: 'Features',

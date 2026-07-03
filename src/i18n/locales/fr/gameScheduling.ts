@@ -603,4 +603,7 @@ export default {
   vmPickTitle: 'Choisir le match VolleyManager',
   vmPickHint: 'Deux matchs à domicile correspondent à cet adversaire — choisissez celui à mettre à jour dans VolleyManager.',
   vmPickNone: 'Aucun match à choisir.',
+
+  // Vue en lecture seule (entraîneurs / responsables d'équipe, v1)
+  plannerReadOnly: 'Vue en lecture seule — vous pouvez consulter le calendrier, mais pas le modifier.',
 }

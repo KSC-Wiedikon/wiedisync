@@ -512,6 +512,13 @@ export default {
   anmeldungenDocsCount: '{{count}} Dok.',
   anmeldungenPdfOpenTab: 'PDF — i nöiem Tab uufmache',
   anmeldungenDocAlt: 'Dokumänt',
+  // Aamäldige — WiediSync-Yladig nomal schicke (freigäh Zyle)
+  anmeldungenResendInvite: 'Yladig nomal schicke',
+  anmeldungenInviteSent: 'Yladig an {{email}} gschickt',
+  anmeldungenInviteAlreadyClaimed: 'Die Person hät scho es Konto',
+  anmeldungenInviteNoEmail: 'Die Aamäldig hät kei E-Mail-Adrässe',
+  anmeldungenInviteNoMember: 'Für die Aamäldig isch no kei Mitglied gfunde worde',
+  anmeldungenInviteError: 'D Yladig hät nöd chönne gschickt werde',
 
   // Infra health — VPS resources, slow-query table, status details
   infraVpsResources: 'VPS-Ressource',

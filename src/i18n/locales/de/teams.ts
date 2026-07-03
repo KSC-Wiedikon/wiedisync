@@ -126,6 +126,12 @@ export default {
   shellAccount: 'Temporär',
   expiresIn: 'läuft in {{days}}T ab',
   extend: 'Verlängern',
+  // WiediSync account invite (account-less roster members)
+  sendAccountInvite: 'WiediSync-Einladung senden',
+  accountInviteSent: 'Einladung an {{email}} gesendet',
+  accountInviteAlreadyClaimed: 'Diese Person hat bereits ein Konto',
+  accountInviteNoEmail: 'Dieses Mitglied hat keine E-Mail-Adresse',
+  accountInviteError: 'Einladung konnte nicht gesendet werden',
   // Feature-Toggles
   featureToggles: 'Funktionen',
   featureTogglesDescription: 'Optionale Funktionen für dieses Team ein- oder ausschalten.',

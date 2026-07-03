@@ -1,17 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
+import { ExternalLink } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import { useCollection } from '../../lib/query'
-import { logActivity } from '../../utils/logActivity'
 import { Button } from '@/components/ui/button'
 import Modal from '@/components/Modal'
 import DatenschutzPage from '../legal/DatenschutzPage'
 import PrivacyNotice from '../../components/PrivacyNotice'
 import { FormInput, FormField } from '@/components/FormField'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { LANGUAGES, type BackendLanguage } from '../../i18n/languageConfig'
 import { backendLangToI18n } from '../../utils/languageMap'
 import { OtpInput } from '../../components/OtpInput'
@@ -21,8 +20,24 @@ import type { Team } from '../../types'
 import { createRecord, kscwApi, updateRecord } from '../../lib/api'
 
 const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
+const CLUB_SIGNUP_URL = 'https://kscw.ch/weiteres/anmeldung'
 
-type Step = 'email' | 'otp-verify' | 'otp-claim' | 'register' | 'complete-profile'
+// Since open self-registration was closed (backend `registration_closed`),
+// accounts are created either by (a) redeeming a member-bound invite token
+// (`/signup?invite=…`) or (b) the email-match claim flow for existing members
+// (`otp-claim` → `complete-profile`). Brand-new people are pointed at the club
+// website / their coach instead.
+type Step =
+  | 'email'
+  | 'otp-claim'
+  | 'complete-profile'
+  | 'registration-closed'
+  | 'invite-loading'
+  | 'invite'
+  | 'invite-error'
+
+type InviteInfo = { first_name: string; email: string; expires_at: string }
+type InviteErrorCode = 'invalid_token' | 'already_claimed'
 
 export default function SignUpPage() {
   const { login, user, isApproved } = useAuth()
@@ -30,8 +45,10 @@ export default function SignUpPage() {
   const { t, i18n } = useTranslation('auth')
   const { t: tc } = useTranslation('common')
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const inviteToken = searchParams.get('invite')
 
-  const [step, setStep] = useState<Step>('email')
+  const [step, setStep] = useState<Step>(inviteToken ? 'invite-loading' : 'email')
   const [email, setEmail] = useState('')
   const [selectedLanguage, setSelectedLanguage] = useState<BackendLanguage>(
     LANGUAGES.find((l) => l.code === i18n.language)?.backendValue ?? 'german',
@@ -45,7 +62,6 @@ export default function SignUpPage() {
   const [lastName, setLastName] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
-  const [selectedTeam, setSelectedTeam] = useState('')
   const [selectedSport, setSelectedSport] = useState<'volleyball' | 'basketball'>('volleyball')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -59,6 +75,10 @@ export default function SignUpPage() {
   // Claim flow state (for existing/ClubDesk members)
   const [existingTeams, setExistingTeams] = useState<{ id: string; name: string; league?: string; sport?: string }[]>([])
   const [additionalTeamIds, setAdditionalTeamIds] = useState<string[]>([])
+
+  // Invite flow state (single-use, member-bound signup token)
+  const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null)
+  const [inviteErrorCode, setInviteErrorCode] = useState<InviteErrorCode>('invalid_token')
 
   const { data: teamsRaw } = useCollection<Team>('teams', {
     filter: { active: { _eq: true } },
@@ -75,6 +95,76 @@ export default function SignUpPage() {
     if (user && isApproved) navigate('/', { replace: true })
     if (user && !isApproved) navigate('/pending', { replace: true })
   }, [user, isApproved, navigate, step])
+
+  // Invite flow: resolve the token to greeting data (public endpoint —
+  // `anonymous` so a stale session cookie can't 401 the public handler).
+  useEffect(() => {
+    if (!inviteToken) return
+    let cancelled = false
+    kscwApi<InviteInfo>(`/signup-invites/info/${inviteToken}`, { anonymous: true })
+      .then((info) => {
+        if (cancelled) return
+        setInviteInfo(info)
+        setStep('invite')
+      })
+      .catch(() => {
+        if (cancelled) return
+        // Info only ever 404s with invalid_token (claimed members look the same).
+        setInviteErrorCode('invalid_token')
+        setStep('invite-error')
+      })
+    return () => { cancelled = true }
+  }, [inviteToken])
+
+  // Invite flow: set password, create the account, log in.
+  async function handleInviteRedeem(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (password.length < 8) {
+      setError(t('passwordTooShort'))
+      return
+    }
+    if (password !== passwordConfirm) {
+      setError(t('passwordMismatch'))
+      return
+    }
+    if (!inviteToken || !inviteInfo) return
+
+    setLoading(true)
+    let redeemed = false
+    try {
+      await kscwApi('/signup-invites/redeem', {
+        method: 'POST',
+        anonymous: true,
+        body: { token: inviteToken, password, language: selectedLanguage },
+      })
+      redeemed = true
+      await login(inviteInfo.email, password)
+      navigate('/', { replace: true })
+    } catch (err) {
+      if (redeemed) {
+        // Account exists now but auto-login failed — hand over to the login page.
+        navigate('/login', { state: { email: inviteInfo.email, accountExists: true } })
+        return
+      }
+      const apiErr = err as Error & { code?: string; body?: { error?: string } }
+      if (apiErr.code === 'invalid_token' || apiErr.code === 'already_claimed') {
+        setInviteErrorCode(apiErr.code)
+        setStep('invite-error')
+      } else if (apiErr.code === 'no_email') {
+        setError(t('inviteNoEmail'))
+      } else if (apiErr.code === 'email_in_use') {
+        setError(t('inviteEmailInUse'))
+      } else if (apiErr.body?.error && !apiErr.code) {
+        // Backend password-rule text (400 without a code) — show verbatim.
+        setError(apiErr.body.error)
+      } else {
+        setError(t('inviteRedeemFailed'))
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Step 1: Check if email exists
   async function handleEmailCheck(e: React.FormEvent) {
@@ -101,12 +191,9 @@ export default function SignUpPage() {
         await kscwApi('/verify-email', { method: 'POST', body: { email: email.trim().toLowerCase(), lang: selectedLanguage } })
         setStep('otp-claim')
       } else {
-        // New member — send verification email OTP
-        await kscwApi('/verify-email', {
-          method: 'POST',
-          body: { email: email.trim().toLowerCase(), lang: selectedLanguage },
-        })
-        setStep('otp-verify')
+        // Unknown email — open self-registration is closed. Point at the club
+        // website (membership signup) or a coach-sent invite instead.
+        setStep('registration-closed')
       }
     } catch {
       setError(t('registrationFailed'))
@@ -114,33 +201,6 @@ export default function SignUpPage() {
       setTurnstileToken('')
     } finally {
       setLoading(false)
-    }
-  }
-
-  // OTP verify complete (new member email verification)
-  async function handleOtpVerifyComplete(code: string) {
-    setOtpError('')
-    try {
-      await kscwApi('/verify-email/confirm', {
-        method: 'POST',
-        body: { email: email.trim().toLowerCase(), code },
-      })
-      setStep('register')
-    } catch {
-      setOtpError(t('otpInvalid'))
-    }
-  }
-
-  // OTP verify resend
-  async function handleOtpVerifyResend() {
-    setOtpError('')
-    try {
-      await kscwApi('/verify-email', {
-        method: 'POST',
-        body: { email: email.trim().toLowerCase(), lang: selectedLanguage },
-      })
-    } catch {
-      setOtpError(t('registrationFailed'))
     }
   }
 
@@ -255,57 +315,26 @@ export default function SignUpPage() {
     }
   }
 
-  // Register new member
-  async function handleRegister(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-
-    if (password !== passwordConfirm) {
-      setError(t('passwordMismatch'))
-      return
-    }
-
-    if (!selectedTeam) {
-      setError(t('teamRequired'))
-      return
-    }
-
-    setLoading(true)
-    try {
-      // Create Directus user + member via backend (OTP-verified)
-      const res = await kscwApi<{ member_id: string }>('/register', {
-        method: 'POST',
-        body: {
-          email: email.trim().toLowerCase(),
-          password,
-          first_name: firstName,
-          last_name: lastName,
-          team: selectedTeam,
-          language: selectedLanguage,
-        },
-      })
-      await login(email.trim().toLowerCase(), password)
-      logActivity('create', 'members', res.member_id, { first_name: firstName, last_name: lastName, requested_team: selectedTeam })
-      navigate('/pending', { replace: true })
-    } catch (err) {
-      if ((err as Error & { code?: string }).code === 'email_exists') {
-        navigate('/login', { state: { email: email.trim().toLowerCase(), accountExists: true } })
-        return
-      }
-      setError(t('registrationFailed'))
-      turnstileRef.current?.reset()
-      setTurnstileToken('')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   function handleBackToEmail() {
     setStep('email')
     setError('')
     setOtpError('')
     setExistingTeams([])
   }
+
+  const title = (() => {
+    switch (step) {
+      case 'otp-claim':
+      case 'complete-profile':
+        return t('activateAccount')
+      case 'invite-error':
+        return t(inviteErrorCode === 'already_claimed' ? 'inviteClaimedTitle' : 'inviteInvalidTitle')
+      case 'registration-closed':
+        return t('registrationClosedTitle')
+      default:
+        return t('createAccount')
+    }
+  })()
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
@@ -320,11 +349,127 @@ export default function SignUpPage() {
 
         <div className="rounded-xl bg-white p-6 shadow-lg sm:p-8 dark:bg-gray-800">
           <h1 className="mb-6 text-center text-xl font-bold text-gray-900 dark:text-gray-100">
-            {step === 'otp-verify' && t('verifyEmail')}
-            {step === 'otp-claim' && t('activateAccount')}
-            {step === 'complete-profile' && t('activateAccount')}
-            {(step === 'email' || step === 'register') && t('createAccount')}
+            {title}
           </h1>
+
+          {/* Invite flow: resolving the token */}
+          {step === 'invite-loading' && (
+            <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+              {t('inviteLoading')}
+            </p>
+          )}
+
+          {/* Invite flow: set password + activate */}
+          {step === 'invite' && inviteInfo && (
+            <form onSubmit={handleInviteRedeem} className="space-y-4">
+              <p className="text-center text-base font-medium text-gray-900 dark:text-gray-100">
+                {t('inviteGreeting', { name: inviteInfo.first_name })}
+              </p>
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                {t('inviteIntro')}
+              </p>
+
+              {/* Email (bound to the invite, read-only) */}
+              <FormInput
+                type="email"
+                label={t('email')}
+                value={inviteInfo.email}
+                readOnly
+                className="bg-gray-50 dark:bg-gray-600"
+              />
+
+              {/* Language */}
+              <FormField label={t('language')}>
+                <LanguageSelect value={selectedLanguage} onChange={handleLanguageChange} />
+              </FormField>
+
+              <FormInput
+                type="password"
+                label={t('password')}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+                autoComplete="new-password"
+                placeholder={t('passwordPlaceholder')}
+              />
+
+              <FormInput
+                type="password"
+                label={t('confirmPassword')}
+                value={passwordConfirm}
+                onChange={(e) => setPasswordConfirm(e.target.value)}
+                required
+                minLength={8}
+                autoComplete="new-password"
+              />
+
+              <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+                {t('privacyConsent')}{' '}
+                <button
+                  type="button"
+                  onClick={() => setShowPrivacy(true)}
+                  className="font-medium text-brand-600 underline hover:text-brand-500 dark:text-brand-400"
+                >
+                  {t('privacyPolicy')}
+                </button>.
+              </p>
+
+              {error && (
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              )}
+
+              <Button type="submit" loading={loading} className="w-full">
+                {loading ? t('settingPassword') : t('activateAccount')}
+              </Button>
+            </form>
+          )}
+
+          {/* Invite flow: invalid / expired / already used token */}
+          {step === 'invite-error' && (
+            <div className="space-y-4">
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                {t(inviteErrorCode === 'already_claimed' ? 'inviteClaimedDescription' : 'inviteInvalidDescription')}
+              </p>
+
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                {t('alreadyHaveAccount')}{' '}
+                <Link to="/login" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400">
+                  {t('signIn')}
+                </Link>
+              </p>
+            </div>
+          )}
+
+          {/* Registration closed: unknown email, self-signup no longer possible */}
+          {step === 'registration-closed' && (
+            <div className="space-y-4">
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                {t('registrationClosedDescription')}
+              </p>
+
+              <a
+                href={CLUB_SIGNUP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-600"
+              >
+                {t('registrationClosedWebsiteLink')}
+                <ExternalLink className="h-4 w-4" />
+              </a>
+
+              <Button variant="outline" onClick={handleBackToEmail} className="w-full">
+                {t('tryDifferentEmail')}
+              </Button>
+
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                {t('alreadyHaveAccount')}{' '}
+                <Link to="/login" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400">
+                  {t('signIn')}
+                </Link>
+              </p>
+            </div>
+          )}
 
           {/* Step 1: Email check */}
           {step === 'email' && (
@@ -386,27 +531,7 @@ export default function SignUpPage() {
             </form>
           )}
 
-          {/* Step 2: OTP verification for new members */}
-          {step === 'otp-verify' && (
-            <div className="space-y-4">
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-                {t('verifyEmailDescription')}
-              </p>
-
-              <OtpInput
-                email={email}
-                onComplete={handleOtpVerifyComplete}
-                onResend={handleOtpVerifyResend}
-                error={otpError}
-              />
-
-              <Button variant="outline" onClick={handleBackToEmail} className="w-full">
-                {t('tryDifferentEmail')}
-              </Button>
-            </div>
-          )}
-
-          {/* Step 3: OTP claim for existing members */}
+          {/* Step 2: OTP claim for existing members */}
           {step === 'otp-claim' && (
             <div className="space-y-4">
               <p className="text-center text-sm text-gray-500 dark:text-gray-400">
@@ -426,7 +551,7 @@ export default function SignUpPage() {
             </div>
           )}
 
-          {/* Step 4: Complete profile after OTP claim (ClubDesk imports) */}
+          {/* Step 3: Complete profile after OTP claim (ClubDesk imports) */}
           {step === 'complete-profile' && (
             <form onSubmit={handleCompleteProfile} className="space-y-4">
               <p className="text-center text-sm text-gray-500 dark:text-gray-400">
@@ -562,128 +687,6 @@ export default function SignUpPage() {
 
               <Button type="submit" loading={loading} className="w-full">
                 {loading ? t('settingPassword') : t('activateAccount')}
-              </Button>
-            </form>
-          )}
-
-          {/* Step 5: New member registration */}
-          {step === 'register' && (
-            <form onSubmit={handleRegister} className="space-y-4">
-              {/* Email (read-only) */}
-              <div>
-                <div className="flex items-center gap-2">
-                  <FormInput
-                    type="email"
-                    label={t('email')}
-                    value={email}
-                    readOnly
-                    className="bg-gray-50 dark:bg-gray-600"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleBackToEmail}
-                    className="mt-6 shrink-0 text-sm text-brand-600 hover:text-brand-500 dark:text-brand-400"
-                  >
-                    {t('change')}
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <FormInput
-                  type="text"
-                  label={t('firstName')}
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  required
-                  autoComplete="given-name"
-                />
-                <FormInput
-                  type="text"
-                  label={t('lastName')}
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  required
-                  autoComplete="family-name"
-                />
-              </div>
-
-              {/* Sport toggle */}
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {tc('sport')}
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['volleyball', 'basketball'] as const).map((sport) => (
-                    <button
-                      key={sport}
-                      type="button"
-                      onClick={() => { setSelectedSport(sport); setSelectedTeam('') }}
-                      className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                        selectedSport === sport
-                          ? 'border-gold-400 bg-gold-100 text-gold-900 dark:border-gold-400/50 dark:bg-gold-400/20 dark:text-gold-300'
-                          : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {tc(sport)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <FormField label={t('selectTeam')}>
-                <Select value={selectedTeam} onValueChange={setSelectedTeam}>
-                  <SelectTrigger className="min-h-[44px]">
-                    <SelectValue placeholder={t('selectTeamPlaceholder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredTeams.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}{team.league ? ` — ${team.league}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-
-              <FormInput
-                type="password"
-                label={t('password')}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-                placeholder={t('passwordPlaceholder')}
-              />
-
-              <FormInput
-                type="password"
-                label={t('confirmPassword')}
-                value={passwordConfirm}
-                onChange={(e) => setPasswordConfirm(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
-
-              <p className="text-center text-xs text-gray-500 dark:text-gray-400">
-                {t('privacyConsent')}{' '}
-                <button
-                  type="button"
-                  onClick={() => setShowPrivacy(true)}
-                  className="font-medium text-brand-600 underline hover:text-brand-500 dark:text-brand-400"
-                >
-                  {t('privacyPolicy')}
-                </button>.
-              </p>
-
-              {error && (
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-              )}
-
-              <Button type="submit" loading={loading} className="w-full">
-                {loading ? t('creatingAccount') : t('signUp')}
               </Button>
             </form>
           )}

@@ -1,10 +1,10 @@
 import { Fragment, useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink, ArrowUpFromLine } from 'lucide-react'
+import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink, ArrowUpFromLine, Send } from 'lucide-react'
 import { useCollection, useUpdate } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
-import { assetUrl } from '../../lib/api'
+import { assetUrl, kscwApi } from '../../lib/api'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import TeamChip from '../../components/TeamChip'
 import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
@@ -236,6 +236,30 @@ export default function AnmeldungenPage() {
     setRejectReason('')
   }
 
+  // Resend the WiediSync signup invite for an approved registration — the
+  // backend resolves the member by the registration's email and emails a fresh
+  // single-use token (never returned to the client).
+  const [resendingId, setResendingId] = useState<string | null>(null)
+  const handleResendInvite = async (reg: Registration) => {
+    if (resendingId) return
+    setResendingId(reg.id)
+    try {
+      const res = await kscwApi<{ email: string }>('/signup-invites/create', {
+        method: 'POST',
+        body: { registration_id: reg.id },
+      })
+      toast.success(t('anmeldungenInviteSent', { email: res.email ?? reg.email }))
+    } catch (err) {
+      const apiErr = err as Error & { code?: string }
+      if (apiErr.code === 'already_claimed') toast.error(t('anmeldungenInviteAlreadyClaimed'))
+      else if (apiErr.code === 'no_email') toast.error(t('anmeldungenInviteNoEmail'))
+      else if (String(apiErr.message).endsWith('404')) toast.error(t('anmeldungenInviteNoMember'))
+      else toast.error(t('anmeldungenInviteError'))
+    } finally {
+      setResendingId(null)
+    }
+  }
+
   const confirmReject = () => {
     if (!rejectTarget || !rejectReason.trim()) return
     updateReg({ id: rejectTarget.id, data: { status: 'rejected', rejection_reason: rejectReason.trim() } }, {
@@ -463,8 +487,10 @@ export default function AnmeldungenPage() {
                                     onSave={(data) => updateReg({ id: reg.id, data }, { onSuccess: () => toast.success(t('anmeldungenUpdated')) })}
                                     onApprove={() => handleApprove(reg)}
                                     onReject={() => openRejectModal(reg)}
+                                    onResendInvite={() => handleResendInvite(reg)}
                                     onPreviewFile={setPreviewFile}
                                     isUpdating={isUpdating}
+                                    isResending={resendingId === reg.id}
                                   />
                                 </TableCell>
                               </TableRow>
@@ -581,16 +607,20 @@ function ExpandedDetails({
   onSave,
   onApprove,
   onReject,
+  onResendInvite,
   onPreviewFile,
   isUpdating,
+  isResending,
 }: {
   reg: Registration
   t: (key: string) => string
   onSave: (data: Partial<Registration>) => void
   onApprove: () => void
   onReject: () => void
+  onResendInvite: () => void
   onPreviewFile: (file: { url: string; label: string }) => void
   isUpdating: boolean
+  isResending: boolean
 }) {
   const [edits, setEdits] = useState<Record<string, string>>({})
   const hasChanges = Object.keys(edits).length > 0
@@ -755,6 +785,16 @@ function ExpandedDetails({
               {t('anmeldungenReject')}
             </button>
           </>
+        ) : reg.status === 'approved' ? (
+          <button
+            onClick={onResendInvite}
+            disabled={isResending || isUpdating}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            title={t('anmeldungenResendInvite')}
+          >
+            <Send className="h-3.5 w-3.5" />
+            {t('anmeldungenResendInvite')}
+          </button>
         ) : null}
       </div>
     </div>

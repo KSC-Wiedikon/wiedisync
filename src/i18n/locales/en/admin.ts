@@ -347,6 +347,13 @@ export default {
   anmeldungenDocNatDecl: 'National team decl.',
   anmeldungenDocIdFront: 'ID front',
   anmeldungenDocIdBack: 'ID back',
+  // Registrations — resend WiediSync signup invite (approved rows)
+  anmeldungenResendInvite: 'Resend invite',
+  anmeldungenInviteSent: 'Invite sent to {{email}}',
+  anmeldungenInviteAlreadyClaimed: 'This person already has an account',
+  anmeldungenInviteNoEmail: 'This registration has no email address',
+  anmeldungenInviteNoMember: 'No member found for this registration yet',
+  anmeldungenInviteError: 'Could not send the invite',
 
   // ClubDesk member sync (superadmin)
   clubdeskSyncDown: 'Sync down from ClubDesk',
