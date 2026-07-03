@@ -56,7 +56,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 
 | Collection | Action | Filter | Notes |
 |---|---|---|---|
-| teams | read | `active = true` | Limited fields (`PUBLIC_TEAM_FIELDS`) |
+| teams | read | `active = true` | Limited fields (`PUBLIC_TEAM_FIELDS`). 2026-07-03: added `waitlist_url` + `waitlist_label` (non-PII public Google-Form link + button label) so the website contact form + basketball youth page detect "full" teams and route to the waiting list instead of emailing the coach/youth coordinator. |
 | games | read | none | Limited fields (`PUBLIC_GAME_FIELDS`) |
 | rankings | read | none | |
 | sponsors | read | `active = true` | |

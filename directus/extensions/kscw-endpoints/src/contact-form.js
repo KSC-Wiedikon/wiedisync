@@ -171,9 +171,27 @@ export function registerContactForm(router, { database, logger, services, getSch
             .where('teams_responsibles.teams_id', team_id)
             .whereNotNull('members.email')
             .select('members.email'),
-          database('teams').where('id', team_id).first('id', 'full_name', 'name', 'sport'),
+          database('teams').where('id', team_id).first('id', 'full_name', 'name', 'sport', 'waitlist_url', 'waitlist_label'),
         ])
         if (teamRow) teamName = teamRow.full_name || teamRow.name || null
+
+        // Full team → it runs a waiting list, so a contact submission must NOT
+        // fan out to the coaches / basketball youth coordinator (that turned
+        // closed youth teams into a steady stream of join inquiries). The
+        // website already hides submit for these, but /contact is public, so a
+        // cached / bookmarked / direct POST must be rejected here too — point
+        // the sender at the waiting list instead. "Full" ≡ a non-empty
+        // waitlist_url; a team that is merely open_for_players=false but has no
+        // waiting list stays contactable.
+        const waitlistUrl = teamRow && teamRow.waitlist_url ? String(teamRow.waitlist_url).trim() : ''
+        if (waitlistUrl) {
+          return res.status(409).json({
+            error: 'team_full',
+            waitlist_url: waitlistUrl,
+            waitlist_label: (teamRow.waitlist_label ? String(teamRow.waitlist_label).trim() : '') || null,
+          })
+        }
+
         if (teamRow && teamRow.sport === 'basketball' && isYouthTeam(teamRow.name)) {
           // Basketball youth teams: always the youth coordinator, never the
           // coaches/responsibles or the basketball@ alias.
