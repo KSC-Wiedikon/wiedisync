@@ -54,10 +54,17 @@ export function planSettlementLegs({ total, payments, invoiceId, issueDate, acco
       push('settle_over', accounts.bank, accounts.prepay || accounts.debitoren, excess, 'overpayment')
     } else if (et === 'refund') {
       // Draw prepaid excess down FIRST (Debit Prepayment / Credit Bank), then
-      // re-open the receivable for any remainder (Debit Debitoren / Credit Bank).
+      // re-open the receivable for the part that was settled by real payments
+      // (Debit Debitoren / Credit Bank). Any remainder is an OVER-refund (the
+      // club paid out more than it net-received) → book it on the prepayment side
+      // too (prepayment goes negative = "due to member"), so the FULL refund hits
+      // Bank and the GL matches deriveSettlement's netCash<0 case. (2026-07-03
+      // review: the earlier version dropped this leftover, understating Bank.)
       const fromPrepay = round2(Math.min(amt, Math.max(0, prepaid))); prepaid = round2(prepaid - fromPrepay)
       const reopened = round2(Math.min(round2(amt - fromPrepay), Math.max(0, round2(total - open)))); open = round2(open + reopened)
-      push('settle_over', accounts.prepay || accounts.debitoren, accounts.bank, fromPrepay, 'refund')
+      const overRefund = round2(amt - fromPrepay - reopened) // beyond prepaid + receivable room
+      prepaid = round2(prepaid - overRefund)
+      push('settle_over', accounts.prepay || accounts.debitoren, accounts.bank, round2(fromPrepay + overRefund), 'refund')
       push('settle', accounts.debitoren, accounts.bank, reopened, 'refund')
     } else if (et === 'credit_note') {
       const applied = round2(Math.min(amt, Math.max(0, open))); open = round2(open - applied)
@@ -167,6 +174,11 @@ export async function reconcileInvoiceLedger(database, invoiceId, settings, acct
     // 2. Settlements + rounding residual — allocation is PURE (planSettlementLegs)
     //    so the ledger invariants are unit-tested (2026-07-02 audit: #1 refund vs
     //    prepayment, #23 rounding). Post each leg idempotently on (ref_kind, ref_id).
+    // #6 (2026-07-03 review): the rounding leg's amount depends on the running
+    // residual, so drop any prior one before recomputing — postAutoEntry is
+    // idempotent by (ref_kind, ref_id) and would otherwise keep a stale ≤1-rappen
+    // leg after a later payment. Open FY only (the trigger blocks closed-year del).
+    try { await trx('finance_transactions').where({ source: 'native', auto: true, ref_kind: 'round', ref_id: inv.id }).del() } catch { /* closed FY */ }
     const paysForPlan = pays.map((p) => ({ id: p.id, amount: p.amount, entry_type: p.entry_type, date: isoDate(p.payment_date || inv.invoice_date || inv.date_created) }))
     const { legs } = planSettlementLegs({
       total, payments: paysForPlan, invoiceId: inv.id, issueDate,
