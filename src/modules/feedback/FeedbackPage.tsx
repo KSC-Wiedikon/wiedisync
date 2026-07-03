@@ -161,20 +161,22 @@ export default function FeedbackPage() {
 
     setSubmitting(true)
     try {
-      // Upload screenshot first if provided
-      let screenshotId: string | null = null
+      // Upload ALL selected screenshots (up to 5), collecting their file ids.
+      const screenshotIds: string[] = []
       if (files.length > 0) {
-        const fd = new FormData()
-        fd.append('file', files[0])
         const token = await client.getToken()
-        const res = await fetch(`${API_URL}/files`, {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          body: fd,
-        })
-        if (res.ok) {
-          const result = await res.json()
-          screenshotId = result.data?.id ?? null
+        for (const file of files) {
+          const fd = new FormData()
+          fd.append('file', file)
+          const res = await fetch(`${API_URL}/files`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: fd,
+          })
+          if (res.ok) {
+            const result = await res.json()
+            if (result.data?.id) screenshotIds.push(result.data.id)
+          }
         }
       }
 
@@ -187,7 +189,10 @@ export default function FeedbackPage() {
         source_url: window.location.origin,
       }
       if (user) payload.user = user.id
-      if (screenshotId) payload.screenshot = screenshotId
+      if (screenshotIds.length > 0) {
+        payload.screenshots = screenshotIds
+        payload.screenshot = screenshotIds[0] // primary (back-compat + quarantine)
+      }
 
       await createRecord('feedback', payload)
 

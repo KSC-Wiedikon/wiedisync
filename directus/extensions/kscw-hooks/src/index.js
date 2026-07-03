@@ -248,9 +248,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   async function quarantineFeedbackScreenshot(feedbackId) {
     try {
       if (!feedbackId) return
-      const row = await database('feedback').where('id', feedbackId).select('screenshot').first()
-      if (row?.screenshot) {
-        await database('directus_files').where('id', row.screenshot).update({ folder: FEEDBACK_FILES_FOLDER })
+      const row = await database('feedback').where('id', feedbackId).select('screenshot', 'screenshots').first()
+      // Quarantine EVERY attached screenshot (migration 166 added the array;
+      // `screenshot` mirrors the first). Union covers both old + new rows.
+      const ids = new Set()
+      if (row?.screenshot) ids.add(row.screenshot)
+      let arr = row?.screenshots
+      if (typeof arr === 'string') { try { arr = JSON.parse(arr) } catch { arr = [] } }
+      if (Array.isArray(arr)) for (const id of arr) { if (id) ids.add(id) }
+      if (ids.size > 0) {
+        await database('directus_files').whereIn('id', [...ids]).update({ folder: FEEDBACK_FILES_FOLDER })
       }
     } catch (err) {
       log.error({ msg: `[feedback-quarantine] ${err.message}`, event: 'feedback_quarantine', stack: err.stack })
