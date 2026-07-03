@@ -103,4 +103,15 @@ export default {
     sourceBasketplan: 'Gere par Basketplan',
     sourceManual: 'Manuel',
   },
+  import: {
+    ok: 'OK',
+    error: {
+      unknownTeam: 'Equipe inconnue',
+      outOfScope: 'Hors perimetre',
+      missingOpponent: 'Adversaire manquant',
+      missingDate: 'Date manquante',
+      unknownHall: 'Salle inconnue',
+    },
+  },
+  gamesCount: '{{count}} matchs',
 } as const

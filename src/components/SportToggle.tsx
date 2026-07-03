@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import VolleyballIcon from './VolleyballIcon'
 import BasketballIcon from './BasketballIcon'
@@ -25,6 +26,7 @@ function SportIcon({ sport }: { sport: SportView }) {
 }
 
 export default function SportToggle({ value, onChange, showAll = true, className = '' }: SportToggleProps) {
+  const { t } = useTranslation('common')
   const items = showAll ? OPTIONS : OPTIONS.filter((o) => o.value !== 'all')
 
   return (
@@ -33,7 +35,7 @@ export default function SportToggle({ value, onChange, showAll = true, className
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
-          aria-label={opt.label}
+          aria-label={opt.value === 'all' ? t('allSports') : opt.label}
           className={cn(
             'flex items-center justify-center px-3 py-3.5 text-sm font-medium transition-colors',
             value === opt.value

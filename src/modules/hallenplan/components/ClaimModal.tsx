@@ -185,7 +185,7 @@ export default function ClaimModal({ slot, halls, teams, rawSlots, weekDays, onC
             rows={2}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional..."
+            placeholder={t('claimNotesPlaceholder')}
           />
         </div>
       </div>

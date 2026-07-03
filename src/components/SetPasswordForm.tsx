@@ -41,8 +41,10 @@ export function SetPasswordForm({ title, description, email, onSuccess }: SetPas
       })
       onSuccess()
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
-      setError(message)
+      // Directus/API errors come back in English and are often unfriendly —
+      // show a localized generic message instead of the raw server text.
+      console.error('Set-password failed:', err)
+      setError(t('common:error'))
     } finally {
       setLoading(false)
     }

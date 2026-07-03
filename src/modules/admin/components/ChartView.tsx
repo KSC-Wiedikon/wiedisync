@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 interface ChartViewProps {
   data: Record<string, unknown>[]
   columns: string[]
@@ -70,6 +72,7 @@ function shortLabel(v: unknown, maxLen = 10): string {
 // ─── Bar Chart ─────────────────────────────────────────────────────────────
 
 function BarChart({ data, colMeta }: ChartProps) {
+  const { t } = useTranslation('admin')
   const numericCols = colMeta.filter((c) => c.numeric).map((c) => c.col)
   const xCol = colMeta.find((c) => !c.numeric)?.col ?? null
 
@@ -97,7 +100,7 @@ function BarChart({ data, colMeta }: ChartProps) {
   const yStep = maxVal / yTicks
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-label="Bar chart">
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-label={t('chartTypeBar')}>
       {/* Y grid + labels */}
       {Array.from({ length: yTicks + 1 }, (_, i) => {
         const val = yStep * i
@@ -181,6 +184,7 @@ function BarChart({ data, colMeta }: ChartProps) {
 // ─── Line Chart ─────────────────────────────────────────────────────────────
 
 function LineChart({ data, colMeta }: ChartProps) {
+  const { t } = useTranslation('admin')
   const xCol = colMeta.find((c) => c.date && !c.numeric)?.col ?? colMeta.find((c) => !c.numeric)?.col ?? null
   const numericCols = colMeta.filter((c) => c.numeric).map((c) => c.col)
 
@@ -216,7 +220,7 @@ function LineChart({ data, colMeta }: ChartProps) {
   }
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-label="Line chart">
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-label={t('chartTypeLine')}>
       {/* Y grid + labels */}
       {Array.from({ length: yTicks + 1 }, (_, i) => {
         const val = yStep * i
@@ -316,6 +320,7 @@ function LineChart({ data, colMeta }: ChartProps) {
 // ─── Pie Chart ──────────────────────────────────────────────────────────────
 
 function PieChart({ data, colMeta }: ChartProps) {
+  const { t } = useTranslation('admin')
   const numericCol = colMeta.find((c) => c.numeric)?.col
   const labelCol = colMeta.find((c) => !c.numeric)?.col ?? null
 
@@ -367,7 +372,7 @@ function PieChart({ data, colMeta }: ChartProps) {
   })
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-label="Pie chart">
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-label={t('chartTypePie')}>
       {slices.map((s, i) => (
         <path key={i} d={s.d} fill={s.color} stroke="white" strokeWidth={1.5} opacity={0.9}>
           <title>{`${s.label}: ${s.val} (${s.pct}%)`}</title>
@@ -408,9 +413,10 @@ function PieChart({ data, colMeta }: ChartProps) {
 // ─── Fallback ───────────────────────────────────────────────────────────────
 
 function NoData() {
+  const { t } = useTranslation('admin')
   return (
     <div className="flex h-40 items-center justify-center text-sm text-gray-400 dark:text-gray-500">
-      No numeric data to chart
+      {t('chartNoNumericData')}
     </div>
   )
 }
@@ -418,6 +424,7 @@ function NoData() {
 // ─── Main export ─────────────────────────────────────────────────────────────
 
 export default function ChartView({ data, columns }: ChartViewProps) {
+  const { t } = useTranslation('admin')
   if (data.length === 0 || columns.length === 0) return <NoData />
 
   const colMeta = computeColMeta(data, columns)
@@ -427,10 +434,10 @@ export default function ChartView({ data, columns }: ChartViewProps) {
     <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
       <div className="mb-1 flex items-center gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-          {chartType === 'bar' ? 'Bar chart' : chartType === 'line' ? 'Line chart' : 'Pie chart'}
+          {chartType === 'bar' ? t('chartTypeBar') : chartType === 'line' ? t('chartTypeLine') : t('chartTypePie')}
         </span>
         <span className="text-xs text-gray-300 dark:text-gray-600">
-          {data.length} row{data.length !== 1 ? 's' : ''}
+          {t('chartRows', { count: data.length })}
         </span>
       </div>
 

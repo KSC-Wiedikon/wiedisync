@@ -375,4 +375,28 @@ export default {
   dhLink: 'Collega',
   dhIssueClubdeskDeparted: 'Ha lasciato ClubDesk (disattivare?)',
   dhDeactivate: 'Disattiva',
+
+  // Registrations — file preview + doc count
+  anmeldungenDocsCount: '{{count}} doc.',
+  anmeldungenPdfOpenTab: 'PDF — apri in una nuova scheda',
+  anmeldungenDocAlt: 'Documento',
+
+  // Infra health — VPS resources, slow-query table, status details
+  infraVpsResources: 'Risorse VPS',
+  infraCors: 'CORS (cross-origin)',
+  infraUnreachable: 'Non raggiungibile',
+  infraMigrationsApplied: 'Migrazioni applicate',
+  infraUptime: 'Uptime',
+  infraCpuLoad: 'Carico CPU',
+  infraMemory: 'Memoria',
+  infraDisk: 'Disco',
+  infraQueryCol: 'Query',
+
+  // Chart view (SQL query results)
+  chartTypeBar: 'Grafico a barre',
+  chartTypeLine: 'Grafico a linee',
+  chartTypePie: 'Grafico a torta',
+  chartNoNumericData: 'Nessun dato numerico da rappresentare',
+  chartRows_one: '{{count}} riga',
+  chartRows_other: '{{count}} righe',
 } as const

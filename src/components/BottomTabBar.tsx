@@ -41,6 +41,7 @@ interface BottomTabBarProps {
 
 export default function BottomTabBar({ onMoreTap, moreActive, unreadNotifications = 0 }: BottomTabBarProps) {
   const { t } = useTranslation('nav')
+  const { t: tn } = useTranslation('notifications')
   const { user, isApproved } = useAuth()
   const visibleTabs = primaryTabs.filter((tab) => !tab.requiresAuth || (user && isApproved))
   return (
@@ -75,7 +76,9 @@ export default function BottomTabBar({ onMoreTap, moreActive, unreadNotification
         >
           <Menu className={iconClass} />
           {unreadNotifications > 0 && (
-            <span className="absolute right-2.5 top-1 h-2 w-2 rounded-full bg-red-500" />
+            <span className="absolute right-2.5 top-1 h-2 w-2 rounded-full bg-red-500">
+              <span className="sr-only">{tn('unreadBadge', { count: unreadNotifications })}</span>
+            </span>
           )}
           {t('more')}
         </button>

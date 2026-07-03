@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 
 interface ImageLightboxProps {
@@ -9,6 +10,7 @@ interface ImageLightboxProps {
 }
 
 export default function ImageLightbox({ src, alt, open, onClose }: ImageLightboxProps) {
+  const { t } = useTranslation('common')
   const ref = useRef<HTMLDialogElement>(null)
   const [visible, setVisible] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -53,6 +55,7 @@ export default function ImageLightbox({ src, alt, open, onClose }: ImageLightbox
   return (
     <dialog
       ref={ref}
+      aria-label={alt || undefined}
       onClose={onClose}
       onCancel={(e) => { e.preventDefault(); handleClose() }}
       onClick={(e) => {
@@ -65,7 +68,7 @@ export default function ImageLightbox({ src, alt, open, onClose }: ImageLightbox
     >
       <button
         onClick={handleClose}
-        aria-label="Close"
+        aria-label={t('close')}
         className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
       >
         <X className="h-5 w-5" />

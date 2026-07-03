@@ -137,4 +137,22 @@ export default {
   slotsAvailable: '{{count}} fascia/e disponibile/i',
   slotsAvailableTitle: 'Fasce disponibili',
   slotsAvailableNone: 'Nessuna fascia disponibile',
+
+  // Abbreviazioni dei giorni (intestazioni griglia / riepilogo)
+  dayMonShort: 'Lun',
+  dayTueShort: 'Mar',
+  dayWedShort: 'Mer',
+  dayThuShort: 'Gio',
+  dayFriShort: 'Ven',
+  daySatShort: 'Sab',
+  daySunShort: 'Dom',
+
+  // Rifiniture griglia / editor
+  noDataToDisplay: 'Nessun dato da mostrare',
+  switchOverlap: 'Alterna sovrapposizione',
+  labelPlaceholder: 'es. Allenamento di prova, Partita in casa vs. TVA',
+  sportVolleyball: 'Pallavolo',
+  sportBasketball: 'Pallacanestro',
+  claimNotesPlaceholder: 'Facoltativo…',
+  closureReasonPlaceholder: 'es. Vacanze, manutenzione, ristrutturazione',
 } as const

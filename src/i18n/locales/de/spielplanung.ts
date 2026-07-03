@@ -81,6 +81,14 @@ export default {
       hall: 'Halle',
       status: 'Status',
     },
+    ok: 'OK',
+    error: {
+      unknownTeam: 'Unbekanntes Team',
+      outOfScope: 'Ausserhalb Zuständigkeit',
+      missingOpponent: 'Gegner fehlt',
+      missingDate: 'Datum fehlt',
+      unknownHall: 'Unbekannte Halle',
+    },
   },
 
   // Manual game creation modal
@@ -163,4 +171,5 @@ export default {
   colType: 'H/A',
   colHall: 'Halle',
   colStatus: 'Status',
+  gamesCount: '{{count}} Spiele',
 } as const

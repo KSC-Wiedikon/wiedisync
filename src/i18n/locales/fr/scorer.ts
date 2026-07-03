@@ -50,6 +50,13 @@ export default {
   noGames: 'Aucun match',
   noGamesDescription: 'Aucun match trouve pour le filtre selectionne.',
 
+  // Error toasts
+  errorUpdate: 'Impossible de mettre a jour l\'attribution.',
+  errorToggleReminders: 'Impossible de modifier le parametre de rappel.',
+  errorDelegate: 'Impossible d\'envoyer la delegation.',
+  errorAcceptDelegation: 'Impossible d\'accepter la demande.',
+  errorDeclineDelegation: 'Impossible de refuser la demande.',
+
   // Past games
   showOlderGames: 'Afficher les anciens matchs',
   loadMore: 'Charger plus',

@@ -6,6 +6,22 @@ import { useRealtime } from '../../../hooks/useRealtime'
 import { kscwApi } from '../../../lib/api'
 import type { Poll, PollVote } from '../../../types'
 import { relId, memberName } from '../../../utils/relations'
+import { toZurichDateString } from '../../../utils/dateHelpers'
+
+/**
+ * A poll `deadline` is a date-only string ("YYYY-MM-DD"). `new Date(deadline)`
+ * parses it as UTC midnight, so in Europe/Zurich (UTC+1/+2) a naive
+ * `new Date(deadline) < new Date()` marks the poll as expired 1–2 hours before
+ * local midnight of its deadline day. Compare calendar days in Zurich instead:
+ * the deadline only counts as passed once the current Zurich date is strictly
+ * after the deadline day (the whole deadline day stays votable).
+ */
+export function isDeadlinePassed(deadline: string | null | undefined): boolean {
+  if (!deadline) return false
+  const deadlineDay = toZurichDateString(deadline)
+  if (!deadlineDay) return false
+  return toZurichDateString(new Date()) > deadlineDay
+}
 
 // Shared close/delete mutation scaffolding for the poll-list hooks
 // (usePolls / useActivePolls) so the "update status → refetch" and
@@ -82,7 +98,7 @@ export function useActivePolls(teamIds: string[]) {
   })
   // The deadline doesn't auto-close a poll (status stays 'open'), so drop polls
   // whose deadline has passed — they're no longer actionable on the home screen.
-  const polls = (pollsRaw ?? []).filter(p => !p.deadline || new Date(p.deadline) >= new Date())
+  const polls = (pollsRaw ?? []).filter(p => !isDeadlinePassed(p.deadline))
 
   const { closePoll, deletePoll } = usePollActions(refetch)
 

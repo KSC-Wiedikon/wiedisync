@@ -262,4 +262,5 @@ export default {
   payoutDelete: 'Lösche',
   myPayoutsTitle: 'Rückerstattige a di',
   myPayoutsSubtitle: 'Uszahlige, wo dr Verein dir schickt. Bi Bedarf de QR-Iizahligsschii abelade.',
+  duesIssueConfirmTitle: 'Beitragslauf uslöse?',
 }

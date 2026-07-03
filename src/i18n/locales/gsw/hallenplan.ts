@@ -137,4 +137,22 @@ export default {
   slotsAvailable: '{{count}} Halle frei',
   slotsAvailableTitle: 'Freii Halle',
   slotsAvailableNone: 'Käni freie Halle',
+
+  // Wuchetag-Chürzel (Raster- / Übersichtschöpf)
+  dayMonShort: 'Mo',
+  dayTueShort: 'Di',
+  dayWedShort: 'Mi',
+  dayThuShort: 'Do',
+  dayFriShort: 'Fr',
+  daySatShort: 'Sa',
+  daySunShort: 'So',
+
+  // Raster- / Editor-Feischliff
+  noDataToDisplay: 'Käni Date verfüegbar',
+  switchOverlap: 'Überlappig wächsle',
+  labelPlaceholder: 'z.B. Schnuppertraining, Heimspiel vs. TVA',
+  sportVolleyball: 'Volleyball',
+  sportBasketball: 'Basketball',
+  claimNotesPlaceholder: 'Optional…',
+  closureReasonPlaceholder: 'z.B. Ferie, Unterhalt, Renovation',
 } as const

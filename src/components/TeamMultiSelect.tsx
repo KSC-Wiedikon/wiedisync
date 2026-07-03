@@ -104,7 +104,7 @@ export default function TeamMultiSelect({ options, selected, onChange, placehold
             ))
           ) : (
             <span className="text-gray-700 dark:text-gray-300">
-              {selectedOptions.length} {t('team')}{selectedOptions.length > 1 ? 's' : ''}
+              {t('teamCount', { count: selectedOptions.length })}
             </span>
           )}
         </div>

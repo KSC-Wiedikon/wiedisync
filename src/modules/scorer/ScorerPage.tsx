@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import DOMPurify from 'dompurify'
+import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import type { Game, Member, Team, MemberTeam, ScorerDelegation } from '../../types'
 import { licencesOf } from '../../types'
@@ -121,6 +122,7 @@ export default function ScorerPage() {
       refetchSettings()
     } catch (err) {
       console.error('Failed to toggle reminders:', err)
+      toast.error(t('errorToggleReminders'))
     } finally {
       setReminderToggling(false)
     }
@@ -393,6 +395,7 @@ export default function ScorerPage() {
       refetch()
     } catch (err) {
       console.error('Failed to update game:', err)
+      toast.error(t('errorUpdate'))
     }
   }
 
@@ -405,9 +408,10 @@ export default function ScorerPage() {
         }
       } catch (err) {
         console.error('Failed to create delegation:', err)
+        toast.error(t('errorDelegate'))
       }
     },
-    [createDelegation, refetch],
+    [createDelegation, refetch, t],
   )
 
   const handleAcceptDelegation = useCallback(
@@ -417,9 +421,10 @@ export default function ScorerPage() {
         refetch()
       } catch (err) {
         console.error('Failed to accept delegation:', err)
+        toast.error(t('errorAcceptDelegation'))
       }
     },
-    [acceptDelegation, refetch],
+    [acceptDelegation, refetch, t],
   )
 
   const handleDeclineDelegation = useCallback(
@@ -428,9 +433,10 @@ export default function ScorerPage() {
         await declineDelegation(delegationId)
       } catch (err) {
         console.error('Failed to decline delegation:', err)
+        toast.error(t('errorDeclineDelegation'))
       }
     },
-    [declineDelegation],
+    [declineDelegation, t],
   )
 
   const allGames = useMemo(() => [...upcomingGames, ...allPastGames], [upcomingGames, allPastGames])

@@ -172,25 +172,30 @@ export default function ClosureManager({ halls, closures, onClose, onChanged }: 
         // keep+update overlaps, delete removed halls, create added halls.
         const byHall = new Map(editingGroup.records.map((r) => [r.hall, r]))
         const target = new Set(selectedHalls)
-        for (const [hallId, rec] of byHall) {
-          if (target.has(hallId)) {
-            await updateRecord('hall_closures', rec.id, { ...form, hall: hallId })
-            logActivity('update', 'hall_closures', rec.id, { ...form, hall: hallId })
-          } else {
-            await deleteRecord('hall_closures', rec.id)
-            logActivity('delete', 'hall_closures', rec.id)
-          }
-        }
-        for (const hallId of selectedHalls) {
-          if (byHall.has(hallId)) continue
-          const rec = await createRecord<{ id: string }>('hall_closures', { ...form, hall: hallId })
-          logActivity('create', 'hall_closures', rec.id, { ...form, hall: hallId })
-        }
+        await Promise.all([
+          ...Array.from(byHall.entries()).map(async ([hallId, rec]) => {
+            if (target.has(hallId)) {
+              await updateRecord('hall_closures', rec.id, { ...form, hall: hallId })
+              logActivity('update', 'hall_closures', rec.id, { ...form, hall: hallId })
+            } else {
+              await deleteRecord('hall_closures', rec.id)
+              logActivity('delete', 'hall_closures', rec.id)
+            }
+          }),
+          ...selectedHalls
+            .filter((hallId) => !byHall.has(hallId))
+            .map(async (hallId) => {
+              const rec = await createRecord<{ id: string }>('hall_closures', { ...form, hall: hallId })
+              logActivity('create', 'hall_closures', rec.id, { ...form, hall: hallId })
+            }),
+        ])
       } else {
-        for (const hallId of selectedHalls) {
-          const rec = await createRecord<{ id: string }>('hall_closures', { ...form, hall: hallId })
-          logActivity('create', 'hall_closures', rec.id, { ...form, hall: hallId })
-        }
+        await Promise.all(
+          selectedHalls.map(async (hallId) => {
+            const rec = await createRecord<{ id: string }>('hall_closures', { ...form, hall: hallId })
+            logActivity('create', 'hall_closures', rec.id, { ...form, hall: hallId })
+          }),
+        )
       }
       setForm(emptyForm)
       setSelectedHalls([])
@@ -209,10 +214,12 @@ export default function ClosureManager({ halls, closures, onClose, onChanged }: 
       : t('deleteClosureConfirm')
     if (!(await confirm({ message: msg, danger: true }))) return
     try {
-      for (const rec of group.records) {
-        await deleteRecord('hall_closures', rec.id)
-        logActivity('delete', 'hall_closures', rec.id)
-      }
+      await Promise.all(
+        group.records.map(async (rec) => {
+          await deleteRecord('hall_closures', rec.id)
+          logActivity('delete', 'hall_closures', rec.id)
+        }),
+      )
       if (editingGroup?.key === group.key) cancelEdit()
       onChanged()
     } catch (err) {
@@ -369,11 +376,11 @@ export default function ClosureManager({ halls, closures, onClose, onChanged }: 
             label={t('common:reason')}
             value={form.reason}
             onChange={(e) => update('reason', e.target.value)}
-            placeholder="e.g. Holidays, maintenance, renovation"
+            placeholder={t('closureReasonPlaceholder')}
           />
 
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
               {error}
             </div>
           )}

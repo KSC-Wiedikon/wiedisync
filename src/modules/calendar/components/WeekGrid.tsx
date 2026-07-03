@@ -8,9 +8,9 @@ import {
   eachDayOfInterval,
   isSameDay,
   toDateKey,
-  formatDate,
   DAY_HEADERS,
 } from '../../../utils/dateUtils'
+import { formatDateCompactZurich } from '../../../utils/dateHelpers'
 import { blockClasses } from '../entryStyle'
 import {
   HOUR_HEIGHT,
@@ -94,7 +94,7 @@ export default function WeekGrid({
   const nowOffset = minutesToOffset(nowMinutes, timeRange.startMin)
   const showNowLine = nowMinutes >= timeRange.startMin && nowMinutes <= timeRange.endMin
 
-  const weekLabel = `${formatDate(weekMonday, 'MMM d')} – ${formatDate(weekSunday, 'MMM d, yyyy')}`
+  const weekLabel = `${formatDateCompactZurich(weekMonday)} – ${formatDateCompactZurich(weekSunday)}`
 
   return (
     <div className="flex flex-1 flex-col">

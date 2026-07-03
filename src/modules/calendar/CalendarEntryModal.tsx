@@ -8,8 +8,9 @@ import ParticipationSummary from '../../components/ParticipationSummary'
 import AbsenceForm from '../absences/AbsenceForm'
 import { useAuth } from '../../hooks/useAuth'
 import type { CalendarEntry } from '../../types/calendar'
-import type { Training, Event as KscwEvent, Absence } from '../../types'
+import type { Training, Event as KscwEvent, Absence, Member } from '../../types'
 import { formatDate } from '../../utils/dateUtils'
+import { asObj, memberName } from '../../utils/relations'
 
 interface CalendarEntryModalProps {
   entry: CalendarEntry | null
@@ -229,13 +230,17 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
 
 function renderTrainingDetails(training: Training, t: (key: string) => string) {
   if (!training) return null
+  // `coach` is a M2O relation to Member. useCalendarData expands it to
+  // { first_name, last_name }; guard so a bare id / unexpanded value never
+  // renders. Falls back to omitting the row when no name resolves.
+  const coachName = memberName(asObj<Member>(training.coach))
   return (
     <>
       {training.cancelled && (
-        <DetailRow label={t('common:status')} value={training.cancel_reason || 'Cancelled'} />
+        <DetailRow label={t('common:status')} value={training.cancel_reason || t('cancelled')} />
       )}
-      {training.coach && (
-        <DetailRow label="Coach" value={training.coach} />
+      {coachName && (
+        <DetailRow label={t('coach')} value={coachName} />
       )}
       {training.notes && !training.cancelled && (
         <DetailRow label={t('common:notes')} value={training.notes} />
@@ -268,18 +273,20 @@ function renderAbsenceDetails(absence: Absence, t: (key: string) => string) {
 function renderEventDetails(event: KscwEvent, t: (key: string) => string) {
   if (!event) return null
 
-  const typeMap: Record<string, string> = {
-    verein: 'Club',
-    social: 'Social',
-    meeting: 'Meeting',
-    tournament: 'Tournament',
-    other: 'Other',
+  const eventTypeKeys: Record<string, string> = {
+    verein: 'eventTypeVerein',
+    social: 'eventTypeSocial',
+    meeting: 'eventTypeMeeting',
+    tournament: 'eventTypeTournament',
+    trainingsweekend: 'eventTypeTrainingsweekend',
+    friendly: 'eventTypeFriendly',
+    other: 'eventTypeOther',
   }
 
   return (
     <>
       {event.event_type && (
-        <DetailRow label={t('common:type')} value={typeMap[event.event_type] ?? event.event_type} />
+        <DetailRow label={t('common:type')} value={t(eventTypeKeys[event.event_type] ?? 'eventTypeOther')} />
       )}
       {event.description && (
         <div className="flex items-start gap-3 text-sm">

@@ -58,4 +58,10 @@ export default {
   statusSomeStale: 'A sync is lagging',
   statusChecking: 'Checking…',
   statusDetailBelow: 'See details below.',
+
+  // Dashboard controls + expanded detail labels
+  refresh: 'Refresh',
+  deployed: 'Deployed',
+  detailRole: 'Role',
+  detailSport: 'Sport',
 }

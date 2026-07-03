@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { formatDistanceToNowStrict } from 'date-fns'
+import { getLocale } from '../../../utils/dateUtils'
 import { BellOff, Calendar, Users } from 'lucide-react'
 import type { ConversationSummary } from '../api/types'
 import { useMemberProfiles } from '../hooks/useMemberProfiles'
@@ -10,7 +11,10 @@ import Avatar from './Avatar'
 type Props = { conversations: ConversationSummary[] }
 
 export default function ConversationList({ conversations }: Props) {
-  const { t } = useTranslation('messaging')
+  const { t, i18n } = useTranslation('messaging')
+  // Localise the relative timestamps ("2 hours ago") to the active UI language —
+  // date-fns defaults to English when no locale is passed.
+  const dfnsLocale = getLocale(i18n.language)
   const memberIds = conversations.map(c => c.other_member).filter((x): x is string => !!x)
   const profiles = useMemberProfiles(memberIds)
   const teamIds = conversations.filter(c => c.type === 'team').map(c => c.team)
@@ -28,7 +32,7 @@ export default function ConversationList({ conversations }: Props) {
           ?? teamProfile?.name
           ?? (c.title ?? (isGroupDm ? t('groupChat.defaultName') : '—'))
         const rel = c.last_message_at
-          ? formatDistanceToNowStrict(new Date(c.last_message_at), { addSuffix: true })
+          ? formatDistanceToNowStrict(new Date(c.last_message_at), { addSuffix: true, locale: dfnsLocale })
           : ''
         return (
           <li key={c.id}>

@@ -68,6 +68,11 @@ export default {
   pushErrorGeneric: 'Service push inaccessible. Verifiez les parametres de votre navigateur ou essayez Chrome/Firefox.',
   pushSubscribeFailed: 'Impossible d\'activer les notifications push.',
   pushUnsubscribeFailed: 'Impossible de desactiver les notifications push.',
+  // Unread badge (aria-labels)
+  unreadShort_one: '{{count}} non lue',
+  unreadShort_other: '{{count}} non lues',
+  unreadBadge_one: '{{count}} notification non lue',
+  unreadBadge_other: '{{count}} notifications non lues',
   // Time helpers
   justNow: 'a l\'instant',
   minutesAgo: 'il y a {{count}} min',

@@ -76,4 +76,17 @@ export default {
   icalDutiesGenerate: 'Genera il mio link dei turni',
   icalDutiesPrivacyHint: 'Link personale — tienilo privato. Mostra solo il tuo calendario dei turni (nessun dato personale).',
   icalDutiesError: 'Impossibile creare il tuo link personale.',
+
+  // Modale dettagli + sovrapposizioni
+  coach: 'Allenatore',
+  cancelled: 'Annullato',
+  moreCount: '+{{count}} altri',
+  absentCount: '{{count}} assenti',
+  eventTypeVerein: 'Club',
+  eventTypeSocial: 'Sociale',
+  eventTypeMeeting: 'Riunione',
+  eventTypeTournament: 'Torneo',
+  eventTypeTrainingsweekend: 'Trainingsweekend',
+  eventTypeFriendly: 'Partita amichevole',
+  eventTypeOther: 'Altro',
 } as const

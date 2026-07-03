@@ -5,6 +5,7 @@ import { formatDateZurich } from '../../utils/dateHelpers'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import DashboardSection from './components/DashboardSection'
 import TeamChip from '../../components/TeamChip'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -172,11 +173,11 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 
 function SportHeading({ sport }: { sport: string }) {
   return (
-    <tr>
-      <td colSpan={99} className="pt-4 pb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <TableRow className="hover:bg-transparent">
+      <TableCell colSpan={99} className="pt-4 pb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {sport === 'volleyball' ? '🏐 Volleyball' : '🏀 Basketball'}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -363,51 +364,51 @@ export default function ClubStatsPage() {
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
               {group.sport === 'volleyball' ? '🏐 Volleyball' : '🏀 Basketball'}
             </p>
-            <div className="overflow-x-auto -mx-4 px-4">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-2 pr-3 font-medium">{t('clubStatsTeam')}</th>
-                    <th className="py-2 pr-3 font-medium text-center">{t('clubStatsRosterSize')}</th>
+            <div className="-mx-4 px-4">
+              <Table className="text-sm">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-muted-foreground hover:bg-transparent">
+                    <TableHead className="py-2 pr-3 font-medium">{t('clubStatsTeam')}</TableHead>
+                    <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsRosterSize')}</TableHead>
                     {group.sport === 'volleyball' ? (
                       <>
-                        <th className="py-2 pr-3 font-medium text-center">{t('clubStatsScorerVB')}</th>
-                        <th className="py-2 pr-3 font-medium text-center">{t('clubStatsRefereeVB')}</th>
+                        <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsScorerVB')}</TableHead>
+                        <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsRefereeVB')}</TableHead>
                       </>
                     ) : (
                       <>
-                        <th className="py-2 pr-3 font-medium text-center">OTR1</th>
-                        <th className="py-2 pr-3 font-medium text-center">OTR2</th>
-                        <th className="py-2 pr-3 font-medium text-center">{t('clubStatsRefereeBB')}</th>
+                        <TableHead className="py-2 pr-3 font-medium text-center">OTR1</TableHead>
+                        <TableHead className="py-2 pr-3 font-medium text-center">OTR2</TableHead>
+                        <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsRefereeBB')}</TableHead>
                       </>
                     )}
-                    <th className="py-2 pr-3 font-medium text-center">{t('clubStatsCoach')}</th>
-                    <th className="py-2 font-medium text-center">{t('clubStatsCaptain')}</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsCoach')}</TableHead>
+                    <TableHead className="py-2 font-medium text-center">{t('clubStatsCaptain')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {group.items.map(r => (
-                    <tr key={r.team_id} className="border-b border-border/50 hover:bg-muted/30">
-                      <td className="py-2 pr-3"><TeamChip team={r.team_name} size="sm" /></td>
-                      <td className="py-2 pr-3 text-center tabular-nums">{n(r.roster_size)}{n(r.guest_count) > 0 && <span className="text-muted-foreground"> +{n(r.guest_count)}</span>}</td>
+                    <TableRow key={r.team_id} className="border-b border-border/50 hover:bg-muted/30">
+                      <TableCell className="py-2 pr-3"><TeamChip team={r.team_name} size="sm" /></TableCell>
+                      <TableCell className="py-2 pr-3 text-center tabular-nums">{n(r.roster_size)}{n(r.guest_count) > 0 && <span className="text-muted-foreground"> +{n(r.guest_count)}</span>}</TableCell>
                       {group.sport === 'volleyball' ? (
                         <>
-                          <td className="py-2 pr-3 text-center tabular-nums">{n(r.lic_scorer_vb)}</td>
-                          <td className="py-2 pr-3 text-center tabular-nums">{n(r.lic_referee_vb)}</td>
+                          <TableCell className="py-2 pr-3 text-center tabular-nums">{n(r.lic_scorer_vb)}</TableCell>
+                          <TableCell className="py-2 pr-3 text-center tabular-nums">{n(r.lic_referee_vb)}</TableCell>
                         </>
                       ) : (
                         <>
-                          <td className="py-2 pr-3 text-center tabular-nums">{n(r.lic_otr1_bb)}</td>
-                          <td className="py-2 pr-3 text-center tabular-nums">{n(r.lic_otr2_bb)}</td>
-                          <td className="py-2 pr-3 text-center tabular-nums">{n(r.lic_referee_bb)}</td>
+                          <TableCell className="py-2 pr-3 text-center tabular-nums">{n(r.lic_otr1_bb)}</TableCell>
+                          <TableCell className="py-2 pr-3 text-center tabular-nums">{n(r.lic_otr2_bb)}</TableCell>
+                          <TableCell className="py-2 pr-3 text-center tabular-nums">{n(r.lic_referee_bb)}</TableCell>
                         </>
                       )}
-                      <td className="py-2 pr-3 text-center tabular-nums">{n(r.coach_count)}</td>
-                      <td className="py-2 text-center tabular-nums">{n(r.captain_count)}</td>
-                    </tr>
+                      <TableCell className="py-2 pr-3 text-center tabular-nums">{n(r.coach_count)}</TableCell>
+                      <TableCell className="py-2 text-center tabular-nums">{n(r.captain_count)}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </div>
         ))}
@@ -420,35 +421,35 @@ export default function ClubStatsPage() {
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
               {group.sport === 'volleyball' ? '🏐 Volleyball' : '🏀 Basketball'}
             </p>
-            <div className="overflow-x-auto -mx-4 px-4">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-2 pr-3 font-medium">{t('clubStatsTeam')}</th>
-                    <th className="py-2 pr-3 font-medium text-center">{t('clubStatsHomeGamesShort')}</th>
-                    <th className="py-2 pr-3 font-medium text-center">{t('clubStatsAssigned')}</th>
-                    <th className="py-2 pr-3 font-medium text-center">{t('clubStatsMissing')}</th>
-                    <th className="py-2 font-medium text-center">%</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="-mx-4 px-4">
+              <Table className="text-sm">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-muted-foreground hover:bg-transparent">
+                    <TableHead className="py-2 pr-3 font-medium">{t('clubStatsTeam')}</TableHead>
+                    <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsHomeGamesShort')}</TableHead>
+                    <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsAssigned')}</TableHead>
+                    <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsMissing')}</TableHead>
+                    <TableHead className="py-2 font-medium text-center">%</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {group.items.map(s => {
                     const assigned = s.sport === 'volleyball' ? n(s.vb_any_duty_assigned) : n(s.bb_any_duty_assigned)
                     const missing = s.sport === 'volleyball' ? n(s.vb_no_duty_assigned) : n(s.bb_no_duty_assigned)
                     const total = n(s.total_home_games)
                     const full = assigned === total && total > 0
                     return (
-                      <tr key={s.team_id} className="border-b border-border/50 hover:bg-muted/30">
-                        <td className="py-2 pr-3"><TeamChip team={s.team_name} size="sm" /></td>
-                        <td className="py-2 pr-3 text-center tabular-nums">{total}</td>
-                        <td className="py-2 pr-3 text-center tabular-nums text-green-600 dark:text-green-400">{assigned}</td>
-                        <td className={`py-2 pr-3 text-center tabular-nums ${missing > 0 ? 'text-red-600 dark:text-red-400 font-medium' : ''}`}>{missing}</td>
-                        <td className={`py-2 text-center tabular-nums ${full ? 'text-green-600 dark:text-green-400' : ''}`}>{pct(assigned, total)}</td>
-                      </tr>
+                      <TableRow key={s.team_id} className="border-b border-border/50 hover:bg-muted/30">
+                        <TableCell className="py-2 pr-3"><TeamChip team={s.team_name} size="sm" /></TableCell>
+                        <TableCell className="py-2 pr-3 text-center tabular-nums">{total}</TableCell>
+                        <TableCell className="py-2 pr-3 text-center tabular-nums text-green-600 dark:text-green-400">{assigned}</TableCell>
+                        <TableCell className={`py-2 pr-3 text-center tabular-nums ${missing > 0 ? 'text-red-600 dark:text-red-400 font-medium' : ''}`}>{missing}</TableCell>
+                        <TableCell className={`py-2 text-center tabular-nums ${full ? 'text-green-600 dark:text-green-400' : ''}`}>{pct(assigned, total)}</TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </div>
         ))}
@@ -472,109 +473,109 @@ export default function ClubStatsPage() {
 
       {/* Participation Rates */}
       <DashboardSection id="stats-participation" title={t('clubStatsParticipation')} icon="📊">
-        <div className="overflow-x-auto -mx-4 px-4">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted-foreground">
-                <th className="py-2 pr-3 font-medium">{t('clubStatsTeam')}</th>
-                <th className="py-2 pr-3 font-medium text-center">{t('clubStatsGamesRSVP')}</th>
-                <th className="py-2 pr-3 font-medium text-center">{t('clubStatsTrainingsRSVP')}</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="-mx-4 px-4">
+          <Table className="text-sm">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-muted-foreground hover:bg-transparent">
+                <TableHead className="py-2 pr-3 font-medium">{t('clubStatsTeam')}</TableHead>
+                <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsGamesRSVP')}</TableHead>
+                <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsTrainingsRSVP')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {groupBySport(filtered.participation.filter(p => n(p.games_total) > 0 || n(p.trainings_total) > 0)).map(group => (
                 <Fragment key={group.sport}>
                   <SportHeading sport={group.sport} />
                   {group.items.map(p => (
-                    <tr key={p.team_id} className="border-b border-border/50 hover:bg-muted/30">
-                      <td className="py-2 pr-3"><TeamChip team={p.team_name} size="sm" /></td>
-                      <td className="py-2 pr-3 text-center tabular-nums">
+                    <TableRow key={p.team_id} className="border-b border-border/50 hover:bg-muted/30">
+                      <TableCell className="py-2 pr-3"><TeamChip team={p.team_name} size="sm" /></TableCell>
+                      <TableCell className="py-2 pr-3 text-center tabular-nums">
                         {n(p.games_total) > 0
                           ? <span title={`${n(p.games_confirmed)}✓ ${n(p.games_declined)}✗ ${n(p.games_tentative)}?`}>
                               {n(p.games_responses)} / {n(p.games_total)} {t('clubStatsGames')}
                             </span>
                           : '–'}
-                      </td>
-                      <td className="py-2 text-center tabular-nums">
+                      </TableCell>
+                      <TableCell className="py-2 text-center tabular-nums">
                         {n(p.trainings_total) > 0
                           ? <span title={`${n(p.trainings_confirmed)}✓ ${n(p.trainings_declined)}✗ ${n(p.trainings_tentative)}?`}>
                               {n(p.trainings_responses)} / {n(p.trainings_total)} {t('clubStatsTrainings')}
                             </span>
                           : '–'}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
                 </Fragment>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </DashboardSection>
 
       {/* Game Results */}
       <DashboardSection id="stats-results" title={t('clubStatsResults')} icon="🏆">
-        <div className="overflow-x-auto -mx-4 px-4">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted-foreground">
-                <th className="py-2 pr-3 font-medium">{t('clubStatsTeam')}</th>
-                <th className="py-2 pr-3 font-medium">{t('clubStatsSeason')}</th>
-                <th className="py-2 pr-3 font-medium text-center">{t('clubStatsPlayed')}</th>
-                <th className="py-2 pr-3 font-medium text-center">{t('clubStatsW')}</th>
-                <th className="py-2 font-medium text-center">{t('clubStatsL')}</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="-mx-4 px-4">
+          <Table className="text-sm">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-muted-foreground hover:bg-transparent">
+                <TableHead className="py-2 pr-3 font-medium">{t('clubStatsTeam')}</TableHead>
+                <TableHead className="py-2 pr-3 font-medium">{t('clubStatsSeason')}</TableHead>
+                <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsPlayed')}</TableHead>
+                <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsW')}</TableHead>
+                <TableHead className="py-2 font-medium text-center">{t('clubStatsL')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {groupBySport(filtered.results).map(group => (
                 <Fragment key={group.sport}>
                   <SportHeading sport={group.sport} />
                   {group.items.map(r => (
-                    <tr key={`${r.team_id}-${r.season}`} className="border-b border-border/50 hover:bg-muted/30">
-                      <td className="py-2 pr-3"><TeamChip team={r.team_name} size="sm" /></td>
-                      <td className="py-2 pr-3 text-sm text-muted-foreground">{r.season}</td>
-                      <td className="py-2 pr-3 text-center tabular-nums">{n(r.games_played)}</td>
-                      <td className="py-2 pr-3 text-center tabular-nums text-green-600 dark:text-green-400">{n(r.total_wins)}</td>
-                      <td className="py-2 text-center tabular-nums text-red-600 dark:text-red-400">{n(r.total_losses)}</td>
-                    </tr>
+                    <TableRow key={`${r.team_id}-${r.season}`} className="border-b border-border/50 hover:bg-muted/30">
+                      <TableCell className="py-2 pr-3"><TeamChip team={r.team_name} size="sm" /></TableCell>
+                      <TableCell className="py-2 pr-3 text-sm text-muted-foreground">{r.season}</TableCell>
+                      <TableCell className="py-2 pr-3 text-center tabular-nums">{n(r.games_played)}</TableCell>
+                      <TableCell className="py-2 pr-3 text-center tabular-nums text-green-600 dark:text-green-400">{n(r.total_wins)}</TableCell>
+                      <TableCell className="py-2 text-center tabular-nums text-red-600 dark:text-red-400">{n(r.total_losses)}</TableCell>
+                    </TableRow>
                   ))}
                 </Fragment>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </DashboardSection>
 
       {/* Delegations */}
       {filtered.delegations.length > 0 && (
         <DashboardSection id="stats-delegations" title={t('clubStatsDelegations')} icon="🔄">
-          <div className="overflow-x-auto -mx-4 px-4">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="py-2 pr-3 font-medium">{t('clubStatsTeam')}</th>
-                  <th className="py-2 pr-3 font-medium text-center">{t('clubStatsTotal')}</th>
-                  <th className="py-2 pr-3 font-medium text-center">{t('clubStatsAccepted')}</th>
-                  <th className="py-2 pr-3 font-medium text-center">{t('clubStatsDeclined')}</th>
-                  <th className="py-2 font-medium text-center">{t('clubStatsPending')}</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="-mx-4 px-4">
+            <Table className="text-sm">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-muted-foreground hover:bg-transparent">
+                  <TableHead className="py-2 pr-3 font-medium">{t('clubStatsTeam')}</TableHead>
+                  <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsTotal')}</TableHead>
+                  <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsAccepted')}</TableHead>
+                  <TableHead className="py-2 pr-3 font-medium text-center">{t('clubStatsDeclined')}</TableHead>
+                  <TableHead className="py-2 font-medium text-center">{t('clubStatsPending')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {groupBySport(filtered.delegations).map(group => (
                   <Fragment key={group.sport}>
                     <SportHeading sport={group.sport} />
                     {group.items.map(d => (
-                      <tr key={d.team_id} className="border-b border-border/50 hover:bg-muted/30">
-                        <td className="py-2 pr-3"><TeamChip team={d.team_name} size="sm" /></td>
-                        <td className="py-2 pr-3 text-center tabular-nums">{n(d.total_delegations)}</td>
-                        <td className="py-2 pr-3 text-center tabular-nums text-green-600 dark:text-green-400">{n(d.accepted)}</td>
-                        <td className="py-2 pr-3 text-center tabular-nums text-red-600 dark:text-red-400">{n(d.declined_count)}</td>
-                        <td className="py-2 text-center tabular-nums text-amber-600 dark:text-amber-400">{n(d.pending)}</td>
-                      </tr>
+                      <TableRow key={d.team_id} className="border-b border-border/50 hover:bg-muted/30">
+                        <TableCell className="py-2 pr-3"><TeamChip team={d.team_name} size="sm" /></TableCell>
+                        <TableCell className="py-2 pr-3 text-center tabular-nums">{n(d.total_delegations)}</TableCell>
+                        <TableCell className="py-2 pr-3 text-center tabular-nums text-green-600 dark:text-green-400">{n(d.accepted)}</TableCell>
+                        <TableCell className="py-2 pr-3 text-center tabular-nums text-red-600 dark:text-red-400">{n(d.declined_count)}</TableCell>
+                        <TableCell className="py-2 text-center tabular-nums text-amber-600 dark:text-amber-400">{n(d.pending)}</TableCell>
+                      </TableRow>
                     ))}
                   </Fragment>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </DashboardSection>
       )}

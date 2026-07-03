@@ -50,6 +50,13 @@ export default {
   noGames: 'No games',
   noGamesDescription: 'No games found for the selected filter.',
 
+  // Error toasts
+  errorUpdate: 'Could not update the assignment.',
+  errorToggleReminders: 'Could not change the reminder setting.',
+  errorDelegate: 'Could not send the delegation.',
+  errorAcceptDelegation: 'Could not accept the request.',
+  errorDeclineDelegation: 'Could not decline the request.',
+
   // Past games
   showOlderGames: 'Show older games',
   loadMore: 'Load more',

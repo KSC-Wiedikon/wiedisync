@@ -243,7 +243,8 @@ export default function DaySlotView({
                 <button
                   className="absolute right-1 top-1 z-50 flex h-6 w-6 items-center justify-center rounded bg-gray-700/60 text-white hover:bg-gray-700/80"
                   onClick={(e) => { e.stopPropagation(); handleSwap(hall.id) }}
-                  title="Switch overlap"
+                  title={t('switchOverlap')}
+                  aria-label={t('switchOverlap')}
                 >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />

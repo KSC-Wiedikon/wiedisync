@@ -6,6 +6,7 @@ import {
   toDateKey,
   formatDate,
 } from '../../../utils/dateUtils'
+import { formatDateCompactZurich } from '../../../utils/dateHelpers'
 import { addDays } from 'date-fns'
 import { blockClasses } from '../entryStyle'
 import {
@@ -112,7 +113,7 @@ export default function MobileWeekGrid({
         </button>
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            {formatDate(days[0], 'MMM d')} – {formatDate(days[2], 'MMM d')}
+            {formatDateCompactZurich(days[0])} – {formatDateCompactZurich(days[2])}
           </h2>
           <button
             onClick={() => onDayChange(today)}

@@ -30,6 +30,8 @@ export default {
   more: 'Meh',
   lightMode: 'Hell',
   darkMode: 'Dunkel',
+  switchToDark: 'Zum Dunkelmodus wächsle',
+  switchToLight: 'Zum Hellmodus wächsle',
   logout: 'Abmälde',
   signIn: 'Ilogge',
   myProfile: 'Mis Profil',

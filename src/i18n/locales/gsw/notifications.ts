@@ -68,6 +68,11 @@ export default {
   pushErrorGeneric: 'Push-Dienscht nöd erreichbar. Prüef dini Browser-Iistellige oder verwend Chrome/Firefox.',
   pushSubscribeFailed: 'Push-Benachrichtigunge hend nöd chönne aktiviert werde.',
   pushUnsubscribeFailed: 'Push-Benachrichtigunge hend nöd chönne deaktiviert werde.',
+  // Unread badge (aria-labels)
+  unreadShort_one: '{{count}} ungläse',
+  unreadShort_other: '{{count}} ungläse',
+  unreadBadge_one: '{{count}} ungläseni Benachrichtigung',
+  unreadBadge_other: '{{count}} ungläseni Benachrichtigunge',
   // Time helpers
   justNow: 'grad ebe',
   minutesAgo: 'vor {{count}} Min.',

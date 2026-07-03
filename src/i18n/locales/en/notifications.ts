@@ -69,6 +69,11 @@ export default {
   pushErrorGeneric: 'Push service unreachable. Check your browser settings or try Chrome/Firefox.',
   pushSubscribeFailed: 'Could not enable push notifications.',
   pushUnsubscribeFailed: 'Could not disable push notifications.',
+  // Unread badge (aria-labels)
+  unreadShort_one: '{{count}} unread',
+  unreadShort_other: '{{count}} unread',
+  unreadBadge_one: '{{count}} unread notification',
+  unreadBadge_other: '{{count}} unread notifications',
   // Time helpers
   justNow: 'just now',
   minutesAgo: '{{count}}m ago',

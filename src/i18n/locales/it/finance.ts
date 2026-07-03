@@ -262,4 +262,5 @@ export default {
   payoutDelete: 'Elimina',
   myPayoutsTitle: 'Rimborsi per te',
   myPayoutsSubtitle: 'Pagamenti che il club ti invia. Scarica la QR-fattura se serve.',
+  duesIssueConfirmTitle: 'Avviare la tornata delle quote?',
 }

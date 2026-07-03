@@ -129,7 +129,12 @@ export function OtpInput({ onComplete, onResend, loading, error, email }: OtpInp
   return (
     <div className="flex flex-col items-center gap-4">
       {/* Digit boxes */}
-      <div className="flex w-full justify-center gap-1.5 sm:gap-2" onPaste={handlePaste}>
+      <div
+        role="group"
+        aria-label={t('common:verificationCode')}
+        className="flex w-full justify-center gap-1.5 sm:gap-2"
+        onPaste={handlePaste}
+      >
         {digits.map((digit, index) => (
           <input
             key={index}
@@ -156,7 +161,7 @@ export function OtpInput({ onComplete, onResend, loading, error, email }: OtpInp
             onChange={(e) => handleChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e)}
             onFocus={handleFocus}
-            aria-label={`Digit ${index + 1}`}
+            aria-label={t('common:digitLabel', { n: index + 1 })}
           />
         ))}
       </div>

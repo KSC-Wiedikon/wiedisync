@@ -316,7 +316,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       filters.selectedTeamIds,
       'team',
     ),
-    fields: ['*', 'team.*', 'team.coach.members_id', 'team.team_responsible.members_id', 'hall.*'],
+    fields: ['*', 'team.*', 'team.coach.members_id', 'team.team_responsible.members_id', 'hall.*', 'coach.first_name', 'coach.last_name'],
     sort: ['date', 'start_time'],
     all: true,
   })

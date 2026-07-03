@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import type { Game, Ranking } from '../../types'
 import { useCollection } from '../../lib/query'
@@ -19,6 +20,7 @@ function buildTeamFilter(team: string): Record<string, unknown> | null {
 }
 
 export default function EmbedGamesPage() {
+  const { t } = useTranslation('games')
   const [searchParams] = useSearchParams()
   const teamParam = (searchParams.get('team') ?? '').toUpperCase()
   const [activeTab, setActiveTab] = useState<TabKey>('upcoming')
@@ -48,12 +50,14 @@ export default function EmbedGamesPage() {
     }
   }, [activeTab, teamFilter, today, effGameSeason])
 
-  const { data: gamesRaw, isLoading: gamesLoading } = useCollection<Game>(
-    'games',
-    gameQuery
-      ? { filter: gameQuery.filter, sort: gameQuery.sort.split(','), limit: 50 }
-      : { filter: { id: { _eq: -1 } }, limit: 1 },
-  )
+  // On the rankings tab gameQuery is null — gate the games query via `enabled`
+  // instead of firing a sentinel `{ id: { _eq: -1 } }` fetch.
+  const { data: gamesRaw, isLoading: gamesLoading } = useCollection<Game>('games', {
+    filter: gameQuery?.filter ?? {},
+    sort: gameQuery ? gameQuery.sort.split(',') : ['date'],
+    limit: 50,
+    enabled: !!gameQuery,
+  })
   const games = gamesRaw ?? []
 
   const { data: allRankingsRaw, isLoading: rankingsLoading } = useCollection<Ranking>('rankings', {
@@ -94,7 +98,7 @@ export default function EmbedGamesPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-800 p-4">
       {teamParam && (
-        <h2 className="mb-4 text-lg font-bold text-gray-900 dark:text-gray-100">{teamParam} — Games</h2>
+        <h2 className="mb-4 text-lg font-bold text-gray-900 dark:text-gray-100">{t('embedTeamGames', { team: teamParam })}</h2>
       )}
 
       <GameTabs activeTab={activeTab} onChange={setActiveTab} />
@@ -105,7 +109,7 @@ export default function EmbedGamesPage() {
         {!isLoading && activeTab !== 'rankings' && (
           <>
             {games.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No games found.</p>
+              <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">{t('embedNoGames')}</p>
             ) : (
               <div className="space-y-3">
                 {games.map((g) => (
@@ -119,7 +123,7 @@ export default function EmbedGamesPage() {
         {!isLoading && activeTab === 'rankings' && (
           <>
             {leagueGroups.size === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No rankings available.</p>
+              <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">{t('embedNoRankings')}</p>
             ) : (
               <div className="space-y-6">
                 {[...leagueGroups.entries()].map(([league, rows]) => (

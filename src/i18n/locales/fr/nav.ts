@@ -30,6 +30,8 @@ export default {
   more: 'Plus',
   lightMode: 'Mode clair',
   darkMode: 'Mode sombre',
+  switchToDark: 'Passer au mode sombre',
+  switchToLight: 'Passer au mode clair',
   logout: 'Deconnexion',
   signIn: 'Se connecter',
   myProfile: 'Mon profil',

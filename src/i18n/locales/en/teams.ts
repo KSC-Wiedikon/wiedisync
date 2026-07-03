@@ -76,6 +76,7 @@ export default {
   soonAbsent: 'Soon absent',
   absent: 'Yes',
   upcoming: 'Soon',
+  playerNotFound: 'Player not found',
 
   // Team detail
   sponsors: 'Sponsors',

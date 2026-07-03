@@ -50,6 +50,13 @@ export default {
   noGames: 'Keine Spiele',
   noGamesDescription: 'Keine Spiele für den ausgewählten Filter gefunden.',
 
+  // Error toasts
+  errorUpdate: 'Die Zuteilung konnte nicht aktualisiert werden.',
+  errorToggleReminders: 'Die Erinnerungseinstellung konnte nicht geändert werden.',
+  errorDelegate: 'Die Delegation konnte nicht gesendet werden.',
+  errorAcceptDelegation: 'Die Anfrage konnte nicht angenommen werden.',
+  errorDeclineDelegation: 'Die Anfrage konnte nicht abgelehnt werden.',
+
   // Past games
   showOlderGames: 'Ältere Spiele anzeigen',
   loadMore: 'Mehr laden',

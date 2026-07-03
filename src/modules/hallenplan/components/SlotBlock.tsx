@@ -48,14 +48,6 @@ const SportIcon = ({ sport, className = '' }: { sport?: string; className?: stri
   return null
 }
 
-const typeLabels: Record<string, string> = {
-  training: 'Training',
-  game: 'Game',
-  event: 'Event',
-  away: 'Away',
-  other: '',
-}
-
 interface SlotBlockProps {
   positioned: PositionedSlot
   teamName: string
@@ -73,6 +65,13 @@ interface SlotBlockProps {
 
 export default function SlotBlock({ positioned, teamName, teamSport, hasConflict, isAdmin, isCoach = false, coachTeamIds = [], compact = false, isBoosted = false, hallSpan = 1, onClick }: SlotBlockProps) {
   const { t } = useTranslation('hallenplan')
+  const typeLabels: Record<string, string> = {
+    training: t('typeTraining'),
+    game: t('typeGame'),
+    event: t('typeEvent'),
+    away: t('typeAway'),
+    other: '',
+  }
   const { slot, top, height, left, width: baseWidth } = positioned
   // When spanning multiple hall columns, multiply the width
   const width = baseWidth * hallSpan

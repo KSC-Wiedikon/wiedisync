@@ -1,5 +1,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 import { formatDateZurich, formatTimeZurich } from '../utils/dateHelpers'
 import type { PlayerStats } from '../modules/trainings/useAttendanceStats'
 
@@ -22,6 +24,15 @@ const trendColors: Record<string, string> = {
   absent: 'bg-red-500',
 }
 
+/** Attendance-rate badge colours, with dark-mode variants. */
+function rateBadgeClass(pct: number): string {
+  if (pct >= 80) return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+  if (pct >= 50) return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+  return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+}
+
+const COL_COUNT = 7
+
 export default function AttendanceTable({
   stats,
   onPlayerClick,
@@ -31,126 +42,79 @@ export default function AttendanceTable({
   countColKey = 'trainingsCol',
 }: AttendanceTableProps) {
   const { t } = useTranslation(namespace)
+  // Trend-dot tooltips ('present'/'absent') live in the common namespace.
+  const { t: tc } = useTranslation('common')
   const isClickable = !!onPlayerClick
 
   return (
-    <>
-      {/* Desktop table */}
-      <div className="hidden sm:block mx-auto w-fit max-w-full overflow-x-auto rounded-lg border dark:border-gray-700 bg-white dark:bg-gray-800">
-        <table>
-          <thead>
-            <tr className="border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-left text-xs font-medium uppercase tracking-wider text-gray-600 dark:text-gray-400">
-              <th className="min-w-[150px] px-4 py-3">{t('playerCol')}</th>
-              <th className="px-4 py-3 text-center">{t('numberCol')}</th>
-              <th className="px-4 py-3 text-center">{t(countColKey)}</th>
-              <th className="px-4 py-3 text-center">{t('presentCol')}</th>
-              <th className="px-4 py-3 text-center">{t('absentCol')}</th>
-              <th className="px-4 py-3 text-center">{t('rateCol')}</th>
-              <th className="px-4 py-3">{t('trendCol')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stats.map((player) => {
-              const expanded = expandedPlayerId === player.memberId
-              return (
-                <React.Fragment key={player.memberId}>
-                  <tr
-                    onClick={isClickable ? () => onPlayerClick!(player.memberId) : undefined}
-                    className={`border-b dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                      isClickable ? 'cursor-pointer' : ''
-                    } ${expanded ? 'bg-gray-50 dark:bg-gray-700' : ''}`}
-                  >
-                    <td className="min-w-[150px] whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {player.memberName || '—'}
-                    </td>
-                    <td className="px-4 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
-                      {player.jerseyNumber || '—'}
-                    </td>
-                    <td className="px-4 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
-                      {player.total}
-                    </td>
-                    <td className="px-4 py-3 text-center text-sm text-green-600">
-                      {player.present}
-                    </td>
-                    <td className="px-4 py-3 text-center text-sm text-red-600">
-                      {player.absent}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${
-                          player.percentage >= 80
-                            ? 'bg-green-100 text-green-800'
-                            : player.percentage >= 50
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {player.percentage}%
+    <div className="overflow-hidden rounded-lg border bg-white dark:border-gray-700 dark:bg-gray-800">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600 dark:bg-gray-900 dark:text-gray-400">
+            <TableHead className="min-w-[140px]">{t('playerCol')}</TableHead>
+            <TableHead className="hidden text-center sm:table-cell">{t('numberCol')}</TableHead>
+            <TableHead className="text-center">{t(countColKey)}</TableHead>
+            <TableHead className="text-center">{t('presentCol')}</TableHead>
+            <TableHead className="text-center">{t('absentCol')}</TableHead>
+            <TableHead className="text-center">{t('rateCol')}</TableHead>
+            <TableHead className="hidden sm:table-cell">{t('trendCol')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {stats.map((player) => {
+            const expanded = expandedPlayerId === player.memberId
+            return (
+              <React.Fragment key={player.memberId}>
+                <TableRow
+                  onClick={isClickable ? () => onPlayerClick!(player.memberId) : undefined}
+                  aria-expanded={renderDrilldown ? expanded : undefined}
+                  className={cn('[&>td]:h-11', isClickable && 'cursor-pointer', expanded && 'bg-muted/50')}
+                >
+                  <TableCell className="font-medium text-gray-900 dark:text-gray-100">
+                    {player.memberName || '—'}
+                    {/* Last-response timestamp only shown on mobile (the Trend
+                        column that carries this context is hidden there). */}
+                    {player.lastResponseAt && (
+                      <span className="mt-0.5 block text-[11px] font-normal text-gray-400 dark:text-gray-500 sm:hidden">
+                        {formatDateZurich(player.lastResponseAt)} {formatTimeZurich(player.lastResponseAt)}
                       </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        {player.trend.map((status, i) => (
-                          <div
-                            key={i}
-                            className={`h-3 w-3 rounded-full ${trendColors[status] ?? 'bg-gray-300'}`}
-                            title={status}
-                          />
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                  {expanded && renderDrilldown && (
-                    <tr>
-                      <td colSpan={7} className="bg-gray-50 dark:bg-gray-900 px-4 py-3">
-                        {renderDrilldown(player.memberId)}
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Mobile compact list */}
-      <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border dark:border-gray-700 bg-white dark:bg-gray-800">
-        {stats.map((player) => (
-          <button
-            key={player.memberId}
-            type="button"
-            onClick={isClickable ? () => onPlayerClick!(player.memberId) : undefined}
-            className={`w-full text-left px-4 py-3 ${isClickable ? 'cursor-pointer active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
-          >
-            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              {player.memberName || '—'}
-            </div>
-            <div className="mt-1 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-              <span>{t(countColKey)}: <span className="text-gray-700 dark:text-gray-300">{player.total}</span></span>
-              <span>{t('presentCol')}: <span className="text-green-600">{player.present}</span></span>
-              <span>{t('absentCol')}: <span className="text-red-600">{player.absent}</span></span>
-              <span
-                className={`inline-block rounded-full px-1.5 py-0.5 font-bold ${
-                  player.percentage >= 80
-                    ? 'bg-green-100 text-green-800'
-                    : player.percentage >= 50
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-red-100 text-red-800'
-                }`}
-              >
-                {player.percentage}%
-              </span>
-            </div>
-            {player.lastResponseAt && (
-              <div className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">
-                {formatDateZurich(player.lastResponseAt)}{' '}
-                {formatTimeZurich(player.lastResponseAt)}
-              </div>
-            )}
-          </button>
-        ))}
-      </div>
-    </>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden text-center text-gray-600 dark:text-gray-400 sm:table-cell">
+                    {player.jerseyNumber || '—'}
+                  </TableCell>
+                  <TableCell className="text-center text-gray-600 dark:text-gray-400">{player.total}</TableCell>
+                  <TableCell className="text-center text-green-600 dark:text-green-400">{player.present}</TableCell>
+                  <TableCell className="text-center text-red-600 dark:text-red-400">{player.absent}</TableCell>
+                  <TableCell className="text-center">
+                    <span className={cn('inline-block rounded-full px-2 py-0.5 text-xs font-bold', rateBadgeClass(player.percentage))}>
+                      {player.percentage}%
+                    </span>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <div className="flex gap-1">
+                      {player.trend.map((status, i) => (
+                        <div
+                          key={i}
+                          className={cn('h-3 w-3 rounded-full', trendColors[status] ?? 'bg-gray-300 dark:bg-gray-600')}
+                          title={tc(status, { defaultValue: status })}
+                        />
+                      ))}
+                    </div>
+                  </TableCell>
+                </TableRow>
+                {expanded && renderDrilldown && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={COL_COUNT} className="bg-gray-50 dark:bg-gray-900">
+                      {renderDrilldown(player.memberId)}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </React.Fragment>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

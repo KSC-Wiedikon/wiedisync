@@ -135,7 +135,7 @@ export default function SchedulingLayout() {
             <LanguageDropdown />
             <button
               onClick={toggleTheme}
-              aria-label={t('darkMode', 'Dark mode')}
+              aria-label={theme === 'dark' ? t('switchToLight') : t('switchToDark')}
               className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}

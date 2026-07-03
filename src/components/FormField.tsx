@@ -1,4 +1,5 @@
 import { forwardRef, useState, type InputHTMLAttributes, type TextareaHTMLAttributes, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -34,6 +35,7 @@ interface FormInputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
   ({ label, error, helperText, className, id, type, ...props }, ref) => {
+    const { t } = useTranslation('common')
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined)
     const isPassword = type === 'password'
     const [showPassword, setShowPassword] = useState(false)
@@ -53,7 +55,7 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
               tabIndex={-1}
               onClick={() => setShowPassword((v) => !v)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? t('hidePassword') : t('showPassword')}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>

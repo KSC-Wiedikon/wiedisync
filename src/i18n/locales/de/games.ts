@@ -138,6 +138,13 @@ export default {
   drilldownStatusConfirmed: 'Zugesagt',
   drilldownStatusDeclined: 'Abgesagt',
   drilldownEmpty: 'Keine Spiele in diesem Zeitraum.',
+  drilldownColOpponent: 'Gegner',
+  drilldownColStatus: 'Status',
+
+  // Embed page
+  embedTeamGames: '{{team}} — Spiele',
+  embedNoGames: 'Keine Spiele gefunden.',
+  embedNoRankings: 'Keine Rangliste verfügbar.',
 
   // Game card actions
   editGame: 'Spiel bearbeiten',

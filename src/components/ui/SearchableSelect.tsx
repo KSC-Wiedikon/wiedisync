@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Check, ChevronsUpDown, X } from 'lucide-react'
@@ -47,12 +47,46 @@ export default function SearchableSelect({
   // positioned children, so an inline flow that pushes the form down is
   // less fragile.
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null)
+  // Keyboard navigation: index of the highlighted option within `filtered`.
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const listboxId = useId()
+  const labelId = useId()
 
   const selectedLabel = options.find((o) => o.value === value)?.label ?? ''
 
   const filtered = search
     ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
     : options
+
+  // Reset the highlighted option whenever the list opens or the query changes.
+  useEffect(() => { setActiveIndex(-1) }, [open, search])
+
+  // Keep the highlighted option scrolled into view.
+  useEffect(() => {
+    if (!open || activeIndex < 0) return
+    document.getElementById(`${listboxId}-opt-${activeIndex}`)?.scrollIntoView({ block: 'nearest' })
+  }, [open, activeIndex, listboxId])
+
+  const activeDescendant = open && activeIndex >= 0 ? `${listboxId}-opt-${activeIndex}` : undefined
+
+  // Arrow-key navigation + Enter-to-select for the filtered listbox. Shared by
+  // the desktop search input and the mobile filter input.
+  function handleListKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') { setOpen(false); return }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (filtered.length === 0) return
+      setActiveIndex((i) => (i < 0 ? 0 : (i + 1) % filtered.length))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (filtered.length === 0) return
+      setActiveIndex((i) => (i < 0 ? filtered.length - 1 : (i - 1 + filtered.length) % filtered.length))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const pick = activeIndex >= 0 ? filtered[activeIndex] : (filtered.length === 1 ? filtered[0] : null)
+      if (pick) { onChange(pick.value); setOpen(false) }
+    }
+  }
 
   // Position dropdown relative to trigger via portal. When inside a Radix
   // Dialog (which uses translate(-50%, -50%) on its content), portalling
@@ -138,7 +172,7 @@ export default function SearchableSelect({
 
   return (
     <div ref={containerRef} className="relative">
-      {label && <Label className="mb-1.5">{label}</Label>}
+      {label && <Label id={labelId} className="mb-1.5">{label}</Label>}
       <div
         ref={triggerRef}
         className={cn(
@@ -151,23 +185,27 @@ export default function SearchableSelect({
           <input
             ref={inputRef}
             type="text"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listboxId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeDescendant}
+            aria-labelledby={label ? labelId : undefined}
             className="flex-1 bg-transparent px-3 py-2 outline-none placeholder:text-muted-foreground"
             placeholder={searchPlaceholder ?? t('search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setOpen(false)
-              if (e.key === 'Enter' && filtered.length === 1) {
-                onChange(filtered[0].value)
-                setOpen(false)
-              }
-            }}
+            onKeyDown={handleListKeyDown}
           />
         ) : (
           <button
             type="button"
             role="combobox"
             aria-expanded={open}
+            aria-haspopup="listbox"
+            aria-controls={open ? listboxId : undefined}
+            aria-activedescendant={activeDescendant}
+            aria-labelledby={label ? labelId : undefined}
             className="flex flex-1 items-center justify-between px-3 py-2 text-left"
             onClick={() => setOpen((v) => !v)}
           >
@@ -189,21 +227,42 @@ export default function SearchableSelect({
       </div>
       {open && !isDesktop && (
         <div ref={dropdownRef} data-searchable-select className="mt-1 cursor-default rounded-md border bg-popover shadow-md">
+          {/* Filter input — NOT auto-focused so the iOS keyboard only appears
+              when the user taps it (large member lists stay filterable without
+              popping the keyboard on open). */}
+          <div className="border-b p-2">
+            <input
+              type="text"
+              role="combobox"
+              aria-expanded={open}
+              aria-controls={listboxId}
+              aria-autocomplete="list"
+              aria-activedescendant={activeDescendant}
+              aria-labelledby={label ? labelId : undefined}
+              className="min-h-[40px] w-full rounded border border-input bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
+              placeholder={searchPlaceholder ?? t('search')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={handleListKeyDown}
+            />
+          </div>
           <ul
+            id={listboxId}
             className="max-h-72 overflow-y-auto overscroll-contain py-1 [touch-action:pan-y] [-webkit-overflow-scrolling:touch]"
             role="listbox"
           >
-            {options.length === 0 && (
+            {filtered.length === 0 && (
               <li className="px-3 py-2 text-sm text-muted-foreground">{t('noResults')}</li>
             )}
-            {options.map((option) => (
+            {filtered.map((option, i) => (
               <li
                 key={option.value}
+                id={`${listboxId}-opt-${i}`}
                 role="option"
                 aria-selected={value === option.value}
                 className={cn(
                   'flex min-h-[44px] cursor-pointer select-none items-center px-3 py-2 text-sm hover:bg-accent',
-                  value === option.value && 'bg-accent',
+                  (value === option.value || i === activeIndex) && 'bg-accent',
                 )}
                 onClick={() => {
                   onChange(option.value)
@@ -225,20 +284,22 @@ export default function SearchableSelect({
       {open && isDesktop && portalTarget && portalTarget.isConnected && createPortal(
         <div ref={dropdownRef} data-searchable-select style={dropdownStyle} className="cursor-default rounded-md border bg-popover shadow-md">
           <ul
+            id={listboxId}
             className="max-h-60 overflow-y-auto overscroll-contain py-1 [touch-action:pan-y] [-webkit-overflow-scrolling:touch]"
             role="listbox"
           >
             {filtered.length === 0 && (
               <li className="px-3 py-2 text-sm text-muted-foreground">{t('noResults')}</li>
             )}
-            {filtered.map((option) => (
+            {filtered.map((option, i) => (
               <li
                 key={option.value}
+                id={`${listboxId}-opt-${i}`}
                 role="option"
                 aria-selected={value === option.value}
                 className={cn(
                   'flex min-h-[44px] cursor-pointer select-none items-center px-3 py-2 text-sm hover:bg-accent',
-                  value === option.value && 'bg-accent',
+                  (value === option.value || i === activeIndex) && 'bg-accent',
                 )}
                 onClick={() => {
                   onChange(option.value)

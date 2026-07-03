@@ -137,4 +137,22 @@ export default {
   slotsAvailable: '{{count}} slot(s) available',
   slotsAvailableTitle: 'Available slots',
   slotsAvailableNone: 'No available slots',
+
+  // Weekday abbreviations (grid / summary headers) — German-style in DE/GSW
+  dayMonShort: 'Mon',
+  dayTueShort: 'Tue',
+  dayWedShort: 'Wed',
+  dayThuShort: 'Thu',
+  dayFriShort: 'Fri',
+  daySatShort: 'Sat',
+  daySunShort: 'Sun',
+
+  // Grid / editor polish
+  noDataToDisplay: 'No data to display',
+  switchOverlap: 'Switch overlap',
+  labelPlaceholder: 'e.g. Trial training, Home game vs. TVA',
+  sportVolleyball: 'Volleyball',
+  sportBasketball: 'Basketball',
+  claimNotesPlaceholder: 'Optional…',
+  closureReasonPlaceholder: 'e.g. Holidays, maintenance, renovation',
 } as const

@@ -402,7 +402,7 @@ export default function MonthGrid({
                                 bgColor ? `${bgColor.text} ${bgColor.darkText}` : 'text-gray-500 dark:text-gray-400'
                               }`}
                             >
-                              +{overflow} more
+                              {t('calendar:moreCount', { count: overflow })}
                             </button>
                           )}
                         </div>
@@ -450,7 +450,7 @@ export default function MonthGrid({
                     {segments.map((seg) => {
                       const label = seg.count === 1
                         ? seg.primary.title.replace(/^Absence · /, '')
-                        : `${seg.count} absent`
+                        : t('calendar:absentCount', { count: seg.count })
                       return (
                         <button
                           key={seg.startCol}

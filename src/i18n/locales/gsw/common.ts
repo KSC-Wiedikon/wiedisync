@@ -113,6 +113,52 @@ export default {
   basketball: 'Basketball',
   copied: 'Kopiert!',
 
+  // Form controls / accessibility
+  showPassword: 'Passwort aazeige',
+  hidePassword: 'Passwort verstecke',
+  allSports: 'Alli Sportarte',
+  view: 'Aasicht',
+  showingFirstOf: 'Zeigt die erschte {{shown}} vo {{total}} — Sueche iigränze',
+  verificationCode: 'Bestätigungscode',
+  digitLabel: 'Ziffere {{n}}',
+
+  // Rich-text editor toolbar (aria-labels)
+  editor: {
+    bold: 'Fett',
+    italic: 'Kursiv',
+    heading2: 'Titel 2',
+    heading3: 'Titel 3',
+    bulletList: 'Ufzählig',
+    numberedList: 'Nummerierti Lischtä',
+    quote: 'Zitat',
+    link: 'Link',
+  },
+  teamCount_one: '{{count}} Team',
+  teamCount_other: '{{count}} Teams',
+
+  // Status / role badge labels (StatusBadge)
+  badge: {
+    user: 'Benutzer',
+    player: 'Spieler',
+    coach: 'Coach',
+    captain: 'Captain',
+    team_responsible: 'Team-Verantw.',
+    vorstand: 'Vorstand',
+    admin: 'Admin',
+    vb_admin: 'VB-Admin',
+    bb_admin: 'BB-Admin',
+    superadmin: 'Superadmin',
+    superuser: 'Superuser',
+    website_admin: 'Website-Admin',
+    finance: 'Finanze',
+    verein: 'Verein',
+    social: 'Social',
+    meeting: 'Sitzig',
+    tournament: 'Turnier',
+    trainingsweekend: 'Trainingsweekend',
+    friendly: 'Fründschaftsspiel',
+  },
+
   // Cancel / reinstate activity
   cancelTrainingAction: 'Training absäge',
   cancelEventAction: 'Aalass absäge',

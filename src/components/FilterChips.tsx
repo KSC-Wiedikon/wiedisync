@@ -63,6 +63,7 @@ export default function FilterChips({
               onChange(options.map((o) => o.value))
             }
           }}
+          aria-pressed={allSelected}
           className={cn(
             sizeClasses,
             allSelected
@@ -73,7 +74,7 @@ export default function FilterChips({
           )}
           title={allSelected ? t('selectNone') : t('selectAll')}
         >
-          {allSelected ? t('all') : noneSelected ? t('none') : t('all')}
+          {allSelected ? t('all') : noneSelected ? t('none') : `${selected.length}/${options.length}`}
         </button>
       )}
       {options.map((option) => {

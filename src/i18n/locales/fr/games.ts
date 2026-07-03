@@ -135,6 +135,13 @@ export default {
   drilldownStatusConfirmed: 'Confirmé',
   drilldownStatusDeclined: 'Refusé',
   drilldownEmpty: 'Aucun match dans cette période.',
+  drilldownColOpponent: 'Adversaire',
+  drilldownColStatus: 'Statut',
+
+  // Embed page
+  embedTeamGames: '{{team}} — Matchs',
+  embedNoGames: 'Aucun match trouvé.',
+  embedNoRankings: 'Aucun classement disponible.',
 
   // Game card actions
   editGame: 'Modifier le match',

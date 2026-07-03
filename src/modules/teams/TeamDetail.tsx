@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { useParams, Link } from 'react-router-dom'
 import { Move, Check, X as XIcon, XCircle, User, ZoomIn, ZoomOut, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 import { logActivity } from '../../utils/logActivity'
@@ -10,6 +11,7 @@ import { useAdminMode } from '../../hooks/useAdminMode'
 import { usePendingMembers } from '../../hooks/usePendingMembers'
 import { useCollection } from '../../lib/query'
 import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import TeamChip from '../../components/TeamChip'
 import EmptyState from '../../components/EmptyState'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
@@ -278,7 +280,7 @@ export default function TeamDetail() {
       logActivity('update', 'members', member.id, { coach_approved_team: true })
       refetchPending()
     } catch {
-      // ignore
+      toast.error(t('common:errorSaving'))
     } finally {
       inFlightApprove.current.delete(String(member.id))
     }
@@ -296,7 +298,7 @@ export default function TeamDetail() {
       logActivity('update', 'members', memberId, { rejected: true })
       refetchPending()
     } catch {
-      // ignore
+      toast.error(t('common:errorSaving'))
     } finally {
       inFlightReject.current.delete(String(memberId))
     }
@@ -344,7 +346,7 @@ export default function TeamDetail() {
       await updateRecord('team_requests', request.id, { status: 'approved' })
       refetchTeamRequests()
     } catch {
-      // ignore
+      toast.error(t('common:errorSaving'))
     } finally {
       inFlightApproveReq.current.delete(String(request.id))
     }
@@ -355,7 +357,7 @@ export default function TeamDetail() {
       await updateRecord('team_requests', requestId, { status: 'rejected' })
       refetchTeamRequests()
     } catch {
-      // ignore
+      toast.error(t('common:errorSaving'))
     }
   }
 
@@ -634,37 +636,17 @@ export default function TeamDetail() {
             )}
           </div>
           {coachMembers.length > 0 && (
-          <div className="mt-4 overflow-x-auto rounded-lg border bg-white dark:bg-gray-800">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b bg-gray-50 dark:bg-gray-900 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  <SortHeader label={t('playerCol')} sortKey="name" current={sortKey} dir={sortDir} onClick={handleSort} />
-                  <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={handleSort} className="text-center" />
-                  <SortHeader label={t('positionCol')} sortKey="position" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden sm:table-cell" />
-                  {canManage && <SortHeader label={t('emailCol')} sortKey="email" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
-                  {canManage && <SortHeader label={t('phoneCol')} sortKey="phone" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
-                  {canManage && <SortHeader label={t('birthdateCol')} sortKey="birthdate" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden lg:table-cell" />}
-                  <SortHeader label={t('roleCol')} sortKey="role" current={sortKey} dir={sortDir} onClick={handleSort} />
-                </tr>
-              </thead>
-              <tbody>
-                {coachMembers.map((mt) => (
-                  <MemberRow
-                    key={mt.id as string}
-                    memberTeam={mt}
-                    teamId={team.id}
-                    teamSlug={team.name}
-                    team={team}
-                    canEdit={canManage}
-                    isAdmin={effectiveIsAdmin && hasAdminAccessToTeam(team.id)}
-                    canEditRole={false}
-                    showContact={canManage}
-                    onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+            <RosterTable
+              members={coachMembers}
+              team={team}
+              canManage={canManage}
+              isAdmin={effectiveIsAdmin && hasAdminAccessToTeam(team.id)}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+              onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
+              canEditRole={false}
+            />
           )}
         </div>
       )}
@@ -689,36 +671,16 @@ export default function TeamDetail() {
             }
           />
         ) : (
-          <div className="mt-4 overflow-x-auto rounded-lg border bg-white dark:bg-gray-800">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b bg-gray-50 dark:bg-gray-900 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  <SortHeader label={t('playerCol')} sortKey="name" current={sortKey} dir={sortDir} onClick={handleSort} />
-                  <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={handleSort} className="text-center" />
-                  <SortHeader label={t('positionCol')} sortKey="position" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden sm:table-cell" />
-                  {canManage && <SortHeader label={t('emailCol')} sortKey="email" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
-                  {canManage && <SortHeader label={t('phoneCol')} sortKey="phone" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
-                  {canManage && <SortHeader label={t('birthdateCol')} sortKey="birthdate" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden lg:table-cell" />}
-                  <SortHeader label={t('roleCol')} sortKey="role" current={sortKey} dir={sortDir} onClick={handleSort} />
-                </tr>
-              </thead>
-              <tbody>
-                {rosterMembers.map((mt) => (
-                  <MemberRow
-                    key={mt.id as string}
-                    memberTeam={mt}
-                    teamId={team.id}
-                    teamSlug={team.name}
-                    team={team}
-                    canEdit={canManage}
-                    isAdmin={effectiveIsAdmin && hasAdminAccessToTeam(team.id)}
-                    showContact={canManage}
-                    onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <RosterTable
+            members={rosterMembers}
+            team={team}
+            canManage={canManage}
+            isAdmin={effectiveIsAdmin && hasAdminAccessToTeam(team.id)}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
+          />
         )}
       </div>
 
@@ -726,38 +688,17 @@ export default function TeamDetail() {
       {guestMembers.length > 0 && (
         <div className="mt-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('participation:guests')} ({guestMembers.length})</h2>
-          <div className="mt-4 overflow-x-auto rounded-lg border bg-white dark:bg-gray-800">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b bg-gray-50 dark:bg-gray-900 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  <SortHeader label={t('playerCol')} sortKey="name" current={sortKey} dir={sortDir} onClick={handleSort} />
-                  <th className="px-4 py-3">{t('guestCol')}</th>
-                  <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={handleSort} className="text-center" />
-                  <SortHeader label={t('positionCol')} sortKey="position" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden sm:table-cell" />
-                  {canManage && <SortHeader label={t('emailCol')} sortKey="email" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
-                  {canManage && <SortHeader label={t('phoneCol')} sortKey="phone" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden md:table-cell" />}
-                  {canManage && <SortHeader label={t('birthdateCol')} sortKey="birthdate" current={sortKey} dir={sortDir} onClick={handleSort} className="hidden lg:table-cell" />}
-                  <SortHeader label={t('roleCol')} sortKey="role" current={sortKey} dir={sortDir} onClick={handleSort} />
-                </tr>
-              </thead>
-              <tbody>
-                {guestMembers.map((mt) => (
-                  <MemberRow
-                    key={mt.id as string}
-                    memberTeam={mt}
-                    teamId={team.id}
-                    teamSlug={team.name}
-                    team={team}
-                    canEdit={canManage}
-                    isAdmin={effectiveIsAdmin && hasAdminAccessToTeam(team.id)}
-                    showContact={canManage}
-                    showGuestColumn
-                    onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <RosterTable
+            members={guestMembers}
+            team={team}
+            canManage={canManage}
+            isAdmin={effectiveIsAdmin && hasAdminAccessToTeam(team.id)}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
+            showGuestColumn
+          />
         </div>
       )}
 
@@ -809,6 +750,72 @@ export default function TeamDetail() {
   )
 }
 
+// Shared roster table (staff / roster / guests). Replaces the three duplicated
+// raw <table> + SortHeader blocks with the shadcn <Table> primitive; the guest
+// variant renders an extra guest-level column right after the player column.
+function RosterTable({
+  members,
+  team,
+  canManage,
+  isAdmin,
+  sortKey,
+  sortDir,
+  onSort,
+  onTeamUpdate,
+  canEditRole = true,
+  showGuestColumn = false,
+}: {
+  members: ExpandedMemberTeam[]
+  team: Team
+  canManage: boolean
+  isAdmin: boolean
+  sortKey: SortKey
+  sortDir: SortDir
+  onSort: (key: SortKey) => void
+  onTeamUpdate: (updated: Partial<Team>) => void
+  canEditRole?: boolean
+  showGuestColumn?: boolean
+}) {
+  const { t } = useTranslation('teams')
+  return (
+    <div className="mt-4 rounded-lg border bg-white dark:bg-gray-800">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-gray-50 dark:bg-gray-900 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            <SortHeader label={t('playerCol')} sortKey="name" current={sortKey} dir={sortDir} onClick={onSort} />
+            {showGuestColumn && (
+              <TableHead className="px-4 py-3 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('guestCol')}</TableHead>
+            )}
+            <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={onSort} className="text-center" />
+            <SortHeader label={t('positionCol')} sortKey="position" current={sortKey} dir={sortDir} onClick={onSort} className="hidden sm:table-cell" />
+            {canManage && <SortHeader label={t('emailCol')} sortKey="email" current={sortKey} dir={sortDir} onClick={onSort} className="hidden md:table-cell" />}
+            {canManage && <SortHeader label={t('phoneCol')} sortKey="phone" current={sortKey} dir={sortDir} onClick={onSort} className="hidden md:table-cell" />}
+            {canManage && <SortHeader label={t('birthdateCol')} sortKey="birthdate" current={sortKey} dir={sortDir} onClick={onSort} className="hidden lg:table-cell" />}
+            <SortHeader label={t('roleCol')} sortKey="role" current={sortKey} dir={sortDir} onClick={onSort} />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {members.map((mt) => (
+            <MemberRow
+              key={mt.id as string}
+              memberTeam={mt}
+              teamId={team.id}
+              teamSlug={team.name}
+              team={team}
+              canEdit={canManage}
+              isAdmin={isAdmin}
+              canEditRole={canEditRole}
+              showContact={canManage}
+              showGuestColumn={showGuestColumn}
+              onTeamUpdate={onTeamUpdate}
+            />
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
 function SortHeader({ label, sortKey: key, current, dir, onClick, className = '' }: {
   label: string
   sortKey: SortKey
@@ -819,8 +826,8 @@ function SortHeader({ label, sortKey: key, current, dir, onClick, className = ''
 }) {
   const active = current === key
   return (
-    <th
-      className={`px-4 py-3 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 ${className}`}
+    <TableHead
+      className={`px-4 py-3 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 ${className}`}
       onClick={() => onClick(key)}
     >
       <span className="inline-flex items-center gap-1">
@@ -833,7 +840,7 @@ function SortHeader({ label, sortKey: key, current, dir, onClick, className = ''
           </svg>
         )}
       </span>
-    </th>
+    </TableHead>
   )
 }
 

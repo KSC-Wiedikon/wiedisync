@@ -58,4 +58,10 @@ export default {
   statusSomeStale: 'Ein Sync hängt',
   statusChecking: 'Wird geprüft …',
   statusDetailBelow: 'Details siehe unten.',
+
+  // Dashboard controls + expanded detail labels
+  refresh: 'Aktualisieren',
+  deployed: 'Deployed',
+  detailRole: 'Rolle',
+  detailSport: 'Sportart',
 }

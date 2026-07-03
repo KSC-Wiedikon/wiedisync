@@ -112,6 +112,52 @@ export default {
   volleyball: 'Pallavolo',
   basketball: 'Pallacanestro',
 
+  // Form controls / accessibility
+  showPassword: 'Mostra password',
+  hidePassword: 'Nascondi password',
+  allSports: 'Tutti gli sport',
+  view: 'Vista',
+  showingFirstOf: 'Mostrati i primi {{shown}} di {{total}} — affina la ricerca',
+  verificationCode: 'Codice di verifica',
+  digitLabel: 'Cifra {{n}}',
+
+  // Rich-text editor toolbar (aria-labels)
+  editor: {
+    bold: 'Grassetto',
+    italic: 'Corsivo',
+    heading2: 'Titolo 2',
+    heading3: 'Titolo 3',
+    bulletList: 'Elenco puntato',
+    numberedList: 'Elenco numerato',
+    quote: 'Citazione',
+    link: 'Collegamento',
+  },
+  teamCount_one: '{{count}} squadra',
+  teamCount_other: '{{count}} squadre',
+
+  // Status / role badge labels (StatusBadge)
+  badge: {
+    user: 'Utente',
+    player: 'Giocatore',
+    coach: 'Coach',
+    captain: 'Capitano',
+    team_responsible: 'Resp. squadra',
+    vorstand: 'Comitato',
+    admin: 'Admin',
+    vb_admin: 'Admin VB',
+    bb_admin: 'Admin BB',
+    superadmin: 'Superadmin',
+    superuser: 'Superuser',
+    website_admin: 'Admin sito web',
+    finance: 'Finanze',
+    verein: 'Club',
+    social: 'Sociale',
+    meeting: 'Riunione',
+    tournament: 'Torneo',
+    trainingsweekend: 'Trainingsweekend',
+    friendly: 'Amichevole',
+  },
+
   // Cancel / reinstate activity
   cancelTrainingAction: 'Annulla allenamento',
   cancelEventAction: 'Annulla evento',

@@ -18,16 +18,30 @@ import { de } from 'date-fns/locale/de'
 import { fr } from 'date-fns/locale/fr'
 import { it } from 'date-fns/locale/it'
 import type { Locale } from 'date-fns'
+import i18n from '../i18n'
 
 export function parseDate(isoString: string): Date {
   return parseISO(isoString)
 }
 
-/** Format a Date with a date-fns pattern (enUS locale). Named `formatDatePattern`
- *  to avoid the collision with dateHelpers' `formatDate(str, locale?)` (Intl,
- *  de-CH, dd.mm.yyyy) — importing the wrong one silently changes the output. */
-export function formatDatePattern(date: Date, pattern: string): string {
-  return format(date, pattern, { locale: enUS })
+/** Resolve the active UI language to a date-fns `Locale`, mirroring
+ *  dateHelpers' `currentLocale()`: use the explicit `lang` when given, else the
+ *  current i18next language, falling back to German (Swiss convention) when no
+ *  language is available. */
+function activeLocale(lang?: string): Locale {
+  return getLocale(lang || i18n.language || 'de')
+}
+
+/** Format a Date with a date-fns pattern, localized to the caller's UI language.
+ *  When `lang` is omitted the current i18next language is used (mirrors
+ *  dateHelpers' locale resolution), so month/weekday names render in DE/FR/IT/GSW
+ *  instead of always English. Only the locale of the names is resolved — the
+ *  supplied `pattern` (order/format) is preserved verbatim. Named
+ *  `formatDatePattern` to avoid the collision with dateHelpers' `formatDate(str,
+ *  locale?)` (Intl, de-CH, dd.mm.yyyy) — importing the wrong one silently changes
+ *  the output. */
+export function formatDatePattern(date: Date, pattern: string, lang?: string): string {
+  return format(date, pattern, { locale: activeLocale(lang) })
 }
 
 /** @deprecated Use {@link formatDatePattern}. Kept as an alias so existing

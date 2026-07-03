@@ -30,6 +30,8 @@ export default {
   more: 'More',
   lightMode: 'Light mode',
   darkMode: 'Dark mode',
+  switchToDark: 'Switch to dark mode',
+  switchToLight: 'Switch to light mode',
   logout: 'Logout',
   signIn: 'Sign in',
   myProfile: 'My profile',

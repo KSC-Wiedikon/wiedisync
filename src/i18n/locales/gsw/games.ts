@@ -138,6 +138,13 @@ export default {
   drilldownStatusConfirmed: 'Zuegseit',
   drilldownStatusDeclined: 'Abgseit',
   drilldownEmpty: 'Kei Spiel i de Zit.',
+  drilldownColOpponent: 'Gägner',
+  drilldownColStatus: 'Status',
+
+  // Embed page
+  embedTeamGames: '{{team}} — Spiel',
+  embedNoGames: 'Käni Spiel gfundä.',
+  embedNoRankings: 'Käni Ranglischtä verfüegbar.',
 
   // Game card actions
   editGame: 'Spiel ändere',
