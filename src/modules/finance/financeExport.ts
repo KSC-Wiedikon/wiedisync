@@ -5,7 +5,9 @@ export function downloadCsv(filename: string, headers: string[], rows: (string |
     let s = String(v ?? '')
     // Neutralise spreadsheet formula injection: a cell starting with = + - @
     // (or tab/CR) executes as a formula in Excel/Sheets. Prefix a single quote.
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+    // Formula-injection guard, but don't mangle legit signed numbers / phones
+    // (e.g. "-50.00", "+41 79…") — only quote when the leading =/+/-/@ isn't a number.
+    if (/^[=+\-@\t\r]/.test(s) && !/^[+-]?\d/.test(s)) s = `'${s}`
     return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
   const body = [headers, ...rows].map((r) => r.map(esc).join(';')).join('\r\n')
