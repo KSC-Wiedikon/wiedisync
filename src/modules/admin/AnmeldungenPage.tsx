@@ -75,7 +75,8 @@ function csvEscape(val: string): string {
   let s = String(val ?? '')
   // Neutralize CSV formula injection: prefix a leading formula trigger with an
   // apostrophe so spreadsheet apps treat attacker-controlled cells as text.
-  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s
+  // Don't mangle legit signed numbers / phones (-50, +41…) — only real formulas.
+  if (/^[=+\-@\t\r]/.test(s) && !/^[+-]?\d/.test(s)) s = "'" + s
   if (s.includes(';') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"'
   return s
 }

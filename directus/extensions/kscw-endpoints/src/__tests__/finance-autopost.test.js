@@ -88,6 +88,15 @@ describe('planSettlementLegs — ledger reconciles to the sub-ledger', () => {
     expect(bal[ACC.bank]).toBe(70) // 100 in − 30 out
   })
 
+  // 2026-07-03 review regression: an over-refund (refund > net cash received)
+  // must book the FULL amount to Bank, not silently drop the excess.
+  it('over-refund books the full amount to bank and records the club liability', () => {
+    const { open, bal } = assertReconciled(100, [pay(1, 50), pay(2, 80, 'refund')])
+    expect(open).toBe(100)          // receivable fully re-opened
+    expect(bal[ACC.bank]).toBe(-30) // 50 in − 80 out = 30 net out (the whole 80 is booked)
+    expect(round2(-(bal[ACC.prepay]))).toBe(-30) // negative prepayment = club owes the member 30
+  })
+
   it('credit note and write-off both reduce the receivable without cash', () => {
     const cn = assertReconciled(100, [pay(1, 20, 'credit_note')])
     expect(cn.open).toBe(80)

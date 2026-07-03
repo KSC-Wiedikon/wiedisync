@@ -36,8 +36,11 @@ export function registerScorerReminders(router, { database, logger, services, ge
 
   async function sendReminders(db, getSchemaFn, mailServiceClass) {
     // Check if enabled
+    // app_settings has an `enabled` boolean column (no `value` column) — the
+    // ScorerPage toggle reads/writes `enabled`. Reading a nonexistent `value`
+    // here meant the cron ALWAYS skipped, so reminders never sent (2026-07-03 review).
     const setting = await db('app_settings').where('key', 'scorer_reminders_enabled').first()
-    if (!setting || setting.value !== 'true') {
+    if (!setting || setting.enabled !== true) {
       return { sent: 0, skipped: 'disabled' }
     }
 

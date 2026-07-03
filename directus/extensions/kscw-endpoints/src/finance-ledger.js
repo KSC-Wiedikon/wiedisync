@@ -177,13 +177,21 @@ export function registerFinanceLedger(router, { database, logger }) {
       const seqRow = await database.raw("SELECT nextval('finance_native_entry_seq')::int AS n")
       const seq = (seqRow.rows ? seqRow.rows[0] : seqRow[0]).n
       const beleg = `J-${bookingDate.slice(0, 4)}-${String(seq).padStart(4, '0')}`
-      // Reversal swaps debit ⇄ credit, same amount.
-      const ins = await database('finance_transactions').insert({
-        source: 'native', typ: 'Storno', beleg, booking_date: bookingDate, text: `Storno: ${o.text || o.beleg || ''}`.slice(0, 250),
-        debit_account: o.credit_account, debit_account_number: o.credit_account_number, debit_account_name: o.credit_account_name,
-        credit_account: o.debit_account, credit_account_number: o.debit_account_number, credit_account_name: o.debit_account_name,
-        amount_chf: o.amount_chf, fiscal_year: o.fiscal_year, reversal_of: o.id, created_by_name: a.name, created_by_email: a.email,
-      }).returning('*')
+      // Reversal swaps debit ⇄ credit, same amount. Wrap the insert so a
+      // concurrent double-reverse that loses the migration-165 UNIQUE(reversal_of)
+      // race returns 409 (not a 500) — the read-check above is not race-proof.
+      let ins
+      try {
+        ins = await database('finance_transactions').insert({
+          source: 'native', typ: 'Storno', beleg, booking_date: bookingDate, text: `Storno: ${o.text || o.beleg || ''}`.slice(0, 250),
+          debit_account: o.credit_account, debit_account_number: o.credit_account_number, debit_account_name: o.credit_account_name,
+          credit_account: o.debit_account, credit_account_number: o.debit_account_number, credit_account_name: o.debit_account_name,
+          amount_chf: o.amount_chf, fiscal_year: o.fiscal_year, reversal_of: o.id, created_by_name: a.name, created_by_email: a.email,
+        }).returning('*')
+      } catch (e) {
+        if (e && (e.code === '23505' || /unique/i.test(e.message || ''))) return res.status(409).json({ error: 'Entry already reversed' })
+        throw e
+      }
       const row = ins[0]
       await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_transactions', recordId: row.id, data: { kind: 'journal_reversal', reversal_of: o.id, beleg } })
       return res.json({ entry: row })

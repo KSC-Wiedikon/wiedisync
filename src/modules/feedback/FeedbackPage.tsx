@@ -37,7 +37,8 @@ interface FeedbackRecord {
   description: string
   source: string
   source_url: string
-  screenshot: string | string[]
+  screenshot: string | null
+  screenshots?: string[] | null
   status: string
   github_issue: string
   user: string

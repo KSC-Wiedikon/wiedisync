@@ -358,6 +358,11 @@ const PUBLIC_TEAM_FIELDS = [
   // Positions the team is recruiting for — shown next to the "Get in touch"
   // CTA on the public team page. Array of position keys, no PII.
   'recruiting_positions',
+  // Full-team waiting list — a public Google-Form link (waitlist_url) + button
+  // label. Non-PII. Lets the kscw-website contact form and the basketball youth
+  // page detect a "full" team and route to its waiting list instead of emailing
+  // the coach/youth coordinator. The /kscw/contact endpoint also gates on this.
+  'waitlist_url', 'waitlist_label',
 ]
 
 /** Coach Dashboard prefs — readable by Coach/Team Responsible/Admin via an explicit read row. NOT added to PUBLIC_TEAM_FIELDS. */
@@ -597,9 +602,11 @@ async function main() {
     await setPermRead(PUBLIC_POLICY, 'hall_events_halls')  // M2M junction
     await setPermRead(PUBLIC_POLICY, 'halls')
 
-    // Feedback — public create (kscw-website form, validated by Turnstile hook)
+    // Feedback — public create (kscw-website form, validated by Turnstile hook).
+    // `screenshots` (migration 166) must be whitelisted too, else an anon multi-file
+    // submit 403s AFTER the files upload → lost feedback + orphaned public files.
     await setPerm(PUBLIC_POLICY, 'feedback', 'create', null,
-      ['type', 'title', 'description', 'source', 'source_url', 'status', 'name', 'email', 'screenshot'])
+      ['type', 'title', 'description', 'source', 'source_url', 'status', 'name', 'email', 'screenshot', 'screenshots'])
 
     // Mixed tournament signups — public create (kscw-website form, validated by Turnstile hook)
     await setPerm(PUBLIC_POLICY, 'mixed_tournament_signups', 'create', null,

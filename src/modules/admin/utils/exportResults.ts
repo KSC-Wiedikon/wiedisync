@@ -21,7 +21,8 @@ export function toTSV(columns: string[], rows: unknown[][]): string {
 export function toCSV(columns: string[], rows: unknown[][]): string {
   const escape = (s: string) => {
     // Neutralise spreadsheet formula injection (leading = + - @ / tab / CR).
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+    // Don't mangle legit signed numbers / phones (-50, +41…) — only real formulas.
+    if (/^[=+\-@\t\r]/.test(s) && !/^[+-]?\d/.test(s)) s = `'${s}`
     if (s.includes(',') || s.includes('"') || s.includes('\n')) {
       return `"${s.replace(/"/g, '""')}"`
     }
