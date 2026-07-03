@@ -35,6 +35,7 @@ type Step =
   | 'invite-loading'
   | 'invite'
   | 'invite-error'
+  | 'invite-fetch-error'
 
 type InviteInfo = { first_name: string; email: string; expires_at: string }
 type InviteErrorCode = 'invalid_token' | 'already_claimed'
@@ -79,6 +80,9 @@ export default function SignUpPage() {
   // Invite flow state (single-use, member-bound signup token)
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null)
   const [inviteErrorCode, setInviteErrorCode] = useState<InviteErrorCode>('invalid_token')
+  // Bumped by the "Try again" button to re-run the info fetch after a
+  // transient failure (network / 429 / 500).
+  const [inviteFetchAttempt, setInviteFetchAttempt] = useState(0)
 
   const { data: teamsRaw } = useCollection<Team>('teams', {
     filter: { active: { _eq: true } },
@@ -92,9 +96,14 @@ export default function SignUpPage() {
   useEffect(() => {
     // Don't redirect during OTP claim flow steps
     if (step === 'complete-profile') return
+    // Invite links may open in a browser with an active session (family
+    // members share devices and emails — a child's invite can land in the
+    // parent's logged-in browser). Let the invite flow render instead of
+    // bouncing home; post-redeem navigation is handled in handleInviteRedeem.
+    if (inviteToken) return
     if (user && isApproved) navigate('/', { replace: true })
     if (user && !isApproved) navigate('/pending', { replace: true })
-  }, [user, isApproved, navigate, step])
+  }, [user, isApproved, navigate, step, inviteToken])
 
   // Invite flow: resolve the token to greeting data (public endpoint —
   // `anonymous` so a stale session cookie can't 401 the public handler).
@@ -107,14 +116,22 @@ export default function SignUpPage() {
         setInviteInfo(info)
         setStep('invite')
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (cancelled) return
-        // Info only ever 404s with invalid_token (claimed members look the same).
-        setInviteErrorCode('invalid_token')
-        setStep('invite-error')
+        const apiErr = err as Error & { code?: string }
+        // Only a genuine 404 (invalid/expired/claimed — the endpoint tags it
+        // invalid_token) means the invite is dead. Transient failures
+        // (network, 429, 500) get a retryable state instead of a false
+        // "Invite not valid" verdict.
+        if (apiErr.code === 'invalid_token' || /: 404$/.test(apiErr.message ?? '')) {
+          setInviteErrorCode('invalid_token')
+          setStep('invite-error')
+        } else {
+          setStep('invite-fetch-error')
+        }
       })
     return () => { cancelled = true }
-  }, [inviteToken])
+  }, [inviteToken, inviteFetchAttempt])
 
   // Invite flow: set password, create the account, log in.
   async function handleInviteRedeem(e: React.FormEvent) {
@@ -148,6 +165,9 @@ export default function SignUpPage() {
         return
       }
       const apiErr = err as Error & { code?: string; body?: { error?: string } }
+      // kscwApi encodes the HTTP status at the end of the message
+      // (`API <path>: <status>`); network errors carry no status (→ 0).
+      const status = Number(/: (\d{3})$/.exec(apiErr.message ?? '')?.[1] ?? 0)
       if (apiErr.code === 'invalid_token' || apiErr.code === 'already_claimed') {
         setInviteErrorCode(apiErr.code)
         setStep('invite-error')
@@ -155,10 +175,14 @@ export default function SignUpPage() {
         setError(t('inviteNoEmail'))
       } else if (apiErr.code === 'email_in_use') {
         setError(t('inviteEmailInUse'))
-      } else if (apiErr.body?.error && !apiErr.code) {
+      } else if (status === 429) {
+        // Rate limiter — translated instead of the raw "Too many requests".
+        setError(t('tooManyRequests'))
+      } else if (status === 400 && apiErr.body?.error && !apiErr.code) {
         // Backend password-rule text (400 without a code) — show verbatim.
         setError(apiErr.body.error)
       } else {
+        // Network error / 500 / anything unexpected — translated generic.
         setError(t('inviteRedeemFailed'))
       }
     } finally {
@@ -329,6 +353,8 @@ export default function SignUpPage() {
         return t('activateAccount')
       case 'invite-error':
         return t(inviteErrorCode === 'already_claimed' ? 'inviteClaimedTitle' : 'inviteInvalidTitle')
+      case 'invite-fetch-error':
+        return t('inviteFetchErrorTitle')
       case 'registration-closed':
         return t('registrationClosedTitle')
       default:
@@ -438,6 +464,26 @@ export default function SignUpPage() {
                   {t('signIn')}
                 </Link>
               </p>
+            </div>
+          )}
+
+          {/* Invite flow: transient failure while checking the token (network /
+              429 / 500) — retryable, deliberately NOT the "invite dead" panel */}
+          {step === 'invite-fetch-error' && (
+            <div className="space-y-4">
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                {t('inviteFetchErrorDescription')}
+              </p>
+
+              <Button
+                onClick={() => {
+                  setStep('invite-loading')
+                  setInviteFetchAttempt((n) => n + 1)
+                }}
+                className="w-full"
+              >
+                {t('inviteRetry')}
+              </Button>
             </div>
           )}
 

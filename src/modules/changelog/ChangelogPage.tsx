@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.17.0'
+const APP_VERSION = '1.18.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,33 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.18.0',
+    date: '03.07.2026',
+    sections: [
+      {
+        title: 'Account signup by personal invite',
+        items: [
+          'New WiediSync accounts are now created through a personal, single-use invite link — sent automatically when your club registration is approved, or by your coach, team responsible or the club board. This prevents duplicate member records.',
+          'Existing members without an account can still activate it the usual way with their registered email address.',
+          'Coaches and team responsibles can send an account invite to roster members who have no login yet (button in the team roster).',
+        ],
+      },
+      {
+        title: 'Game planning opens to coaches',
+        items: [
+          'Coaches and team responsibles can now open the game-planning calendar for their own team (view only) — see planned and confirmed match dates without asking the Spielplaner.',
+        ],
+      },
+      {
+        title: 'Fixes',
+        items: [
+          'Guest invite links (QR) from the team page work again.',
+          'Fixed an issue where an account created via the claim flow ended up without permissions.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.17.0',
     date: '29.06.2026',

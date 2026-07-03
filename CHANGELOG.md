@@ -2,6 +2,21 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.18.0 — 2026-07-03
+
+### Account signup by personal invite
+- New WiediSync accounts are created through a **personal, single-use invite link** — sent automatically when a club registration (kscw.ch Anmeldung) is approved, or minted by a coach, team responsible, or the board for an existing member without a login. Open self-registration is closed; this prevents duplicate member records.
+- Existing members can still activate their account with their registered email address (unchanged claim flow).
+- Coaches/TRs get a "send WiediSync invite" action in the team roster for members without a login; admins can resend an invite from the Anmeldungen page.
+
+### Game planning opens to coaches
+- Coaches and team responsibles can open the game-planning calendar for **their own team** (view only). Booking, confirming, and opponent communication stay with the Spielplaner.
+
+### Fixes
+- Guest invite links (QR) from the team page work again (they had never worked in production).
+- Accounts created via the claim flow now receive the correct member permissions.
+- Manual games in the planner no longer fail with a permission error for non-admin Spielplaners.
+
 ## v1.17.0 — 2026-06-29
 
 ### Scheduling: lone Saturday games move to the small hall

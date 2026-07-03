@@ -52,6 +52,17 @@ export function signupInviteUrl(token) {
   return `${FRONTEND_URL}/signup?invite=${token}`
 }
 
+// Symmetric first-name-prefix match ("Dani" ↔ "Daniel" same person; "Anna" ↔
+// "Luca" not). Missing data counts as a match. Mirrors the same helper in
+// kscw-hooks (which imports from THIS module — the reverse import would be
+// circular, so it is duplicated here rather than shared).
+function firstNamesMatch(a, b) {
+  const x = String(a || '').toLowerCase().trim()
+  const y = String(b || '').toLowerCase().trim()
+  if (!x || !y) return true
+  return x === y || x.startsWith(y) || y.startsWith(x)
+}
+
 // ── Invite email (5 locales, keyed by members.language) ─────────────────────
 const INVITE_T = {
   german: {
@@ -135,7 +146,13 @@ export function registerSignupInvites(router, { database, logger, services, getS
   // Tiny in-memory IP limiter (same shape as password-reset.js — inlined to
   // avoid a circular import with index.js).
   function ipLimit(map, req, max, windowMs) {
-    const ip = req.ip || req.headers?.['x-forwarded-for'] || 'unknown'
+    // Behind the Cloudflare Tunnel the only trustworthy client IP is
+    // cf-connecting-ip; X-Forwarded-For is attacker-spoofable (same precedence
+    // as contact-form.js / password-reset.js after the 2026-07-02 #17 fix).
+    const xff = req.headers?.['x-forwarded-for']
+    const ip = req.headers?.['cf-connecting-ip']
+      || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
+      || req.ip || 'unknown'
     const now = Date.now()
     const entry = map.get(ip)
     if (entry && now < entry.resetAt) {
@@ -164,14 +181,16 @@ export function registerSignupInvites(router, { database, logger, services, getS
       if (member_id) {
         target = await database('members').where('id', member_id).first()
       } else if (registration_id) {
-        const reg = await database('registrations').where('id', registration_id).first('email', 'status')
+        const reg = await database('registrations').where('id', registration_id).first('email', 'status', 'vorname')
         if (!reg) return res.status(404).json({ error: 'Registration not found' })
         if (reg.status !== 'approved') {
           return res.status(400).json({ error: 'Registration is not approved', code: 'not_approved' })
         }
-        target = await database('members')
+        // Match on email AND first name — a family shares one email, so email
+        // alone could bind the invite to the parent instead of the registrant.
+        const emailRows = await database('members')
           .whereRaw('LOWER(email) = ?', [String(reg.email || '').toLowerCase().trim()])
-          .first()
+        target = emailRows.find(r => firstNamesMatch(r.first_name, reg.vorname)) || null
       } else {
         return res.status(400).json({ error: 'member_id or registration_id required' })
       }
@@ -300,12 +319,30 @@ export function registerSignupInvites(router, { database, logger, services, getS
       // Link an orphan directus_user with the same email if one exists;
       // otherwise create a fresh user WITH the Member role (the /set-password
       // mode-3 bug shipped a role-less account once — never again).
-      const orphan = await database('directus_users')
+      // CRITICAL: "orphan" means NO member row references this user. A
+      // same-email user that ANOTHER member already owns is a family member's
+      // live account (shared inbox) — adopting it would overwrite their
+      // password and hand the redeemer their (possibly elevated) login. Only
+      // a truly unlinked user is claimable; otherwise the redeemer needs a
+      // personal email.
+      const sameEmailUser = await database('directus_users')
+        .whereRaw('LOWER(directus_users.email) = ?', [email])
+        .whereNotExists(function () {
+          this.select(database.raw('1')).from('members').whereRaw('members."user" = directus_users.id')
+        })
+        .first('id')
+      const someoneElseHasIt = await database('directus_users')
         .whereRaw('LOWER(email) = ?', [email]).first('id')
       let userId
-      if (orphan) {
-        userId = orphan.id
+      if (sameEmailUser) {
+        userId = sameEmailUser.id
         await adminUsersService.updateOne(userId, { password })
+      } else if (someoneElseHasIt) {
+        // A same-email login exists but belongs to another member.
+        return res.status(400).json({
+          error: 'This email already has an account — each account needs its own email address. Ask an admin to set a personal email for you first.',
+          code: 'email_in_use',
+        })
       } else {
         const memberRole = await database('directus_roles').where('name', 'Member').first()
         if (!memberRole) throw new Error('Member role not found in directus_roles')

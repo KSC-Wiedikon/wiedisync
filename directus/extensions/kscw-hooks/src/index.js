@@ -3548,30 +3548,38 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const email = reg.email.toLowerCase().trim()
     const rolle = (reg.rolle || '').toLowerCase()
 
-    // 1. Check if member already exists (case-insensitive — mixed-case stored
-    // emails defeated the old exact match and produced shadow duplicates).
-    let existingMember = await db('members')
-      .whereRaw('LOWER(email) = ?', [email]).first()
-
-    // Family/shared-email guard: a registration under an email that belongs
-    // to a DIFFERENT person (parent/sibling sharing an address) must not be
-    // grafted onto that person's member row. Create a separate row instead —
-    // this is why members.email deliberately has no unique index. Note: the
-    // second person cannot activate their own login until they get a unique
-    // email (directus_users.email is unique) — admins see both rows.
-    if (existingMember && !firstNamesMatch(existingMember.first_name, reg.vorname)) {
+    // 1. Check if member already exists (case-insensitive). Fetch ALL rows for
+    // the email and pick the NAME-MATCHING one. A bare .first() with no
+    // ORDER BY returns an arbitrary same-email row when a family shares the
+    // address — if it happened to return the sibling, the name guard below
+    // nulled it and a duplicate row was created for a person who already
+    // existed. This is why members.email deliberately has no unique index.
+    const emailRows = await db('members').whereRaw('LOWER(email) = ?', [email])
+    let existingMember = emailRows.find(r => firstNamesMatch(r.first_name, reg.vorname)) || null
+    if (!existingMember && emailRows.length) {
+      // Same email, no name match → a DIFFERENT person shares the address
+      // (parent/sibling). Create a separate row rather than graft onto them.
       log.warn({
-        msg: `Registration email matches member #${existingMember.id} but first names differ ("${existingMember.first_name}" vs "${reg.vorname}") — creating a separate member (shared family email)`,
+        msg: `Registration email matches ${emailRows.length} member(s) but none name-matches "${reg.vorname}" — creating a separate member (shared family email)`,
         email,
       })
-      existingMember = null
     }
 
     // Orphan directus_users with this email (account imported/created outside
     // the normal flow) — link it so the approval email says "log in" instead
-    // of minting a dead invite for an address that already has a login.
+    // of minting a dead invite. CRITICAL: "orphan" means NO member row
+    // references this user. A same-email user that a DIFFERENT member already
+    // owns (parent's activated account under a shared family email) must NOT
+    // be adopted here — that would point two member rows at one login and let
+    // the sibling's session resolve to the parent's identity. Leave the new
+    // row unlinked; its signup token will hit the directus_users.email unique
+    // constraint and the redeemer is told to get a personal email.
     const orphanUser = await db('directus_users')
-      .whereRaw('LOWER(email) = ?', [email]).select('id').first()
+      .whereRaw('LOWER(directus_users.email) = ?', [email])
+      .whereNotExists(function () {
+        this.select(db.raw('1')).from('members').whereRaw('members."user" = directus_users.id')
+      })
+      .select('id').first()
 
     let memberId
     if (existingMember) {
@@ -3774,8 +3782,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
           // ── 4. Confirmation email to user (CC coach/TR) ──
           if (memberId) {
-            const ctaUrl = inviteToken ? signupInviteUrl(inviteToken) : `${FRONTEND_URL}/login`
-            const ctaLabel = inviteToken ? l.approvedCtaLabel : l.approvedCtaLabelLogin
+            // CTA: invite link when we minted a token; /login when the person
+            // already has an account; otherwise (mint failed for an
+            // account-less member) /signup — the email-match claim flow still
+            // lets an existing member activate. Never pair a "create account"
+            // body with a "log in" button (dead end for the account-less).
+            const ctaUrl = inviteToken ? signupInviteUrl(inviteToken)
+              : (hasAccount ? `${FRONTEND_URL}/login` : `${FRONTEND_URL}/signup`)
+            const ctaLabel = (inviteToken || !hasAccount) ? l.approvedCtaLabel : l.approvedCtaLabelLogin
             const bodyCopy = hasAccount ? l.approvedBodyExisting : l.approvedBody
             const tokenNote = inviteToken
               ? `<p style="text-align:justify;color:#64748b;font-size:12px;margin-top:8px">${l.approvedTokenNote}</p>`
@@ -3969,7 +3983,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // but has no team dimension — this guard adds it, mirroring the create
   // guard above. Members with no spielplaner relation (e.g. TRs confirming
   // duties) pass through: their own policies' row filters are the gate.
-  async function assertManualGamesInScope(db, accountability, gameIds) {
+  // payloadTeam: on UPDATE, the destination team the payload wants to set (if
+  // it touches kscw_team) — a scoped spielplaner must not move a manual game
+  // INTO a team outside their scope either, so the target team is validated
+  // against the same allowed set as the stored team.
+  async function assertManualGamesInScope(db, accountability, gameIds, payloadTeam) {
     if (!accountability?.user || accountability.admin) return
     if (!Array.isArray(gameIds) || !gameIds.length) return
     const member = await db('members')
@@ -3979,16 +3997,29 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const assignments = (await db('spielplaner_assignments')
       .where('member', member.id).pluck('kscw_team')).filter(v => v != null)
     if (!assignments.length) return // not a spielplaner — policy filters gate
+    // Dual-role: a coach/TR keeps their LEADER-policy write on manual games of
+    // teams they lead even when those teams aren't in their Spielplaner
+    // assignments. Union them in so the guard never 403s an update the LEADER
+    // policy legitimately grants (the policy's own kscw_team row filter is the
+    // real gate for that path).
+    const coachTeams = await db('teams_coaches').where('members_id', member.id).pluck('teams_id')
+    const trTeams = await db('teams_responsibles').where('members_id', member.id).pluck('teams_id')
+    const allowed = new Set([...assignments, ...coachTeams, ...trTeams].filter(v => v != null))
     const rows = await db('games').whereIn('id', gameIds).select('id', 'source', 'kscw_team')
     for (const r of rows) {
       if (r.source !== 'manual') continue
-      if (!assignments.includes(r.kscw_team)) {
+      if (!allowed.has(r.kscw_team)) {
         throw kscwScopeError('Game is not in your Spielplaner scope', 403, 'FORBIDDEN')
+      }
+      // Block moving a manual game INTO an out-of-scope team.
+      if (payloadTeam != null && payloadTeam !== r.kscw_team && !allowed.has(payloadTeam)) {
+        throw kscwScopeError('Target team is not in your Spielplaner scope', 403, 'FORBIDDEN')
       }
     }
   }
   filter('games.items.update', async (payload, meta, { accountability, database: db }) => {
-    await assertManualGamesInScope(db, accountability, meta?.keys || [])
+    const payloadTeam = payload && 'kscw_team' in payload ? payload.kscw_team : undefined
+    await assertManualGamesInScope(db, accountability, meta?.keys || [], payloadTeam)
     return payload
   })
   filter('games.items.delete', async (keys, _meta, { accountability, database: db }) => {
