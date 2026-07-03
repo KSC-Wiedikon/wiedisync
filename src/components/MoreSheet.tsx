@@ -126,7 +126,7 @@ function OptionsAccordion({ theme, toggleTheme, onClose, memberId }: { theme: st
                 enabled={theme === 'dark'}
                 onChange={toggleTheme}
                 size="sm"
-                ariaLabel="Toggle dark mode"
+                ariaLabel={theme === 'dark' ? t('switchToLight') : t('switchToDark')}
                 iconOff={
                   <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" />
@@ -239,6 +239,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
+  const { t: tn } = useTranslation('notifications')
   const { closing, startClose, onAnimEnd } = useAnimatedClose(onClose)
 
   // Shared renderer for the internal admin/superadmin NavLinks — identical markup
@@ -348,7 +349,8 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                   <Bell className={iconClass} />
                   {unreadNotifications > 0 && (
                     <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold text-white">
-                      {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                      <span aria-hidden="true">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>
+                      <span className="sr-only">{tn('unreadBadge', { count: unreadNotifications })}</span>
                     </span>
                   )}
                 </div>

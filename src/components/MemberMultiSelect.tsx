@@ -76,6 +76,11 @@ export default function MemberMultiSelect({ selected, onChange }: MemberMultiSel
 
         {open && filtered.length > 0 && (
           <div id={listboxId} role="listbox" aria-multiselectable="true" className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+            {filtered.length > 50 && (
+              <div className="sticky top-0 border-b border-gray-100 bg-gray-50 px-3 py-1.5 text-xs text-muted-foreground dark:border-gray-700 dark:bg-gray-900">
+                {t('common:showingFirstOf', { shown: 50, total: filtered.length })}
+              </div>
+            )}
             {filtered.slice(0, 50).map(m => {
               const isSelected = selected.includes(String(m.id))
               return (

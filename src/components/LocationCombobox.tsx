@@ -106,7 +106,7 @@ export default function LocationCombobox({
                     onClick={() => handleSelect(r)}
                     className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
                   >
-                    <div className="h-full w-0.5 min-h-[24px] self-stretch rounded bg-[#FFC832]" />
+                    <div className="h-full w-0.5 min-h-[24px] self-stretch rounded bg-gold-400" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium">{r.name}</div>
                       {(r.address || r.city) && (

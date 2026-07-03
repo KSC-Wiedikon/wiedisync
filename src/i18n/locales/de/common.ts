@@ -113,6 +113,52 @@ export default {
   basketball: 'Basketball',
   copied: 'Kopiert!',
 
+  // Form controls / accessibility
+  showPassword: 'Passwort anzeigen',
+  hidePassword: 'Passwort verbergen',
+  allSports: 'Alle Sportarten',
+  view: 'Ansicht',
+  showingFirstOf: 'Erste {{shown}} von {{total}} — Suche verfeinern',
+  verificationCode: 'Bestätigungscode',
+  digitLabel: 'Ziffer {{n}}',
+
+  // Rich-text editor toolbar (aria-labels)
+  editor: {
+    bold: 'Fett',
+    italic: 'Kursiv',
+    heading2: 'Überschrift 2',
+    heading3: 'Überschrift 3',
+    bulletList: 'Aufzählung',
+    numberedList: 'Nummerierte Liste',
+    quote: 'Zitat',
+    link: 'Link',
+  },
+  teamCount_one: '{{count}} Team',
+  teamCount_other: '{{count}} Teams',
+
+  // Status / role badge labels (StatusBadge)
+  badge: {
+    user: 'Benutzer',
+    player: 'Spieler',
+    coach: 'Coach',
+    captain: 'Captain',
+    team_responsible: 'Team-Verantw.',
+    vorstand: 'Vorstand',
+    admin: 'Admin',
+    vb_admin: 'VB-Admin',
+    bb_admin: 'BB-Admin',
+    superadmin: 'Superadmin',
+    superuser: 'Superuser',
+    website_admin: 'Website-Admin',
+    finance: 'Finanzen',
+    verein: 'Verein',
+    social: 'Social',
+    meeting: 'Sitzung',
+    tournament: 'Turnier',
+    trainingsweekend: 'Trainingsweekend',
+    friendly: 'Freundschaftsspiel',
+  },
+
   // Cancel / reinstate activity
   cancelTrainingAction: 'Training absagen',
   cancelEventAction: 'Anlass absagen',

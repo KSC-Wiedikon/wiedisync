@@ -86,17 +86,17 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
   return (
     <div className="overflow-hidden rounded-md border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-900">
       <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-200 bg-gray-50 px-1 py-1 dark:border-gray-700 dark:bg-gray-800">
-        <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive('bold'))} aria-label="Bold"><Bold className="h-4 w-4" /></button>
-        <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn(editor.isActive('italic'))} aria-label="Italic"><Italic className="h-4 w-4" /></button>
+        <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive('bold'))} aria-label={t('editor.bold')}><Bold className="h-4 w-4" /></button>
+        <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn(editor.isActive('italic'))} aria-label={t('editor.italic')}><Italic className="h-4 w-4" /></button>
         <span className="mx-1 h-5 w-px bg-gray-300 dark:bg-gray-600" />
-        <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={btn(editor.isActive('heading', { level: 2 }))} aria-label="Heading 2"><Heading2 className="h-4 w-4" /></button>
-        <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={btn(editor.isActive('heading', { level: 3 }))} aria-label="Heading 3"><Heading3 className="h-4 w-4" /></button>
+        <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={btn(editor.isActive('heading', { level: 2 }))} aria-label={t('editor.heading2')}><Heading2 className="h-4 w-4" /></button>
+        <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={btn(editor.isActive('heading', { level: 3 }))} aria-label={t('editor.heading3')}><Heading3 className="h-4 w-4" /></button>
         <span className="mx-1 h-5 w-px bg-gray-300 dark:bg-gray-600" />
-        <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={btn(editor.isActive('bulletList'))} aria-label="Bullet list"><List className="h-4 w-4" /></button>
-        <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={btn(editor.isActive('orderedList'))} aria-label="Numbered list"><ListOrdered className="h-4 w-4" /></button>
-        <button type="button" onClick={() => editor.chain().focus().toggleBlockquote().run()} className={btn(editor.isActive('blockquote'))} aria-label="Quote"><Quote className="h-4 w-4" /></button>
+        <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={btn(editor.isActive('bulletList'))} aria-label={t('editor.bulletList')}><List className="h-4 w-4" /></button>
+        <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={btn(editor.isActive('orderedList'))} aria-label={t('editor.numberedList')}><ListOrdered className="h-4 w-4" /></button>
+        <button type="button" onClick={() => editor.chain().focus().toggleBlockquote().run()} className={btn(editor.isActive('blockquote'))} aria-label={t('editor.quote')}><Quote className="h-4 w-4" /></button>
         <span className="mx-1 h-5 w-px bg-gray-300 dark:bg-gray-600" />
-        <button type="button" onClick={setLink} className={btn(editor.isActive('link'))} aria-label="Link"><LinkIcon className="h-4 w-4" /></button>
+        <button type="button" onClick={setLink} className={btn(editor.isActive('link'))} aria-label={t('editor.link')}><LinkIcon className="h-4 w-4" /></button>
       </div>
       <EditorContent editor={editor} />
     </div>

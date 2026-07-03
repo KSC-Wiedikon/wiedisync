@@ -42,7 +42,9 @@ export default function SwitchToggle({
         className={cn(
           'relative inline-flex shrink-0 cursor-pointer items-center rounded-full transition-colors',
           isMd ? 'h-[2.7rem] w-[4.75rem]' : 'h-[2.475rem] w-[4.05rem]',
-          'bg-gray-300 dark:bg-gray-600',
+          // Distinct on/off track colour so state reads without relying on the
+          // knob position alone.
+          enabled ? 'bg-brand-500 dark:bg-brand-500' : 'bg-gray-300 dark:bg-gray-600',
         )}
       >
         <span

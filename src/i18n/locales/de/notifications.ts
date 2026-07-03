@@ -69,6 +69,11 @@ export default {
   pushErrorGeneric: 'Push-Dienst nicht erreichbar. Prüfe deine Browser-Einstellungen oder verwende Chrome/Firefox.',
   pushSubscribeFailed: 'Push-Benachrichtigungen konnten nicht aktiviert werden.',
   pushUnsubscribeFailed: 'Push-Benachrichtigungen konnten nicht deaktiviert werden.',
+  // Unread badge (aria-labels)
+  unreadShort_one: '{{count}} ungelesen',
+  unreadShort_other: '{{count}} ungelesen',
+  unreadBadge_one: '{{count}} ungelesene Benachrichtigung',
+  unreadBadge_other: '{{count}} ungelesene Benachrichtigungen',
   // Time helpers
   justNow: 'gerade eben',
   minutesAgo: 'vor {{count}} Min.',

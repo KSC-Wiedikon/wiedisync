@@ -869,7 +869,7 @@ export default function ParticipationRosterModal({
 
   function fullName(m: Member, role?: string): string {
     const base = `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()
-    const suffix = role === 'coach' ? ' (Coach)' : role === 'captain' ? ' (C)' : role === 'tr' ? ' (TR)' : ''
+    const suffix = role === 'coach' ? ` (${t('roleCoach')})` : role === 'captain' ? ` (${t('roleCaptainAbbr')})` : role === 'tr' ? ` (${t('roleTeamRespAbbr')})` : ''
     return base + suffix
   }
 
@@ -957,7 +957,7 @@ export default function ParticipationRosterModal({
         const sp = staffParticipations.find((p) => p.member === sm.id) ?? null
         const ts = sp?.date_updated ?? sp?.date_created ?? ''
         rows.push({
-          name: `${(sm.first_name ?? '').trim()} ${(sm.last_name ?? '').trim()}`.trim() + ' (Staff)',
+          name: `${(sm.first_name ?? '').trim()} ${(sm.last_name ?? '').trim()}`.trim() + ` (${t('staff')})`,
           jerseyNumber: sm.number && sm.number > 0 ? sm.number : null,
           positions: translatePositions(sm.position),
           status: sp?.status ? t(sp.status) : t('notResponded'),
@@ -1414,7 +1414,7 @@ export default function ParticipationRosterModal({
                 <div className="flex w-14 shrink-0 flex-wrap items-center justify-center gap-1">
                   {leadershipRoles.has(member.id) && (
                     <span className="inline-block rounded bg-brand-100 px-1 py-px text-[10px] font-medium leading-tight text-brand-700 dark:bg-brand-900/30 dark:text-brand-400">
-                      {leadershipRoles.get(member.id) === 'coach' ? 'Coach' : leadershipRoles.get(member.id) === 'captain' ? 'C' : 'TR'}
+                      {leadershipRoles.get(member.id) === 'coach' ? t('roleCoach') : leadershipRoles.get(member.id) === 'captain' ? t('roleCaptainAbbr') : t('roleTeamRespAbbr')}
                     </span>
                   )}
                   {guestMemberIds.has(member.id) && (

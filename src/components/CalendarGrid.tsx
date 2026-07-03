@@ -40,6 +40,9 @@ interface CalendarGridProps<T> {
    * and fires with the clicked date. Useful for quick-add flows.
    */
   onEmptyDayClick?: (date: Date) => void
+  /** Accessible label for the empty-day "+" quick-add button. Defaults to a
+   * generic "Add" — pass a context-specific label (e.g. "Add manual game"). */
+  addLabel?: string
   /**
    * When set, in-month day cells become clickable and fire with the date +
    * that day's items. Useful for opening a day-detail view.
@@ -63,6 +66,7 @@ export default function CalendarGrid<T>({
   minMonth,
   maxMonth,
   onEmptyDayClick,
+  addLabel,
   onDayClick,
 }: CalendarGridProps<T>) {
   const { t } = useTranslation()
@@ -83,6 +87,7 @@ export default function CalendarGrid<T>({
         <button
           onClick={() => onMonthChange(addMonths(month, -1))}
           disabled={!canGoPrev}
+          aria-label={t('prevMonth')}
           className="rounded-lg p-2.5 text-gray-600 hover:bg-gray-100 disabled:text-gray-300 disabled:hover:bg-transparent sm:p-2 dark:text-gray-400 dark:hover:bg-gray-700"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -103,6 +108,7 @@ export default function CalendarGrid<T>({
         <button
           onClick={() => onMonthChange(addMonths(month, 1))}
           disabled={!canGoNext}
+          aria-label={t('nextMonth')}
           className="rounded-lg p-2.5 text-gray-600 hover:bg-gray-100 disabled:text-gray-300 disabled:hover:bg-transparent sm:p-2 dark:text-gray-400 dark:hover:bg-gray-700"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -222,7 +228,7 @@ export default function CalendarGrid<T>({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onEmptyDayClick(date) }}
-                  aria-label="Add manual game"
+                  aria-label={addLabel ?? t('add')}
                   className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-gold-400 text-brand-900 text-base font-bold shadow opacity-0 transition-opacity hover:bg-gold-500 group-hover:opacity-100 focus-visible:opacity-100 sm:h-5 sm:w-5 sm:text-sm"
                 >
                   +

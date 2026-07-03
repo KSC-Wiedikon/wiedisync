@@ -30,6 +30,8 @@ export default {
   more: 'Mehr',
   lightMode: 'Hell',
   darkMode: 'Dunkel',
+  switchToDark: 'Zu Dunkelmodus wechseln',
+  switchToLight: 'Zu Hellmodus wechseln',
   logout: 'Abmelden',
   signIn: 'Anmelden',
   myProfile: 'Mein Profil',

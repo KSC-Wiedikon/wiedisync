@@ -112,6 +112,52 @@ export default {
   volleyball: 'Volleyball',
   basketball: 'Basketball',
 
+  // Form controls / accessibility
+  showPassword: 'Afficher le mot de passe',
+  hidePassword: 'Masquer le mot de passe',
+  allSports: 'Tous les sports',
+  view: 'Vue',
+  showingFirstOf: 'Affichage des {{shown}} premiers sur {{total}} — affinez votre recherche',
+  verificationCode: 'Code de vérification',
+  digitLabel: 'Chiffre {{n}}',
+
+  // Rich-text editor toolbar (aria-labels)
+  editor: {
+    bold: 'Gras',
+    italic: 'Italique',
+    heading2: 'Titre 2',
+    heading3: 'Titre 3',
+    bulletList: 'Liste à puces',
+    numberedList: 'Liste numérotée',
+    quote: 'Citation',
+    link: 'Lien',
+  },
+  teamCount_one: '{{count}} équipe',
+  teamCount_other: '{{count}} équipes',
+
+  // Status / role badge labels (StatusBadge)
+  badge: {
+    user: 'Utilisateur',
+    player: 'Joueur',
+    coach: 'Coach',
+    captain: 'Capitaine',
+    team_responsible: 'Resp. équipe',
+    vorstand: 'Comité',
+    admin: 'Admin',
+    vb_admin: 'Admin VB',
+    bb_admin: 'Admin BB',
+    superadmin: 'Superadmin',
+    superuser: 'Superuser',
+    website_admin: 'Admin site web',
+    finance: 'Finances',
+    verein: 'Club',
+    social: 'Social',
+    meeting: 'Réunion',
+    tournament: 'Tournoi',
+    trainingsweekend: 'Trainingsweekend',
+    friendly: 'Match amical',
+  },
+
   // Cancel / reinstate activity
   cancelTrainingAction: 'Annuler l’entraînement',
   cancelEventAction: 'Annuler l’événement',

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 interface ViewToggleOption {
@@ -12,13 +13,14 @@ interface ViewToggleProps {
 }
 
 export default function ViewToggle({ options, value, onChange }: ViewToggleProps) {
+  const { t } = useTranslation('common')
   return (
     <>
       {/* Mobile: dropdown — the segmented chips don't fit on narrow screens */}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        aria-label="View"
+        aria-label={t('view')}
         className="min-h-[44px] rounded-full border border-gray-200/80 bg-gray-100/80 px-4 py-2 text-sm font-semibold text-gray-900 shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 sm:hidden"
       >
         {options.map((option) => (

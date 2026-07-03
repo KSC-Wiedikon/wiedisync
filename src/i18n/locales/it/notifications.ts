@@ -68,6 +68,11 @@ export default {
   pushErrorGeneric: 'Servizio push non raggiungibile. Controlla le impostazioni del browser o prova Chrome/Firefox.',
   pushSubscribeFailed: 'Impossibile attivare le notifiche push.',
   pushUnsubscribeFailed: 'Impossibile disattivare le notifiche push.',
+  // Unread badge (aria-labels)
+  unreadShort_one: '{{count}} non letta',
+  unreadShort_other: '{{count}} non lette',
+  unreadBadge_one: '{{count}} notifica non letta',
+  unreadBadge_other: '{{count}} notifiche non lette',
   // Time helpers
   justNow: 'adesso',
   minutesAgo: '{{count}}min fa',

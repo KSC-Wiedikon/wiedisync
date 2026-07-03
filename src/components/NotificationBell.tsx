@@ -1,4 +1,5 @@
 import { Bell } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface NotificationBellProps {
   unreadCount: number
@@ -7,12 +8,13 @@ interface NotificationBellProps {
 }
 
 export default function NotificationBell({ unreadCount, onClick, className = '' }: NotificationBellProps) {
+  const { t } = useTranslation('notifications')
   return (
     <button
       data-tour="notification-bell"
       onClick={onClick}
       className={`relative rounded-lg p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-brand-800 ${className}`}
-      aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+      aria-label={unreadCount > 0 ? `${t('title')} (${t('unreadShort', { count: unreadCount })})` : t('title')}
     >
       <Bell className="h-6 w-6 text-gray-600 dark:text-gray-300" />
       {unreadCount > 0 && (

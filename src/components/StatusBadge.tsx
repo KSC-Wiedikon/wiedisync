@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 const defaultColors: Record<string, string> = {
   present: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
   absent: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
@@ -33,52 +35,23 @@ const defaultColors: Record<string, string> = {
   friendly: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
 }
 
-const labelMap: Record<string, string> = {
-  present: 'Present',
-  absent: 'Absent',
-  late: 'Late',
-  excused: 'Excused',
-  injury: 'Injury',
-  vacation: 'Vacation',
-  work: 'Work',
-  personal: 'Personal',
-  other: 'Other',
-  // Roles
-  user: 'User',
-  player: 'Player',
-  coach: 'Coach',
-  captain: 'Captain',
-  team_responsible: 'Team Resp.',
-  vorstand: 'Board',
-  admin: 'Admin',
-  vb_admin: 'VB Admin',
-  bb_admin: 'BB Admin',
-  superadmin: 'SuperAdmin',
-  superuser: 'Superuser',
-  website_admin: 'Website Admin',
-  finance: 'Finance',
-  // Event types
-  verein: 'Verein',
-  social: 'Social',
-  meeting: 'Meeting',
-  tournament: 'Tournament',
-  trainingsweekend: 'Trainingsweekend',
-  friendly: 'Friendly',
-}
-
 interface StatusBadgeProps {
   status: string
   className?: string
 }
 
 export default function StatusBadge({ status, className = '' }: StatusBadgeProps) {
+  const { t } = useTranslation('common')
   const colorClass = defaultColors[status] ?? defaultColors.other
+  // Roles + event types live under `common.badge.*`; attendance statuses reuse
+  // the flat `common.*` labels (present/absent/…). Fall back to the raw value.
+  const label = t(`badge.${status}`, { defaultValue: t(status, { defaultValue: status }) })
 
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${colorClass} ${className}`}
     >
-      {labelMap[status] ?? status}
+      {label}
     </span>
   )
 }
