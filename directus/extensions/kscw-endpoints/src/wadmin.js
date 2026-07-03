@@ -117,19 +117,34 @@ export function parseQuery(q) {
 // or none), so for non-superuser callers we reject any relational `fields` /
 // `sort` / `filter`. Managers (superuser) keep full flexibility — they can read
 // members via their own role regardless.
+// Scalar comparison operators Directus applies directly to a field's own column.
+// Anything else on a field (a nested field key, a relational op like _some/_none,
+// or an _and/_or group) means the filter walks a relation — which we must reject
+// for section-scoped admins (the ItemsService bypasses RLS). Allowlist, not a
+// `_`-prefix heuristic: `_some`/`_none`/`_and`/`_or` are `_`-prefixed too and were
+// the bypass in the first version of this guard (2026-07-03 review).
+const SCALAR_FILTER_OPS = new Set([
+  '_eq', '_neq', '_lt', '_lte', '_gt', '_gte', '_in', '_nin',
+  '_null', '_nnull', '_contains', '_ncontains', '_icontains',
+  '_starts_with', '_nstarts_with', '_istarts_with', '_ends_with', '_nends_with', '_iends_with',
+  '_between', '_nbetween', '_empty', '_nempty', '_regex',
+])
 function filterHasRelational(node) {
-  if (!node || typeof node !== 'object') return false
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return false
   for (const [k, v] of Object.entries(node)) {
     if (k === '_and' || k === '_or') {
+      // Top-level logical grouping of scalar filters is fine — recurse each arm.
       const arr = Array.isArray(v) ? v : []
       if (arr.some((sub) => filterHasRelational(sub))) return true
       continue
     }
-    if (k.startsWith('_')) continue // operator at this level — scalar op, fine
-    // k is a field key. A plain scalar filter is `{ field: { _op: ... } }`.
-    // If the value object holds a NON-operator key, it's a nested relation walk.
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      if (Object.keys(v).some((kk) => !kk.startsWith('_'))) return true
+    if (k.startsWith('_')) continue // stray top-level operator — nothing to walk
+    // k is a field key. Its value MUST be an object whose keys are ALL scalar
+    // operators; any other key (nested field, _some/_none, _and/_or, unknown op)
+    // is a relation walk → reject.
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return true
+    for (const opKey of Object.keys(v)) {
+      if (!SCALAR_FILTER_OPS.has(opKey)) return true
     }
   }
   return false

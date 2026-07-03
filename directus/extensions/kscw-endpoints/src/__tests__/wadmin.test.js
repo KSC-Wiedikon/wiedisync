@@ -179,3 +179,21 @@ describe('wadmin management', () => {
     await knex.destroy()
   })
 })
+
+import { assertScalarQuery } from '../wadmin.js'
+describe('wadmin assertScalarQuery — relational traversal guard (#4 + 2026-07-03 bypass)', () => {
+  const isRel = (q) => { try { assertScalarQuery(q); return false } catch { return true } }
+  it('allows plain scalar field filters / fields / sort', () => {
+    expect(isRel({ filter: { activity_id: { _eq: 5 } } })).toBe(false)
+    expect(isRel({ filter: { _and: [{ a: { _eq: 1 } }, { b: { _in: [2, 3] } }] } })).toBe(false)
+    expect(isRel({ fields: ['id', 'title'], sort: ['-date_created'] })).toBe(false)
+  })
+  it('rejects relational filter traversal incl. _some / _none / _and-as-value', () => {
+    expect(isRel({ filter: { invited_members: { members_id: { ahv_nummer: { _eq: 'x' } } } } })).toBe(true)
+    expect(isRel({ filter: { invited_members: { _some: { members_id: { ahv_nummer: { _starts_with: '756' } } } } } })).toBe(true)
+    expect(isRel({ filter: { invited_members: { _none: { members_id: { iban: { _nnull: true } } } } } })).toBe(true)
+    expect(isRel({ filter: { invited_members: { _and: [{ members_id: { email: { _eq: 'a' } } }] } } })).toBe(true)
+    expect(isRel({ fields: ['invited_members.members_id.ahv_nummer'] })).toBe(true)
+    expect(isRel({ sort: ['invited_members.members_id.email'] })).toBe(true)
+  })
+})
