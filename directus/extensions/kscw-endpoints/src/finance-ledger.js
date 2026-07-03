@@ -17,7 +17,7 @@
  */
 import { writeUserLog } from './activity-log.js'
 import { planYearEndClose } from './finance-close.js'
-import { loadLedgerSettings, reconcileAllLedger } from './finance-autopost.js'
+import { loadLedgerSettings, reconcileAllLedger, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
 
 const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense', 'close']
 const DIVISIONS = ['club', 'vb', 'bb']
@@ -276,6 +276,10 @@ export function registerFinanceLedger(router, { database, logger }) {
       // Whole close in one transaction with a row lock on the year, so a double-submit
       // / concurrent close can't post two Abschluss+Eröffnung sets. dry_run rolls back.
       const out = await database.transaction(async (trx) => {
+        // #12 (2026-07-03 audit): serialize with concurrent autopost (postAutoEntry takes the
+        // same advisory lock keyed on the fiscal year) so a leg can't slip into this year
+        // between our txn snapshot below and the status flip. Held for the whole close txn.
+        await trx.raw('SELECT pg_advisory_xact_lock(?::int, ?::int)', [FISCAL_YEAR_LOCK_NS, id])
         const fy = await trx('finance_fiscal_years').where('id', id).forUpdate().first()
         if (!fy) return { code: 404, msg: 'Fiscal year not found' }
         if (fy.status === 'closed') return { code: 409, msg: 'Fiscal year is already closed' }

@@ -25,6 +25,7 @@ export default function SchedulingLayout() {
   const {
     user, isLoading, teamsLoading, logout,
     hasAdminAccessToSport, is_spielplaner, isAdmin, spielplanerTeamIds,
+    coachTeamIds, teamResponsibleIds,
   } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
@@ -36,7 +37,11 @@ export default function SchedulingLayout() {
   if ((isLoading || teamsLoading) && isAuthenticated()) return null
 
   const canTerminplanung = hasAdminAccessToSport('volleyball') || is_spielplaner
-  const canPlanner = isAdmin || is_spielplaner || spielplanerTeamIds.length > 0
+  // Coaches/TRs reach the planner calendar only (read-only in v1) — never the
+  // Terminplanung dashboard (its reads need the club-wide Directus policy).
+  const canPlanner =
+    isAdmin || is_spielplaner || spielplanerTeamIds.length > 0 ||
+    coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   // The mailbox tab is reachable by either sport's admins (basketball-only
   // bb_admins included), wider than the terminplanung dashboard.
   const canMailbox = canTerminplanung || hasAdminAccessToSport('basketball')

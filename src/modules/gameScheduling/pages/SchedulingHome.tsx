@@ -18,6 +18,7 @@ export default function SchedulingHome() {
   const {
     user, isLoading, teamsLoading,
     hasAdminAccessToSport, is_spielplaner, isAdmin, spielplanerTeamIds,
+    coachTeamIds, teamResponsibleIds,
   } = useAuth()
   const { theme } = useTheme()
   const { t } = useTranslation('gameScheduling')
@@ -32,7 +33,11 @@ export default function SchedulingHome() {
   const canTerminplanung = hasAdminAccessToSport('volleyball') || is_spielplaner
   if (canTerminplanung) return <Navigate to="/admin/terminplanung" replace />
 
-  const canPlanner = isAdmin || is_spielplaner || spielplanerTeamIds.length > 0
+  // Coaches/TRs get READ-ONLY planner access (v1) — same landing as a scoped
+  // spielplaner; the page itself keeps edit rights spielplaner/admin-only.
+  const canPlanner =
+    isAdmin || is_spielplaner || spielplanerTeamIds.length > 0 ||
+    coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   if (canPlanner) return <Navigate to="/admin/spielplanung" replace />
 
   return (

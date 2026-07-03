@@ -380,6 +380,13 @@ export default {
   anmeldungenDocsCount: '{{count}} doc.',
   anmeldungenPdfOpenTab: 'PDF — ouvrir dans un nouvel onglet',
   anmeldungenDocAlt: 'Document',
+  // Inscriptions — renvoyer l'invitation WiediSync (lignes approuvées)
+  anmeldungenResendInvite: 'Renvoyer l\'invitation',
+  anmeldungenInviteSent: 'Invitation envoyée à {{email}}',
+  anmeldungenInviteAlreadyClaimed: 'Cette personne a déjà un compte',
+  anmeldungenInviteNoEmail: 'Cette inscription n\'a pas d\'adresse e-mail',
+  anmeldungenInviteNoMember: 'Aucun membre trouvé pour cette inscription pour le moment',
+  anmeldungenInviteError: 'Impossible d\'envoyer l\'invitation',
 
   // Infra health — VPS resources, slow-query table, status details
   infraVpsResources: 'Ressources VPS',

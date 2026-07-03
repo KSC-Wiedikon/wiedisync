@@ -126,6 +126,20 @@ export default {
   shellAccount: 'Temporär',
   expiresIn: 'läuft in {{days}}T ab',
   extend: 'Verlängern',
+  // WiediSync account invite (account-less roster members)
+  sendAccountInvite: 'WiediSync-Einladung senden',
+  accountInviteSent: 'Einladung an {{email}} gesendet',
+  accountInviteAlreadyClaimed: 'Diese Person hat bereits ein Konto',
+  accountInviteNoEmail: 'Dieses Mitglied hat keine E-Mail-Adresse',
+  accountInviteError: 'Einladung konnte nicht gesendet werden',
+  // QR- und Anleitungs-Modal nach dem Erstellen einer Einladung
+  accountInviteQrTitle: '{{name}} einladen',
+  accountInviteStep1: 'Diesen Code scannen oder den Link öffnen',
+  accountInviteStep2: 'Ein Passwort wählen',
+  accountInviteStep3: 'Fertig — du bist drin',
+  accountInviteEmailedTo: 'Wir haben den Link auch an {{email}} gesendet.',
+  accountInviteCopyLink: 'Link kopieren',
+  accountInviteCopied: 'Kopiert!',
   // Feature-Toggles
   featureToggles: 'Funktionen',
   featureTogglesDescription: 'Optionale Funktionen für dieses Team ein- oder ausschalten.',

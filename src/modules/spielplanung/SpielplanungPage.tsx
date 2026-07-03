@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select'
-import { FileSpreadsheet, ChevronDown } from 'lucide-react'
+import { FileSpreadsheet, ChevronDown, Eye } from 'lucide-react'
 import { useSpielplanungData } from './hooks/useSpielplanungData'
 import { useAvailableSeasons } from './hooks/useAvailableSeasons'
 import { checkConflicts } from './utils/gameConflicts'
@@ -49,6 +49,7 @@ function getInitialMonth(): Date {
 
 export default function SpielplanungPage() {
   const { t } = useTranslation('spielplanung')
+  const { t: tGs } = useTranslation('gameScheduling')
   const isMobile = useIsMobile()
   const [viewMode, setViewMode] = useState<ViewMode>(() => isMobile ? 'list-date' : 'calendar')
   const [filters, setFilters] = useState<SpielplanungFilterState>({
@@ -232,6 +233,15 @@ export default function SpielplanungPage() {
           /></div>
         </div>
       </div>
+
+      {/* Read-only notice — coaches/TRs (v1) can browse but hold no editable
+          teams; spielplaners/admins always have editableTeamIds > 0. */}
+      {!isLoading && editableTeamIds.length === 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+          <Eye className="h-4 w-4 shrink-0" aria-hidden />
+          <span>{tGs('plannerReadOnly')}</span>
+        </div>
+      )}
 
       {/* Filters */}
       <div data-tour="spielplanung-filters">

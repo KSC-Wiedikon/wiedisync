@@ -125,6 +125,20 @@ export default {
   shellAccount: 'Temporär',
   expiresIn: 'lauft in {{days}}T ab',
   extend: 'Verlängere',
+  // WiediSync account invite (account-less roster members)
+  sendAccountInvite: 'WiediSync-Yladig schicke',
+  accountInviteSent: 'Yladig an {{email}} gschickt',
+  accountInviteAlreadyClaimed: 'Die Person hät scho es Konto',
+  accountInviteNoEmail: 'Das Mitglied hät kei E-Mail-Adrässe',
+  accountInviteError: 'D Yladig hät nöd chönne gschickt werde',
+  // QR- und Aaleitigs-Modal noch em Erstelle vo ere Yladig
+  accountInviteQrTitle: '{{name}} yylade',
+  accountInviteStep1: 'Dää Code scanne oder de Link uufmache',
+  accountInviteStep2: 'Es Passwort wähle',
+  accountInviteStep3: 'Fertig — du bisch dinne',
+  accountInviteEmailedTo: 'Mir händ de Link au a {{email}} gschickt.',
+  accountInviteCopyLink: 'Link kopiere',
+  accountInviteCopied: 'Kopiert!',
 
   // Feature-Toggles
   featureToggles: 'Funktione',

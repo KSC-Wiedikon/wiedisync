@@ -87,8 +87,11 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
   // The whole game-scheduling feature opens as ONE entry — it has its own in-app
   // nav (dashboard / manual game calendar / settings) once you're in it. Full &
   // club Spielplaner land on Match scheduling (the dashboard); a per-team
-  // Spielplaner who can't reach Terminplanung lands on the manual game calendar.
-  const hasSchedulingAccess = isAdmin || is_spielplaner || spielplanerTeamIds.length > 0
+  // Spielplaner who can't reach Terminplanung lands on the manual game calendar,
+  // and so do coaches/TRs (read-only planner view in v1).
+  const hasSchedulingAccess =
+    isAdmin || is_spielplaner || spielplanerTeamIds.length > 0 ||
+    coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   const schedTo = isAdmin || is_spielplaner ? '/admin/terminplanung' : '/admin/spielplanung'
   const schedulingItem: NavItem | null = hasSchedulingAccess
     ? {

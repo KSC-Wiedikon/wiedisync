@@ -163,6 +163,17 @@ export function registerFinance(router, { database, logger, services, getSchema 
     return fy?.id ?? null
   }
 
+  // #10 (2026-07-03 audit): migrations 151/164 lock finance_transactions for closed years,
+  // but the invoice/payment SUB-ledger wasn't guarded — a payment/confirm/cancel in a closed
+  // year mutates the sub-ledger while autopost silently skips the GL, diverging the books.
+  // Guard every sub-ledger mutation on the invoice's fiscal-year status. `db` may be a trx.
+  async function fiscalYearClosed(db, fiscalYearId) {
+    if (!fiscalYearId) return false
+    const fy = await db('finance_fiscal_years').where('id', fiscalYearId).first('status')
+    return fy?.status === 'closed'
+  }
+  const FY_CLOSED_MSG = 'fiscal year is closed — post a correction in an open year'
+
   // ── POST /finance/invoices — create a native invoice ────────────────────
   router.post('/finance/invoices', async (req, res) => {
     try {
@@ -318,6 +329,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         const inv = await trx('finance_invoices').where('id', id).andWhere('source', 'native').forUpdate().first()
         if (!inv) return { code: 404, msg: 'Not found' }
         if (!['open', 'pending_confirmation', 'partial'].includes(inv.status)) return { code: 409, msg: `Invoice is ${inv.status}` }
+        if (await fiscalYearClosed(trx, inv.fiscal_year)) return { code: 409, msg: FY_CLOSED_MSG }
         const entries = await trx('finance_payments').where('invoice', id).select('amount', 'entry_type')
         const remaining = round2(deriveSettlement(entries, inv.amount, inv.status).open_amount)
         if (remaining > 0.005) {
@@ -358,6 +370,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         const inv = await trx('finance_invoices').where('id', id).andWhere('source', 'native').forUpdate().first()
         if (!inv) return { code: 404, msg: 'Not found (native invoice expected)' }
         if (inv.status === 'cancelled') return { code: 409, msg: 'Invoice is cancelled' }
+        if (await fiscalYearClosed(trx, inv.fiscal_year)) return { code: 409, msg: FY_CLOSED_MSG }
         const ins = await trx('finance_payments').insert({
           invoice: id, amount, entry_type: entryType, method, payment_date: paymentDate, note,
           source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
@@ -381,7 +394,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const id = Number(req.params.id)
       const pid = Number(req.params.pid)
       const out = await database.transaction(async (trx) => {
-        await trx('finance_invoices').where('id', id).andWhere('source', 'native').forUpdate().first('id') // lock
+        const invLock = await trx('finance_invoices').where('id', id).andWhere('source', 'native').forUpdate().first('id', 'fiscal_year') // lock
+        if (invLock && await fiscalYearClosed(trx, invLock.fiscal_year)) return { code: 409, msg: FY_CLOSED_MSG }
         const p = await trx('finance_payments').where('id', pid).andWhere('invoice', id).first('id', 'method')
         if (!p) return { code: 404, msg: 'Not found' }
         if (p.method === 'camt') return { code: 409, msg: 'camt entries are not deletable here (re-import is idempotent)' }
@@ -419,6 +433,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
       if (!inv) return res.status(404).json({ error: 'Not found' })
       if (inv.status === 'paid') return res.status(409).json({ error: 'Cannot cancel a paid invoice' })
+      if (await fiscalYearClosed(database, inv.fiscal_year)) return res.status(409).json({ error: FY_CLOSED_MSG })
       // #8/#10: a partially-paid invoice still has real cash recorded in
       // finance_payments. Cancelling zeroes open_amount and (with autopost) the
       // reconcile deletes the settle legs for that cash — understating the GL
@@ -732,13 +747,40 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const id = Number(req.params.id)
       const run = await database('finance_dues_runs').where('id', id).first()
       if (!run) return res.status(404).json({ error: 'Not found' })
-      const cancelled = await database('finance_invoices')
-        .where('dues_run', id).whereNotIn('status', ['paid', 'cancelled'])
-        .update({ status: 'cancelled', open_amount: 0, cancelled_at: new Date(), date_updated: new Date() })
-      await database('finance_dues_runs').where('id', id).update({ status: 'cancelled' })
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_dues_runs', recordId: id, data: { kind: 'dues_run_cancel', cancelled } })
-      await autopostDuesRunSafe(database, log, id) // cancelled invoices → remove their ledger postings
-      return res.json({ ok: true, cancelled })
+      // #10 (2026-07-03 audit): a run's invoices all sit in its fiscal year — if that's
+      // closed the sub-ledger is immutable; post a correction in an open year instead.
+      if (await fiscalYearClosed(database, run.fiscal_year)) return res.status(409).json({ error: FY_CLOSED_MSG })
+      // #6 (2026-07-03 audit): the single-invoice cancel guards received cash, but this bulk
+      // path didn't — cancelling an invoice with real money recorded zeroes open_amount and
+      // (with autopost) drops its settle legs, stranding that cash in the GL. Only cancel
+      // invoices with net received cash (payments − refunds) ≤ 0; skip the rest and report.
+      const candidates = await database('finance_invoices')
+        .where('dues_run', id).whereNotIn('status', ['paid', 'cancelled']).pluck('id')
+      const toCancel = []
+      let skipped = 0
+      if (candidates.length) {
+        const cashRows = await database('finance_payments')
+          .whereIn('invoice', candidates).groupBy('invoice').select('invoice')
+          .select(database.raw("COALESCE(SUM(CASE WHEN COALESCE(entry_type,'payment')='payment' THEN amount WHEN entry_type='refund' THEN -amount ELSE 0 END),0) AS net_cash"))
+        const netById = new Map(cashRows.map((r) => [Number(r.invoice), round2(Number(r.net_cash) || 0)]))
+        for (const invId of candidates) {
+          if ((netById.get(Number(invId)) || 0) > 0.005) skipped++
+          else toCancel.push(invId)
+        }
+      }
+      let cancelled = 0
+      if (toCancel.length) {
+        cancelled = await database('finance_invoices').whereIn('id', toCancel)
+          .update({ status: 'cancelled', open_amount: 0, cancelled_at: new Date(), date_updated: new Date() })
+      }
+      // Only mark the whole run cancelled when nothing was left behind; otherwise it still
+      // has live invoices with received cash the treasurer must refund/write off first.
+      if (skipped === 0) await database('finance_dues_runs').where('id', id).update({ status: 'cancelled' })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_dues_runs', recordId: id, data: { kind: 'dues_run_cancel', cancelled, skipped } })
+      // Reconcile the run: cancelled invoices get their ledger postings removed; the skipped
+      // (still-live) ones keep their correct legs. autopostDuesRunSafe is idempotent.
+      await autopostDuesRunSafe(database, log, id)
+      return res.json({ ok: true, cancelled, skipped })
     } catch (e) { return err(res, req, 'dues-cancel', e) }
   })
 

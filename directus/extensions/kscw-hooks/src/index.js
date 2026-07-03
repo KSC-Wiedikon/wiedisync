@@ -23,6 +23,7 @@ import { logCronError, logCronRun, logWarning, logAuthDenial, cleanOldLogs, writ
 import { initSentry } from '../../kscw-endpoints/src/sentry.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, bucketEmailsByLocale } from '../../kscw-endpoints/src/email-template.js'
 import { sendLocalizedPush, bucketMembersByLocale, tPush } from '../../kscw-endpoints/src/push-i18n.js'
+import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-endpoints/src/signup-invites.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
@@ -210,10 +211,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     })
   })
 
-  // Block unauthenticated members.create / feedback.create / event_signups.create without valid Turnstile
+  // Block unauthenticated members.create / feedback.create / event_signups.create / mixed_tournament_signups.create without valid Turnstile
   filter('items.create', async (payload, meta, context) => {
     const collection = meta.collection
-    if (collection !== 'members' && collection !== 'feedback' && collection !== 'event_signups') return payload
+    if (collection !== 'members' && collection !== 'feedback' && collection !== 'event_signups' && collection !== 'mixed_tournament_signups') return payload
 
     // Skip for authenticated users (admins creating members, logged-in feedback)
     if (context.accountability?.user) return payload
@@ -266,6 +267,35 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   action('feedback.items.create', async ({ key }) => { await quarantineFeedbackScreenshot(key) })
   action('feedback.items.update', async ({ keys }) => {
     for (const k of (Array.isArray(keys) ? keys : [])) await quarantineFeedbackScreenshot(k)
+  })
+
+  // ── Registration ID scans → private folder (security audit HIGH #3) ──────
+  // Registration uploads — government-ID front/back plus basketball licence /
+  // self- & national-declaration docs — are posted anon via POST /files and are
+  // therefore FOLDER-LESS, i.e. anon-readable via GET /assets/:id (live PII
+  // leak). Mirror the feedback quarantine: move every attached file into the
+  // private folder on create/update so /assets 403s them for anon while the
+  // folder-less public photos keep serving. Migration 167 creates the folder
+  // with this fixed UUID on every environment and moves the EXISTING files;
+  // this hook covers FUTURE uploads. Best-effort (try/catch + log).
+  const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
+  const REGISTRATION_FILE_COLS = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl']
+  async function quarantineRegistrationDocs(registrationId) {
+    try {
+      if (!registrationId) return
+      const row = await database('registrations').where('id', registrationId).select(...REGISTRATION_FILE_COLS).first()
+      const ids = new Set()
+      for (const col of REGISTRATION_FILE_COLS) { if (row?.[col]) ids.add(row[col]) }
+      if (ids.size > 0) {
+        await database('directus_files').whereIn('id', [...ids]).update({ folder: REGISTRATION_FILES_FOLDER })
+      }
+    } catch (err) {
+      log.error({ msg: `[registration-quarantine] ${err.message}`, event: 'registration_quarantine', stack: err.stack })
+    }
+  }
+  action('registrations.items.create', async ({ key }) => { await quarantineRegistrationDocs(key) })
+  action('registrations.items.update', async ({ keys }) => {
+    for (const k of (Array.isArray(keys) ? keys : [])) await quarantineRegistrationDocs(k)
   })
 
   // ── 0b. Cascade: Directus user deletion → delete linked member ──
@@ -429,6 +459,32 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (roles.includes('admin') || roles.includes('superuser')) return payload
     for (const f of PRIVILEGE_FLAGS) {
       if (f in payload) { delete payload[f]; log.warn({ msg: `[priv-strip] non-admin attempted members.${f} on create — stripped`, userId }) }
+    }
+    return payload
+  })
+
+  // ── Duplicate-email guard on members create (items API) ─────────────────
+  // Same-PERSON duplicates via the items API get blocked; same-email
+  // different-first-name creates pass — that's a family sharing an address
+  // (verified on prod 2026-07-03: Galeczki + Stinson sibling pairs each share
+  // a parent email with distinct clubdesk_ids — legitimate admin adds, NOT
+  // duplicates). This is also why there is deliberately NO DB unique index on
+  // members.email. Raw-knex paths (signup invites, registration approval,
+  // team-invite claims) carry their own dedup logic and bypass items filters
+  // by design. Uses the same symmetric first-name-prefix rule as
+  // createMemberFromRegistration (firstNamesMatch, hoisted from below).
+  filter('members.items.create', async (payload) => {
+    const email = String(payload?.email || '').trim().toLowerCase()
+    if (!email) return payload
+    const existingRows = await database('members')
+      .whereRaw('LOWER(email) = ?', [email])
+      .select('id', 'first_name', 'last_name')
+    const samePerson = existingRows.find(r => firstNamesMatch(r.first_name, payload?.first_name))
+    if (samePerson) {
+      throw kscwScopeError(
+        `A member with this email already exists (#${samePerson.id} ${[samePerson.first_name, samePerson.last_name].filter(Boolean).join(' ')}). Edit the existing member instead of creating a duplicate. (A different family member sharing this email needs a different first name.)`,
+        400, 'DUPLICATE_EMAIL'
+      )
     }
     return payload
   })
@@ -2813,7 +2869,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         .where('shell_reminder_sent', false)
         .whereNotNull('shell_expires')
         .whereRaw("shell_expires::date <= ?::date", [reminderStr])
-        .select('id', 'email', 'first_name', 'shell_expires')
+        .select('id', 'email', 'first_name', 'shell_expires', 'user')
 
       if (expiring.length === 0) return
 
@@ -2824,10 +2880,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       for (const m of expiring) {
         if (!m.email || m.email.includes('@placeholder')) continue
         try {
+          // Account-less shells (registration-born or unclaimed invites) get a
+          // fresh member-bound signup link — the reminder used to dead-end
+          // with no link at all.
+          let linkLine = ''
+          if (!m.user) {
+            try {
+              const { token } = await mintSignupToken(database, m.id, { mintedVia: 'reminder' })
+              linkLine = `\n\nDu hast noch kein Konto? Erstelle es hier (Link 30 Tage gültig):\n${signupInviteUrl(token)}`
+            } catch { /* best-effort — reminder still goes out without a link */ }
+          }
           await mailService.send({
             to: m.email,
             subject: 'WiediSync — Dein Gastkonto läuft bald ab',
-            text: `Hallo ${m.first_name || ''},\n\nDein WiediSync-Gastkonto läuft am ${m.shell_expires} ab.\nMelde dich bei deinem Coach, um es zu verlängern.\n\nKSC Wiedikon`,
+            text: `Hallo ${m.first_name || ''},\n\nDein WiediSync-Gastkonto läuft am ${m.shell_expires} ab.\nMelde dich bei deinem Coach, um es zu verlängern.${linkLine}\n\nKSC Wiedikon`,
           })
           await database('members').where('id', m.id).update({ shell_reminder_sent: true })
         } catch (mailErr) {
@@ -3380,9 +3446,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       approvedSubject: 'Anmeldung bestätigt — KSC Wiedikon',
       approvedGreeting: name => `Hallo ${name},`,
       approvedBody: `<p style="text-align:justify">Deine Anmeldung wurde geprüft und bestätigt. Willkommen beim KSC Wiedikon!</p>
-        <p style="text-align:justify"><strong style="color:#e2e8f0">Nächster Schritt:</strong> Erstelle dein Konto auf unserer Vereinsplattform WiediSync, um Spielpläne, Trainings und Teaminfos zu sehen.</p>
-        <p style="text-align:justify">Bei Fragen erreichst du uns unter <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
+        <p style="text-align:justify"><strong style="color:#e2e8f0">So erstellst du dein Konto auf WiediSync:</strong></p>`,
+      approvedSteps: ['Klicke unten auf den Button.', 'Wähle ein Passwort und bestätige es.', 'Fertig — du siehst Spielpläne, Trainings und Teaminfos.'],
+      approvedContactLine: `<p style="text-align:justify">Bei Fragen erreichst du uns unter <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
       approvedCtaLabel: 'Konto erstellen',
+      approvedCtaLabelLogin: 'Zum Login',
+      approvedBodyExisting: `<p style="text-align:justify">Deine Anmeldung wurde geprüft und bestätigt. Willkommen beim KSC Wiedikon!</p>
+        <p style="text-align:justify"><strong style="color:#e2e8f0">Nächster Schritt:</strong> Melde dich mit deinem bestehenden WiediSync-Konto an, um Spielpläne, Trainings und Teaminfos zu sehen.</p>
+        <p style="text-align:justify">Bei Fragen erreichst du uns unter <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
+      approvedTokenNote: 'Der Link ist 30 Tage gültig und kann nur einmal verwendet werden.',
       approvedFooter: 'Sportliche Grüsse — KSC Wiedikon',
       rejectedTitle: 'Anmeldung abgelehnt',
       rejectedSubtitle: 'KSC Wiedikon',
@@ -3400,9 +3472,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       approvedSubject: 'Registration Approved — KSC Wiedikon',
       approvedGreeting: name => `Hello ${name},`,
       approvedBody: `<p style="text-align:justify">Your registration has been reviewed and approved. Welcome to KSC Wiedikon!</p>
-        <p style="text-align:justify"><strong style="color:#e2e8f0">Next step:</strong> Create your account on our club platform WiediSync to see schedules, trainings, and team info.</p>
-        <p style="text-align:justify">For questions, reach us at <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
+        <p style="text-align:justify"><strong style="color:#e2e8f0">How to create your account on WiediSync:</strong></p>`,
+      approvedSteps: ['Tap the button below.', 'Choose a password and confirm it.', 'Done — you can see schedules, trainings, and team info.'],
+      approvedContactLine: `<p style="text-align:justify">For questions, reach us at <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
       approvedCtaLabel: 'Create account',
+      approvedCtaLabelLogin: 'Log in',
+      approvedBodyExisting: `<p style="text-align:justify">Your registration has been reviewed and approved. Welcome to KSC Wiedikon!</p>
+        <p style="text-align:justify"><strong style="color:#e2e8f0">Next step:</strong> Log in with your existing WiediSync account to see schedules, trainings, and team info.</p>
+        <p style="text-align:justify">For questions, reach us at <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
+      approvedTokenNote: 'The link is valid for 30 days and can only be used once.',
       approvedFooter: 'Best regards — KSC Wiedikon',
       rejectedTitle: 'Registration Rejected',
       rejectedSubtitle: 'KSC Wiedikon',
@@ -3458,12 +3536,52 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   }
 
   // ── Create or link member from approved registration ───────────
+  // Symmetric first-name-prefix match (same rule the ClubDesk linker uses):
+  // "Dani" ↔ "Daniel" is the same person; "Anna" ↔ "Luca" is not. Missing
+  // data counts as a match so legacy rows without names still link.
+  function firstNamesMatch(a, b) {
+    const x = String(a || '').toLowerCase().trim()
+    const y = String(b || '').toLowerCase().trim()
+    if (!x || !y) return true
+    return x === y || x.startsWith(y) || y.startsWith(x)
+  }
+
   async function createMemberFromRegistration(db, reg, log) {
     const email = reg.email.toLowerCase().trim()
     const rolle = (reg.rolle || '').toLowerCase()
 
-    // 1. Check if member already exists
-    const existingMember = await db('members').where('email', email).first()
+    // 1. Check if member already exists (case-insensitive). Fetch ALL rows for
+    // the email and pick the NAME-MATCHING one. A bare .first() with no
+    // ORDER BY returns an arbitrary same-email row when a family shares the
+    // address — if it happened to return the sibling, the name guard below
+    // nulled it and a duplicate row was created for a person who already
+    // existed. This is why members.email deliberately has no unique index.
+    const emailRows = await db('members').whereRaw('LOWER(email) = ?', [email])
+    let existingMember = emailRows.find(r => firstNamesMatch(r.first_name, reg.vorname)) || null
+    if (!existingMember && emailRows.length) {
+      // Same email, no name match → a DIFFERENT person shares the address
+      // (parent/sibling). Create a separate row rather than graft onto them.
+      log.warn({
+        msg: `Registration email matches ${emailRows.length} member(s) but none name-matches "${reg.vorname}" — creating a separate member (shared family email)`,
+        email,
+      })
+    }
+
+    // Orphan directus_users with this email (account imported/created outside
+    // the normal flow) — link it so the approval email says "log in" instead
+    // of minting a dead invite. CRITICAL: "orphan" means NO member row
+    // references this user. A same-email user that a DIFFERENT member already
+    // owns (parent's activated account under a shared family email) must NOT
+    // be adopted here — that would point two member rows at one login and let
+    // the sibling's session resolve to the parent's identity. Leave the new
+    // row unlinked; its signup token will hit the directus_users.email unique
+    // constraint and the redeemer is told to get a personal email.
+    const orphanUser = await db('directus_users')
+      .whereRaw('LOWER(directus_users.email) = ?', [email])
+      .whereNotExists(function () {
+        this.select(db.raw('1')).from('members').whereRaw('members."user" = directus_users.id')
+      })
+      .select('id').first()
 
     let memberId
     if (existingMember) {
@@ -3485,6 +3603,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       for (const lic of newLicences) {
         if (!existingMember[lic]) updates[lic] = true
       }
+      if (!existingMember.user && orphanUser) updates.user = orphanUser.id
       if (Object.keys(updates).length) {
         await db('members').where('id', memberId).update(updates)
       }
@@ -3523,6 +3642,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         birthdate_visibility: 'hidden',
         language: lang,
         role: JSON.stringify(['user']),
+        ...(orphanUser ? { user: orphanUser.id } : {}),
       }).returning('id')
 
       memberId = member.id || member
@@ -3631,27 +3751,89 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             }
           }
 
-          // ── 2. Confirmation email to user (CC coach/TR) ──
-          const approvalHtml = buildEmailLayout(
-            summaryCard + `<div style="font-size:13px;color:#94a3b8;line-height:1.7;margin-top:12px">${l.approvedBody}</div>`,
-            { title: l.approvedTitle, subtitle: l.approvedSubtitle, sport, greeting: l.approvedGreeting(reg.vorname), footerExtra: l.approvedFooter, ctaUrl: `${FRONTEND_URL}/signup`, ctaLabel: l.approvedCtaLabel }
-          )
-          await mail.send({
-            to: reg.email,
-            ...(coachTrCc.length ? { cc: coachTrCc } : {}),
-            subject: l.approvedSubject,
-            html: approvalHtml,
-          })
-          log.info({ msg: 'Approval confirmation sent', id, email: reg.email, cc: coachTrCc.length })
-
-          // ── 3. Create or link member in Directus ──
+          // ── 2. Create or link member in Directus FIRST ──
+          // The approval email carries a member-bound signup token, so the
+          // member row must exist before the email is built. (The old order —
+          // email first, creation second with failures swallowed — could send
+          // a CTA into the void with no member row at all.)
+          let memberId = null
           try {
-            await createMemberFromRegistration(database, reg, log)
+            memberId = await createMemberFromRegistration(database, reg, log)
           } catch (memberErr) {
             log.error({ msg: `Member creation failed: ${memberErr.message}`, id, stack: memberErr.stack })
           }
 
-          // ── 4. CSV email to sport-specific admins (per-recipient locale) ──
+          // ── 3. Mint a signup token when the member has no account yet ──
+          let inviteToken = null
+          let hasAccount = false
+          if (memberId) {
+            try {
+              const memberRow = await database('members')
+                .where('id', memberId).select('user').first()
+              hasAccount = !!memberRow?.user
+              if (!hasAccount) {
+                const minted = await mintSignupToken(database, memberId, { mintedVia: 'registration' })
+                inviteToken = minted.token
+              }
+            } catch (mintErr) {
+              // Token is an enhancement — the member can still claim via
+              // /signup email-match if minting fails.
+              log.error({ msg: `Signup token mint failed: ${mintErr.message}`, id, memberId, stack: mintErr.stack })
+            }
+          }
+
+          // ── 4. Confirmation email to user (CC coach/TR) ──
+          if (memberId) {
+            // CTA: invite link when we minted a token; /login when the person
+            // already has an account; otherwise (mint failed for an
+            // account-less member) /signup — the email-match claim flow still
+            // lets an existing member activate. Never pair a "create account"
+            // body with a "log in" button (dead end for the account-less).
+            const ctaUrl = inviteToken ? signupInviteUrl(inviteToken)
+              : (hasAccount ? `${FRONTEND_URL}/login` : `${FRONTEND_URL}/signup`)
+            const ctaLabel = (inviteToken || !hasAccount) ? l.approvedCtaLabel : l.approvedCtaLabelLogin
+            // Account-less registrants get the numbered how-to guide; people
+            // who already have an account get the "log in" copy (no guide).
+            const guideHtml = (!hasAccount && l.approvedSteps) ? buildGuideHtml(l.approvedSteps) : ''
+            const contactLine = l.approvedContactLine || ''
+            const bodyCopy = hasAccount ? l.approvedBodyExisting : (l.approvedBody + guideHtml + contactLine)
+            const tokenNote = inviteToken
+              ? `<p style="text-align:justify;color:#64748b;font-size:12px;margin-top:8px">${l.approvedTokenNote}</p>`
+              : ''
+            const approvalHtml = buildEmailLayout(
+              summaryCard + `<div style="font-size:13px;color:#94a3b8;line-height:1.7;margin-top:12px">${bodyCopy}${tokenNote}</div>`,
+              { title: l.approvedTitle, subtitle: l.approvedSubtitle, sport, greeting: l.approvedGreeting(reg.vorname), footerExtra: l.approvedFooter, ctaUrl, ctaLabel }
+            )
+            await mail.send({
+              to: reg.email,
+              ...(coachTrCc.length ? { cc: coachTrCc } : {}),
+              subject: l.approvedSubject,
+              html: approvalHtml,
+            })
+            log.info({ msg: 'Approval confirmation sent', id, email: reg.email, cc: coachTrCc.length, invited: !!inviteToken })
+          } else {
+            // Member creation failed → registrant email would be a dead end
+            // (open registration is closed). Alert the sport admins instead so
+            // they can fix the data and re-approve.
+            try {
+              const recipients = await getApprovalRecipients(reg.membership_type)
+              const alertTos = [...new Set([...(recipients.to || []), ...(recipients.cc || [])])]
+              if (alertTos.length) {
+                await mail.send({
+                  to: alertTos,
+                  subject: `[KSCW] Anmeldung ${reg.reference_number}: Mitglied-Erstellung fehlgeschlagen`,
+                  html: buildEmailLayout(
+                    summaryCard + `<div style="font-size:13px;color:#94a3b8;line-height:1.7;margin-top:12px"><p style="text-align:justify">Die Anmeldung wurde auf "bestätigt" gesetzt, aber das Mitglied konnte nicht erstellt werden. Der/die Anmeldende hat KEINE Bestätigungs-E-Mail erhalten. Bitte Daten prüfen und die Anmeldung erneut bestätigen (Status kurz auf "pending" und wieder auf "approved" setzen).</p></div>`,
+                    { title: 'Mitglied-Erstellung fehlgeschlagen', subtitle: reg.reference_number, sport }
+                  ),
+                })
+              }
+            } catch (alertErr) {
+              log.error({ msg: `Member-creation-failure alert failed: ${alertErr.message}`, id })
+            }
+          }
+
+          // ── 5. CSV email to sport-specific admins (per-recipient locale) ──
           const csv = buildRegistrationCSV(reg)
           const csvBuffer = Buffer.from(csv, 'utf-8')
           const filename = `anmeldung_${reg.nachname}_${reg.vorname}_${reg.reference_number}.csv`
@@ -3799,6 +3981,56 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       throw kscwScopeError('Team is not in your Spielplaner scope', 403, 'FORBIDDEN')
     }
     return payload
+  })
+
+  // ── Manual-game update/delete: per-team scope for assignment-scoped ──────
+  // Spielplaners. The per-user 'KSCW Spielplaner' policy grants games
+  // update/delete row-filtered to source='manual' (setup-permissions.mjs §9d)
+  // but has no team dimension — this guard adds it, mirroring the create
+  // guard above. Members with no spielplaner relation (e.g. TRs confirming
+  // duties) pass through: their own policies' row filters are the gate.
+  // payloadTeam: on UPDATE, the destination team the payload wants to set (if
+  // it touches kscw_team) — a scoped spielplaner must not move a manual game
+  // INTO a team outside their scope either, so the target team is validated
+  // against the same allowed set as the stored team.
+  async function assertManualGamesInScope(db, accountability, gameIds, payloadTeam) {
+    if (!accountability?.user || accountability.admin) return
+    if (!Array.isArray(gameIds) || !gameIds.length) return
+    const member = await db('members')
+      .where('user', accountability.user).first('id', 'is_spielplaner')
+    if (!member) return
+    if (member.is_spielplaner === true) return // club-wide scope
+    const assignments = (await db('spielplaner_assignments')
+      .where('member', member.id).pluck('kscw_team')).filter(v => v != null)
+    if (!assignments.length) return // not a spielplaner — policy filters gate
+    // Dual-role: a coach/TR keeps their LEADER-policy write on manual games of
+    // teams they lead even when those teams aren't in their Spielplaner
+    // assignments. Union them in so the guard never 403s an update the LEADER
+    // policy legitimately grants (the policy's own kscw_team row filter is the
+    // real gate for that path).
+    const coachTeams = await db('teams_coaches').where('members_id', member.id).pluck('teams_id')
+    const trTeams = await db('teams_responsibles').where('members_id', member.id).pluck('teams_id')
+    const allowed = new Set([...assignments, ...coachTeams, ...trTeams].filter(v => v != null))
+    const rows = await db('games').whereIn('id', gameIds).select('id', 'source', 'kscw_team')
+    for (const r of rows) {
+      if (r.source !== 'manual') continue
+      if (!allowed.has(r.kscw_team)) {
+        throw kscwScopeError('Game is not in your Spielplaner scope', 403, 'FORBIDDEN')
+      }
+      // Block moving a manual game INTO an out-of-scope team.
+      if (payloadTeam != null && payloadTeam !== r.kscw_team && !allowed.has(payloadTeam)) {
+        throw kscwScopeError('Target team is not in your Spielplaner scope', 403, 'FORBIDDEN')
+      }
+    }
+  }
+  filter('games.items.update', async (payload, meta, { accountability, database: db }) => {
+    const payloadTeam = payload && 'kscw_team' in payload ? payload.kscw_team : undefined
+    await assertManualGamesInScope(db, accountability, meta?.keys || [], payloadTeam)
+    return payload
+  })
+  filter('games.items.delete', async (keys, _meta, { accountability, database: db }) => {
+    await assertManualGamesInScope(db, accountability, keys || [])
+    return keys
   })
 
   // ── Scheduling blocks create: stamp creator + enforce team scope ────────

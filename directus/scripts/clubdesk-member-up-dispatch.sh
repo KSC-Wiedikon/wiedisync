@@ -7,7 +7,13 @@
 # Twin of the down dispatcher.
 #
 # Install at /opt/clubdesk-sync/ and wire to root crontab, e.g.:
-#   * * * * * DB=directus_kscw_dev /opt/clubdesk-sync/clubdesk-member-up-dispatch.sh >> /opt/clubdesk-sync/up-dispatch.log 2>&1
+#   * * * * * CLUBDESK_ENV=prod CLUBDESK_UP_COMMIT=1 /opt/clubdesk-sync/clubdesk-member-up-dispatch.sh >> /opt/clubdesk-sync/up-dispatch.log 2>&1
+#
+# CLUBDESK_ENV (dev|prod) is the ONE knob — it derives the target DB with the SAME
+# mapping as the down dispatcher / clubdesk-sync.sh, so a mis-wired cron can't claim on
+# one env while pushing another. There is NO dev ClubDesk instance (single shared
+# account), so a WRITE (commit) is only ever performed when CLUBDESK_ENV=prod AND
+# CLUBDESK_UP_COMMIT=1; any other env is forced to dry-run regardless of the commit flag.
 #
 # ⚠ up_csv carries member PII (AHV/address) — the file is trap-cleaned and up_csv is
 #   nulled in the DB after the run; never let either linger.
@@ -18,8 +24,25 @@
 set -uo pipefail
 DIR=/opt/clubdesk-sync
 PG=supabase-db-vek42jyj0owoutoouq29aisq
-DB="${DB:-postgres}"
 PW_IMG=mcr.microsoft.com/playwright:v1.60.0-jammy
+
+# ── Single env selection (claim/write-back DB must never diverge from the push
+# TARGET) ────────────────────────────────────────────────────────────────────────
+# CLUBDESK_ENV is the ONE knob: it derives the DB this dispatcher claims/writes back to
+# using the SAME dev/prod mapping as clubdesk-sync.sh + the down dispatcher. Fail fast
+# on a bad env, and — for legacy crons that still set DB directly — fail fast if that
+# explicit DB disagrees.
+DB_REQUESTED="${DB:-}"   # capture any explicit override BEFORE we derive the real DB
+CLUBDESK_ENV="${CLUBDESK_ENV:-prod}"
+case "$CLUBDESK_ENV" in
+  prod) DB=postgres ;;
+  dev)  DB=directus_kscw_dev ;;
+  *) echo "FATAL: bad CLUBDESK_ENV '$CLUBDESK_ENV' (expected dev|prod)" >&2; exit 1 ;;
+esac
+if [ -n "$DB_REQUESTED" ] && [ "$DB_REQUESTED" != "$DB" ]; then
+  echo "FATAL: explicit DB=$DB_REQUESTED conflicts with CLUBDESK_ENV=$CLUBDESK_ENV (→ $DB)" >&2; exit 1
+fi
+export CLUBDESK_ENV
 
 # Per-env claim lock (dev vs prod process their own requests independently); the
 # ClubDesk scrape itself is serialised on the shared .sync.lock further down.
@@ -60,6 +83,15 @@ iconv -f UTF-8 -t WINDOWS-1252//TRANSLIT "$CSVUTF" > "$CSV" 2>/dev/null || cp "$
 #    whether it truly UPDATES vs DUPLICATES a matched contact) must be validated on a
 #    live import before enabling CLUBDESK_UP_COMMIT=1 on prod. Leave it unset until then.
 COMMIT_ENABLED="${CLUBDESK_UP_COMMIT:-0}"
+#  (c) HARD ENV GUARD: ClubDesk is a single shared (prod) account — there is no dev
+#      ClubDesk instance. A commit from the dev cron would write scrubbed test data into
+#      the club's legal member register, so a WRITE is only ever allowed when
+#      CLUBDESK_ENV=prod. On any other env we force dry-run (never commit) even if the
+#      operator set CLUBDESK_UP_COMMIT=1.
+if [ "$COMMIT_ENABLED" = "1" ] && [ "$CLUBDESK_ENV" != "prod" ]; then
+  echo "REFUSING commit: CLUBDESK_ENV=$CLUBDESK_ENV (not prod) — forcing dry-run (no dev ClubDesk instance)" >&2
+  COMMIT_ENABLED=0
+fi
 
 PREVIEW=$(flock "$DIR/.sync.lock" docker run --rm -w /work -v "$DIR":/work --env-file "$DIR/.env" "$PW_IMG" \
   node /work/clubdesk-scrape-import.mjs /work/up-import.csv preview 2>>"$DIR/up-run.log" | tail -1)
@@ -74,9 +106,15 @@ fi
 
 if [ "$COMMIT_ENABLED" != "1" ]; then
   RES_ESC=${PREVIEW//\'/\'\'}
+  if [ "$CLUBDESK_ENV" != "prod" ]; then
+    DRY_MSG="Dry-run OK — commit refused on CLUBDESK_ENV=${CLUBDESK_ENV} (no dev ClubDesk instance; only prod may write)"
+  else
+    DRY_MSG='Dry-run OK — commit disabled (set CLUBDESK_UP_COMMIT=1 to write)'
+  fi
+  DRY_MSG_ESC=${DRY_MSG//\'/\'\'}
   # Dry-run only: nothing was written, so clubdesk_push_pending stays set for a real
   # commit later. Do NOT touch members here.
-  psqlc "UPDATE clubdesk_member_sync SET up_state='done', up_requested_at=NULL, up_finished_at=now(), up_message='Dry-run OK — commit disabled (set CLUBDESK_UP_COMMIT=1 to write)', up_result='${RES_ESC}'::jsonb, up_csv=NULL WHERE id=1"
+  psqlc "UPDATE clubdesk_member_sync SET up_state='done', up_requested_at=NULL, up_finished_at=now(), up_message='${DRY_MSG_ESC}', up_result='${RES_ESC}'::jsonb, up_csv=NULL WHERE id=1"
   echo "=== up-dispatch: dry-run OK, commit disabled ==="; exit 0
 fi
 

@@ -193,4 +193,18 @@ export default {
   staffRemoved: '{{name}} rimosso/a',
   removeStaffTitle: 'Rimuovi ruolo',
   removeStaffMessage: 'Rimuovere {{name}} ({{role}})?',
+  // WiediSync account invite (account-less roster members)
+  sendAccountInvite: 'Invia invito WiediSync',
+  accountInviteSent: 'Invito inviato a {{email}}',
+  accountInviteAlreadyClaimed: 'Questa persona ha già un account',
+  accountInviteNoEmail: 'Questo membro non ha un indirizzo e-mail',
+  accountInviteError: 'Impossibile inviare l\'invito',
+  // Finestra QR + guida mostrata dopo aver creato un invito
+  accountInviteQrTitle: 'Invita {{name}}',
+  accountInviteStep1: 'Scansiona questo codice o apri il link',
+  accountInviteStep2: 'Scegli una password',
+  accountInviteStep3: 'Fatto — sei dentro',
+  accountInviteEmailedTo: 'Abbiamo inviato il link anche a {{email}}.',
+  accountInviteCopyLink: 'Copia link',
+  accountInviteCopied: 'Copiato!',
 } as const

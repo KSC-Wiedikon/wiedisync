@@ -11,6 +11,7 @@ import { spawn } from 'node:child_process'
 import { syncSvGames, syncSvRankings } from './sv-sync.js'
 import { syncBpGames, syncBpRankings } from './bp-sync.js'
 import { registerPasswordReset } from './password-reset.js'
+import { registerSignupInvites } from './signup-invites.js'
 import { registerICalFeed } from './ical-feed.js'
 import { registerPublicEvents } from './public-events.js'
 import { registerForms } from './forms.js'
@@ -991,9 +992,23 @@ export default {
         const token = randomToken(32)
         const expiresAt = addDays(new Date(), 7).toISOString()
 
+        // invited_by is an integer member id (NOT the user UUID) — the old code
+        // wrote a non-existent created_by column with the UUID, which 42703'd
+        // every create since launch (found 2026-07-03, prod had 0 invites).
+        const actingMember = await database('members')
+          .where('user', userId).select('id').first()
         await database('team_invites').insert({
           team: teamId, token, guest_level: gl, status: 'pending',
-          expires_at: expiresAt, created_by: userId,
+          expires_at: expiresAt, invited_by: actingMember?.id ?? null,
+          date_created: new Date().toISOString(),
+        })
+
+        await writeUserLog(database, log, {
+          accountability: req.accountability,
+          action: 'create',
+          collection: 'team_invites',
+          recordId: teamId,
+          data: { team: teamId, guest_level: gl, expires_at: expiresAt },
         })
 
         res.json({ token, qr_url: `${FRONTEND_URL}/join?token=${token}`, expires_at: expiresAt })
@@ -1025,9 +1040,26 @@ export default {
           return res.status(400).json({ error: 'Invite expired' })
         }
 
-        // Check email not taken
-        const existing = await database('members').where('email', email).first()
-        if (existing) return res.status(400).json({ error: 'Email already registered' })
+        // Check email not taken — case-insensitive, and also against
+        // directus_users + members.vm_email (same standard as /register).
+        // The old exact-match members-only check let an existing member with a
+        // differently-cased or secondary email claim an invite and become a
+        // duplicate shell row.
+        const existing = await database('members')
+          .whereRaw('LOWER(email) = ?', [email]).first()
+        if (existing) {
+          return res.status(400).json({ error: 'Email already registered', code: 'email_exists' })
+        }
+        const existingUser = await database('directus_users')
+          .whereRaw('LOWER(email) = ?', [email]).select('id').first()
+        if (existingUser) {
+          return res.status(400).json({ error: 'Email already registered', code: 'email_exists' })
+        }
+        const existingVm = await database('members')
+          .whereRaw('LOWER(vm_email) = ?', [email]).first()
+        if (existingVm) {
+          return res.status(400).json({ error: 'Email already registered', code: 'email_exists' })
+        }
 
         const team = await database('teams').where('id', invite.team).first()
         if (!team) return res.status(400).json({ error: 'Team not found' })
@@ -1053,8 +1085,10 @@ export default {
           // Now member_teams exists, enable approval
           await trx('members').where('id', mId).update({ coach_approved_team: true })
 
+          // claimed_at does not exist on team_invites (only claimed_by +
+          // date_updated) — writing it rolled back every claim (found 2026-07-03).
           await trx('team_invites').where('id', invite.id).update({
-            status: 'claimed', claimed_by: mId, claimed_at: new Date().toISOString(),
+            status: 'claimed', claimed_by: mId, date_updated: new Date().toISOString(),
           })
 
           return mId
@@ -1368,11 +1402,17 @@ export default {
               // Member already linked to a Directus user — update password
               userId = member.user
             } else {
-              // Create Directus user and link to member
+              // Create Directus user and link to member. MUST carry the Member
+              // role: createOne without `role` produced a role-less, policy-less
+              // account (member 542, found 2026-07-03) whose every frontend
+              // request silently 403'd.
+              const memberRole = await database('directus_roles').where('name', 'Member').first()
+              if (!memberRole) throw new Error('Member role not found in directus_roles')
               userId = await adminUsersService.createOne({
                 email, password,
                 first_name: member.first_name || '',
                 last_name: member.last_name || '',
+                role: memberRole.id,
               })
               await database('members').where('id', member.id).update({ user: userId })
             }
@@ -1442,6 +1482,25 @@ export default {
           return res.status(400).json({ error: 'Email already registered', code: 'email_exists' })
         }
 
+        // ── Open registration is CLOSED (2026-07-03) ──────────────────────
+        // A brand-new members row can no longer be born here. New people join
+        // via the website Anmeldung (approved → member-bound signup token) or a
+        // staff-minted invite (/kscw/signup-invites/create). Existing members
+        // claim via /check-email → OTP → /set-password mode 3. The only path
+        // left in this endpoint is the vm_email claim of an existing user-less
+        // member — checked BEFORE creating the Directus user so a rejected
+        // request never leaves an orphan account behind.
+        const vmMatch = await database('members')
+          .whereRaw('LOWER(vm_email) = ?', [email])
+          .whereNull('user')
+          .first()
+        if (!vmMatch) {
+          return res.status(403).json({
+            error: 'Open registration is closed — please register on kscw.ch or ask your coach for an invite',
+            code: 'registration_closed',
+          })
+        }
+
         const schema = await getSchema()
         const { UsersService } = services
         const adminUsersService = new UsersService({ schema, knex: database, accountability: { admin: true } })
@@ -1467,11 +1526,7 @@ export default {
         }
 
         // If this email already filed a membership registration, carry its
-        // self-reported gender onto the member. Signup otherwise creates a bare
-        // member whose sex the gender→sex pipeline (Volleymanager / ClubDesk
-        // sync-down) never sets for basketball / passive / brand-new members —
-        // so it stays empty and surfaces in Data Health → "Missing sex". This
-        // links the two records (update, don't duplicate). männlich→m, weiblich→f.
+        // self-reported gender onto the member (update, don't duplicate).
         let regSex = null
         try {
           const reg = await database('registrations')
@@ -1483,42 +1538,18 @@ export default {
           else if (['weiblich', 'female', 'frau', 'woman', 'f'].includes(g)) regSex = 'f'
         } catch { /* registration lookup is best-effort — never block signup */ }
 
-        // Check if signup email matches an existing member's vm_email (Volleymanager claim)
-        const vmMatch = await database('members')
-          .whereRaw('LOWER(vm_email) = ?', [email])
-          .whereNull('user')
-          .first()
-
-        let member
-        if (vmMatch) {
-          // Claim: link existing VM-matched member to new Directus user
-          await database('members').where('id', vmMatch.id).update({
-            user: userId,
-            email,
-            wiedisync_active: true,
-            language: language || vmMatch.language || 'german',
-            requested_team: vmMatch.coach_approved_team ? null : team,
-            // Only fill from the registration if VM never set it — never overwrite.
-            ...(regSex && !vmMatch.sex ? { sex: regSex } : {}),
-          })
-          member = vmMatch
-          log.info(`VM email claim: member ${vmMatch.id} (${vmMatch.first_name} ${vmMatch.last_name}) claimed via vm_email=${email}`)
-        } else {
-          // Create new member record linked to user
-          const [newMember] = await database('members').insert({
-            user: userId,
-            first_name, last_name, email,
-            role: JSON.stringify(['user']),
-            kscw_membership_active: true,
-            coach_approved_team: false,
-            requested_team: team,
-            wiedisync_active: true,
-            language: language || 'german',
-            birthdate_visibility: 'hidden',
-            ...(regSex ? { sex: regSex } : {}),
-          }).returning('id')
-          member = newMember
-        }
+        // Claim: link existing VM-matched member to new Directus user
+        await database('members').where('id', vmMatch.id).update({
+          user: userId,
+          email,
+          wiedisync_active: true,
+          language: language || vmMatch.language || 'german',
+          requested_team: vmMatch.coach_approved_team ? null : team,
+          // Only fill from the registration if VM never set it — never overwrite.
+          ...(regSex && !vmMatch.sex ? { sex: regSex } : {}),
+        })
+        const member = vmMatch
+        log.info(`VM email claim: member ${vmMatch.id} (${vmMatch.first_name} ${vmMatch.last_name}) claimed via vm_email=${email}`)
 
         // Clean up verification
         await database('email_verifications').where('email', email).delete()
@@ -2176,6 +2207,7 @@ export default {
 
     // ── Register sub-modules ────────────────────────────────────
     registerPasswordReset(router, ctx)
+    registerSignupInvites(router, ctx, { validatePassword })
     registerICalFeed(router, ctx)
     registerPublicEvents(router, ctx)
     registerGCalSync(router, ctx)

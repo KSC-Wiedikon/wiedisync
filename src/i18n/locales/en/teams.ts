@@ -125,6 +125,20 @@ export default {
   addExternalUser: 'Add External User',
   shellAccount: 'Temporary',
   expiresIn: 'expires in {{days}}d',
+  // WiediSync account invite (account-less roster members)
+  sendAccountInvite: 'Send WiediSync invite',
+  accountInviteSent: 'Invite sent to {{email}}',
+  accountInviteAlreadyClaimed: 'This person already has an account',
+  accountInviteNoEmail: 'This member has no email address',
+  accountInviteError: 'Could not send the invite',
+  // QR + how-to modal shown after a signup invite is created
+  accountInviteQrTitle: 'Invite {{name}}',
+  accountInviteStep1: 'Scan this code or open the link',
+  accountInviteStep2: 'Choose a password',
+  accountInviteStep3: 'Done — you\'re in',
+  accountInviteEmailedTo: 'We also emailed the link to {{email}}.',
+  accountInviteCopyLink: 'Copy link',
+  accountInviteCopied: 'Copied!',
   extend: 'Extend',
   // Feature toggles
   featureToggles: 'Features',

@@ -604,4 +604,7 @@ export default {
   vmPickTitle: 'VolleyManager-Spiel uswähle',
   vmPickHint: 'Zwöi Heimspiel passe zu däm Gägner — wähl, weles im VolleyManager aktualisiert wird.',
   vmPickNone: 'Kei Spiel zum Uswähle.',
+
+  // Nur-Läse-Aasicht (Trainer / Teamverantwortlichi, v1)
+  plannerReadOnly: 'Nur-Läse-Aasicht — du chasch de Spielplan aaluege, aber nüt ändere.',
 }
