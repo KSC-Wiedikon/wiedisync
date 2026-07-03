@@ -168,6 +168,37 @@ export function assertScalarQuery(query) {
   return query
 }
 
+// Audit 2026-07-03 (#1, HIGH): the read routes are now scalar-only for
+// section-scoped admins, but the POST (createOne) and PATCH (updateOne) routes
+// forward `req.body` VERBATIM to the RLS-bypassing admin ItemsService. A
+// section-scoped (non-superuser) Website Admin granted only e.g. `events` could
+// smuggle a nested relational write — e.g. PATCH events with
+//   { invited_members: { create: [{ members_id: { id: 8, email: 'x', role: ['superuser'] } }] } }
+// — to create/overwrite arbitrary members (full PII) or escalate roles across
+// collections they were never granted. The admin UI only ever writes flat scalar
+// fields for these sections, so for non-superuser callers we reject any
+// relational write: a top-level value that is a non-null object, or an array
+// containing an object (i.e. nested create/update/PK-object payloads). Scalars,
+// null, and arrays of scalars (e.g. an in-scope M2M PK list) are allowed.
+// Managers (superuser) keep the raw body.
+export function assertScalarBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return body
+  const reject = (field) => {
+    const e = new Error(`relational write on '${field}' is not allowed for a section-scoped admin`)
+    e.status = 400
+    throw e
+  }
+  for (const [k, v] of Object.entries(body)) {
+    if (v === null) continue
+    if (Array.isArray(v)) {
+      if (v.some((el) => el !== null && typeof el === 'object')) reject(k)
+      continue
+    }
+    if (typeof v === 'object') reject(k)
+  }
+  return body
+}
+
 export async function isManagerUser(database, userId) {
   return isManager(await resolveRoleName(database, userId))
 }
@@ -187,9 +218,17 @@ export function registerWadmin(router, ctx) {
   const { services, getSchema } = ctx
   const { ItemsService } = services
 
-  async function svc(collection) {
+  // Audit 2026-07-03 (#7, MED): `accountability: { admin: true }` bypasses RLS
+  // but records NO actor, so wadmin create/update/delete (incl. registration-PII
+  // deletion + grant changes) leave no trace in directus_activity / revisions.
+  // Thread the caller's user id into the accountability — `admin: true` still
+  // bypasses RLS, and the user is now captured for the audit trail. Reads may
+  // omit it (userId undefined) since they mutate nothing.
+  async function svc(collection, userId) {
     const schema = await getSchema()
-    return new ItemsService(collection, { schema, knex: database, accountability: { admin: true } })
+    const accountability = { admin: true }
+    if (userId) accountability.user = userId
+    return new ItemsService(collection, { schema, knex: database, accountability })
   }
 
   function sendErr(res, e) {
@@ -225,6 +264,13 @@ export function registerWadmin(router, ctx) {
     return req.wadminSuper ? q : assertScalarQuery(q)
   }
 
+  // Write body for POST/PATCH: raw for managers, scalar-only (no relational
+  // create/update) for section-scoped admins (blocks the #1 cross-collection
+  // PII-write / role-escalation via a nested relational payload).
+  function writeBody(req) {
+    return req.wadminSuper ? req.body : assertScalarBody(req.body)
+  }
+
   router.get('/wadmin/me', async (req, res) => {
     const userId = req.accountability?.user
     if (!userId) return res.status(401).json({ error: 'unauthenticated' })
@@ -251,7 +297,7 @@ export function registerWadmin(router, ctx) {
   router.post('/wadmin/:section/items/:collection', async (req, res) => {
     const c = await guard(req, res); if (!c) return
     try {
-      const id = await (await svc(c)).createOne(req.body)
+      const id = await (await svc(c, req.accountability.user)).createOne(writeBody(req))
       res.json({ data: { id } })
     } catch (e) { sendErr(res, e) }
   })
@@ -259,7 +305,7 @@ export function registerWadmin(router, ctx) {
   router.patch('/wadmin/:section/items/:collection/:id', async (req, res) => {
     const c = await guard(req, res); if (!c) return
     try {
-      await (await svc(c)).updateOne(req.params.id, req.body)
+      await (await svc(c, req.accountability.user)).updateOne(req.params.id, writeBody(req))
       res.json({ data: { id: req.params.id } })
     } catch (e) { sendErr(res, e) }
   })
@@ -267,7 +313,7 @@ export function registerWadmin(router, ctx) {
   router.delete('/wadmin/:section/items/:collection/:id', async (req, res) => {
     const c = await guard(req, res); if (!c) return
     try {
-      await (await svc(c)).deleteOne(req.params.id)
+      await (await svc(c, req.accountability.user)).deleteOne(req.params.id)
       res.json({ ok: true })
     } catch (e) { sendErr(res, e) }
   })
@@ -278,6 +324,23 @@ export function registerWadmin(router, ctx) {
     const a = await authorize(database, userId, 'scorer_courses')
     if (!a.ok) { res.status(a.status).json({ error: a.error, section: 'scorer_courses' }); return false }
     if (badSlug(req.params.slug)) { res.status(400).json({ error: 'Invalid slug' }); return false }
+    // Audit 2026-07-03 (#2, HIGH): authorize() only confirms the caller holds the
+    // scorer_courses grant — it does NOT bind the slug to a scorer_courses record.
+    // listSubmissions/deleteSubmission hit forms.kscw.ch with a club-wide OpnForm
+    // PAT, so a scorer-scoped admin could read/DELETE submissions of ANY OpnForm
+    // form by passing an arbitrary slug. For non-superuser callers, restrict to the
+    // slugs actually configured on scorer_courses rows. Managers keep open access.
+    if (a.isSuperuser !== true) {
+      const rows = await database('scorer_courses').select('form_slug_de', 'form_slug_en')
+      const allowed = new Set()
+      for (const r of rows) {
+        if (r.form_slug_de) allowed.add(String(r.form_slug_de))
+        if (r.form_slug_en) allowed.add(String(r.form_slug_en))
+      }
+      if (!allowed.has(String(req.params.slug))) {
+        res.status(403).json({ error: 'form_out_of_scope', slug: req.params.slug }); return false
+      }
+    }
     return true
   }
 
