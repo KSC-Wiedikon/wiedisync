@@ -94,10 +94,6 @@ export default function RosterEditor() {
       .catch(() => setTeam(null))
   }, [teamSlug])
 
-  if (team && !isCoachOf(team.id)) {
-    return <Navigate to={`/teams/${teamSlug}`} replace />
-  }
-
   const sortedMembers = useMemo(() => {
     return [...members].sort((a, b) => {
       const ma = asObj<Member>(a.member)
@@ -249,6 +245,11 @@ export default function RosterEditor() {
 
   if (!team || isLoading) {
     return null
+  }
+
+  // Access guard AFTER all hooks (rules-of-hooks): team is non-null here.
+  if (!isCoachOf(team.id)) {
+    return <Navigate to={`/teams/${teamSlug}`} replace />
   }
 
   return (

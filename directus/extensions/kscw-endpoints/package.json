@@ -16,5 +16,8 @@
     "nodemailer": "^9.0.3",
     "pdfkit": "^0.15.2",
     "swissqrbill": "^4.3.0"
+  },
+  "devDependencies": {
+    "knex": "^3.3.0"
   }
 }

@@ -1663,8 +1663,16 @@ export default {
         const submitter = member ? `Member #${fb.user}` : (fb.name || 'Anonymous')
 
         let body = `**Type:** ${fb.type}\n**Submitter:** ${submitter}\n\n${fb.description || ''}`
-        if (fb.screenshot) {
-          body += `\n\n**Screenshot:** [View](${process.env.PUBLIC_URL}/assets/${fb.screenshot})`
+        // Attach ALL screenshots (migration 166; `screenshot` mirrors the first).
+        const shotIds = []
+        let shotArr = fb.screenshots
+        if (typeof shotArr === 'string') { try { shotArr = JSON.parse(shotArr) } catch { shotArr = [] } }
+        if (Array.isArray(shotArr)) for (const id of shotArr) { if (id) shotIds.push(id) }
+        if (fb.screenshot && !shotIds.includes(fb.screenshot)) shotIds.unshift(fb.screenshot)
+        if (shotIds.length === 1) {
+          body += `\n\n**Screenshot:** [View](${process.env.PUBLIC_URL}/assets/${shotIds[0]})`
+        } else if (shotIds.length > 1) {
+          body += `\n\n**Screenshots:** ` + shotIds.map((id, i) => `[${i + 1}](${process.env.PUBLIC_URL}/assets/${id})`).join(' · ')
         }
 
         const ghResp = await fetch(`https://api.github.com/repos/Lucanepa/${repo}/issues`, {
