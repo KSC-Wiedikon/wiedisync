@@ -110,15 +110,23 @@ function buildHtml(t, url) {
 export function registerPasswordReset(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'password-request' })
 
-  // Rate limit: max 3 password reset requests per hour per IP
+  // Rate limit: max 3 password reset requests per hour per IP (and per target
+  // email). Behind CF Tunnel the only trustworthy client IP is cf-connecting-ip;
+  // req.ip / leftmost X-Forwarded-For are attacker-spoofable, so key on the same
+  // precedence the sibling public endpoints use (see contact-form.js). A second
+  // per-email cap stops IP rotation from bombing one mailbox.
   const pwResetIp = new Map()
+  const pwResetEmail = new Map()
 
   router.post('/password-request', async (req, res) => {
     try {
       const { email } = req.body
       if (!email) return res.status(400).json({ error: 'Email required' })
 
-      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown'
+      const xff = req.headers['x-forwarded-for']
+      const ip = req.headers['cf-connecting-ip']
+        || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
+        || req.ip || 'unknown'
       const now = Date.now()
       const ipEntry = pwResetIp.get(ip)
       if (ipEntry && now < ipEntry.resetAt) {
@@ -132,6 +140,19 @@ export function registerPasswordReset(router, { database, logger, services, getS
       }
 
       const normalizedEmail = email.toLowerCase().trim()
+
+      // Per-target-email cap: max 3/hr regardless of source IP, so IP rotation
+      // can't flood a single mailbox. Return 204 (don't reveal existence).
+      const emailEntry = pwResetEmail.get(normalizedEmail)
+      if (emailEntry && now < emailEntry.resetAt) {
+        if (emailEntry.count >= 3) return res.status(204).end()
+        emailEntry.count++
+      } else {
+        pwResetEmail.set(normalizedEmail, { count: 1, resetAt: now + 3600000 })
+      }
+      if (pwResetEmail.size > 500) {
+        for (const [k, v] of pwResetEmail) { if (now > v.resetAt) pwResetEmail.delete(k) }
+      }
 
       // Find directus user by their login email.
       let user = await database('directus_users')
