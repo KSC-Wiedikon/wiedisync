@@ -416,7 +416,7 @@ export default function AnmeldungenPage() {
                                   {countDocs(reg) > 0 && (
                                     <span className="inline-flex items-center gap-0.5 text-orange-600 dark:text-orange-400">
                                       <FileText className="h-3 w-3" />
-                                      {countDocs(reg)} docs
+                                      {t('anmeldungenDocsCount', { count: countDocs(reg) })}
                                     </span>
                                   )}
                                 </div>
@@ -535,6 +535,7 @@ export default function AnmeldungenPage() {
 
 // ── File preview component ─────────────────────────────────────
 function FilePreview({ url }: { url: string }) {
+  const { t } = useTranslation('admin')
   // Try to render as image — if it fails (PDF/other), show a download prompt
   const [isImage, setIsImage] = useState(true)
   // 2026-05-12 audit #17: defence-in-depth — `url` is produced by assetUrl()
@@ -549,14 +550,14 @@ function FilePreview({ url }: { url: string }) {
       {isImage ? (
         <img
           src={safeUrl}
-          alt="Document"
+          alt={t('anmeldungenDocAlt')}
           className="max-h-[70vh] w-auto rounded-md border border-gray-200 dark:border-gray-700"
           onError={() => setIsImage(false)}
         />
       ) : (
         <div className="flex flex-col items-center gap-3 py-8 text-gray-500 dark:text-gray-400">
           <FileText className="h-12 w-12" />
-          <p className="text-sm">PDF — im neuen Tab öffnen</p>
+          <p className="text-sm">{t('anmeldungenPdfOpenTab')}</p>
         </div>
       )}
       <a
@@ -566,7 +567,7 @@ function FilePreview({ url }: { url: string }) {
         className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
       >
         <ExternalLink className="h-3.5 w-3.5" />
-        In neuem Tab öffnen
+        {t('openInNewTab')}
       </a>
     </div>
   )

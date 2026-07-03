@@ -8,8 +8,6 @@ import { useOverlapResolution, useTeamResolver } from '../slotViewShared'
 import SlotBlock from './SlotBlock'
 import ClosureOverlay from './ClosureOverlay'
 
-const DAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
-
 interface WeekSlotViewProps {
   slots: HallSlot[]
   closures: HallClosure[]
@@ -76,6 +74,10 @@ export default function WeekSlotView({
   }, [halls, slots, closures, selectedHallIds])
 
   const { t } = useTranslation('hallenplan')
+  const DAY_HEADERS = [
+    t('dayMonShort'), t('dayTueShort'), t('dayWedShort'), t('dayThuShort'),
+    t('dayFriShort'), t('daySatShort'), t('daySunShort'),
+  ]
   const multiHall = visibleHalls.length > 1
 
   const todayIndex = useMemo(() => {
@@ -446,7 +448,8 @@ export default function WeekSlotView({
                       <button
                         className="absolute right-0.5 top-0.5 z-50 flex h-5 w-5 items-center justify-center rounded bg-gray-700/60 text-white hover:bg-gray-700/80"
                         onClick={(e) => { e.stopPropagation(); handleSwap(dayHallKey) }}
-                        title="Switch overlap"
+                        title={t('switchOverlap')}
+                        aria-label={t('switchOverlap')}
                       >
                         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
@@ -524,7 +527,8 @@ export default function WeekSlotView({
                         <button
                           className="absolute right-1 top-1 z-50 flex h-6 w-6 items-center justify-center rounded bg-gray-700/60 text-white hover:bg-gray-700/80"
                           onClick={(e) => { e.stopPropagation(); handleSwap(singleHallKey) }}
-                          title="Switch overlap"
+                          title={t('switchOverlap')}
+                          aria-label={t('switchOverlap')}
                         >
                           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />

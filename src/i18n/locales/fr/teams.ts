@@ -76,6 +76,7 @@ export default {
   soonAbsent: 'Bientôt absent',
   absent: 'Oui',
   upcoming: 'Bientôt',
+  playerNotFound: 'Joueur/euse introuvable',
 
   // Team detail
   sponsors: 'Sponsors',

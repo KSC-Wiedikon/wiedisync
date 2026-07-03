@@ -304,6 +304,7 @@ export default {
   duesStatusNoRate: 'Kein Satz',
   duesStatusNoEmail: 'Keine E-Mail hinterlegt',
   duesIssueCta: '{{count}} Rechnungen auslösen',
+  duesIssueConfirmTitle: 'Beitragslauf auslösen?',
   duesIssueSure: '{{count}} Rechnungen über total {{amount}} auslösen? Jedes Mitglied erhält eine zahlbare QR-Rechnung.',
   duesIssued: '{{count}} Rechnungen ausgelöst ({{amount}}).',
   duesIssueError: 'Lauf konnte nicht ausgelöst werden.',

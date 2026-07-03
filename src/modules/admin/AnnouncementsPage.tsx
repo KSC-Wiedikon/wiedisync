@@ -342,14 +342,14 @@ export default function AnnouncementsPage() {
                         <button
                           onClick={() => openEdit(a)}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-                          aria-label="Edit"
+                          aria-label={t('common:edit')}
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => setConfirmDeleteId(a.id)}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
-                          aria-label="Delete"
+                          aria-label={t('common:delete')}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -382,7 +382,7 @@ export default function AnnouncementsPage() {
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, image: null }))}
                   className="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-gray-700 shadow hover:bg-white"
-                  aria-label="Remove image"
+                  aria-label={t('common:remove')}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -459,7 +459,7 @@ export default function AnnouncementsPage() {
               type="text"
               value={form.link}
               onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))}
-              placeholder="https://… oder /pfad"
+              placeholder={t('common:linkUrl')}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
             />
           </div>

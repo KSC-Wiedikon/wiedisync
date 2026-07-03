@@ -10,6 +10,7 @@ import {
 } from '../../hooks/useFinance'
 import { downloadInvoiceBillsPdf } from './qrBillPdf'
 import { DuesEmailSettings, SendDuesEmailModal } from './DuesEmail'
+import { useConfirm } from '../../components/ConfirmProvider'
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
 const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
@@ -29,6 +30,7 @@ const STATUS_TONE: Record<string, string> = {
 
 export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fiscalYearId: string; fiscalYearLabel: string }) {
   const { t } = useTranslation('finance')
+  const confirm = useConfirm()
   const fyNum = Number(fiscalYearId)
   const { data: ratesData, refetch: refetchRates } = useDuesRates(fiscalYearId)
   const { data: runs, refetch: refetchRuns } = useDuesRuns(fiscalYearId)
@@ -55,7 +57,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
     } catch (e) { setRErr(apiErr(e, t('duesRateSaveError'))) } finally { setRBusy(false) }
   }
   async function removeRate(id: number) {
-    if (!window.confirm(t('duesRateDeleteSure'))) return
+    if (!(await confirm({ message: t('duesRateDeleteSure'), danger: true }))) return
     setRErr('')
     try { await deleteDuesRate(id); await refetchRates() } catch (e) { setRErr(apiErr(e, t('ledActionError'))) }
   }
@@ -82,7 +84,16 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
     if (!preview) return
     const billable = preview.totals.billable
     if (!billable) return
-    if (!window.confirm(t('duesIssueSure', { count: billable, amount: formatChf(preview.totals.billable_amount) }))) return
+    // High-stakes, irreversible batch (creates a payable QR-bill for every
+    // billable member) — gate it behind the branded destructive confirm with a
+    // count/amount summary instead of a reflexive browser popup.
+    const ok = await confirm({
+      title: t('duesIssueConfirmTitle'),
+      message: t('duesIssueSure', { count: billable, amount: formatChf(preview.totals.billable_amount) }),
+      confirmLabel: t('duesIssueCta', { count: billable }),
+      danger: true,
+    })
+    if (!ok) return
     setIssuing(true); setRunErr('')
     try {
       const r = await issueDuesRun({ fiscal_year: fyNum, categories: selected, only_active: onlyActive, due_date: dueDate || null })
@@ -92,7 +103,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
     } catch (e) { setRunErr(apiErr(e, t('duesIssueError'))) } finally { setIssuing(false) }
   }
   async function cancelRun(id: number) {
-    if (!window.confirm(t('duesRunCancelSure'))) return
+    if (!(await confirm({ message: t('duesRunCancelSure'), danger: true }))) return
     try {
       const r = await cancelDuesRun(id)
       setRunMsg(t('duesRunCancelled', { count: r.cancelled }))

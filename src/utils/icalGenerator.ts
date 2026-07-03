@@ -13,6 +13,27 @@ export function generateICal(entries: CalendarEntry[]): string {
     'METHOD:PUBLISH',
     'X-WR-CALNAME:KSCW Volleyball',
     'X-WR-TIMEZONE:Europe/Zurich',
+    // VTIMEZONE for Europe/Zurich (standard CET/CEST EU rules). Emitted before
+    // the VEVENTs so strict RFC-5545 parsers can resolve the TZID=Europe/Zurich
+    // referenced by every timed DTSTART/DTEND instead of dropping the zone.
+    'BEGIN:VTIMEZONE',
+    'TZID:Europe/Zurich',
+    'X-LIC-LOCATION:Europe/Zurich',
+    'BEGIN:DAYLIGHT',
+    'TZOFFSETFROM:+0100',
+    'TZOFFSETTO:+0200',
+    'TZNAME:CEST',
+    'DTSTART:19700329T020000',
+    'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU',
+    'END:DAYLIGHT',
+    'BEGIN:STANDARD',
+    'TZOFFSETFROM:+0200',
+    'TZOFFSETTO:+0100',
+    'TZNAME:CET',
+    'DTSTART:19701025T030000',
+    'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU',
+    'END:STANDARD',
+    'END:VTIMEZONE',
   ]
 
   for (const entry of entries) {

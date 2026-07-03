@@ -82,4 +82,17 @@ export default {
   icalDutiesGenerate: 'Generate my duties link',
   icalDutiesPrivacyHint: 'Personal link — keep it private. It only shows your duty schedule (no personal data).',
   icalDutiesError: 'Could not create your personal link.',
+
+  // Entry detail modal + grid overlays
+  coach: 'Coach',
+  cancelled: 'Cancelled',
+  moreCount: '+{{count}} more',
+  absentCount: '{{count}} absent',
+  eventTypeVerein: 'Club',
+  eventTypeSocial: 'Social',
+  eventTypeMeeting: 'Meeting',
+  eventTypeTournament: 'Tournament',
+  eventTypeTrainingsweekend: 'Trainingsweekend',
+  eventTypeFriendly: 'Friendly game',
+  eventTypeOther: 'Other',
 } as const

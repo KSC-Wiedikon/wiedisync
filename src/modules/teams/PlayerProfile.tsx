@@ -131,7 +131,7 @@ export default function PlayerProfile() {
   }
 
   if (!member) {
-    return <EmptyState icon={<XCircle className="h-10 w-10" />} title="Player not found" />
+    return <EmptyState icon={<XCircle className="h-10 w-10" />} title={t('playerNotFound')} />
   }
 
   const initials = `${member.first_name?.[0] ?? ''}${member.last_name?.[0] ?? ''}`.toUpperCase()

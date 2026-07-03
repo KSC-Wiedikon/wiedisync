@@ -279,7 +279,7 @@ export default function SlotEditor({
                         const sportTeams = visibleTeams.filter(tm => tm.sport === sport)
                         if (sportTeams.length === 0) return null
                         return (
-                          <CommandGroup key={sport} heading={sport === 'volleyball' ? 'Volleyball' : 'Basketball'}>
+                          <CommandGroup key={sport} heading={sport === 'volleyball' ? t('sportVolleyball') : t('sportBasketball')}>
                             {sportTeams.map(tm => (
                               <CommandItem
                                 key={tm.id}
@@ -416,7 +416,7 @@ export default function SlotEditor({
               label={t('label')}
               value={form.label}
               onChange={(e) => update('label', e.target.value)}
-              placeholder="e.g. Trial training, Home game vs. TVA"
+              placeholder={t('labelPlaceholder')}
             />
           )}
         </div>
@@ -431,9 +431,9 @@ export default function SlotEditor({
 
         {/* Conflict warning */}
         {conflicts.length > 0 && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-            <p className="font-medium text-amber-800">{t('common:overlapDetected')}</p>
-            <ul className="mt-1 list-inside list-disc text-sm text-amber-700">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/30">
+            <p className="font-medium text-amber-800 dark:text-amber-300">{t('common:overlapDetected')}</p>
+            <ul className="mt-1 list-inside list-disc text-sm text-amber-700 dark:text-amber-400">
               {conflicts.map((c) => (
                 <li key={c.id}>
                   {DAY_OPTIONS[c.day_of_week]?.label} {c.start_time}–{c.end_time}
@@ -446,7 +446,7 @@ export default function SlotEditor({
 
         {/* Error */}
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
             {error}
           </div>
         )}

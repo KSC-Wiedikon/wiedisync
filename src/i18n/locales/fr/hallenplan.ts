@@ -137,4 +137,22 @@ export default {
   slotsAvailable: '{{count}} creneau(x) disponible(s)',
   slotsAvailableTitle: 'Creneaux disponibles',
   slotsAvailableNone: 'Aucun creneau disponible',
+
+  // Abreviations des jours (en-tetes de grille / resume)
+  dayMonShort: 'Lun',
+  dayTueShort: 'Mar',
+  dayWedShort: 'Mer',
+  dayThuShort: 'Jeu',
+  dayFriShort: 'Ven',
+  daySatShort: 'Sam',
+  daySunShort: 'Dim',
+
+  // Finitions grille / editeur
+  noDataToDisplay: 'Aucune donnee a afficher',
+  switchOverlap: 'Alterner le chevauchement',
+  labelPlaceholder: 'p.ex. Entrainement d\'essai, Match a domicile vs. TVA',
+  sportVolleyball: 'Volleyball',
+  sportBasketball: 'Basketball',
+  claimNotesPlaceholder: 'Optionnel…',
+  closureReasonPlaceholder: 'p.ex. Vacances, entretien, renovation',
 } as const

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus, Undo2, Trash2, BookOpen, ListTree, Scale, Lock, Settings2, RefreshCw } from 'lucide-react'
 import Modal from '../../components/Modal'
@@ -71,8 +72,8 @@ function Journal({ fyId, fyClosed }: { fyId: string; fyClosed?: boolean }) {
   const [busy, setBusy] = useState<number | null>(null)
   const refresh = () => qc.invalidateQueries({ queryKey: ['finance'] })
 
-  async function reverse(id: number) { setBusy(id); try { await reverseLedgerEntry(id); refresh() } catch (e) { alert(apiErr(e, t('ledActionError'))) } finally { setBusy(null) } }
-  async function remove(id: number) { if (!window.confirm(t('ledDeleteSure'))) return; setBusy(id); try { await deleteLedgerEntry(id); refresh() } catch (e) { alert(apiErr(e, t('ledActionError'))) } finally { setBusy(null) } }
+  async function reverse(id: number) { setBusy(id); try { await reverseLedgerEntry(id); refresh() } catch (e) { toast.error(apiErr(e, t('ledActionError'))) } finally { setBusy(null) } }
+  async function remove(id: number) { if (!window.confirm(t('ledDeleteSure'))) return; setBusy(id); try { await deleteLedgerEntry(id); refresh() } catch (e) { toast.error(apiErr(e, t('ledActionError'))) } finally { setBusy(null) } }
 
   const rows = entries ?? []
   return (
@@ -175,7 +176,7 @@ function Accounts() {
   const typeLabel = (ty: string | null) => (ty ? t(`acctType_${ty}`) : '–')
   const rows = accounts ?? []
 
-  async function toggle(a: LedgerAccount) { try { await editLedgerAccount(a.id, { active: !a.active }); refresh() } catch (e) { alert(apiErr(e, t('ledActionError'))) } }
+  async function toggle(a: LedgerAccount) { try { await editLedgerAccount(a.id, { active: !a.active }); refresh() } catch (e) { toast.error(apiErr(e, t('ledActionError'))) } }
 
   return (
     <div className="space-y-3">

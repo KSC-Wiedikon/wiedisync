@@ -44,4 +44,10 @@ export default {
   recentFixes: 'Letzti Fählerbehebige',
   resolvedThisWeek: '{{count}} Fähler die Wuche behoobe',
   resolvedThisMonth: '{{count}} Fähler de Monet behoobe',
+
+  // Dashboard controls + expanded detail labels
+  refresh: 'Aktualisiere',
+  deployed: 'Deployed',
+  detailRole: 'Rolle',
+  detailSport: 'Sportart',
 }

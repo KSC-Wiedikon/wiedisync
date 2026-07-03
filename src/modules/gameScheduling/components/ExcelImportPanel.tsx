@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import { createRecord, fetchAllItems } from '../../../lib/api'
 import { toXlsx, downloadBlob } from '../../admin/utils/exportResults'
 import type { Team } from '../../../types'
@@ -149,26 +150,26 @@ export default function ExcelImportPanel() {
       {preview.length > 0 && (
         <>
           <div className="mb-3 max-h-60 overflow-auto rounded-md border border-gray-200 dark:border-gray-600">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">Datum</th>
-                  <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">Heim</th>
-                  <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">Gast</th>
-                  <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-300">Liga</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader className="bg-gray-50 dark:bg-gray-700">
+                <TableRow>
+                  <TableHead className="text-gray-700 dark:text-gray-300">Datum</TableHead>
+                  <TableHead className="text-gray-700 dark:text-gray-300">Heim</TableHead>
+                  <TableHead className="text-gray-700 dark:text-gray-300">Gast</TableHead>
+                  <TableHead className="text-gray-700 dark:text-gray-300">Liga</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {preview.map((row, i) => (
-                  <tr key={i} className="border-t border-gray-100 dark:border-gray-600">
-                    <td className="px-3 py-1.5 text-gray-900 dark:text-gray-100">{row.Datum}</td>
-                    <td className="px-3 py-1.5 text-gray-900 dark:text-gray-100">{row.Heimteam}</td>
-                    <td className="px-3 py-1.5 text-gray-900 dark:text-gray-100">{row.Gastteam}</td>
-                    <td className="px-3 py-1.5 text-gray-500 dark:text-gray-400">{row.Liga}</td>
-                  </tr>
+                  <TableRow key={i}>
+                    <TableCell className="text-gray-900 dark:text-gray-100">{row.Datum}</TableCell>
+                    <TableCell className="text-gray-900 dark:text-gray-100">{row.Heimteam}</TableCell>
+                    <TableCell className="text-gray-900 dark:text-gray-100">{row.Gastteam}</TableCell>
+                    <TableCell className="text-gray-500 dark:text-gray-400">{row.Liga}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           <button

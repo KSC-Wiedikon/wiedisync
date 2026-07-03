@@ -138,6 +138,13 @@ export default {
   drilldownStatusConfirmed: 'Confirmed',
   drilldownStatusDeclined: 'Declined',
   drilldownEmpty: 'No games in this range.',
+  drilldownColOpponent: 'Opponent',
+  drilldownColStatus: 'Status',
+
+  // Embed page
+  embedTeamGames: '{{team}} — Games',
+  embedNoGames: 'No games found.',
+  embedNoRankings: 'No rankings available.',
 
   // Game card actions
   editGame: 'Edit game',

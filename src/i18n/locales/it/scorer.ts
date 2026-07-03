@@ -50,6 +50,13 @@ export default {
   noGames: 'Nessuna partita',
   noGamesDescription: 'Nessuna partita trovata per il filtro selezionato.',
 
+  // Error toasts
+  errorUpdate: 'Impossibile aggiornare l\'assegnazione.',
+  errorToggleReminders: 'Impossibile modificare l\'impostazione dei promemoria.',
+  errorDelegate: 'Impossibile inviare la delega.',
+  errorAcceptDelegation: 'Impossibile accettare la richiesta.',
+  errorDeclineDelegation: 'Impossibile rifiutare la richiesta.',
+
   // Past games
   showOlderGames: 'Mostra partite precedenti',
   loadMore: 'Carica altro',

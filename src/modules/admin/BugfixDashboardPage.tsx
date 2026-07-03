@@ -272,7 +272,7 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
 
         {status === 'deployed_prod' && (
           <span className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400">
-            <Check className="h-3 w-3" /> Deployed
+            <Check className="h-3 w-3" /> {t('deployed')}
           </span>
         )}
 
@@ -339,7 +339,7 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">{t('who')}</p>
               <p className="text-xs text-gray-700 dark:text-gray-300">
-                Role: {issue.expanded.user.role} | Sport: {issue.expanded.user.sport}
+                {t('detailRole')}: {issue.expanded.user.role} | {t('detailSport')}: {issue.expanded.user.sport}
               </p>
             </div>
           )}
@@ -481,7 +481,7 @@ export default function BugfixDashboardPage() {
           className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
         >
           <RefreshCcw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('refresh')}
         </button>
       </div>
 

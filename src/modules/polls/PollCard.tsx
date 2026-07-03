@@ -5,7 +5,7 @@ import { Clock, EyeOff, Lock, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Poll } from '../../types'
 import { formatDateZurich } from '../../utils/dateHelpers'
-import { usePollVotes } from './hooks/usePoll'
+import { usePollVotes, isDeadlinePassed } from './hooks/usePoll'
 import { useConfirm } from '../../components/ConfirmProvider'
 
 interface PollCardProps {
@@ -29,7 +29,7 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
 
   const isOpen = poll.status === 'open'
   const hasVoted = !!myVote
-  const deadlinePassed = poll.deadline ? new Date(poll.deadline) < new Date() : false
+  const deadlinePassed = isDeadlinePassed(poll.deadline)
   // Voting is allowed while the poll is open and before the deadline. A voter
   // may change their answer up to that point (decision 2026-07-02) — vote()
   // already updates the existing row, we just re-expose the form on request.

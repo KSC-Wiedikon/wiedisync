@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, FileSpreadsheet } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { toXlsx, downloadBlob } from '../admin/utils/exportResults'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
@@ -42,16 +43,16 @@ function parseRow(
   editableTeamIds: Set<string>,
 ): ParsedRow {
   const team = teamByName.get(row.Team.trim().toLowerCase())
-  if (!team) return { input: {} as ManualGameInput, teamName: row.Team, season: '', raw: row, error: 'unknown team' }
+  if (!team) return { input: {} as ManualGameInput, teamName: row.Team, season: '', raw: row, error: 'unknownTeam' }
   if (!editableTeamIds.has(String(team.id))) {
-    return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'out of scope' }
+    return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'outOfScope' }
   }
   const typeRaw = row.HomeAway.trim().toLowerCase()
   const type: 'home' | 'away' =
     typeRaw === 'home' || typeRaw === 'heim' || typeRaw === 'h' ? 'home' : 'away'
   const opponent = row.Opponent.trim()
-  if (!opponent) return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'missing opponent' }
-  if (!row.Date.trim()) return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'missing date' }
+  if (!opponent) return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'missingOpponent' }
+  if (!row.Date.trim()) return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'missingDate' }
 
   let hallId: string | number | null = null
   let additionalHalls: string[] | null = null
@@ -64,14 +65,14 @@ function parseRow(
       const kwiA = hallByName.get('kwi a')
       const kwiB = hallByName.get('kwi b')
       if (!kwiA || !kwiB) {
-        return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'unknown hall' }
+        return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'unknownHall' }
       }
       hallId = kwiA.id
       additionalHalls = [String(kwiB.id)]
     } else {
       const hall = hallByName.get(hallKey)
       if (!hall) {
-        return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'unknown hall' }
+        return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'unknownHall' }
       }
       hallId = hall.id
     }
@@ -214,39 +215,34 @@ export default function ImportPanel({ editableTeamIds, onImported }: ImportPanel
       {preview.length > 0 && (
         <>
           <div className="mb-3 max-h-80 overflow-auto rounded-md border border-gray-200 dark:border-gray-600">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-2 py-1.5 text-left text-gray-700 dark:text-gray-300">{t('import.col.team')}</th>
-                  <th className="px-2 py-1.5 text-left text-gray-700 dark:text-gray-300">{t('import.col.type')}</th>
-                  <th className="px-2 py-1.5 text-left text-gray-700 dark:text-gray-300">{t('import.col.opponent')}</th>
-                  <th className="px-2 py-1.5 text-left text-gray-700 dark:text-gray-300">{t('import.col.date')}</th>
-                  <th className="px-2 py-1.5 text-left text-gray-700 dark:text-gray-300">{t('import.col.time')}</th>
-                  <th className="px-2 py-1.5 text-left text-gray-700 dark:text-gray-300">{t('import.col.hall')}</th>
-                  <th className="px-2 py-1.5 text-left text-gray-700 dark:text-gray-300">{t('import.col.status')}</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="text-xs">
+              <TableHeader className="bg-gray-50 dark:bg-gray-700">
+                <TableRow>
+                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.team')}</TableHead>
+                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.type')}</TableHead>
+                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.opponent')}</TableHead>
+                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.date')}</TableHead>
+                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.time')}</TableHead>
+                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.hall')}</TableHead>
+                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.status')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {preview.map((p, i) => (
-                  <tr
-                    key={i}
-                    className={`border-t border-gray-100 dark:border-gray-600 ${
-                      p.error ? 'bg-red-50 dark:bg-red-950/30' : ''
-                    }`}
-                  >
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{p.raw.Team}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{p.raw.HomeAway}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{p.raw.Opponent}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{p.raw.Date}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{p.raw.Time}</td>
-                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{p.raw.Hall}</td>
-                    <td className={`px-2 py-1 ${p.error ? 'font-medium text-red-700 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                      {p.error ?? 'OK'}
-                    </td>
-                  </tr>
+                  <TableRow key={i} className={p.error ? 'bg-red-50 dark:bg-red-950/30' : ''}>
+                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.Team}</TableCell>
+                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.HomeAway}</TableCell>
+                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.Opponent}</TableCell>
+                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.Date}</TableCell>
+                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.Time}</TableCell>
+                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.Hall}</TableCell>
+                    <TableCell className={`p-1 ${p.error ? 'font-medium text-red-700 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {p.error ? t(`import.error.${p.error}`) : t('import.ok')}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

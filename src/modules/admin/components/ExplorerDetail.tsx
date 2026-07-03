@@ -12,6 +12,7 @@ import ExplorerSectionCard from './ExplorerSectionCard'
 import ExplorerMemberFields from './ExplorerMemberFields'
 import { useRelatedEntities, type SectionKey } from '../hooks/useRelatedEntities'
 import { useAuth } from '../../../hooks/useAuth'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 
 interface Props {
   cache: CacheShape
@@ -153,28 +154,28 @@ function CompactTable({
   rows: React.ReactNode[][]
 }) {
   return (
-    <table className="w-full text-xs">
-      <thead className="text-left text-muted-foreground">
-        <tr>
+    <Table className="text-xs">
+      <TableHeader>
+        <TableRow className="text-left text-muted-foreground hover:bg-transparent">
           {cols.map((c) => (
-            <th key={c.key} className={`py-1 pr-3 font-medium ${c.className ?? ''}`}>
+            <TableHead key={c.key} className={`h-auto px-0 py-1 pr-3 font-medium ${c.className ?? ''}`}>
               {c.label}
-            </th>
+            </TableHead>
           ))}
-        </tr>
-      </thead>
-      <tbody className="text-foreground">
+        </TableRow>
+      </TableHeader>
+      <TableBody className="text-foreground">
         {rows.map((cells, i) => (
-          <tr key={i} className="border-t border-border">
+          <TableRow key={i}>
             {cells.map((cell, j) => (
-              <td key={j} className={`py-1 pr-3 ${cols[j]?.className ?? ''}`}>
+              <TableCell key={j} className={`p-0 py-1 pr-3 ${cols[j]?.className ?? ''}`}>
                 {cell}
-              </td>
+              </TableCell>
             ))}
-          </tr>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   )
 }
 

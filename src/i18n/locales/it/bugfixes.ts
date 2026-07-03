@@ -44,4 +44,10 @@ export default {
   recentFixes: 'Correzioni recenti',
   resolvedThisWeek: '{{count}} problemi risolti questa settimana',
   resolvedThisMonth: '{{count}} problemi risolti questo mese',
+
+  // Dashboard controls + expanded detail labels
+  refresh: 'Aggiorna',
+  deployed: 'Distribuito',
+  detailRole: 'Ruolo',
+  detailSport: 'Sport',
 }

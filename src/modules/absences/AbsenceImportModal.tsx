@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Download, Upload, AlertCircle, CheckCircle2 } from 'lucide-react'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '../../hooks/useAuth'
 import {
   parseAbsenceFile,
@@ -81,11 +82,16 @@ export default function AbsenceImportModal({ open, onClose, onComplete }: Absenc
     setResult({ created, failed })
     setImporting(false)
 
+    // Refresh the parent list as soon as anything imported — even on a partial
+    // failure — so the successful rows show up immediately instead of relying on
+    // best-effort realtime.
+    if (created > 0) onComplete()
+
     if (created > 0 && failed === 0) {
-      // All succeeded — close after short delay
+      // All succeeded — close after a short delay. On partial failure the modal
+      // stays open so the user can see which rows failed.
       setTimeout(() => {
         handleClose()
-        onComplete()
       }, 1500)
     }
   }
@@ -137,45 +143,45 @@ export default function AbsenceImportModal({ open, onClose, onComplete }: Absenc
             </div>
 
             <div className="max-h-64 overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">#</th>
-                    <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">{t('startDate')}</th>
-                    <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">{t('endDate')}</th>
-                    <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">{t('reason')}</th>
-                    <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">{t('detailsOptional')}</th>
-                    <th className="px-3 py-2 text-left text-gray-600 dark:text-gray-400">{t('affects')}</th>
-                    <th className="w-8 px-3 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table>
+                <TableHeader className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800">
+                  <TableRow>
+                    <TableHead className="text-gray-600 dark:text-gray-400">#</TableHead>
+                    <TableHead className="text-gray-600 dark:text-gray-400">{t('startDate')}</TableHead>
+                    <TableHead className="text-gray-600 dark:text-gray-400">{t('endDate')}</TableHead>
+                    <TableHead className="text-gray-600 dark:text-gray-400">{t('reason')}</TableHead>
+                    <TableHead className="text-gray-600 dark:text-gray-400">{t('detailsOptional')}</TableHead>
+                    <TableHead className="text-gray-600 dark:text-gray-400">{t('affects')}</TableHead>
+                    <TableHead className="w-8"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {rows.map((row, i) => {
                     const hasErrors = row.errors.length > 0
                     return (
-                      <tr
+                      <TableRow
                         key={i}
-                        className={`border-t border-gray-100 dark:border-gray-700 ${hasErrors ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}
+                        className={hasErrors ? 'bg-red-50/50 dark:bg-red-900/10' : ''}
                         title={hasErrors ? row.errors.join('\n') : undefined}
                       >
-                        <td className="px-3 py-1.5 text-gray-400">{i + 1}</td>
-                        <td className="px-3 py-1.5 text-gray-900 dark:text-gray-100">{row.start_date || '—'}</td>
-                        <td className="px-3 py-1.5 text-gray-900 dark:text-gray-100">{row.end_date || '—'}</td>
-                        <td className="px-3 py-1.5 text-gray-900 dark:text-gray-100">{row.reason || '—'}</td>
-                        <td className="px-3 py-1.5 text-gray-500 dark:text-gray-400">{row.reason_detail || ''}</td>
-                        <td className="px-3 py-1.5 text-gray-500 dark:text-gray-400">{row.affects || 'all'}</td>
-                        <td className="px-3 py-1.5">
+                        <TableCell className="text-gray-400">{i + 1}</TableCell>
+                        <TableCell className="whitespace-nowrap text-gray-900 dark:text-gray-100">{row.start_date || '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap text-gray-900 dark:text-gray-100">{row.end_date || '—'}</TableCell>
+                        <TableCell className="text-gray-900 dark:text-gray-100">{row.reason || '—'}</TableCell>
+                        <TableCell className="text-gray-500 dark:text-gray-400">{row.reason_detail || ''}</TableCell>
+                        <TableCell className="text-gray-500 dark:text-gray-400">{row.affects || 'all'}</TableCell>
+                        <TableCell>
                           {hasErrors ? (
                             <AlertCircle className="h-4 w-4 text-red-500" />
                           ) : (
                             <CheckCircle2 className="h-4 w-4 text-green-500" />
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             {/* Import button */}

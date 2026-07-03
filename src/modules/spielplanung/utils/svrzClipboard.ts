@@ -19,7 +19,10 @@ function hallLine(game: Game): string {
 
 export function formatSvrzClipboard(game: Game): string {
   const team = asObj<Team>(game.kscw_team)
-  const date = formatDate(parseDate(game.date), 'EEE, d MMM yyyy')
+  // Pinned to English (language-independent): this is a functional clipboard
+  // string pasted alongside English "Home:/Away:/vs" labels, not a UI label, so
+  // it must not follow the viewer's locale (formatDate localizes by default).
+  const date = formatDate(parseDate(game.date), 'EEE, d MMM yyyy', 'en')
   const time = game.time ? formatTime(game.time) : ''
   const kscwTeamName = team?.name ?? ''
   const opponent = game.type === 'home' ? game.away_team : game.home_team

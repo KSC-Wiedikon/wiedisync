@@ -82,4 +82,17 @@ export default {
   icalDutiesGenerate: 'Persönlichen Link erstellen',
   icalDutiesPrivacyHint: 'Persönlicher Link — bitte privat halten. Er zeigt nur deinen Einsatzplan (keine persönlichen Daten).',
   icalDutiesError: 'Persönlicher Link konnte nicht erstellt werden.',
+
+  // Detailmodal + Rasterüberlagerungen
+  coach: 'Trainer',
+  cancelled: 'Abgesagt',
+  moreCount: '+{{count}} weitere',
+  absentCount: '{{count}} abwesend',
+  eventTypeVerein: 'Verein',
+  eventTypeSocial: 'Social',
+  eventTypeMeeting: 'Sitzung',
+  eventTypeTournament: 'Turnier',
+  eventTypeTrainingsweekend: 'Trainingsweekend',
+  eventTypeFriendly: 'Freundschaftsspiel',
+  eventTypeOther: 'Andere',
 } as const

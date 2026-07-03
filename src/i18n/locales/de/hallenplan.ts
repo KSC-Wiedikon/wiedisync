@@ -137,4 +137,22 @@ export default {
   slotsAvailable: '{{count}} Halle(n) frei',
   slotsAvailableTitle: 'Freie Hallen',
   slotsAvailableNone: 'Keine freien Hallen',
+
+  // Wochentag-Kürzel (Raster- / Übersichtsköpfe)
+  dayMonShort: 'Mo',
+  dayTueShort: 'Di',
+  dayWedShort: 'Mi',
+  dayThuShort: 'Do',
+  dayFriShort: 'Fr',
+  daySatShort: 'Sa',
+  daySunShort: 'So',
+
+  // Raster- / Editor-Feinschliff
+  noDataToDisplay: 'Keine Daten vorhanden',
+  switchOverlap: 'Überlappung wechseln',
+  labelPlaceholder: 'z.B. Schnuppertraining, Heimspiel vs. TVA',
+  sportVolleyball: 'Volleyball',
+  sportBasketball: 'Basketball',
+  claimNotesPlaceholder: 'Optional…',
+  closureReasonPlaceholder: 'z.B. Ferien, Unterhalt, Renovation',
 } as const

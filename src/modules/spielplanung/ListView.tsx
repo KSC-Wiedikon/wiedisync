@@ -28,10 +28,10 @@ function getHallName(game: Game): string {
 function StatusBadge({ status }: { status: string }) {
   const { t } = useTranslation('spielplanung')
   const styles: Record<string, string> = {
-    scheduled: 'bg-brand-50 text-brand-700',
-    live: 'bg-green-50 text-green-700',
+    scheduled: 'bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300',
+    live: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',
     completed: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
-    postponed: 'bg-amber-50 text-amber-700',
+    postponed: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   }
   const labelKey = `status.${status}`
   return (
@@ -45,7 +45,9 @@ function TypeBadge({ type }: { type: string }) {
   return (
     <span
       className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-        type === 'home' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
+        type === 'home'
+          ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+          : 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
       }`}
     >
       {type === 'home' ? 'H' : 'A'}
@@ -190,7 +192,7 @@ function ByTeamView({ games, teams }: { games: Game[]; teams: Team[] }) {
           <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50 dark:bg-gray-900 px-4 py-2">
             <TeamChip team={group.team.name} />
             <span className="text-sm text-gray-500 dark:text-gray-400">{group.team.league}</span>
-            <span className="text-xs text-gray-400">({group.games.length} games)</span>
+            <span className="text-xs text-gray-400">({t('gamesCount', { count: group.games.length })})</span>
           </div>
           <Table>
             <TableHeader>

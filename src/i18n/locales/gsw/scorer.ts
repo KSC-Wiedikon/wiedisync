@@ -50,6 +50,13 @@ export default {
   noGames: 'Käni Spiel',
   noGamesDescription: 'Käni Spiel für de usgwählte Filter gfunde.',
 
+  // Error toasts
+  errorUpdate: 'D Zueteilig het nöd chöne aktualisiert wärde.',
+  errorToggleReminders: 'D Erinnerigs-Iistellig het nöd chöne gänderet wärde.',
+  errorDelegate: 'D Delegation het nöd chöne gschickt wärde.',
+  errorAcceptDelegation: 'D Aafrog het nöd chöne aagnah wärde.',
+  errorDeclineDelegation: 'D Aafrog het nöd chöne abglehnt wärde.',
+
   // Past games
   showOlderGames: 'Ältere Spiel aazeige',
   loadMore: 'Meh lade',

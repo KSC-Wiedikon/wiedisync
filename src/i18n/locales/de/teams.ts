@@ -76,6 +76,7 @@ export default {
   soonAbsent: 'Bald abwesend',
   absent: 'Ja',
   upcoming: 'Bald',
+  playerNotFound: 'Spieler/in nicht gefunden',
 
   // Team detail
   sponsors: 'Sponsoren',

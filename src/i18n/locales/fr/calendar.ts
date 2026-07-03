@@ -76,4 +76,17 @@ export default {
   icalDutiesGenerate: 'Generer mon lien d\'engagements',
   icalDutiesPrivacyHint: 'Lien personnel — gardez-le prive. Il n\'affiche que votre planning d\'engagements (aucune donnee personnelle).',
   icalDutiesError: 'Impossible de creer votre lien personnel.',
+
+  // Modale de detail + superpositions
+  coach: 'Entraineur',
+  cancelled: 'Annulé',
+  moreCount: '+{{count}} de plus',
+  absentCount: '{{count}} absent(s)',
+  eventTypeVerein: 'Club',
+  eventTypeSocial: 'Social',
+  eventTypeMeeting: 'Reunion',
+  eventTypeTournament: 'Tournoi',
+  eventTypeTrainingsweekend: 'Trainingsweekend',
+  eventTypeFriendly: 'Match amical',
+  eventTypeOther: 'Autre',
 } as const

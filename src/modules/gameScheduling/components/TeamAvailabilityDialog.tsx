@@ -37,11 +37,13 @@ interface Props {
   seasonName: string
 }
 
-/** Localized short weekday for a YYYY-MM-DD date (UTC-anchored, day-stable). */
-function weekdayShort(ymd: string, lang: string): string {
+/** Short weekday for a YYYY-MM-DD date (UTC-anchored, day-stable).
+ *  Locale hardcoded to de-CH per the Swiss date convention — passing the UI
+ *  language would give en-US users English weekday abbreviations. */
+function weekdayShort(ymd: string): string {
   const d = new Date(`${ymd}T00:00:00Z`)
   if (Number.isNaN(d.getTime())) return ''
-  return new Intl.DateTimeFormat(lang, { weekday: 'short', timeZone: 'UTC' }).format(d)
+  return new Intl.DateTimeFormat('de-CH', { weekday: 'short', timeZone: 'UTC' }).format(d)
 }
 
 /** Merge sorted YYYY-MM-DD dates into compact dd.mm.yyyy ranges for prose. */
@@ -73,7 +75,7 @@ function mergeDateRanges(dates: string[]): string[] {
  *  (strict vs 3rd-pick-only) plus the away blocked dates — with copy-as-text
  *  (for pasting into an opponent email) and CSV download. */
 export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seasonId, seasonName }: Props) {
-  const { t, i18n } = useTranslation('gameScheduling')
+  const { t } = useTranslation('gameScheduling')
   const [open, setOpen] = useState(false)
   const [data, setData] = useState<TeamAvailability | null>(null)
   const [loading, setLoading] = useState(false)
@@ -97,7 +99,7 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
   }
 
   const slotLine = (s: AvailabilitySlot) =>
-    `${weekdayShort(s.date, i18n.language)} ${formatDateZurich(s.date)}, ${gameStartForDate(s.date, s.start_time)}, ${s.hall_name}${s.strict ? '' : ` (${t('availTextThird')})`}`
+    `${weekdayShort(s.date)} ${formatDateZurich(s.date)}, ${gameStartForDate(s.date, s.start_time)}, ${s.hall_name}${s.strict ? '' : ` (${t('availTextThird')})`}`
 
   const buildText = () => {
     if (!data) return ''
@@ -131,7 +133,7 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
     for (const s of data.slots) {
       rows.push([
         formatDateZurich(s.date),
-        weekdayShort(s.date, i18n.language),
+        weekdayShort(s.date),
         gameStartForDate(s.date, s.start_time),
         s.hall_name,
         s.strict ? t('pickAnyLabel') : t('pickThirdLabel'),
@@ -202,7 +204,7 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
                     {data.slots.map((s) => (
                       <TableRow key={s.id}>
                         <TableCell className="whitespace-nowrap font-medium">
-                          {weekdayShort(s.date, i18n.language)} {formatDateZurich(s.date)}
+                          {weekdayShort(s.date)} {formatDateZurich(s.date)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{gameStartForDate(s.date, s.start_time)}</TableCell>
                         <TableCell className="whitespace-normal break-words">{s.hall_name}</TableCell>

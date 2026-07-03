@@ -67,4 +67,17 @@ export default {
   icalOpenInApp: 'Oder direkt i dinere Kaländer-App ufmache',
   icalSubscribeHint:
     'Füeg de Link i dini Kaländer-App ii zum abonniere — er bliibt automatisch aktuell. Google Kaländer: Wytteri Kaländer → Per URL. Apple Kaländer: Ablag → Kaländerabo hinzuefüege.',
+
+  // Detailmodal + Raster
+  coach: 'Trainer',
+  cancelled: 'Abgseit',
+  moreCount: '+{{count}} meh',
+  absentCount: '{{count}} abwäsend',
+  eventTypeVerein: 'Verein',
+  eventTypeSocial: 'Social',
+  eventTypeMeeting: 'Sitzig',
+  eventTypeTournament: 'Turnier',
+  eventTypeTrainingsweekend: 'Trainingsweekend',
+  eventTypeFriendly: 'Fründschaftsspiel',
+  eventTypeOther: 'Anderi',
 } as const

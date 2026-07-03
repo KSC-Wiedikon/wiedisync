@@ -309,6 +309,7 @@ export default {
   duesStatusNoRate: 'No rate',
   duesStatusNoEmail: 'No email on file',
   duesIssueCta: 'Issue {{count}} invoices',
+  duesIssueConfirmTitle: 'Issue dues run?',
   duesIssueSure: 'Issue {{count}} invoices totalling {{amount}}? Each member gets a payable QR-bill.',
   duesIssued: '{{count}} invoices issued ({{amount}}).',
   duesIssueError: 'Could not issue the run.',

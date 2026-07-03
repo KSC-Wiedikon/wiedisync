@@ -4,6 +4,7 @@ import { useInfraHealth } from '../../hooks/useInfraHealth'
 import { API_URL, fetchItems, countItems } from '../../lib/api'
 import { currentLocale } from '../../utils/dateHelpers'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 
 const PROD_URL = API_URL
 const DEV_URL = 'https://directus-dev.kscw.ch'
@@ -273,13 +274,13 @@ export default function InfraHealthPage() {
         status: apiProdOk ? 'healthy' : prodHealth.cors ? 'unknown' : 'down',
         detail: apiProdOk
           ? PROD_URL.replace('https://', '')
-          : prodHealth.cors ? 'CORS (cross-origin)' : 'Unreachable',
+          : prodHealth.cors ? t('infraCors') : t('infraUnreachable'),
         responseTime: apiProdOk ? prodHealth.ms : null,
       },
       {
         name: t('infraPbDev'),
         status: devHealth.ok ? 'healthy' : devHealth.cors ? 'unknown' : 'down',
-        detail: devHealth.ok ? DEV_URL.replace('https://', '') : devHealth.cors ? 'CORS (cross-origin)' : `HTTP ${devHealth.status}`,
+        detail: devHealth.ok ? DEV_URL.replace('https://', '') : devHealth.cors ? t('infraCors') : `HTTP ${devHealth.status}`,
         responseTime: devHealth.ok ? devHealth.ms : null,
       },
       // Cloudflare Tunnel (implied by API Prod reachability)
@@ -291,7 +292,7 @@ export default function InfraHealthPage() {
       {
         name: t('infraPushWorker'),
         status: push.ok ? 'healthy' : 'down',
-        detail: push.ok ? PUSH_WORKER_URL.replace('https://', '') : 'Unreachable',
+        detail: push.ok ? PUSH_WORKER_URL.replace('https://', '') : t('infraUnreachable'),
         responseTime: push.ok ? push.ms : null,
       },
       {
@@ -316,13 +317,13 @@ export default function InfraHealthPage() {
       {
         name: 'CF Pages (WiediSync)',
         status: cfWiedisync.ok ? 'healthy' : 'down',
-        detail: cfWiedisync.ok ? 'wiedisync.kscw.ch' : 'Unreachable',
+        detail: cfWiedisync.ok ? 'wiedisync.kscw.ch' : t('infraUnreachable'),
         responseTime: cfWiedisync.ok ? cfWiedisync.ms : null,
       },
       {
         name: 'CF Pages (Website)',
         status: cfWebsite.ok ? 'healthy' : cfWebsite.cors ? 'unknown' : 'down',
-        detail: cfWebsite.ok ? 'kscw-website.pages.dev' : cfWebsite.cors ? 'Cross-origin (redirects to kscw.ch)' : 'Unreachable',
+        detail: cfWebsite.ok ? 'kscw-website.pages.dev' : cfWebsite.cors ? 'Cross-origin (redirects to kscw.ch)' : t('infraUnreachable'),
         responseTime: cfWebsite.ok ? cfWebsite.ms : null,
       },
     ]
@@ -419,7 +420,7 @@ export default function InfraHealthPage() {
         const m = await r.json()
         const pendingCount = Array.isArray(m.pending) ? m.pending.length : 0
         statResults.push({
-          name: 'Migrations applied',
+          name: t('infraMigrationsApplied'),
           status: pendingCount === 0 ? 'healthy' : 'stale',
           detail: pendingCount === 0
             ? `Latest: ${m.latest ?? '—'}`
@@ -445,10 +446,10 @@ export default function InfraHealthPage() {
         const loadParts = String(v.loadavg).split('/').map((s: string) => parseFloat(s.trim()))
         const load5 = Number.isFinite(loadParts[1]) ? loadParts[1] : parseFloat(v.loadavg)
         vpsResults.push(
-          { name: 'Uptime', status: 'healthy', detail: v.uptime, value: null },
-          { name: 'CPU Load', status: load5 > v.cpu_count * 0.8 ? 'stale' : 'healthy', detail: `${v.loadavg} (${v.cpu_count} cores)`, value: null },
-          { name: 'Memory', status: v.memory.percent > 90 ? 'down' : v.memory.percent > 75 ? 'stale' : 'healthy', detail: `${v.memory.used} / ${v.memory.total}`, value: `${v.memory.percent}%` },
-          { name: 'Disk', status: v.disk.percent > 90 ? 'down' : v.disk.percent > 75 ? 'stale' : 'healthy', detail: `${v.disk.used} / ${v.disk.total}`, value: `${v.disk.percent}%` },
+          { name: t('infraUptime'), status: 'healthy', detail: v.uptime, value: null },
+          { name: t('infraCpuLoad'), status: load5 > v.cpu_count * 0.8 ? 'stale' : 'healthy', detail: `${v.loadavg} (${v.cpu_count} cores)`, value: null },
+          { name: t('infraMemory'), status: v.memory.percent > 90 ? 'down' : v.memory.percent > 75 ? 'stale' : 'healthy', detail: `${v.memory.used} / ${v.memory.total}`, value: `${v.memory.percent}%` },
+          { name: t('infraDisk'), status: v.disk.percent > 90 ? 'down' : v.disk.percent > 75 ? 'stale' : 'healthy', detail: `${v.disk.used} / ${v.disk.total}`, value: `${v.disk.percent}%` },
         )
       }
     } catch { /* skip VPS metrics on error */ }
@@ -519,7 +520,7 @@ export default function InfraHealthPage() {
         </div>
       </div>
 
-      {vps.length > 0 && <Section title="VPS Resources" checks={vps} />}
+      {vps.length > 0 && <Section title={t('infraVpsResources')} checks={vps} />}
       <Section title={t('infraServices')} checks={services} />
       <Section title={t('infraDataSyncs')} checks={syncs} />
       <Section title={t('infraCronJobs')} checks={crons} />
@@ -530,33 +531,33 @@ export default function InfraHealthPage() {
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             {t('infraSlowQueries')}
           </h3>
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="px-3 py-2 text-left font-semibold text-gray-500 dark:text-gray-400">{t('infraQueryAvg')}</th>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-500 dark:text-gray-400">{t('infraQueryMax')}</th>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-500 dark:text-gray-400">{t('infraQueryCalls')}</th>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-500 dark:text-gray-400">{t('infraQueryTotal')}</th>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-500 dark:text-gray-400">Query</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50">
+            <Table className="text-xs">
+              <TableHeader>
+                <TableRow className="border-b border-gray-200 dark:border-gray-700">
+                  <TableHead className="px-3 py-2 font-semibold text-gray-500 dark:text-gray-400">{t('infraQueryAvg')}</TableHead>
+                  <TableHead className="px-3 py-2 font-semibold text-gray-500 dark:text-gray-400">{t('infraQueryMax')}</TableHead>
+                  <TableHead className="px-3 py-2 font-semibold text-gray-500 dark:text-gray-400">{t('infraQueryCalls')}</TableHead>
+                  <TableHead className="px-3 py-2 font-semibold text-gray-500 dark:text-gray-400">{t('infraQueryTotal')}</TableHead>
+                  <TableHead className="px-3 py-2 font-semibold text-gray-500 dark:text-gray-400">{t('infraQueryCol')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {slowQueries.map((q, i) => (
-                  <tr key={i} className="border-b border-gray-100 last:border-0 dark:border-gray-700/50">
-                    <td className={`px-3 py-2 font-mono tabular-nums ${q.avg_ms > 100 ? 'font-bold text-red-600 dark:text-red-400' : q.avg_ms > 20 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                  <TableRow key={i} className="border-b border-gray-100 last:border-0 dark:border-gray-700/50">
+                    <TableCell className={`px-3 py-2 font-mono tabular-nums ${q.avg_ms > 100 ? 'font-bold text-red-600 dark:text-red-400' : q.avg_ms > 20 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-700 dark:text-gray-300'}`}>
                       {q.avg_ms}ms
-                    </td>
-                    <td className="px-3 py-2 font-mono tabular-nums text-gray-600 dark:text-gray-400">{q.max_ms}ms</td>
-                    <td className="px-3 py-2 font-mono tabular-nums text-gray-600 dark:text-gray-400">{q.calls.toLocaleString(currentLocale())}</td>
-                    <td className="px-3 py-2 font-mono tabular-nums text-gray-600 dark:text-gray-400">{q.total_ms > 1000 ? `${(q.total_ms / 1000).toFixed(1)}s` : `${q.total_ms}ms`}</td>
-                    <td className="max-w-xs truncate px-3 py-2 font-mono text-gray-500 dark:text-gray-400" title={q.query}>
+                    </TableCell>
+                    <TableCell className="px-3 py-2 font-mono tabular-nums text-gray-600 dark:text-gray-400">{q.max_ms}ms</TableCell>
+                    <TableCell className="px-3 py-2 font-mono tabular-nums text-gray-600 dark:text-gray-400">{q.calls.toLocaleString(currentLocale())}</TableCell>
+                    <TableCell className="px-3 py-2 font-mono tabular-nums text-gray-600 dark:text-gray-400">{q.total_ms > 1000 ? `${(q.total_ms / 1000).toFixed(1)}s` : `${q.total_ms}ms`}</TableCell>
+                    <TableCell className="max-w-xs truncate px-3 py-2 font-mono text-gray-500 dark:text-gray-400" title={q.query}>
                       {q.query}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </div>
       )}

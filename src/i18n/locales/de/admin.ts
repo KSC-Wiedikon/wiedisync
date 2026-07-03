@@ -612,4 +612,28 @@ export default {
   vfRatingTk: 'TK Ltg.',
   vfRatingTraining: 'Training',
   vfRatingComm: 'Komm.',
+
+  // Registrations — file preview + doc count
+  anmeldungenDocsCount: '{{count}} Dok.',
+  anmeldungenPdfOpenTab: 'PDF — in neuem Tab öffnen',
+  anmeldungenDocAlt: 'Dokument',
+
+  // Infra health — VPS resources, slow-query table, status details
+  infraVpsResources: 'VPS-Ressourcen',
+  infraCors: 'CORS (Cross-Origin)',
+  infraUnreachable: 'Nicht erreichbar',
+  infraMigrationsApplied: 'Migrationen angewendet',
+  infraUptime: 'Betriebszeit',
+  infraCpuLoad: 'CPU-Last',
+  infraMemory: 'Arbeitsspeicher',
+  infraDisk: 'Festplatte',
+  infraQueryCol: 'Abfrage',
+
+  // Chart view (SQL query results)
+  chartTypeBar: 'Balkendiagramm',
+  chartTypeLine: 'Liniendiagramm',
+  chartTypePie: 'Kreisdiagramm',
+  chartNoNumericData: 'Keine numerischen Daten zum Darstellen',
+  chartRows_one: '{{count}} Zeile',
+  chartRows_other: '{{count}} Zeilen',
 } as const

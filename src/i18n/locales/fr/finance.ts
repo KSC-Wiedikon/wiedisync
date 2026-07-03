@@ -262,4 +262,5 @@ export default {
   payoutDelete: 'Supprimer',
   myPayoutsTitle: 'Remboursements pour toi',
   myPayoutsSubtitle: "Versements que le club t'envoie. Télécharge le QR-facture si besoin.",
+  duesIssueConfirmTitle: 'Lancer la campagne de cotisations ?',
 }

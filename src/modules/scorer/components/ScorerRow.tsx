@@ -37,9 +37,9 @@ import { asObj } from '../../../utils/relations'
 
 export type ExpandedGame = Game
 
-function getDateFormatter(locale: string) {
-  const loc = locale.startsWith('gsw') || locale === 'de' ? 'de-CH' : locale === 'en' ? 'en-GB' : locale
-  return new Intl.DateTimeFormat(loc, { weekday: 'short', day: 'numeric', month: 'short' })
+// Swiss date format app-wide — hardcode de-CH regardless of UI language (CLAUDE.md date rule).
+function getDateFormatter() {
+  return new Intl.DateTimeFormat('de-CH', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 // ── VB helpers ──
@@ -154,12 +154,12 @@ export default function ScorerRow({
   getPendingForRole,
   getDelegationTargetName,
 }: ScorerRowProps) {
-  const { t, i18n } = useTranslation('scorer')
+  const { t } = useTranslation('scorer')
   const expanded = game as ExpandedGame
   const kscwTeamObj = asObj<Team>(expanded.kscw_team)
   const kscwTeam = kscwTeamObj?.name ?? ''
   const hall = asObj<Hall>(expanded.hall)
-  const dateStr = game.date ? getDateFormatter(i18n.language).format(new Date(game.date + 'T00:00:00')) : ''
+  const dateStr = game.date ? getDateFormatter().format(new Date(game.date + 'T00:00:00')) : ''
   const gameNumber = game.game_id?.replace(/^(vb_|bb_)/, '') ?? ''
 
   // A game is "past" once its Zurich kickoff has passed (covers same-day games

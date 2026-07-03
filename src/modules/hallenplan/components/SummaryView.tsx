@@ -1,20 +1,12 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { HallSlot, HallClosure, Hall, Team } from '../../../types'
 import { toISODate } from '../../../utils/dateHelpers'
 import { timeToMinutes } from '../../../utils/dateHelpers'
 import { START_HOUR, END_HOUR } from '../utils/timeGrid'
 
-const DAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 const SUMMARY_ROW_HEIGHT = 20 // px per 30-min row
 const SUMMARY_INTERVAL = 30
-
-const typeLabels: Record<string, string> = {
-  training: 'Training',
-  game: 'Spiel',
-  event: 'Event',
-  away: 'Away',
-  other: '',
-}
 
 /** Sport+type color scheme (shared with SlotBlock) */
 const SLOT_COLORS: Record<string, Record<string, { bg: string; text: string; border: string }>> = {
@@ -54,6 +46,18 @@ interface SummaryViewProps {
 }
 
 export default function SummaryView({ slots, closures, weekDays, halls, teams }: SummaryViewProps) {
+  const { t } = useTranslation('hallenplan')
+  const DAY_HEADERS = [
+    t('dayMonShort'), t('dayTueShort'), t('dayWedShort'), t('dayThuShort'),
+    t('dayFriShort'), t('daySatShort'), t('daySunShort'),
+  ]
+  const typeLabels: Record<string, string> = {
+    training: t('typeTraining'),
+    game: t('typeGame'),
+    event: t('typeEvent'),
+    away: t('typeAway'),
+    other: '',
+  }
   const teamMap = useMemo(() => {
     const m = new Map<string, Team>()
     for (const t of teams) m.set(String(t.id), t)
@@ -149,7 +153,7 @@ export default function SummaryView({ slots, closures, weekDays, halls, teams }:
   if (visibleHalls.length === 0) {
     return (
       <div className="rounded-lg bg-white p-8 text-center text-sm text-gray-500 shadow-card dark:bg-gray-800 dark:text-gray-400">
-        No data to display
+        {t('noDataToDisplay')}
       </div>
     )
   }

@@ -5,6 +5,7 @@ import { Plus, Trash2, Pencil, Globe, X, Upload } from 'lucide-react'
 import { logActivity } from '../../utils/logActivity'
 import { getFileUrl } from '../../utils/fileUrl'
 import { Button } from '../../components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { Input } from '../../components/ui/input'
 import { Switch } from '../../components/ui/switch'
 import { Label } from '../../components/ui/label'
@@ -202,42 +203,57 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
           <EmptyState title={t('teamSponsors')} description={t('addSponsor')} />
         </div>
       ) : (
-        <div className="mt-3 space-y-2">
-          {sponsors.map((sp) => (
-            <div key={sp.id} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
-              {sp.logo ? (
-                <img src={getFileUrl('sponsors', sp.id, sp.logo)} alt={sp.name} className="h-12 w-12 shrink-0 rounded object-contain" />
-              ) : (
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-400 dark:bg-gray-700">
-                  <Upload className="h-5 w-5" />
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{sp.name}</p>
-                {(() => {
-                  const safeUrl = sanitizeUrl(sp.website_url || '')
-                  return safeUrl ? (
-                    <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline dark:text-brand-400">
-                      <Globe className="h-3 w-3" />
-                      {safeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                    </a>
-                  ) : null
-                })()}
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={sp.team_page_only} onCheckedChange={() => handleTeamPageOnlyToggle(sp)} />
-                <span className="hidden text-xs text-gray-500 dark:text-gray-400 sm:inline">{t('teamPageOnly')}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button type="button" onClick={() => openEditForm(sp)} aria-label={t('common:edit')} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 sm:min-h-0 sm:min-w-0 dark:hover:bg-gray-700 dark:hover:text-gray-300">
-                  <Pencil className="h-4 w-4" />
-                </button>
-                <button type="button" onClick={() => setDeleteTarget(sp)} aria-label={t('common:delete')} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 sm:min-h-0 sm:min-w-0 dark:hover:bg-red-900/20 dark:hover:text-red-400">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="mt-3 rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-gray-200 dark:border-gray-700">
+                <TableHead className="w-14 hidden sm:table-cell" />
+                <TableHead className="text-gray-500 dark:text-gray-400">{t('sponsorName')}</TableHead>
+                <TableHead className="text-center text-gray-500 dark:text-gray-400">{t('teamPageOnly')}</TableHead>
+                <TableHead className="w-8" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sponsors.map((sp) => {
+                const safeUrl = sanitizeUrl(sp.website_url || '')
+                return (
+                  <TableRow key={sp.id} className="border-gray-200 dark:border-gray-700">
+                    <TableCell className="hidden sm:table-cell">
+                      {sp.logo ? (
+                        <img src={getFileUrl('sponsors', sp.id, sp.logo)} alt={sp.name} className="h-12 w-12 shrink-0 rounded object-contain" />
+                      ) : (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-400 dark:bg-gray-700">
+                          <Upload className="h-5 w-5" />
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{sp.name}</p>
+                      {safeUrl ? (
+                        <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline dark:text-brand-400">
+                          <Globe className="h-3 w-3" />
+                          {safeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                        </a>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Switch checked={sp.team_page_only} onCheckedChange={() => handleTeamPageOnlyToggle(sp)} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button type="button" onClick={() => openEditForm(sp)} aria-label={t('common:edit')} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 sm:min-h-0 sm:min-w-0 dark:hover:bg-gray-700 dark:hover:text-gray-300">
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button type="button" onClick={() => setDeleteTarget(sp)} aria-label={t('common:delete')} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 sm:min-h-0 sm:min-w-0 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
 
