@@ -246,6 +246,41 @@ const psqlInput =
   "  FROM sex_match WHERE m.id = sex_match.id AND (m.sex IS NULL OR btrim(m.sex) = '');\n" +
   'COMMIT;\n' +
   "SELECT 'members_missing_sex' AS metric, (SELECT count(*) FROM members WHERE sex IS NULL OR btrim(sex)='') AS value;\n" +
+  // ── Apply ClubDesk identity/billing fields (Anrede/Nationalität/AHV/IBAN/Nie mahnen) ──
+  // ClubDesk is the legal member register for these, but anrede/nationalitaet/
+  // ahv_nummer/iban are member-editable in wiedisync, so they FILL-ONLY (a
+  // member's own edit is never clobbered; this is also the down-sync half that
+  // the sync-up push needs before those columns may ever be added to
+  // CD_PUSH_HEADERS — see clubdesk-update.js). never_dun is boolean (no "empty"
+  // state) → one-way ratchet: ClubDesk "Nie mahnen = ja" sets it, but a
+  // manually-set wiedisync flag is never cleared by a blank ClubDesk cell.
+  // IBANs are stored space-stripped to match the existing members.iban values.
+  // clubdesk_id-keyed (1:1); DISTINCT ON picks the latest staged row should a
+  // contact ever appear twice. Change-guard WHERE avoids no-op row churn.
+  'BEGIN;\n' +
+  'WITH cd AS (\n' +
+  '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
+  "         left(NULLIF(btrim(anrede),''),10) AS anrede,\n" +
+  "         left(NULLIF(btrim(nationalitaet),''),100) AS nationalitaet,\n" +
+  "         left(NULLIF(btrim(ahv_nummer),''),20) AS ahv,\n" +
+  "         left(NULLIF(replace(btrim(iban),' ',''),''),34) AS iban,\n" +
+  "         lower(btrim(nie_mahnen)) = 'ja' AS nie_mahnen\n" +
+  '  FROM clubdesk_export\n' +
+  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
+  '  ORDER BY btrim(clubdesk_id), row_id DESC)\n' +
+  'UPDATE members m SET\n' +
+  "  anrede        = COALESCE(NULLIF(btrim(m.anrede),''), cd.anrede),\n" +
+  "  nationalitaet = COALESCE(NULLIF(btrim(m.nationalitaet),''), cd.nationalitaet),\n" +
+  "  ahv_nummer    = COALESCE(NULLIF(btrim(m.ahv_nummer),''), cd.ahv),\n" +
+  "  iban          = COALESCE(NULLIF(btrim(m.iban),''), cd.iban),\n" +
+  '  never_dun     = m.never_dun OR cd.nie_mahnen\n' +
+  'FROM cd WHERE m.clubdesk_id = cd.cdid AND (\n' +
+  "     (NULLIF(btrim(m.anrede),'') IS NULL AND cd.anrede IS NOT NULL)\n" +
+  "  OR (NULLIF(btrim(m.nationalitaet),'') IS NULL AND cd.nationalitaet IS NOT NULL)\n" +
+  "  OR (NULLIF(btrim(m.ahv_nummer),'') IS NULL AND cd.ahv IS NOT NULL)\n" +
+  "  OR (NULLIF(btrim(m.iban),'') IS NULL AND cd.iban IS NOT NULL)\n" +
+  '  OR (NOT m.never_dun AND cd.nie_mahnen));\n' +
+  'COMMIT;\n' +
   // ── Propagate ClubDesk contact fields to members (finance member explorer) ──
   // The scrape stages address/category/sektion/phone for every member, but only
   // birthdate was ever applied. Fill the rest so the finance Members view mirrors
