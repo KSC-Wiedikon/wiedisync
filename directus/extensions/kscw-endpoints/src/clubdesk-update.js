@@ -512,25 +512,18 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     return x === y || x.startsWith(y) || y.startsWith(x)
   }
 
-  router.get('/clubdesk-registration-status', async (req, res) => {
-    try {
-      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
-      const regId = Number(String(req.query.registration_id || '').trim())
-      if (!Number.isInteger(regId)) return res.status(400).json({ error: 'registration_id required' })
-      const reg = await database('registrations').where('id', regId)
-        .first('id', 'email', 'vorname', 'status')
-      if (!reg) return res.status(404).json({ error: 'Registration not found' })
-      if (!reg.email) return res.json({ status: 'no_member' })
+  async function cdStatusForRegistration(reg) {
+      if (!reg || !reg.email) return { status: 'no_member' }
 
       const email = reg.email.toLowerCase().trim()
       const emailRows = await database('members').whereRaw('LOWER(email) = ?', [email])
         .select('id', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at')
       const member = emailRows.find((r) => firstNamesMatchCd(r.first_name, reg.vorname)) || null
-      if (!member) return res.json({ status: 'no_member' })
+      if (!member) return { status: 'no_member' }
 
       const base = { member_id: member.id }
       if (member.clubdesk_id) {
-        return res.json({ ...base, status: 'linked', clubdesk_id: member.clubdesk_id })
+        return { ...base, status: 'linked', clubdesk_id: member.clubdesk_id }
       }
 
       // Unlinked → look for the person in the ClubDesk snapshot. Candidates come
@@ -579,7 +572,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (cd) {
         const linked = await database('members').where('clubdesk_id', cd.cdid)
           .first('id', 'first_name', 'last_name')
-        return res.json({
+        return {
           ...base,
           status: 'match_unlinked',
           clubdesk_id: cd.cdid,
@@ -589,15 +582,49 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           duplicate_of: linked && linked.id !== member.id
             ? { id: linked.id, name: `${linked.first_name || ''} ${linked.last_name || ''}`.trim() }
             : null,
-        })
+        }
       }
 
       if (member.clubdesk_pushed_at) {
-        return res.json({ ...base, status: 'pushed_pending', pushed_at: member.clubdesk_pushed_at })
+        return { ...base, status: 'pushed_pending', pushed_at: member.clubdesk_pushed_at }
       }
-      return res.json({ ...base, status: 'not_in_clubdesk' })
+      return { ...base, status: 'not_in_clubdesk' }
+  }
+
+  router.get('/clubdesk-registration-status', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const regId = Number(String(req.query.registration_id || '').trim())
+      if (!Number.isInteger(regId)) return res.status(400).json({ error: 'registration_id required' })
+      const reg = await database('registrations').where('id', regId)
+        .first('id', 'email', 'vorname', 'status')
+      if (!reg) return res.status(404).json({ error: 'Registration not found' })
+      return res.json(await cdStatusForRegistration(reg))
     } catch (err) {
       log.error({ msg: `clubdesk-registration-status: ${err.message}`, endpoint: 'clubdesk-registration-status', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // Batch variant for the Anmeldungen OVERVIEW: one call resolves the ClubDesk
+  // status badge for every approved registration in the table (the per-row GET
+  // stays for the expanded zone's fresh check before actions).
+  router.post('/clubdesk-registration-status/batch', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const ids = Array.isArray(req.body?.registration_ids)
+        ? req.body.registration_ids.map(Number).filter((n) => Number.isInteger(n)).slice(0, 200)
+        : []
+      if (!ids.length) return res.status(400).json({ error: 'registration_ids required' })
+      const regs = await database('registrations').whereIn('id', ids)
+        .select('id', 'email', 'vorname', 'status')
+      const statuses = {}
+      for (const reg of regs) {
+        statuses[reg.id] = await cdStatusForRegistration(reg)
+      }
+      return res.json({ statuses })
+    } catch (err) {
+      log.error({ msg: `clubdesk-registration-status/batch: ${err.message}`, endpoint: 'clubdesk-registration-status/batch', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
     }
   })

@@ -1,6 +1,6 @@
-import { Fragment, useState, useMemo, useCallback } from 'react'
+import { Fragment, useState, useMemo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink, ArrowUpFromLine, Send } from 'lucide-react'
+import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink, ArrowUpFromLine, Send, CheckCircle2, Link2, Clock, CircleAlert } from 'lucide-react'
 import { useCollection, useUpdate } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -200,6 +200,46 @@ export default function AnmeldungenPage() {
 
   // Report to the app boot gate — see usePageReady.tsx
   useReportPageLoading(isLoading)
+
+  // ClubDesk status badges for the OVERVIEW rows (approved registrations,
+  // superadmin only) — one batch call instead of per-row fetches; the expanded
+  // zone still does its own fresh check before offering actions.
+  const [cdStatuses, setCdStatuses] = useState<Record<string, { status: string }>>({})
+  useEffect(() => {
+    if (!isGlobalAdmin) return
+    const ids = (registrationsRaw ?? []).filter((r) => r.status === 'approved').map((r) => r.id)
+    if (!ids.length) return
+    let alive = true
+    kscwApi<{ statuses: Record<string, { status: string }> }>('/clubdesk-registration-status/batch', {
+      method: 'POST',
+      body: { registration_ids: ids },
+    })
+      .then((res) => { if (alive) setCdStatuses(res.statuses ?? {}) })
+      .catch(() => { /* badge is best-effort — the expanded zone still works */ })
+    return () => { alive = false }
+  }, [isGlobalAdmin, registrationsRaw])
+
+  const cdBadge = (reg: Registration) => {
+    if (reg.status !== 'approved') return null
+    const st = cdStatuses[String(reg.id)]
+    if (!st) return null
+    const map: Record<string, { icon: typeof CheckCircle2; cls: string; label: string }> = {
+      linked: { icon: CheckCircle2, cls: 'text-green-600 dark:text-green-400', label: t('cdRegLinked') },
+      match_unlinked: { icon: Link2, cls: 'text-amber-600 dark:text-amber-400', label: t('cdRegMatchUnlinked') },
+      pushed_pending: { icon: Clock, cls: 'text-blue-600 dark:text-blue-400', label: t('cdRegPushedPending') },
+      not_in_clubdesk: { icon: CircleAlert, cls: 'text-amber-600 dark:text-amber-400', label: t('cdRegNotIn') },
+      no_member: { icon: CircleAlert, cls: 'text-gray-400 dark:text-gray-500', label: t('cdRegNoMember') },
+    }
+    const m = map[st.status]
+    if (!m) return null
+    const Icon = m.icon
+    return (
+      <span className={`inline-flex items-center gap-0.5 text-xs ${m.cls}`} title={m.label}>
+        <Icon className="h-3 w-3 shrink-0" />
+        <span className="hidden sm:inline">CD</span>
+      </span>
+    )
+  }
 
   // Group by sport
   const grouped = useMemo(() => {
@@ -462,6 +502,7 @@ export default function AnmeldungenPage() {
                                       {t('anmeldungenDocsCount', { count: countDocs(reg) })}
                                     </span>
                                   )}
+                                  {cdBadge(reg)}
                                 </div>
                                 <div className="lg:hidden mt-0.5 text-[11px] text-gray-400">{formatDate(reg.submitted_at)}</div>
                               </TableCell>
@@ -483,6 +524,7 @@ export default function AnmeldungenPage() {
                                       {countDocs(reg)}
                                     </span>
                                   )}
+                                  {cdBadge(reg)}
                                 </div>
                               </TableCell>
                               <TableCell className="hidden lg:table-cell text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatDate(reg.submitted_at)}</TableCell>
