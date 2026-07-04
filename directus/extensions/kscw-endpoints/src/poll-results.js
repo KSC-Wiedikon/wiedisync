@@ -1,5 +1,5 @@
 /**
- * Poll results — identity-free aggregate counts for ANONYMOUS polls.
+ * Poll results — identity-free aggregate counts.
  *
  * Audit 2026-07-02 (#5 / #14, MEDIUM): anonymous poll votes always persist
  * `member`, and the manager `poll_votes` reads (LEADER + Vorstand + Sport Admin)
@@ -7,21 +7,25 @@
  * toggle (PollCard hides `votedBy`), trivially defeated via the items API or
  * React devtools. Those manager reads are now scoped to non-anonymous polls at
  * the data layer (setup-permissions.mjs), so anonymous vote rows are no longer
- * identity-readable by any non-admin role. This endpoint gives managers the
- * aggregate they legitimately need — per-option counts, NO identity — computed
- * on the system connection.
+ * identity-readable by any non-admin role. This endpoint gives the aggregate —
+ * per-option counts, NO identity — computed on the system connection.
  *
  *   GET /kscw/polls/:id/results  ->  { counts: { [optionIndex]: n }, totalVotes }
  *
- * Manager-gated: admin / sport-admin / vorstand / coach / TR of the poll's team
- * — the same audience that could see live results before the deadline. A
- * non-manager gets 403 (they still read their own vote via the OWN_MEMBER
- * poll_votes read). Works for anonymous AND non-anonymous polls; the frontend
- * only needs it for anonymous ones (where the raw rows are now withheld).
+ * Who may call it (migration 171 widened this beyond managers):
+ *   - managers: admin / sport-admin / vorstand / coach / TR of the poll's team
+ *     — the audience that can see live results before the deadline;
+ *   - the poll's creator (matters for chat polls, where the creator is usually
+ *     a regular member);
+ *   - when the poll was created with `results_visible`: anyone who can see the
+ *     poll at all — the team roster (team polls) or the conversation members
+ *     (chat polls).
+ * Everyone else gets 403 (they still read their own vote via the OWN_MEMBER
+ * poll_votes read). Voter identity never leaves this endpoint regardless.
  */
 
-/** admin / sport-admin / vorstand / coach or TR of the poll's team. */
-async function authorizePollManager(db, req, poll) {
+/** Manager, creator, or — for visible-results polls — team/conversation member. */
+async function authorizePollViewer(db, req, poll) {
   if (req.accountability?.admin === true) return true
   if (!req.accountability?.user) return false
   const caller = await db('members').where('user', req.accountability.user).select('id', 'role').first()
@@ -39,6 +43,18 @@ async function authorizePollManager(db, req, poll) {
     ])
     if (coach || tr) return true
   }
+  if (poll.created_by != null && String(poll.created_by) === String(caller.id)) return true
+  if (poll.results_visible) {
+    if (poll.team) {
+      const roster = await db('member_teams').where('team', poll.team).where('member', caller.id).first()
+      if (roster) return true
+    }
+    if (poll.conversation) {
+      const participant = await db('conversation_members')
+        .where('conversation', poll.conversation).where('member', caller.id).first()
+      if (participant) return true
+    }
+  }
   return false
 }
 
@@ -50,9 +66,9 @@ export function registerPollResults(router, { database, logger }, helpers) {
     try {
       requireAuth(req, log)
       const poll = await database('polls').where('id', req.params.id)
-        .select('id', 'team', 'anonymous').first()
+        .select('id', 'team', 'conversation', 'anonymous', 'created_by', 'results_visible').first()
       if (!poll) { res.status(404).json({ error: 'Poll not found' }); return }
-      if (!(await authorizePollManager(database, req, poll))) {
+      if (!(await authorizePollViewer(database, req, poll))) {
         res.status(403).json({ error: 'Not authorised for this poll' }); return
       }
       const rows = await database('poll_votes').where('poll', poll.id).select('selected_options')
@@ -72,5 +88,5 @@ export function registerPollResults(router, { database, logger }, helpers) {
     }
   })
 
-  log.info('Poll results endpoint loaded (identity-free counts for anonymous polls)')
+  log.info('Poll results endpoint loaded (identity-free counts; manager/creator + visible-results audiences)')
 }

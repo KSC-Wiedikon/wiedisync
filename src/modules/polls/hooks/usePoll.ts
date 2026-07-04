@@ -66,6 +66,7 @@ export function usePolls(teamId: string) {
     mode: 'single' | 'multi'
     deadline?: string
     anonymous?: boolean
+    results_visible?: boolean
   }) => {
     if (!user) return
     await createPoll({
@@ -75,6 +76,9 @@ export function usePolls(teamId: string) {
       mode: data.mode,
       deadline: data.deadline || '',
       anonymous: data.anonymous || false,
+      // Default ON for new polls (the form sends it explicitly; migration 171
+      // defaults existing rows to false so old polls stay manager-only).
+      results_visible: data.results_visible ?? true,
       created_by: user.id,
       status: 'open',
     })
@@ -112,7 +116,14 @@ export function useActivePolls(teamIds: string[]) {
 export function usePollVotes(poll: Poll, canManage = false) {
   const pollId = poll.id
   const anonymous = !!poll.anonymous
+  const resultsVisible = !!poll.results_visible
   const { user } = useAuth()
+  // The creator always sees the totals (matters for chat polls, where the
+  // creator is usually a regular member rendered with canManage=false).
+  const isCreator = user != null && poll.created_by != null && String(poll.created_by) === String(user.id)
+  // Whether this viewer may see the real aggregate at all. WHEN they see it is
+  // PollCard's timing gate (managers live, everyone else after voting/close).
+  const canSeeResults = canManage || resultsVisible || isCreator
 
   const { data: votesRaw, refetch, isLoading } = useCollection<PollVote>('poll_votes', {
     filter: pollId ? { poll: { _eq: pollId } } : { id: { _eq: -1 } },
@@ -129,25 +140,30 @@ export function usePollVotes(poll: Poll, canManage = false) {
 
   const { create, update } = useMutation<PollVote>('poll_votes')
 
-  // Anonymous polls: raw vote rows are withheld from managers at the data layer
-  // (anonymity is no longer a UI-only toggle). A manager instead pulls the
-  // identity-free aggregate from GET /kscw/polls/:id/results. `tick` bumps on
-  // realtime vote events so the tally stays live without exposing identities.
+  // Some viewers can't compute the tally from raw poll_votes rows and need the
+  // identity-free aggregate from GET /kscw/polls/:id/results instead:
+  //   - managers on ANONYMOUS polls (raw rows withheld at the data layer since
+  //     the 2026-07-02 audit — anonymity is no longer a UI-only toggle);
+  //   - non-managers who may see results (migration 171) — their poll_votes
+  //     read is OWN_MEMBER, so raw rows only ever contain their own vote.
+  // `tick` bumps on realtime vote events (and own votes) so the tally stays
+  // live without exposing identities.
+  const needsAggregate = canManage ? anonymous : canSeeResults
   const [tick, setTick] = useState(0)
-  const [anonCounts, setAnonCounts] =
+  const [aggCounts, setAggCounts] =
     useState<{ counts: Record<number, number>; totalVotes: number } | null>(null)
   useEffect(() => {
-    // Only anonymous polls viewed by a manager need the counts endpoint. When it
-    // doesn't apply we simply leave anonCounts untouched — getResults() gates on
-    // `anonymous && canManage` so a stale value is never read (and avoiding a
-    // synchronous setState here keeps the effect free of cascading renders).
-    if (!pollId || !anonymous || !canManage) return
+    // When the aggregate doesn't apply we simply leave aggCounts untouched —
+    // getResults() gates on `needsAggregate` so a stale value is never read
+    // (and avoiding a synchronous setState here keeps the effect free of
+    // cascading renders).
+    if (!pollId || !needsAggregate) return
     let cancelled = false
     kscwApi<{ counts: Record<number, number>; totalVotes: number }>(`/polls/${pollId}/results`)
-      .then((r) => { if (!cancelled) setAnonCounts({ counts: r.counts ?? {}, totalVotes: r.totalVotes ?? 0 }) })
-      .catch(() => { if (!cancelled) setAnonCounts(null) })
+      .then((r) => { if (!cancelled) setAggCounts({ counts: r.counts ?? {}, totalVotes: r.totalVotes ?? 0 }) })
+      .catch(() => { if (!cancelled) setAggCounts(null) })
     return () => { cancelled = true }
-  }, [pollId, anonymous, canManage, tick])
+  }, [pollId, needsAggregate, tick])
 
   useRealtime<PollVote>('poll_votes', (e) => {
     if (e.record.poll === pollId) { refetch(); setTick((t) => t + 1) }
@@ -168,6 +184,10 @@ export function usePollVotes(poll: Poll, canManage = false) {
       })
     }
     refetch()
+    // Non-managers don't receive realtime events for other members' vote rows
+    // (own-row read permission), so re-pull the aggregate explicitly — their
+    // fresh vote must show up in the totals they're about to see.
+    setTick((t) => t + 1)
   }, [user, pollId, myVote, create, update, refetch])
 
   // Compute results: count votes per option index, and (when the voter is
@@ -176,10 +196,11 @@ export function usePollVotes(poll: Poll, canManage = false) {
   // Memoized so PollCard re-renders don't recompute the tally unless the inputs
   // actually changed.
   const results = useMemo(() => {
-    // Anonymous poll, manager view: return the identity-free endpoint counts.
-    // No `voters` — that's the whole point of anonymity.
-    if (anonymous && canManage && anonCounts) {
-      return { counts: anonCounts.counts, voters: {} as Record<number, Array<{ id: string; name: string }>>, totalVotes: anonCounts.totalVotes }
+    // Aggregate path (anonymous-poll managers, visible-results non-managers):
+    // return the identity-free endpoint counts. No `voters` — either anonymity
+    // demands it, or the viewer isn't entitled to names in the first place.
+    if (needsAggregate && aggCounts) {
+      return { counts: aggCounts.counts, voters: {} as Record<number, Array<{ id: string; name: string }>>, totalVotes: aggCounts.totalVotes }
     }
     const counts: Record<number, number> = {}
     const voters: Record<number, Array<{ id: string; name: string }>> = {}
@@ -195,9 +216,9 @@ export function usePollVotes(poll: Poll, canManage = false) {
       })
     })
     return { counts, voters, totalVotes: votes.length }
-  }, [anonymous, canManage, anonCounts, votes])
+  }, [needsAggregate, aggCounts, votes])
 
   const getResults = useCallback(() => results, [results])
 
-  return { votes, myVote, isLoading, vote, getResults }
+  return { votes, myVote, isLoading, vote, getResults, canSeeResults }
 }

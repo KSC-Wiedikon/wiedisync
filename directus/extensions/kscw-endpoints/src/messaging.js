@@ -897,6 +897,9 @@ export function registerMessaging(router, ctx) {
       const options = Array.isArray(b.options) ? b.options.map(String).map(s => s.trim()).filter(Boolean) : []
       const mode = b.mode === 'multi' ? 'multi' : 'single'
       const anonymous = b.anonymous === true
+      // Migration 171 — default ON for new polls (the form sends it explicitly;
+      // absent = older client, keep the everyone-sees-totals default).
+      const resultsVisible = b.results_visible !== false
       const deadline = typeof b.deadline === 'string' && b.deadline.length > 0 ? b.deadline : null
 
       if (!conversationId) throw new MessagingError(400, 'messaging/invalid_body', 'conversation required')
@@ -921,6 +924,7 @@ export function registerMessaging(router, ctx) {
         conversation: conversationId,
         team: null,
         question, options, mode, deadline, anonymous,
+        results_visible: resultsVisible,
         created_by: me.id, status: 'open',
       })
 

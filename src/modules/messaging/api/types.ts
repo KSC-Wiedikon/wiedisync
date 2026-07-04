@@ -139,6 +139,7 @@ export type CreatePollBody = {
   mode: 'single' | 'multi'
   deadline?: string
   anonymous?: boolean
+  results_visible?: boolean
 }
 
 export type ExportBundle = {
