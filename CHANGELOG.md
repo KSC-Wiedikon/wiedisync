@@ -2,6 +2,19 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.19.0 — 2026-07-04
+
+### ClubDesk status on every approved registration
+- Each **approved** registration on the Anmeldungen page now carries a **"ClubDesk sync" zone** (superadmin): it reports whether the person behind the registration is already in ClubDesk (linked member), found in the last ClubDesk snapshot but not linked yet, already pushed and awaiting link-back, or missing entirely.
+- **Per-person actions**: one-click **Link** to the matching ClubDesk contact (refused with a duplicate warning when that contact belongs to another member), or **Sync to ClubDesk** to push just this person through the existing sync-up pipeline — no full sync needed for a single new member.
+- Shared family emails are handled safely: a contact is only offered for linking when the **name matches too**, and the sync-up push now re-checks eligibility server-side so a person can never be pushed twice by accident.
+
+### Polls: results visible to members
+- Polls have a new **"results visible to everyone"** option (on by default for new polls): members can see the vote counts after voting, not just managers. Who voted for what stays visible to managers only, exactly as before.
+
+### Fixes
+- The Data health page no longer fails to load when the "Missing sex" check runs.
+
 ## v1.18.0 — 2026-07-03
 
 ### Account signup by personal invite
