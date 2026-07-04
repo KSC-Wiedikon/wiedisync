@@ -225,7 +225,9 @@ export default function ExplorerTree({ cache, selectedType, selectedId, query, o
                                   type="button"
                                   onClick={() => onSelect(e.type, e.id)}
                                   className={
-                                    'flex w-full rounded-md px-2 py-1 pl-9 text-left ' +
+                                    // block + break-words: long game/training labels wrap
+                                    // instead of overflowing the clipped sidebar on mobile.
+                                    'block w-full break-words rounded-md px-2 py-1 pl-9 text-left ' +
                                     (isActive
                                       ? 'bg-primary text-primary-foreground'
                                       : 'text-foreground hover:bg-muted')
