@@ -295,7 +295,10 @@ export default function SqlWorkspacePage() {
   }, [result])
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col bg-background text-foreground">
+    // Mobile: natural height, the whole page scrolls in Layout's <main> (one
+    // scroll context — a fixed height + nested scroller traps touch gestures).
+    // md+: fixed workspace height with internally scrolling panes.
+    <div className="flex flex-col bg-background text-foreground md:h-[calc(100vh-4rem)]">
       <header className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 md:px-4">
         <h1 className="hidden text-sm font-bold text-primary md:block">{t('sqlWorkspaceTitle')}</h1>
         <span className="hidden rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground md:inline" title={t('sqlWorkspaceDialectHint')}>
@@ -307,14 +310,14 @@ export default function SqlWorkspacePage() {
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-primary bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 sm:min-h-0"
               title={t('sqlWorkspaceAskAiHint')}
             >
               <Sparkles className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">{t('sqlWorkspaceAskAi')}</span>
             </button>
           </PopoverTrigger>
-          <PopoverContent align="end" sideOffset={6} className="w-[380px] p-3 sm:w-[440px]">
+          <PopoverContent align="end" sideOffset={6} className="w-[min(calc(100vw-2rem),380px)] p-3 sm:w-[440px]">
             <div className="mb-2 flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               <h2 className="text-sm font-semibold">{t('sqlWorkspaceAskAi')}</h2>
@@ -340,7 +343,7 @@ export default function SqlWorkspacePage() {
                 type="button"
                 onClick={() => void handleAskAi()}
                 disabled={aiLoading || !aiPrompt.trim()}
-                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 sm:min-h-0"
               >
                 {aiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 {t('sqlWorkspaceAskAiGenerate')}
@@ -367,7 +370,7 @@ export default function SqlWorkspacePage() {
           type="button"
           onClick={execute}
           disabled={loading || !sql.trim()}
-          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 sm:min-h-0"
           title={t('sqlWorkspaceRunHint')}
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
@@ -441,7 +444,7 @@ export default function SqlWorkspacePage() {
         </aside>
 
         {/* Main: editor + results */}
-        <main className="flex min-w-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
+        <main className="flex min-w-0 flex-1 flex-col gap-2 p-3 md:overflow-y-auto">
           <CodeMirrorEditor
             value={sql}
             onChange={setSql}
@@ -495,7 +498,7 @@ export default function SqlWorkspacePage() {
                       type="button"
                       onClick={handleExportCsv}
                       disabled={exporting !== null}
-                      className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                      className="inline-flex min-h-11 items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50 sm:min-h-0"
                       title={t('sqlWorkspaceExportCsv')}
                     >
                       <FileDown className="h-3 w-3" />
@@ -505,7 +508,7 @@ export default function SqlWorkspacePage() {
                       type="button"
                       onClick={handleExportXlsx}
                       disabled={exporting !== null}
-                      className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                      className="inline-flex min-h-11 items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50 sm:min-h-0"
                       title={t('sqlWorkspaceExportXlsx')}
                     >
                       {exporting === 'xlsx' ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileSpreadsheet className="h-3 w-3" />}
@@ -515,7 +518,7 @@ export default function SqlWorkspacePage() {
                       type="button"
                       onClick={handleCopyTable}
                       disabled={exporting !== null}
-                      className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                      className="inline-flex min-h-11 items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50 sm:min-h-0"
                       title={t('sqlWorkspaceCopyTableHint')}
                     >
                       {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <ClipboardCopy className="h-3 w-3" />}
