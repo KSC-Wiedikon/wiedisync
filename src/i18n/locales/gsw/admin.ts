@@ -135,6 +135,13 @@ export default {
   dhLink: 'Verbinde',
   dhIssueClubdeskDeparted: 'ClubDesk verla (deaktiviere?)',
   dhDeactivate: 'Deaktiviere',
+  dhIssueClubdeskDrift: 'Nöd synchron mit ClubDesk',
+  dhIssueClubdeskDriftBlocked: 'Nöd synchron mit ClubDesk — zerst «Sync down» laufe lah',
+  dhDriftGone: 'Für dä Iitrag git s nüt me z synchronisiere — Liste aktualisiert.',
+  dhDriftBlankRisk: 'Nöd vorgmerkt: de Push würd ClubDesk-Date lääre. Zerst «Sync down» laufe lah, denn neu scanne.',
+  dhIssueClubdeskFill: 'Date fähled i ClubDesk (Sammel-Fill)',
+  dhMarkSync: 'Für Sync-up vormerke',
+  dhMarkedForSync: 'Für Sync-up vorgmerkt — Push via Anmeldunge → «Sync up to ClubDesk»',
 
   // Audit Log
   auditTitle: 'Audit Log',

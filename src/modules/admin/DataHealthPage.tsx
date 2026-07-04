@@ -12,7 +12,7 @@ import {
 } from '../../components/ui/table'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import {
-  runAllChecks, autoFix, autoFixAll, manualFix, linkClubdesk, deactivateMember,
+  runAllChecks, autoFix, autoFixAll, manualFix, linkClubdesk, deactivateMember, flagClubdeskDrift,
   type CollectionHealth, type DataIssue, type IssueKey,
 } from './utils/dataHealthChecks'
 
@@ -27,6 +27,9 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   missingSex: 'dhIssueMissingSex',
   clubdeskNameMatch: 'dhIssueClubdeskNameMatch',
   clubdeskDeparted: 'dhIssueClubdeskDeparted',
+  clubdeskDrift: 'dhIssueClubdeskDrift',
+  clubdeskDriftBlocked: 'dhIssueClubdeskDriftBlocked',
+  clubdeskFill: 'dhIssueClubdeskFill',
 }
 
 function severityIcon(severity: DataIssue['severity']) {
@@ -100,6 +103,30 @@ function CollectionCard({
       onFixed()
     } catch {
       toast.error(t('dhFixFailed'))
+    } finally {
+      setManualFixingId(null)
+    }
+  }
+
+  async function handleFlagDrift(issue: DataIssue) {
+    setManualFixingId(issue.id)
+    try {
+      await flagClubdeskDrift(issue)
+      toast.success(`${t('dhMarkedForSync')}: ${issue.detail}`)
+      onFixed()
+    } catch (err) {
+      const code = (err as { code?: string; body?: { code?: string } })?.code
+        ?? (err as { body?: { code?: string } })?.body?.code
+      if (code === 'no_drift') {
+        // Drift resolved since the scan (sync-down ran / another admin) —
+        // informational, and rescan to drop the stale row.
+        toast.info(t('dhDriftGone'))
+        onFixed()
+      } else if (code === 'blank_risk') {
+        toast.warning(t('dhDriftBlankRisk'))
+      } else {
+        toast.error(t('dhFixFailed'))
+      }
     } finally {
       setManualFixingId(null)
     }
@@ -260,6 +287,15 @@ function CollectionCard({
                         className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 sm:min-h-0 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
                       >
                         {manualFixingId === issue.id ? t('dhFixing') : t('dhDeactivate')}
+                      </button>
+                    ) : issue.manualKind === 'clubdeskDriftFlag' ? (
+                      <button
+                        onClick={() => handleFlagDrift(issue)}
+                        disabled={manualFixingId === issue.id}
+                        aria-busy={manualFixingId === issue.id}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                      >
+                        {manualFixingId === issue.id ? t('dhFixing') : t('dhMarkSync')}
                       </button>
                     ) : issue.manualKind === 'clubdeskLink' ? (
                       <button

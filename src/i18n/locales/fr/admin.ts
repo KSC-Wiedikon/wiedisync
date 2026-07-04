@@ -375,6 +375,13 @@ export default {
   dhLink: 'Lier',
   dhIssueClubdeskDeparted: 'A quitté ClubDesk (désactiver ?)',
   dhDeactivate: 'Désactiver',
+  dhIssueClubdeskDrift: 'Désynchronisé de ClubDesk',
+  dhIssueClubdeskDriftBlocked: 'Désynchronisé de ClubDesk — lancer d\'abord « Sync down »',
+  dhDriftGone: 'Plus rien à synchroniser pour cette entrée — liste actualisée.',
+  dhDriftBlankRisk: 'Non marqué : l\'envoi effacerait des données ClubDesk. Lancer d\'abord « Sync down », puis relancer le scan.',
+  dhIssueClubdeskFill: 'Données manquantes dans ClubDesk (remplissage groupé)',
+  dhMarkSync: 'Marquer pour la synchro',
+  dhMarkedForSync: 'Marqué pour la synchro — envoi via Anmeldungen → « Sync up to ClubDesk »',
 
   // Registrations — file preview + doc count
   anmeldungenDocsCount: '{{count}} doc.',

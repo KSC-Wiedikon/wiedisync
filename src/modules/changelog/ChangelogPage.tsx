@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.20.0'
+const APP_VERSION = '1.21.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.21.0',
+    date: '04.07.2026',
+    sections: [
+      {
+        title: 'Data health: ClubDesk drift detection',
+        items: [
+          'Members whose wiedisync contact data no longer matches ClubDesk now surface in Data health with the exact field differences — one click marks them for the next sync-up.',
+          'Fields wiedisync has but ClubDesk lacks are grouped into one bulk row per field, so they can all be marked at once.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.20.0',
     date: '04.07.2026',

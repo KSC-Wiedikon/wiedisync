@@ -602,6 +602,212 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
+  // ── ClubDesk drift (Data Health) ────────────────────────────────────────────
+  // Linked members whose wiedisync PUSH-SCOPE contact data no longer matches the
+  // ClubDesk snapshot. Catches every edit path that does NOT set the dirty flag
+  // (Data Explorer, finance/billing edits, approval backfills, raw items-API) —
+  // the /clubdesk-update profile path already flags itself. Compared fields =
+  // exactly the sync-up push scope (CD_PUSH_HEADERS): names, email, phone,
+  // address, birthdate, sex. A field counts as drift only when the WIEDISYNC
+  // side is non-empty (wiedisync is authoritative once filled — the sync-down
+  // fill-only COALESCE in import-clubdesk-csv.mjs encodes the same rule);
+  // wiedisync-empty + ClubDesk-non-empty is reported as blank_risk instead,
+  // because pushing that member would send an empty cell and could blank the
+  // authoritative ClubDesk value (empty-cell import behavior unvalidated).
+  // Snapshot-based: "ClubDesk says" = as of the last sync-down.
+  const driftNorm = (v) => String(v ?? '').trim()
+  const driftLower = (v) => driftNorm(v).toLowerCase()
+  const driftPhone = (v) => {
+    const d = String(v ?? '').replace(/\D/g, '')
+    // Equate +41 79…, 0041 79…, 079… — compare the last 9 digits (CH format).
+    return d.length > 9 ? d.slice(-9) : d
+  }
+  const driftDateCd = (v) => {
+    const m = String(v ?? '').trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+    return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : ''
+  }
+  const driftDateMember = (v) => {
+    if (!v) return ''
+    const iso = v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10)
+    return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : ''
+  }
+
+  async function computeClubdeskDrift(memberIds = null) {
+    // clubdesk_people lacks adresse/plz/ort/telefon_privat → dedupe the raw
+    // per-group staging table ourselves (contact fields are identical across a
+    // contact's group rows, so any row per clubdesk_id works).
+    const params = []
+    let memberFilter = ''
+    if (Array.isArray(memberIds) && memberIds.length) {
+      memberFilter = `AND m.id = ANY(?)`
+      params.push(memberIds)
+    }
+    const res = await database.raw(`
+      SELECT m.id, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
+             m.birthdate, m.sex, m.clubdesk_id, m.clubdesk_push_pending,
+             cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
+             cd.email_alternativ AS cd_email_alt, cd.telefon_privat AS cd_tel_priv,
+             cd.telefon_mobil AS cd_tel_mob, cd.adresse AS cd_adresse, cd.plz AS cd_plz,
+             cd.ort AS cd_ort, cd.geburtsdatum AS cd_geburtsdatum, cd.geschlecht AS cd_geschlecht
+      FROM members m
+      JOIN (
+        SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
+               email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
+               geburtsdatum, geschlecht
+        FROM clubdesk_export
+        WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
+        ORDER BY BTRIM(clubdesk_id), row_id
+      ) cd ON cd.cdid = m.clubdesk_id
+      WHERE m.clubdesk_id IS NOT NULL ${memberFilter}
+      ORDER BY m.last_name, m.first_name
+    `, params)
+    const candidates = []
+    for (const r of res.rows) {
+      // conflicts = both sides non-empty and different (per-member row in Data
+      // Health); fills = wiedisync set, ClubDesk empty (aggregated per field —
+      // 100+ legitimate mass-fills like `sex` would otherwise flood the page);
+      // blankRisk = wiedisync empty, ClubDesk set (push would blank it — warn).
+      const conflicts = []
+      const fills = []
+      const blankRisk = []
+      const cmp = (field, wiediRaw, cdRaw, wiediNorm, cdNorm) => {
+        if (wiediNorm && cdNorm) {
+          if (wiediNorm !== cdNorm) conflicts.push({ field, wiedisync: driftNorm(wiediRaw), clubdesk: driftNorm(cdRaw) })
+        } else if (wiediNorm) {
+          fills.push({ field, wiedisync: driftNorm(wiediRaw) })
+        } else if (cdNorm) {
+          blankRisk.push(field)
+        }
+      }
+      cmp('first_name', r.first_name, r.cd_vorname, driftLower(r.first_name), driftLower(r.cd_vorname))
+      cmp('last_name', r.last_name, r.cd_nachname, driftLower(r.last_name), driftLower(r.cd_nachname))
+      // Email matches when it equals EITHER ClubDesk address (primary or alt).
+      const em = driftLower(r.email)
+      const cdEm = driftLower(r.cd_email) || driftLower(r.cd_email_alt)
+      if (em && cdEm) {
+        if (em !== driftLower(r.cd_email) && em !== driftLower(r.cd_email_alt)) {
+          conflicts.push({ field: 'email', wiedisync: driftNorm(r.email), clubdesk: driftNorm(r.cd_email) || driftNorm(r.cd_email_alt) })
+        }
+      } else if (em) {
+        fills.push({ field: 'email', wiedisync: driftNorm(r.email) })
+      } else if (cdEm) {
+        blankRisk.push('email')
+      }
+      // Phone matches when it equals EITHER ClubDesk number (privat or mobil).
+      const ph = driftPhone(r.phone)
+      const cdPhones = [driftPhone(r.cd_tel_priv), driftPhone(r.cd_tel_mob)].filter(Boolean)
+      if (ph && cdPhones.length) {
+        if (!cdPhones.includes(ph)) {
+          conflicts.push({ field: 'phone', wiedisync: driftNorm(r.phone), clubdesk: driftNorm(r.cd_tel_priv) || driftNorm(r.cd_tel_mob) })
+        }
+      } else if (ph) {
+        fills.push({ field: 'phone', wiedisync: driftNorm(r.phone) })
+      } else if (cdPhones.length) {
+        blankRisk.push('phone')
+      }
+      cmp('adresse', r.adresse, r.cd_adresse, driftLower(r.adresse), driftLower(r.cd_adresse))
+      cmp('plz', r.plz, r.cd_plz, driftNorm(r.plz), driftNorm(r.cd_plz))
+      cmp('ort', r.ort, r.cd_ort, driftLower(r.ort), driftLower(r.cd_ort))
+      // Display both sides Swiss-style (dd.mm.yyyy); compare on ISO.
+      const bdIso = driftDateMember(r.birthdate)
+      const bdDisp = bdIso ? `${bdIso.slice(8, 10)}.${bdIso.slice(5, 7)}.${bdIso.slice(0, 4)}` : ''
+      cmp('birthdate', bdDisp, r.cd_geburtsdatum, bdIso, driftDateCd(r.cd_geburtsdatum))
+      const sexCd = r.sex === 'm' ? 'männlich' : r.sex === 'f' ? 'weiblich' : ''
+      cmp('sex', sexCd, r.cd_geschlecht, sexCd, driftLower(r.cd_geschlecht))
+      if (!conflicts.length && !fills.length) continue
+      candidates.push({
+        member_id: r.id,
+        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+        clubdesk_id: r.clubdesk_id,
+        pending: r.clubdesk_push_pending === true,
+        conflicts,
+        fills,
+        blank_risk: blankRisk,
+      })
+    }
+    return candidates
+  }
+
+  router.get('/clubdesk-drift', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const all = await computeClubdeskDrift()
+      // Per-member rows only for real CONFLICTS; fill-only members (wiedisync
+      // has data ClubDesk lacks) are aggregated per field so 100+ legit fills
+      // (e.g. sex, set only in wiedisync) don't flood Data Health. Members
+      // already marked for sync-up are excluded from both.
+      const active = all.filter((c) => !c.pending)
+      const candidates = active.filter((c) => c.conflicts.length)
+      // blank_risk members are EXCLUDED from the bulk member_ids: their push
+      // would send empty cells for fields ClubDesk still owns (unvalidated
+      // import semantics — could blank the legal register). They self-heal:
+      // the next sync-down fills the empty wiedisync fields from ClubDesk,
+      // the risk disappears, and they join the bulk. at_risk = how many are
+      // currently held back per field.
+      const fills = {}
+      for (const c of active) {
+        if (c.conflicts.length) continue
+        for (const f of c.fills) {
+          if (!fills[f.field]) fills[f.field] = { count: 0, member_ids: [], at_risk: 0 }
+          if (c.blank_risk.length) {
+            fills[f.field].at_risk++
+          } else {
+            fills[f.field].count++
+            fills[f.field].member_ids.push(c.member_id)
+          }
+        }
+      }
+      return res.json({ candidates, fills })
+    } catch (err) {
+      log.error({ msg: `clubdesk-drift: ${err.message}`, endpoint: 'clubdesk-drift', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // Mark drifted members for the next sync-up push: sets the dirty flag +
+  // stores the field diff (old = ClubDesk, new = wiedisync) so the sync-up
+  // modal echoes exactly what will change. Diffs are recomputed server-side —
+  // the client's list may be stale. The actual push still goes through the
+  // sync-up modal (preview → confirm → dispatcher), nothing moves here.
+  router.post('/clubdesk-drift/flag', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const ids = Array.isArray(req.body?.member_ids) ? req.body.member_ids.map(Number).filter((n) => Number.isInteger(n)) : []
+      if (!ids.length) return res.status(400).json({ error: 'member_ids required' })
+      const computed = await computeClubdeskDrift(ids)
+      if (!computed.length) return res.status(409).json({ error: 'No drift found for these members — refresh Data health', code: 'no_drift' })
+      // Refuse members whose push would blank ClubDesk-owned data (empty
+      // wiedisync field + non-empty ClubDesk value): buildPushCsv always sends
+      // the full row, and ClubDesk's empty-cell import behavior is unvalidated.
+      // These heal via sync-down (fills the empty wiedisync fields), so the
+      // admin's fix is "run sync down first", not an override.
+      const candidates = computed.filter((c) => !c.blank_risk.length)
+      const skipped = computed.length - candidates.length
+      if (!candidates.length) {
+        return res.status(409).json({ error: 'Push would blank ClubDesk data (member has empty fields ClubDesk still owns) — run "Sync down" first', code: 'blank_risk' })
+      }
+      for (const c of candidates) {
+        const changes = [
+          ...c.conflicts.map((d) => ({ field: d.field, old_value: d.clubdesk, new_value: d.wiedisync })),
+          ...c.fills.map((d) => ({ field: d.field, old_value: null, new_value: d.wiedisync })),
+        ]
+        await database('members').where('id', c.member_id).update({
+          clubdesk_push_pending: true,
+          clubdesk_push_changes: JSON.stringify(changes),
+        })
+        await writeUserLog(database, log, {
+          accountability: req.accountability, action: 'update',
+          collection: 'members', recordId: c.member_id,
+          data: { kind: 'clubdesk_drift_flag', fields: changes.map((d) => d.field) },
+        })
+      }
+      return res.json({ flagged: candidates.length, skipped_blank_risk: skipped })
+    } catch (err) {
+      log.error({ msg: `clubdesk-drift/flag: ${err.message}`, endpoint: 'clubdesk-drift/flag', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // ── Departed-in-ClubDesk detection (Data Health) ────────────────────────────
   // Members still active in wiedisync whose linked ClubDesk contact has a
   // non-active status (Kein Mitglied / Ehemaliges Mitglied / Verstorben) AND an

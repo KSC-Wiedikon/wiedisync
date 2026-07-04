@@ -19,6 +19,9 @@ export type IssueKey =
   | 'missingSex'
   | 'clubdeskNameMatch'
   | 'clubdeskDeparted'
+  | 'clubdeskDrift'
+  | 'clubdeskDriftBlocked'
+  | 'clubdeskFill'
 
 export interface DataIssue {
   id: string
@@ -37,15 +40,33 @@ export interface DataIssue {
    * 'sex' → male/female buttons (manualFix). 'clubdeskLink' → a single "Link"
    * button (linkClubdesk). Excluded from "Fix all".
    */
-  manualKind?: 'sex' | 'clubdeskLink' | 'clubdeskDeactivate'
+  manualKind?: 'sex' | 'clubdeskLink' | 'clubdeskDeactivate' | 'clubdeskDriftFlag'
   /** For manualKind 'clubdeskLink': the ClubDesk contact to link to. */
   link?: { clubdeskId: string; clubdeskEmail?: string | null }
+  /** For manualKind 'clubdeskDriftFlag' aggregate (fill) rows: all member ids to flag. */
+  bulkMemberIds?: number[]
 }
 
 export interface CollectionHealth {
   collection: string
   total: number
   issues: DataIssue[]
+}
+
+interface ClubdeskDrift {
+  member_id: number
+  member_name: string
+  clubdesk_id: string
+  pending: boolean
+  conflicts: { field: string; wiedisync: string; clubdesk: string }[]
+  fills: { field: string; wiedisync: string }[]
+  blank_risk: string[]
+}
+
+interface ClubdeskFillAgg {
+  count: number
+  member_ids: number[]
+  at_risk: number
 }
 
 interface ClubdeskNameMatch {
@@ -310,6 +331,66 @@ async function checkMembers(): Promise<CollectionHealth> {
     // Best-effort — see above.
   }
 
+  // Linked members whose wiedisync contact data (push scope: names, email,
+  // phone, address, birthdate, sex) no longer matches the ClubDesk snapshot —
+  // edits made outside the profile modal never set the sync-up dirty flag, so
+  // wiedisync and ClubDesk silently diverge. "Mark for sync-up" sets the flag
+  // (+ field diff) so the sync-up modal picks the member up; already-pending
+  // members are skipped here (they're in the modal's changed list already).
+  // Best-effort.
+  try {
+    const { candidates, fills } = await kscwApi<{
+      candidates: ClubdeskDrift[]
+      fills: Record<string, ClubdeskFillAgg>
+    }>('/clubdesk-drift')
+    // Real conflicts: one row per member with the field-level diff. Members
+    // with blank_risk fields (wiedisync empty where ClubDesk has data) get NO
+    // one-click flag — pushing them would send empty cells for ClubDesk-owned
+    // values; the next sync-down fills those fields and unblocks them. Their
+    // issueKey carries the explanation ("run sync down first") via its label.
+    for (const c of candidates || []) {
+      const diffTxt = c.conflicts
+        .map((d) => `${d.field}: ${d.clubdesk} → ${d.wiedisync}`)
+        .join(' · ')
+      const fillTxt = c.fills.length ? ` · +${c.fills.map((f) => f.field).join(', ')}` : ''
+      const blocked = c.blank_risk.length > 0
+      const blank = blocked ? ` · ⚠ ${c.blank_risk.join(', ')}` : ''
+      issues.push({
+        // Prefixed id: avoids manualFixingId collisions with missingSex /
+        // departed rows for the same member; the member id travels in
+        // bulkMemberIds instead.
+        id: `cd-drift-${c.member_id}`,
+        collection: 'members',
+        field: 'clubdesk_id',
+        severity: 'warning',
+        issueKey: blocked ? 'clubdeskDriftBlocked' : 'clubdeskDrift',
+        detail: `${c.member_name} — ${diffTxt}${fillTxt}${blank}`,
+        autoFixable: false,
+        ...(blocked ? {} : { manualKind: 'clubdeskDriftFlag' as const, bulkMemberIds: [c.member_id] }),
+      })
+    }
+    // Mass fills (wiedisync has data ClubDesk lacks): ONE aggregate row per
+    // field with a bulk "mark for sync-up" — e.g. 100+ members whose sex is
+    // only set in wiedisync would otherwise flood the list. member_ids only
+    // contains blank-risk-free members; at_risk counts the held-back ones.
+    for (const [field, agg] of Object.entries(fills || {})) {
+      if (!agg.count && !agg.at_risk) continue
+      const atRisk = agg.at_risk ? ` (+${agg.at_risk} ⚠)` : ''
+      issues.push({
+        id: `cd-fill-${field}`,
+        collection: 'members',
+        field,
+        severity: 'warning',
+        issueKey: 'clubdeskFill',
+        detail: `${field} — ${agg.count}${atRisk}`,
+        autoFixable: false,
+        ...(agg.count ? { manualKind: 'clubdeskDriftFlag' as const, bulkMemberIds: agg.member_ids } : {}),
+      })
+    }
+  } catch {
+    // Best-effort — see above.
+  }
+
   return { collection: 'members', total: members.length, issues }
 }
 
@@ -348,6 +429,19 @@ export async function deactivateMember(issue: DataIssue): Promise<void> {
   await kscwApi('/clubdesk-deactivate', {
     method: 'POST',
     body: { member_id: Number(issue.id) },
+  })
+}
+
+/**
+ * Mark drifted member(s) for the next ClubDesk sync-up push (sets the dirty
+ * flag + field diff server-side; the actual push happens in the sync-up modal
+ * on the Anmeldungen page). Bulk rows carry all their member ids.
+ */
+export async function flagClubdeskDrift(issue: DataIssue): Promise<void> {
+  const memberIds = issue.bulkMemberIds ?? [Number(issue.id)]
+  await kscwApi('/clubdesk-drift/flag', {
+    method: 'POST',
+    body: { member_ids: memberIds },
   })
 }
 
