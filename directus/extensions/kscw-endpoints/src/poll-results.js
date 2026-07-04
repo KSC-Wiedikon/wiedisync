@@ -83,8 +83,14 @@ export function registerPollResults(router, { database, logger }, helpers) {
       }
       res.json({ counts, totalVotes })
     } catch (err) {
-      logEndpointError(log, 'polls/results', err, req)
-      if (!res.headersSent) res.status(500).json({ error: 'Internal error' })
+      // requireAuth throws err.status=401 — surface it instead of a fake 500
+      // (members now call this endpoint routinely; an expired session must not
+      // pollute the error log as an internal error).
+      const status = Number.isInteger(err?.status) ? err.status : 500
+      if (status >= 500) logEndpointError(log, 'polls/results', err, req)
+      if (!res.headersSent) {
+        res.status(status).json({ error: status === 401 ? 'Authentication required' : 'Internal error' })
+      }
     }
   })
 
