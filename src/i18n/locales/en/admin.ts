@@ -140,6 +140,13 @@ export default {
   dhLink: 'Link',
   dhIssueClubdeskDeparted: 'Left ClubDesk (deactivate?)',
   dhDeactivate: 'Deactivate',
+  dhIssueClubdeskDrift: 'Out of sync with ClubDesk',
+  dhIssueClubdeskDriftBlocked: 'Out of sync with ClubDesk — run \'Sync down\' first',
+  dhDriftGone: 'Nothing left to sync for this entry — list refreshed.',
+  dhDriftBlankRisk: 'Not marked: the push would blank ClubDesk data. Run \'Sync down\' first, then rescan.',
+  dhIssueClubdeskFill: 'ClubDesk missing data (bulk fill)',
+  dhMarkSync: 'Mark for sync-up',
+  dhMarkedForSync: 'Marked for sync-up — push via Anmeldungen → \'Sync up to ClubDesk\'',
 
   // Audit Log
   auditTitle: 'Audit log',

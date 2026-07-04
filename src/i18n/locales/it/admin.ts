@@ -375,6 +375,13 @@ export default {
   dhLink: 'Collega',
   dhIssueClubdeskDeparted: 'Ha lasciato ClubDesk (disattivare?)',
   dhDeactivate: 'Disattiva',
+  dhIssueClubdeskDrift: 'Non sincronizzato con ClubDesk',
+  dhIssueClubdeskDriftBlocked: 'Non sincronizzato con ClubDesk — eseguire prima «Sync down»',
+  dhDriftGone: 'Niente più da sincronizzare per questa voce — elenco aggiornato.',
+  dhDriftBlankRisk: 'Non segnato: il push cancellerebbe dati in ClubDesk. Eseguire prima «Sync down», poi ripetere la scansione.',
+  dhIssueClubdeskFill: 'Dati mancanti in ClubDesk (riempimento in blocco)',
+  dhMarkSync: 'Segna per la sincronizzazione',
+  dhMarkedForSync: 'Segnato per la sincronizzazione — invio via Anmeldungen → «Sync up to ClubDesk»',
 
   // Registrations — file preview + doc count
   anmeldungenDocsCount: '{{count}} doc.',

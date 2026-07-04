@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.21.0 — 2026-07-04
+
+### Data health: ClubDesk drift detection
+- New **"Out of sync with ClubDesk"** check (superadmin): members whose wiedisync contact data (name, email, phone, address, birthdate, sex) no longer matches ClubDesk — with the exact field differences shown. One click marks them for the next sync-up; the push still goes through the usual preview.
+- New **"ClubDesk missing data"** check: fields wiedisync has but ClubDesk lacks are grouped into a single bulk row per field (e.g. 100+ members whose sex is only recorded in wiedisync) — one click marks them all.
+- This catches every edit path that previously bypassed the sync-up flag (admin edits, Data Explorer, approval backfills), so wiedisync and ClubDesk stay matched.
+
 ## v1.20.0 — 2026-07-04
 
 ### Registration documents are now enforced

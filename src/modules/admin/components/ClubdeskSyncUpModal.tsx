@@ -76,7 +76,10 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
     setPhase('pushing'); setError('')
     try {
       await kscwApi('/clubdesk-member-sync/up', { method: 'POST', body: { member_ids: ids } })
-      const deadline = Date.now() + 240_000
+      // Scale with batch size: bulk drift-fills can push 100+ rows through the
+      // per-minute dispatcher + Playwright import — a fixed 240 s would show a
+      // false timeout while the push keeps running.
+      const deadline = Date.now() + 240_000 + ids.length * 2_000
       for (;;) {
         await new Promise((r) => setTimeout(r, 5_000))
         const s = await kscwApi<UpStatus>('/clubdesk-member-sync/up-status')

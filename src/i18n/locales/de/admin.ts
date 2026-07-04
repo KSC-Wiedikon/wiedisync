@@ -140,6 +140,13 @@ export default {
   dhLink: 'Verknüpfen',
   dhIssueClubdeskDeparted: 'ClubDesk verlassen (deaktivieren?)',
   dhDeactivate: 'Deaktivieren',
+  dhIssueClubdeskDrift: 'Nicht synchron mit ClubDesk',
+  dhIssueClubdeskDriftBlocked: 'Nicht synchron mit ClubDesk — zuerst «Sync down» ausführen',
+  dhDriftGone: 'Für diesen Eintrag gibt es nichts mehr zu synchronisieren — Liste aktualisiert.',
+  dhDriftBlankRisk: 'Nicht vorgemerkt: der Push würde ClubDesk-Daten leeren. Zuerst «Sync down» ausführen, dann neu scannen.',
+  dhIssueClubdeskFill: 'Daten fehlen in ClubDesk (Sammel-Fill)',
+  dhMarkSync: 'Für Sync-up vormerken',
+  dhMarkedForSync: 'Für Sync-up vorgemerkt — Push via Anmeldungen → «Sync up to ClubDesk»',
 
   // Audit Log
   auditTitle: 'Audit Log',
