@@ -47,9 +47,10 @@ export default function TeamRequestModal({
   showLeave = true,
   onChange,
 }: TeamRequestModalProps) {
-  const { t } = useTranslation('auth')
+  const { t } = useTranslation(['auth', 'common'])
   const { user } = useAuth()
   const [selectedTeam, setSelectedTeam] = useState('')
+  const [selectedSport, setSelectedSport] = useState<Team['sport'] | ''>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [confirmLeaveId, setConfirmLeaveId] = useState<string | null>(null)
@@ -86,10 +87,32 @@ export default function TeamRequestModal({
     [pendingRequests],
   )
 
-  // Filter out teams user is already on or has pending requests for
+  // Filter out teams user is already on or has pending requests for, plus
+  // teams of the other gender (teams.gender, migration 172): a female player
+  // never sees men's teams and vice versa. Mixed/unknown teams and members
+  // without a recorded sex are never filtered.
+  const userSex = user?.sex ?? null
   const availableTeams = useMemo(
-    () => allTeams.filter((tm) => !currentTeamIds.includes(tm.id) && !pendingTeamIds.includes(tm.id)),
-    [allTeams, currentTeamIds, pendingTeamIds],
+    () => allTeams.filter((tm) =>
+      !currentTeamIds.includes(tm.id) &&
+      !pendingTeamIds.includes(tm.id) &&
+      (!userSex || !tm.gender || tm.gender === 'mixed' || tm.gender === userSex),
+    ),
+    [allTeams, currentTeamIds, pendingTeamIds, userSex],
+  )
+
+  // Sport step: which sports actually have joinable teams. Single-sport
+  // clubsides skip the step (auto-selected).
+  const sports = useMemo(
+    () => (['volleyball', 'basketball'] as const).filter(
+      (s) => availableTeams.some((tm) => tm.sport === s),
+    ),
+    [availableTeams],
+  )
+  const effectiveSport = selectedSport || (sports.length === 1 ? sports[0] : '')
+  const sportTeams = useMemo(
+    () => availableTeams.filter((tm) => tm.sport === effectiveSport),
+    [availableTeams, effectiveSport],
   )
 
   async function handleSubmit() {
@@ -130,6 +153,7 @@ export default function TeamRequestModal({
 
   function handleClose() {
     setSelectedTeam('')
+    setSelectedSport('')
     setError('')
     setConfirmLeaveId(null)
     onClose()
@@ -202,16 +226,46 @@ export default function TeamRequestModal({
           {availableTeams.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('noTeamsAvailable')}</p>
           ) : (
-            <SearchableSelect
-              label={t('selectTeam')}
-              placeholder={t('selectTeamPlaceholder')}
-              value={selectedTeam}
-              onChange={setSelectedTeam}
-              options={availableTeams.map((tm) => ({
-                value: tm.id,
-                label: tm.full_name || tm.name,
-              }))}
-            />
+            <>
+              {sports.length > 1 && (
+                <div>
+                  <p className="mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">{t('selectSport')}</p>
+                  <div className="flex gap-2">
+                    {sports.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => { setSelectedSport(s); setSelectedTeam('') }}
+                        className={
+                          'min-h-11 flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ' +
+                          (effectiveSport === s
+                            ? 'border-brand-600 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-900/30 dark:text-brand-300'
+                            : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800')
+                        }
+                      >
+                        {t(`common:${s}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {effectiveSport && (
+                sportTeams.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('noTeamsAvailable')}</p>
+                ) : (
+                  <SearchableSelect
+                    label={t('selectTeam')}
+                    placeholder={t('selectTeamPlaceholder')}
+                    value={selectedTeam}
+                    onChange={setSelectedTeam}
+                    options={sportTeams.map((tm) => ({
+                      value: tm.id,
+                      label: tm.full_name || tm.name,
+                    }))}
+                  />
+                )
+              )}
+            </>
           )}
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
