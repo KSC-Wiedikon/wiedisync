@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-06-26T10:05:24.673Z
+-- Generated:   2026-07-04T14:24:54.557Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -574,17 +574,24 @@ CREATE FUNCTION public.finance_native_txn_lock() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'public'
     AS $$
-DECLARE fy_status text;
-DECLARE r finance_transactions;
+DECLARE new_status text; DECLARE old_status text;
 BEGIN
-  r := CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
-  IF r.source = 'native' THEN
-    SELECT status INTO fy_status FROM finance_fiscal_years WHERE id = r.fiscal_year;
-    IF fy_status = 'closed' THEN
+  -- Target year (INSERT/UPDATE): cannot write into a closed year.
+  IF TG_OP IN ('INSERT', 'UPDATE') AND NEW.source = 'native' THEN
+    SELECT status INTO new_status FROM finance_fiscal_years WHERE id = NEW.fiscal_year;
+    IF new_status = 'closed' THEN
       RAISE EXCEPTION 'Cannot % a native ledger entry in a closed fiscal year — post a reversal in an open year instead', lower(TG_OP);
     END IF;
   END IF;
-  RETURN r;
+  -- Current year (UPDATE/DELETE): cannot touch a row that belongs to a closed
+  -- year — this is what blocks the fiscal_year re-point bypass.
+  IF TG_OP IN ('UPDATE', 'DELETE') AND OLD.source = 'native' THEN
+    SELECT status INTO old_status FROM finance_fiscal_years WHERE id = OLD.fiscal_year;
+    IF old_status = 'closed' THEN
+      RAISE EXCEPTION 'Cannot % a native ledger entry that belongs to a closed fiscal year — post a reversal in an open year instead', lower(TG_OP);
+    END IF;
+  END IF;
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END;
 $$;
 
@@ -1503,6 +1510,29 @@ $$;
 
 
 --
+-- Name: trg_scorer_delegation_freeze_identity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_scorer_delegation_freeze_identity() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.from_member IS DISTINCT FROM OLD.from_member
+     OR NEW.to_member IS DISTINCT FROM OLD.to_member
+     OR NEW.game        IS DISTINCT FROM OLD.game
+     OR NEW.role        IS DISTINCT FROM OLD.role
+     OR NEW.from_team   IS DISTINCT FROM OLD.from_team
+     OR NEW.to_team     IS DISTINCT FROM OLD.to_team THEN
+    RAISE EXCEPTION 'scorer_delegations: from_member/to_member/game/role/team are immutable after creation (issue a new delegation instead)'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: trg_scorer_delegation_validate(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2337,6 +2367,27 @@ ALTER SEQUENCE public.clubdesk_export_row_id_seq OWNED BY public.clubdesk_export
 
 
 --
+-- Name: clubdesk_member_sync; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.clubdesk_member_sync (
+    id smallint DEFAULT 1 NOT NULL,
+    down_requested_at timestamp with time zone,
+    down_state character varying(16) DEFAULT 'idle'::character varying NOT NULL,
+    down_message text,
+    down_finished_at timestamp with time zone,
+    up_requested_at timestamp with time zone,
+    up_state character varying(16) DEFAULT 'idle'::character varying NOT NULL,
+    up_message text,
+    up_finished_at timestamp with time zone,
+    up_csv text,
+    up_member_ids jsonb,
+    up_result jsonb,
+    CONSTRAINT clubdesk_member_sync_singleton CHECK ((id = 1))
+);
+
+
+--
 -- Name: clubdesk_volleyball; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -2685,7 +2736,8 @@ CREATE TABLE public.feedback (
     screenshot uuid,
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
-    "user" integer
+    "user" integer,
+    screenshots jsonb
 );
 
 
@@ -3161,6 +3213,18 @@ ALTER SEQUENCE public.finance_imports_id_seq OWNED BY public.finance_imports.id;
 
 
 --
+-- Name: finance_income_account_map; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_income_account_map (
+    fee_category character varying(128) NOT NULL,
+    account integer,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by_name character varying(255)
+);
+
+
+--
 -- Name: finance_invoice_documents; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3392,6 +3456,10 @@ CREATE TABLE public.finance_ledger_settings (
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
     updated_by_name character varying(255),
     prepayment_account integer,
+    sync_requested_at timestamp with time zone,
+    sync_state character varying(16) DEFAULT 'idle'::character varying NOT NULL,
+    sync_message text,
+    sync_finished_at timestamp with time zone,
     CONSTRAINT finance_ledger_settings_singleton CHECK ((id = 1))
 );
 
@@ -4745,6 +4813,15 @@ CREATE TABLE public.members (
     billing_iban character varying(34),
     iban_confirmed boolean DEFAULT false NOT NULL,
     never_dun boolean DEFAULT false NOT NULL,
+    email_notify_registrations boolean DEFAULT true NOT NULL,
+    email_notify_join_requests boolean DEFAULT true NOT NULL,
+    email_notify_form_submissions boolean DEFAULT true NOT NULL,
+    email_notify_announcements boolean DEFAULT true NOT NULL,
+    email_notify_events boolean DEFAULT true NOT NULL,
+    clubdesk_id character varying(64),
+    clubdesk_push_pending boolean DEFAULT false NOT NULL,
+    clubdesk_push_changes jsonb,
+    clubdesk_pushed_at timestamp with time zone,
     CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb))
 );
 
@@ -5249,6 +5326,7 @@ CREATE TABLE public.polls (
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
     conversation uuid,
+    results_visible boolean DEFAULT false NOT NULL,
     CONSTRAINT chk_polls_team_or_conversation CHECK (((team IS NOT NULL) OR (conversation IS NOT NULL)))
 );
 
@@ -5462,7 +5540,8 @@ CREATE TABLE public.registrations (
     bb_doc_selfdecl uuid,
     bb_doc_natdecl uuid,
     locale character varying(5) DEFAULT 'de'::character varying,
-    rejection_reason text
+    rejection_reason text,
+    nationalitaet_code character varying(2)
 );
 
 
@@ -5660,6 +5739,41 @@ ALTER SEQUENCE public.scheduling_emails_id_seq OWNED BY public.scheduling_emails
 
 
 --
+-- Name: scheduling_global_blocks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scheduling_global_blocks (
+    id integer NOT NULL,
+    start_date date NOT NULL,
+    end_date date NOT NULL,
+    reason text,
+    created_by integer,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT scheduling_global_blocks_dates_check CHECK ((end_date >= start_date))
+);
+
+
+--
+-- Name: scheduling_global_blocks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.scheduling_global_blocks_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: scheduling_global_blocks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.scheduling_global_blocks_id_seq OWNED BY public.scheduling_global_blocks.id;
+
+
+--
 -- Name: scorer_courses; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5737,6 +5851,41 @@ CREATE SEQUENCE public.scorer_delegations_id_seq
 --
 
 ALTER SEQUENCE public.scorer_delegations_id_seq OWNED BY public.scorer_delegations.id;
+
+
+--
+-- Name: signup_tokens; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.signup_tokens (
+    id integer NOT NULL,
+    member integer NOT NULL,
+    token_hash text NOT NULL,
+    minted_by integer,
+    minted_via character varying(20) DEFAULT 'staff'::character varying NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: signup_tokens_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.signup_tokens_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: signup_tokens_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.signup_tokens_id_seq OWNED BY public.signup_tokens.id;
 
 
 --
@@ -6726,6 +6875,39 @@ ALTER SEQUENCE public.teams_sponsors_id_seq OWNED BY public.teams_sponsors.id;
 
 
 --
+-- Name: training_slot_skips; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.training_slot_skips (
+    id integer NOT NULL,
+    hall_slot integer NOT NULL,
+    date date NOT NULL,
+    created_by uuid,
+    date_created timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: training_slot_skips_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.training_slot_skips_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: training_slot_skips_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.training_slot_skips_id_seq OWNED BY public.training_slot_skips.id;
+
+
+--
 -- Name: trainings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -7352,6 +7534,13 @@ ALTER TABLE ONLY public.scheduling_emails ALTER COLUMN id SET DEFAULT nextval('p
 
 
 --
+-- Name: scheduling_global_blocks id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduling_global_blocks ALTER COLUMN id SET DEFAULT nextval('public.scheduling_global_blocks_id_seq'::regclass);
+
+
+--
 -- Name: scorer_courses id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -7363,6 +7552,13 @@ ALTER TABLE ONLY public.scorer_courses ALTER COLUMN id SET DEFAULT nextval('publ
 --
 
 ALTER TABLE ONLY public.scorer_delegations ALTER COLUMN id SET DEFAULT nextval('public.scorer_delegations_id_seq'::regclass);
+
+
+--
+-- Name: signup_tokens id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.signup_tokens ALTER COLUMN id SET DEFAULT nextval('public.signup_tokens_id_seq'::regclass);
 
 
 --
@@ -7440,6 +7636,13 @@ ALTER TABLE ONLY public.teams_responsibles ALTER COLUMN id SET DEFAULT nextval('
 --
 
 ALTER TABLE ONLY public.teams_sponsors ALTER COLUMN id SET DEFAULT nextval('public.teams_sponsors_id_seq'::regclass);
+
+
+--
+-- Name: training_slot_skips id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.training_slot_skips ALTER COLUMN id SET DEFAULT nextval('public.training_slot_skips_id_seq'::regclass);
 
 
 --
@@ -7580,6 +7783,14 @@ ALTER TABLE ONLY public.clubdesk_export_meta
 
 ALTER TABLE ONLY public.clubdesk_export
     ADD CONSTRAINT clubdesk_export_pkey PRIMARY KEY (row_id);
+
+
+--
+-- Name: clubdesk_member_sync clubdesk_member_sync_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_member_sync
+    ADD CONSTRAINT clubdesk_member_sync_pkey PRIMARY KEY (id);
 
 
 --
@@ -7772,6 +7983,14 @@ ALTER TABLE ONLY public.finance_fiscal_years
 
 ALTER TABLE ONLY public.finance_imports
     ADD CONSTRAINT finance_imports_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_income_account_map finance_income_account_map_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_income_account_map
+    ADD CONSTRAINT finance_income_account_map_pkey PRIMARY KEY (fee_category);
 
 
 --
@@ -8207,6 +8426,14 @@ ALTER TABLE ONLY public.scheduling_emails
 
 
 --
+-- Name: scheduling_global_blocks scheduling_global_blocks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduling_global_blocks
+    ADD CONSTRAINT scheduling_global_blocks_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: scorer_courses scorer_courses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8220,6 +8447,22 @@ ALTER TABLE ONLY public.scorer_courses
 
 ALTER TABLE ONLY public.scorer_delegations
     ADD CONSTRAINT scorer_delegations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: signup_tokens signup_tokens_member_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.signup_tokens
+    ADD CONSTRAINT signup_tokens_member_unique UNIQUE (member);
+
+
+--
+-- Name: signup_tokens signup_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.signup_tokens
+    ADD CONSTRAINT signup_tokens_pkey PRIMARY KEY (id);
 
 
 --
@@ -8364,6 +8607,22 @@ ALTER TABLE ONLY public.teams_responsibles
 
 ALTER TABLE ONLY public.teams_sponsors
     ADD CONSTRAINT teams_sponsors_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: training_slot_skips training_slot_skips_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.training_slot_skips
+    ADD CONSTRAINT training_slot_skips_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: training_slot_skips training_slot_skips_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.training_slot_skips
+    ADD CONSTRAINT training_slot_skips_uniq UNIQUE (hall_slot, date);
 
 
 --
@@ -8735,6 +8994,13 @@ CREATE INDEX finance_transactions_fy_idx ON public.finance_transactions USING bt
 --
 
 CREATE INDEX finance_transactions_native_fy_idx ON public.finance_transactions USING btree (fiscal_year) WHERE ((source)::text = 'native'::text);
+
+
+--
+-- Name: finance_transactions_reversal_of_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX finance_transactions_reversal_of_uq ON public.finance_transactions USING btree (reversal_of) WHERE ((reversal_of IS NOT NULL) AND ((source)::text = 'native'::text));
 
 
 --
@@ -9270,6 +9536,20 @@ CREATE INDEX idx_reports_status_created ON public.reports USING btree (status, c
 
 
 --
+-- Name: idx_signup_tokens_expires; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_signup_tokens_expires ON public.signup_tokens USING btree (expires_at);
+
+
+--
+-- Name: idx_signup_tokens_hash; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_signup_tokens_hash ON public.signup_tokens USING btree (token_hash);
+
+
+--
 -- Name: idx_slot_claims_active_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9316,6 +9596,27 @@ CREATE INDEX member_teams_member_index ON public.member_teams USING btree (membe
 --
 
 CREATE INDEX member_teams_team_index ON public.member_teams USING btree (team);
+
+
+--
+-- Name: members_clubdesk_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX members_clubdesk_id_idx ON public.members USING btree (clubdesk_id);
+
+
+--
+-- Name: members_clubdesk_id_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX members_clubdesk_id_uq ON public.members USING btree (clubdesk_id) WHERE (clubdesk_id IS NOT NULL);
+
+
+--
+-- Name: members_clubdesk_push_pending_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX members_clubdesk_push_pending_idx ON public.members USING btree (clubdesk_push_pending) WHERE clubdesk_push_pending;
 
 
 --
@@ -9550,6 +9851,13 @@ CREATE INDEX scheduling_emails_unread_idx ON public.scheduling_emails USING btre
 
 
 --
+-- Name: scheduling_global_blocks_range_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scheduling_global_blocks_range_idx ON public.scheduling_global_blocks USING btree (start_date, end_date);
+
+
+--
 -- Name: scorer_delegations_from_member_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9680,6 +9988,13 @@ CREATE INDEX team_invites_invited_by_index ON public.team_invites USING btree (i
 --
 
 CREATE INDEX team_invites_team_index ON public.team_invites USING btree (team);
+
+
+--
+-- Name: training_slot_skips_slot_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX training_slot_skips_slot_idx ON public.training_slot_skips USING btree (hall_slot);
 
 
 --
@@ -9925,6 +10240,13 @@ CREATE TRIGGER trg_participations_clear_auto_marker BEFORE UPDATE ON public.part
 --
 
 CREATE TRIGGER trg_participations_guest_block BEFORE INSERT OR UPDATE ON public.participations FOR EACH ROW EXECUTE FUNCTION public.trg_participations_guest_block();
+
+
+--
+-- Name: scorer_delegations trg_scorer_delegation_freeze_identity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_scorer_delegation_freeze_identity BEFORE UPDATE ON public.scorer_delegations FOR EACH ROW EXECUTE FUNCTION public.trg_scorer_delegation_freeze_identity();
 
 
 --
@@ -10205,6 +10527,14 @@ ALTER TABLE ONLY public.finance_dunning_notices
 
 ALTER TABLE ONLY public.finance_email_jobs
     ADD CONSTRAINT finance_email_jobs_dues_run_fkey FOREIGN KEY (dues_run) REFERENCES public.finance_dues_runs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finance_income_account_map finance_income_account_map_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_income_account_map
+    ADD CONSTRAINT finance_income_account_map_account_fkey FOREIGN KEY (account) REFERENCES public.finance_accounts(id) ON DELETE SET NULL;
 
 
 --
@@ -10824,6 +11154,14 @@ ALTER TABLE ONLY public.scheduling_blocks
 
 
 --
+-- Name: scheduling_global_blocks scheduling_global_blocks_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scheduling_global_blocks
+    ADD CONSTRAINT scheduling_global_blocks_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
 -- Name: scorer_delegations scorer_delegations_from_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10837,6 +11175,22 @@ ALTER TABLE ONLY public.scorer_delegations
 
 ALTER TABLE ONLY public.scorer_delegations
     ADD CONSTRAINT scorer_delegations_to_member_foreign FOREIGN KEY (to_member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: signup_tokens signup_tokens_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.signup_tokens
+    ADD CONSTRAINT signup_tokens_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: signup_tokens signup_tokens_minted_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.signup_tokens
+    ADD CONSTRAINT signup_tokens_minted_by_fkey FOREIGN KEY (minted_by) REFERENCES public.members(id) ON DELETE SET NULL;
 
 
 --
@@ -10941,6 +11295,14 @@ ALTER TABLE ONLY public.teams_sponsors
 
 ALTER TABLE ONLY public.teams_sponsors
     ADD CONSTRAINT teams_sponsors_teams_id_foreign FOREIGN KEY (teams_id) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: training_slot_skips training_slot_skips_hall_slot_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.training_slot_skips
+    ADD CONSTRAINT training_slot_skips_hall_slot_fkey FOREIGN KEY (hall_slot) REFERENCES public.hall_slots(id) ON DELETE CASCADE;
 
 
 --
