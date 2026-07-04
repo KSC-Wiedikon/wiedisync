@@ -3700,6 +3700,74 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return memberId
   }
 
+  // ── Approval document gate ──────────────────────────────────────
+  // A basketball registration cannot be approved while its required documents
+  // are missing (ID front/back + licence application; non-Swiss additionally
+  // self declaration + national team declaration). The create route enforces
+  // this for NEW submissions (registration.js docs_required); this filter
+  // closes the path for rows that predate the enforcement — e.g. upload-phase
+  // failures like REG-2026-5041, which was approved with 0 documents. The
+  // family completes the docs via the website's "Dokumente nachreichen" page
+  // first. Legacy rows without a stored nationality code only need the base 3
+  // (the non-CH requirement can't be derived for them).
+  filter('registrations.items.update', async (payload, meta) => {
+    if (payload?.status !== 'approved') return payload
+    const keys = (meta.keys || []).map(Number).filter(Number.isInteger)
+    for (const key of keys) {
+      const reg = await database('registrations').where('id', key)
+        .first('id', 'membership_type', 'nationalitaet_code', 'reference_number',
+          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl')
+      if (!reg || reg.membership_type !== 'basketball') continue
+      const natCode = (reg.nationalitaet_code || '').trim().toUpperCase()
+      const required = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
+      if (natCode && natCode !== 'CH') required.push('bb_doc_selfdecl', 'bb_doc_natdecl')
+      // The same update may attach a doc and approve in one call — payload wins.
+      const missing = required.filter((k) => (payload[k] === undefined ? !reg[k] : !payload[k]))
+      if (missing.length) {
+        // kscwScopeError (hoisted, defined with the games scope guards) carries
+        // status/code so Directus surfaces a 400 instead of an opaque 500.
+        throw kscwScopeError(
+          `Cannot approve ${reg.reference_number}: required documents missing (${missing.join(', ')})`,
+          400, 'DOCS_REQUIRED',
+        )
+      }
+    }
+    return payload
+  })
+
+  // ── Cron: registration-document orphan sweep (04:30 UTC) ────────
+  // The eager-upload form puts files into the private registration folder
+  // BEFORE the registration exists, so abandoned forms and re-picked files
+  // leave orphans behind. Delete folder files older than 7 days that no
+  // registrations doc column references. Scoped strictly to the registration
+  // folder — folder-less files are the public site's images, never touched.
+  schedule('30 4 * * *', async () => {
+    try {
+      const rows = await database('directus_files')
+        .where('folder', REGISTRATION_FILES_FOLDER)
+        .where('uploaded_on', '<', database.raw("now() - interval '7 days'"))
+        .whereNotExists(function () {
+          this.select(database.raw('1')).from('registrations').whereRaw(
+            `registrations.id_upload_front = directus_files.id
+             OR registrations.id_upload_back = directus_files.id
+             OR registrations.bb_doc_lizenz = directus_files.id
+             OR registrations.bb_doc_selfdecl = directus_files.id
+             OR registrations.bb_doc_natdecl = directus_files.id`,
+          )
+        })
+        .select('id')
+      if (!rows.length) return
+      const { FilesService } = services
+      const schema = await getSchema()
+      const filesService = new FilesService({ schema, knex: database })
+      await filesService.deleteMany(rows.map((r) => r.id))
+      log.info(`Registration-doc orphan sweep: deleted ${rows.length} unreferenced file(s)`)
+    } catch (err) {
+      log.error({ msg: `Registration-doc orphan sweep: ${err.message}`, event: 'cron.registration_doc_sweep', stack: err.stack })
+      logCronError('registration_doc_sweep', err)
+    }
+  })
+
   action('items.update', async ({ collection, keys, payload }, { schema }) => {
     if (collection !== 'registrations') return
     if (payload.status !== 'approved' && payload.status !== 'rejected') return

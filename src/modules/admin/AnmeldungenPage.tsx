@@ -226,7 +226,24 @@ export default function AnmeldungenPage() {
     onError: () => toast.error(t('anmeldungenUpdateError')),
   })
 
+  // Required docs for a basketball registration: ID front/back + licence
+  // application; non-Swiss additionally self declaration + national team
+  // declaration. Mirrors the server-side approval gate (kscw-hooks) — this
+  // check just gives a clear toast instead of a failed request.
+  const missingRequiredDocs = (reg: Registration): (keyof Registration)[] => {
+    if (reg.membership_type !== 'basketball') return []
+    const required: (keyof Registration)[] = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
+    const nat = (reg.nationalitaet_code || '').toUpperCase()
+    if (nat && nat !== 'CH') required.push('bb_doc_selfdecl', 'bb_doc_natdecl')
+    return required.filter((k) => !reg[k])
+  }
+
   const handleApprove = (reg: Registration) => {
+    const missing = missingRequiredDocs(reg)
+    if (missing.length) {
+      toast.error(t('anmeldungenDocsMissingBlock', { count: missing.length }))
+      return
+    }
     updateReg({ id: reg.id, data: { status: 'approved' } }, {
       onSuccess: () => toast.success(t('anmeldungenApprovedToast')),
     })

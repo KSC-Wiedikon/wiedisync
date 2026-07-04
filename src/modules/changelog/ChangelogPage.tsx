@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.19.0'
+const APP_VERSION = '1.20.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.20.0',
+    date: '04.07.2026',
+    sections: [
+      {
+        title: 'Registration documents are now enforced',
+        items: [
+          'Basketball registrations can no longer be created without their required documents: the website form uploads each file the moment it is picked, and the registration is only submitted once everything required is in.',
+          'Approval is blocked while required documents are missing, with a clear message on the Anmeldungen page.',
+          'New "Dokumente nachreichen" page on the website: missing documents can be submitted later with the reference number and email from the confirmation.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.19.0',
     date: '04.07.2026',

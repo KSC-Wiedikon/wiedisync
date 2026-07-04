@@ -349,6 +349,7 @@ export default {
   anmeldungenDocIdBack: 'Ausweis Rückseite',
   // Anmeldungen — WiediSync-Einladung erneut senden (freigegebene Zeilen)
   anmeldungenResendInvite: 'Einladung erneut senden',
+  anmeldungenDocsMissingBlock: 'Freigabe nicht möglich — {{count}} erforderliche(s) Dokument(e) fehlen. Bitte zuerst über die Website nachreichen lassen.',
   anmeldungenInviteSent: 'Einladung an {{email}} gesendet',
   anmeldungenInviteAlreadyClaimed: 'Diese Person hat bereits ein Konto',
   anmeldungenInviteNoEmail: 'Diese Anmeldung hat keine E-Mail-Adresse',
