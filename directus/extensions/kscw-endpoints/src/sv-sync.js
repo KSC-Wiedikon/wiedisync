@@ -89,12 +89,22 @@ export async function syncSvGames(db, log) {
   const hallRows = await db('halls').whereNot('sv_hall_id', '').select('id', 'sv_hall_id')
   const hallLookup = Object.fromEntries(hallRows.map(h => [h.sv_hall_id, h.id]))
 
-  // Batch-fetch all existing SV games into a Map (1 query instead of N)
+  // Batch-fetch all existing SV games, grouped by game_id (1 query instead of
+  // N). Grouped — not one-per-id — because an intra-club fixture (e.g. the
+  // H1↔H3 derby) legitimately keeps TWO rows, one per KSCW team; a
+  // one-row-per-id map made the sync rewrite the away team's row into a
+  // duplicate of the home team's (2026-07-04), so the game vanished from every
+  // surface scoped to the away team.
   const existingRows = await db('games').where('source', 'swiss_volley')
     .select('id', 'game_id', 'date', 'time', 'status', 'home_score', 'away_score',
       'home_team', 'away_team', 'hall', 'away_hall_json', 'league', 'round',
-      'sets_json', 'referees_json', 'respond_by', 'kscw_team')
-  const existingMap = new Map(existingRows.map(r => [r.game_id, r]))
+      'sets_json', 'referees_json', 'respond_by', 'kscw_team', 'type')
+  const existingByGameId = new Map()
+  for (const r of existingRows) {
+    const list = existingByGameId.get(r.game_id)
+    if (list) list.push(r)
+    else existingByGameId.set(r.game_id, [r])
+  }
 
   // Schedule ownership: a game scheduled through the Terminplanung tool (a
   // confirmed booking, mirrored into `games` by reconcileBookingsToGames) carries
@@ -134,6 +144,9 @@ export async function syncSvGames(db, log) {
     // season rollover (the team lookup is active-only) instead of staying
     // pinned to the now-archived team and vanishing from team-scoped views.
     'kscw_team',
+    // type: paired with kscw_team so an intra-club row adopted by the other
+    // side's intent (see the takeRow fallbacks) is actually rewritten.
+    'type',
   ]
 
   let created = 0, updated = 0, skipped = 0, errors = 0
@@ -148,9 +161,10 @@ export async function syncSvGames(db, log) {
       const parsed = parsePlayDate(g.playDate)
       const rs = g.resultSummary || {}
       const isHome = isKscwTeamId(String(home.teamId))
-      const kscwSvId = isHome ? String(home.teamId) : String(away.teamId)
-      const kscwTeam = teamLookup[`vb_${kscwSvId}`]
-      const kscwTeamId = kscwTeam?.id || null
+      // Intra-club fixture (e.g. the H1↔H3 derby): both sides are ours. Such a
+      // game keeps TWO `games` rows — one per KSCW team — so each team's scoped
+      // surfaces (home page, ?team= iCal, per-team calendars, RSVP) see it.
+      const intraClub = isHome && isKscwTeamId(String(away.teamId))
 
       let hallId = null, awayHallJson = null
       if (g.hall?.hallId) {
@@ -166,19 +180,16 @@ export async function syncSvGames(db, log) {
         }
       }
 
-      const data = {
+      // Feed fields shared by every row of this fixture.
+      const base = {
         game_id: `vb_${gameId}`,
         home_team: home.caption || '',
         away_team: away.caption || '',
-        kscw_team: kscwTeamId,
-        hall: hallId,
-        away_hall_json: awayHallJson ? JSON.stringify(awayHallJson) : null,
         date: parsed.date,
         time: parsed.time,
         league: g.group?.caption || g.phase?.caption || g.league?.caption || '',
         round: g.group?.caption || '',
         season: deriveSeason(g.playDate),
-        type: isHome ? 'home' : 'away',
         status: rs.winner ? 'completed' : 'scheduled',
         home_score: rs.wonSetsHomeTeam || 0,
         away_score: rs.wonSetsAwayTeam || 0,
@@ -187,50 +198,112 @@ export async function syncSvGames(db, log) {
         source: 'swiss_volley',
       }
 
-      const existing = existingMap.get(`vb_${gameId}`)
-      if (existing) {
-        // Tool-scheduled & not yet played → keep the agreed date/time/venue; don't
-        // let a feed placeholder overwrite it (a real reschedule reaches these via
-        // the tool). Scores/status/teams/etc. below still sync.
-        //
-        // Protection is lifted once the season's SV-feed takeover date passes
-        // (toolTakeoverDates): from then on the feed wins date/time/venue too. No
-        // takeover date set → protect until the game is completed (pre-139).
-        const takeover = toolTakeoverDates.get(`vb_${gameId}`)
-        const feedHasTakenOver = takeover && todayStr >= takeover
-        if (toolScheduledIds.has(`vb_${gameId}`) && !feedHasTakenOver && existing.status !== 'completed' && data.status !== 'completed') {
-          data.date = existing.date
-          data.time = existing.time
-          data.hall = existing.hall
-          data.away_hall_json = existing.away_hall_json
+      // One intent per row this fixture should have. Intra-club: one per team,
+      // both at our hall (no away_hall_json — it's nobody's away venue).
+      const intents = (intraClub
+        ? [
+            { team: teamLookup[`vb_${String(home.teamId)}`], type: 'home', hall: hallId, away_hall_json: null },
+            { team: teamLookup[`vb_${String(away.teamId)}`], type: 'away', hall: hallId, away_hall_json: null },
+          ]
+        : [{
+            team: teamLookup[`vb_${isHome ? String(home.teamId) : String(away.teamId)}`],
+            type: isHome ? 'home' : 'away',
+            hall: hallId,
+            away_hall_json: awayHallJson ? JSON.stringify(awayHallJson) : null,
+          }]
+      ).map((it) => ({ ...it, kscw_team: it.team?.id || null }))
+
+      // Pair existing rows to intents: same kscw_team first, then same type,
+      // then any leftover. The fallbacks re-adopt a row a pre-fix sync
+      // collapsed onto the wrong team, or a season-rollover archived pointer.
+      // Normal games keep the old one-row behaviour (last row wins, like the
+      // old one-per-id Map).
+      const rows = existingByGameId.get(`vb_${gameId}`) || []
+      const pool = intraClub ? [...rows] : rows.slice(-1)
+      const takeRow = (pred) => {
+        const i = pool.findIndex(pred)
+        return i === -1 ? null : pool.splice(i, 1)[0]
+      }
+
+      const takeover = toolTakeoverDates.get(`vb_${gameId}`)
+      const feedHasTakenOver = takeover && todayStr >= takeover
+
+      for (const intent of intents) {
+        const existing =
+          takeRow((r) => intent.kscw_team != null && String(r.kscw_team ?? '') === String(intent.kscw_team)) ||
+          takeRow((r) => String(r.type || '') === intent.type) ||
+          takeRow(() => true)
+
+        const data = {
+          ...base,
+          kscw_team: intent.kscw_team,
+          type: intent.type,
+          hall: intent.hall,
+          away_hall_json: intent.away_hall_json,
         }
-        // Skip if nothing meaningful changed — avoids trigger-based notification spam
-        const changed = COMPARE_FIELDS.some(f =>
-          String(data[f] ?? '') !== String(existing[f] ?? '')
-        )
-        if (!changed) { skipped++; continue }
-        // Adjust respond_by if date changed (data.date, not the raw feed date, so a
-        // protected tool game whose date we kept doesn't shift its respond_by).
-        if (existing.respond_by && existing.date && existing.date !== data.date) {
-          const offset = new Date(existing.date).getTime() - new Date(existing.respond_by).getTime()
-          const newRb = new Date(new Date(data.date).getTime() - offset)
-          data.respond_by = newRb.toISOString().split('T')[0]
-        }
-        await db('games').where('id', existing.id).update({ ...data, date_updated: new Date() })
-        updated++
-      } else {
-        // Apply respond_by default on creation
-        if (kscwTeam?.features_enabled) {
-          const fe = typeof kscwTeam.features_enabled === 'string'
-            ? JSON.parse(kscwTeam.features_enabled) : kscwTeam.features_enabled
-          const days = fe?.game_respond_by_days
-          if (days > 0 && parsed.date) {
-            const rb = new Date(new Date(parsed.date).getTime() - days * 86400000)
-            data.respond_by = rb.toISOString().split('T')[0]
+
+        if (existing) {
+          // Tool-scheduled & not yet played → keep the agreed date/time/venue; don't
+          // let a feed placeholder overwrite it (a real reschedule reaches these via
+          // the tool). Scores/status/teams/etc. below still sync.
+          //
+          // Protection is lifted once the season's SV-feed takeover date passes
+          // (toolTakeoverDates): from then on the feed wins date/time/venue too. No
+          // takeover date set → protect until the game is completed (pre-139).
+          if (toolScheduledIds.has(`vb_${gameId}`) && !feedHasTakenOver && existing.status !== 'completed' && data.status !== 'completed') {
+            data.date = existing.date
+            data.time = existing.time
+            data.hall = existing.hall
+            data.away_hall_json = existing.away_hall_json
           }
+          // Skip if nothing meaningful changed — avoids trigger-based notification
+          // spam. Values must be normalized before comparing: pg returns json
+          // columns PARSED (String([]) is '' — never equal to the '[]' we write),
+          // date columns as JS Date objects, and time columns as HH:MM:SS while
+          // the feed parse gives HH:MM — naive String() coercion flags every
+          // unprotected game as changed on every run.
+          const cmpVal = (f, v) => {
+            if (v == null) return ''
+            if (f === 'sets_json' || f === 'referees_json' || f === 'away_hall_json') {
+              return typeof v === 'string' ? v : JSON.stringify(v)
+            }
+            if (f === 'date') {
+              return v instanceof Date
+                ? `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`
+                : String(v).slice(0, 10)
+            }
+            if (f === 'time') return String(v).slice(0, 5)
+            return String(v)
+          }
+          const changed = COMPARE_FIELDS.some(f => cmpVal(f, data[f]) !== cmpVal(f, existing[f]))
+          if (!changed) { skipped++; continue }
+          // Adjust respond_by if date changed (data.date, not the raw feed date, so a
+          // protected tool game whose date we kept doesn't shift its respond_by).
+          if (existing.respond_by && existing.date && cmpVal('date', existing.date) !== cmpVal('date', data.date)) {
+            const offset = new Date(existing.date).getTime() - new Date(existing.respond_by).getTime()
+            const newRb = new Date(new Date(data.date).getTime() - offset)
+            data.respond_by = newRb.toISOString().split('T')[0]
+          }
+          await db('games').where('id', existing.id).update({ ...data, date_updated: new Date() })
+          updated++
+        } else {
+          // Apply respond_by default on creation (per intent — the two rows of
+          // an intra-club game belong to different teams).
+          if (intent.team?.features_enabled) {
+            const fe = typeof intent.team.features_enabled === 'string'
+              ? JSON.parse(intent.team.features_enabled) : intent.team.features_enabled
+            const days = fe?.game_respond_by_days
+            if (days > 0 && parsed.date) {
+              const rb = new Date(new Date(parsed.date).getTime() - days * 86400000)
+              data.respond_by = rb.toISOString().split('T')[0]
+            }
+          }
+          await db('games').insert({ ...data, date_created: new Date(), date_updated: new Date() })
+          created++
         }
-        await db('games').insert({ ...data, date_created: new Date(), date_updated: new Date() })
-        created++
+      }
+      if (intraClub && pool.length) {
+        log.warn(`[SV Sync] vb_${gameId}: ${pool.length} surplus intra-club row(s) left untouched — please dedupe`)
       }
     } catch (e) {
       errors++
