@@ -349,6 +349,7 @@ export default {
   anmeldungenDocIdBack: 'ID back',
   // Registrations — resend WiediSync signup invite (approved rows)
   anmeldungenResendInvite: 'Resend invite',
+  anmeldungenDocsMissingBlock: 'Cannot approve — {{count}} required document(s) missing. The family must upload them first (website → submit documents).',
   anmeldungenInviteSent: 'Invite sent to {{email}}',
   anmeldungenInviteAlreadyClaimed: 'This person already has an account',
   anmeldungenInviteNoEmail: 'This registration has no email address',

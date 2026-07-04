@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.20.0 — 2026-07-04
+
+### Registration documents are now enforced
+- Basketball registrations can no longer be created without their required documents. The website form uploads each document **the moment it is picked** (with visible per-file status), and the registration is only submitted once every required document is uploaded — a failed upload is caught before anything is saved, instead of stranding a document-less registration.
+- **Approval is blocked** while required documents are missing (ID front/back + licence application; non-Swiss players additionally the two FIBA declarations) — with a clear message on the Anmeldungen page.
+- New **"Dokumente nachreichen"** page on the website: families can submit missing documents later using the reference number + email from their confirmation — no re-registration needed.
+
 ## v1.19.0 — 2026-07-04
 
 ### ClubDesk status on every approved registration

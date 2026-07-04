@@ -514,6 +514,7 @@ export default {
   anmeldungenDocAlt: 'Dokumänt',
   // Aamäldige — WiediSync-Yladig nomal schicke (freigäh Zyle)
   anmeldungenResendInvite: 'Yladig nomal schicke',
+  anmeldungenDocsMissingBlock: 'Freigab nöd möglich — {{count}} nötigi Dokumänt fähled. Bitte zerst über d Website nachereiche lah.',
   anmeldungenInviteSent: 'Yladig an {{email}} gschickt',
   anmeldungenInviteAlreadyClaimed: 'Die Person hät scho es Konto',
   anmeldungenInviteNoEmail: 'Die Aamäldig hät kei E-Mail-Adrässe',

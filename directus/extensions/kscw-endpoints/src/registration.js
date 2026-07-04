@@ -438,6 +438,13 @@ function buildAdminNotificationEmail(reg, locale = 'de') {
 // string value.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// Private quarantine folder for registration documents (migration 169; same
+// UUID on every environment). Files uploaded via /registration/upload are born
+// in here — never folder-less, never anonymous-readable via /assets.
+const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
+const UPLOAD_ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'])
+const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
+
 export function registerRegistration(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'registration' })
 
@@ -495,6 +502,48 @@ export function registerRegistration(router, { database, logger, services, getSc
         return res.status(400).json({ error: 'Captcha verification failed' })
       }
 
+      // Server-side document enforcement (basketball): the registration is only
+      // created once the required documents are already uploaded to /files and
+      // their UUIDs arrive WITH the create payload — closes the create-before-
+      // upload gap that stranded REG-2026-5041 doc-less (2026-07-04, Safari
+      // upload failure after the row was committed). Required: ID front/back +
+      // signed licence application; non-Swiss additionally the FIBA self
+      // declaration + national team declaration (5 total). Mirrors the client
+      // gate in kscw-website registration-form.js — same rule for every
+      // basketball function, as on the form.
+      const docId = (v) => (typeof v === 'string' && UUID_RE.test(v)) ? v : null
+      const docs = {
+        id_upload_front: docId(body.id_upload_front),
+        id_upload_back: docId(body.id_upload_back),
+        bb_doc_lizenz: docId(body.bb_doc_lizenz),
+        bb_doc_selfdecl: docId(body.bb_doc_selfdecl),
+        bb_doc_natdecl: docId(body.bb_doc_natdecl),
+      }
+      if (body.membership_type === 'basketball') {
+        const natCode = (body.nationalitaet_code || '').trim().toUpperCase().slice(0, 2)
+        const required = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
+        if (natCode !== 'CH') required.push('bb_doc_selfdecl', 'bb_doc_natdecl')
+        const missing = required.filter((k) => !docs[k])
+        if (missing.length) {
+          // Localized: this message reaches users on a STALE cached form JS
+          // (pre-eager-upload, sends no doc ids) — tell them to reload so the
+          // new bundle takes over.
+          const msg = body.locale === 'en'
+            ? 'Required documents missing. Please reload the page and try again.'
+            : 'Erforderliche Dokumente fehlen. Bitte lade die Seite neu und versuche es erneut.'
+          return res.status(400).json({ error: msg, code: 'docs_required', missing })
+        }
+      }
+      // Provided doc ids must be REAL files — a fabricated UUID would produce a
+      // "documents complete" row that sails through every downstream gate.
+      const providedDocIds = [...new Set(Object.values(docs).filter(Boolean))]
+      if (providedDocIds.length) {
+        const found = await database('directus_files').whereIn('id', providedDocIds).count('id as n').first()
+        if (Number(found?.n) !== providedDocIds.length) {
+          return res.status(400).json({ error: 'Invalid document reference', code: 'docs_invalid' })
+        }
+      }
+
       const reference_number = generateRefNumber()
 
       const schema = await getSchema()
@@ -527,6 +576,9 @@ export function registerRegistration(router, { database, logger, services, getSc
         locale: body.locale === 'en' ? 'en' : 'de',
         reference_number,
         submitted_at: new Date().toISOString(),
+        // Document file ids arrive with the create since the eager-upload form
+        // (v3.3.0); the quarantine hook moves them to the private folder.
+        ...docs,
       })
 
       const reg = await itemsService.readOne(id)
@@ -652,7 +704,11 @@ export function registerRegistration(router, { database, logger, services, getSc
       } catch {
         return res.status(404).json({ error: 'Registration not found' })
       }
-      if (!reg || reg.status !== 'pending') {
+      // 'approved' is allowed for the late document re-upload page (a stranded
+      // registration may have been approved before its docs arrived — e.g.
+      // REG-2026-5041); it requires the registration email as a second factor
+      // on top of the reference number.
+      if (!reg || !['pending', 'approved'].includes(reg.status)) {
         return res.status(404).json({ error: 'Registration not found' })
       }
       if (reg.reference_number !== reference_number) {
@@ -661,14 +717,29 @@ export function registerRegistration(router, { database, logger, services, getSc
         if (e) e.mismatches = (e.mismatches || 0) + 1
         return res.status(403).json({ error: 'Invalid reference number' })
       }
+      if (reg.status === 'approved') {
+        const email = String(req.body.email || '').trim().toLowerCase()
+        if (!email || email !== String(reg.email || '').toLowerCase()) {
+          const e = fileAttachIp.get(ip)
+          if (e) e.mismatches = (e.mismatches || 0) + 1
+          return res.status(403).json({ error: 'Invalid reference number' })
+        }
+      }
       // Only accept well-formed directus_files UUIDs — never an arbitrary value.
+      // On APPROVED rows the attach is fill-only: a ref+email holder may
+      // complete missing documents but never silently REPLACE ones an admin
+      // already reviewed at approval time.
       const fileId = (v) => (typeof v === 'string' && UUID_RE.test(v)) ? v : null
+      const lockExisting = reg.status === 'approved'
       const update = {}
-      if (fileId(id_upload_front)) update.id_upload_front = id_upload_front
-      if (fileId(id_upload_back)) update.id_upload_back = id_upload_back
-      if (fileId(bb_doc_lizenz)) update.bb_doc_lizenz = bb_doc_lizenz
-      if (fileId(bb_doc_selfdecl)) update.bb_doc_selfdecl = bb_doc_selfdecl
-      if (fileId(bb_doc_natdecl)) update.bb_doc_natdecl = bb_doc_natdecl
+      const setDoc = (col, v) => {
+        if (fileId(v) && !(lockExisting && reg[col])) update[col] = v
+      }
+      setDoc('id_upload_front', id_upload_front)
+      setDoc('id_upload_back', id_upload_back)
+      setDoc('bb_doc_lizenz', bb_doc_lizenz)
+      setDoc('bb_doc_selfdecl', bb_doc_selfdecl)
+      setDoc('bb_doc_natdecl', bb_doc_natdecl)
 
       if (Object.keys(update).length) {
         await itemsService.updateOne(id, update)
@@ -682,6 +753,142 @@ export function registerRegistration(router, { database, logger, services, getSc
         stack: err.stack,
       })
       res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // GET /kscw/registration/doc-status — document completeness for the public
+  // "Dokumente nachreichen" (late re-upload) page. Auth = reference number +
+  // registration email together; shares the attach limiter (incl. its
+  // brute-force mismatch lockout). Responds 404 on ANY mismatch so the route
+  // never confirms which half was wrong. Returns booleans only — no PII.
+  router.get('/registration/doc-status', async (req, res) => {
+    try {
+      const reference = String(req.query.reference || '').trim()
+      const email = String(req.query.email || '').trim().toLowerCase()
+      if (!reference || !email) return res.status(400).json({ error: 'reference and email required' })
+
+      const xff = req.headers['x-forwarded-for']
+      const ip = req.headers['cf-connecting-ip']
+        || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
+        || req.ip || 'unknown'
+      const now = Date.now()
+      const ipEntry = fileAttachIp.get(ip)
+      if (ipEntry && now < ipEntry.resetAt) {
+        if (ipEntry.count >= 10 || ipEntry.mismatches >= 5) {
+          return res.status(429).json({ error: 'Too many requests' })
+        }
+        ipEntry.count++
+      } else {
+        fileAttachIp.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000, mismatches: 0 })
+      }
+      if (fileAttachIp.size > 1000) {
+        for (const [k, v] of fileAttachIp) { if (now > v.resetAt) fileAttachIp.delete(k) }
+      }
+
+      const reg = await database('registrations')
+        .whereRaw('LOWER(reference_number) = ?', [reference.toLowerCase()])
+        .first('id', 'status', 'email', 'membership_type', 'nationalitaet_code', 'reference_number',
+          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl')
+      const emailOk = reg && String(reg.email || '').toLowerCase() === email
+      if (!reg || !emailOk || !['pending', 'approved'].includes(reg.status)) {
+        const e = fileAttachIp.get(ip)
+        if (e) e.mismatches = (e.mismatches || 0) + 1
+        return res.status(404).json({ error: 'Registration not found' })
+      }
+
+      const natCode = (reg.nationalitaet_code || '').trim().toUpperCase()
+      const required = reg.membership_type === 'basketball'
+        ? ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz',
+          ...(natCode && natCode !== 'CH' ? ['bb_doc_selfdecl', 'bb_doc_natdecl'] : [])]
+        : []
+      return res.json({
+        id: reg.id,
+        reference_number: reg.reference_number,
+        membership_type: reg.membership_type,
+        status: reg.status,
+        required,
+        docs: {
+          id_upload_front: !!reg.id_upload_front,
+          id_upload_back: !!reg.id_upload_back,
+          bb_doc_lizenz: !!reg.bb_doc_lizenz,
+          bb_doc_selfdecl: !!reg.bb_doc_selfdecl,
+          bb_doc_natdecl: !!reg.bb_doc_natdecl,
+        },
+      })
+    } catch (err) {
+      log.error({
+        msg: `registration doc-status: ${err.message}`,
+        endpoint: 'registration/doc-status',
+        stack: err.stack,
+      })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/registration/upload?filename=… — public single-file upload for
+  // registration documents. Replaces the anonymous core POST /files for this
+  // flow: the file is created INSIDE the private registration folder
+  // (migration 169) instead of folder-less/anon-readable, and MIME + size are
+  // enforced server-side. The browser sends the raw File as the request body
+  // (fetch body: file → Content-Type = the file's own type; no multipart
+  // parsing needed). Orphans (abandoned forms, re-picks) are swept nightly by
+  // the kscw-hooks registration-docs cron. Per-IP limited.
+  const uploadIp = new Map() // ip → { count, resetAt }
+  router.post('/registration/upload', async (req, res) => {
+    try {
+      const xff = req.headers['x-forwarded-for']
+      const ip = req.headers['cf-connecting-ip']
+        || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
+        || req.ip || 'unknown'
+      const now = Date.now()
+      const entry = uploadIp.get(ip)
+      if (entry && now < entry.resetAt) {
+        if (entry.count >= 30) return res.status(429).json({ error: 'Too many uploads. Please try again later.' })
+        entry.count++
+      } else {
+        uploadIp.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000 })
+      }
+      if (uploadIp.size > 1000) {
+        for (const [k, v] of uploadIp) { if (now > v.resetAt) uploadIp.delete(k) }
+      }
+
+      const type = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
+      if (!UPLOAD_ALLOWED_MIME.has(type)) {
+        return res.status(400).json({ error: 'Invalid file type. Allowed: JPG, PNG, WebP, GIF, PDF.' })
+      }
+      if (Number(req.headers['content-length'] || 0) > UPLOAD_MAX_BYTES) {
+        return res.status(413).json({ error: 'File too large (max 10 MB).' })
+      }
+
+      const rawName = String(req.query.filename || 'document')
+      const filename = rawName.replace(/[\\/\u0000-\u001f]/g, '').slice(0, 200) || 'document'
+
+      // Hard cap while streaming — Content-Length alone is client-controlled.
+      let bytes = 0
+      req.on('data', (chunk) => {
+        bytes += chunk.length
+        if (bytes > UPLOAD_MAX_BYTES) req.destroy()
+      })
+
+      const { FilesService } = services
+      const schema = await getSchema()
+      const filesService = new FilesService({ schema, knex: database })
+      const storage = (process.env.STORAGE_LOCATIONS || 'local').split(',')[0].trim()
+      const newFileId = await filesService.uploadOne(req, {
+        storage,
+        filename_download: filename,
+        type,
+        folder: REGISTRATION_FILES_FOLDER,
+      })
+      log.info({ msg: 'Registration document uploaded', file: newFileId, type, bytes })
+      return res.json({ id: newFileId })
+    } catch (err) {
+      log.error({
+        msg: `registration upload: ${err.message}`,
+        endpoint: 'registration/upload',
+        stack: err.stack,
+      })
+      res.status(500).json({ error: 'Upload failed' })
     }
   })
 }

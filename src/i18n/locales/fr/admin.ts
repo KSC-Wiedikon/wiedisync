@@ -382,6 +382,7 @@ export default {
   anmeldungenDocAlt: 'Document',
   // Inscriptions — renvoyer l'invitation WiediSync (lignes approuvées)
   anmeldungenResendInvite: 'Renvoyer l\'invitation',
+  anmeldungenDocsMissingBlock: 'Approbation impossible — {{count}} document(s) requis manquant(s). La famille doit d\'abord les téléverser (site web).',
   anmeldungenInviteSent: 'Invitation envoyée à {{email}}',
   anmeldungenInviteAlreadyClaimed: 'Cette personne a déjà un compte',
   anmeldungenInviteNoEmail: 'Cette inscription n\'a pas d\'adresse e-mail',

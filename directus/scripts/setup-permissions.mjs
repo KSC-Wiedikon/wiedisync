@@ -440,6 +440,11 @@ const FINANCE_INVOICE_FOLDER = 'f1a0d0c5-0000-4000-8000-000000000001'
  *  authenticated screen / PII — must NOT be member-readable (audit PERM-1, 2026-06-25);
  *  only Vorstand / Sport Admin review them via a folder-scoped read below. */
 const FEEDBACK_FOLDER = 'feedbac0-0000-4000-8000-000000000001'
+/** Private folder for registration documents — government-ID scans + Swiss Basketball
+ *  licence/declaration docs (migration 169; quarantine hook + /registration/upload).
+ *  Must NOT be member-readable (2026-07-04 review): Sport Admin reads via its full
+ *  directus_files CRUD, Vorstand via the scoped read below. */
+const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
 
 // ── Main ──────────────────────────────────��──────────────────────
 
@@ -680,7 +685,7 @@ async function main() {
   // download every feedback screenshot). Null-folder files don't match a bare
   // _nin, hence the _or. Finance + board re-add their folder below.
   await setPermRead(MEMBER_POLICY, 'directus_files', {
-    _or: [{ folder: { _null: true } }, { folder: { _nin: [FINANCE_INVOICE_FOLDER, FEEDBACK_FOLDER] } }],
+    _or: [{ folder: { _null: true } }, { folder: { _nin: [FINANCE_INVOICE_FOLDER, FEEDBACK_FOLDER, REGISTRATION_FILES_FOLDER] } }],
   })
 
   // ── Team-scoped reads (migration 032 / 033) ─────────────────
@@ -1485,6 +1490,9 @@ async function main() {
   // Read the private invoice-PDF folder so the board can open attachments via
   // /assets (members can't — their directus_files read is folder-less-only).
   await setPermRead(VORSTAND_POLICY, 'directus_files', { folder: { _eq: FINANCE_INVOICE_FOLDER } })
+  // Registration documents (ID scans, licence/declaration docs) — board reviews
+  // Anmeldungen, so it needs the private registration folder via /assets too.
+  await setPermRead(VORSTAND_POLICY, 'directus_files', { folder: { _eq: REGISTRATION_FILES_FOLDER } })
 
   // Forms (migrations 086/087) — Vorstand has FULL management (decision
   // 2026-06-05): create/edit/delete any form club-wide + read all submissions,
