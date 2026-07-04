@@ -39,6 +39,8 @@ export interface Team extends BaseRecord {
   full_name: string
   team_id: string
   sport: 'volleyball' | 'basketball'
+  /** Team gender for picker filtering (migration 172). NULL = unknown → shown to everyone. */
+  gender?: 'm' | 'f' | 'mixed' | null
   league: string
   season: string
   color: string

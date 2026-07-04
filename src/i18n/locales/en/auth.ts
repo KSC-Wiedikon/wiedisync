@@ -103,6 +103,7 @@ export default {
   registrationClosedWebsiteLink: 'Membership signup on kscw.ch',
 
   // Team selection
+  selectSport: 'Select sport',
   selectTeam: 'Select team',
   selectTeamPlaceholder: 'Choose a team...',
   teamRequired: 'Please select a team.',

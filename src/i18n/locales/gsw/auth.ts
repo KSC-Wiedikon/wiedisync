@@ -103,6 +103,7 @@ export default {
   registrationClosedWebsiteLink: 'Zur Aamäldig uf kscw.ch',
 
   // Team selection
+  selectSport: 'Sportart wähle',
   selectTeam: 'Team wähle',
   selectTeamPlaceholder: 'Team uswähle...',
   teamRequired: 'Bitte wähl es Team.',

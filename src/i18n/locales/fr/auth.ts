@@ -103,6 +103,7 @@ export default {
   registrationClosedWebsiteLink: 'Adhésion sur kscw.ch',
 
   // Team selection
+  selectSport: 'Choisir le sport',
   selectTeam: 'Selectionner une equipe',
   selectTeamPlaceholder: 'Choisir une equipe...',
   teamRequired: 'Veuillez selectionner une equipe.',

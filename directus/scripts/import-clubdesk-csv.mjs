@@ -221,6 +221,31 @@ const psqlInput =
   '  FROM email_match WHERE m.id = email_match.id AND m.birthdate IS NULL;\n' +
   'COMMIT;\n' +
   "SELECT 'members_missing_birthdate' AS metric, (SELECT count(*) FROM members WHERE birthdate IS NULL) AS value;\n" +
+  // ── Apply ClubDesk Geschlecht → members.sex (fill-only) ──
+  // sex historically only came from the Volleymanager path (licensed VB players),
+  // so basketball/passive/new members stayed empty and the Data Health "Missing
+  // sex" list refilled with every new cohort. ClubDesk carries Geschlecht for
+  // everyone: fill NULL/empty sex for clubdesk_id-linked members (1:1, unique
+  // index) — never overwrite, so VM-sourced values and manual corrections (e.g.
+  // a wrong ClubDesk Geschlecht fixed by hand) survive every sync. The
+  // count(DISTINCT)=1 guard skips a contact staged with conflicting values.
+  // Own transaction, same isolation rationale as the birthdate passes.
+  'BEGIN;\n' +
+  'WITH cd AS (\n' +
+  '  SELECT btrim(clubdesk_id) AS cdid,\n' +
+  "         CASE lower(btrim(geschlecht)) WHEN 'männlich' THEN 'm' WHEN 'weiblich' THEN 'f' END AS sex\n" +
+  '  FROM clubdesk_export\n' +
+  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
+  "    AND lower(btrim(geschlecht)) IN ('männlich','weiblich')),\n" +
+  'sex_match AS (\n' +
+  '  SELECT m.id, min(cd.sex) AS sex FROM members m\n' +
+  '  JOIN cd ON cd.cdid = m.clubdesk_id\n' +
+  "  WHERE m.sex IS NULL OR btrim(m.sex) = ''\n" +
+  '  GROUP BY m.id HAVING count(DISTINCT cd.sex) = 1)\n' +
+  'UPDATE members m SET sex = sex_match.sex\n' +
+  "  FROM sex_match WHERE m.id = sex_match.id AND (m.sex IS NULL OR btrim(m.sex) = '');\n" +
+  'COMMIT;\n' +
+  "SELECT 'members_missing_sex' AS metric, (SELECT count(*) FROM members WHERE sex IS NULL OR btrim(sex)='') AS value;\n" +
   // ── Propagate ClubDesk contact fields to members (finance member explorer) ──
   // The scrape stages address/category/sektion/phone for every member, but only
   // birthdate was ever applied. Fill the rest so the finance Members view mirrors
