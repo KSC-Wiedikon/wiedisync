@@ -229,7 +229,8 @@ async function checkMembers(): Promise<CollectionHealth> {
   // un-fixable noise (same heuristic as the ClubDesk sync's non-member guard).
   const sexless = await fetchAllItems<Record<string, unknown>>('members', {
     fields: ['id', 'first_name', 'last_name', 'email'],
-    filter: { _or: [{ sex: { _null: true } }, { sex: { _eq: '' } }] },
+    // _empty matches NULL and '' — Directus rejects _eq: '' outright (400 INVALID_QUERY).
+    filter: { sex: { _empty: true } },
     sort: ['last_name', 'first_name'],
   })
   for (const m of sexless) {
