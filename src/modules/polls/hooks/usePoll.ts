@@ -74,7 +74,10 @@ export function usePolls(teamId: string) {
       question: data.question,
       options: data.options,
       mode: data.mode,
-      deadline: data.deadline || '',
+      // NULL, not '' — polls.deadline is timestamptz and Postgres rejects an
+      // empty string outright (500 on every no-deadline create, seen live
+      // 2026-07-04 /teams/D4).
+      deadline: data.deadline || null,
       anonymous: data.anonymous || false,
       // Default ON for new polls (the form sends it explicitly; migration 171
       // defaults existing rows to false so old polls stay manager-only).
