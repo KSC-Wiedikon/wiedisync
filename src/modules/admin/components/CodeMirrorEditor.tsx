@@ -183,6 +183,10 @@ export default function CodeMirrorEditor({
       extensions: [
         executeKeymap,
         basicSetup,
+        // Wrap long lines instead of horizontal scrolling — on touch devices the
+        // inner horizontal pan is unreachable (nested scroll containers swallow
+        // the gesture), leaving long SQL cut off at both edges.
+        EditorView.lineWrapping,
         // lang-sql for syntax highlighting only — we override completion
         // entirely below so column suggestions work at every position.
         sql({ dialect: PostgreSQL, upperCaseKeywords: true }),

@@ -321,7 +321,17 @@ export default function ProfilePage() {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-bold text-gray-900 dark:text-gray-100">{memberName(user) || '—'}</h1>
+            {/* First/last name on their own lines on mobile — never ellipsized. */}
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+              {user.first_name || user.last_name ? (
+                <>
+                  <span className="block break-words sm:inline">{user.first_name}</span>
+                  <span className="block break-words sm:ml-1.5 sm:inline">{user.last_name}</span>
+                </>
+              ) : (
+                '—'
+              )}
+            </h1>
             {(user.number > 0 || positions.length > 0) && (
               <div className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
                 {user.number > 0 && (
