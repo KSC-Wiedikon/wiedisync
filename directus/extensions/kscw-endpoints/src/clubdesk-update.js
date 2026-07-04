@@ -115,6 +115,41 @@ function buildCsv(data, teamNames) {
   return CSV_HEADERS.join(',') + '\n' + row.map(escCsv).join(',')
 }
 
+// ClubDesk's CSV interface is Windows-1252, not UTF-8 (its export is CP1252 and
+// the scripted sync-up push iconv-transcodes before upload — see
+// clubdesk-member-up-dispatch.sh). The emailed CSVs get imported into ClubDesk by
+// hand, so a UTF-8 attachment mangles every accented name (ü → Ã¼). Encode CP1252
+// and transliterate the few letters CP1252 can't hold (ć → c, ń → n) instead of
+// shipping mojibake into the legal member register.
+const CP1252_EXTRA = {
+  '€': 0x80, '‚': 0x82, 'ƒ': 0x83, '„': 0x84, '…': 0x85,
+  '†': 0x86, '‡': 0x87, 'ˆ': 0x88, '‰': 0x89, 'Š': 0x8A,
+  '‹': 0x8B, 'Œ': 0x8C, 'Ž': 0x8E, '‘': 0x91, '’': 0x92,
+  '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97,
+  '˜': 0x98, '™': 0x99, 'š': 0x9A, '›': 0x9B, 'œ': 0x9C,
+  'ž': 0x9E, 'Ÿ': 0x9F,
+}
+// Letters with no CP1252 slot and no combining-mark decomposition.
+const CP1252_TRANSLIT = { 'đ': 'd', 'Đ': 'D', 'ł': 'l', 'Ł': 'L' }
+export function toCp1252Buffer(str) {
+  const bytes = []
+  const pushChar = (ch) => {
+    const cp = ch.codePointAt(0)
+    if (cp <= 0x7F || (cp >= 0xA0 && cp <= 0xFF)) { bytes.push(cp); return true }
+    if (CP1252_EXTRA[ch] !== undefined) { bytes.push(CP1252_EXTRA[ch]); return true }
+    return false
+  }
+  for (const ch of str) {
+    if (pushChar(ch)) continue
+    const base = CP1252_TRANSLIT[ch] || ch.normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    let ok = base.length > 0
+    const mark = bytes.length
+    for (const b of base) if (!pushChar(b)) { ok = false; break }
+    if (!ok) { bytes.length = mark; bytes.push(0x3F) } // '?'
+  }
+  return Buffer.from(bytes)
+}
+
 // ── Sync-up push CSV (member → ClubDesk import) ─────────────────────────────
 // Headers are the EXACT ClubDesk field names so the import wizard auto-maps every
 // column (verified live 2026-06-27 — "Telefon Privat" not "Telefon"). Semicolon-
@@ -732,7 +767,7 @@ ${buildChangesTable(changes, loc)}
           to: tos,
           subject: tt.subject(name),
           html: emailHtml,
-          attachments: [{ filename, content: csvString, contentType: 'text/csv' }],
+          attachments: [{ filename, content: toCp1252Buffer(csvString), contentType: 'text/csv; charset=windows-1252' }],
         })
       }
 

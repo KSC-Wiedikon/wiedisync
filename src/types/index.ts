@@ -927,7 +927,7 @@ export interface Poll extends BaseRecord {
   question: string
   options: string[]
   mode: 'single' | 'multi'
-  deadline: string
+  deadline: string | null
   created_by: string
   status: 'open' | 'closed'
   anonymous: boolean
