@@ -318,8 +318,19 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (['queued', 'running'].includes(s?.up_state)) {
         return res.status(409).json({ error: 'A sync-up is already in progress', state: s.up_state })
       }
-      const members = await database('members').whereIn('id', ids).select(PUSH_FIELDS)
-      if (!members.length) return res.status(400).json({ error: 'No matching members' })
+      const fetched = await database('members').whereIn('id', ids)
+        .select([...PUSH_FIELDS, 'clubdesk_push_pending', 'clubdesk_pushed_at'])
+      // Server-side eligibility re-check — mirrors up-preview: an UPDATE push needs
+      // a linked contact with pending changes; a CREATE push must be neither linked
+      // nor already pushed (a pushed-awaiting-link member would DUPLICATE the
+      // contact in ClubDesk). The preview enforced this only client-side, but /up
+      // callers can act on stale state (per-registration zone, second admin), so
+      // refuse ineligible ids here.
+      const members = fetched.filter((m) =>
+        (m.clubdesk_push_pending && m.clubdesk_id) || (!m.clubdesk_id && !m.clubdesk_pushed_at))
+      if (!members.length) {
+        return res.status(409).json({ error: 'No eligible members — already in ClubDesk or awaiting link-back', code: 'not_eligible' })
+      }
       const csv = buildPushCsv(members)
       await database('clubdesk_member_sync').where('id', 1).update({
         up_requested_at: new Date(), up_state: 'queued', up_message: null, up_finished_at: null,
@@ -441,6 +452,117 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       return res.json({ success: true, member_id: memberId, clubdesk_id: clubdeskId, vm_email: patch.vm_email || null })
     } catch (err) {
       log.error({ msg: `clubdesk-link: ${err.message}`, endpoint: 'clubdesk-link', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── Per-registration ClubDesk status (Anmeldungen "ClubDesk sync" zone) ─────
+  // Resolves an approved registration to its member row (same email +
+  // symmetric first-name-prefix rule as createMemberFromRegistration in
+  // kscw-hooks) and reports where that person stands relative to ClubDesk:
+  //   linked          — member.clubdesk_id set → contact exists in ClubDesk
+  //   match_unlinked  — a clubdesk_export contact matches by email or exact name
+  //                     but the member isn't linked yet (offer /clubdesk-link);
+  //                     `duplicate_of` is set when that contact is already linked
+  //                     to a DIFFERENT member (needs a merge, no one-click action)
+  //   pushed_pending  — pushed to ClubDesk (clubdesk_pushed_at) awaiting link-back
+  //   not_in_clubdesk — nowhere to be found → offer the single-member sync-up push
+  //   no_member       — no member row yet (not approved, or the approval hook failed)
+  // clubdesk_export is the last sync-down snapshot, so "in ClubDesk" is as of the
+  // last sync down. Read-only. Superadmin only (same gate as the sync surface).
+  function firstNamesMatchCd(a, b) {
+    const x = String(a || '').toLowerCase().trim()
+    const y = String(b || '').toLowerCase().trim()
+    if (!x || !y) return true
+    return x === y || x.startsWith(y) || y.startsWith(x)
+  }
+
+  router.get('/clubdesk-registration-status', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const regId = Number(String(req.query.registration_id || '').trim())
+      if (!Number.isInteger(regId)) return res.status(400).json({ error: 'registration_id required' })
+      const reg = await database('registrations').where('id', regId)
+        .first('id', 'email', 'vorname', 'status')
+      if (!reg) return res.status(404).json({ error: 'Registration not found' })
+      if (!reg.email) return res.json({ status: 'no_member' })
+
+      const email = reg.email.toLowerCase().trim()
+      const emailRows = await database('members').whereRaw('LOWER(email) = ?', [email])
+        .select('id', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at')
+      const member = emailRows.find((r) => firstNamesMatchCd(r.first_name, reg.vorname)) || null
+      if (!member) return res.json({ status: 'no_member' })
+
+      const base = { member_id: member.id }
+      if (member.clubdesk_id) {
+        return res.json({ ...base, status: 'linked', clubdesk_id: member.clubdesk_id })
+      }
+
+      // Unlinked → look for the person in the ClubDesk snapshot. Candidates come
+      // from an email or exact-name SQL match, but an email hit only COUNTS when
+      // the contact's name also matches the member — same family-shared-email rule
+      // as createMemberFromRegistration and the sync-down auto-linker: a child
+      // registering with the parent's address must never be offered a one-click
+      // link to the parent's contact. clubdesk_export holds one row per contact
+      // PER GROUP, so dedupe by clubdesk_id; email+name beats name-only; two
+      // DIFFERENT contacts at the same precedence → ambiguous, no one-click link.
+      // Checked BEFORE pushed_pending so a contact that appeared via sync-down
+      // without linking offers the link action instead of waiting forever.
+      const lastNamesEqual = (a, b) => {
+        const x = String(a || '').toLowerCase().trim()
+        const y = String(b || '').toLowerCase().trim()
+        return !!x && !!y && x === y
+      }
+      const cdRows = await database('clubdesk_export as cd')
+        .whereRaw("NULLIF(BTRIM(cd.clubdesk_id), '') IS NOT NULL")
+        .andWhere(function () {
+          this.whereRaw('LOWER(BTRIM(cd.email)) = ?', [email])
+            .orWhereRaw("LOWER(BTRIM(COALESCE(cd.email_alternativ, ''))) = ?", [email])
+            .orWhere(function () {
+              this.whereRaw('LOWER(BTRIM(cd.vorname)) = LOWER(BTRIM(?))', [member.first_name || ''])
+                .andWhereRaw('LOWER(BTRIM(cd.nachname)) = LOWER(BTRIM(?))', [member.last_name || ''])
+            })
+        })
+        .select('cd.clubdesk_id', 'cd.vorname', 'cd.nachname', 'cd.email', 'cd.email_alternativ')
+      const seen = new Set()
+      const candidates = []
+      for (const r of cdRows) {
+        const cdid = String(r.clubdesk_id).trim()
+        if (seen.has(cdid)) continue
+        const nameHit = lastNamesEqual(r.nachname, member.last_name)
+          && firstNamesMatchCd(r.vorname, member.first_name)
+        if (!nameHit) continue // email-only hit = different person on a shared address
+        seen.add(cdid)
+        const emailHit = [r.email, r.email_alternativ]
+          .some((e) => String(e || '').toLowerCase().trim() === email)
+        candidates.push({ cdid, emailHit, vorname: r.vorname, nachname: r.nachname, email: r.email || r.email_alternativ || null })
+      }
+      candidates.sort((a, b) => Number(b.emailHit) - Number(a.emailHit))
+      const cd = candidates[0] || null
+      const ambiguous = candidates.length > 1 && candidates[1].emailHit === candidates[0].emailHit
+
+      if (cd) {
+        const linked = await database('members').where('clubdesk_id', cd.cdid)
+          .first('id', 'first_name', 'last_name')
+        return res.json({
+          ...base,
+          status: 'match_unlinked',
+          clubdesk_id: cd.cdid,
+          clubdesk_name: `${(cd.vorname || '').trim()} ${(cd.nachname || '').trim()}`.trim() || null,
+          clubdesk_email: cd.email,
+          ambiguous,
+          duplicate_of: linked && linked.id !== member.id
+            ? { id: linked.id, name: `${linked.first_name || ''} ${linked.last_name || ''}`.trim() }
+            : null,
+        })
+      }
+
+      if (member.clubdesk_pushed_at) {
+        return res.json({ ...base, status: 'pushed_pending', pushed_at: member.clubdesk_pushed_at })
+      }
+      return res.json({ ...base, status: 'not_in_clubdesk' })
+    } catch (err) {
+      log.error({ msg: `clubdesk-registration-status: ${err.message}`, endpoint: 'clubdesk-registration-status', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
     }
   })

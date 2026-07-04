@@ -9,6 +9,7 @@ import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import TeamChip from '../../components/TeamChip'
 import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
 import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
+import ClubdeskRegistrationZone from './components/ClubdeskRegistrationZone'
 import { Button } from '../../components/ui/button'
 import { formatDate } from '../../utils/dateHelpers'
 import { localizeCountry, localizeCountryName } from '../../utils/countryName'
@@ -746,6 +747,10 @@ function ExpandedDetails({
           </div>
         </div>
       )}
+
+      {/* ClubDesk sync zone — approved registrations only (superadmin; the
+          component hides itself for non-superadmins) */}
+      {reg.status === 'approved' && <ClubdeskRegistrationZone registrationId={String(reg.id)} />}
 
       {/* Rejection reason display */}
       {reg.status === 'rejected' && reg.rejection_reason && (

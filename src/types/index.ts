@@ -931,6 +931,8 @@ export interface Poll extends BaseRecord {
   created_by: string
   status: 'open' | 'closed'
   anonymous: boolean
+  /** Everyone (not just managers) may see the aggregate totals. Migration 171. */
+  results_visible?: boolean
 }
 
 export interface PollVote extends BaseRecord {

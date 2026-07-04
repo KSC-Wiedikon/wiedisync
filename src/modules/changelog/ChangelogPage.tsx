@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.18.0'
+const APP_VERSION = '1.19.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,31 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.19.0',
+    date: '04.07.2026',
+    sections: [
+      {
+        title: 'ClubDesk status on every approved registration',
+        items: [
+          'Each approved registration (Anmeldungen) now shows a ClubDesk sync zone: whether the person already exists in ClubDesk, is found there but not linked yet, or is missing entirely.',
+          'One-click actions per person: link an existing ClubDesk contact, or push just this person to ClubDesk — no need to run a full sync for a single new member.',
+        ],
+      },
+      {
+        title: 'Polls: results visible to members',
+        items: [
+          'Polls have a new "results visible to everyone" option (on by default for new polls): members can see the vote counts after voting, not just managers. Who voted for what stays visible to managers only.',
+        ],
+      },
+      {
+        title: 'Fixes',
+        items: [
+          'The Data health page no longer fails to load when the "Missing sex" check runs.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.18.0',
     date: '03.07.2026',

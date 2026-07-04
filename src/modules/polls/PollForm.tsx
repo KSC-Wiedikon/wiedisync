@@ -19,6 +19,7 @@ interface PollFormProps {
     mode: 'single' | 'multi'
     deadline?: string
     anonymous?: boolean
+    results_visible?: boolean
   }) => void | Promise<void>
 }
 
@@ -29,6 +30,8 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
   const [mode, setMode] = useState<'single' | 'multi'>('single')
   const [deadline, setDeadline] = useState('')
   const [anonymous, setAnonymous] = useState(false)
+  // Default ON — everyone sees the totals unless the creator opts out.
+  const [resultsVisible, setResultsVisible] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
   const canSubmit = question.trim().length > 0 && options.filter(o => o.trim()).length >= 2
@@ -46,6 +49,7 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
         mode,
         deadline: deadline || undefined,
         anonymous,
+        results_visible: resultsVisible,
       })
       // Reset form
       setQuestion('')
@@ -53,6 +57,7 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
       setMode('single')
       setDeadline('')
       setAnonymous(false)
+      setResultsVisible(true)
       onClose()
     } catch {
       toast.error(t('common:errorSaving'))
@@ -209,6 +214,28 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
               </label>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {t('anonymousDescription')}
+              </p>
+            </div>
+          </div>
+
+          {/* Results visibility toggle */}
+          <div className="flex items-start gap-3">
+            <input
+              id="poll-results-visible"
+              type="checkbox"
+              checked={resultsVisible}
+              onChange={(e) => setResultsVisible(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
+            />
+            <div>
+              <label
+                htmlFor="poll-results-visible"
+                className="text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                {t('resultsVisible')}
+              </label>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t('resultsVisibleDescription')}
               </p>
             </div>
           </div>

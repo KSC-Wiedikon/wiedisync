@@ -18,7 +18,7 @@ interface PollCardProps {
 export default function PollCard({ poll, canManage, onClose, onDelete }: PollCardProps) {
   const { t } = useTranslation('polls')
   const confirm = useConfirm()
-  const { myVote, vote, getResults } = usePollVotes(poll, canManage)
+  const { myVote, vote, getResults, canSeeResults } = usePollVotes(poll, canManage)
   const [selected, setSelected] = useState<number[]>([])
   // Tracks the create/update mutation itself (not the votes fetch) so a slow
   // save disables the button and a second tap can't fire a duplicate vote.
@@ -37,10 +37,14 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
   const canVote = votingOpen && (!hasVoted || editing)
   // Managers (coach/TR/board) see the live tally at any time so they can monitor
   // replies before the deadline (decision 2026-06-28). Everyone else sees results
-  // once they've voted, the poll closed, or the deadline passed. A manager who
-  // hasn't voted yet still gets the result bars — made tappable below via
-  // `canVote` so they can cast a vote without losing sight of the running tally.
-  const showResults = hasVoted || !isOpen || deadlinePassed || canManage
+  // once they've voted, the poll closed, or the deadline passed — IF the poll
+  // permits it (canSeeResults: results_visible polls + the creator; migration
+  // 171). On manager-only polls voters get a plain confirmation instead —
+  // previously the bars rendered from the voter's own single row (OWN_MEMBER
+  // read), a misleading "100% / 1 vote" tally. A manager who hasn't voted yet
+  // still gets the result bars — made tappable below via `canVote` so they can
+  // cast a vote without losing sight of the running tally.
+  const showResults = canManage || (canSeeResults && (hasVoted || !isOpen || deadlinePassed))
   // Managers see per-member answers (who picked what) — but only on
   // non-anonymous polls. An anonymous poll stays totals-only even for managers.
   const showVoters = canManage && !poll.anonymous
@@ -207,6 +211,26 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
             )
           }
 
+          // Results hidden and no vote to cast (already voted on a manager-only
+          // poll, or it ended): inert rows, own pick marked — no fake tally.
+          if (!canVote) {
+            return (
+              <div
+                key={idx}
+                className={`w-full rounded-md border px-3 py-2 text-left text-sm ${
+                  isMyVote
+                    ? 'border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-900/30 dark:text-blue-100'
+                    : 'border-gray-200 bg-white text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                }`}
+              >
+                {option}
+                {isMyVote && (
+                  <span className="ml-1.5 text-xs text-blue-600 dark:text-blue-400">({t('voted')})</span>
+                )}
+              </div>
+            )
+          }
+
           // Voting view
           return (
             <button
@@ -224,6 +248,14 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
           )
         })}
       </div>
+
+      {/* Manager-only results: tell the voter why there's no tally. */}
+      {!canSeeResults && hasVoted && (
+        <div className="mt-3 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+          <EyeOff className="h-3.5 w-3.5" />
+          <span>{t('resultsHiddenNote')}</span>
+        </div>
+      )}
 
       {/* Vote / change-vote controls */}
       {canVote && (
@@ -253,10 +285,12 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
         </div>
       )}
 
-      {/* Footer: vote count + manage actions */}
+      {/* Footer: vote count + manage actions. The count comes from the real
+          aggregate only for viewers entitled to results — for the rest it would
+          just be their own row (0 or 1), so show nothing. */}
       <div className="mt-3 flex items-center justify-between">
         <span className="text-xs text-gray-500 dark:text-gray-400">
-          {t('votes', { count: totalVotes })}
+          {canSeeResults ? t('votes', { count: totalVotes }) : ''}
         </span>
 
         {canManage && (
