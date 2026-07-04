@@ -221,66 +221,9 @@ const psqlInput =
   '  FROM email_match WHERE m.id = email_match.id AND m.birthdate IS NULL;\n' +
   'COMMIT;\n' +
   "SELECT 'members_missing_birthdate' AS metric, (SELECT count(*) FROM members WHERE birthdate IS NULL) AS value;\n" +
-  // ── Apply ClubDesk Geschlecht → members.sex (fill-only) ──
-  // sex historically only came from the Volleymanager path (licensed VB players),
-  // so basketball/passive/new members stayed empty and the Data Health "Missing
-  // sex" list refilled with every new cohort. ClubDesk carries Geschlecht for
-  // everyone: fill NULL/empty sex for clubdesk_id-linked members (1:1, unique
-  // index) — never overwrite, so VM-sourced values and manual corrections (e.g.
-  // a wrong ClubDesk Geschlecht fixed by hand) survive every sync. The
-  // count(DISTINCT)=1 guard skips a contact staged with conflicting values.
-  // Own transaction, same isolation rationale as the birthdate passes.
-  'BEGIN;\n' +
-  'WITH cd AS (\n' +
-  '  SELECT btrim(clubdesk_id) AS cdid,\n' +
-  "         CASE lower(btrim(geschlecht)) WHEN 'männlich' THEN 'm' WHEN 'weiblich' THEN 'f' END AS sex\n" +
-  '  FROM clubdesk_export\n' +
-  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
-  "    AND lower(btrim(geschlecht)) IN ('männlich','weiblich')),\n" +
-  'sex_match AS (\n' +
-  '  SELECT m.id, min(cd.sex) AS sex FROM members m\n' +
-  '  JOIN cd ON cd.cdid = m.clubdesk_id\n' +
-  "  WHERE m.sex IS NULL OR btrim(m.sex) = ''\n" +
-  '  GROUP BY m.id HAVING count(DISTINCT cd.sex) = 1)\n' +
-  'UPDATE members m SET sex = sex_match.sex\n' +
-  "  FROM sex_match WHERE m.id = sex_match.id AND (m.sex IS NULL OR btrim(m.sex) = '');\n" +
-  'COMMIT;\n' +
-  "SELECT 'members_missing_sex' AS metric, (SELECT count(*) FROM members WHERE sex IS NULL OR btrim(sex)='') AS value;\n" +
-  // ── Apply ClubDesk identity/billing fields (Anrede/Nationalität/AHV/IBAN/Nie mahnen) ──
-  // ClubDesk is the legal member register for these, but anrede/nationalitaet/
-  // ahv_nummer/iban are member-editable in wiedisync, so they FILL-ONLY (a
-  // member's own edit is never clobbered; this is also the down-sync half that
-  // the sync-up push needs before those columns may ever be added to
-  // CD_PUSH_HEADERS — see clubdesk-update.js). never_dun is boolean (no "empty"
-  // state) → one-way ratchet: ClubDesk "Nie mahnen = ja" sets it, but a
-  // manually-set wiedisync flag is never cleared by a blank ClubDesk cell.
-  // IBANs are stored space-stripped to match the existing members.iban values.
-  // clubdesk_id-keyed (1:1); DISTINCT ON picks the latest staged row should a
-  // contact ever appear twice. Change-guard WHERE avoids no-op row churn.
-  'BEGIN;\n' +
-  'WITH cd AS (\n' +
-  '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
-  "         left(NULLIF(btrim(anrede),''),10) AS anrede,\n" +
-  "         left(NULLIF(btrim(nationalitaet),''),100) AS nationalitaet,\n" +
-  "         left(NULLIF(btrim(ahv_nummer),''),20) AS ahv,\n" +
-  "         left(NULLIF(replace(btrim(iban),' ',''),''),34) AS iban,\n" +
-  "         lower(btrim(nie_mahnen)) = 'ja' AS nie_mahnen\n" +
-  '  FROM clubdesk_export\n' +
-  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
-  '  ORDER BY btrim(clubdesk_id), row_id DESC)\n' +
-  'UPDATE members m SET\n' +
-  "  anrede        = COALESCE(NULLIF(btrim(m.anrede),''), cd.anrede),\n" +
-  "  nationalitaet = COALESCE(NULLIF(btrim(m.nationalitaet),''), cd.nationalitaet),\n" +
-  "  ahv_nummer    = COALESCE(NULLIF(btrim(m.ahv_nummer),''), cd.ahv),\n" +
-  "  iban          = COALESCE(NULLIF(btrim(m.iban),''), cd.iban),\n" +
-  '  never_dun     = m.never_dun OR cd.nie_mahnen\n' +
-  'FROM cd WHERE m.clubdesk_id = cd.cdid AND (\n' +
-  "     (NULLIF(btrim(m.anrede),'') IS NULL AND cd.anrede IS NOT NULL)\n" +
-  "  OR (NULLIF(btrim(m.nationalitaet),'') IS NULL AND cd.nationalitaet IS NOT NULL)\n" +
-  "  OR (NULLIF(btrim(m.ahv_nummer),'') IS NULL AND cd.ahv IS NOT NULL)\n" +
-  "  OR (NULLIF(btrim(m.iban),'') IS NULL AND cd.iban IS NOT NULL)\n" +
-  '  OR (NOT m.never_dun AND cd.nie_mahnen));\n' +
-  'COMMIT;\n' +
+  // (The Geschlecht→sex and Anrede/Nationalität/AHV fill passes run AFTER the
+  // clubdesk_id linker below, so members linked in THIS run are filled in the
+  // same run instead of waiting a whole sync cycle.)
   // ── Propagate ClubDesk contact fields to members (finance member explorer) ──
   // The scrape stages address/category/sektion/phone for every member, but only
   // birthdate was ever applied. Fill the rest so the finance Members view mirrors
@@ -385,6 +328,72 @@ const psqlInput =
   '    AND NOT EXISTS (SELECT 1 FROM members x WHERE x.clubdesk_id = email_match.cdid);\n' +
   'COMMIT;\n' +
   "SELECT 'members_linked_clubdesk' AS metric, (SELECT count(*) FROM members WHERE clubdesk_id IS NOT NULL) AS value;\n" +
+  // ── Apply ClubDesk Geschlecht → members.sex (fill-only) ──
+  // Runs AFTER the linker so members linked this run are filled immediately.
+  // sex historically only came from the Volleymanager path (licensed VB players),
+  // so basketball/passive/new members stayed empty and the Data Health "Missing
+  // sex" list refilled with every new cohort. ClubDesk carries Geschlecht for
+  // everyone: fill NULL/empty sex for clubdesk_id-linked members (1:1, unique
+  // index) — never overwrite, so VM-sourced values and manual corrections (e.g.
+  // a wrong ClubDesk Geschlecht fixed by hand) survive every sync. The
+  // count(DISTINCT)=1 guard skips a contact staged with conflicting values.
+  // Own transaction, same isolation rationale as the birthdate passes.
+  'BEGIN;\n' +
+  'WITH cd AS (\n' +
+  '  SELECT btrim(clubdesk_id) AS cdid,\n' +
+  "         CASE lower(btrim(geschlecht)) WHEN 'männlich' THEN 'm' WHEN 'weiblich' THEN 'f' END AS sex\n" +
+  '  FROM clubdesk_export\n' +
+  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
+  "    AND lower(btrim(geschlecht)) IN ('männlich','weiblich')),\n" +
+  'sex_match AS (\n' +
+  '  SELECT m.id, min(cd.sex) AS sex FROM members m\n' +
+  '  JOIN cd ON cd.cdid = btrim(m.clubdesk_id)\n' +
+  "  WHERE m.sex IS NULL OR btrim(m.sex) = ''\n" +
+  '  GROUP BY m.id HAVING count(DISTINCT cd.sex) = 1)\n' +
+  'UPDATE members m SET sex = sex_match.sex\n' +
+  "  FROM sex_match WHERE m.id = sex_match.id AND (m.sex IS NULL OR btrim(m.sex) = '');\n" +
+  'COMMIT;\n' +
+  "SELECT 'members_missing_sex' AS metric, (SELECT count(*) FROM members WHERE sex IS NULL OR btrim(sex)='') AS value;\n" +
+  // ── Apply ClubDesk identity fields (Anrede / Nationalität / AHV) — fill-only ──
+  // ClubDesk is the legal register for these, but all three are member-editable
+  // in wiedisync, so the sync only FILLS empties (a member's own edit is never
+  // clobbered; this is also the down-sync half required before these columns may
+  // ever join CD_PUSH_HEADERS — see clubdesk-update.js). AHV must match the
+  // official 756.xxxx.xxxx.xx shape or it is skipped — a free-text cell must not
+  // permanently occupy a legal-register column (fill-only means garbage would
+  // never self-heal). DELIBERATELY EXCLUDED after the 2026-07-04 review:
+  //   • iban — a member who deletes their IBAN (PayoutIbanCard) would have it
+  //     resurrected every sync (iban_confirmed defaults false → no marker to
+  //     tell "deleted" from "never had"); needs a tombstone before importing.
+  //   • never_dun — the ratchet silently reverted the DunningConsole's explicit
+  //     "undo never-dun" every week; the flag stays owned by migration 146 +
+  //     the console + the Data Health drift view.
+  // Caveat (accepted): a member who deliberately CLEARS anrede/nationalität/AHV
+  // gets the ClubDesk value re-filled next sync — same no-tombstone limitation.
+  // clubdesk_id-keyed (1:1); DISTINCT ON picks the latest staged row should a
+  // contact ever appear twice. Change-guard WHERE avoids no-op row churn.
+  'BEGIN;\n' +
+  'WITH cd AS (\n' +
+  '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
+  "         left(NULLIF(btrim(anrede),''),10) AS anrede,\n" +
+  "         left(NULLIF(btrim(nationalitaet),''),100) AS nationalitaet,\n" +
+  "         CASE WHEN btrim(ahv_nummer) ~ '^756\\.[0-9]{4}\\.[0-9]{4}\\.[0-9]{2}$'\n" +
+  '              THEN btrim(ahv_nummer) END AS ahv\n' +
+  '  FROM clubdesk_export\n' +
+  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
+  '  ORDER BY btrim(clubdesk_id), row_id DESC)\n' +
+  'UPDATE members m SET\n' +
+  "  anrede        = COALESCE(NULLIF(btrim(m.anrede),''), cd.anrede),\n" +
+  "  nationalitaet = COALESCE(NULLIF(btrim(m.nationalitaet),''), cd.nationalitaet),\n" +
+  "  ahv_nummer    = COALESCE(NULLIF(btrim(m.ahv_nummer),''), cd.ahv)\n" +
+  'FROM cd WHERE btrim(m.clubdesk_id) = cd.cdid AND (\n' +
+  "     (NULLIF(btrim(m.anrede),'') IS NULL AND cd.anrede IS NOT NULL)\n" +
+  "  OR (NULLIF(btrim(m.nationalitaet),'') IS NULL AND cd.nationalitaet IS NOT NULL)\n" +
+  "  OR (NULLIF(btrim(m.ahv_nummer),'') IS NULL AND cd.ahv IS NOT NULL));\n" +
+  'COMMIT;\n' +
+  "SELECT 'members_missing_identity_fields' AS metric,\n" +
+  "  (SELECT count(*) FROM members WHERE NULLIF(btrim(anrede),'') IS NULL\n" +
+  "     OR NULLIF(btrim(nationalitaet),'') IS NULL OR NULLIF(btrim(ahv_nummer),'') IS NULL) AS value;\n" +
   // Report contacts that would have matched MULTIPLE still-unlinked members (skipped
   // above) so a human can link them manually — "ambiguous, needs manual link".
   'WITH cd AS (\n' +
