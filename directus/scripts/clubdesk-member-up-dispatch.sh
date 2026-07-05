@@ -191,7 +191,16 @@ if [ -s "$CSVUTF_C" ]; then
   # as creates. The stamp doubles as the "pushed, awaiting link" marker until
   # the next sync-down's auto-linker sets clubdesk_id.
   # TODO write-back: scrape the new ClubDesk [Id] for these rows instead.
-  psqlc "UPDATE members SET clubdesk_pushed_at=now() WHERE id IN (SELECT jsonb_array_elements_text(up_member_ids_create)::int FROM clubdesk_member_sync WHERE id=1)" >/dev/null 2>&1 || true
+  #
+  # Audit #10: a create commit succeeded but a silenced stamp failure ('|| true')
+  # is the ONE state that must never pass quietly — the contacts exist in ClubDesk
+  # yet stay eligible, so the next push DUPLICATES them. Capture the stamp's exit
+  # status and fail the run loudly (the creates are committed; the operator must
+  # NOT retry until a sync-down links them). Do not proceed to the update set.
+  if ! psqlc "UPDATE members SET clubdesk_pushed_at=now() WHERE id IN (SELECT jsonb_array_elements_text(up_member_ids_create)::int FROM clubdesk_member_sync WHERE id=1)" >/dev/null 2>&1; then
+    fail_run 'CREATE set committed in ClubDesk but stamping clubdesk_pushed_at FAILED — do NOT retry until a sync-down links the new contacts (else duplicates)' "$RES_C"
+    echo "=== up-dispatch: FAILED (create-stamp; contacts committed but unstamped) ===" >&2; exit 1
+  fi
 fi
 
 RES_U=''

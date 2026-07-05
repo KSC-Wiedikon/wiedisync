@@ -717,19 +717,33 @@ export function registerRegistration(router, { database, logger, services, getSc
         if (e) e.mismatches = (e.mismatches || 0) + 1
         return res.status(403).json({ error: 'Invalid reference number' })
       }
-      if (reg.status === 'approved') {
-        const email = String(req.body.email || '').trim().toLowerCase()
-        if (!email || email !== String(reg.email || '').toLowerCase()) {
-          const e = fileAttachIp.get(ip)
-          if (e) e.mismatches = (e.mismatches || 0) + 1
-          return res.status(403).json({ error: 'Invalid reference number' })
+      // Registration email as a MANDATORY second factor on BOTH pending and
+      // approved rows (2026-07-05 audit #8). The reference number alone is short
+      // (~4 digits ≈ 9000 values), brute-forceable across a season with IP
+      // rotation, and on a PENDING row the attach could overwrite already-uploaded
+      // doc pointers. Requiring the registration email — which every legitimate
+      // caller has (the create fallback + the nachreichen page both send it) —
+      // closes the enumeration→overwrite path. Mismatches feed the same lockout.
+      const email = String(req.body.email || '').trim().toLowerCase()
+      if (!email || email !== String(reg.email || '').toLowerCase()) {
+        const e = fileAttachIp.get(ip)
+        if (e) e.mismatches = (e.mismatches || 0) + 1
+        return res.status(403).json({ error: 'Invalid reference number' })
+      }
+      // Only accept well-formed directus_files UUIDs that ACTUALLY EXIST — mirrors
+      // the create route's docs-exist check so a brute-forcer can't point a
+      // victim's doc columns at fabricated UUIDs. On APPROVED rows the attach is
+      // fill-only: a ref+email holder may complete missing documents but never
+      // silently REPLACE ones an admin already reviewed at approval time.
+      const fileId = (v) => (typeof v === 'string' && UUID_RE.test(v)) ? v : null
+      const providedIds = [id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_selfdecl, bb_doc_natdecl]
+        .map(fileId).filter(Boolean)
+      if (providedIds.length) {
+        const found = await database('directus_files').whereIn('id', providedIds).count('id as n').first()
+        if (Number(found?.n || 0) !== providedIds.length) {
+          return res.status(400).json({ error: 'One or more uploaded files not found' })
         }
       }
-      // Only accept well-formed directus_files UUIDs — never an arbitrary value.
-      // On APPROVED rows the attach is fill-only: a ref+email holder may
-      // complete missing documents but never silently REPLACE ones an admin
-      // already reviewed at approval time.
-      const fileId = (v) => (typeof v === 'string' && UUID_RE.test(v)) ? v : null
       const lockExisting = reg.status === 'approved'
       const update = {}
       const setDoc = (col, v) => {
