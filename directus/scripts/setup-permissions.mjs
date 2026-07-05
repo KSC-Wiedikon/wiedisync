@@ -1194,7 +1194,12 @@ async function main() {
   await setPermRead(LEADER_POLICY, 'participations', COACH_OR_TR_OF_PARTICIPATION)
   await setPerm(LEADER_POLICY, 'participations', 'update', COACH_OR_TR_OF_PARTICIPATION)
 
-  // Member teams — read all + CRUD
+  // Member teams — read all + CRUD. create/update/delete are TEAM-SCOPED by
+  // BLOCKING kscw-hooks filters (actorLeadsTeam for create/update — 2026-07-05
+  // audit MED #3; the pre-existing member_teams.items.delete guard for delete):
+  // a coach may only edit rosters for teams they lead. The grants stay unfiltered
+  // here because Directus can't row-filter a CREATE and the delete filter keys on
+  // the junction id, not the team — the hooks are the real scope gate.
   await setPermRead(LEADER_POLICY, 'member_teams')
   await setPerm(LEADER_POLICY, 'member_teams', 'create')
   await setPerm(LEADER_POLICY, 'member_teams', 'update')
@@ -1418,8 +1423,13 @@ async function main() {
   // teams_coaches / teams_responsibles — the legacy policy granted these fully
   // open (any leader could edit any team's coach/TR list). Tightened: update +
   // delete scoped to junctions whose team the caller coaches / is TR for; create
-  // stays unfiltered (Directus can't relationally filter a not-yet-existing row —
-  // same constraint as teams_sponsors; the roster editor + role-sync hook gate it).
+  // stays unfiltered here because Directus can't relationally filter a
+  // not-yet-existing row. CREATE is enforced instead by the BLOCKING
+  // `teams_coaches/teams_responsibles.items.create` filter hooks in kscw-hooks
+  // (actorLeadsTeam — 2026-07-05 audit HIGH #1/#2): a coach may only add staff to
+  // a team they already lead. The POST-insert role-sync ACTION hook only GRANTS
+  // the LEADER policy — it does NOT authorize the write, so the create filter hook
+  // is the actual gate. Do not remove it thinking this comment's "gate" is enough.
   const JUNCTION_OF_TEAM_I_LEAD = {
     teams_id: {
       _or: [

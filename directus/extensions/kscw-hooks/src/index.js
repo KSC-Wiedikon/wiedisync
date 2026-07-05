@@ -3702,24 +3702,23 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const season = getCurrentSeason()
 
       for (const team of teamRows) {
-        if (rolle.includes('trainer') || rolle.includes('coach')) {
-          // Coach → teams_coaches
-          const exists = await db('teams_coaches')
-            .where({ teams_id: team.id, members_id: memberId }).first()
-          if (!exists) {
-            await db('teams_coaches').insert({ teams_id: team.id, members_id: memberId })
-            log.info({ msg: 'Added as coach', memberId, team: team.name })
-          }
-        } else if (rolle.includes('teamverantwortlich') || rolle.includes('team responsible')) {
-          // Team Responsible → teams_responsibles
-          const exists = await db('teams_responsibles')
-            .where({ teams_id: team.id, members_id: memberId }).first()
-          if (!exists) {
-            await db('teams_responsibles').insert({ teams_id: team.id, members_id: memberId })
-            log.info({ msg: 'Added as team responsible', memberId, team: team.name })
-          }
-        } else if (rolle.includes('spieler') || rolle.includes('player') || !rolle || rolle.includes('andere') || rolle.includes('other')) {
-          // Player → member_teams
+        if (rolle.includes('trainer') || rolle.includes('coach') ||
+            rolle.includes('teamverantwortlich') || rolle.includes('team responsible')) {
+          // COACH / TR requested (2026-07-05 audit MED #6). `rolle` + `team` are
+          // applicant-controlled public-form fields, and coach/TR membership
+          // materializes the LEADER policy (team leadership + member-PII access +
+          // roster/game/fine write scope). Auto-granting that on a routine
+          // approval let an applicant self-assert leadership over any existing
+          // team. Do NOT auto-create the coach/TR junction here — leadership is
+          // an explicit, deliberate staff action (roster editor / admin, which is
+          // itself scope-guarded now). Surface a clear, admin-visible warning so
+          // staff know to grant it manually.
+          log.warn({ msg: `Registration approval requested COACH/TR on "${team.name}" — NOT auto-granted (applicant-supplied rolle). Grant leadership manually if intended.`, memberId, team: team.name, rolle })
+          logWarning('registration_leader_not_autogranted',
+            `Member ${memberId} approved with rolle="${rolle}" on team "${team.name}" — coach/TR NOT auto-granted; assign manually if intended.`,
+            { memberId, team: team.name, rolle })
+        } else {
+          // Everyone else (player / andere / other / unspecified) → roster player.
           const exists = await db('member_teams')
             .where({ member: memberId, team: team.id, season }).first()
           if (!exists) {
@@ -4414,6 +4413,67 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       }
     }
     return keys
+  })
+
+  // Junction-write scope (2026-07-05 audit — HIGH #1/#2 + MED #3). The LEADER
+  // policy grants teams_coaches / teams_responsibles / member_teams CREATE (so a
+  // coach can manage their own team's staff + roster), but Directus cannot
+  // row-filter a CREATE (no pre-existing row to match — see setup-permissions.mjs
+  // §"CREATE grants"), and the only hooks on the coach/TR junctions were the
+  // POST-insert action hooks above, which ATTACH the LEADER policy via
+  // ensureLeaderAccess and therefore GRANT access — they cannot reject the write.
+  // So a coach/TR of ANY single team could POST teams_coaches
+  // {teams_id:<any team B>, members_id:<self>} and self-escalate to team B's
+  // roster/games/fines/absences/events (horizontal privilege escalation). Require
+  // the acting member to ALREADY lead the target team (or be admin/system).
+  // Mirrors the member_teams.items.delete guard + assertFineTeamScope.
+  async function actorLeadsTeam(db, accountability, teamId) {
+    if (teamId == null) return false
+    const editor = await db('members').where('user', accountability.user).select('id').first()
+    if (!editor) return false
+    const isCoach = await db('teams_coaches').where({ teams_id: teamId, members_id: editor.id }).first('id')
+    if (isCoach) return true
+    const isTR = await db('teams_responsibles').where({ teams_id: teamId, members_id: editor.id }).first('id')
+    return !!isTR
+  }
+
+  for (const coll of ['teams_coaches', 'teams_responsibles']) {
+    filter(`${coll}.items.create`, async (payload, _meta, { database: db, accountability }) => {
+      if (!accountability?.user) return payload   // system context (cron/hook/cascade)
+      if (accountability.admin) return payload     // admins bypass
+      if (!(await actorLeadsTeam(db, accountability, toIdValue(payload?.teams_id)))) {
+        throw kscwScopeError('You can only assign staff to a team you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
+      }
+      return payload
+    })
+  }
+
+  // member_teams CREATE/UPDATE: same class as the delete guard above. Create is
+  // scoped to teams the caller leads (roster editing); update must not re-point a
+  // row to (or away from) a team the caller doesn't lead. Self-add to an
+  // unrelated team IS the escalation, so there is deliberately no "self" bypass.
+  filter('member_teams.items.create', async (payload, _meta, { database: db, accountability }) => {
+    if (!accountability?.user) return payload
+    if (accountability.admin) return payload
+    if (!(await actorLeadsTeam(db, accountability, toIdValue(payload?.team)))) {
+      throw kscwScopeError('You can only add members to a team you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
+    }
+    return payload
+  })
+  filter('member_teams.items.update', async (payload, meta, { database: db, accountability }) => {
+    if (!accountability?.user) return payload
+    if (accountability.admin) return payload
+    const ids = Array.isArray(meta?.keys) ? meta.keys : (meta?.key != null ? [meta.key] : [])
+    const rows = ids.length ? await db('member_teams').whereIn('id', ids).select('team') : []
+    for (const row of rows) {
+      if (!(await actorLeadsTeam(db, accountability, row.team))) {
+        throw kscwScopeError('You can only edit rosters for teams you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
+      }
+    }
+    if (payload?.team != null && !(await actorLeadsTeam(db, accountability, toIdValue(payload.team)))) {
+      throw kscwScopeError('You can only move members to teams you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
+    }
+    return payload
   })
 
   // ── Hall-slot → trainings cascade ──────────────────────────────

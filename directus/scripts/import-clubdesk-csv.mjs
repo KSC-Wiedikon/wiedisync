@@ -207,13 +207,20 @@ const psqlInput =
   '  FROM lic_match WHERE m.id = lic_match.id AND m.birthdate IS NULL;\n' +
   'WITH cd AS (\n' +
   '  SELECT lower(btrim(email)) AS email, lower(btrim(email_alternativ)) AS email_alt,\n' +
+  "         lower(btrim(nachname)) AS nachname,\n" +
   "         lower(split_part(btrim(vorname),' ',1)) AS vn1, to_date(geburtsdatum,'DD.MM.YYYY') AS dob\n" +
   '  FROM clubdesk_export\n' +
   "  WHERE geburtsdatum ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
   "    AND to_char(to_date(geburtsdatum,'DD.MM.YYYY'),'DD.MM.YYYY') = geburtsdatum),\n" +
+  // Last-name equality guard (audit #13): a shared family email + same first
+  // name (child 'Thomas' on the parent 'Thomas Müller's address) would otherwise
+  // stamp the parent's adult DOB onto the minor, flipping the public roster's
+  // minor-protection to expose the child. The contact-fields pass + clubdesk_id
+  // linker already AND last-name equality; this pass must match them.
   'email_match AS (\n' +
   '  SELECT m.id, min(cd.dob) AS dob FROM members m\n' +
   "  JOIN cd ON btrim(coalesce(m.email,'')) <> '' AND lower(btrim(m.email)) IN (cd.email, cd.email_alt)\n" +
+  "   AND lower(btrim(m.last_name)) = cd.nachname\n" +
   "   AND lower(split_part(btrim(m.first_name),' ',1)) = cd.vn1\n" +
   '  WHERE m.birthdate IS NULL\n' +
   '  GROUP BY m.id HAVING count(DISTINCT cd.dob) = 1)\n' +
@@ -288,11 +295,14 @@ const psqlInput =
   // REVERSE-uniqueness guard: HAVING count(DISTINCT cd.cdid)=1 only stops ONE member
   // matching MANY contacts. It does NOT stop MANY members matching ONE contact — two
   // family members sharing an email/similar name would otherwise be assigned the SAME
-  // clubdesk_id (there is no UNIQUE constraint on members.clubdesk_id), corrupting
-  // departed-detection (both deactivated when one leaves) and sync-up. So each pass
-  // also filters to cdids that map to exactly ONE candidate member AND are not already
-  // held by another member (NOT EXISTS). A cdid claimed by >1 member is SKIPPED and
-  // reported below ('clubdesk_link_ambiguous') for a human to link manually.
+  // clubdesk_id, corrupting departed-detection (both deactivated when one leaves) and
+  // sync-up. So each pass also filters to cdids that map to exactly ONE candidate
+  // member AND are not already held by another member (NOT EXISTS). A cdid claimed by
+  // >1 member is SKIPPED and reported below ('clubdesk_link_ambiguous') for a human to
+  // link manually. These app-level guards are now belt-and-braces on top of the
+  // partial unique index members_clubdesk_id_uq (migration 170): a dup assignment that
+  // slips past them aborts THIS linker's own transaction loudly (surfaces in the sync
+  // log) rather than silently corrupting — so don't "simplify away" the CTEs.
   'BEGIN;\n' +
   'WITH cd AS (\n' +
   '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
@@ -317,6 +327,10 @@ const psqlInput =
   '  SELECT mm.id, min(cd.cdid) cdid FROM members mm\n' +
   "  JOIN cd ON NULLIF(btrim(mm.email),'') IS NOT NULL AND lower(btrim(mm.email)) IN (cd.email, cd.email_alt)\n" +
   '       AND lower(btrim(mm.last_name)) = cd.nachname\n' +
+  // Blank-first-name guard (audit #15): a member with an empty first_name makes
+  // split_part('',' ',1)='' → `cd.vn1 LIKE '%'` = TRUE for every contact, so the
+  // first-name guard collapses to match-all. Require both sides non-empty.
+  "       AND NULLIF(split_part(btrim(mm.first_name),' ',1),'') IS NOT NULL AND NULLIF(cd.vn1,'') IS NOT NULL\n" +
   "       AND (lower(split_part(btrim(mm.first_name),' ',1)) LIKE cd.vn1 || '%'\n" +
   "            OR cd.vn1 LIKE lower(split_part(btrim(mm.first_name),' ',1)) || '%')\n" +
   '  WHERE mm.clubdesk_id IS NULL\n' +
@@ -388,9 +402,14 @@ const psqlInput =
   "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
   '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
   'cd AS (\n' +
+  // Accept an AHV only when its 13 digits pass the EAN-13 mod-10 check digit —
+  // this single branch covers BOTH already-dotted and dot-mangled inputs (audit
+  // #14): a dotted-but-invalid-check-digit cell (single-digit typo) used to be
+  // stored verbatim and, because the pass is fill-only, never self-healed. Now
+  // both intake paths reject a bad check digit consistently and re-emit the
+  // canonical dotted form.
   '  SELECT cdid, anrede, nationalitaet,\n' +
-  "         CASE WHEN ahv_raw ~ '^756\\.[0-9]{4}\\.[0-9]{4}\\.[0-9]{2}$' THEN ahv_raw\n" +
-  "              WHEN ahv_digits ~ '^756[0-9]{10}$'\n" +
+  "         CASE WHEN ahv_digits ~ '^756[0-9]{10}$'\n" +
   '               AND (SELECT sum(substr(ahv_digits,g.i,1)::int * CASE WHEN g.i % 2 = 1 THEN 1 ELSE 3 END)\n' +
   '                      FROM generate_series(1,13) g(i)) % 10 = 0\n' +
   "              THEN substr(ahv_digits,1,3)||'.'||substr(ahv_digits,4,4)||'.'||substr(ahv_digits,8,4)||'.'||substr(ahv_digits,12,2)\n" +
@@ -465,6 +484,10 @@ const psqlInput =
   '  SELECT cd.cdid, mm.id AS member_id FROM members mm\n' +
   "  JOIN cd ON NULLIF(btrim(mm.email),'') IS NOT NULL AND lower(btrim(mm.email)) IN (cd.email, cd.email_alt)\n" +
   '       AND lower(btrim(mm.last_name)) = cd.nachname\n' +
+  // Blank-first-name guard (audit #15): a member with an empty first_name makes
+  // split_part('',' ',1)='' → `cd.vn1 LIKE '%'` = TRUE for every contact, so the
+  // first-name guard collapses to match-all. Require both sides non-empty.
+  "       AND NULLIF(split_part(btrim(mm.first_name),' ',1),'') IS NOT NULL AND NULLIF(cd.vn1,'') IS NOT NULL\n" +
   "       AND (lower(split_part(btrim(mm.first_name),' ',1)) LIKE cd.vn1 || '%'\n" +
   "            OR cd.vn1 LIKE lower(split_part(btrim(mm.first_name),' ',1)) || '%')\n" +
   '  WHERE mm.clubdesk_id IS NULL)\n' +

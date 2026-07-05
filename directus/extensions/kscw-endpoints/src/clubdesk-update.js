@@ -330,6 +330,13 @@ function buildChangesTable(changes, locale = 'de') {
 export function registerClubdeskUpdate(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'clubdesk-update' })
 
+  // Per-member throttle for the member-facing /clubdesk-update route (2026-07-05
+  // audit #12): each call emails a CSV attachment to the admin mailbox + rewrites
+  // the push diff, so an unthrottled loop could flood the mailbox and churn the
+  // sync-up modal. 5 / hour / member (in-memory — same accepted model as the
+  // other kscw-endpoints limiters, safe behind the CF Tunnel).
+  const clubdeskUpdateRl = new Map()
+
   // ── Superadmin gate (ClubDesk member sync is a top-tier, club-wide action) ──
   // Directus admins pass straight through; otherwise the caller must hold the
   // 'superuser' or 'admin' member role. Mirrors finance-ledger.js gate(), tighter.
@@ -416,12 +423,29 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         .whereNull('clubdesk_pushed_at')
         .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie')
         .orderBy('last_name')
+      // Flag unlinked members who ALREADY exist in ClubDesk under a divergent
+      // email (exact first+last name match) so the modal can warn before a CREATE
+      // push duplicates the contact in the legal register (2026-07-05 audit #11).
+      // Name-only is a heuristic — the superadmin still decides per-member — but
+      // the server no longer stays silent about a likely duplicate.
+      const cdKey = (f, l) => `${(f || '').trim().toLowerCase()} ${(l || '').trim().toLowerCase()}`.trim()
+      const wantNames = [...new Set(unlinkedRows.map((m) => cdKey(m.first_name, m.last_name)).filter(Boolean))]
+      const cdNames = new Set()
+      if (wantNames.length) {
+        const rows = await database('clubdesk_export')
+          .whereRaw("LOWER(BTRIM(vorname)) || ' ' || LOWER(BTRIM(nachname)) = ANY(?)", [wantNames])
+          .distinct(database.raw("LOWER(BTRIM(vorname)) || ' ' || LOWER(BTRIM(nachname)) AS nm"))
+        for (const r of rows) cdNames.add(r.nm)
+      }
       const unlinked = unlinkedRows.map((m) => {
         const e = (m.email || '').toLowerCase()
         const likelyNonMember = e.includes('@kscw.clubdesk.com') || e.startsWith('system@') || e.endsWith('@kscw.ch')
         return {
           id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email,
           likely_non_member: likelyNonMember,
+          // A ClubDesk contact with this exact name already exists (divergent
+          // email) → pushing CREATE would duplicate it. Warn in the modal.
+          would_duplicate: cdNames.has(cdKey(m.first_name, m.last_name)),
           // What the CREATE push will send as Beitragskategorie (post-mapping) —
           // shown in the modal so the superadmin sees it before approving.
           beitragskategorie: mapKategorie(m.beitragskategorie) || null,
@@ -463,8 +487,33 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // UPDATE row; unlinked members get a CREATE row that additionally carries
       // Beitragskategorie + Eintritt + Gruppen (see CD_PUSH_CREATE_HEADERS for
       // why the sets must never share a CSV).
-      const updates = members.filter((m) => m.clubdesk_id)
+      const updates0 = members.filter((m) => m.clubdesk_id)
       const creates = members.filter((m) => !m.clubdesk_id)
+      // Blank-risk guard (2026-07-05 audit #5). An UPDATE row carries the FULL
+      // contact scope, so a linked member whose wiedisync side is EMPTY where
+      // ClubDesk still holds a value would blank the authoritative register on
+      // import. /clubdesk-drift/flag already refuses these, but the member-facing
+      // POST /clubdesk-update sets clubdesk_push_pending with no such check, so a
+      // profile edit that clears a field can reach here. Re-run the SAME drift
+      // computation over the UPDATE set and drop blank-risk members — they
+      // self-heal after a "Sync down" fills the empty field.
+      let blankRiskSkipped = []
+      let updates = updates0
+      if (updates0.length) {
+        const drift = await computeClubdeskDrift(updates0.map((m) => m.id))
+        const riskyIds = new Set(drift.filter((d) => d.blank_risk.length).map((d) => d.member_id))
+        if (riskyIds.size) {
+          blankRiskSkipped = updates0.filter((m) => riskyIds.has(m.id)).map((m) => m.id)
+          updates = updates0.filter((m) => !riskyIds.has(m.id))
+        }
+      }
+      const pushMembers = [...updates, ...creates]
+      if (!pushMembers.length) {
+        return res.status(409).json({
+          error: 'Every eligible member would blank ClubDesk data (empty fields ClubDesk still owns) — run "Sync down" first',
+          code: 'blank_risk', skipped_blank_risk: blankRiskSkipped,
+        })
+      }
       // Eintritt = the person's approved registration date (approved_at, falling
       // back to submitted_at — approved_at is not stamped on every approval
       // path). Gruppen = deriveGruppen(reg) from the same registration (team +
@@ -494,16 +543,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         up_requested_at: new Date(), up_state: 'queued', up_message: null, up_finished_at: null,
         up_csv: updates.length ? buildPushCsv(updates) : null,
         up_csv_create: creates.length ? buildPushCsv(creates, { create: true }) : null,
-        up_member_ids: JSON.stringify(members.map((m) => m.id)),
+        up_member_ids: JSON.stringify(pushMembers.map((m) => m.id)),
         up_member_ids_create: JSON.stringify(creates.map((m) => m.id)),
         up_result: null,
       })
       await writeUserLog(database, log, {
         accountability: req.accountability, action: 'update',
         collection: 'clubdesk_member_sync', recordId: 1,
-        data: { kind: 'clubdesk_member_sync_request', direction: 'up', member_count: members.length, create_count: creates.length },
+        data: { kind: 'clubdesk_member_sync_request', direction: 'up', member_count: pushMembers.length, create_count: creates.length, skipped_blank_risk: blankRiskSkipped.length },
       })
-      return res.json({ state: 'queued', count: members.length })
+      return res.json({ state: 'queued', count: pushMembers.length, skipped_blank_risk: blankRiskSkipped })
     } catch (err) {
       log.error({ msg: `up-commit: ${err.message}`, endpoint: 'clubdesk-member-sync/up', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
@@ -1053,15 +1102,51 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const userId = req.accountability?.user
       if (!userId) return res.status(401).json({ error: 'Authentication required' })
 
-      const { member_id, changes, current_data } = req.body
-      if (!member_id || !changes?.length || !current_data) {
-        return res.status(400).json({ error: 'member_id, changes, current_data required' })
+      const { member_id, changes } = req.body
+      if (!member_id || !changes?.length) {
+        return res.status(400).json({ error: 'member_id, changes required' })
       }
 
-      // Verify ownership: accountability.user is Directus user ID, member_id is members collection ID
-      const member = await database('members').where('user', userId).select('id').first()
+      // Verify ownership + fetch the caller's OWN row from the DB. The emailed CSV
+      // and the change diff are built from THESE authoritative values, never from
+      // client-supplied current_data (2026-07-05 audit #9): a member could
+      // otherwise forge an AHV / Beitragskategorie / Anrede into an
+      // official-looking "apply this in ClubDesk" email + CSV. ClubDesk-owned
+      // fields (anrede / nationalitaet / ahv_nummer / beitragskategorie) are never
+      // sent from here — mirrors CD_PUSH_HEADERS dropping them from the push.
+      const member = await database('members').where('user', userId)
+        .first('id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz', 'ort', 'birthdate', 'sex')
       if (!member || String(member.id) !== String(member_id)) {
         return res.status(403).json({ error: 'Forbidden' })
+      }
+
+      // Rate limit (audit #12) — 5 / hour / member.
+      const nowMs = Date.now()
+      const rl = clubdeskUpdateRl.get(member.id)
+      if (rl && nowMs < rl.resetAt) {
+        if (rl.count >= 5) return res.status(429).json({ error: 'Too many update requests — try again later' })
+        rl.count++
+      } else {
+        clubdeskUpdateRl.set(member.id, { count: 1, resetAt: nowMs + 60 * 60 * 1000 })
+      }
+      if (clubdeskUpdateRl.size > 5000) { for (const [k, v] of clubdeskUpdateRl) if (nowMs > v.resetAt) clubdeskUpdateRl.delete(k) }
+
+      // Whitelist the change diff to member-editable fields (drop any client-sent
+      // ClubDesk-authoritative field) and rebuild each "new" value from the DB row
+      // so the email shows the real stored value, not a client claim.
+      const EDITABLE = new Set(['first_name', 'last_name', 'email', 'phone', 'birthdate', 'adresse', 'plz', 'ort', 'sex'])
+      const sexLabel = member.sex === 'm' ? 'männlich' : member.sex === 'f' ? 'weiblich' : ''
+      const safeChanges = (Array.isArray(changes) ? changes : [])
+        .filter((c) => c && EDITABLE.has(c.field))
+        .map((c) => ({
+          field: c.field,
+          old_value: c.old_value,
+          new_value: c.field === 'birthdate' ? fmtBirthdateDDMMYYYY(member.birthdate)
+            : c.field === 'sex' ? sexLabel
+              : (member[c.field] ?? ''),
+        }))
+      if (!safeChanges.length) {
+        return res.status(400).json({ error: 'No editable fields to update' })
       }
 
       // Get team names for CSV
@@ -1083,11 +1168,19 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const sport = teamSports.includes('volleyball') ? 'volleyball'
         : teamSports.includes('basketball') ? 'basketball' : null
 
-      // Build email — per-recipient locale via members.language
-      const name = `${current_data.first_name} ${current_data.last_name}`
-      const csvString = buildCsv(current_data, teamNames)
+      // Build email — per-recipient locale via members.language. Authoritative
+      // CSV from the DB row; ClubDesk-owned fields (anrede/nationalitaet/ahv/
+      // beitragskategorie) blanked so they can never be forged or overwritten.
+      const safeData = {
+        anrede: '', first_name: member.first_name, last_name: member.last_name,
+        email: member.email, phone: member.phone, adresse: member.adresse,
+        plz: member.plz, ort: member.ort, birthdate: fmtBirthdateDDMMYYYY(member.birthdate),
+        nationalitaet: '', sex: sexLabel, ahv_nummer: '', beitragskategorie: '',
+      }
+      const name = `${member.first_name} ${member.last_name}`
+      const csvString = buildCsv(safeData, teamNames)
       const dateStr = new Date().toISOString().slice(0, 10)
-      const filename = `clubdesk-update-${current_data.last_name}-${current_data.first_name}-${dateStr}.csv`
+      const filename = `clubdesk-update-${member.last_name}-${member.first_name}-${dateStr}.csv`
 
       const mail = new MailService({ schema, knex: database })
 
@@ -1111,13 +1204,13 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         const tt = T[loc] || T.de
         const summaryCard = buildInfoCard([
           { label: tt.name, value: name, halfWidth: true },
-          { label: tt.email, value: current_data.email, halfWidth: true },
-          { label: tt.phone, value: current_data.phone || '—', halfWidth: true },
+          { label: tt.email, value: member.email, halfWidth: true },
+          { label: tt.phone, value: member.phone || '—', halfWidth: true },
           { label: tt.team, value: teamNames || '—', halfWidth: true },
         ])
         const body = `
 <div style="font-size:13px;color:#94a3b8;margin-bottom:12px">${tt.intro}</div>
-${buildChangesTable(changes, loc)}
+${buildChangesTable(safeChanges, loc)}
 <div style="margin-top:16px">
   <div style="font-size:11px;text-transform:uppercase;color:#64748b;letter-spacing:0.5px;margin-bottom:8px;font-weight:700">${tt.currentData}</div>
   ${summaryCard}
@@ -1138,20 +1231,20 @@ ${buildChangesTable(changes, loc)}
       try {
         await database('members').where('id', member_id).update({
           clubdesk_push_pending: true,
-          clubdesk_push_changes: JSON.stringify(changes),
+          clubdesk_push_changes: JSON.stringify(safeChanges),
         })
         // Audit: this raw-knex write bypasses Directus's activity/revision trail,
         // so record WHO flagged the member for the next ClubDesk sync-up push.
         await writeUserLog(database, log, {
           accountability: req.accountability, action: 'update',
           collection: 'members', recordId: member_id,
-          data: { kind: 'clubdesk_push_flag', fields: changes.map((c) => c.field) },
+          data: { kind: 'clubdesk_push_flag', fields: safeChanges.map((c) => c.field) },
         })
       } catch (flagErr) {
         log.warn({ msg: `clubdesk push-flag failed: ${flagErr.message}`, member_id })
       }
 
-      log.info({ msg: 'ClubDesk update email sent', member_id, changes: changes.length })
+      log.info({ msg: 'ClubDesk update email sent', member_id, changes: safeChanges.length })
       res.json({ success: true })
     } catch (err) {
       log.error({
