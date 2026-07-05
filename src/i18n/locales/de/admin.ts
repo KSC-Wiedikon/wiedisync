@@ -380,7 +380,7 @@ export default {
   clubdeskUpNothing: 'Nichts zu übertragen — alles ist synchron.',
   clubdeskUpChangedHeading: '{{count}} geänderte(s) Mitglied(er) zum Aktualisieren',
   clubdeskUpUnlinkedHeading: '{{count}} Mitglied(er) noch nicht in ClubDesk',
-  clubdeskUpUnlinkedNote: 'Diese haben keine ClubDesk-Zuordnung. Wähle die aus, die als neue Kontakte erstellt werden sollen — lass Nicht-Mitglieder oder Fälle mit abweichender E-Mail weg (sie würden Duplikate erzeugen). Neue Kontakte werden mit Beitragskategorie (unter dem Namen) und Eintrittsdatum aus der Anmeldung erstellt; Status und Gruppen müssen weiterhin in ClubDesk gesetzt werden.',
+  clubdeskUpUnlinkedNote: 'Diese haben keine ClubDesk-Zuordnung. Wähle die aus, die als neue Kontakte erstellt werden sollen — lass Nicht-Mitglieder oder Fälle mit abweichender E-Mail weg (sie würden Duplikate erzeugen). Neue Kontakte werden mit Beitragskategorie (unter dem Namen), Eintrittsdatum und Team-Gruppe aus der Anmeldung erstellt; der Status muss weiterhin in ClubDesk gesetzt werden.',
   clubdeskUpColName: 'Name',
   clubdeskUpColEmail: 'E-Mail',
   clubdeskUpColChanges: 'Änderungen',
