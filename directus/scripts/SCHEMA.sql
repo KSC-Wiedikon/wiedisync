@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-04T14:24:54.557Z
+-- Generated:   2026-07-05T18:49:23.273Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -2383,6 +2383,8 @@ CREATE TABLE public.clubdesk_member_sync (
     up_csv text,
     up_member_ids jsonb,
     up_result jsonb,
+    up_csv_create text,
+    up_member_ids_create jsonb,
     CONSTRAINT clubdesk_member_sync_singleton CHECK ((id = 1))
 );
 
@@ -6034,6 +6036,8 @@ CREATE TABLE public.teams (
     recruiting_positions jsonb,
     waitlist_url character varying(500),
     waitlist_label character varying(100),
+    gender character varying(8),
+    CONSTRAINT teams_gender_check CHECK (((gender IS NULL) OR ((gender)::text = ANY ((ARRAY['m'::character varying, 'f'::character varying, 'mixed'::character varying])::text[])))),
     CONSTRAINT teams_season_format_check CHECK (((season IS NULL) OR ((season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text)))
 );
 
