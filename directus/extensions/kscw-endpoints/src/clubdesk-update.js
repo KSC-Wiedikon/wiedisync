@@ -154,9 +154,9 @@ export function toCp1252Buffer(str) {
 // Headers are the EXACT ClubDesk field names so the import wizard auto-maps every
 // column (verified live 2026-06-27 — "Telefon Privat" not "Telefon"). Semicolon-
 // delimited (ClubDesk's import default). UPDATE rows carry CONTACT fields only —
-// never groups/teams/membership category (ClubDesk-managed on existing contacts);
-// CREATE rows additionally carry Beitragskategorie + Eintritt + Gruppen (see
-// CD_PUSH_CREATE_HEADERS below).
+// never groups/teams/membership category/status (ClubDesk-managed on existing
+// contacts); CREATE rows additionally carry Beitragskategorie + Eintritt +
+// Gruppen + Status (see CD_PUSH_CREATE_HEADERS below).
 //
 // wiedisync is NOT the source of truth for Anrede, Nationalität or AHV Nummer:
 // the down-sync (import-clubdesk-csv.mjs) never populates members.anrede/
@@ -173,21 +173,22 @@ const CD_PUSH_HEADERS = [
 ]
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
-// A brand-new contact has no ClubDesk-owned category, entry date or groups to
-// protect, so the CREATE-set CSV additionally carries Beitragskategorie
-// (captured by the signup form → registrations.beitragskategorie →
-// members.beitragskategorie via the approval hook), Eintritt (the registration
-// approval/submit date) and Gruppen (derived from the registration's team +
-// funktion: `VB H1 (Spieler*in)`, `BB HU14 (Trainer*in)` — ClubDesk's group
-// naming, verified against the export snapshot 2026-07-05). UPDATE pushes NEVER
-// send these columns — ClubDesk stays authoritative on existing contacts, and
-// its empty-cell import behavior is unvalidated (a blank cell could wipe the
-// value in the legal register). That is why /up stashes TWO CSVs (up_csv +
-// up_csv_create) instead of one.
+// A brand-new contact has no ClubDesk-owned category, entry date, groups or
+// status to protect, so the CREATE-set CSV additionally carries
+// Beitragskategorie (captured by the signup form →
+// registrations.beitragskategorie → members.beitragskategorie via the approval
+// hook), Eintritt (the registration approval/submit date), Gruppen (derived
+// from the registration's team + funktion: `VB H1 (Spieler*in)`,
+// `BB HU14 (Trainer*in)` — ClubDesk's group naming, verified against the export
+// snapshot 2026-07-05) and Status (Aktiv-/Passivmitglied — see deriveStatus).
+// UPDATE pushes NEVER send these columns — ClubDesk stays authoritative on
+// existing contacts, and its empty-cell import behavior is unvalidated (a blank
+// cell could wipe the value in the legal register). That is why /up stashes TWO
+// CSVs (up_csv + up_csv_create) instead of one.
 // ⚠ Gruppen maps in the import wizard as free TEXT (screenshot-verified
 // 2026-07-05) — whether a commit actually CREATES the group membership is
 // unproven; the first real prod push validates it (harmless if ignored).
-export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt', 'Gruppen']
+export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -209,6 +210,20 @@ export function deriveGruppen(reg) {
     .map((t) => t.trim()).filter(Boolean)
     .map((t) => `${prefix} ${t} (${funktion})`)
     .join(', ')
+}
+
+// Derive the ClubDesk Status for a NEW contact (per user rule 2026-07-05:
+// "active for new registrations, active if wiedisync_active true"): a fresh
+// approved registration makes an Aktivmitglied (Passivmitglied when the
+// registration is the passive path); without a registration, only a member the
+// app considers active (wiedisync_active) gets Aktivmitglied. Everything else
+// stays empty → ClubDesk's default ("Kein Mitglied"), never guessed.
+export function deriveStatus(reg, member) {
+  if (reg) {
+    return String(reg.membership_type || '').trim().toLowerCase() === 'passive'
+      ? 'Passivmitglied' : 'Aktivmitglied'
+  }
+  return member?.wiedisync_active === true ? 'Aktivmitglied' : ''
 }
 
 // Signup-form category → ClubDesk Beitragskategorie picklist name. The form's
@@ -249,8 +264,9 @@ export function buildPushCsv(members, { create = false } = {}) {
   // Column order MUST match CD_PUSH_HEADERS (+ create extras). anrede/
   // nationalitaet/ahv_nummer are intentionally excluded (wiedisync doesn't own
   // them — see CD_PUSH_HEADERS). Create rows also carry Beitragskategorie +
-  // Eintritt + Gruppen (see CD_PUSH_CREATE_HEADERS); m.eintritt and m.gruppen
-  // are resolved by /up from the person's approved registration.
+  // Eintritt + Gruppen + Status (see CD_PUSH_CREATE_HEADERS); m.eintritt,
+  // m.gruppen and m.cd_status are resolved by /up from the person's approved
+  // registration (+ wiedisync_active for the status fallback).
   const headers = create ? CD_PUSH_CREATE_HEADERS : CD_PUSH_HEADERS
   const rows = members.map((m) => {
     const cells = [
@@ -258,7 +274,7 @@ export function buildPushCsv(members, { create = false } = {}) {
       fmtBirthdateDDMMYYYY(m.birthdate),
       m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
     ]
-    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt), m.gruppen || '')
+    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt), m.gruppen || '', m.cd_status || '')
     return cells.map(cdCell).join(';')
   })
   return headers.join(';') + '\n' + rows.join('\n') + '\n'
@@ -266,11 +282,12 @@ export function buildPushCsv(members, { create = false } = {}) {
 
 // Member fields the push CSV reads (also the preview fetch set). anrede/
 // nationalitaet/ahv_nummer are no longer selected — they are never pushed.
-// beitragskategorie is only ever emitted on CREATE rows (buildPushCsv).
+// beitragskategorie/wiedisync_active are only ever used on CREATE rows
+// (buildPushCsv / deriveStatus).
 const PUSH_FIELDS = [
   'id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
   'ort', 'birthdate', 'sex', 'clubdesk_id', 'clubdesk_push_changes',
-  'beitragskategorie',
+  'beitragskategorie', 'wiedisync_active',
 ]
 
 // Escape user-controlled strings before interpolating into the admin email
@@ -470,6 +487,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             .sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0))[0]
           m.eintritt = reg ? (reg.approved_at || reg.submitted_at) : null
           m.gruppen = deriveGruppen(reg)
+          m.cd_status = deriveStatus(reg, m)
         }
       }
       await database('clubdesk_member_sync').where('id', 1).update({
