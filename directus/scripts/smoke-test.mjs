@@ -188,14 +188,29 @@ async function main() {
     const cme = await api('GET', '/users/me?fields=id')
     const coachMemberRow = await api('GET', `/items/members?filter[user][_eq]=${cme.json?.data?.id}&fields=id`)
     const coachMemberId = coachMemberRow.json?.data?.[0]?.id
-    const coachTeams = coachMemberId
-      ? await api('GET', `/items/teams?filter[coach][members_id][_eq]=${coachMemberId}&fields=id&limit=-1`)
-      : { json: { data: [] } }
-    const coachTeamIds = (coachTeams.json?.data || []).map(t => t.id)
+    // The coach's FULL read scope = teams they COACH ∪ are TR for ∪ PLAY on. A
+    // Team Responsible/coach is frequently ALSO a rostered player, and the MEMBER
+    // policy legitimately lets them see their PLAYER-teammates' participations
+    // (SAME_TEAM_AS_ME). Computing scope from coached teams ALONE produced a
+    // false-positive "leak" (2026-07-06: TR 155 coaches 6/81 but plays on 11/82,
+    // so seeing teammates 27/467 on 11/82 is correct, not a leak). Union all three.
+    const coachTeamIds = []
+    if (coachMemberId) {
+      const [coached, tred, played] = await Promise.all([
+        api('GET', `/items/teams?filter[coach][members_id][_eq]=${coachMemberId}&fields=id&limit=-1`),
+        api('GET', `/items/teams?filter[team_responsible][members_id][_eq]=${coachMemberId}&fields=id&limit=-1`),
+        api('GET', `/items/member_teams?filter[member][_eq]=${coachMemberId}&fields=team&limit=-1`),
+      ])
+      const s = new Set()
+      for (const t of coached.json?.data || []) if (t.id != null) s.add(t.id)
+      for (const t of tred.json?.data || []) if (t.id != null) s.add(t.id)
+      for (const mt of played.json?.data || []) if (mt.team != null) s.add(mt.team)
+      coachTeamIds.push(...s)
+    }
 
     // 4b.1 — participations.read must NOT return rows whose member is on
-    // zero teams the coach coaches/TRs. We probe by reading participations
-    // and asserting every row's member is reachable via the coach's teams.
+    // zero teams in the coach's FULL scope (coached ∪ TR ∪ played). We probe by
+    // reading participations and asserting every row's member is reachable.
     await check('participations.read scoped to coach teams', async () => {
       const r = await api('GET', '/items/participations?fields=id,member.id&limit=50')
       if (r.status >= 400) return r
@@ -221,10 +236,20 @@ async function main() {
         : { ...r, status: 200, ok: true }
     })
 
-    // 4b.2 — user_logs.read must 403 for a coach (removed from LEADER 2026-05-12).
-    await check('user_logs direct read (coach must 403)', async () => {
-      const r = await api('GET', '/items/user_logs?limit=1')
-      return r.status === 403 ? { ...r, status: 200, ok: true } : { ...r, status: 500 }
+    // 4b.2 — user_logs.read is REVOKED on the LEADER policy (2026-05-12), but a
+    // coach also holds the MEMBER policy, which grants an OWN-scoped read (OWN_DU,
+    // setup-permissions.mjs). So the correct contract is NOT "403" but "scoped to
+    // the caller's own member id" — a coach must never see ANOTHER member's audit
+    // rows (2026-07-06: the old "must 403" expectation was a false positive).
+    await check('user_logs read scoped to own (coach)', async () => {
+      const r = await api('GET', `/items/user_logs?fields=user&limit=200`)
+      if (r.status === 403) return { ...r, status: 200, ok: true }   // fully revoked is also acceptable
+      if (r.status >= 400) return r
+      const rows = r.json?.data || []
+      const foreign = rows.filter(x => x.user != null && String(x.user) !== String(coachMemberId))
+      return foreign.length
+        ? { status: 500, ok: false, json: null, text: `user_logs leaked ${foreign.length} foreign-member rows` }
+        : { ...r, status: 200, ok: true }
     })
 
     // Restore Member token for any subsequent checks.
