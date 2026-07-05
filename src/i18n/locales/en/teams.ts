@@ -120,7 +120,7 @@ export default {
   player: 'Player',
   guest: 'Guest',
   generateQR: 'Generate QR Code',
-  inviteLinkExpiry: 'Link expires in 24 hours · Single use',
+  inviteLinkExpiry: 'Link expires in 7 days · Single use',
   copyLink: 'Copy Link',
   addExternalUser: 'Add External User',
   shellAccount: 'Temporary',

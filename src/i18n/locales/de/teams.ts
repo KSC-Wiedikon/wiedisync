@@ -120,7 +120,7 @@ export default {
   player: 'Spieler/in',
   guest: 'Gast',
   generateQR: 'QR-Code generieren',
-  inviteLinkExpiry: 'Link läuft in 24 Stunden ab · Einmalig verwendbar',
+  inviteLinkExpiry: 'Link läuft in 7 Tagen ab · Einmalig verwendbar',
   copyLink: 'Link kopieren',
   addExternalUser: 'Externen Benutzer hinzufügen',
   shellAccount: 'Temporär',
