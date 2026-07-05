@@ -16,7 +16,7 @@ import { useMutation } from '../../../hooks/useMutation'
 import { fetchItem } from '../../../lib/api'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
-import { formatDate, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow } from '../../../utils/dateHelpers'
+import { currentLocale, formatDate, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow } from '../../../utils/dateHelpers'
 import RefereeExpenseSection from './RefereeExpenseSection'
 import TasksSection from '../../tasks/TasksSection'
 import CarpoolSection from '../../carpool/CarpoolSection'
@@ -213,8 +213,9 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   const homeLabel = game.type === 'home' && kscwFullLabel ? kscwFullLabel : game.home_team
   const awayLabel = game.type === 'away' && kscwFullLabel ? kscwFullLabel : game.away_team
   const sets = parseSets(game.sets_json)
-  // Swiss date format app-wide — hardcode de-CH regardless of UI language (CLAUDE.md date rule).
-  const dateStr = game.date ? new Intl.DateTimeFormat('de-CH', dateFormatOptions).format(new Date(game.date)) : ''
+  // Long date with weekday/month NAMES — follow the active UI language. The
+  // strict de-CH rule (CLAUDE.md) applies to numeric dd.mm.yyyy dates only.
+  const dateStr = game.date ? new Intl.DateTimeFormat(currentLocale(), dateFormatOptions).format(new Date(game.date)) : ''
   // Scorer contact: admins (sport/global) anytime; coaches/TR of the team only
   // within ±1h of kickoff — same rule as the scorer page (not the admin-mode
   // toggle). isCoachOf alone leaked it to coaches at any time.

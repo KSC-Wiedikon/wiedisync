@@ -1,5 +1,5 @@
 import type { Team } from '../../types'
-import { toZurichDateString } from '../../utils/dateHelpers'
+import { currentLocale, toZurichDateString } from '../../utils/dateHelpers'
 
 /** Directus M2M junction row shape for events_teams (teams_id may be expanded). */
 type TeamJunction = { teams_id?: Team | number | string }
@@ -46,7 +46,7 @@ export function getEventDateBadgeParts(
   const endZh = toZurichDateString(endISO)
   const isMultiDay = !!endZh && endZh !== startZh
   const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich', day: 'numeric' })
-  const monthFmt = new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', month: 'short' })
+  const monthFmt = new Intl.DateTimeFormat(currentLocale(), { timeZone: 'Europe/Zurich', month: 'short' })
   const startDay = dayFmt.format(new Date(startISO as string))
   const startMonth = monthFmt.format(new Date(startISO as string))
   const endDay = isMultiDay ? dayFmt.format(new Date(endISO as string)) : ''

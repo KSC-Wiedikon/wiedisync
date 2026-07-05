@@ -5,7 +5,7 @@ import { kscwApi } from '../../../lib/api'
 import { Badge } from '../../../components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
-import { formatDateZurich } from '../../../utils/dateHelpers'
+import { currentLocale, formatDateZurich } from '../../../utils/dateHelpers'
 import { gameStartForDate } from '../utils/slotTime'
 
 /** One offerable home slot from /terminplanung/admin/team-availability. */
@@ -38,12 +38,12 @@ interface Props {
 }
 
 /** Short weekday for a YYYY-MM-DD date (UTC-anchored, day-stable).
- *  Locale hardcoded to de-CH per the Swiss date convention — passing the UI
- *  language would give en-US users English weekday abbreviations. */
+ *  Weekday NAMES follow the active UI language (currentLocale) — the strict
+ *  de-CH convention applies to numeric dd.mm.yyyy dates only. */
 function weekdayShort(ymd: string): string {
   const d = new Date(`${ymd}T00:00:00Z`)
   if (Number.isNaN(d.getTime())) return ''
-  return new Intl.DateTimeFormat('de-CH', { weekday: 'short', timeZone: 'UTC' }).format(d)
+  return new Intl.DateTimeFormat(currentLocale(), { weekday: 'short', timeZone: 'UTC' }).format(d)
 }
 
 /** Merge sorted YYYY-MM-DD dates into compact dd.mm.yyyy ranges for prose. */

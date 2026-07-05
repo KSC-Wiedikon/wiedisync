@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.21.0'
+const APP_VERSION = '1.21.1'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.21.1',
+    date: '06.07.2026',
+    sections: [
+      {
+        title: 'Dates follow your language',
+        items: [
+          'Weekday and month names (game details, calendar headers, scorer rows, event badges, date pickers) now render in your selected language — Italian, French and English users no longer see German day/month names. Numeric dates keep the Swiss dd.mm.yyyy format everywhere.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.21.0',
     date: '04.07.2026',

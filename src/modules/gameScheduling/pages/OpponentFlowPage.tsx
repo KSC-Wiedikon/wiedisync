@@ -10,27 +10,32 @@ import Modal from '../../../components/Modal'
 import { useReportPageLoading } from '../../../hooks/usePageReady'
 import { Badge } from '../../../components/ui/badge'
 import LanguageDropdown from '../../../components/LanguageDropdown'
+import { currentLocale } from '../../../utils/dateHelpers'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const SUPPORT_EMAIL = 'volleyball@spielplanung.kscw.ch'
 
-// Always Swiss formatting regardless of UI language (CLAUDE.md → date format).
+// Weekday NAME follows the active UI language; the numeric part stays Swiss
+// dd.mm.yyyy regardless of language (CLAUDE.md → date format).
 function fmtDateTime(iso: string | null | undefined): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return String(iso)
-  return d.toLocaleString('de-CH', {
-    weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric',
+  const wd = d.toLocaleDateString(currentLocale(), { weekday: 'short' })
+  const numeric = d.toLocaleString('de-CH', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit', hour12: false,
   })
+  return `${wd}, ${numeric}`
 }
 
 function fmtDate(ymd: string | undefined): string {
   if (!ymd) return ''
   const d = new Date(`${ymd}T00:00:00`)
   if (Number.isNaN(d.getTime())) return String(ymd)
-  return d.toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
+  const wd = d.toLocaleDateString(currentLocale(), { weekday: 'short' })
+  return `${wd}, ${d.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
 }
 
 

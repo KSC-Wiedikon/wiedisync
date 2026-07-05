@@ -119,8 +119,15 @@ export function getSeasonYear(date: Date): number {
   return month >= 8 ? date.getFullYear() : date.getFullYear() - 1
 }
 
-/** Day-of-week headers (Monday-start) */
-export const DAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+/** Day-of-week headers (Monday-start), localized to the active UI language.
+ *  Call at render time so a language switch produces fresh labels.
+ *  2024-01-01 anchors the week — it is a Monday. */
+export function dayHeaders(lang?: string): string[] {
+  const locale = activeLocale(lang)
+  return Array.from({ length: 7 }, (_, i) =>
+    format(new Date(2024, 0, 1 + i), 'EEE', { locale }),
+  )
+}
 
 /** Get date-fns locale from language code.
  *  `gsw` (Swiss German) has no date-fns locale data — map it to `de`. */

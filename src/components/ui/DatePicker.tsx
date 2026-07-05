@@ -2,14 +2,12 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Calendar as CalendarIcon } from 'lucide-react'
 import { parseISO } from 'date-fns'
-import { de } from 'date-fns/locale/de'
-import { enUS } from 'date-fns/locale'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { toDateKey } from '../../utils/dateUtils'
+import { getLocale, toDateKey } from '../../utils/dateUtils'
 import { formatDateZurich } from '../../utils/dateHelpers'
 
 interface DatePickerProps {
@@ -73,7 +71,7 @@ export default function DatePicker({
   const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined)
   const errorId = error && inputId ? `${inputId}-error` : undefined
   const helpId = helperText && !error && inputId ? `${inputId}-help` : undefined
-  const locale = lang === 'de' ? de : enUS
+  const locale = getLocale(lang)
 
   function handleSelect(date: Date | undefined) {
     if (date) {

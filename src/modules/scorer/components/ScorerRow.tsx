@@ -7,7 +7,7 @@ import AssignmentEditor from './AssignmentEditor'
 import DelegationModal from './DelegationModal'
 import { downloadICal } from '../../../utils/icalGenerator'
 import type { CalendarEntry } from '../../../types/calendar'
-import { formatTime, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow } from '../../../utils/dateHelpers'
+import { currentLocale, formatTime, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow } from '../../../utils/dateHelpers'
 import { Calendar, MapPin, Clock, AlertTriangle, Users } from 'lucide-react'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import RosterModal from './RosterModal'
@@ -37,9 +37,10 @@ import { asObj } from '../../../utils/relations'
 
 export type ExpandedGame = Game
 
-// Swiss date format app-wide — hardcode de-CH regardless of UI language (CLAUDE.md date rule).
+// Named weekday/month parts follow the active UI language; the strict de-CH
+// rule (CLAUDE.md) applies to numeric dd.mm.yyyy dates only.
 function getDateFormatter() {
-  return new Intl.DateTimeFormat('de-CH', { weekday: 'short', day: 'numeric', month: 'short' })
+  return new Intl.DateTimeFormat(currentLocale(), { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 // ── VB helpers ──

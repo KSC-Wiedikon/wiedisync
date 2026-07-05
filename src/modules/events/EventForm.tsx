@@ -14,7 +14,7 @@ import LocationCombobox from '@/components/LocationCombobox'
 import { Switch } from '@/components/ui/switch'
 import { teamNameToColorKey } from '../../utils/teamColors'
 import { formatDateLocale } from '../../utils/dateUtils'
-import { parseRespondByTime, toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso, toZurichDateString } from '../../utils/dateHelpers'
+import { currentLocale, parseRespondByTime, toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso, toZurichDateString } from '../../utils/dateHelpers'
 import type { Event, EventSession, Team } from '../../types'
 import RoleChipPicker from '@/components/RoleChipPicker'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
@@ -53,7 +53,7 @@ function getDateRange(start: string, end: string): string[] {
 
 function formatDateShort(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString('de-CH', { weekday: 'short', day: 'numeric', month: 'short' })
+  return d.toLocaleDateString(currentLocale(), { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 export default function EventForm({ open, event, onSave, onCancel }: EventFormProps) {

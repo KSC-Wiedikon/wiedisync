@@ -8,7 +8,7 @@ import {
   eachDayOfInterval,
   isSameDay,
   toDateKey,
-  DAY_HEADERS,
+  dayHeaders,
 } from '../../../utils/dateUtils'
 import { formatDateCompactZurich } from '../../../utils/dateHelpers'
 import { blockClasses } from '../entryStyle'
@@ -135,7 +135,7 @@ export default function WeekGrid({
           return (
             <div key={i} className="flex flex-col items-center py-1.5">
               <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
-                {DAY_HEADERS[i]}
+                {dayHeaders()[i]}
               </span>
               <span
                 className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${

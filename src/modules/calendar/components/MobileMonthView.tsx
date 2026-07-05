@@ -12,7 +12,7 @@ import {
   isSameDay,
   toDateKey,
   formatDate,
-  DAY_HEADERS,
+  dayHeaders,
 } from '../../../utils/dateUtils'
 import { dotColors, colorKey } from '../entryStyle'
 
@@ -153,7 +153,7 @@ export default function MobileMonthView({
 
       {/* Day-of-week headers */}
       <div className="grid grid-cols-7">
-        {DAY_HEADERS.map((d) => (
+        {dayHeaders().map((d) => (
           <div key={d} className="py-1 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400">
             {d}
           </div>
