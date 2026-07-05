@@ -1070,7 +1070,11 @@ export default {
         const memberId = await database.transaction(async (trx) => {
           const [member] = await trx('members').insert({
             first_name, last_name, email,
-            shell: true, coach_approved_team: false, wiedisync_active: true,
+            // wiedisync_active MUST be false at birth: trg_members_shell_convert
+            // only clears `shell` on a false→true UPDATE (set-password), so a
+            // member born active would stay "Temporary" forever — and
+            // /check-email would report the address as already claimed.
+            shell: true, coach_approved_team: false, wiedisync_active: false,
             shell_expires: shellExpires, shell_reminder_sent: false,
             birthdate_visibility: 'hidden', language: 'german', role: JSON.stringify(['user']),
           }).returning('id')
@@ -1402,18 +1406,53 @@ export default {
               // Member already linked to a Directus user — update password
               userId = member.user
             } else {
-              // Create Directus user and link to member. MUST carry the Member
-              // role: createOne without `role` produced a role-less, policy-less
-              // account (member 542, found 2026-07-03) whose every frontend
-              // request silently 403'd.
-              const memberRole = await database('directus_roles').where('name', 'Member').first()
-              if (!memberRole) throw new Error('Member role not found in directus_roles')
-              userId = await adminUsersService.createOne({
-                email, password,
-                first_name: member.first_name || '',
-                last_name: member.last_name || '',
-                role: memberRole.id,
-              })
+              // Member has no linked user yet. A stray directus_users row may
+              // already hold this email (leftover partial signup, import, or the
+              // role-less-account bug). Mirror /signup-invites/redeem: adopt a
+              // truly orphan same-email user; refuse if it belongs to ANOTHER
+              // member (shared family inbox); otherwise create fresh WITH the
+              // Member role. Without this, createOne collided on the unique
+              // directus_users.email and 500'd the OTP-claim flow.
+              const sameEmailUser = await database('directus_users')
+                .whereRaw('LOWER(directus_users.email) = ?', [email])
+                .whereNotExists(function () {
+                  this.select(database.raw('1')).from('members').whereRaw('members."user" = directus_users.id')
+                })
+                .first('id')
+              const someoneElseHasIt = await database('directus_users')
+                .whereRaw('LOWER(email) = ?', [email]).first('id')
+              if (sameEmailUser) {
+                userId = sameEmailUser.id
+              } else if (someoneElseHasIt) {
+                return res.status(400).json({
+                  error: 'This email already has an account — each account needs its own email address. Ask an admin to set a personal email for you first.',
+                  code: 'email_in_use',
+                })
+              } else {
+                // Create Directus user and link to member. MUST carry the Member
+                // role: createOne without `role` produced a role-less, policy-less
+                // account (member 542, found 2026-07-03) whose every frontend
+                // request silently 403'd.
+                const memberRole = await database('directus_roles').where('name', 'Member').first()
+                if (!memberRole) throw new Error('Member role not found in directus_roles')
+                try {
+                  userId = await adminUsersService.createOne({
+                    email, password,
+                    first_name: member.first_name || '',
+                    last_name: member.last_name || '',
+                    role: memberRole.id,
+                  })
+                } catch (createErr) {
+                  const msg = String(createErr?.message || '')
+                  if (msg.includes('has to be unique') || msg.toLowerCase().includes('unique')) {
+                    return res.status(400).json({
+                      error: 'This email already has an account — each account needs its own email address. Ask an admin to set a personal email for you first.',
+                      code: 'email_in_use',
+                    })
+                  }
+                  throw createErr
+                }
+              }
               await database('members').where('id', member.id).update({ user: userId })
             }
           }

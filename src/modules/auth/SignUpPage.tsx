@@ -332,8 +332,16 @@ export default function SignUpPage() {
       } else {
         navigate('/pending', { replace: true })
       }
-    } catch {
-      setError(t('registrationFailed'))
+    } catch (err) {
+      // A same-email login already belongs to another member (shared family
+      // inbox) — /set-password returns code 'email_in_use'. Surface the
+      // actionable message instead of the generic failure.
+      const apiErr = err as Error & { code?: string }
+      if (apiErr.code === 'email_in_use') {
+        setError(t('inviteEmailInUse'))
+      } else {
+        setError(t('registrationFailed'))
+      }
     } finally {
       setLoading(false)
     }
