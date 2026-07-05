@@ -7,6 +7,7 @@ import { useMutation } from '../hooks/useMutation'
 import { useRealtime } from '../hooks/useRealtime'
 import { useAuth } from '../hooks/useAuth'
 import type { EventSession, Participation } from '../types'
+import { currentLocale } from '../utils/dateHelpers'
 
 interface Props {
   activityId: string
@@ -16,7 +17,7 @@ interface Props {
 
 function formatDateShort(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString('de-CH', { weekday: 'short', day: 'numeric', month: 'short' })
+  return d.toLocaleDateString(currentLocale(), { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 function SessionRow({

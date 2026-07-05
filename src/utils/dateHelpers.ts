@@ -97,8 +97,9 @@ export function formatDateShortZurich(input: string | Date | null | undefined): 
   return `${p.month}/${p.day}`;
 }
 
-/** Format short weekday ("Mo", "Di", ...) in Europe/Zurich. */
-export function formatWeekdayZurich(input: string | Date | null | undefined, locale: string = 'de-CH'): string {
+/** Format short weekday ("Mo", "Di", ...) in Europe/Zurich.
+ *  Weekday names follow the active UI language by default (currentLocale). */
+export function formatWeekdayZurich(input: string | Date | null | undefined, locale: string = currentLocale()): string {
   if (!input) return '';
   const d = typeof input === 'string'
     ? parseFlexible(input)

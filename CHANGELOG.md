@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.21.1 — 2026-07-06
+
+### Dates follow your language
+- Weekday and month **names** (game detail dates, calendar weekday headers, hallenplan day navigation, scorer rows, event badges/forms, participation sheets, scheduling dialogs, date pickers) now render in the active UI language — Italian/French/English users no longer see German day and month names. Numeric dates keep the Swiss `dd.mm.yyyy` format app-wide per the existing convention; only named parts localize.
+
 ## v1.21.0 — 2026-07-04
 
 ### Data health: ClubDesk drift detection

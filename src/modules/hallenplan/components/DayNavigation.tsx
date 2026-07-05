@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next'
 import type { Hall, HallSlot } from '../../../types'
 import Modal from '@/components/Modal'
 import type { FreedSlotInfo, SportFilter } from '../HallenplanPage'
-
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
+import { dayHeaders } from '../../../utils/dateUtils'
+import { currentLocale } from '../../../utils/dateHelpers'
 
 interface DayNavigationProps {
   weekDays: Date[]
@@ -62,7 +62,7 @@ export default function DayNavigation({
 
   const selectedDay = weekDays[selectedDayIndex]
   const dateStr = selectedDay
-    ? `${DAY_FULL[selectedDayIndex]}, ${selectedDay.getDate()} ${selectedDay.toLocaleString('de-CH', { month: 'short' })}`
+    ? `${DAY_FULL[selectedDayIndex]}, ${selectedDay.getDate()} ${selectedDay.toLocaleString(currentLocale(), { month: 'short' })}`
     : ''
 
   const todayStr = new Date().toDateString()
@@ -115,7 +115,7 @@ export default function DayNavigation({
                     : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
               }`}
             >
-              <span className="text-[10px] leading-none">{DAY_LABELS[i]}</span>
+              <span className="text-[10px] leading-none">{dayHeaders()[i]}</span>
               <span className="leading-tight">{day.getDate()}</span>
             </button>
           )
