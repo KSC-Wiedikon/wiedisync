@@ -372,16 +372,30 @@ const psqlInput =
   // gets the ClubDesk value re-filled next sync — same no-tombstone limitation.
   // clubdesk_id-keyed (1:1); DISTINCT ON picks the latest staged row should a
   // contact ever appear twice. Change-guard WHERE avoids no-op row churn.
+  // AHV recovery (2026-07-05): ClubDesk holds several dot-mangled but digit-complete
+  // AHV numbers ("756.74468971.66", "7567859436260") — strip to digits and accept a
+  // 13-digit 756-prefixed value ONLY when its EAN-13 check digit validates, then
+  // reformat to the official dotted shape. Excel-destroyed cells ("7.56E+12") and
+  // insurance-card numbers fail the shape/checksum and stay skipped (fix in ClubDesk).
   'BEGIN;\n' +
-  'WITH cd AS (\n' +
+  'WITH cd0 AS (\n' +
   '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
   "         left(NULLIF(btrim(anrede),''),10) AS anrede,\n" +
   "         left(NULLIF(btrim(nationalitaet),''),100) AS nationalitaet,\n" +
-  "         CASE WHEN btrim(ahv_nummer) ~ '^756\\.[0-9]{4}\\.[0-9]{4}\\.[0-9]{2}$'\n" +
-  '              THEN btrim(ahv_nummer) END AS ahv\n' +
+  '         btrim(ahv_nummer) AS ahv_raw,\n' +
+  "         regexp_replace(btrim(ahv_nummer), '[^0-9]', '', 'g') AS ahv_digits\n" +
   '  FROM clubdesk_export\n' +
   "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
-  '  ORDER BY btrim(clubdesk_id), row_id DESC)\n' +
+  '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
+  'cd AS (\n' +
+  '  SELECT cdid, anrede, nationalitaet,\n' +
+  "         CASE WHEN ahv_raw ~ '^756\\.[0-9]{4}\\.[0-9]{4}\\.[0-9]{2}$' THEN ahv_raw\n" +
+  "              WHEN ahv_digits ~ '^756[0-9]{10}$'\n" +
+  '               AND (SELECT sum(substr(ahv_digits,g.i,1)::int * CASE WHEN g.i % 2 = 1 THEN 1 ELSE 3 END)\n' +
+  '                      FROM generate_series(1,13) g(i)) % 10 = 0\n' +
+  "              THEN substr(ahv_digits,1,3)||'.'||substr(ahv_digits,4,4)||'.'||substr(ahv_digits,8,4)||'.'||substr(ahv_digits,12,2)\n" +
+  '         END AS ahv\n' +
+  '  FROM cd0)\n' +
   'UPDATE members m SET\n' +
   "  anrede        = COALESCE(NULLIF(btrim(m.anrede),''), cd.anrede),\n" +
   "  nationalitaet = COALESCE(NULLIF(btrim(m.nationalitaet),''), cd.nationalitaet),\n" +
@@ -394,6 +408,53 @@ const psqlInput =
   "SELECT 'members_missing_identity_fields' AS metric,\n" +
   "  (SELECT count(*) FROM members WHERE NULLIF(btrim(anrede),'') IS NULL\n" +
   "     OR NULLIF(btrim(nationalitaet),'') IS NULL OR NULLIF(btrim(ahv_nummer),'') IS NULL) AS value;\n" +
+  // ── Apply ClubDesk contact fields + birthdate by clubdesk_id — fill-only ──
+  // The licence/email+name contact pass above predates the clubdesk_id linker and
+  // misses linked members whose wiedisync email differs from ClubDesk (kid with an
+  // own login email vs the parent contact email, renamed inboxes, no licence) —
+  // surfaced 2026-07-05 as 8 missing addresses / 5 phones / 8 categories + Mateo
+  // Porte's birthdate despite every one of them being clubdesk_id-linked. Same
+  // semantics as that pass: beitragskategorie + sektion are ClubDesk-authoritative
+  // (update whenever ClubDesk has a value; members can't edit them), while
+  // adresse/plz/ort/phone/birthdate FILL only when empty (a member's own profile
+  // edit is never clobbered). birthdate only from a calendar-valid dd.mm.yyyy and
+  // never overwritten (missing birthdate = treated as minor by the public API —
+  // fail-safe direction). Change-guard WHERE avoids no-op row churn.
+  'BEGIN;\n' +
+  'WITH cd AS (\n' +
+  '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
+  "         CASE WHEN geburtsdatum ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
+  "                AND to_char(to_date(geburtsdatum,'DD.MM.YYYY'),'DD.MM.YYYY') = geburtsdatum\n" +
+  "              THEN to_date(geburtsdatum,'DD.MM.YYYY') END AS dob,\n" +
+  "         left(NULLIF(btrim(adresse),''),255) AS adresse, left(NULLIF(btrim(plz),''),10) AS plz,\n" +
+  "         left(NULLIF(btrim(ort),''),100) AS ort,\n" +
+  "         left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255) AS phone,\n" +
+  "         left(NULLIF(btrim(beitragskategorie),''),100) AS categ, left(NULLIF(btrim(sektion),''),32) AS sektion\n" +
+  '  FROM clubdesk_export\n' +
+  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
+  '  ORDER BY btrim(clubdesk_id), row_id DESC)\n' +
+  'UPDATE members m SET\n' +
+  '  birthdate = COALESCE(m.birthdate, cd.dob),\n' +
+  "  adresse   = COALESCE(NULLIF(btrim(m.adresse),''), cd.adresse),\n" +
+  "  plz       = COALESCE(NULLIF(btrim(m.plz),''), cd.plz),\n" +
+  "  ort       = COALESCE(NULLIF(btrim(m.ort),''), cd.ort),\n" +
+  "  phone     = COALESCE(NULLIF(btrim(m.phone),''), cd.phone),\n" +
+  "  beitragskategorie = COALESCE(cd.categ, NULLIF(btrim(m.beitragskategorie),'')),\n" +
+  "  sektion   = COALESCE(cd.sektion, NULLIF(btrim(m.sektion),''))\n" +
+  'FROM cd WHERE btrim(m.clubdesk_id) = cd.cdid AND (\n' +
+  '     (m.birthdate IS NULL AND cd.dob IS NOT NULL)\n' +
+  "  OR (NULLIF(btrim(m.adresse),'') IS NULL AND cd.adresse IS NOT NULL)\n" +
+  "  OR (NULLIF(btrim(m.plz),'') IS NULL AND cd.plz IS NOT NULL)\n" +
+  "  OR (NULLIF(btrim(m.ort),'') IS NULL AND cd.ort IS NOT NULL)\n" +
+  "  OR (NULLIF(btrim(m.phone),'') IS NULL AND cd.phone IS NOT NULL)\n" +
+  "  OR (cd.categ IS NOT NULL AND cd.categ IS DISTINCT FROM NULLIF(btrim(m.beitragskategorie),''))\n" +
+  "  OR (cd.sektion IS NOT NULL AND cd.sektion IS DISTINCT FROM NULLIF(btrim(m.sektion),'')));\n" +
+  'COMMIT;\n' +
+  "SELECT 'members_missing_contact_fields' AS metric,\n" +
+  "  (SELECT count(*) FROM members m JOIN clubdesk_export c ON btrim(c.clubdesk_id) = btrim(m.clubdesk_id)\n" +
+  "    WHERE (m.birthdate IS NULL AND NULLIF(btrim(c.geburtsdatum),'') IS NOT NULL)\n" +
+  "       OR (NULLIF(btrim(m.adresse),'') IS NULL AND NULLIF(btrim(c.adresse),'') IS NOT NULL)\n" +
+  "       OR (NULLIF(btrim(m.phone),'') IS NULL AND COALESCE(NULLIF(btrim(c.telefon_mobil),''), NULLIF(btrim(c.telefon_privat),'')) IS NOT NULL)) AS value;\n" +
   // Report contacts that would have matched MULTIPLE still-unlinked members (skipped
   // above) so a human can link them manually — "ambiguous, needs manual link".
   'WITH cd AS (\n' +
