@@ -1070,7 +1070,11 @@ export default {
         const memberId = await database.transaction(async (trx) => {
           const [member] = await trx('members').insert({
             first_name, last_name, email,
-            shell: true, coach_approved_team: false, wiedisync_active: true,
+            // wiedisync_active MUST be false at birth: trg_members_shell_convert
+            // only clears `shell` on a false→true UPDATE (set-password), so a
+            // member born active would stay "Temporary" forever — and
+            // /check-email would report the address as already claimed.
+            shell: true, coach_approved_team: false, wiedisync_active: false,
             shell_expires: shellExpires, shell_reminder_sent: false,
             birthdate_visibility: 'hidden', language: 'german', role: JSON.stringify(['user']),
           }).returning('id')
