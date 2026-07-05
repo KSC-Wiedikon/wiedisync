@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-05T18:49:23.273Z
+-- Generated:   2026-07-05T22:46:46.209Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -1561,6 +1561,9 @@ CREATE FUNCTION public.trg_slot_claims_validate() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
+  IF NEW.date IS NULL THEN
+    RAISE EXCEPTION 'A slot claim requires a date';
+  END IF;
   IF NEW.date < CURRENT_DATE THEN
     RAISE EXCEPTION 'Cannot claim slots in the past';
   END IF;
@@ -5792,7 +5795,10 @@ CREATE TABLE public.scorer_courses (
     form_slug_de character varying(255),
     form_slug_en character varying(255),
     date_created timestamp with time zone,
-    date_updated timestamp with time zone
+    date_updated timestamp with time zone,
+    location character varying(255),
+    host_note character varying(255),
+    duration_hours real
 );
 
 
@@ -10710,11 +10716,11 @@ ALTER TABLE ONLY public.finance_payments
 
 
 --
--- Name: finance_payouts finance_payouts_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: finance_payouts finance_payouts_member_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.finance_payouts
-    ADD CONSTRAINT finance_payouts_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+    ADD CONSTRAINT finance_payouts_member_fk FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE RESTRICT;
 
 
 --
