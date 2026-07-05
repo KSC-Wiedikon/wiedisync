@@ -380,7 +380,7 @@ export default {
   clubdeskUpNothing: 'Nothing to push — everything is in sync.',
   clubdeskUpChangedHeading: '{{count}} changed member(s) to update',
   clubdeskUpUnlinkedHeading: '{{count}} member(s) not yet in ClubDesk',
-  clubdeskUpUnlinkedNote: 'These have no ClubDesk match. Tick the ones to create as new contacts — leave non-members or wrong-email cases unticked (they would create duplicates).',
+  clubdeskUpUnlinkedNote: 'These have no ClubDesk match. Tick the ones to create as new contacts — leave non-members or wrong-email cases unticked (they would create duplicates). New contacts are created with their fee category (shown below the name) and entry date from the registration; status and groups must still be set in ClubDesk.',
   clubdeskUpColName: 'Name',
   clubdeskUpColEmail: 'Email',
   clubdeskUpColChanges: 'Changes',

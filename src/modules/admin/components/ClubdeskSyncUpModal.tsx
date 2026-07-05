@@ -11,7 +11,7 @@ import { kscwApi } from '../../../lib/api'
 
 interface FieldChange { field: string; old_value?: string | null; new_value?: string | null }
 interface ChangedMember { id: number; first_name: string; last_name: string; email: string; clubdesk_id: string; changes: FieldChange[] }
-interface UnlinkedMember { id: number; first_name: string; last_name: string; email: string; likely_non_member: boolean }
+interface UnlinkedMember { id: number; first_name: string; last_name: string; email: string; likely_non_member: boolean; beitragskategorie?: string | null }
 interface Preview { changed: ChangedMember[]; unlinked: UnlinkedMember[] }
 interface UpResult { total?: number | null; neu?: number | null; veraendert?: number | null; committed?: boolean }
 interface UpStatus { state: 'idle' | 'queued' | 'running' | 'done' | 'failed'; message: string | null; result: UpResult | null }
@@ -181,11 +181,18 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
                         <TableCell><Checkbox checked={selected.has(m.id)} onCheckedChange={() => toggle(m.id)} /></TableCell>
                         <TableCell className="whitespace-normal break-words">
                           <div className="font-medium">{m.last_name} {m.first_name}</div>
-                          {m.likely_non_member && (
-                            <Badge variant="outline" className="mt-0.5 border-amber-300 text-[10px] text-amber-700 dark:text-amber-300">
-                              {t('clubdeskUpNonMember')}
-                            </Badge>
-                          )}
+                          <div className="flex flex-wrap gap-1">
+                            {m.beitragskategorie && (
+                              <Badge variant="outline" className="mt-0.5 text-[10px] text-gray-600 dark:text-gray-300">
+                                {m.beitragskategorie}
+                              </Badge>
+                            )}
+                            {m.likely_non_member && (
+                              <Badge variant="outline" className="mt-0.5 border-amber-300 text-[10px] text-amber-700 dark:text-amber-300">
+                                {t('clubdeskUpNonMember')}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="whitespace-normal break-words text-xs text-gray-500 dark:text-gray-400">{m.email}</TableCell>
                       </TableRow>

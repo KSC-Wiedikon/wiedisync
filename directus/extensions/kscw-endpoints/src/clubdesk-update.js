@@ -153,8 +153,10 @@ export function toCp1252Buffer(str) {
 // ── Sync-up push CSV (member → ClubDesk import) ─────────────────────────────
 // Headers are the EXACT ClubDesk field names so the import wizard auto-maps every
 // column (verified live 2026-06-27 — "Telefon Privat" not "Telefon"). Semicolon-
-// delimited (ClubDesk's import default). CONTACT fields only — never groups/teams/
-// membership category (ClubDesk-managed).
+// delimited (ClubDesk's import default). UPDATE rows carry CONTACT fields only —
+// never groups/teams/membership category (ClubDesk-managed on existing contacts);
+// CREATE rows additionally carry Beitragskategorie + Eintritt (see
+// CD_PUSH_CREATE_HEADERS below).
 //
 // wiedisync is NOT the source of truth for Anrede, Nationalität or AHV Nummer:
 // the down-sync (import-clubdesk-csv.mjs) never populates members.anrede/
@@ -169,6 +171,36 @@ const CD_PUSH_HEADERS = [
   'Vorname', 'Nachname', 'E-Mail', 'Telefon Privat', 'Adresse',
   'PLZ', 'Ort', 'Geburtsdatum', 'Geschlecht',
 ]
+
+// ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
+// A brand-new contact has no ClubDesk-owned category or entry date to protect,
+// so the CREATE-set CSV additionally carries Beitragskategorie (captured by the
+// signup form → registrations.beitragskategorie → members.beitragskategorie via
+// the approval hook) and Eintritt (the registration approval/submit date).
+// UPDATE pushes NEVER send these columns — ClubDesk stays authoritative for
+// category on existing contacts, and its empty-cell import behavior is
+// unvalidated (a blank cell could wipe the category in the legal register).
+// That is why /up stashes TWO CSVs (up_csv + up_csv_create) instead of one.
+export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt']
+
+// Signup-form category → ClubDesk Beitragskategorie picklist name. The form's
+// names only partially match ClubDesk's configured categories (e.g. the form
+// says "BB Lernende/Studierende", ClubDesk has "BB Student/Lehrling"; the form's
+// "BB Junior:innen" / "BB Minis" / "VB Turnier KWI" have no ClubDesk category
+// yet). ClubDesk's import treatment of an UNKNOWN category value is unvalidated
+// — fill this map once the ClubDesk-side names are confirmed. Unmapped values
+// pass through verbatim (visible in the dry-run preview before any commit).
+export const CD_KATEGORIE_MAP = {
+  // 'VB Student*in Meisterschaft': '…',
+  // 'BB Lernende/Studierende': '…',
+  // 'BB Junior:innen': '…',
+  // 'BB Minis': '…',
+  // 'VB Turnier KWI': '…',
+}
+export function mapKategorie(v) {
+  const k = String(v ?? '').trim()
+  return Object.prototype.hasOwnProperty.call(CD_KATEGORIE_MAP, k) ? CD_KATEGORIE_MAP[k] : k
+}
 
 function fmtBirthdateDDMMYYYY(v) {
   if (!v) return ''
@@ -185,22 +217,31 @@ function cdCell(val) {
     ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-function buildPushCsv(members) {
-  // Column order MUST match CD_PUSH_HEADERS. anrede/nationalitaet/ahv_nummer are
-  // intentionally excluded (wiedisync doesn't own them — see CD_PUSH_HEADERS).
-  const rows = members.map((m) => [
-    m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
-    fmtBirthdateDDMMYYYY(m.birthdate),
-    m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
-  ].map(cdCell).join(';'))
-  return CD_PUSH_HEADERS.join(';') + '\n' + rows.join('\n') + '\n'
+export function buildPushCsv(members, { create = false } = {}) {
+  // Column order MUST match CD_PUSH_HEADERS (+ create extras). anrede/
+  // nationalitaet/ahv_nummer are intentionally excluded (wiedisync doesn't own
+  // them — see CD_PUSH_HEADERS). Create rows also carry Beitragskategorie +
+  // Eintritt (see CD_PUSH_CREATE_HEADERS); m.eintritt is resolved by /up.
+  const headers = create ? CD_PUSH_CREATE_HEADERS : CD_PUSH_HEADERS
+  const rows = members.map((m) => {
+    const cells = [
+      m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
+      fmtBirthdateDDMMYYYY(m.birthdate),
+      m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
+    ]
+    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt))
+    return cells.map(cdCell).join(';')
+  })
+  return headers.join(';') + '\n' + rows.join('\n') + '\n'
 }
 
 // Member fields the push CSV reads (also the preview fetch set). anrede/
 // nationalitaet/ahv_nummer are no longer selected — they are never pushed.
+// beitragskategorie is only ever emitted on CREATE rows (buildPushCsv).
 const PUSH_FIELDS = [
   'id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
   'ort', 'birthdate', 'sex', 'clubdesk_id', 'clubdesk_push_changes',
+  'beitragskategorie',
 ]
 
 // Escape user-controlled strings before interpolating into the admin email
@@ -327,12 +368,18 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const unlinkedRows = await database('members')
         .whereNull('clubdesk_id')
         .whereNull('clubdesk_pushed_at')
-        .select('id', 'first_name', 'last_name', 'email')
+        .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie')
         .orderBy('last_name')
       const unlinked = unlinkedRows.map((m) => {
         const e = (m.email || '').toLowerCase()
         const likelyNonMember = e.includes('@kscw.clubdesk.com') || e.startsWith('system@') || e.endsWith('@kscw.ch')
-        return { id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email, likely_non_member: likelyNonMember }
+        return {
+          id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email,
+          likely_non_member: likelyNonMember,
+          // What the CREATE push will send as Beitragskategorie (post-mapping) —
+          // shown in the modal so the superadmin sees it before approving.
+          beitragskategorie: mapKategorie(m.beitragskategorie) || null,
+        }
       })
       return res.json({ changed, unlinked })
     } catch (err) {
@@ -366,15 +413,46 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!members.length) {
         return res.status(409).json({ error: 'No eligible members — already in ClubDesk or awaiting link-back', code: 'not_eligible' })
       }
-      const csv = buildPushCsv(members)
+      // Split into the two push sets: linked members get a contact-fields-only
+      // UPDATE row; unlinked members get a CREATE row that additionally carries
+      // Beitragskategorie + Eintritt (see CD_PUSH_CREATE_HEADERS for why the
+      // sets must never share a CSV).
+      const updates = members.filter((m) => m.clubdesk_id)
+      const creates = members.filter((m) => !m.clubdesk_id)
+      // Eintritt = the person's approved registration date (approved_at, falling
+      // back to submitted_at — approved_at is not stamped on every approval
+      // path). Registration → member resolution uses the same email + symmetric
+      // first-name-prefix rule as cdStatusForRegistration, so a child on the
+      // parent's shared address never inherits the parent's date. No match
+      // (legacy/manual member) → empty cell; a new contact has no ClubDesk
+      // Eintritt to blank, so empty is safe there.
+      if (creates.length) {
+        const emails = [...new Set(creates.map((m) => String(m.email || '').toLowerCase().trim()).filter(Boolean))]
+        const regs = emails.length
+          ? await database('registrations').where('status', 'approved')
+            .whereRaw('LOWER(BTRIM(email)) = ANY(?)', [emails])
+            .select('email', 'vorname', 'approved_at', 'submitted_at')
+          : []
+        for (const m of creates) {
+          const em = String(m.email || '').toLowerCase().trim()
+          const reg = regs
+            .filter((r) => String(r.email || '').toLowerCase().trim() === em && firstNamesMatchCd(r.vorname, m.first_name))
+            .sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0))[0]
+          m.eintritt = reg ? (reg.approved_at || reg.submitted_at) : null
+        }
+      }
       await database('clubdesk_member_sync').where('id', 1).update({
         up_requested_at: new Date(), up_state: 'queued', up_message: null, up_finished_at: null,
-        up_csv: csv, up_member_ids: JSON.stringify(members.map((m) => m.id)), up_result: null,
+        up_csv: updates.length ? buildPushCsv(updates) : null,
+        up_csv_create: creates.length ? buildPushCsv(creates, { create: true }) : null,
+        up_member_ids: JSON.stringify(members.map((m) => m.id)),
+        up_member_ids_create: JSON.stringify(creates.map((m) => m.id)),
+        up_result: null,
       })
       await writeUserLog(database, log, {
         accountability: req.accountability, action: 'update',
         collection: 'clubdesk_member_sync', recordId: 1,
-        data: { kind: 'clubdesk_member_sync_request', direction: 'up', member_count: members.length },
+        data: { kind: 'clubdesk_member_sync_request', direction: 'up', member_count: members.length, create_count: creates.length },
       })
       return res.json({ state: 'queued', count: members.length })
     } catch (err) {
