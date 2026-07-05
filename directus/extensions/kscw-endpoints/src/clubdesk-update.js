@@ -155,7 +155,7 @@ export function toCp1252Buffer(str) {
 // column (verified live 2026-06-27 — "Telefon Privat" not "Telefon"). Semicolon-
 // delimited (ClubDesk's import default). UPDATE rows carry CONTACT fields only —
 // never groups/teams/membership category (ClubDesk-managed on existing contacts);
-// CREATE rows additionally carry Beitragskategorie + Eintritt (see
+// CREATE rows additionally carry Beitragskategorie + Eintritt + Gruppen (see
 // CD_PUSH_CREATE_HEADERS below).
 //
 // wiedisync is NOT the source of truth for Anrede, Nationalität or AHV Nummer:
@@ -173,15 +173,43 @@ const CD_PUSH_HEADERS = [
 ]
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
-// A brand-new contact has no ClubDesk-owned category or entry date to protect,
-// so the CREATE-set CSV additionally carries Beitragskategorie (captured by the
-// signup form → registrations.beitragskategorie → members.beitragskategorie via
-// the approval hook) and Eintritt (the registration approval/submit date).
-// UPDATE pushes NEVER send these columns — ClubDesk stays authoritative for
-// category on existing contacts, and its empty-cell import behavior is
-// unvalidated (a blank cell could wipe the category in the legal register).
-// That is why /up stashes TWO CSVs (up_csv + up_csv_create) instead of one.
-export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt']
+// A brand-new contact has no ClubDesk-owned category, entry date or groups to
+// protect, so the CREATE-set CSV additionally carries Beitragskategorie
+// (captured by the signup form → registrations.beitragskategorie →
+// members.beitragskategorie via the approval hook), Eintritt (the registration
+// approval/submit date) and Gruppen (derived from the registration's team +
+// funktion: `VB H1 (Spieler*in)`, `BB HU14 (Trainer*in)` — ClubDesk's group
+// naming, verified against the export snapshot 2026-07-05). UPDATE pushes NEVER
+// send these columns — ClubDesk stays authoritative on existing contacts, and
+// its empty-cell import behavior is unvalidated (a blank cell could wipe the
+// value in the legal register). That is why /up stashes TWO CSVs (up_csv +
+// up_csv_create) instead of one.
+// ⚠ Gruppen maps in the import wizard as free TEXT (screenshot-verified
+// 2026-07-05) — whether a commit actually CREATES the group membership is
+// unproven; the first real prod push validates it (harmless if ignored).
+export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt', 'Gruppen']
+
+// Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
+// registrations.membership_type. Passive registrations have no team → no group.
+const CD_GRUPPEN_SPORT_PREFIX = { volleyball: 'VB', basketball: 'BB' }
+// Funktionen that map to a ClubDesk group suffix. Anything else (passive
+// licence lists, "Andere") gets NO group — never drop someone into a player
+// group they don't belong to.
+const CD_GRUPPEN_FUNKTIONEN = ['Spieler*in', 'Trainer*in']
+
+// Derive the ClubDesk Gruppen cell from an approved registration: one group per
+// team, `<VB|BB> <team> (<funktion>)`. Returns '' when sport/funktion/team
+// don't resolve — an empty cell is safe on a CREATE row.
+export function deriveGruppen(reg) {
+  if (!reg) return ''
+  const prefix = CD_GRUPPEN_SPORT_PREFIX[String(reg.membership_type || '').trim().toLowerCase()]
+  const funktion = String(reg.rolle || '').trim()
+  if (!prefix || !CD_GRUPPEN_FUNKTIONEN.includes(funktion)) return ''
+  return String(reg.team || '').split(',')
+    .map((t) => t.trim()).filter(Boolean)
+    .map((t) => `${prefix} ${t} (${funktion})`)
+    .join(', ')
+}
 
 // Signup-form category → ClubDesk Beitragskategorie picklist name. The form's
 // names only partially match ClubDesk's configured categories (e.g. the form
@@ -221,7 +249,8 @@ export function buildPushCsv(members, { create = false } = {}) {
   // Column order MUST match CD_PUSH_HEADERS (+ create extras). anrede/
   // nationalitaet/ahv_nummer are intentionally excluded (wiedisync doesn't own
   // them — see CD_PUSH_HEADERS). Create rows also carry Beitragskategorie +
-  // Eintritt (see CD_PUSH_CREATE_HEADERS); m.eintritt is resolved by /up.
+  // Eintritt + Gruppen (see CD_PUSH_CREATE_HEADERS); m.eintritt and m.gruppen
+  // are resolved by /up from the person's approved registration.
   const headers = create ? CD_PUSH_CREATE_HEADERS : CD_PUSH_HEADERS
   const rows = members.map((m) => {
     const cells = [
@@ -229,7 +258,7 @@ export function buildPushCsv(members, { create = false } = {}) {
       fmtBirthdateDDMMYYYY(m.birthdate),
       m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
     ]
-    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt))
+    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt), m.gruppen || '')
     return cells.map(cdCell).join(';')
   })
   return headers.join(';') + '\n' + rows.join('\n') + '\n'
@@ -415,23 +444,24 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       }
       // Split into the two push sets: linked members get a contact-fields-only
       // UPDATE row; unlinked members get a CREATE row that additionally carries
-      // Beitragskategorie + Eintritt (see CD_PUSH_CREATE_HEADERS for why the
-      // sets must never share a CSV).
+      // Beitragskategorie + Eintritt + Gruppen (see CD_PUSH_CREATE_HEADERS for
+      // why the sets must never share a CSV).
       const updates = members.filter((m) => m.clubdesk_id)
       const creates = members.filter((m) => !m.clubdesk_id)
       // Eintritt = the person's approved registration date (approved_at, falling
       // back to submitted_at — approved_at is not stamped on every approval
-      // path). Registration → member resolution uses the same email + symmetric
-      // first-name-prefix rule as cdStatusForRegistration, so a child on the
-      // parent's shared address never inherits the parent's date. No match
-      // (legacy/manual member) → empty cell; a new contact has no ClubDesk
-      // Eintritt to blank, so empty is safe there.
+      // path). Gruppen = deriveGruppen(reg) from the same registration (team +
+      // funktion). Registration → member resolution uses the same email +
+      // symmetric first-name-prefix rule as cdStatusForRegistration, so a child
+      // on the parent's shared address never inherits the parent's date or
+      // teams. No match (legacy/manual member) → empty cells; a new contact has
+      // no ClubDesk Eintritt/Gruppen to blank, so empty is safe there.
       if (creates.length) {
         const emails = [...new Set(creates.map((m) => String(m.email || '').toLowerCase().trim()).filter(Boolean))]
         const regs = emails.length
           ? await database('registrations').where('status', 'approved')
             .whereRaw('LOWER(BTRIM(email)) = ANY(?)', [emails])
-            .select('email', 'vorname', 'approved_at', 'submitted_at')
+            .select('email', 'vorname', 'approved_at', 'submitted_at', 'membership_type', 'team', 'rolle')
           : []
         for (const m of creates) {
           const em = String(m.email || '').toLowerCase().trim()
@@ -439,6 +469,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             .filter((r) => String(r.email || '').toLowerCase().trim() === em && firstNamesMatchCd(r.vorname, m.first_name))
             .sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0))[0]
           m.eintritt = reg ? (reg.approved_at || reg.submitted_at) : null
+          m.gruppen = deriveGruppen(reg)
         }
       }
       await database('clubdesk_member_sync').where('id', 1).update({
