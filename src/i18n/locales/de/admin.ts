@@ -324,6 +324,7 @@ export default {
   anmeldungenLicence: 'Lizenz',
   anmeldungenRefLevel: 'Schiedsrichter-Stufe',
   anmeldungenSchool: 'Kantonsschule',
+  anmeldungenSektion: 'Sektion (ClubDesk)',
   anmeldungenNotes: 'Bemerkungen',
   anmeldungenRef: 'Referenz',
   anmeldungenFirstName: 'Vorname',

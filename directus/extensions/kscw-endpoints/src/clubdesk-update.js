@@ -202,7 +202,12 @@ const CD_PUSH_HEADERS = [
 // carried Gruppen, landed with empty groups). The column stays as harmless
 // self-documentation in the import preview — group assignment is manual in
 // ClubDesk.
-export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag']
+// CREATE rows also duplicate the single member phone into Telefon Mobil (user
+// 2026-07-06: "unless present, Privat and Mobil the same"), and carry the
+// Passivmitglied Ja/Nein checkbox + Sektion (Volleyball/Basketball/KSCW). These
+// are CREATE-only — an UPDATE never overwrites a distinct Mobil / ClubDesk-owned
+// Sektion on an existing contact.
+export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Passivmitglied', 'Sektion']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -213,17 +218,30 @@ const CD_GRUPPEN_SPORT_PREFIX = { volleyball: 'VB', basketball: 'BB' }
 const CD_GRUPPEN_FUNKTIONEN = ['Spieler*in', 'Trainer*in']
 
 // Derive the ClubDesk Gruppen cell from an approved registration: one group per
-// team, `<VB|BB> <team> (<funktion>)`. Returns '' when sport/funktion/team
-// don't resolve — an empty cell is safe on a CREATE row.
+// team, `<VB|BB> <team> (<funktion>)`, PLUS the officials groups the person's
+// licence puts them in (user 2026-07-06): a VB Schreiber → "VB Schreiber:innen",
+// a VB Schiedsrichter → "VB Schiedsrichter:innen", a BB referee → "Schiedsrichter
+// BB". Returns '' when nothing resolves — empty is safe on a CREATE row. Note:
+// Gruppen import is a no-op (proven), so this cell is assignment DOCUMENTATION;
+// the actual membership is set manually / by the group-batch tool.
 export function deriveGruppen(reg) {
   if (!reg) return ''
   const prefix = CD_GRUPPEN_SPORT_PREFIX[String(reg.membership_type || '').trim().toLowerCase()]
+  const groups = []
   const funktion = String(reg.rolle || '').trim()
-  if (!prefix || !CD_GRUPPEN_FUNKTIONEN.includes(funktion)) return ''
-  return String(reg.team || '').split(',')
-    .map((t) => t.trim()).filter(Boolean)
-    .map((t) => `${prefix} ${t} (${funktion})`)
-    .join(', ')
+  if (prefix && CD_GRUPPEN_FUNKTIONEN.includes(funktion)) {
+    for (const t of String(reg.team || '').split(',').map((x) => x.trim()).filter(Boolean)) {
+      groups.push(`${prefix} ${t} (${funktion})`)
+    }
+  }
+  const lic = String(reg.lizenz || '').toLowerCase()
+  if (prefix === 'VB') {
+    if (lic.includes('schreiber')) groups.push('VB Schreiber:innen')
+    if (lic.includes('schiedsrichter')) groups.push('VB Schiedsrichter:innen')
+  } else if (prefix === 'BB') {
+    if (lic.includes('schiedsrichter') || lic.includes('referee')) groups.push('Schiedsrichter BB')
+  }
+  return groups.join(', ')
 }
 
 // Derive the ClubDesk Status for a NEW contact (per user rule 2026-07-05:
@@ -240,22 +258,42 @@ export function deriveStatus(reg, member) {
   return member?.wiedisync_active === true ? 'Aktivmitglied' : ''
 }
 
-// Derive the ClubDesk "Offiziellen Lizenz" cell for a NEW contact from the
-// member's licence booleans (set by the approval hook from the signup form's
-// scorer/referee toggles, or by hand). ClubDesk's column is single-valued —
-// observed picklist in the export: Volleyball Lizenz / OTR1 / OTR2 / OTN /
-// Keine / Sammelt Unterschriften. Confirmed mapping (user 2026-07-06): a VB
-// scorer → "Volleyball Lizenz"; the BB officials levels map by name. Referee
-// flags (referee_vb / referee_bb) have NO observed ClubDesk value → they
-// contribute nothing; no licence → empty cell (never guessed, ClubDesk stays
-// unset). Cross-sport dual holders can't happen at create time (one
-// registration = one sport) — first match in this order wins.
+// Derive the ClubDesk "Offiziellen Lizenz" cell from the member's licence
+// booleans (VB flags authoritative from Volleymanager, BB from ClubDesk).
+// ClubDesk's picklist (user-revised 2026-07-06): VB SR / VB SC for volleyball,
+// OTR1 / OTR2 / OTN / Keine / Sammelt Unterschriften for basketball.
+//   • VB referee → "VB SR"  (a referee is also a Schreiber — SR is the superset)
+//   • VB scorer  → "VB SC"
+//   • BB OTR1/OTR2/OTN → same
+//   • none → empty (never guessed, ClubDesk stays unset)
+// Cross-sport dual holders can't happen at create time (one registration = one
+// sport) — first match in this order wins.
 export function deriveOffiziellenLizenz(m) {
-  if (m?.scorer_vb === true) return 'Volleyball Lizenz'
+  if (m?.referee_vb === true) return 'VB SR'
+  if (m?.scorer_vb === true) return 'VB SC'
   if (m?.otr1_bb === true) return 'OTR1'
   if (m?.otr2_bb === true) return 'OTR2'
   if (m?.otn_bb === true) return 'OTN'
   return ''
+}
+
+// Derive the ClubDesk Sektion for a NEW contact from the registration's sport:
+// volleyball → Volleyball, basketball → Basketball. Passive registrations have
+// no sport — the registration approver picks Volleyball/Basketball/KSCW in
+// wiedisync (registrations.sektion_choice), so use that; fall back to KSCW when
+// unset (a passive member always belongs to the club).
+export function deriveSektion(reg) {
+  if (!reg) return ''
+  const mt = String(reg.membership_type || '').trim().toLowerCase()
+  if (mt === 'volleyball') return 'Volleyball'
+  if (mt === 'basketball') return 'Basketball'
+  // passive (or unknown) → approver's choice, default KSCW
+  return String(reg.sektion_choice || '').trim() || 'KSCW'
+}
+
+// Derive the ClubDesk Passivmitglied Ja/Nein checkbox from the registration.
+export function derivePassivmitglied(reg) {
+  return reg && String(reg.membership_type || '').trim().toLowerCase() === 'passive' ? 'Ja' : 'Nein'
 }
 
 // Signup-form category → ClubDesk Beitragskategorie picklist name. The form's
@@ -406,7 +444,15 @@ export function buildPushCsv(members, { create = false } = {}) {
       // (UPDATE rows only — see CD_PUSH_HEADERS comment). Creates push their own.
       m.iban || '',
     ]
-    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt), m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m), deriveMitgliederbeitrag(m.beitragskategorie, m))
+    if (create) {
+      cells.push(
+        m.phone || '', // Telefon Mobil = same as Privat (user: one number → both)
+        mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt),
+        m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m),
+        deriveMitgliederbeitrag(m.beitragskategorie, m),
+        m.cd_passiv || '', m.cd_sektion || '', // resolved by /up from the registration
+      )
+    }
     return cells.map(cdCell).join(';')
   })
   return headers.join(';') + '\n' + rows.join('\n') + '\n'
@@ -681,7 +727,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         const regs = emails.length
           ? await database('registrations').where('status', 'approved')
             .whereRaw('LOWER(BTRIM(email)) = ANY(?)', [emails])
-            .select('email', 'vorname', 'submitted_at', 'membership_type', 'team', 'rolle')
+            .select('email', 'vorname', 'submitted_at', 'membership_type', 'team', 'rolle', 'sektion_choice', 'lizenz')
           : []
         for (const m of creates) {
           const em = String(m.email || '').toLowerCase().trim()
@@ -691,6 +737,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           m.eintritt = reg ? reg.submitted_at : null
           m.gruppen = deriveGruppen(reg)
           m.cd_status = deriveStatus(reg, m)
+          m.cd_passiv = derivePassivmitglied(reg)
+          m.cd_sektion = deriveSektion(reg)
         }
       }
       await database('clubdesk_member_sync').where('id', 1).update({

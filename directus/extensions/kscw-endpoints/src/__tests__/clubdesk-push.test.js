@@ -9,7 +9,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag } from '../clubdesk-update.js'
+import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, derivePassivmitglied } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -44,33 +44,41 @@ describe('buildPushCsv (update set)', () => {
 })
 
 describe('buildPushCsv (create set)', () => {
-  it('appends Beitragskategorie + Eintritt + Gruppen + Status + Offiziellen Lizenz + Mitgliederbeitrag as the last six columns', () => {
-    const csv = buildPushCsv([{ ...kacper, scorer_vb: true, iban: 'CH9300762011623852957' }], { create: true })
+  it('appends the create-set columns (Telefon Mobil … Sektion) in order', () => {
+    const csv = buildPushCsv([{ ...kacper, scorer_vb: true, iban: 'CH9300762011623852957', cd_passiv: 'Nein', cd_sektion: 'Volleyball' }], { create: true })
     const [header, row] = csv.trim().split('\n')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
-    expect(header.endsWith('Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag')).toBe(true)
+    expect(header.endsWith('Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Passivmitglied;Sektion')).toBe(true)
     const cells = row.split(';')
-    expect(cells).toHaveLength(16)
-    expect(cells[9]).toBe('CH9300762011623852957')
-    expect(cells[10]).toBe('VB Erwerbstätige')
-    expect(cells[11]).toBe('27.06.2026')
-    expect(cells[12]).toBe('VB H1 (Spieler*in)')
-    expect(cells[13]).toBe('Aktivmitglied')
-    expect(cells[14]).toBe('Volleyball Lizenz')
-    expect(cells[15]).toBe('440')
+    expect(cells).toHaveLength(19)
+    expect(cells[9]).toBe('CH9300762011623852957') // IBAN
+    expect(cells[10]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
+    expect(cells[11]).toBe('VB Erwerbstätige')       // Beitragskategorie
+    expect(cells[12]).toBe('27.06.2026')             // Eintritt
+    expect(cells[13]).toBe('VB H1 (Spieler*in)')     // Gruppen
+    expect(cells[14]).toBe('Aktivmitglied')          // Status
+    expect(cells[15]).toBe('VB SC')                  // Offiziellen Lizenz (scorer)
+    expect(cells[16]).toBe('440')                    // Mitgliederbeitrag
+    expect(cells[17]).toBe('Nein')                   // Passivmitglied
+    expect(cells[18]).toBe('Volleyball')             // Sektion
   })
 
-  it('empty IBAN / category / Eintritt / Gruppen / Status / licence / Beitrag yield empty cells (safe on a new contact)', () => {
-    const row = buildPushCsv([{ ...kacper, beitragskategorie: null, eintritt: null, gruppen: '', cd_status: '' }], { create: true })
+  it('Telefon Mobil mirrors Telefon Privat (one number → both)', () => {
+    const cells = buildPushCsv([kacper], { create: true }).trim().split('\n')[1].split(';')
+    expect(cells[3]).toBe(cells[10]) // Privat === Mobil
+  })
+
+  it('empty create-set optional cells stay empty (safe on a new contact)', () => {
+    const row = buildPushCsv([{ ...kacper, phone: '', beitragskategorie: null, eintritt: null, gruppen: '', cd_status: '' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    for (let i = 9; i <= 15; i++) expect(cells[i]).toBe('')
+    for (const i of [9, 10, 11, 12, 13, 14, 15]) expect(cells[i]).toBe('')
   })
 
   it('neutralises formula injection in the category cell', () => {
     const row = buildPushCsv([{ ...kacper, beitragskategorie: '=SUM(A1)' }], { create: true })
       .trim().split('\n')[1]
-    expect(row.split(';')[10]).toBe("'=SUM(A1)")
+    expect(row.split(';')[11]).toBe("'=SUM(A1)")
   })
 
   it('leaves phone-style leading + unguarded but escapes +formula (2026-07-06 apostrophe bug)', () => {
@@ -84,8 +92,35 @@ describe('buildPushCsv (create set)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(16)
-    expect(cells[12]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
+    expect(cells).toHaveLength(19)
+    expect(cells[13]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
+  })
+})
+
+describe('deriveOffiziellenLizenz', () => {
+  it('VB referee → VB SR, VB scorer → VB SC (SR wins), BB by level, none → empty', () => {
+    expect(deriveOffiziellenLizenz({ referee_vb: true, scorer_vb: true })).toBe('VB SR')
+    expect(deriveOffiziellenLizenz({ scorer_vb: true })).toBe('VB SC')
+    expect(deriveOffiziellenLizenz({ otr1_bb: true })).toBe('OTR1')
+    expect(deriveOffiziellenLizenz({ otr2_bb: true })).toBe('OTR2')
+    expect(deriveOffiziellenLizenz({ otn_bb: true })).toBe('OTN')
+    expect(deriveOffiziellenLizenz({})).toBe('')
+    expect(deriveOffiziellenLizenz(null)).toBe('')
+  })
+})
+
+describe('deriveSektion / derivePassivmitglied', () => {
+  it('sektion from sport, passive uses approver choice (default KSCW)', () => {
+    expect(deriveSektion({ membership_type: 'volleyball' })).toBe('Volleyball')
+    expect(deriveSektion({ membership_type: 'basketball' })).toBe('Basketball')
+    expect(deriveSektion({ membership_type: 'passive', sektion_choice: 'Volleyball' })).toBe('Volleyball')
+    expect(deriveSektion({ membership_type: 'passive' })).toBe('KSCW')
+    expect(deriveSektion(null)).toBe('')
+  })
+  it('passivmitglied Ja only for passive registrations', () => {
+    expect(derivePassivmitglied({ membership_type: 'passive' })).toBe('Ja')
+    expect(derivePassivmitglied({ membership_type: 'volleyball' })).toBe('Nein')
+    expect(derivePassivmitglied(null)).toBe('Nein')
   })
 })
 

@@ -56,6 +56,7 @@ interface Registration extends BaseRecord {
   bb_doc_natdecl: string | null
   id_upload_front: string | null
   id_upload_back: string | null
+  sektion_choice: string | null
 }
 
 // All document fields a registration can carry (BB docs + ID front/back)
@@ -721,6 +722,33 @@ function ExpandedDetails({
     )
   }
 
+  // Editable <select> variant of field() — used for the passive-member Sektion
+  // choice (Volleyball/Basketball/KSCW), which the approver picks and the
+  // ClubDesk create-push then sends as the Sektion column.
+  const selectField = (key: keyof Registration, label: string, choices: string[]) => {
+    const original = (reg[key] as string) ?? ''
+    const value = edits[key] ?? original
+    return (
+      <div>
+        <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{label}</label>
+        <select
+          value={value}
+          onChange={(e) => {
+            const v = e.target.value
+            const next = { ...edits }
+            if (v === original) delete next[key]
+            else next[key] = v
+            setEdits(next)
+          }}
+          className="w-full rounded-md border border-gray-200 bg-transparent px-2.5 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+        >
+          <option value="">—</option>
+          {choices.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+    )
+  }
+
   const handleSave = () => {
     if (!hasChanges) return
     onSave(edits as Partial<Registration>)
@@ -785,6 +813,8 @@ function ExpandedDetails({
         {field('schiedsrichter_stufe', t('anmeldungenRefLevel'))}
         {field('kantonsschule', t('anmeldungenSchool'))}
         {field('ahv_nummer', 'AHV')}
+        {/* Passive members have no sport → the approver picks the ClubDesk Sektion */}
+        {reg.membership_type === 'passive' && selectField('sektion_choice', t('anmeldungenSektion'), ['Volleyball', 'Basketball', 'KSCW'])}
         {field('bemerkungen', t('anmeldungenNotes'), { full: true })}
         <div>
           <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('anmeldungenRef')}</label>

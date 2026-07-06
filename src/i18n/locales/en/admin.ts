@@ -324,6 +324,7 @@ export default {
   anmeldungenLicence: 'Licence',
   anmeldungenRefLevel: 'Referee level',
   anmeldungenSchool: 'Secondary school',
+  anmeldungenSektion: 'Section (ClubDesk)',
   anmeldungenNotes: 'Notes',
   anmeldungenRef: 'Reference',
   anmeldungenFirstName: 'First name',
