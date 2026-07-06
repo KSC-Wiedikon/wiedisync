@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.21.1'
+const APP_VERSION = '1.21.2'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.21.2',
+    date: '06.07.2026',
+    sections: [
+      {
+        title: 'Calendar: hall closures show every affected hall',
+        items: [
+          'A closure covering several halls showed only the first hall (e.g. "KWI A" when A, B and C were closed). The calendar now lists all affected halls in one entry — "KWI A, B, C".',
+        ],
+      },
+    ],
+  },
   {
     version: '1.21.1',
     date: '06.07.2026',
