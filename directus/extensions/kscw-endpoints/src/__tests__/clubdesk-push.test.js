@@ -9,7 +9,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus } from '../clubdesk-update.js'
+import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -20,60 +20,85 @@ const kacper = {
 }
 
 describe('buildPushCsv (update set)', () => {
-  it('emits exactly the 9 contact columns — no category, no Eintritt', () => {
+  it('emits exactly the 10 contact columns — no category, no Eintritt', () => {
     const csv = buildPushCsv([kacper])
     const [header, row] = csv.trim().split('\n')
-    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht')
+    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN')
     expect(header).not.toContain('Beitragskategorie')
-    expect(row.split(';')).toHaveLength(9)
+    expect(row.split(';')).toHaveLength(10)
     expect(row).not.toContain('VB Erwerbstätige')
   })
 
   it('formats birthdate dd.mm.yyyy and maps sex to ClubDesk wording', () => {
     const row = buildPushCsv([kacper]).trim().split('\n')[1]
     expect(row).toContain('15.03.1999')
-    expect(row.endsWith('männlich')).toBe(true)
+    expect(row.split(';')[8]).toBe('männlich')
+  })
+
+  it('carries the member IBAN (or the /up-resolved ClubDesk echo) as the last cell', () => {
+    const withIban = buildPushCsv([{ ...kacper, iban: 'CH9300762011623852957' }]).trim().split('\n')[1]
+    expect(withIban.split(';')[9]).toBe('CH9300762011623852957')
+    const withoutIban = buildPushCsv([kacper]).trim().split('\n')[1]
+    expect(withoutIban.split(';')[9]).toBe('')
   })
 })
 
 describe('buildPushCsv (create set)', () => {
-  it('appends Beitragskategorie + Eintritt + Gruppen + Status + Offiziellen Lizenz as the last five columns', () => {
-    const csv = buildPushCsv([{ ...kacper, scorer_vb: true }], { create: true })
+  it('appends Beitragskategorie + Eintritt + Gruppen + Status + Offiziellen Lizenz + Mitgliederbeitrag as the last six columns', () => {
+    const csv = buildPushCsv([{ ...kacper, scorer_vb: true, iban: 'CH9300762011623852957' }], { create: true })
     const [header, row] = csv.trim().split('\n')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
-    expect(header.endsWith('Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz')).toBe(true)
+    expect(header.endsWith('Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag')).toBe(true)
     const cells = row.split(';')
-    expect(cells).toHaveLength(14)
-    expect(cells[9]).toBe('VB Erwerbstätige')
-    expect(cells[10]).toBe('27.06.2026')
-    expect(cells[11]).toBe('VB H1 (Spieler*in)')
-    expect(cells[12]).toBe('Aktivmitglied')
-    expect(cells[13]).toBe('Volleyball Lizenz')
+    expect(cells).toHaveLength(16)
+    expect(cells[9]).toBe('CH9300762011623852957')
+    expect(cells[10]).toBe('VB Erwerbstätige')
+    expect(cells[11]).toBe('27.06.2026')
+    expect(cells[12]).toBe('VB H1 (Spieler*in)')
+    expect(cells[13]).toBe('Aktivmitglied')
+    expect(cells[14]).toBe('Volleyball Lizenz')
+    expect(cells[15]).toBe('440')
   })
 
-  it('empty category / Eintritt / Gruppen / Status / licence yield empty cells (safe on a new contact)', () => {
+  it('empty IBAN / category / Eintritt / Gruppen / Status / licence / Beitrag yield empty cells (safe on a new contact)', () => {
     const row = buildPushCsv([{ ...kacper, beitragskategorie: null, eintritt: null, gruppen: '', cd_status: '' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells[9]).toBe('')
-    expect(cells[10]).toBe('')
-    expect(cells[11]).toBe('')
-    expect(cells[12]).toBe('')
-    expect(cells[13]).toBe('')
+    for (let i = 9; i <= 15; i++) expect(cells[i]).toBe('')
   })
 
   it('neutralises formula injection in the category cell', () => {
     const row = buildPushCsv([{ ...kacper, beitragskategorie: '=SUM(A1)' }], { create: true })
       .trim().split('\n')[1]
-    expect(row.split(';')[9]).toBe("'=SUM(A1)")
+    expect(row.split(';')[10]).toBe("'=SUM(A1)")
   })
 
   it('multi-team Gruppen stays one cell (comma is safe in semicolon CSV)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(14)
-    expect(cells[11]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
+    expect(cells).toHaveLength(16)
+    expect(cells[12]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
+  })
+})
+
+describe('deriveMitgliederbeitrag', () => {
+  it('maps the confirmed fees for both name families', () => {
+    expect(deriveMitgliederbeitrag('VB Erwerbstätige')).toBe('440')
+    expect(deriveMitgliederbeitrag('VB Student*in Meisterschaft')).toBe('380')
+    expect(deriveMitgliederbeitrag('VB Studenten/Lehrlinge')).toBe('380')
+    expect(deriveMitgliederbeitrag('BB Erwerbstätige')).toBe('510')
+    expect(deriveMitgliederbeitrag('BB Erwerbstätig 1. Liga')).toBe('560')
+    expect(deriveMitgliederbeitrag('BB Jugend Meisterschaft')).toBe('310')
+    expect(deriveMitgliederbeitrag('BB Minis Turnier')).toBe('210')
+    expect(deriveMitgliederbeitrag('Gratis')).toBe('0')
+    expect(deriveMitgliederbeitrag('Passivmitglied')).toBe('40')
+  })
+
+  it('unknown or empty category yields an empty cell, never a guess', () => {
+    expect(deriveMitgliederbeitrag('Sponsor')).toBe('')
+    expect(deriveMitgliederbeitrag('')).toBe('')
+    expect(deriveMitgliederbeitrag(null)).toBe('')
   })
 })
 

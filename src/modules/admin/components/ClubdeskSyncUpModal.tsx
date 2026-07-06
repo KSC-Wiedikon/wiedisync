@@ -11,7 +11,7 @@ import { kscwApi } from '../../../lib/api'
 
 interface FieldChange { field: string; old_value?: string | null; new_value?: string | null }
 interface ChangedMember { id: number; first_name: string; last_name: string; email: string; clubdesk_id: string; changes: FieldChange[] }
-interface UnlinkedMember { id: number; first_name: string; last_name: string; email: string; likely_non_member: boolean; beitragskategorie?: string | null; offiziellen_lizenz?: string | null }
+interface UnlinkedMember { id: number; first_name: string; last_name: string; email: string; likely_non_member: boolean; beitragskategorie?: string | null; offiziellen_lizenz?: string | null; mitgliederbeitrag?: string | null }
 interface Preview { changed: ChangedMember[]; unlinked: UnlinkedMember[] }
 interface UpResult { total?: number | null; neu?: number | null; veraendert?: number | null; committed?: boolean }
 interface UpStatus { state: 'idle' | 'queued' | 'running' | 'done' | 'failed'; message: string | null; result: UpResult | null }
@@ -184,7 +184,7 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
                           <div className="flex flex-wrap gap-1">
                             {m.beitragskategorie && (
                               <Badge variant="outline" className="mt-0.5 text-[10px] text-gray-600 dark:text-gray-300">
-                                {m.beitragskategorie}
+                                {m.beitragskategorie}{m.mitgliederbeitrag ? ` · CHF ${m.mitgliederbeitrag}` : ''}
                               </Badge>
                             )}
                             {m.offiziellen_lizenz && (
