@@ -308,48 +308,63 @@ export const CD_BEITRAG_MAP = {
   'Passivmitglied': 40,
   'Gratis': 0,
 }
-// VB categories that carry the CHF 100 scorer surcharge (website: "Mitglieder-
-// beitrag für aktive Mitglieder ohne Schreiberlizenz um CHF 100 erhöht"). The
-// map amounts are the WITH-licence base; a member without scorer_vb pays
-// base + 100. Confirmed against the ClubDesk export — each shows a base+100
-// variant (Erwerbstätige 440/540, Student 380/480, Schüler Meisterschaft
-// 310/410, Schüler Turnier 210/310). DELIBERATELY EXCLUDED: the intro tiers
-// "VB Turnier KWI" / "VB Schüler*in 1. Jahr" (first licence, no +100 variant
-// exists) and Passiv/Gratis. Both name families listed.
-const VB_SCORER_SURCHARGE = new Set([
+// The CHF 100 no-licence surcharge (VB: website "Mitgliederbeitrag für aktive
+// Mitglieder ohne Schreiberlizenz um CHF 100 erhöht"; BB: user rule 2026-07-06
+// replacing the deleted ClubDesk "Offiziellen 100er" field). The map amounts
+// are the WITH-licence base; +100 for a member with the duty but no licence.
+// Confirmed against the export (VB Erwerbstätige 440/540, Student 380/480, Schüler Meisterschaft
+// 310/410, Schüler Turnier 210/310; BB Erwerbstätig 510/610, 1.Liga 560/660,
+// Student 410/510, Jugend 310/410, Minis 210/310). Duty applies from U16 AND
+// ABOVE ONLY (user 2026-07-06) — younger players never pay it.
+//
+// ADULT categories are inherently U16+ → surcharge on a missing licence
+// regardless of birthdate. Both ClubDesk name families listed.
+const SURCHARGE_ADULT = new Set([
   'VB Erwerbstätige',
   'VB Student*in Meisterschaft', 'VB Studenten/Lehrlinge',
-  'VB Schüler*in Meisterschaft', 'VB Schüler Meisterschaft',
-  'VB Schüler*in Turnier', 'VB Schüler Turnier',
-])
-// BB counterpart (user rule 2026-07-06, replaces the deleted ClubDesk
-// "Offiziellen 100er" field): a member on an active BB category who does NOT
-// hold a BB officials licence (OTR1/OTR2/OTN — the values deriveOffiziellenLizenz
-// emits) pays base + CHF 100. Each of these shows a base+100 variant in the
-// export (Erwerbstätig 510/610, 1. Liga 560/660, Student 410/510, Jugend/2-Tr.
-// 310/410, Minis/1-Tr. 210/310). Both name families listed. Passiv/Gratis excl.
-// ⚠ Applies to ALL active BB incl. youth (Jugend + Minis) per the literal rule —
-// flag if minis (U12, no officials duty) should be exempt.
-const BB_OFFICIALS_SURCHARGE = new Set([
   'BB Erwerbstätige', 'BB Erwerbstätig',
   'BB Erwerbstätige 1. Liga', 'BB Erwerbstätig 1. Liga',
   'BB Lernende/Studierende', 'BB Student/Lehrling', 'BB Studenten/Lehrlinge',
   'BB Lernende/Studierende 1. Liga', 'BB Student/Lehrling 1. Liga',
+])
+// YOUTH categories are mixed-age → surcharge ONLY when the member is U16+ by
+// birthdate (isU16Plus). U14/Minis players never pay it. The intro tiers
+// "VB Turnier KWI" / "VB Schüler*in 1. Jahr" and Passiv/Gratis are in NEITHER
+// set → never surcharged.
+const SURCHARGE_YOUTH = new Set([
+  'VB Schüler*in Meisterschaft', 'VB Schüler Meisterschaft',
+  'VB Schüler*in Turnier', 'VB Schüler Turnier',
   'BB Jugend Meisterschaft', 'BB Junior:innen', 'BB 2 Trainings',
   'BB Minis Turnier', 'BB Minis', 'BB 1 Trainings',
 ])
+// U16-and-above age gate (user 2026-07-06: surcharge only for U16+). "U16" is a
+// birth-year band, so approximate by age — a player who turns at least 15 in
+// the current calendar year (birthYear <= thisYear - 15) counts as U16+.
+// Unknown birthdate → null (caller treats youth as NOT U16+, so a young member
+// is never over-charged without knowing the age).
+export function isU16Plus(member, refYear = new Date().getFullYear()) {
+  const bd = member?.birthdate
+  if (!bd) return null
+  const iso = bd instanceof Date ? bd.toISOString().slice(0, 10) : String(bd)
+  const y = Number(iso.slice(0, 4))
+  if (!Number.isInteger(y) || y < 1900) return null
+  return (refYear - y) >= 15
+}
+
 export function deriveMitgliederbeitrag(kategorie, member = null) {
   const k = String(kategorie ?? '').trim()
   if (!Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, k)) return '' // unknown → empty, never guessed
   let amount = CD_BEITRAG_MAP[k]
-  // No-licence surcharge: +CHF 100 for an active VB category without a scorer
-  // (Schreiber) licence, OR an active BB category without a BB officials
-  // (OTR1/OTR2/OTN) licence. member===null (flags unavailable) → base only, so
-  // the bare map stays a safe default.
+  // member===null (flags unavailable) → base only, a safe default. Adult
+  // category → surcharge on missing licence; youth category → surcharge only
+  // when the member is U16+ (isU16Plus() === true).
   if (member) {
-    const hasBbOfficials = member.otr1_bb === true || member.otr2_bb === true || member.otn_bb === true
-    if (VB_SCORER_SURCHARGE.has(k) && member.scorer_vb !== true) amount += 100
-    else if (BB_OFFICIALS_SURCHARGE.has(k) && !hasBbOfficials) amount += 100
+    const isVb = k.startsWith('VB ')
+    const hasLicence = isVb
+      ? member.scorer_vb === true
+      : (member.otr1_bb === true || member.otr2_bb === true || member.otn_bb === true)
+    const eligible = SURCHARGE_ADULT.has(k) || (SURCHARGE_YOUTH.has(k) && isU16Plus(member) === true)
+    if (eligible && !hasLicence) amount += 100
   }
   return String(amount)
 }
