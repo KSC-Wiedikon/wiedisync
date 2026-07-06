@@ -60,6 +60,10 @@ const ACCOUNTS = {
     msgIdDomain: 'spielplanung.kscw.ch',
     signatureHtml: SCHEDULING_SIGNATURE_LIGHT_HTML,
     signatureText: SCHEDULING_SIGNATURE_TEXT,
+    // Google Group the mailbox re-mails inbound correspondence to (option 4:
+    // repost AS the mailbox so it authenticates, replacing Migadu's transparent
+    // forward that Google spoof-rejects for -all senders). Empty = disabled.
+    groupAddress: (process.env.SCHEDULING_GROUP_ADDRESS || 'vb_spieplanung_kscw@googlegroups.com').trim().toLowerCase(),
   },
   basketball: {
     sport: 'basketball',
@@ -70,8 +74,17 @@ const ACCOUNTS = {
     msgIdDomain: 'spielplanung.kscw.ch',
     signatureHtml: SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML,
     signatureText: SCHEDULING_SIGNATURE_BASKETBALL_TEXT,
+    groupAddress: (process.env.SCHEDULING_GROUP_ADDRESS_BASKETBALL || '').trim().toLowerCase(),
   },
 }
+
+// Repost commit gate: only actually send to the group when explicitly enabled
+// (prod). Anything else (dev, unset) is a dry-run that logs + stamps but never
+// posts, so dev never double-posts to the club's real group off the same mailbox.
+const GROUP_REPOST_COMMIT = process.env.SCHEDULING_GROUP_REPOST_COMMIT === '1'
+// Only repost inbound newer than this (defence-in-depth against a backlog dump;
+// migration 178 already seals pre-existing rows). Days.
+const GROUP_REPOST_WINDOW_DAYS = Number(process.env.SCHEDULING_GROUP_REPOST_WINDOW_DAYS || 3)
 
 const accountConfigured = (acct) => Boolean(acct && acct.imapPassword)
 
@@ -235,7 +248,7 @@ function parsedToRow(parsed, { account, folder, uid, uidValidity, internalDate, 
 // never stored locally). Shared by the forward path (re-attach the original's
 // files) and the single-attachment download route. Throws an Error with a
 // `.status` (404/410) when the source can't be resolved to the same message.
-async function fetchMessageAttachments(acct, row) {
+async function fetchParsedSource(acct, row) {
   if (!row.folder || !row.imap_uid) { const e = new Error('No IMAP source for this message'); e.status = 410; throw e }
   const client = imapClient(acct)
   await client.connect()
@@ -251,10 +264,14 @@ async function fetchMessageAttachments(acct, row) {
     const parsed = await simpleParser(msg.source)
     // UID reuse safety: make sure we fetched the same message we stored.
     if (stripBrackets(parsed.messageId) !== row.message_id) { const e = new Error('Message no longer at stored IMAP location'); e.status = 410; throw e }
-    return parsed.attachments || []
+    return parsed
   } finally {
     await client.logout().catch(() => {})
   }
+}
+
+async function fetchMessageAttachments(acct, row) {
+  return (await fetchParsedSource(acct, row)).attachments || []
 }
 
 async function findSentFolder(client) {
@@ -307,6 +324,161 @@ async function syncFolder(client, database, log, folder, direction, since, acct)
   }
 }
 
+// ── Google Group repost (option 4) ────────────────────────────────────────
+// Migadu's transparent forward keeps the external sender's From, so Google
+// Groups spoof-rejects mail from -all/no-DMARC domains (e.g. svrz.ch) and it
+// never posts. Instead we re-mail qualifying inbound AS the mailbox itself
+// (DKIM-aligned for spielplanung.kscw.ch → authenticates → posts), with
+// Reply-To pointed back at the original sender so replies still reach them.
+
+const SWISS_DT = new Intl.DateTimeFormat('de-CH', {
+  timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric',
+  hour: '2-digit', minute: '2-digit', hour12: false,
+})
+const fmtSwiss = (d) => { try { return SWISS_DT.format(d instanceof Date ? d : new Date(d)) } catch { return '' } }
+
+// Row-level filter (no IMAP fetch): human correspondence only — drop our own
+// address, the group itself, and automated system/no-reply/bounce senders.
+function repostSkipReason(row, acct) {
+  const from = (row.from_address || '').toLowerCase()
+  if (!from) return 'no-sender'
+  if (from === acct.fromAddress.toLowerCase()) return 'self'
+  if (acct.groupAddress && from === acct.groupAddress) return 'group'
+  if (/@([^@]*\.)?amazonses\.com$/.test(from)) return 'system-ses'
+  if (/@(bounce\.)?noreply\.kscw\.ch$/.test(from)) return 'system-kscw'
+  if (/(^|[.+_-])(no-?reply|mailer-daemon|postmaster|bounce|do-?not-?reply)([.+_@-]|$)/.test(from)) return 'system-noreply'
+  return null
+}
+
+// Header-level loop guard: never repost a message the group (or any list) already
+// distributed back to the mailbox. simpleParser exposes headers as a Map.
+function isListOrGroupMail(parsed, acct) {
+  const h = parsed.headers
+  if (!h) return false
+  const listId = String(h.get('list-id') || '').toLowerCase()
+  if (listId && (/googlegroups\.com/.test(listId) || (acct.groupAddress && listId.includes(acct.groupAddress.split('@')[0])))) return true
+  if (h.get('x-google-group-id') || h.get('list-post')) return true
+  if (String(h.get('x-kscw-group-repost') || '') === '1') return true
+  return false
+}
+
+// Compose the reposted message as the mailbox (raw MIME, ready for SMTP).
+function buildGroupRepostRaw(parsed, row, acct) {
+  const orig = flattenAddresses(parsed.from)[0] || { address: row.from_address, name: row.from_name }
+  const origAddr = (orig.address || row.from_address || '').trim()
+  const origName = orig.name || origAddr || 'Unknown'
+  const subject = String(parsed.subject || row.subject || '(no subject)').replace(/[\r\n]+/g, ' ').slice(0, 300)
+  const when = parsed.date || row.date_sent
+  const headerLines = [
+    `From: ${origName} <${origAddr}>`,
+    ...(when ? [`Date: ${fmtSwiss(when)}`] : []),
+    `Subject: ${subject}`,
+    ...(row.to_addresses ? [`To: ${row.to_addresses}`] : []),
+  ]
+
+  const origText = (parsed.text || htmlToPlain(typeof parsed.html === 'string' ? parsed.html : '') || '').trim()
+  const text = `[Reposted by KSCW Spielplanung — reply goes to ${origAddr}]\n\n` +
+    headerLines.join('\n') + `\n\n` + origText
+
+  const origHtml = (typeof parsed.html === 'string' && parsed.html.trim())
+    ? sanitizeOutgoingHtml(parsed.html)
+    : escHtml(origText).replace(/\n/g, '<br>')
+  const html =
+    `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:14px;line-height:1.5">` +
+    `<div style="font-size:12px;color:#64748b;margin-bottom:10px">Reposted by KSCW Spielplanung — replies go to ${escHtml(origAddr)}.</div>` +
+    `<div style="border-left:3px solid #cbd5e1;padding-left:12px;color:#334155;font-size:12px;margin-bottom:12px">` +
+    headerLines.map((l) => `<div>${escHtml(l)}</div>`).join('') +
+    `</div><div>${origHtml}</div></div>`
+
+  // Preserve attachments (incl. inline CID images) unless they blow the cap, in
+  // which case drop them all and note it rather than fail the repost.
+  let attachments = (parsed.attachments || []).map((a, i) => ({
+    filename: a.filename || `attachment-${i + 1}`,
+    content: a.content,
+    contentType: a.contentType || 'application/octet-stream',
+    ...(a.contentId ? { cid: stripBrackets(a.contentId) } : {}),
+    ...(a.contentDisposition === 'inline' ? { contentDisposition: 'inline' } : {}),
+  }))
+  const total = attachments.reduce((n, a) => n + (a.content?.length || 0), 0)
+  let bodyHtml = html
+  if (attachments.length > ATTACH_MAX_FILES || total > ATTACH_MAX_TOTAL) {
+    attachments = []
+    bodyHtml = html.replace('</div></div>', '</div><div style="margin-top:10px;font-size:12px;color:#b45309">[Attachments omitted — too large to repost; see the mailbox.]</div></div>')
+  }
+
+  // Thread the repost into the original's conversation so group replies chain.
+  const inReplyTo = row.message_id && !row.message_id.endsWith('@sync.local') ? `<${row.message_id}>` : undefined
+  const references = [row.references_ids, inReplyTo].filter(Boolean).join(' ') || undefined
+
+  const composer = new MailComposer({
+    from: { name: `${origName} (via ${acct.fromName})`, address: acct.fromAddress },
+    to: acct.groupAddress,
+    replyTo: origAddr || undefined,
+    subject,
+    text,
+    html: bodyHtml,
+    attachments: attachments.length ? attachments : undefined,
+    messageId: `<${crypto.randomUUID()}@${acct.msgIdDomain}>`,
+    inReplyTo,
+    references,
+    headers: { 'X-KSCW-Group-Repost': '1' },
+  })
+  return composer.compile().build()
+}
+
+const stampReposted = (database, id) =>
+  database('scheduling_emails').where({ id }).update({ group_reposted_at: new Date().toISOString() })
+
+// Repost newly-arrived inbound correspondence to the account's Google Group.
+// Called from the mailbox cron after INBOX sync. Best-effort; never throws.
+async function repostInboundToGroup(database, log, acct) {
+  if (!acct.groupAddress) return { reposted: 0, skipped: 0 }
+  const since = new Date(Date.now() - GROUP_REPOST_WINDOW_DAYS * 86400000).toISOString()
+  const rows = await database('scheduling_emails')
+    .where({ account: acct.sport, direction: 'in' })
+    .whereNull('group_reposted_at')
+    .where('date_sent', '>=', since)
+    .orderBy('date_sent', 'asc')
+    .limit(15)
+  let reposted = 0, skipped = 0
+  for (const row of rows) {
+    const reason = repostSkipReason(row, acct)
+    if (reason) { await stampReposted(database, row.id); skipped++; continue }
+    let parsed
+    try {
+      parsed = await fetchParsedSource(acct, row)
+    } catch (err) {
+      // Source gone/moved — stamp so we don't retry a dead pointer every run.
+      await stampReposted(database, row.id)
+      log.warn(`Group repost: source unavailable for ${row.message_id}: ${err.message}`)
+      continue
+    }
+    if (isListOrGroupMail(parsed, acct)) { await stampReposted(database, row.id); skipped++; continue }
+    try {
+      const raw = await buildGroupRepostRaw(parsed, row, acct)
+      if (GROUP_REPOST_COMMIT) {
+        const transport = nodemailer.createTransport({
+          host: process.env.EMAIL_SMTP_HOST,
+          port: Number(process.env.EMAIL_SMTP_PORT || 587),
+          secure: String(process.env.EMAIL_SMTP_SECURE) === 'true',
+          auth: { user: process.env.EMAIL_SMTP_USER, pass: process.env.EMAIL_SMTP_PASSWORD },
+        })
+        await transport.sendMail({ envelope: { from: acct.fromAddress, to: [acct.groupAddress] }, raw })
+        log.info(`Group repost: posted ${acct.sport} ${row.message_id} → ${acct.groupAddress}`)
+        reposted++
+      } else {
+        log.info(`Group repost [dry-run]: would post ${acct.sport} ${row.message_id} (from ${row.from_address}) → ${acct.groupAddress}`)
+      }
+      await stampReposted(database, row.id)
+    } catch (err) {
+      // Transient send failure: leave unstamped so the next cron retries (bounded
+      // by the window). A permanently-bad message ages out after the window.
+      log.warn(`Group repost: send failed for ${row.message_id}: ${err.message}`)
+    }
+  }
+  return { reposted, skipped }
+}
+
 // Per-account run guard so one stuck mailbox never blocks the other.
 const syncRunningFor = new Set()
 
@@ -329,7 +501,16 @@ export async function runMailboxSync(database, log, onlySport = null) {
       const sentFolder = await findSentFolder(client)
       const inbox = await syncFolder(client, database, log, 'INBOX', 'in', since, acct)
       const sent = await syncFolder(client, database, log, sentFolder, 'out', since, acct)
-      results.push({ account: acct.sport, processed: inbox + sent })
+      // Re-mail freshly-arrived correspondence to the Google Group (best-effort;
+      // its own IMAP/SMTP, so a repost hiccup never fails the sync itself).
+      let groupReposted = 0
+      try {
+        const r = await repostInboundToGroup(database, log, acct)
+        groupReposted = r.reposted
+      } catch (err) {
+        log.warn(`Group repost (${acct.sport}) failed: ${err.message}`)
+      }
+      results.push({ account: acct.sport, processed: inbox + sent, groupReposted })
     } catch (err) {
       log.warn(`Mailbox sync (${acct.sport}) failed: ${err.message}`)
       results.push({ account: acct.sport, error: err.message })
