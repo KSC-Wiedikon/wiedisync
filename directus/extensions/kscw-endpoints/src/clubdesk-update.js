@@ -315,22 +315,42 @@ export const CD_BEITRAG_MAP = {
 // variant (Erwerbstätige 440/540, Student 380/480, Schüler Meisterschaft
 // 310/410, Schüler Turnier 210/310). DELIBERATELY EXCLUDED: the intro tiers
 // "VB Turnier KWI" / "VB Schüler*in 1. Jahr" (first licence, no +100 variant
-// exists), all BB categories (separate Offiziellen-Pflicht — not applied
-// pending confirmation), Passiv/Gratis. Both name families listed.
+// exists) and Passiv/Gratis. Both name families listed.
 const VB_SCORER_SURCHARGE = new Set([
   'VB Erwerbstätige',
   'VB Student*in Meisterschaft', 'VB Studenten/Lehrlinge',
   'VB Schüler*in Meisterschaft', 'VB Schüler Meisterschaft',
   'VB Schüler*in Turnier', 'VB Schüler Turnier',
 ])
+// BB counterpart (user rule 2026-07-06, replaces the deleted ClubDesk
+// "Offiziellen 100er" field): a member on an active BB category who does NOT
+// hold a BB officials licence (OTR1/OTR2/OTN — the values deriveOffiziellenLizenz
+// emits) pays base + CHF 100. Each of these shows a base+100 variant in the
+// export (Erwerbstätig 510/610, 1. Liga 560/660, Student 410/510, Jugend/2-Tr.
+// 310/410, Minis/1-Tr. 210/310). Both name families listed. Passiv/Gratis excl.
+// ⚠ Applies to ALL active BB incl. youth (Jugend + Minis) per the literal rule —
+// flag if minis (U12, no officials duty) should be exempt.
+const BB_OFFICIALS_SURCHARGE = new Set([
+  'BB Erwerbstätige', 'BB Erwerbstätig',
+  'BB Erwerbstätige 1. Liga', 'BB Erwerbstätig 1. Liga',
+  'BB Lernende/Studierende', 'BB Student/Lehrling', 'BB Studenten/Lehrlinge',
+  'BB Lernende/Studierende 1. Liga', 'BB Student/Lehrling 1. Liga',
+  'BB Jugend Meisterschaft', 'BB Junior:innen', 'BB 2 Trainings',
+  'BB Minis Turnier', 'BB Minis', 'BB 1 Trainings',
+])
 export function deriveMitgliederbeitrag(kategorie, member = null) {
   const k = String(kategorie ?? '').trim()
   if (!Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, k)) return '' // unknown → empty, never guessed
   let amount = CD_BEITRAG_MAP[k]
-  // Scorer surcharge: a member on a surcharge-eligible VB category who does NOT
-  // hold a scorer (Schreiber) licence pays +CHF 100. member===null (flag
-  // unavailable) → base only, so the bare map stays a safe default.
-  if (member && member.scorer_vb !== true && VB_SCORER_SURCHARGE.has(k)) amount += 100
+  // No-licence surcharge: +CHF 100 for an active VB category without a scorer
+  // (Schreiber) licence, OR an active BB category without a BB officials
+  // (OTR1/OTR2/OTN) licence. member===null (flags unavailable) → base only, so
+  // the bare map stays a safe default.
+  if (member) {
+    const hasBbOfficials = member.otr1_bb === true || member.otr2_bb === true || member.otn_bb === true
+    if (VB_SCORER_SURCHARGE.has(k) && member.scorer_vb !== true) amount += 100
+    else if (BB_OFFICIALS_SURCHARGE.has(k) && !hasBbOfficials) amount += 100
+  }
   return String(amount)
 }
 
