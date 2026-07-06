@@ -108,31 +108,36 @@ describe('deriveMitgliederbeitrag', () => {
     expect(deriveMitgliederbeitrag(null)).toBe('')
   })
 
-  it('adds the CHF 100 no-scorer surcharge on active VB categories', () => {
-    const noScorer = { scorer_vb: false }
-    const scorer = { scorer_vb: true }
-    expect(deriveMitgliederbeitrag('VB Erwerbstätige', noScorer)).toBe('540')
-    expect(deriveMitgliederbeitrag('VB Erwerbstätige', scorer)).toBe('440')
-    expect(deriveMitgliederbeitrag('VB Student*in Meisterschaft', noScorer)).toBe('480')
-    expect(deriveMitgliederbeitrag('VB Schüler*in Meisterschaft', noScorer)).toBe('410')
-    expect(deriveMitgliederbeitrag('VB Schüler*in Turnier', noScorer)).toBe('310')
+  it('surcharges adult categories (inherently U16+) on a missing licence, regardless of birthdate', () => {
+    const adultNoLic = { scorer_vb: false, otr1_bb: false, otr2_bb: false, otn_bb: false }
+    expect(deriveMitgliederbeitrag('VB Erwerbstätige', adultNoLic)).toBe('540')
+    expect(deriveMitgliederbeitrag('VB Erwerbstätige', { scorer_vb: true })).toBe('440')
+    expect(deriveMitgliederbeitrag('VB Student*in Meisterschaft', adultNoLic)).toBe('480')
+    expect(deriveMitgliederbeitrag('BB Erwerbstätige', adultNoLic)).toBe('610')
+    expect(deriveMitgliederbeitrag('BB Erwerbstätige', { otr1_bb: true })).toBe('510')
+    expect(deriveMitgliederbeitrag('BB Erwerbstätige 1. Liga', adultNoLic)).toBe('660')
+    expect(deriveMitgliederbeitrag('BB Lernende/Studierende', adultNoLic)).toBe('510')
   })
 
-  it('adds the CHF 100 no-officials surcharge on active BB categories', () => {
-    const noLic = { otr1_bb: false, otr2_bb: false, otn_bb: false }
-    const withOtr = { otr1_bb: true }
-    expect(deriveMitgliederbeitrag('BB Erwerbstätige', noLic)).toBe('610')
-    expect(deriveMitgliederbeitrag('BB Erwerbstätige', withOtr)).toBe('510')
-    expect(deriveMitgliederbeitrag('BB Erwerbstätige 1. Liga', noLic)).toBe('660')
-    expect(deriveMitgliederbeitrag('BB Lernende/Studierende', noLic)).toBe('510')
-    expect(deriveMitgliederbeitrag('BB Jugend Meisterschaft', noLic)).toBe('410')
-    expect(deriveMitgliederbeitrag('BB Minis Turnier', noLic)).toBe('310')
-    // OTN also counts as holding an officials licence
-    expect(deriveMitgliederbeitrag('BB Jugend Meisterschaft', { otn_bb: true })).toBe('310')
+  it('surcharges youth categories ONLY when the member is U16+ (born <= year-15)', () => {
+    const youngVb = { scorer_vb: false, birthdate: '2013-05-01' } // ~13 → below U16
+    const olderVb = { scorer_vb: false, birthdate: '2009-05-01' } // ~17 → U16+
+    expect(deriveMitgliederbeitrag('VB Schüler*in Meisterschaft', youngVb)).toBe('310')
+    expect(deriveMitgliederbeitrag('VB Schüler*in Meisterschaft', olderVb)).toBe('410')
+    const youngBb = { otr1_bb: false, otr2_bb: false, otn_bb: false, birthdate: '2014-05-01' }
+    const olderBb = { otr1_bb: false, otr2_bb: false, otn_bb: false, birthdate: '2008-05-01' }
+    expect(deriveMitgliederbeitrag('BB Jugend Meisterschaft', youngBb)).toBe('310')
+    expect(deriveMitgliederbeitrag('BB Jugend Meisterschaft', olderBb)).toBe('410')
+    expect(deriveMitgliederbeitrag('BB Minis Turnier', youngBb)).toBe('210')
   })
 
-  it('does NOT surcharge VB intro tiers, passive or gratis', () => {
-    const bare = { scorer_vb: false, otr1_bb: false, otr2_bb: false, otn_bb: false }
+  it('unknown birthdate on a youth category → base (never over-charge without the age)', () => {
+    expect(deriveMitgliederbeitrag('BB Jugend Meisterschaft', { otr1_bb: false })).toBe('310')
+    expect(deriveMitgliederbeitrag('VB Schüler*in Meisterschaft', { scorer_vb: false })).toBe('310')
+  })
+
+  it('does NOT surcharge VB intro tiers, passive or gratis (even for adults)', () => {
+    const bare = { scorer_vb: false, otr1_bb: false, birthdate: '1990-01-01' }
     expect(deriveMitgliederbeitrag('VB Turnier KWI', bare)).toBe('110')
     expect(deriveMitgliederbeitrag('VB Schüler*in 1. Jahr', bare)).toBe('110')
     expect(deriveMitgliederbeitrag('Passivmitglied', bare)).toBe('40')
