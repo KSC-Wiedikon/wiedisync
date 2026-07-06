@@ -13,9 +13,12 @@ export default {
   resultAvailable: 'Resultat',
   dutyDelegation: 'Service de marqueur',
   memberJoinRequest: 'Demande d\'adhésion',
+  expenseStatus: 'Note de frais',
   eventInvite: 'Invitation à un événement',
   newReport: 'Signalement',
   member_join_request: '{{memberName}} souhaite rejoindre {{teamName}}',
+  expense_paid: 'Ta note de frais de {{amount}} a été payée.',
+  expense_rejected: 'Ta note de frais de {{amount}} a été refusée.',
   // Delegation notification messages
   duty_delegation_request: '{{from}} souhaite vous deleguer le service de {{role}} pour {{game}} le {{date}}.',
   duty_delegation_accepted: '{{to}} a accepte le service de {{role}} pour {{game}}.',

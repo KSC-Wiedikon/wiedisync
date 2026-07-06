@@ -1,16 +1,21 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
-import { Upload, Loader2, FileText, X } from 'lucide-react'
+import { Upload, Loader2, FileText, X, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { FormInput, FormTextarea } from '@/components/FormField'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '../../hooks/useAuth'
 import { kscwApi, uploadFile } from '../../lib/api'
 import { isValidIban, normalizeIban } from '../../utils/iban'
 import { formatAmountCH, parseAmount } from '../../utils/amount'
 import { CURRENCY_OPTIONS } from '../../utils/currencies'
+import { useMyExpenses, openExpenseReceipt, formatExpenseAmount } from '../../hooks/useFinance'
+import { ExpenseStatusBadge } from './expenseShared'
+import { formatDateCompactZurich } from '../../utils/dateHelpers'
 
 // Public Cloudflare Turnstile site key (same widget the sign-up + scheduling pages use).
 const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
@@ -29,9 +34,70 @@ interface Extracted {
 
 const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp'
 
+/** The member's own submissions with their pending / paid / rejected status. */
+function MyExpensesTable() {
+  const { t } = useTranslation('finance')
+  const { data } = useMyExpenses()
+  const rows = data ?? []
+  if (rows.length === 0) return null
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('expenseMineTitle')}</h2>
+      <div className="mt-2 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseDate')}</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseAmount')}</TableHead>
+              <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseVendor')}</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseStatusCol')}</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((e) => (
+              <TableRow key={e.id} className="min-h-[44px]">
+                <TableCell className="text-sm text-gray-500 dark:text-gray-400">
+                  {e.date_created ? formatDateCompactZurich(e.date_created) : '—'}
+                </TableCell>
+                <TableCell className="text-sm font-medium tabular-nums text-gray-900 dark:text-gray-100">
+                  {formatExpenseAmount(e)}
+                </TableCell>
+                <TableCell className="hidden sm:table-cell whitespace-normal break-words text-sm text-gray-700 dark:text-gray-300">
+                  {e.vendor || e.description || '—'}
+                </TableCell>
+                <TableCell>
+                  <ExpenseStatusBadge status={e.status} />
+                  {e.finance_note && (
+                    <p className="mt-1 whitespace-normal break-words text-xs text-gray-500 dark:text-gray-400">{e.finance_note}</p>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  {e.file && (
+                    <button
+                      type="button"
+                      onClick={() => void openExpenseReceipt(e.id).catch(() => toast.error(t('expenseReceiptError')))}
+                      className="inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                      title={t('expenseReceipt')}
+                    >
+                      <Receipt className="h-4 w-4" />
+                      <span className="hidden sm:inline">{t('expenseReceipt')}</span>
+                    </button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  )
+}
+
 export default function ExpenseUploadPage() {
   const { t } = useTranslation('finance')
   const { user } = useAuth()
+  const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
 
@@ -149,6 +215,7 @@ export default function ExpenseUploadPage() {
       })
       toast.success(t('expenseSuccess'))
       resetForm()
+      void qc.invalidateQueries({ queryKey: ['finance', 'my-expenses'] })
     } catch {
       setError(t('expenseError'))
       setStep('review')
@@ -295,6 +362,9 @@ export default function ExpenseUploadPage() {
           </Button>
         </form>
       )}
+
+      {/* Previously submitted expenses + their status */}
+      <MyExpensesTable />
     </div>
   )
 }

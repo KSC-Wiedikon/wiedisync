@@ -13,9 +13,12 @@ export default {
   resultAvailable: 'Resultat',
   dutyDelegation: 'Schriiberdienst',
   memberJoinRequest: 'Biträttsaafrag',
+  expenseStatus: 'Spese',
   eventInvite: 'Aalass-Iiladig',
   newReport: 'Meldig',
   member_join_request: '{{memberName}} möcht {{teamName}} biträte',
+  expense_paid: 'Dini Spese über {{amount}} sind zahlt worde.',
+  expense_rejected: 'Dini Spese über {{amount}} sind abglehnt worde.',
   // Delegation notification messages
   duty_delegation_request: '{{from}} möcht dir de {{role}}-Iisatz für {{game}} am {{date}} übergäh.',
   duty_delegation_accepted: '{{to}} hät de {{role}}-Iisatz für {{game}} übernoh.',

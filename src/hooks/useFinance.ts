@@ -4,7 +4,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useCollection } from '../lib/query'
 import { useAuth } from './useAuth'
-import { kscwApi, fetchAllItems } from '../lib/api'
+import { kscwApi, fetchAllItems, API_URL } from '../lib/api'
 import type {
   FinanceInvoice, FinanceTransaction, FinanceAccount, FinanceFiscalYear, FinanceImport,
 } from '../modules/finance/types'
@@ -248,9 +248,94 @@ export function useMyPayouts() {
   const { user } = useAuth()
   return useQuery({
     queryKey: ['finance', 'my-payouts', user?.id ?? null],
-    queryFn: () => fetchAllItems<FinancePayout>('finance_payouts', { fields: PAYOUT_FIELDS, sort: ['-date_created'] }),
+    // Explicit own-member filter — a finance/board viewer's read-all grant would
+    // otherwise widen this member-facing query to every member's pay-outs.
+    queryFn: () => fetchAllItems<FinancePayout>('finance_payouts', {
+      filter: { member: { user: { _eq: user!.id } } }, fields: PAYOUT_FIELDS, sort: ['-date_created'],
+    }),
     enabled: !!user,
   })
+}
+
+/** An expense reimbursement submission from /finance/expense (migration 177). */
+export interface FinanceExpense {
+  id: string | number
+  member?: { id: string | number; first_name?: string | null; last_name?: string | null } | string | number | null
+  file?: string | null
+  amount?: number | string | null
+  currency?: string | null
+  expense_date?: string | null
+  vendor?: string | null
+  description?: string | null
+  reference?: string | null
+  pay_to_iban?: string | null
+  member_note?: string | null
+  status?: string | null
+  finance_note?: string | null
+  payout?: string | number | null
+  status_changed_by_name?: string | null
+  date_created?: string | null
+}
+const EXPENSE_FIELDS = [
+  'id', 'member.id', 'member.first_name', 'member.last_name', 'file', 'amount', 'currency',
+  'expense_date', 'vendor', 'description', 'reference', 'pay_to_iban', 'member_note',
+  'status', 'finance_note', 'payout', 'status_changed_by_name', 'date_created',
+]
+
+/** "EUR 1'234.50" — expense amounts keep their own currency (unlike formatChf). */
+export const formatExpenseAmount = (e: FinanceExpense) =>
+  `${e.currency || 'CHF'} ${toNum(e.amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+/** The current member's own expense submissions. Explicitly filtered by the
+ *  caller's member.user — the member policy scopes to own, but a finance/board
+ *  viewer's read-all grant would otherwise widen this member-facing query to
+ *  every member's submissions (policies union). */
+export function useMyExpenses() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['finance', 'my-expenses', user?.id ?? null],
+    queryFn: () => fetchAllItems<FinanceExpense>('finance_expenses', {
+      filter: { member: { user: { _eq: user!.id } } }, fields: EXPENSE_FIELDS, sort: ['-date_created'],
+    }),
+    enabled: !!user,
+  })
+}
+
+/** All expense submissions (finance/board — Expenses tab). */
+export function useAllExpenses(enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'expenses'],
+    queryFn: () => fetchAllItems<FinanceExpense>('finance_expenses', { fields: EXPENSE_FIELDS, sort: ['-date_created'] }),
+    enabled,
+  })
+}
+
+/** Finance-only expense update (status / note / details) via the kscw endpoint —
+ *  the endpoint owns the side effects (member notification, auto-payout). */
+export function patchExpense(id: string | number, body: Partial<FinanceExpense>) {
+  return kscwApi<{ success: boolean; expense: FinanceExpense; payoutCreated: boolean; payoutCancelled: boolean; payoutSkipped?: string }>(
+    `/expenses/${id}`, { method: 'PATCH', body },
+  )
+}
+
+const RECEIPT_EXT: Record<string, string> = {
+  'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+}
+
+/** Download an expense receipt (endpoint checks owner-or-finance). Anchor-click
+ *  download, NOT window.open — a popup after an async fetch gets blocked on iOS. */
+export async function openExpenseReceipt(id: string | number): Promise<void> {
+  const res = await fetch(`${API_URL}/kscw/expenses/${id}/receipt`, { credentials: 'include' })
+  if (!res.ok) throw new Error(`Receipt fetch failed (${res.status})`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `expense-receipt-${id}.${RECEIPT_EXT[blob.type] ?? 'pdf'}`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 /** Import/sync provenance history, newest first (board only). */

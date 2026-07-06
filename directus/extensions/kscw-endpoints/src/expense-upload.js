@@ -1,25 +1,34 @@
 /**
- * Expense reimbursement upload + OCR.
+ * Expense reimbursement upload + OCR + in-app review queue.
  *
  * Members who paid for something out of pocket upload the receipt/invoice; the
  * OCR endpoint extracts amount/date/vendor/description (so they don't retype it);
- * the submit endpoint emails the confirmed data + the file to finance. No in-app
- * review queue (email-only) — the file lives in directus_files, the audit trail
- * in user_logs (writeUserLog on submit, per CLAUDE.md actor-capture rule).
+ * the submit endpoint persists a finance_expenses row (migration 177) AND emails
+ * the confirmed data + the file to finance (belt-and-braces side channel). The
+ * member follows the status (pending → paid | rejected) on /finance/expense;
+ * finance manages the queue on /admin/finance → Expenses.
  *
- * POST /kscw/expenses/ocr     body { fileId }                → extracted fields
- * POST /kscw/expenses/submit  body { fileId, amount, ... }   → { success: true }
+ * POST  /kscw/expenses/ocr          body { fileId }              → extracted fields
+ * POST  /kscw/expenses/submit       body { fileId, amount, ... } → { success, id }
+ * PATCH /kscw/expenses/:id          finance-only status/detail edit; status → paid
+ *                                   auto-creates the linked finance_payouts row and
+ *                                   notifies the member (in-app + email + push);
+ *                                   status → rejected notifies too
+ * GET   /kscw/expenses/:id/receipt  streams the receipt (owner or finance)
  *
- * Both require an authenticated member (session cookie). OCR reuses the existing
+ * All require an authenticated member (session cookie). OCR reuses the existing
  * ANTHROPIC_API_KEY + the raw-fetch pattern from sql-ai.js; the file bytes are
- * read from the local uploads dir via directus_files.filename_disk.
+ * read from the local uploads dir via directus_files.filename_disk. Writes are
+ * raw knex → writeUserLog on every mutation (CLAUDE.md actor-capture rule).
  */
 
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { writeErrorLog } from './error-log.js'
 import { writeUserLog } from './activity-log.js'
-import { buildEmailLayout, buildInfoCard, escHtml } from './email-template.js'
+import { buildEmailLayout, buildInfoCard, escHtml, FRONTEND_URL } from './email-template.js'
+import { sendPushToMembers } from './web-push.js'
+import { sendLocalizedPush, memberLangToCode } from './push-i18n.js'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 const OCR_MODEL = process.env.EXPENSE_OCR_MODEL || 'claude-haiku-4-5'
@@ -109,6 +118,83 @@ function requireMember(req) {
     err.status = 401
     throw err
   }
+}
+
+/** ISO 13616 mod-97 IBAN check (server-side mirror of src/utils/iban.ts). */
+function isValidIban(raw) {
+  const iban = String(raw || '').replace(/\s+/g, '').toUpperCase()
+  if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(iban)) return false
+  const rearranged = iban.slice(4) + iban.slice(0, 4)
+  let remainder = 0
+  for (const ch of rearranged) {
+    const val = ch >= 'A' ? String(ch.charCodeAt(0) - 55) : ch
+    for (const d of val) remainder = (remainder * 10 + Number(d)) % 97
+  }
+  return remainder === 1
+}
+
+const cleanIban = (s) => String(s || '').replace(/\s+/g, '').toUpperCase()
+const isChLiIban = (i) => /^(CH|LI)/.test(i) && isValidIban(i)
+
+const fmtAmountFor = (amount, currency) =>
+  `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+/** Accept ONLY strict ISO yyyy-mm-dd (what <input type=date> emits); anything
+ *  else → null. Guards the Postgres `date` column against silent MDY swaps and
+ *  22007 insert-500s on locale-formatted text (e.g. "12.05.2026"). */
+function toISODate(v) {
+  if (v == null) return null
+  if (v instanceof Date) return v.toISOString().slice(0, 10)
+  const s = String(v).slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  const d = new Date(`${s}T00:00:00Z`)
+  return Number.isNaN(d.getTime()) ? null : s
+}
+
+/** yyyy-mm-dd | Date → Swiss dd.mm.yyyy (raw-knex `date` cols come back as Date
+ *  objects in this stack — see ical-feed.js / broadcast-helpers.js). */
+function fmtDateSwiss(v) {
+  const iso = toISODate(v)
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('-')
+  return `${d}.${m}.${y}`
+}
+
+// Per-locale labels for the notification email's detail card (the card VALUES
+// come from data; only these fixed labels need translating).
+const CARD_LABELS = {
+  de: { amount: 'Betrag', date: 'Datum', vendor: 'Händler', description: 'Beschreibung' },
+  gsw: { amount: 'Betrag', date: 'Datum', vendor: 'Händler', description: 'Beschriibig' },
+  en: { amount: 'Amount', date: 'Date', vendor: 'Vendor', description: 'Description' },
+  fr: { amount: 'Montant', date: 'Date', vendor: 'Commerçant', description: 'Description' },
+  it: { amount: 'Importo', date: 'Data', vendor: 'Fornitore', description: 'Descrizione' },
+}
+
+// Per-locale mapping of a machine payout-skip reason to member-facing prose is
+// on the FRONTEND (expensePayoutSkipped_*). The endpoint returns only the CODE.
+const PAYOUT_SKIP = {
+  NON_CHF: 'NON_CHF',
+  NO_IBAN: 'NO_IBAN',
+  ADDRESS_INCOMPLETE: 'ADDRESS_INCOMPLETE',
+  FAILED: 'FAILED',
+}
+
+// Per-locale member email strings for the status-change notification.
+const STATUS_MAIL = {
+  paid: {
+    de: { subject: (a) => `WiediSync — Spesen bezahlt (${a})`, title: 'Spesen bezahlt', intro: (a) => `Deine Spesen über <strong>${a}</strong> wurden bezahlt.`, noteLabel: 'Notiz der Finanzabteilung', cta: 'Spesen ansehen' },
+    gsw: { subject: (a) => `WiediSync — Spese zahlt (${a})`, title: 'Spese zahlt', intro: (a) => `Dini Spese über <strong>${a}</strong> sind zahlt worde.`, noteLabel: 'Notiz vo de Finanzabteilig', cta: 'Spese aaluege' },
+    en: { subject: (a) => `WiediSync — Expense paid (${a})`, title: 'Expense paid', intro: (a) => `Your expense of <strong>${a}</strong> has been paid.`, noteLabel: 'Note from finance', cta: 'View expenses' },
+    fr: { subject: (a) => `WiediSync — Note de frais payée (${a})`, title: 'Note de frais payée', intro: (a) => `Ta note de frais de <strong>${a}</strong> a été payée.`, noteLabel: 'Note du service financier', cta: 'Voir les notes de frais' },
+    it: { subject: (a) => `WiediSync — Spesa pagata (${a})`, title: 'Spesa pagata', intro: (a) => `La tua spesa di <strong>${a}</strong> è stata pagata.`, noteLabel: 'Nota della finanza', cta: 'Vedi le spese' },
+  },
+  rejected: {
+    de: { subject: (a) => `WiediSync — Spesen abgelehnt (${a})`, title: 'Spesen abgelehnt', intro: (a) => `Deine Spesen über <strong>${a}</strong> wurden abgelehnt.`, noteLabel: 'Begründung', cta: 'Spesen ansehen' },
+    gsw: { subject: (a) => `WiediSync — Spese abglehnt (${a})`, title: 'Spese abglehnt', intro: (a) => `Dini Spese über <strong>${a}</strong> sind abglehnt worde.`, noteLabel: 'Begründig', cta: 'Spese aaluege' },
+    en: { subject: (a) => `WiediSync — Expense rejected (${a})`, title: 'Expense rejected', intro: (a) => `Your expense of <strong>${a}</strong> was rejected.`, noteLabel: 'Reason', cta: 'View expenses' },
+    fr: { subject: (a) => `WiediSync — Note de frais refusée (${a})`, title: 'Note de frais refusée', intro: (a) => `Ta note de frais de <strong>${a}</strong> a été refusée.`, noteLabel: 'Motif', cta: 'Voir les notes de frais' },
+    it: { subject: (a) => `WiediSync — Spesa respinta (${a})`, title: 'Spesa respinta', intro: (a) => `La tua spesa di <strong>${a}</strong> è stata respinta.`, noteLabel: 'Motivo', cta: 'Vedi le spese' },
+  },
 }
 
 /** Load a directus_files row + its raw bytes from local storage.
@@ -259,14 +345,15 @@ export function registerExpenseUpload(router, { database, logger, services, getS
         return res.status(400).json({ error: 'A positive amount is required' })
       }
       const currency = String(req.body?.currency || 'CHF').trim().toUpperCase().slice(0, 3)
-      const date = req.body?.date ? String(req.body.date).slice(0, 10) : ''
+      // Strict ISO or null — never feed locale-formatted text to the date column.
+      const date = toISODate(req.body?.date)
       const vendor = String(req.body?.vendor || '').replace(/[\r\n]/g, ' ').slice(0, 200)
       const description = String(req.body?.description || '').replace(/[\r\n]/g, ' ').slice(0, 300)
       const reference = String(req.body?.reference || '').replace(/[\r\n]/g, ' ').slice(0, 140)
       const note = String(req.body?.note || '').slice(0, 1000)
       const payToIban = String(req.body?.payToIban || '').replace(/\s+/g, '').toUpperCase().slice(0, 34)
 
-      // Submitter identity for the finance email.
+      // Submitter identity for the finance email + the persisted row.
       const member = await database('members')
         .where({ user: userId })
         .first('id', 'first_name', 'last_name', 'email')
@@ -275,12 +362,44 @@ export function registerExpenseUpload(router, { database, logger, services, getS
 
       const { row, bytes } = await loadFile(database, fileId, userId)
 
+      // Persist the submission (migration 177) so the member can follow the
+      // status and finance has an in-app queue. Degrades to email-only if the
+      // member row is missing OR the table doesn't exist yet (ext deployed ahead
+      // of its migration — the 2026-06-19 failure mode), so submit never fully
+      // regresses to a 500.
+      let expenseId = null
+      if (member) {
+        try {
+          const [inserted] = await database('finance_expenses')
+            .insert({
+              member: member.id,
+              file: fileId,
+              amount: Number(amount),
+              currency,
+              expense_date: date,
+              vendor: vendor || null,
+              description: description || null,
+              reference: reference || null,
+              pay_to_iban: payToIban || null,
+              member_note: note || null,
+              status: 'pending',
+              user_created: userId,
+            })
+            .returning('id')
+          expenseId = typeof inserted === 'object' ? inserted.id : inserted
+        } catch (insErr) {
+          log.error(`expense submit: persist failed (${insErr.message}) — email-only fallback`)
+        }
+      } else {
+        log.warn(`expense submit: no members row for user ${userId} — email-only fallback`)
+      }
+
       const fmtAmount = `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       const rows = [
         { label: 'Member', value: submitterName },
         ...(submitterEmail ? [{ label: 'Email', value: submitterEmail }] : []),
         { label: 'Amount', value: fmtAmount, halfWidth: true },
-        { label: 'Date', value: date || '—', halfWidth: true },
+        { label: 'Date', value: fmtDateSwiss(date), halfWidth: true },
         { label: 'Vendor', value: vendor || '—' },
         { label: 'Description', value: description || '—' },
         ...(reference ? [{ label: 'Reference', value: reference }] : []),
@@ -296,34 +415,319 @@ export function registerExpenseUpload(router, { database, logger, services, getS
         greeting: 'A member submitted an expense for reimbursement. The original document is attached.',
       })
 
-      const schema = await getSchema()
-      const { MailService } = services
-      const mail = new MailService({ schema, knex: database })
-      await mail.send({
-        to: FINANCE_INBOX_EMAIL,
-        ...(submitterEmail ? { cc: submitterEmail } : {}),
-        subject: `Spesen / expense — ${submitterName} — ${fmtAmount}`,
-        html,
-        attachments: [{
-          filename: row.filename_download || 'receipt',
-          content: bytes,
-          contentType: row.type,
-        }],
-      })
+      // The persisted row is now the source of truth; the finance email is a
+      // belt-and-braces side channel. So a mail failure must NOT 500 the request
+      // once the row is saved — that's what made a retry create a duplicate row.
+      // Email-only fallback (no row) keeps the mail failure fatal so the member
+      // isn't told "sent" when nothing was delivered.
+      try {
+        const schema = await getSchema()
+        const { MailService } = services
+        const mail = new MailService({ schema, knex: database })
+        await mail.send({
+          to: FINANCE_INBOX_EMAIL,
+          ...(submitterEmail ? { cc: submitterEmail } : {}),
+          subject: `Spesen / expense — ${submitterName} — ${fmtAmount}`,
+          html,
+          attachments: [{
+            filename: row.filename_download || 'receipt',
+            content: bytes,
+            contentType: row.type,
+          }],
+        })
+      } catch (mailErr) {
+        if (!expenseId) throw mailErr
+        log.error(`expense submit: finance email failed (${mailErr.message}) — row ${expenseId} persisted, continuing`)
+      }
 
       // Actor capture: this is a "send" mutation (CLAUDE.md audit rule).
       await writeUserLog(database, log, {
         accountability: req.accountability,
         action: 'submit_expense',
-        collection: 'directus_files',
-        recordId: fileId,
+        collection: expenseId ? 'finance_expenses' : 'directus_files',
+        recordId: expenseId ?? fileId,
         data: { amount: Number(amount), currency, date, vendor },
       })
 
       log.info(`Expense submitted by member ${member?.id ?? '?'} (${fmtAmount})`)
-      res.json({ success: true })
+      res.json({ success: true, id: expenseId })
     } catch (err) {
       log.error({ msg: `expense submit: ${err.message}`, stack: err.stack })
+      res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
+    }
+  })
+
+  // ── Shared: resolve caller → member row + finance capability ───────────────
+  async function actingMember(req) {
+    const userId = req.accountability?.user
+    if (!userId) return null
+    const m = await database('members').where('user', userId).first('id', 'first_name', 'last_name', 'email', 'role')
+    if (!m) return null
+    const roles = Array.isArray(m.role) ? m.role : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
+    return {
+      id: m.id,
+      name: [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null,
+      email: m.email || null,
+      roles,
+    }
+  }
+  // Same gate as finance.js: board or the orthogonal 'finance' role.
+  const canManageFinance = (req, mem) =>
+    !!req.accountability?.admin || (!!mem && ['vorstand', 'admin', 'superuser', 'finance'].some((r) => mem.roles.includes(r)))
+
+  // ── Receipt: stream the uploaded file (owner or finance) ────────────────────
+  router.get('/expenses/:id/receipt', async (req, res) => {
+    try {
+      requireMember(req)
+      const expenseId = Number(req.params.id)
+      if (!Number.isInteger(expenseId) || expenseId <= 0) return res.status(400).json({ error: 'Invalid id' })
+
+      const expense = await database('finance_expenses').where({ id: expenseId }).first('id', 'member', 'file')
+      if (!expense || !expense.file) return res.status(404).json({ error: 'Not found' })
+
+      const mem = await actingMember(req)
+      const isOwner = !!mem && mem.id === expense.member
+      if (!isOwner && !canManageFinance(req, mem)) return res.status(404).json({ error: 'Not found' })
+
+      // No owner scoping here — finance may fetch a file another user uploaded.
+      const row = await database('directus_files')
+        .where({ id: expense.file })
+        .first('id', 'filename_disk', 'filename_download', 'type', 'filesize')
+      if (!row || !row.filename_disk) return res.status(404).json({ error: 'Not found' })
+      const filePath = path.resolve(UPLOAD_DIR, row.filename_disk)
+      if (!filePath.startsWith(path.resolve(UPLOAD_DIR) + path.sep)) return res.status(400).json({ error: 'Invalid file path' })
+      const bytes = await readFile(filePath)
+
+      res.setHeader('Content-Type', row.type || 'application/octet-stream')
+      res.setHeader('Content-Disposition', `inline; filename="${(row.filename_download || 'receipt').replace(/[^\w.\- ]/g, '_')}"`)
+      res.send(bytes)
+    } catch (err) {
+      log.error({ msg: `expense receipt: ${err.message}` })
+      res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
+    }
+  })
+
+  // ── Update (finance-only): details, note, status lifecycle ──────────────────
+  router.patch('/expenses/:id', async (req, res) => {
+    try {
+      requireMember(req)
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+
+      const expenseId = Number(req.params.id)
+      if (!Number.isInteger(expenseId) || expenseId <= 0) return res.status(400).json({ error: 'Invalid id' })
+
+      const b = req.body || {}
+      const patch = {}
+      if (b.amount !== undefined) {
+        if (b.amount == null || Number.isNaN(Number(b.amount)) || Number(b.amount) <= 0) {
+          return res.status(400).json({ error: 'A positive amount is required' })
+        }
+        patch.amount = Number(b.amount)
+      }
+      if (b.currency !== undefined) patch.currency = String(b.currency || 'CHF').trim().toUpperCase().slice(0, 3)
+      if (b.expense_date !== undefined) patch.expense_date = toISODate(b.expense_date)
+      if (b.vendor !== undefined) patch.vendor = String(b.vendor || '').replace(/[\r\n]/g, ' ').slice(0, 200) || null
+      if (b.description !== undefined) patch.description = String(b.description || '').replace(/[\r\n]/g, ' ').slice(0, 300) || null
+      if (b.reference !== undefined) patch.reference = String(b.reference || '').replace(/[\r\n]/g, ' ').slice(0, 140) || null
+      if (b.pay_to_iban !== undefined) {
+        const iban = cleanIban(b.pay_to_iban).slice(0, 34)
+        if (iban && !isValidIban(iban)) return res.status(400).json({ error: 'Invalid IBAN' })
+        patch.pay_to_iban = iban || null
+      }
+      if (b.finance_note !== undefined) patch.finance_note = String(b.finance_note || '').slice(0, 1000) || null
+      if (b.status !== undefined && !['pending', 'paid', 'rejected'].includes(String(b.status))) {
+        return res.status(400).json({ error: 'Invalid status' })
+      }
+      if (b.status !== undefined) patch.status = String(b.status)
+      if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'Nothing to update' })
+
+      // Serialize concurrent PATCHes on this row inside a transaction with a row
+      // lock — a double-fired "paid" click or two treasurers acting at once would
+      // otherwise both pass the !expense.payout check and mint two payouts (double
+      // reimbursement). The lock also makes the leave-paid / edit-snapshot / mint
+      // branches mutually exclusive. Email + push run AFTER commit (below), never
+      // holding the lock across a network call.
+      const txResult = await database.transaction(async (trx) => {
+        const expense = await trx('finance_expenses').where({ id: expenseId }).forUpdate().first()
+        if (!expense) { const e = new Error('Not found'); e.status = 404; throw e }
+
+        const prevStatus = expense.status
+        const nextStatus = patch.status !== undefined ? patch.status : prevStatus
+        const statusChanged = patch.status !== undefined && nextStatus !== prevStatus
+        if (statusChanged) {
+          patch.status_changed_by_name = mem?.name || (req.accountability?.admin ? 'Admin' : null)
+          patch.status_changed_by_email = mem?.email || null
+          patch.status_changed_at = new Date()
+        }
+
+        await trx('finance_expenses').where({ id: expenseId }).update(patch)
+        const updated = { ...expense, ...patch }
+
+        let payoutCreated = false
+        let payoutSkipped = null
+        let payoutCancelled = false
+        // Load the payee once — needed for both the payout snapshot and the notify.
+        let payee = null
+        if (statusChanged && (nextStatus === 'paid' || nextStatus === 'rejected')) {
+          payee = await trx('members')
+            .where({ id: expense.member })
+            .first('id', 'first_name', 'last_name', 'email', 'language', 'iban',
+              'adresse', 'plz', 'ort', 'billing_different', 'billing_iban',
+              'billing_name', 'billing_address', 'billing_plz', 'billing_ort')
+        }
+
+        // (a) Leaving 'paid' (mis-click correction) → cancel the auto-payout so the
+        // member's My-finances no longer shows a payable QR-bill for money that
+        // isn't owed, and finance's ledger isn't left with a phantom paid row.
+        if (prevStatus === 'paid' && nextStatus !== 'paid' && expense.payout) {
+          await trx('finance_payouts').where({ id: expense.payout }).update({ status: 'cancelled' })
+          await trx('finance_expenses').where({ id: expenseId }).update({ payout: null })
+          updated.payout = null
+          payoutCancelled = true
+        }
+
+        // (b) Editing a still-paid expense's money fields → keep the linked payout
+        // snapshot (amount / IBAN / message) in sync so the treasurer never pays
+        // a stale amount from the payout list.
+        if (nextStatus === 'paid' && !statusChanged && expense.payout) {
+          const pu = {}
+          if (patch.amount !== undefined) pu.amount = Number(updated.amount)
+          if (patch.pay_to_iban !== undefined && isChLiIban(cleanIban(updated.pay_to_iban))) {
+            pu.iban = cleanIban(updated.pay_to_iban)
+          }
+          if (patch.vendor !== undefined || patch.description !== undefined) {
+            pu.message = `Spesen — ${[updated.vendor, updated.description].filter(Boolean).join(', ')}`.slice(0, 140)
+          }
+          if (Object.keys(pu).length) await trx('finance_payouts').where({ id: expense.payout }).update(pu)
+        }
+
+        // (c) Entering 'paid' fresh → auto-create the linked finance_payouts row.
+        if (nextStatus === 'paid' && prevStatus !== 'paid' && !expense.payout && payee) {
+          if (String(updated.currency || 'CHF') !== 'CHF') {
+            payoutSkipped = PAYOUT_SKIP.NON_CHF
+          } else {
+            const memberName = [payee.first_name, payee.last_name].filter(Boolean).join(' ').trim()
+            const useBilling = !!payee.billing_different && isChLiIban(cleanIban(payee.billing_iban))
+            // The IBAN the member asked to be paid on wins; then billing; then profile.
+            let iban = null; let name = memberName; let street = payee.adresse; let zip = payee.plz; let city = payee.ort
+            if (isChLiIban(cleanIban(updated.pay_to_iban))) {
+              iban = cleanIban(updated.pay_to_iban)
+            } else if (useBilling) {
+              iban = cleanIban(payee.billing_iban)
+              name = (payee.billing_name || '').trim() || memberName
+              street = payee.billing_address; zip = payee.billing_plz; city = payee.billing_ort
+            } else if (isChLiIban(cleanIban(payee.iban))) {
+              iban = cleanIban(payee.iban)
+            }
+            if (!iban) {
+              payoutSkipped = PAYOUT_SKIP.NO_IBAN
+            } else if (!name || !zip || !city) {
+              payoutSkipped = PAYOUT_SKIP.ADDRESS_INCOMPLETE
+            } else {
+              try {
+                const message = `Spesen — ${[updated.vendor, updated.description].filter(Boolean).join(', ')}`.slice(0, 140)
+                const [payoutIns] = await trx('finance_payouts')
+                  .insert({
+                    member: expense.member,
+                    amount: Number(updated.amount),
+                    currency: 'CHF',
+                    message,
+                    iban,
+                    payee_name: name,
+                    payee_address: street || null,
+                    payee_zip: zip || null,
+                    payee_ort: city || null,
+                    status: 'paid',
+                    created_by_name: mem?.name || null,
+                    created_by_email: mem?.email || null,
+                    user_created: req.accountability.user,
+                  })
+                  .returning('id')
+                const payoutId = typeof payoutIns === 'object' ? payoutIns.id : payoutIns
+                await trx('finance_expenses').where({ id: expenseId }).update({ payout: payoutId })
+                updated.payout = payoutId
+                payoutCreated = true
+              } catch (e) {
+                log.error(`expense auto-payout: ${e.message}`)
+                payoutSkipped = PAYOUT_SKIP.FAILED
+              }
+            }
+          }
+        }
+
+        return { expense, updated, prevStatus, nextStatus, statusChanged, payoutCreated, payoutSkipped, payoutCancelled, payee }
+      })
+
+      const { expense, updated, prevStatus, nextStatus, statusChanged, payoutCreated, payoutSkipped, payoutCancelled, payee } = txResult
+
+      // ── Notify the member (email/push are slow → outside the transaction) ──────
+      if (statusChanged && (nextStatus === 'paid' || nextStatus === 'rejected')) {
+        if (payee) {
+          const fmtAmount = fmtAmountFor(updated.amount, updated.currency || 'CHF')
+          try {
+            await database('notifications').insert({
+              member: payee.id,
+              type: 'expense_status',
+              title: nextStatus === 'paid' ? 'expense_paid' : 'expense_rejected',
+              body: JSON.stringify({ amount: fmtAmount, vendor: updated.vendor || '' }),
+              activity_type: 'expense',
+              activity_id: String(expenseId),
+              read: false,
+            })
+          } catch (e) {
+            log.error(`expense notify (in-app): ${e.message}`)
+          }
+          if (payee.email) {
+            try {
+              const code = memberLangToCode(payee.language)
+              const tt = STATUS_MAIL[nextStatus][code] || STATUS_MAIL[nextStatus].de
+              const cl = CARD_LABELS[code] || CARD_LABELS.de
+              const rows = [
+                { label: cl.amount, value: fmtAmount, halfWidth: true },
+                { label: cl.date, value: fmtDateSwiss(updated.expense_date), halfWidth: true },
+                ...(updated.vendor ? [{ label: cl.vendor, value: updated.vendor }] : []),
+                ...(updated.description ? [{ label: cl.description, value: updated.description }] : []),
+              ]
+              let bodyHtml = `<div style="font-size:14px;color:#e2e8f0;margin-bottom:16px">${tt.intro(escHtml(fmtAmount))}</div>` + buildInfoCard(rows)
+              if (updated.finance_note) {
+                bodyHtml += `<div style="margin-top:14px;font-size:14px;color:#e2e8f0"><div style="font-size:11px;text-transform:uppercase;color:#64748b;letter-spacing:0.5px;margin-bottom:4px">${tt.noteLabel}</div>${escHtml(updated.finance_note)}</div>`
+              }
+              const html = buildEmailLayout(bodyHtml, {
+                title: tt.title,
+                subtitle: 'WiediSync',
+                ctaUrl: `${FRONTEND_URL}/finance/expense`,
+                ctaLabel: tt.cta,
+              })
+              const schema = await getSchema()
+              const { MailService } = services
+              const mail = new MailService({ schema, knex: database })
+              await mail.send({ to: payee.email, subject: tt.subject(fmtAmount), html })
+            } catch (e) {
+              log.error(`expense notify (email): ${e.message}`)
+            }
+          }
+          sendLocalizedPush(
+            database, [payee.id],
+            (ids, title, body) => sendPushToMembers(database, ids, title, body, `${FRONTEND_URL}/finance/expense`, `expense-${expenseId}`, log),
+            `expense.${nextStatus}.title`, `expense.${nextStatus}.body`,
+            { amount: fmtAmount },
+          ).catch((e) => log.error(`expense notify (push): ${e.message}`))
+        }
+      }
+
+      // Actor capture (raw-knex mutation, CLAUDE.md audit rule).
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: nextStatus !== prevStatus ? `expense_status_${nextStatus}` : 'update_expense',
+        collection: 'finance_expenses',
+        recordId: expenseId,
+        data: { ...patch, ...(payoutCreated ? { payout: updated.payout } : {}) },
+      })
+
+      res.json({ success: true, expense: updated, payoutCreated, payoutCancelled, ...(payoutSkipped ? { payoutSkipped } : {}) })
+    } catch (err) {
+      log.error({ msg: `expense update: ${err.message}`, stack: err.stack })
       res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
     }
   })

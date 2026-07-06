@@ -972,6 +972,16 @@ async function main() {
   await setPermRead(MEMBER_POLICY, 'finance_invoices', { member: { user: { _eq: '$CURRENT_USER' } } }, MEMBER_INVOICE_FIELDS)
   // Pay-outs / reimbursements the club owes this member (migration 137) — own only.
   await setPermRead(MEMBER_POLICY, 'finance_payouts', OWN_MEMBER)
+  // Expense submissions (migration 177) — own only, read-only; the member writes
+  // via POST /kscw/expenses/submit, status changes via PATCH /kscw/expenses/:id
+  // (finance-gated), never the items API. Field-scoped like finance_invoices so
+  // the internal actor columns (status_changed_by_name/email, user_created) stay
+  // endpoint-only and aren't readable via /items/finance_expenses.
+  await setPermRead(MEMBER_POLICY, 'finance_expenses', OWN_MEMBER, [
+    'id', 'member', 'file', 'amount', 'currency', 'expense_date', 'vendor',
+    'description', 'reference', 'pay_to_iban', 'member_note', 'status',
+    'finance_note', 'payout', 'status_changed_at', 'date_created',
+  ])
 
   // Files — create (upload profile pics)
   await setPerm(MEMBER_POLICY, 'directus_files', 'create')
@@ -1490,6 +1500,8 @@ async function main() {
     // Dues-rate schedule + issued batches (migration 138) — board read; the run
     // writes go through /kscw/finance/dues-* (canManageFinance), not the items API.
     'finance_dues_rates', 'finance_dues_runs',
+    // Expense submissions (migration 177) — board read; writes via /kscw/expenses/*.
+    'finance_expenses',
   ]
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)
@@ -1628,6 +1640,8 @@ async function main() {
     'finance_invoice_member_overrides',
     // Dues-rate schedule + issued batches (migration 138) — read; writes via endpoints.
     'finance_dues_rates', 'finance_dues_runs',
+    // Expense submissions (migration 177) — read; writes via PATCH /kscw/expenses/:id.
+    'finance_expenses',
   ]
   for (const col of FINANCE_READ_ALL) {
     await setPermRead(FINANCE_POLICY, col)

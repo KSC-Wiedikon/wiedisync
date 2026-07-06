@@ -20,10 +20,11 @@ import BudgetTab from './BudgetTab'
 import DunningConsole from './DunningConsole'
 import LedgerTab from './LedgerTab'
 import FinanceMemberExplorer from './FinanceMemberExplorer'
+import ExpensesTab from './ExpensesTab'
 import ReportExportMenu from './ReportExportMenu'
 import type { FinanceReport } from './reportExport'
 
-type Tab = 'overview' | 'income' | 'budget' | 'balance' | 'ledger' | 'accounts' | 'invoices' | 'dues' | 'dunning' | 'members' | 'teams' | 'sync'
+type Tab = 'overview' | 'income' | 'budget' | 'balance' | 'ledger' | 'accounts' | 'invoices' | 'dues' | 'dunning' | 'expenses' | 'members' | 'teams' | 'sync'
 
 /** On-demand "Sync now" — requests a ClubDesk finance import and polls until the
  *  host dispatcher reports done/failed (state changes in the handler, not an effect). */
@@ -170,7 +171,7 @@ export default function FinancePage() {
   const { t } = useTranslation('finance')
   // Tab lives in the URL (?tab=) so a refresh / shared link keeps the view.
   const [searchParams, setSearchParams] = useSearchParams()
-  const TABS: Tab[] = ['overview', 'income', 'budget', 'balance', 'ledger', 'accounts', 'invoices', 'dues', 'dunning', 'members', 'teams', 'sync']
+  const TABS: Tab[] = ['overview', 'income', 'budget', 'balance', 'ledger', 'accounts', 'invoices', 'dues', 'dunning', 'expenses', 'members', 'teams', 'sync']
   const tabParam = searchParams.get('tab') as Tab | null
   const tab: Tab = tabParam && TABS.includes(tabParam) ? tabParam : 'overview'
   const setTab = (next: Tab) => setSearchParams((prev) => {
@@ -305,6 +306,7 @@ export default function FinancePage() {
             <TabBtn active={tab === 'invoices'} label={t('tabInvoices')} onClick={() => setTab('invoices')} />
             <TabBtn active={tab === 'dues'} label={t('tabDues')} onClick={() => setTab('dues')} />
             <TabBtn active={tab === 'dunning'} label={t('tabDunning')} onClick={() => setTab('dunning')} />
+            <TabBtn active={tab === 'expenses'} label={t('tabExpenses')} onClick={() => setTab('expenses')} />
             <TabBtn active={tab === 'members'} label={t('tabMembers')} onClick={() => setTab('members')} />
             <TabBtn active={tab === 'teams'} label={t('tabTeams')} onClick={() => setTab('teams')} />
             <TabBtn active={tab === 'sync'} label={t('tabSync')} onClick={() => setTab('sync')} />
@@ -321,6 +323,8 @@ export default function FinancePage() {
 
           {/* ── Dunning / Mahnwesen ── */}
           {tab === 'dunning' && <DunningConsole />}
+
+          {tab === 'expenses' && <ExpensesTab />}
 
           {/* ── Budget vs actual ── */}
           {tab === 'budget' && <BudgetTab rows={accountRows.filter((a) => a.type === 'income' || a.type === 'expense')} fiscalYearId={String(activeFyId)} fiscalYearLabel={activeFyLabel} />}

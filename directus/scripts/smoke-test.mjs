@@ -161,6 +161,9 @@ async function main() {
   })
   await check('kscw/sv-licence/me', () => api('GET', '/kscw/sv-licence/me'))
   await check('tasks (own)', () => api('GET', `/items/tasks?limit=10`))
+  // Expense submissions (migration 177) — member reads OWN rows on /finance/expense
+  // ("My submissions"); policy scopes to own, so an unfiltered read must not 4xx.
+  await check('finance_expenses (own)', () => api('GET', '/items/finance_expenses?limit=10&fields=id,amount,status'))
   await check('feedback (own)', () => api('GET', `/items/feedback?limit=10`))
   await check('announcements (published)', () => api('GET', '/items/announcements?limit=10'))
   await check('user_logs (own)', () => api('GET', `/items/user_logs?limit=10`))
