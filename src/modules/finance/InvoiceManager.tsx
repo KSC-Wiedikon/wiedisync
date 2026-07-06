@@ -355,6 +355,11 @@ export default function InvoiceManager() {
   const { t } = useTranslation('finance')
   const { data: invoicesRaw, refetch } = useFinanceInvoices()
   const invoices = invoicesRaw ?? []
+  const { data: allTeamsRaw } = useTeams('all')
+  const teamNameById = useMemo(
+    () => new Map(((allTeamsRaw ?? []) as Team[]).map((tm) => [String(tm.id), tm.name])),
+    [allTeamsRaw],
+  )
   const [showCreate, setShowCreate] = useState(false)
   const [linkTarget, setLinkTarget] = useState<FinanceInvoice | null>(null)
   const [paymentTarget, setPaymentTarget] = useState<FinanceInvoice | null>(null)
@@ -418,7 +423,7 @@ export default function InvoiceManager() {
                   <TableRow key={inv.id} className="border-gray-200 dark:border-gray-700">
                     <TableCell className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{inv.number}</TableCell>
                     <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
-                      {inv.team_name ? t('billedToTeam', { team: inv.team_name }) : inv.recipient_name || '–'}
+                      {inv.team ? t('billedToTeam', { team: teamNameById.get(String(inv.team)) ?? `#${inv.team}` }) : inv.recipient_name || '–'}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">{inv.subject}</TableCell>
                     <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(inv.amount)}</TableCell>
