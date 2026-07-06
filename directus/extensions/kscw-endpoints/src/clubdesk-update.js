@@ -177,10 +177,12 @@ const CD_PUSH_HEADERS = [
 // status to protect, so the CREATE-set CSV additionally carries
 // Beitragskategorie (captured by the signup form →
 // registrations.beitragskategorie → members.beitragskategorie via the approval
-// hook), Eintritt (the registration approval/submit date), Gruppen (derived
+// hook), Eintritt (the registration submission date — per user rule 2026-07-06
+// "the date the registration is sent", NOT approved_at), Gruppen (derived
 // from the registration's team + funktion: `VB H1 (Spieler*in)`,
 // `BB HU14 (Trainer*in)` — ClubDesk's group naming, verified against the export
-// snapshot 2026-07-05) and Status (Aktiv-/Passivmitglied — see deriveStatus).
+// snapshot 2026-07-05), Status (Aktiv-/Passivmitglied — see deriveStatus) and
+// Offiziellen Lizenz (scorer/officials licence — see deriveOffiziellenLizenz).
 // UPDATE pushes NEVER send these columns — ClubDesk stays authoritative on
 // existing contacts, and its empty-cell import behavior is unvalidated (a blank
 // cell could wipe the value in the legal register). That is why /up stashes TWO
@@ -188,7 +190,7 @@ const CD_PUSH_HEADERS = [
 // ⚠ Gruppen maps in the import wizard as free TEXT (screenshot-verified
 // 2026-07-05) — whether a commit actually CREATES the group membership is
 // unproven; the first real prod push validates it (harmless if ignored).
-export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status']
+export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -226,18 +228,41 @@ export function deriveStatus(reg, member) {
   return member?.wiedisync_active === true ? 'Aktivmitglied' : ''
 }
 
+// Derive the ClubDesk "Offiziellen Lizenz" cell for a NEW contact from the
+// member's licence booleans (set by the approval hook from the signup form's
+// scorer/referee toggles, or by hand). ClubDesk's column is single-valued —
+// observed picklist in the export: Volleyball Lizenz / OTR1 / OTR2 / OTN /
+// Keine / Sammelt Unterschriften. Confirmed mapping (user 2026-07-06): a VB
+// scorer → "Volleyball Lizenz"; the BB officials levels map by name. Referee
+// flags (referee_vb / referee_bb) have NO observed ClubDesk value → they
+// contribute nothing; no licence → empty cell (never guessed, ClubDesk stays
+// unset). Cross-sport dual holders can't happen at create time (one
+// registration = one sport) — first match in this order wins.
+export function deriveOffiziellenLizenz(m) {
+  if (m?.scorer_vb === true) return 'Volleyball Lizenz'
+  if (m?.otr1_bb === true) return 'OTR1'
+  if (m?.otr2_bb === true) return 'OTR2'
+  if (m?.otn_bb === true) return 'OTN'
+  return ''
+}
+
 // Signup-form category → ClubDesk Beitragskategorie picklist name. The form's
 // names only partially match ClubDesk's configured categories (e.g. the form
-// says "BB Lernende/Studierende", ClubDesk has "BB Student/Lehrling"; the form's
-// "BB Junior:innen" / "BB Minis" / "VB Turnier KWI" have no ClubDesk category
-// yet). ClubDesk's import treatment of an UNKNOWN category value is unvalidated
-// — fill this map once the ClubDesk-side names are confirmed. Unmapped values
-// pass through verbatim (visible in the dry-run preview before any commit).
+// says "BB Lernende/Studierende", ClubDesk has "BB Student/Lehrling"; "VB
+// Turnier KWI" has no ClubDesk category yet). ClubDesk's import treatment of
+// an UNKNOWN category value is unvalidated — fill this map as the
+// ClubDesk-side names are confirmed. Unmapped values pass through verbatim
+// (visible in the dry-run preview before any commit).
+// BB youth decided 2026-07-06 (user): the two ClubDesk categories are
+// "BB Minis Turnier" (U12 and under, CHF 210) and "BB Jugend Meisterschaft"
+// (older youth, CHF 310) — the form now submits those names directly; the two
+// entries below only translate LEGACY rows captured under the pre-2026-07-06
+// form values.
 export const CD_KATEGORIE_MAP = {
+  'BB Junior:innen': 'BB Jugend Meisterschaft',
+  'BB Minis': 'BB Minis Turnier',
   // 'VB Student*in Meisterschaft': '…',
   // 'BB Lernende/Studierende': '…',
-  // 'BB Junior:innen': '…',
-  // 'BB Minis': '…',
   // 'VB Turnier KWI': '…',
 }
 export function mapKategorie(v) {
@@ -274,7 +299,7 @@ export function buildPushCsv(members, { create = false } = {}) {
       fmtBirthdateDDMMYYYY(m.birthdate),
       m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
     ]
-    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt), m.gruppen || '', m.cd_status || '')
+    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt), m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m))
     return cells.map(cdCell).join(';')
   })
   return headers.join(';') + '\n' + rows.join('\n') + '\n'
@@ -282,12 +307,13 @@ export function buildPushCsv(members, { create = false } = {}) {
 
 // Member fields the push CSV reads (also the preview fetch set). anrede/
 // nationalitaet/ahv_nummer are no longer selected — they are never pushed.
-// beitragskategorie/wiedisync_active are only ever used on CREATE rows
-// (buildPushCsv / deriveStatus).
+// beitragskategorie/wiedisync_active and the licence booleans are only ever
+// used on CREATE rows (buildPushCsv / deriveStatus / deriveOffiziellenLizenz).
 const PUSH_FIELDS = [
   'id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
   'ort', 'birthdate', 'sex', 'clubdesk_id', 'clubdesk_push_changes',
   'beitragskategorie', 'wiedisync_active',
+  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
 ]
 
 // Escape user-controlled strings before interpolating into the admin email
@@ -421,7 +447,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const unlinkedRows = await database('members')
         .whereNull('clubdesk_id')
         .whereNull('clubdesk_pushed_at')
-        .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie')
+        .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie',
+          'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb')
         .orderBy('last_name')
       // Flag unlinked members who ALREADY exist in ClubDesk under a divergent
       // email (exact first+last name match) so the modal can warn before a CREATE
@@ -446,9 +473,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           // A ClubDesk contact with this exact name already exists (divergent
           // email) → pushing CREATE would duplicate it. Warn in the modal.
           would_duplicate: cdNames.has(cdKey(m.first_name, m.last_name)),
-          // What the CREATE push will send as Beitragskategorie (post-mapping) —
-          // shown in the modal so the superadmin sees it before approving.
+          // What the CREATE push will send as Beitragskategorie (post-mapping)
+          // and Offiziellen Lizenz — shown in the modal so the superadmin sees
+          // them before approving.
           beitragskategorie: mapKategorie(m.beitragskategorie) || null,
+          offiziellen_lizenz: deriveOffiziellenLizenz(m) || null,
         }
       })
       return res.json({ changed, unlinked })
@@ -514,9 +543,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           code: 'blank_risk', skipped_blank_risk: blankRiskSkipped,
         })
       }
-      // Eintritt = the person's approved registration date (approved_at, falling
-      // back to submitted_at — approved_at is not stamped on every approval
-      // path). Gruppen = deriveGruppen(reg) from the same registration (team +
+      // Eintritt = the registration SUBMISSION date — user rule 2026-07-06:
+      // "the date the registration is sent" (approved_at was dropped; it is
+      // also not stamped on every approval path). Gruppen = deriveGruppen(reg)
+      // from the same registration (team +
       // funktion). Registration → member resolution uses the same email +
       // symmetric first-name-prefix rule as cdStatusForRegistration, so a child
       // on the parent's shared address never inherits the parent's date or
@@ -527,14 +557,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         const regs = emails.length
           ? await database('registrations').where('status', 'approved')
             .whereRaw('LOWER(BTRIM(email)) = ANY(?)', [emails])
-            .select('email', 'vorname', 'approved_at', 'submitted_at', 'membership_type', 'team', 'rolle')
+            .select('email', 'vorname', 'submitted_at', 'membership_type', 'team', 'rolle')
           : []
         for (const m of creates) {
           const em = String(m.email || '').toLowerCase().trim()
           const reg = regs
             .filter((r) => String(r.email || '').toLowerCase().trim() === em && firstNamesMatchCd(r.vorname, m.first_name))
             .sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0))[0]
-          m.eintritt = reg ? (reg.approved_at || reg.submitted_at) : null
+          m.eintritt = reg ? reg.submitted_at : null
           m.gruppen = deriveGruppen(reg)
           m.cd_status = deriveStatus(reg, m)
         }
