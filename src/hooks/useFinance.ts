@@ -248,10 +248,10 @@ export function useMyPayouts() {
   const { user } = useAuth()
   return useQuery({
     queryKey: ['finance', 'my-payouts', user?.id ?? null],
-    // Explicit own-member filter — a finance/board viewer's read-all grant would
-    // otherwise widen this member-facing query to every member's pay-outs.
+    // Explicit own-member filter (user.id IS the member id) — a finance/board
+    // viewer's read-all grant would otherwise widen this to every member's pay-outs.
     queryFn: () => fetchAllItems<FinancePayout>('finance_payouts', {
-      filter: { member: { user: { _eq: user!.id } } }, fields: PAYOUT_FIELDS, sort: ['-date_created'],
+      filter: { member: { _eq: user!.id } }, fields: PAYOUT_FIELDS, sort: ['-date_created'],
     }),
     enabled: !!user,
   })
@@ -286,16 +286,16 @@ const EXPENSE_FIELDS = [
 export const formatExpenseAmount = (e: FinanceExpense) =>
   `${e.currency || 'CHF'} ${toNum(e.amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-/** The current member's own expense submissions. Explicitly filtered by the
- *  caller's member.user — the member policy scopes to own, but a finance/board
- *  viewer's read-all grant would otherwise widen this member-facing query to
- *  every member's submissions (policies union). */
+/** The current member's own expense submissions. Explicitly filtered by member id
+ *  (useAuth().user IS the member record, so user.id is the member id) — the member
+ *  policy scopes to own, but a finance/board viewer's read-all grant would
+ *  otherwise widen this member-facing query to every member's submissions. */
 export function useMyExpenses() {
   const { user } = useAuth()
   return useQuery({
     queryKey: ['finance', 'my-expenses', user?.id ?? null],
     queryFn: () => fetchAllItems<FinanceExpense>('finance_expenses', {
-      filter: { member: { user: { _eq: user!.id } } }, fields: EXPENSE_FIELDS, sort: ['-date_created'],
+      filter: { member: { _eq: user!.id } }, fields: EXPENSE_FIELDS, sort: ['-date_created'],
     }),
     enabled: !!user,
   })
