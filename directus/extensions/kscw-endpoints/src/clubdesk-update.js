@@ -197,9 +197,11 @@ const CD_PUSH_HEADERS = [
 // existing contacts, and its empty-cell import behavior is unvalidated (a blank
 // cell could wipe the value in the legal register). That is why /up stashes TWO
 // CSVs (up_csv + up_csv_create) instead of one.
-// ⚠ Gruppen maps in the import wizard as free TEXT (screenshot-verified
-// 2026-07-05) — whether a commit actually CREATES the group membership is
-// unproven; the first real prod push validates it (harmless if ignored).
+// ⚠ Gruppen maps in the import wizard as free TEXT and a commit does NOT
+// create the group membership (PROVEN 2026-07-06: Månsson/Clüver creates
+// carried Gruppen, landed with empty groups). The column stays as harmless
+// self-documentation in the import preview — group assignment is manual in
+// ClubDesk.
 export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
@@ -288,9 +290,9 @@ export function mapKategorie(v) {
 // path) or ClubDesk names (the CD-authoritative Kategorie fill in
 // import-clubdesk-csv.mjs). Pushed on CREATE rows only — on existing contacts
 // Mitgliederbeitrag is a per-person field with manual overrides (e.g.
-// "Speziallizenz, einmalig so tief"), never ours to overwrite. The BASE amount
-// only: the ±100 Schreiber-/Offiziellen-Zuschlag stays with the invoicing run
-// until Thamy confirms who applies it (Offene Fragen #7).
+// "Speziallizenz, einmalig so tief"), never ours to overwrite. The map holds
+// the WITH-scorer-licence BASE amount; the CHF 100 no-Schreiber surcharge is
+// applied on top by deriveMitgliederbeitrag (user rule 2026-07-06).
 export const CD_BEITRAG_MAP = {
   'VB Erwerbstätige': 440,
   'VB Student*in Meisterschaft': 380, 'VB Studenten/Lehrlinge': 380,
@@ -306,11 +308,30 @@ export const CD_BEITRAG_MAP = {
   'Passivmitglied': 40,
   'Gratis': 0,
 }
-export function deriveMitgliederbeitrag(kategorie) {
+// VB categories that carry the CHF 100 scorer surcharge (website: "Mitglieder-
+// beitrag für aktive Mitglieder ohne Schreiberlizenz um CHF 100 erhöht"). The
+// map amounts are the WITH-licence base; a member without scorer_vb pays
+// base + 100. Confirmed against the ClubDesk export — each shows a base+100
+// variant (Erwerbstätige 440/540, Student 380/480, Schüler Meisterschaft
+// 310/410, Schüler Turnier 210/310). DELIBERATELY EXCLUDED: the intro tiers
+// "VB Turnier KWI" / "VB Schüler*in 1. Jahr" (first licence, no +100 variant
+// exists), all BB categories (separate Offiziellen-Pflicht — not applied
+// pending confirmation), Passiv/Gratis. Both name families listed.
+const VB_SCORER_SURCHARGE = new Set([
+  'VB Erwerbstätige',
+  'VB Student*in Meisterschaft', 'VB Studenten/Lehrlinge',
+  'VB Schüler*in Meisterschaft', 'VB Schüler Meisterschaft',
+  'VB Schüler*in Turnier', 'VB Schüler Turnier',
+])
+export function deriveMitgliederbeitrag(kategorie, member = null) {
   const k = String(kategorie ?? '').trim()
-  const v = Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, k) ? CD_BEITRAG_MAP[k] : null
-  // Unknown/unset category → empty cell, never a guessed amount.
-  return v === null ? '' : String(v)
+  if (!Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, k)) return '' // unknown → empty, never guessed
+  let amount = CD_BEITRAG_MAP[k]
+  // Scorer surcharge: a member on a surcharge-eligible VB category who does NOT
+  // hold a scorer (Schreiber) licence pays +CHF 100. member===null (flag
+  // unavailable) → base only, so the bare map stays a safe default.
+  if (member && member.scorer_vb !== true && VB_SCORER_SURCHARGE.has(k)) amount += 100
+  return String(amount)
 }
 
 function fmtBirthdateDDMMYYYY(v) {
@@ -350,7 +371,7 @@ export function buildPushCsv(members, { create = false } = {}) {
       // (UPDATE rows only — see CD_PUSH_HEADERS comment). Creates push their own.
       m.iban || '',
     ]
-    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt), m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m), deriveMitgliederbeitrag(m.beitragskategorie))
+    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt), m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m), deriveMitgliederbeitrag(m.beitragskategorie, m))
     return cells.map(cdCell).join(';')
   })
   return headers.join(';') + '\n' + rows.join('\n') + '\n'
@@ -529,7 +550,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           // the superadmin sees them before approving.
           beitragskategorie: mapKategorie(m.beitragskategorie) || null,
           offiziellen_lizenz: deriveOffiziellenLizenz(m) || null,
-          mitgliederbeitrag: deriveMitgliederbeitrag(m.beitragskategorie) || null,
+          mitgliederbeitrag: deriveMitgliederbeitrag(m.beitragskategorie, m) || null,
         }
       })
       return res.json({ changed, unlinked })

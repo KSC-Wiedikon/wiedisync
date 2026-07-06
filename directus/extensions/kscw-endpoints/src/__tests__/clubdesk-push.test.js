@@ -107,6 +107,30 @@ describe('deriveMitgliederbeitrag', () => {
     expect(deriveMitgliederbeitrag('')).toBe('')
     expect(deriveMitgliederbeitrag(null)).toBe('')
   })
+
+  it('adds the CHF 100 no-scorer surcharge on active VB categories', () => {
+    const noScorer = { scorer_vb: false }
+    const scorer = { scorer_vb: true }
+    expect(deriveMitgliederbeitrag('VB Erwerbstätige', noScorer)).toBe('540')
+    expect(deriveMitgliederbeitrag('VB Erwerbstätige', scorer)).toBe('440')
+    expect(deriveMitgliederbeitrag('VB Student*in Meisterschaft', noScorer)).toBe('480')
+    expect(deriveMitgliederbeitrag('VB Schüler*in Meisterschaft', noScorer)).toBe('410')
+    expect(deriveMitgliederbeitrag('VB Schüler*in Turnier', noScorer)).toBe('310')
+  })
+
+  it('does NOT surcharge intro tiers, BB, passive or gratis', () => {
+    const noScorer = { scorer_vb: false }
+    expect(deriveMitgliederbeitrag('VB Turnier KWI', noScorer)).toBe('110')
+    expect(deriveMitgliederbeitrag('VB Schüler*in 1. Jahr', noScorer)).toBe('110')
+    expect(deriveMitgliederbeitrag('BB Erwerbstätige', noScorer)).toBe('510')
+    expect(deriveMitgliederbeitrag('BB Jugend Meisterschaft', noScorer)).toBe('310')
+    expect(deriveMitgliederbeitrag('Passivmitglied', noScorer)).toBe('40')
+    expect(deriveMitgliederbeitrag('Gratis', noScorer)).toBe('0')
+  })
+
+  it('no member arg → base amount (safe default)', () => {
+    expect(deriveMitgliederbeitrag('VB Erwerbstätige')).toBe('440')
+  })
 })
 
 describe('deriveStatus', () => {
