@@ -197,9 +197,11 @@ const CD_PUSH_HEADERS = [
 // existing contacts, and its empty-cell import behavior is unvalidated (a blank
 // cell could wipe the value in the legal register). That is why /up stashes TWO
 // CSVs (up_csv + up_csv_create) instead of one.
-// ⚠ Gruppen maps in the import wizard as free TEXT (screenshot-verified
-// 2026-07-05) — whether a commit actually CREATES the group membership is
-// unproven; the first real prod push validates it (harmless if ignored).
+// ⚠ Gruppen maps in the import wizard as free TEXT and a commit does NOT
+// create the group membership (PROVEN 2026-07-06: Månsson/Clüver creates
+// carried Gruppen, landed with empty groups). The column stays as harmless
+// self-documentation in the import preview — group assignment is manual in
+// ClubDesk.
 export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
