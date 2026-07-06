@@ -73,6 +73,13 @@ describe('buildPushCsv (create set)', () => {
     expect(row.split(';')[10]).toBe("'=SUM(A1)")
   })
 
+  it('leaves phone-style leading + unguarded but escapes +formula (2026-07-06 apostrophe bug)', () => {
+    const cells = buildPushCsv([{ ...kacper, phone: '+41 79 000 00 00', adresse: '+HYPERLINK(1)' }])
+      .trim().split('\n')[1].split(';')
+    expect(cells[3]).toBe('+41 79 000 00 00')
+    expect(cells[4]).toBe("'+HYPERLINK(1)")
+  })
+
   it('multi-team Gruppen stays one cell (comma is safe in semicolon CSV)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]

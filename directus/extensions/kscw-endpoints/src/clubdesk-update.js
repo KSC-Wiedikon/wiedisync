@@ -97,11 +97,14 @@ const CSV_HEADERS = [
 
 function escCsv(val) {
   let s = String(val ?? '')
-  // Neutralize spreadsheet formula injection: a cell that starts with =, +, -,
-  // @ (or a tab/CR) is interpreted as a formula by Excel/ClubDesk. These CSVs
+  // Neutralize spreadsheet formula injection: a cell that starts with =, @,
+  // (or a tab/CR) is interpreted as a formula by Excel/ClubDesk. These CSVs
   // carry member-controlled fields, so prefix such cells with a single quote to
-  // force literal text before applying the usual quoting.
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+  // force literal text before applying the usual quoting. Leading '+'/'-'
+  // followed by a digit, space or '(' is phone-style DATA and stays unguarded
+  // (the blanket guard put literal apostrophes into ClubDesk phone fields —
+  // see cdCell); any other '+'/'-' prefix (e.g. +HYPERLINK) is still escaped.
+  if (/^[=@\t\r]/.test(s) || /^[+-](?![\d( ])/.test(s)) s = `'${s}`
   return s.includes(',') || s.includes('"') || s.includes('\n')
     ? `"${s.replace(/"/g, '""')}"` : s
 }
@@ -318,9 +321,14 @@ function fmtBirthdateDDMMYYYY(v) {
 }
 
 // Semicolon-CSV cell: neutralise spreadsheet-formula injection, then quote.
+// Leading '+'/'-' followed by a digit, space or '(' is DATA, not a formula —
+// the blanket guard used to land a literal apostrophe in ClubDesk's phone
+// fields on every committed push ('+41 …; found 2026-07-06 on 10 contacts,
+// repaired via the backfill import). '=', '@', tab, CR and '+'/'-' followed by
+// anything else (e.g. +HYPERLINK(…)) stay guarded.
 function cdCell(val) {
   let s = String(val ?? '')
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+  if (/^[=@\t\r]/.test(s) || /^[+-](?![\d( ])/.test(s)) s = `'${s}`
   return (s.includes(';') || s.includes('"') || s.includes('\n'))
     ? `"${s.replace(/"/g, '""')}"` : s
 }
