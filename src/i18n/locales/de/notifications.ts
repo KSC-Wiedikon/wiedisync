@@ -13,9 +13,12 @@ export default {
   resultAvailable: 'Resultat',
   dutyDelegation: 'Schreiberdienst',
   memberJoinRequest: 'Beitrittsanfrage',
+  expenseStatus: 'Spesen',
   eventInvite: 'Anlass-Einladung',
   newReport: 'Meldung',
   member_join_request: '{{memberName}} möchte {{teamName}} beitreten',
+  expense_paid: 'Deine Spesen über {{amount}} wurden bezahlt.',
+  expense_rejected: 'Deine Spesen über {{amount}} wurden abgelehnt.',
   // Delegation notification messages
   duty_delegation_request: '{{from}} möchte dir den {{role}}-Einsatz für {{game}} am {{date}} übergeben.',
   duty_delegation_accepted: '{{to}} hat den {{role}}-Einsatz für {{game}} übernommen.',

@@ -13,9 +13,12 @@ export default {
   resultAvailable: 'Result',
   dutyDelegation: 'Scorer duty',
   memberJoinRequest: 'Join request',
+  expenseStatus: 'Expense',
   eventInvite: 'Event invitation',
   newReport: 'Report',
   member_join_request: '{{memberName}} wants to join {{teamName}}',
+  expense_paid: 'Your expense of {{amount}} has been paid.',
+  expense_rejected: 'Your expense of {{amount}} was rejected.',
   // Delegation notification messages
   duty_delegation_request: '{{from}} wants to delegate the {{role}} duty for {{game}} on {{date}} to you.',
   duty_delegation_accepted: '{{to}} accepted the {{role}} duty for {{game}}.',

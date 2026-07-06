@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, ArrowRightLeft, BellRing, BellOff, UserPlus, Trash2, ChevronDown, X } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, ArrowRightLeft, BellRing, BellOff, UserPlus, Trash2, ChevronDown, X, Banknote } from 'lucide-react'
 import type { Notification } from '../types'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 
@@ -23,6 +23,7 @@ const typeIcons: Record<string, React.ReactNode> = {
   duty_delegation_request: <ArrowRightLeft className="h-4 w-4" />,
   member_join_request: <UserPlus className="h-4 w-4" />,
   event_invite: <Bell className="h-4 w-4" />,
+  expense_status: <Banknote className="h-4 w-4" />,
 }
 
 const typeLabels: Record<string, string> = {
@@ -33,6 +34,7 @@ const typeLabels: Record<string, string> = {
   duty_delegation_request: 'dutyDelegation',
   member_join_request: 'memberJoinRequest',
   event_invite: 'eventInvite',
+  expense_status: 'expenseStatus',
 }
 
 function timeAgo(dateStr: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -52,6 +54,8 @@ function getNavigationPath(n: Notification): string {
   // Messaging moderation: admins get `new_report` notifications when a member
   // submits a report. The report list + resolution UI lives at /admin/reports.
   if (n.type === 'new_report' || n.activity_type === 'report') return '/admin/reports'
+  // Expense status changes (paid / rejected) → the member's submissions list.
+  if (n.type === 'expense_status' || n.activity_type === 'expense') return '/finance/expense'
   switch (n.activity_type) {
     case 'game': return '/games'
     case 'training': return '/trainings'

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.21.2'
+const APP_VERSION = '1.22.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.22.0',
+    date: '06.07.2026',
+    sections: [
+      {
+        title: 'Expense reimbursements: status tracking',
+        items: [
+          'Uploaded expenses now appear under "My submissions" on the upload page with their status — pending, paid or rejected — including any note from finance, and you can re-open your receipt.',
+          'You get a notification (in-app, email and push) the moment finance marks your expense as paid or rejected.',
+          'Finance manages all submissions in a new Expenses tab in Club finances: change the status, leave a note for the member, correct details and open the receipt. Marking as paid also creates the linked payout with its QR-bill.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.21.2',
     date: '06.07.2026',

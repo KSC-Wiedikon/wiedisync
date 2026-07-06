@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.22.0 — 2026-07-06
+
+### Expense reimbursements: status tracking
+- The `/finance/expense` upload flow now persists every submission (`finance_expenses`, migration 177) instead of only emailing finance. Members see their submissions with status (pending / paid / rejected) + any finance note under "My submissions", and can re-open their receipt.
+- Members are notified (in-app + email + push, in their language) when finance marks an expense paid or rejected.
+- New **Expenses** tab in Club finances for the finance role/board: full queue of submissions with status changes, a note to the member, detail corrections and receipt access. Marking paid auto-creates the linked payout record (QR-bill snapshot) on the member's My finances page.
+
 ## v1.21.2 — 2026-07-06
 
 ### Calendar: hall closures show every affected hall
