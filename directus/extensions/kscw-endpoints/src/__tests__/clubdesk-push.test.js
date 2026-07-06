@@ -118,18 +118,30 @@ describe('deriveMitgliederbeitrag', () => {
     expect(deriveMitgliederbeitrag('VB Schüler*in Turnier', noScorer)).toBe('310')
   })
 
-  it('does NOT surcharge intro tiers, BB, passive or gratis', () => {
-    const noScorer = { scorer_vb: false }
-    expect(deriveMitgliederbeitrag('VB Turnier KWI', noScorer)).toBe('110')
-    expect(deriveMitgliederbeitrag('VB Schüler*in 1. Jahr', noScorer)).toBe('110')
-    expect(deriveMitgliederbeitrag('BB Erwerbstätige', noScorer)).toBe('510')
-    expect(deriveMitgliederbeitrag('BB Jugend Meisterschaft', noScorer)).toBe('310')
-    expect(deriveMitgliederbeitrag('Passivmitglied', noScorer)).toBe('40')
-    expect(deriveMitgliederbeitrag('Gratis', noScorer)).toBe('0')
+  it('adds the CHF 100 no-officials surcharge on active BB categories', () => {
+    const noLic = { otr1_bb: false, otr2_bb: false, otn_bb: false }
+    const withOtr = { otr1_bb: true }
+    expect(deriveMitgliederbeitrag('BB Erwerbstätige', noLic)).toBe('610')
+    expect(deriveMitgliederbeitrag('BB Erwerbstätige', withOtr)).toBe('510')
+    expect(deriveMitgliederbeitrag('BB Erwerbstätige 1. Liga', noLic)).toBe('660')
+    expect(deriveMitgliederbeitrag('BB Lernende/Studierende', noLic)).toBe('510')
+    expect(deriveMitgliederbeitrag('BB Jugend Meisterschaft', noLic)).toBe('410')
+    expect(deriveMitgliederbeitrag('BB Minis Turnier', noLic)).toBe('310')
+    // OTN also counts as holding an officials licence
+    expect(deriveMitgliederbeitrag('BB Jugend Meisterschaft', { otn_bb: true })).toBe('310')
+  })
+
+  it('does NOT surcharge VB intro tiers, passive or gratis', () => {
+    const bare = { scorer_vb: false, otr1_bb: false, otr2_bb: false, otn_bb: false }
+    expect(deriveMitgliederbeitrag('VB Turnier KWI', bare)).toBe('110')
+    expect(deriveMitgliederbeitrag('VB Schüler*in 1. Jahr', bare)).toBe('110')
+    expect(deriveMitgliederbeitrag('Passivmitglied', bare)).toBe('40')
+    expect(deriveMitgliederbeitrag('Gratis', bare)).toBe('0')
   })
 
   it('no member arg → base amount (safe default)', () => {
     expect(deriveMitgliederbeitrag('VB Erwerbstätige')).toBe('440')
+    expect(deriveMitgliederbeitrag('BB Erwerbstätige')).toBe('510')
   })
 })
 
