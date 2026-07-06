@@ -248,16 +248,21 @@ export function deriveOffiziellenLizenz(m) {
 
 // Signup-form category → ClubDesk Beitragskategorie picklist name. The form's
 // names only partially match ClubDesk's configured categories (e.g. the form
-// says "BB Lernende/Studierende", ClubDesk has "BB Student/Lehrling"; the form's
-// "BB Junior:innen" / "BB Minis" / "VB Turnier KWI" have no ClubDesk category
-// yet). ClubDesk's import treatment of an UNKNOWN category value is unvalidated
-// — fill this map once the ClubDesk-side names are confirmed. Unmapped values
-// pass through verbatim (visible in the dry-run preview before any commit).
+// says "BB Lernende/Studierende", ClubDesk has "BB Student/Lehrling"; "VB
+// Turnier KWI" has no ClubDesk category yet). ClubDesk's import treatment of
+// an UNKNOWN category value is unvalidated — fill this map as the
+// ClubDesk-side names are confirmed. Unmapped values pass through verbatim
+// (visible in the dry-run preview before any commit).
+// BB youth decided 2026-07-06 (user): the two ClubDesk categories are
+// "BB Minis Turnier" (U12 and under, CHF 210) and "BB Jugend Meisterschaft"
+// (older youth, CHF 310) — the form now submits those names directly; the two
+// entries below only translate LEGACY rows captured under the pre-2026-07-06
+// form values.
 export const CD_KATEGORIE_MAP = {
+  'BB Junior:innen': 'BB Jugend Meisterschaft',
+  'BB Minis': 'BB Minis Turnier',
   // 'VB Student*in Meisterschaft': '…',
   // 'BB Lernende/Studierende': '…',
-  // 'BB Junior:innen': '…',
-  // 'BB Minis': '…',
   // 'VB Turnier KWI': '…',
 }
 export function mapKategorie(v) {

@@ -37,20 +37,21 @@ describe('buildPushCsv (update set)', () => {
 })
 
 describe('buildPushCsv (create set)', () => {
-  it('appends Beitragskategorie + Eintritt + Gruppen + Status as the last four columns', () => {
-    const csv = buildPushCsv([kacper], { create: true })
+  it('appends Beitragskategorie + Eintritt + Gruppen + Status + Offiziellen Lizenz as the last five columns', () => {
+    const csv = buildPushCsv([{ ...kacper, scorer_vb: true }], { create: true })
     const [header, row] = csv.trim().split('\n')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
-    expect(header.endsWith('Beitragskategorie;Eintritt;Gruppen;Status')).toBe(true)
+    expect(header.endsWith('Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz')).toBe(true)
     const cells = row.split(';')
-    expect(cells).toHaveLength(13)
+    expect(cells).toHaveLength(14)
     expect(cells[9]).toBe('VB Erwerbstätige')
     expect(cells[10]).toBe('27.06.2026')
     expect(cells[11]).toBe('VB H1 (Spieler*in)')
     expect(cells[12]).toBe('Aktivmitglied')
+    expect(cells[13]).toBe('Volleyball Lizenz')
   })
 
-  it('empty category / Eintritt / Gruppen / Status yield empty cells (safe on a new contact)', () => {
+  it('empty category / Eintritt / Gruppen / Status / licence yield empty cells (safe on a new contact)', () => {
     const row = buildPushCsv([{ ...kacper, beitragskategorie: null, eintritt: null, gruppen: '', cd_status: '' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
@@ -58,6 +59,7 @@ describe('buildPushCsv (create set)', () => {
     expect(cells[10]).toBe('')
     expect(cells[11]).toBe('')
     expect(cells[12]).toBe('')
+    expect(cells[13]).toBe('')
   })
 
   it('neutralises formula injection in the category cell', () => {
@@ -70,7 +72,7 @@ describe('buildPushCsv (create set)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(13)
+    expect(cells).toHaveLength(14)
     expect(cells[11]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 })
@@ -125,5 +127,13 @@ describe('mapKategorie', () => {
     } finally {
       delete CD_KATEGORIE_MAP.__test__
     }
+  })
+
+  it('translates the legacy BB youth form values (2026-07-06 rename)', () => {
+    expect(mapKategorie('BB Junior:innen')).toBe('BB Jugend Meisterschaft')
+    expect(mapKategorie('BB Minis')).toBe('BB Minis Turnier')
+    // the new form values pass through untouched
+    expect(mapKategorie('BB Jugend Meisterschaft')).toBe('BB Jugend Meisterschaft')
+    expect(mapKategorie('BB Minis Turnier')).toBe('BB Minis Turnier')
   })
 })
