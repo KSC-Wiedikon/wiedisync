@@ -171,6 +171,19 @@ function eventToEntry(event: Event): CalendarEntry {
   }
 }
 
+/** "KWI A, KWI B, KWI C" → "KWI A, B, C": strip a shared word-prefix from all
+ *  but the first hall name; falls back to a plain comma join when names don't
+ *  share one (e.g. "KWI A, Utogrund"). */
+function compactHallList(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? ''
+  const splitIdx = names[0].lastIndexOf(' ')
+  const prefix = splitIdx > 0 ? names[0].slice(0, splitIdx + 1) : ''
+  if (prefix && names.every((n) => n.startsWith(prefix))) {
+    return prefix + names.map((n) => n.slice(prefix.length)).join(', ')
+  }
+  return names.join(', ')
+}
+
 function closureToEntry(closure: HallClosure & { hall?: { name: string } | string }): CalendarEntry {
   const expandedHall = asObj<{ name: string }>(closure.hall)
   const hallName = expandedHall?.name ?? ''
@@ -433,9 +446,14 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
     if (fetchScorerDuties) all.push(...dutyGames.map((g) => gameToEntry(g, true)))
     if (fetchEvents) all.push(...events.map(eventToEntry))
     // Always compute closure-covered dates from hall_closures (even if not displayed)
-    // so GCal "Halle geschlossen" entries can be suppressed when a named closure exists
+    // so GCal "Halle geschlossen" entries can be suppressed when a named closure exists.
+    // hall_closures stores one row per hall — same reason + dates across halls
+    // (e.g. KWI A/B/C) MERGE into one entry listing every affected hall, instead
+    // of dropping all but the first row (which showed "KWI A" for an A+B+C closure).
     const closureSeen = new Set<string>()
     const closureCoveredDates = new Set<string>()
+    const closureGroups = new Map<string, CalendarEntry>()
+    const closureHalls = new Map<string, string[]>()
     for (const closure of closuresRaw) {
       const ce = closureToEntry(closure)
       const endDate = ce.endDate ?? ce.date
@@ -446,9 +464,17 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
         const dedupeKey = `${ce.title}|${toDateKey(ce.date)}|${ce.endDate ? toDateKey(ce.endDate) : ''}`
         if (!closureSeen.has(dedupeKey)) {
           closureSeen.add(dedupeKey)
-          all.push(ce)
+          closureGroups.set(dedupeKey, ce)
+          closureHalls.set(dedupeKey, ce.location ? [ce.location] : [])
+        } else {
+          const halls = closureHalls.get(dedupeKey)
+          if (halls && ce.location && !halls.includes(ce.location)) halls.push(ce.location)
         }
       }
+    }
+    for (const [key, entry] of closureGroups) {
+      const halls = compactHallList([...(closureHalls.get(key) ?? [])].sort())
+      all.push(halls ? { ...entry, location: halls, description: halls } : entry)
     }
     if (fetchHallEvents) {
       for (const he of hallEvents) {

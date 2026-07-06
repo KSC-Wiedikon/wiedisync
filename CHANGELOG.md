@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.21.2 — 2026-07-06
+
+### Calendar: hall closures show every affected hall
+- A closure covering several halls (one `hall_closures` row per hall, same reason + dates) collapsed to a single hall in the calendar — "Halle geschlossen · KWI A" even when KWI A, B and C were all closed. The per-hall rows now merge into one entry listing every hall ("KWI A, B, C"), matching the public website's calendar.
+
 ## v1.21.1 — 2026-07-06
 
 ### Dates follow your language
