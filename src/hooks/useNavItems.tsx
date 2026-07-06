@@ -6,7 +6,7 @@ import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users,
   Building2, CalendarClock, Activity,
-  HeartPulse, MessageSquare, Inbox, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText,
+  HeartPulse, MessageSquare, Inbox, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
 
@@ -122,6 +122,7 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
       { to: '/admin/data-health', label: t('dataHealth'), icon: <HeartPulse className={iconClass} /> },
       { to: '/bugfixes', label: t('bugfixes'), icon: <Bug className={iconClass} /> },
       { to: '/admin/audit-log', label: t('auditLog'), icon: <ScrollText className={iconClass} /> },
+      { to: '/admin/error-logs', label: t('errorLogs'), icon: <FileWarning className={iconClass} /> },
       { to: '/admin/sql', label: t('sqlWorkspace'), icon: <Terminal className={iconClass} /> },
     ] as NavItem[],
   }

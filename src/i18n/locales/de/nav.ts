@@ -40,6 +40,7 @@ export default {
   infraHealth: 'Infrastruktur',
   dataHealth: 'Datenqualität',
   auditLog: 'Audit Log',
+  errorLogs: 'Fehlerprotokolle',
   sqlWorkspace: 'SQL-Workspace',
   bugfixes: 'Bugfixes',
   status: 'Status',
