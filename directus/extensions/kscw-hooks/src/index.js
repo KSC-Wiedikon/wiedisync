@@ -520,6 +520,34 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         else await revokeTerminplanungAccessIfNotSpielplaner(id)
       }
     }
+    // IBAN saved via the items API (PayoutIbanCard profile card, finance
+    // explorer billing, Data Explorer) → flag the member for the next ClubDesk
+    // sync-up push. IBAN joined CD_PUSH_HEADERS 2026-07-06; these write paths
+    // do not self-flag like POST /clubdesk-update does. Only a NON-EMPTY IBAN
+    // flags: a cleared IBAN is deliberately not propagated — the push echoes
+    // ClubDesk's own value back instead (see clubdesk-update.js). Unlinked
+    // members skip the flag; their IBAN rides the CREATE push.
+    if (payload && 'iban' in payload && String(payload.iban || '').trim()) {
+      for (const id of keys) {
+        try {
+          const m = await database('members').where('id', id).select('clubdesk_id', 'clubdesk_push_changes').first()
+          if (!m?.clubdesk_id) continue
+          let changes = []
+          try {
+            changes = Array.isArray(m.clubdesk_push_changes) ? m.clubdesk_push_changes
+              : (m.clubdesk_push_changes ? JSON.parse(m.clubdesk_push_changes) : [])
+          } catch { changes = [] }
+          changes = changes.filter((c) => c?.field !== 'iban')
+          changes.push({ field: 'iban', old_value: null, new_value: String(payload.iban).trim() })
+          await database('members').where('id', id).update({
+            clubdesk_push_pending: true,
+            clubdesk_push_changes: JSON.stringify(changes),
+          })
+        } catch (err) {
+          logWarning('clubdesk_iban_flag', err.message, { memberId: id, stack: err.stack })
+        }
+      }
+    }
     // Auto-confirm opt-in flipped on (migration 077) → backfill existing
     // upcoming activities of that type. Idempotent (NOT EXISTS), so a no-op
     // when the flag was already on or nothing is outstanding.

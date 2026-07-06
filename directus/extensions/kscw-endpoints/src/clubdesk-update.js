@@ -167,9 +167,16 @@ export function toCp1252Buffer(str) {
 // ⚠ VALIDATION: the remaining columns still push the full wiedisync value — how
 // ClubDesk's import wizard treats an empty cell (skip vs. blank the field) must be
 // validated against a live import before enabling commit on prod (see up-dispatch).
+// IBAN joined the push scope 2026-07-06 (user: members enter it in their
+// profile via PayoutIbanCard, finance edits it too — wiedisync owns it once
+// set). The down-sync deliberately does NOT fill members.iban (deleted-IBAN
+// resurrection, see import-clubdesk-csv.mjs), so most members are empty here
+// while ClubDesk holds a value → /up ECHOES ClubDesk's own IBAN back into the
+// cell when wiedisync's is empty (no-op on import, nothing blanked, no member
+// dropped). A member-entered IBAN always wins.
 const CD_PUSH_HEADERS = [
   'Vorname', 'Nachname', 'E-Mail', 'Telefon Privat', 'Adresse',
-  'PLZ', 'Ort', 'Geburtsdatum', 'Geschlecht',
+  'PLZ', 'Ort', 'Geburtsdatum', 'Geschlecht', 'IBAN',
 ]
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
@@ -190,7 +197,7 @@ const CD_PUSH_HEADERS = [
 // ⚠ Gruppen maps in the import wizard as free TEXT (screenshot-verified
 // 2026-07-05) — whether a commit actually CREATES the group membership is
 // unproven; the first real prod push validates it (harmless if ignored).
-export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz']
+export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -270,6 +277,39 @@ export function mapKategorie(v) {
   return Object.prototype.hasOwnProperty.call(CD_KATEGORIE_MAP, k) ? CD_KATEGORIE_MAP[k] : k
 }
 
+// Category → Mitgliederbeitrag (CHF/season), confirmed by the user 2026-07-06:
+// VB = published website fees (matched ClubDesk exactly); BB = the ClubDesk
+// values (website was CHF 10 high, corrected the same day); BB youth = the two
+// new age-split categories. Keys cover BOTH name families because
+// members.beitragskategorie can hold either: signup-form names (registration
+// path) or ClubDesk names (the CD-authoritative Kategorie fill in
+// import-clubdesk-csv.mjs). Pushed on CREATE rows only — on existing contacts
+// Mitgliederbeitrag is a per-person field with manual overrides (e.g.
+// "Speziallizenz, einmalig so tief"), never ours to overwrite. The BASE amount
+// only: the ±100 Schreiber-/Offiziellen-Zuschlag stays with the invoicing run
+// until Thamy confirms who applies it (Offene Fragen #7).
+export const CD_BEITRAG_MAP = {
+  'VB Erwerbstätige': 440,
+  'VB Student*in Meisterschaft': 380, 'VB Studenten/Lehrlinge': 380,
+  'VB Schüler*in Meisterschaft': 310, 'VB Schüler Meisterschaft': 310,
+  'VB Schüler*in Turnier': 210, 'VB Schüler Turnier': 210,
+  'VB Turnier KWI': 110, 'VB Schüler*in 1. Jahr': 110,
+  'BB Erwerbstätige': 510, 'BB Erwerbstätig': 510,
+  'BB Erwerbstätige 1. Liga': 560, 'BB Erwerbstätig 1. Liga': 560,
+  'BB Lernende/Studierende': 410, 'BB Student/Lehrling': 410, 'BB Studenten/Lehrlinge': 410,
+  'BB Lernende/Studierende 1. Liga': 460, 'BB Student/Lehrling 1. Liga': 460,
+  'BB Jugend Meisterschaft': 310, 'BB Junior:innen': 310, 'BB 2 Trainings': 310,
+  'BB Minis Turnier': 210, 'BB Minis': 210, 'BB 1 Trainings': 210,
+  'Passivmitglied': 40,
+  'Gratis': 0,
+}
+export function deriveMitgliederbeitrag(kategorie) {
+  const k = String(kategorie ?? '').trim()
+  const v = Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, k) ? CD_BEITRAG_MAP[k] : null
+  // Unknown/unset category → empty cell, never a guessed amount.
+  return v === null ? '' : String(v)
+}
+
 function fmtBirthdateDDMMYYYY(v) {
   if (!v) return ''
   const iso = (v instanceof Date) ? v.toISOString().slice(0, 10) : String(v)
@@ -298,8 +338,11 @@ export function buildPushCsv(members, { create = false } = {}) {
       m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
       fmtBirthdateDDMMYYYY(m.birthdate),
       m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
+      // /up pre-resolves m.iban to the ClubDesk echo when wiedisync's is empty
+      // (UPDATE rows only — see CD_PUSH_HEADERS comment). Creates push their own.
+      m.iban || '',
     ]
-    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt), m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m))
+    if (create) cells.push(mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt), m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m), deriveMitgliederbeitrag(m.beitragskategorie))
     return cells.map(cdCell).join(';')
   })
   return headers.join(';') + '\n' + rows.join('\n') + '\n'
@@ -311,7 +354,7 @@ export function buildPushCsv(members, { create = false } = {}) {
 // used on CREATE rows (buildPushCsv / deriveStatus / deriveOffiziellenLizenz).
 const PUSH_FIELDS = [
   'id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
-  'ort', 'birthdate', 'sex', 'clubdesk_id', 'clubdesk_push_changes',
+  'ort', 'birthdate', 'sex', 'iban', 'clubdesk_id', 'clubdesk_push_changes',
   'beitragskategorie', 'wiedisync_active',
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
 ]
@@ -473,11 +516,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           // A ClubDesk contact with this exact name already exists (divergent
           // email) → pushing CREATE would duplicate it. Warn in the modal.
           would_duplicate: cdNames.has(cdKey(m.first_name, m.last_name)),
-          // What the CREATE push will send as Beitragskategorie (post-mapping)
-          // and Offiziellen Lizenz — shown in the modal so the superadmin sees
-          // them before approving.
+          // What the CREATE push will send as Beitragskategorie (post-mapping),
+          // Offiziellen Lizenz and Mitgliederbeitrag — shown in the modal so
+          // the superadmin sees them before approving.
           beitragskategorie: mapKategorie(m.beitragskategorie) || null,
           offiziellen_lizenz: deriveOffiziellenLizenz(m) || null,
+          mitgliederbeitrag: deriveMitgliederbeitrag(m.beitragskategorie) || null,
         }
       })
       return res.json({ changed, unlinked })
@@ -542,6 +586,22 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           error: 'Every eligible member would blank ClubDesk data (empty fields ClubDesk still owns) — run "Sync down" first',
           code: 'blank_risk', skipped_blank_risk: blankRiskSkipped,
         })
+      }
+      // IBAN echo-back (see CD_PUSH_HEADERS): an UPDATE row whose wiedisync
+      // IBAN is empty gets ClubDesk's own current IBAN so the import can never
+      // blank the register's banking data. The drift blank-risk guard above
+      // deliberately does NOT cover iban — this makes it structurally safe
+      // instead of dropping the member. Member-entered IBANs pass unchanged.
+      if (updates.length) {
+        const cdids = updates.map((m) => String(m.clubdesk_id)).filter(Boolean)
+        const ibanRows = cdids.length ? await database.raw(`
+          SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, iban
+          FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
+        `, [cdids]) : { rows: [] }
+        const cdIban = new Map(ibanRows.rows.map((r) => [r.cdid, String(r.iban || '').trim()]))
+        for (const m of updates) {
+          if (!String(m.iban || '').trim()) m.iban = cdIban.get(String(m.clubdesk_id)) || ''
+        }
       }
       // Eintritt = the registration SUBMISSION date — user rule 2026-07-06:
       // "the date the registration is sent" (approved_at was dropped; it is
@@ -877,16 +937,17 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
     const res = await database.raw(`
       SELECT m.id, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
-             m.birthdate, m.sex, m.clubdesk_id, m.clubdesk_push_pending,
+             m.birthdate, m.sex, m.iban, m.clubdesk_id, m.clubdesk_push_pending,
              cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
              cd.email_alternativ AS cd_email_alt, cd.telefon_privat AS cd_tel_priv,
              cd.telefon_mobil AS cd_tel_mob, cd.adresse AS cd_adresse, cd.plz AS cd_plz,
-             cd.ort AS cd_ort, cd.geburtsdatum AS cd_geburtsdatum, cd.geschlecht AS cd_geschlecht
+             cd.ort AS cd_ort, cd.geburtsdatum AS cd_geburtsdatum, cd.geschlecht AS cd_geschlecht,
+             cd.iban AS cd_iban
       FROM members m
       JOIN (
         SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
                email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
-               geburtsdatum, geschlecht
+               geburtsdatum, geschlecht, iban
         FROM clubdesk_export
         WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
         ORDER BY BTRIM(clubdesk_id), row_id
@@ -947,6 +1008,18 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       cmp('birthdate', bdDisp, r.cd_geburtsdatum, bdIso, driftDateCd(r.cd_geburtsdatum))
       const sexCd = r.sex === 'm' ? 'männlich' : r.sex === 'f' ? 'weiblich' : ''
       cmp('sex', sexCd, r.cd_geschlecht, sexCd, driftLower(r.cd_geschlecht))
+      // IBAN: conflict/fill detection only — deliberately NEVER blank_risk.
+      // The /up echo-back sends ClubDesk's own IBAN when wiedisync's is empty,
+      // so an empty wiedisync IBAN cannot blank the register; flagging it as
+      // blank_risk would only drop the member from pushes for no reason.
+      const ibanNorm = (v) => String(v ?? '').replace(/\s/g, '').toUpperCase()
+      const wIban = ibanNorm(r.iban)
+      const cIban = ibanNorm(r.cd_iban)
+      if (wIban && cIban) {
+        if (wIban !== cIban) conflicts.push({ field: 'iban', wiedisync: driftNorm(r.iban), clubdesk: driftNorm(r.cd_iban) })
+      } else if (wIban) {
+        fills.push({ field: 'iban', wiedisync: driftNorm(r.iban) })
+      }
       if (!conflicts.length && !fills.length) continue
       candidates.push({
         member_id: r.id,
