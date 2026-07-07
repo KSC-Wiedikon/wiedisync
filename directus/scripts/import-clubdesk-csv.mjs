@@ -319,20 +319,29 @@ const psqlInput =
   '  FROM lic_match JOIN lic_uniq USING (cdid)\n' +
   '  WHERE m.id = lic_match.id AND m.clubdesk_id IS NULL\n' +
   '    AND NOT EXISTS (SELECT 1 FROM members x WHERE x.clubdesk_id = lic_match.cdid);\n' +
+  // ACCENT-INSENSITIVE name match (2026-07-07): compare unaccent()ed names on
+  // both sides. Our sync-UP transliterates letters CP1252 can't hold (ć→c, ń→n,
+  // ł→l — toCp1252Buffer), so a just-created contact is stored in ClubDesk with
+  // an ASCII name while wiedisync keeps the accented original. An EXACT last-name
+  // match then never links it → the member is stranded "pushed, awaiting link"
+  // forever (the Kacper Krawczyński/Krawczynski case). unaccent() normalises both
+  // sides identically (verified: Krawczyński→Krawczynski, Curavić→Curavic,
+  // łódź→lodz), so the create round-trip (up → new [Id] → down-link) closes even
+  // for accented names. email + first-name still constrain, so no family mislink.
   'WITH cd AS (\n' +
   '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
-  "         lower(btrim(nachname)) nachname, lower(split_part(btrim(vorname),' ',1)) vn1\n" +
+  "         unaccent(lower(btrim(nachname))) nachname, unaccent(lower(split_part(btrim(vorname),' ',1))) vn1\n" +
   "  FROM clubdesk_export WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL),\n" +
   'email_match AS (\n' +
   '  SELECT mm.id, min(cd.cdid) cdid FROM members mm\n' +
   "  JOIN cd ON NULLIF(btrim(mm.email),'') IS NOT NULL AND lower(btrim(mm.email)) IN (cd.email, cd.email_alt)\n" +
-  '       AND lower(btrim(mm.last_name)) = cd.nachname\n' +
+  '       AND unaccent(lower(btrim(mm.last_name))) = cd.nachname\n' +
   // Blank-first-name guard (audit #15): a member with an empty first_name makes
   // split_part('',' ',1)='' → `cd.vn1 LIKE '%'` = TRUE for every contact, so the
   // first-name guard collapses to match-all. Require both sides non-empty.
   "       AND NULLIF(split_part(btrim(mm.first_name),' ',1),'') IS NOT NULL AND NULLIF(cd.vn1,'') IS NOT NULL\n" +
-  "       AND (lower(split_part(btrim(mm.first_name),' ',1)) LIKE cd.vn1 || '%'\n" +
-  "            OR cd.vn1 LIKE lower(split_part(btrim(mm.first_name),' ',1)) || '%')\n" +
+  "       AND (unaccent(lower(split_part(btrim(mm.first_name),' ',1))) LIKE cd.vn1 || '%'\n" +
+  "            OR cd.vn1 LIKE unaccent(lower(split_part(btrim(mm.first_name),' ',1))) || '%')\n" +
   '  WHERE mm.clubdesk_id IS NULL\n' +
   '  GROUP BY mm.id HAVING count(DISTINCT cd.cdid) = 1),\n' +
   'email_uniq AS (SELECT cdid FROM email_match GROUP BY cdid HAVING count(*) = 1)\n' +
