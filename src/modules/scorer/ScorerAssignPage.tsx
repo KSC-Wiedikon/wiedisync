@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import TeamSelect from '../../components/TeamSelect'
 import TeamChip from '../../components/TeamChip'
 import SportToggle from '../../components/SportToggle'
-import { runAssignment, getTeamCounts, type GameAssignment } from './components/AssignmentAlgorithm'
+import { runAssignment, getTeamCounts, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
 import { updateRecord } from '../../lib/api'
 import { asObj } from '../../utils/relations'
@@ -115,7 +115,9 @@ export default function ScorerAssignPage() {
     [hallsRaw],
   )
 
-  const vbTeams = useMemo(() => teams.filter((tm) => tm.sport === 'volleyball'), [teams])
+  // Exclude MiniVB / DU20 from the VB duty dropdowns — they're out of the duty
+  // system entirely (never an assignee, never in the summary).
+  const vbTeams = useMemo(() => teams.filter((tm) => tm.sport === 'volleyball' && !EXCLUDED_DUTY_TEAM_NAMES.includes(tm.name)), [teams])
   const bbTeams = useMemo(() => teams.filter((tm) => tm.sport === 'basketball'), [teams])
 
   const sportGames = useMemo(
