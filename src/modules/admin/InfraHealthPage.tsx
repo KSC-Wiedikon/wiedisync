@@ -338,7 +338,7 @@ export default function InfraHealthPage() {
     const CRON_STALE = 48 * 3600000 // 48h
 
     // Notification-heartbeat card for a given notification type (or all).
-    const notifCard = async (labelKey: string, type?: string): Promise<HealthCheck> => {
+    const notifCard = async (labelKey: string, type?: string, emptyOk = false): Promise<HealthCheck> => {
       try {
         const rows = await fetchItems<{ date_created: string }>('notifications', {
           limit: 1,
@@ -351,7 +351,12 @@ export default function InfraHealthPage() {
           const diff = Date.now() - new Date(last).getTime()
           return { name: t(labelKey), status: diff > CRON_STALE ? 'stale' : 'healthy', detail: timeAgo(last, t) }
         }
-        return { name: t(labelKey), status: 'unknown', detail: t('infraNoData') }
+        // No matching notifications. For reminder crons this is a normal idle
+        // state (nothing currently due — e.g. off-season), not a fault: show it
+        // green as "Nothing due" instead of a misleading grey "No data".
+        return emptyOk
+          ? { name: t(labelKey), status: 'healthy', detail: t('infraNothingDue') }
+          : { name: t(labelKey), status: 'unknown', detail: t('infraNoData') }
       } catch {
         return { name: t(labelKey), status: 'unknown', detail: '' }
       }
@@ -361,9 +366,9 @@ export default function InfraHealthPage() {
       // Notifications (created by Postgres triggers on game/training/event CRUD)
       notifCard('infraNotifCron'),
       // Participation Reminders (deadline_reminder notifications from 07:00 UTC cron)
-      notifCard('infraParticipationCron', 'deadline_reminder'),
+      notifCard('infraParticipationCron', 'deadline_reminder', true),
       // Upcoming Activity Reminders (06:30 UTC cron)
-      notifCard('infraUpcomingCron', 'upcoming_activity'),
+      notifCard('infraUpcomingCron', 'upcoming_activity', true),
       // Shell Expiry (02:00 UTC — check if any expired shells remain active)
       (async (): Promise<HealthCheck> => {
         try {
