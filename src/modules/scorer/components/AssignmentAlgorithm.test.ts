@@ -57,10 +57,12 @@ describe('runAssignment — referee / exclusions / no-licence', () => {
     expect(names).not.toContain('DU20')
   })
 
-  it('team summary counts referee duties', () => {
+  it('team summary counts referee duties and omits MiniVB / DU20', () => {
     const results = runAssignment(base([game('g1', '1', '2026-09-15')]))
     const counts = getTeamCounts(results, TEAMS, [game('g1', '1', '2026-09-15')])
     const totalReferee = Array.from(counts.values()).reduce((s, r) => s + r.referee, 0)
     expect(totalReferee).toBe(1)
+    expect(counts.has('MiniVB')).toBe(false)
+    expect(counts.has('DU20')).toBe(false)
   })
 })

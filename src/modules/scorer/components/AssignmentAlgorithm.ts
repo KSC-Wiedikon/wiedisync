@@ -12,8 +12,9 @@ const COMBINED_LEAGUES = ['4L', '5L']
 // like the scorer (no licence required).
 const REFEREE_HOME_TEAM_NAMES = ['HU20']
 
-// Teams that must NEVER be assigned duty (Minis / DU20 don't cover duties).
-const EXCLUDED_DUTY_TEAM_NAMES = ['MiniVB', 'DU20']
+// Teams that are OUT of the duty system entirely (Minis / DU20): never assigned
+// duty, and hidden from the assign page's team summary + manual dropdowns.
+export const EXCLUDED_DUTY_TEAM_NAMES = ['MiniVB', 'DU20']
 
 export interface AssignmentInput {
   games: Game[]
@@ -396,7 +397,7 @@ export function getTeamCounts(
   const counts = new Map<string, TeamCountRow>()
 
   for (const t of allTeams) {
-    if (t.sport === 'volleyball' && t.active) {
+    if (t.sport === 'volleyball' && t.active && !EXCLUDED_DUTY_TEAM_NAMES.includes(t.name)) {
       const ownGames = allGames.filter((g) => String(g.kscw_team) === t.id).length
       counts.set(t.name, { scorer: 0, scoreboard: 0, combined: 0, referee: 0, totalDuties: 0, ownGames })
     }
