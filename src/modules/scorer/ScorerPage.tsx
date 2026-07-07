@@ -552,18 +552,17 @@ export default function ScorerPage() {
         </button>
       )}
 
-      {/* Sport toggle + Tab bar */}
+      {/* Sport toggle + Tab bar — the sport split shows for everyone (members
+          who cover both sports need it too), not just admins. */}
       <div className="mt-4 flex items-center justify-between gap-4">
-        {effectiveIsAdmin ? (
-          <SportToggle
-            value={sportTab === 'volleyball' ? 'vb' : 'bb'}
-            onChange={(v: SportView) => {
-              setSportTab(v === 'bb' ? 'basketball' : 'volleyball')
-              clearFilters()
-            }}
-            showAll={false}
-          />
-        ) : <div />}
+        <SportToggle
+          value={sportTab === 'volleyball' ? 'vb' : 'bb'}
+          onChange={(v: SportView) => {
+            setSportTab(v === 'bb' ? 'basketball' : 'volleyball')
+            clearFilters()
+          }}
+          showAll={false}
+        />
         <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
           {(['games', 'overview'] as Tab[]).map((key) => (
             <button
