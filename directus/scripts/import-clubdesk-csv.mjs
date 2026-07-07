@@ -82,6 +82,7 @@ const HEADER_TO_COL = {
   'Mitgliederbeitrag': 'mitgliederbeitrag',             'AHV Nummer': 'ahv_nummer',
   'Passivmitglied': 'passivmitglied',                   'Offiziellen 100er': 'offiziellen_100er',
   'Jg.': 'jg',                                          '[Id]': 'clubdesk_id',
+  'Wiedisync ID': 'wiedisync_id',                       // custom field: wiedisync's own member id (push round-trip key)
   '[Zuletzt geändert am]': 'zuletzt_geaendert_am',      '[Zuletzt geändert von]': 'zuletzt_geaendert_von',
   // Bracketed system variants (full-club export only — migration 065)
   '[Gruppen]': 'gruppen_bracketed',                     '[Rolle]': 'rolle_bracketed',
@@ -104,7 +105,7 @@ const TARGET_COLS = [
   'betrag_bezahlt','clubnummer','mittelschule_zh','offiziellen_lizenz','mitgliederbeitrag',
   'ahv_nummer','passivmitglied','offiziellen_100er','gruppe_2','funktion_2',
   'gruppen_2','jg','clubdesk_id','zuletzt_geaendert_am','zuletzt_geaendert_von',
-  'gruppen_bracketed','rolle_bracketed',
+  'gruppen_bracketed','rolle_bracketed','wiedisync_id',
 ]
 
 // ── 1. Decode CSV (CP1252 → UTF-8) ──────────────────────────────────
@@ -304,6 +305,26 @@ const psqlInput =
   // slips past them aborts THIS linker's own transaction loudly (surfaces in the sync
   // log) rather than silently corrupting — so don't "simplify away" the CTEs.
   'BEGIN;\n' +
+  // ── Wiedisync ID link (2026-07-07) — the AUTHORITATIVE key, runs FIRST ──────
+  // wiedisync pushes its own member id into the ClubDesk "Wiedisync ID" custom
+  // field on every create+update; here we read it straight back and link by an
+  // EXACT id match — immune to the name/email/accent drift the heuristic passes
+  // below suffer (it is what closes the create round-trip up→[Id]→down-link).
+  // Same unambiguity + not-already-held guards as the other passes; the partial
+  // unique index members_clubdesk_id_uq is the final backstop.
+  'WITH cd AS (\n' +
+  "  SELECT btrim(clubdesk_id) cdid, btrim(wiedisync_id) wid FROM clubdesk_export\n" +
+  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL AND btrim(wiedisync_id) ~ '^[0-9]+$'),\n" +
+  'wid_match AS (\n' +
+  '  SELECT mm.id, min(cd.cdid) cdid FROM members mm\n' +
+  '  JOIN cd ON cd.wid = mm.id::text\n' +
+  '  WHERE mm.clubdesk_id IS NULL\n' +
+  '  GROUP BY mm.id HAVING count(DISTINCT cd.cdid) = 1),\n' +
+  'wid_uniq AS (SELECT cdid FROM wid_match GROUP BY cdid HAVING count(*) = 1)\n' +
+  'UPDATE members m SET clubdesk_id = wid_match.cdid\n' +
+  '  FROM wid_match JOIN wid_uniq USING (cdid)\n' +
+  '  WHERE m.id = wid_match.id AND m.clubdesk_id IS NULL\n' +
+  '    AND NOT EXISTS (SELECT 1 FROM members x WHERE x.clubdesk_id = wid_match.cdid);\n' +
   'WITH cd AS (\n' +
   '  SELECT btrim(clubdesk_id) cdid, lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
   "         lower(btrim(lizenznummer)) lic, lower(btrim(nachname)) nachname,\n" +

@@ -60,29 +60,47 @@ const clickExact = async (page, exact, lowest = true) => {
   await page.mouse.click(pos.x, pos.y); return true
 }
 
-// Read the pre-commit summary counts. Each label sits in the modal body; its count
-// is the number in the same row within the modal's x-band (avoids the background
-// contact table whose PLZ/phone numbers share y but sit far left/right).
+// Read the pre-commit summary counts. SCOPED to the summary dialog subtree (the
+// modal asking "…übernehmen?") so a stray number from the background contact
+// table or the mapping dialog can never leak into the counts. The old page-wide
+// x-band heuristic (x 850–1200) worked for the standard field set but broke when
+// a CUSTOM field (Benutzer-Id / Wiedisync ID) shifted the layout — it then read a
+// background value (e.g. total=8038) even though the real import was 1 row.
 const readSummary = (page) => page.evaluate(() => {
-  const leaves = []
+  const ownText = (e) => { let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent; return t.trim() }
+  // Find the summary dialog = nearest sizeable ancestor of the "…übernehmen?" line.
+  let dialog = null
   for (const e of document.querySelectorAll('*')) {
-    let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent
-    t = t.trim(); if (!t) continue
+    if (/übernehmen\?/i.test(ownText(e))) {
+      let p = e
+      for (let i = 0; i < 8 && p.parentElement; i++) {
+        p = p.parentElement
+        const r = p.getBoundingClientRect()
+        if (r.width > 300 && r.width < 1100 && r.height > 120) { dialog = p; break }
+      }
+      break
+    }
+  }
+  if (!dialog) return { total: null, neu: null, veraendert: null, hasSummary: false }
+  const leaves = []
+  for (const e of dialog.querySelectorAll('*')) {
+    const t = ownText(e); if (!t) continue
     const r = e.getBoundingClientRect(); if (r.width === 0 || r.height === 0) continue
     leaves.push({ t, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) })
   }
   const countFor = (re) => {
     const lbl = leaves.find((o) => re.test(o.t))
     if (!lbl) return null
-    // number in the same row, to the right of the label, inside the modal band (x 850–1200)
-    const nums = leaves.filter((o) => Math.abs(o.y - lbl.y) < 8 && /^\d+$/.test(o.t) && o.x > lbl.x && o.x >= 850 && o.x <= 1200)
+    // the count is the number in the same row, to the right of the label — no
+    // x-band needed now that we only look inside the dialog.
+    const nums = leaves.filter((o) => Math.abs(o.y - lbl.y) < 10 && /^\d+$/.test(o.t) && o.x > lbl.x)
     return nums.length ? parseInt(nums.sort((a, b) => a.x - b.x)[0].t, 10) : null
   }
   return {
     total: countFor(/Insgesamt eingelesene/i),
     neu: countFor(/Neue Kontakte/i),
     veraendert: countFor(/(Veränderte|Geänderte) Kontakte/i),
-    hasSummary: leaves.some((o) => /übernehmen\?/i.test(o.t)),
+    hasSummary: true,
   }
 })
 
