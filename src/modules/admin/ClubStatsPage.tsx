@@ -1,7 +1,7 @@
 import { Fragment, useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { kscwApi } from '../../lib/api'
-import { formatDateZurich } from '../../utils/dateHelpers'
+import { formatDateZurich, getCurrentSeason } from '../../utils/dateHelpers'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import DashboardSection from './components/DashboardSection'
 import TeamChip from '../../components/TeamChip'
@@ -81,6 +81,7 @@ interface SchreiberCoverage {
   team_id: number
   team_name: string
   sport: string
+  season: string | null
   total_home_games: string
   vb_any_duty_assigned: string
   vb_no_duty_assigned: string
@@ -198,6 +199,9 @@ export default function ClubStatsPage() {
   const [data, setData] = useState<AllStats | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sportFilter, setSportFilter] = useState<'all' | 'volleyball' | 'basketball'>('all')
+  // Season-scoped sections (Schreiber coverage, W/L results) default to the
+  // current season; the rest of the page is current-state / rolling-window.
+  const [seasonFilter, setSeasonFilter] = useState<string>(getCurrentSeason())
 
   async function fetchStats() {
     try {
@@ -211,18 +215,37 @@ export default function ClubStatsPage() {
 
   useEffect(() => { fetchStats() }, [])
 
+  // Seasons that actually have data (from the two season-scoped views).
+  const availableSeasons = useMemo(() => {
+    if (!data) return [] as string[]
+    const set = new Set<string>()
+    for (const r of data.results) if (r.season) set.add(r.season)
+    for (const s of data.schreiber) if (s.season) set.add(s.season)
+    return Array.from(set).sort().reverse()
+  }, [data])
+
+  // The season actually shown: the user's pick if it has data, else the latest
+  // season that does. Derived (no effect) so the current-season default falls
+  // back cleanly before this season has any games.
+  const effectiveSeason = availableSeasons.includes(seasonFilter)
+    ? seasonFilter
+    : (availableSeasons[0] ?? seasonFilter)
+
   const filtered = useMemo(() => {
-    if (!data || sportFilter === 'all') return data
+    if (!data) return data
+    const bySport = <T extends { sport: string }>(arr: T[]) =>
+      sportFilter === 'all' ? arr : arr.filter(x => x.sport === sportFilter)
     return {
       ...data,
-      roster: data.roster.filter(r => r.sport === sportFilter),
-      schreiber: data.schreiber.filter(s => s.sport === sportFilter),
-      missing: data.missing.filter(m => m.sport === sportFilter),
-      participation: data.participation.filter(p => p.sport === sportFilter),
-      results: data.results.filter(r => r.sport === sportFilter),
-      delegations: data.delegations.filter(d => d.sport === sportFilter),
+      roster: bySport(data.roster),
+      // Season-scoped: only the selected season's rows.
+      schreiber: bySport(data.schreiber).filter(s => s.season === effectiveSeason),
+      missing: bySport(data.missing),
+      participation: bySport(data.participation),
+      results: bySport(data.results).filter(r => r.season === effectiveSeason),
+      delegations: bySport(data.delegations),
     }
-  }, [data, sportFilter])
+  }, [data, sportFilter, effectiveSeason])
 
   // Sport-aware KPI values for header cards
   const kpis = useMemo(() => {
@@ -318,18 +341,32 @@ export default function ClubStatsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-xl font-bold">{t('clubStatsTitle')}</h1>
-        <div className="flex gap-1 rounded-lg bg-muted p-1 text-sm">
-          {(['all', 'volleyball', 'basketball'] as const).map(s => (
-            <button
-              key={s}
-              onClick={() => setSportFilter(s)}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
-                sportFilter === s ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'
-              }`}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-lg bg-muted p-1 text-sm">
+            {(['all', 'volleyball', 'basketball'] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setSportFilter(s)}
+                className={`px-3 py-1.5 rounded-md transition-colors ${
+                  sportFilter === s ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {s === 'all' ? t('clubStatsAll') : s === 'volleyball' ? 'VB' : 'BB'}
+              </button>
+            ))}
+          </div>
+          {availableSeasons.length > 0 && (
+            <select
+              value={effectiveSeason}
+              onChange={e => setSeasonFilter(e.target.value)}
+              aria-label={t('clubStatsSeason')}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm dark:bg-gray-800"
             >
-              {s === 'all' ? t('clubStatsAll') : s === 'volleyball' ? 'VB' : 'BB'}
-            </button>
-          ))}
+              {availableSeasons.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 

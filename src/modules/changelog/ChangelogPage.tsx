@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.23.0'
+const APP_VERSION = '1.24.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.24.0',
+    date: '07.07.2026',
+    sections: [
+      {
+        title: 'Club stats: pick a season',
+        items: [
+          'Club statistics now has a season selector next to the sport toggle, defaulting to the current season. Schreiber coverage and win/loss results follow the selected season instead of mixing in last season\'s data; the rest of the page stays current.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.23.0',
     date: '07.07.2026',

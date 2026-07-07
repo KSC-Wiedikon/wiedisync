@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-05T22:46:46.209Z
+-- Generated:   2026-07-07T10:28:52.060Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -2532,6 +2532,41 @@ ALTER SEQUENCE public.error_annotations_id_seq OWNED BY public.error_annotations
 
 
 --
+-- Name: error_mute_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.error_mute_rules (
+    id integer NOT NULL,
+    event character varying(64),
+    error_match text NOT NULL,
+    note text,
+    enabled boolean DEFAULT true NOT NULL,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid
+);
+
+
+--
+-- Name: error_mute_rules_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.error_mute_rules_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: error_mute_rules_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.error_mute_rules_id_seq OWNED BY public.error_mute_rules.id;
+
+
+--
 -- Name: event_sessions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3117,6 +3152,61 @@ CREATE TABLE public.finance_email_settings (
 --
 
 COMMENT ON TABLE public.finance_email_settings IS 'Singleton (id=1) finance email switch. test_mode=true (default) redirects every dues-run email to test_recipient so members are never emailed until an admin turns it off.';
+
+
+--
+-- Name: finance_expenses; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_expenses (
+    id integer NOT NULL,
+    member integer NOT NULL,
+    file uuid,
+    amount numeric(12,2) NOT NULL,
+    currency character varying(8) DEFAULT 'CHF'::character varying NOT NULL,
+    expense_date date,
+    vendor character varying(200),
+    description character varying(300),
+    reference character varying(140),
+    pay_to_iban character varying(34),
+    member_note character varying(1000),
+    status character varying(16) DEFAULT 'pending'::character varying NOT NULL,
+    finance_note character varying(1000),
+    payout integer,
+    status_changed_by_name character varying(255),
+    status_changed_by_email character varying(255),
+    status_changed_at timestamp with time zone,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    user_created uuid,
+    CONSTRAINT finance_expenses_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'paid'::character varying, 'rejected'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE finance_expenses; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_expenses IS 'Expense reimbursement submissions from /finance/expense (member paid out of pocket, wants money back). pending → paid | rejected; on paid the endpoint auto-creates the linked finance_payouts row. Writes go through /kscw/expenses/* endpoints, not the items API.';
+
+
+--
+-- Name: finance_expenses_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_expenses_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_expenses_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_expenses_id_seq OWNED BY public.finance_expenses.id;
 
 
 --
@@ -5357,6 +5447,17 @@ ALTER SEQUENCE public.polls_id_seq OWNED BY public.polls.id;
 
 
 --
+-- Name: public_stats; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.public_stats (
+    id character varying(255) NOT NULL,
+    value integer,
+    date_updated timestamp with time zone
+);
+
+
+--
 -- Name: push_subscriptions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5546,7 +5647,8 @@ CREATE TABLE public.registrations (
     bb_doc_natdecl uuid,
     locale character varying(5) DEFAULT 'de'::character varying,
     rejection_reason text,
-    nationalitaet_code character varying(2)
+    nationalitaet_code character varying(2),
+    sektion_choice character varying(32)
 );
 
 
@@ -5676,6 +5778,7 @@ CREATE TABLE public.scheduling_emails (
     date_created timestamp with time zone DEFAULT now() NOT NULL,
     assigned_opponent integer,
     account character varying(16) DEFAULT 'volleyball'::character varying NOT NULL,
+    group_reposted_at timestamp with time zone,
     CONSTRAINT scheduling_emails_account_check CHECK (((account)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying])::text[]))),
     CONSTRAINT scheduling_emails_direction_check CHECK (((direction)::text = ANY ((ARRAY['in'::character varying, 'out'::character varying])::text[])))
 );
@@ -6433,6 +6536,7 @@ CREATE VIEW public.stats_schreiber_coverage WITH (security_invoker='true') AS
  SELECT t.id AS team_id,
     t.name AS team_name,
     t.sport,
+    g.season,
     count(DISTINCT g.id) AS total_home_games,
     count(DISTINCT g.id) FILTER (WHERE (((t.sport)::text = 'volleyball'::text) AND (g.scorer_member IS NOT NULL))) AS vb_scorer_assigned,
     count(DISTINCT g.id) FILTER (WHERE (((t.sport)::text = 'volleyball'::text) AND (g.scoreboard_member IS NOT NULL))) AS vb_scoreboard_assigned,
@@ -6447,7 +6551,7 @@ CREATE VIEW public.stats_schreiber_coverage WITH (security_invoker='true') AS
    FROM (public.teams t
      LEFT JOIN public.games g ON (((g.kscw_team = t.id) AND ((g.type)::text = 'home'::text))))
   WHERE (t.active = true)
-  GROUP BY t.id, t.name, t.sport;
+  GROUP BY t.id, t.name, t.sport, g.season;
 
 
 --
@@ -7159,6 +7263,13 @@ ALTER TABLE ONLY public.error_annotations ALTER COLUMN id SET DEFAULT nextval('p
 
 
 --
+-- Name: error_mute_rules id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.error_mute_rules ALTER COLUMN id SET DEFAULT nextval('public.error_mute_rules_id_seq'::regclass);
+
+
+--
 -- Name: event_sessions id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -7247,6 +7358,13 @@ ALTER TABLE ONLY public.finance_dunning_notices ALTER COLUMN id SET DEFAULT next
 --
 
 ALTER TABLE ONLY public.finance_email_jobs ALTER COLUMN id SET DEFAULT nextval('public.finance_email_jobs_id_seq'::regclass);
+
+
+--
+-- Name: finance_expenses id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_expenses ALTER COLUMN id SET DEFAULT nextval('public.finance_expenses_id_seq'::regclass);
 
 
 --
@@ -7836,6 +7954,14 @@ ALTER TABLE ONLY public.error_annotations
 
 
 --
+-- Name: error_mute_rules error_mute_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.error_mute_rules
+    ADD CONSTRAINT error_mute_rules_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: event_sessions event_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7969,6 +8095,14 @@ ALTER TABLE ONLY public.finance_email_jobs
 
 ALTER TABLE ONLY public.finance_email_settings
     ADD CONSTRAINT finance_email_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_expenses finance_expenses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_expenses
+    ADD CONSTRAINT finance_expenses_pkey PRIMARY KEY (id);
 
 
 --
@@ -8361,6 +8495,14 @@ ALTER TABLE ONLY public.poll_votes
 
 ALTER TABLE ONLY public.polls
     ADD CONSTRAINT polls_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: public_stats public_stats_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.public_stats
+    ADD CONSTRAINT public_stats_pkey PRIMARY KEY (id);
 
 
 --
@@ -8829,6 +8971,20 @@ CREATE UNIQUE INDEX finance_email_jobs_one_running ON public.finance_email_jobs 
 --
 
 CREATE INDEX finance_email_jobs_run_idx ON public.finance_email_jobs USING btree (dues_run, id);
+
+
+--
+-- Name: finance_expenses_member_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_expenses_member_idx ON public.finance_expenses USING btree (member);
+
+
+--
+-- Name: finance_expenses_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_expenses_status_idx ON public.finance_expenses USING btree (status);
 
 
 --
@@ -9448,6 +9604,13 @@ CREATE INDEX idx_error_annotations_status ON public.error_annotations USING btre
 
 
 --
+-- Name: idx_error_mute_rules_enabled; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_error_mute_rules_enabled ON public.error_mute_rules USING btree (enabled);
+
+
+--
 -- Name: idx_event_signups_email_lower; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9851,6 +10014,13 @@ CREATE INDEX scheduling_blocks_team_range_idx ON public.scheduling_blocks USING 
 --
 
 CREATE INDEX scheduling_emails_date_sent_idx ON public.scheduling_emails USING btree (date_sent DESC NULLS LAST);
+
+
+--
+-- Name: scheduling_emails_group_repost_pending_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scheduling_emails_group_repost_pending_idx ON public.scheduling_emails USING btree (account, date_sent) WHERE ((group_reposted_at IS NULL) AND ((direction)::text = 'in'::text));
 
 
 --
@@ -10436,6 +10606,14 @@ ALTER TABLE ONLY public.conversations
 
 
 --
+-- Name: error_mute_rules error_mute_rules_user_created_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.error_mute_rules
+    ADD CONSTRAINT error_mute_rules_user_created_fkey FOREIGN KEY (user_created) REFERENCES public.directus_users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: event_sessions event_sessions_event_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10537,6 +10715,30 @@ ALTER TABLE ONLY public.finance_dunning_notices
 
 ALTER TABLE ONLY public.finance_email_jobs
     ADD CONSTRAINT finance_email_jobs_dues_run_fkey FOREIGN KEY (dues_run) REFERENCES public.finance_dues_runs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finance_expenses finance_expenses_file_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_expenses
+    ADD CONSTRAINT finance_expenses_file_fkey FOREIGN KEY (file) REFERENCES public.directus_files(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finance_expenses finance_expenses_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_expenses
+    ADD CONSTRAINT finance_expenses_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finance_expenses finance_expenses_payout_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_expenses
+    ADD CONSTRAINT finance_expenses_payout_fkey FOREIGN KEY (payout) REFERENCES public.finance_payouts(id) ON DELETE SET NULL;
 
 
 --

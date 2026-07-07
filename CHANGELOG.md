@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.24.0 — 2026-07-07
+
+### Club stats: pick a season
+- Club statistics now has a **season selector** (next to the sport toggle) defaulting to the current season. The **Schreiber coverage** and **win/loss results** sections previously aggregated across *all* seasons, so at a season start they were dominated by the finished season's data — they now follow the selected season, with past seasons still available to look back. Roster, member, participation and missing-duty sections stay current-state as before. (Backend: migration 181 adds a `season` dimension to the `stats_schreiber_coverage` view.)
+
 ## v1.23.0 — 2026-07-07
 
 ### Scorer assignment tool for admins
