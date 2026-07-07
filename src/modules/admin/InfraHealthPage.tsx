@@ -225,7 +225,7 @@ export default function InfraHealthPage() {
     // ── Services ── The probes are independent, so fire them concurrently
     // instead of an 8-request serial chain that stalls the boot gate. Cards
     // are then assembled in the original display order.
-    const [prodHealth, devHealth, push, hooks, db, errorLog, cfWiedisync, cfWebsite] = await Promise.all([
+    const [prodHealth, devHealth, push, hooks, db, errorLog, cfWiedisync] = await Promise.all([
       // API Prod (no-cors fallback — same treatment as Dev; avoids racing the
       // shared hook's useEffect, which populated undefined on first render and
       // made the Prod card flash "Down" even when reachable)
@@ -260,11 +260,9 @@ export default function InfraHealthPage() {
       })(),
       // CF Pages — wiedisync (check if frontend is reachable)
       checkEndpoint('https://wiedisync.kscw.ch/', true),
-      // CF Pages — kscw-website. The prod alias 302-redirects to kscw.ch
-      // (ClubDesk) and is cross-origin, so the browser can't read the response;
-      // a CORS-blocked result means "reachable but unverifiable", not "down".
-      // Treat it as 'unknown' (grey) rather than a false red.
-      checkEndpoint('https://kscw-website.pages.dev/', true),
+      // (No kscw-website card: its prod alias 302-redirects cross-origin to
+      // kscw.ch/ClubDesk, so the browser can never read the response — the card
+      // could only ever show grey "Unknown", pure noise. Dropped 2026-07-07.)
     ])
 
     const apiProdOk = prodHealth.ok
@@ -319,12 +317,6 @@ export default function InfraHealthPage() {
         status: cfWiedisync.ok ? 'healthy' : 'down',
         detail: cfWiedisync.ok ? 'wiedisync.kscw.ch' : t('infraUnreachable'),
         responseTime: cfWiedisync.ok ? cfWiedisync.ms : null,
-      },
-      {
-        name: 'CF Pages (Website)',
-        status: cfWebsite.ok ? 'healthy' : cfWebsite.cors ? 'unknown' : 'down',
-        detail: cfWebsite.ok ? 'kscw-website.pages.dev' : cfWebsite.cors ? 'Cross-origin (redirects to kscw.ch)' : t('infraUnreachable'),
-        responseTime: cfWebsite.ok ? cfWebsite.ms : null,
       },
     ]
 
