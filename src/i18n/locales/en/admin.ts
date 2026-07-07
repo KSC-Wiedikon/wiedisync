@@ -707,6 +707,8 @@ export default {
   errorLogsMuteEvent: 'Event (optional)',
   errorLogsMuteAnyEvent: 'Any event',
   errorLogsMuteMatch: 'Message contains',
+  errorLogsMuteAnyMessage: 'Any message',
+  errorLogsMuteHint: 'Leave the message empty to mute the whole event.',
   errorLogsMuteNote: 'Note (optional)',
   errorLogsMuteSave: 'Mute',
   errorLogsMuteCreated: 'Mute rule created',
