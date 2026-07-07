@@ -411,7 +411,9 @@ function buildGroupRepostRaw(parsed, row, acct) {
   const references = [row.references_ids, inReplyTo].filter(Boolean).join(' ') || undefined
 
   const composer = new MailComposer({
-    from: { name: `${origName} (via ${acct.fromName})`, address: acct.fromAddress },
+    // Just the original sender's name — Google Groups appends its own
+    // "via VB Spielplanung KSCW" wrapper, so an extra "(via …)" here doubles it.
+    from: { name: origName, address: acct.fromAddress },
     to: acct.groupAddress,
     replyTo: origAddr || undefined,
     subject,
