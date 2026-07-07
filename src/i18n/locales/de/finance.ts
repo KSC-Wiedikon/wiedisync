@@ -329,6 +329,8 @@ export default {
   duesColMember: 'Mitglied',
   duesStatusWillBill: 'Wird verrechnet',
   duesStatusAlreadyBilled: 'Bereits verrechnet',
+  duesStatusClubdeskBilled: 'Via ClubDesk verrechnet',
+  duesClubdeskBilledNote: '{{count}} bereits via ClubDesk verrechnet (übersprungen)',
   duesStatusNoRate: 'Kein Satz',
   duesStatusNoEmail: 'Keine E-Mail hinterlegt',
   duesIssueCta: '{{count}} Rechnungen auslösen',

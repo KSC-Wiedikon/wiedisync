@@ -17,14 +17,16 @@ const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent p
 const apiErr = (e: unknown, fallback: string) => (e as { body?: { error?: string } })?.body?.error || fallback
 
 /** Per-member row status badge in the preview. */
-function rowStatus(r: DuesPreviewRow): 'willBill' | 'alreadyBilled' | 'noRate' {
+function rowStatus(r: DuesPreviewRow): 'willBill' | 'alreadyBilled' | 'clubdeskBilled' | 'noRate' {
   if (r.missing_rate) return 'noRate'
   if (r.already_billed) return 'alreadyBilled'
+  if (r.clubdesk_billed) return 'clubdeskBilled'
   return 'willBill'
 }
 const STATUS_TONE: Record<string, string> = {
   willBill: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
   alreadyBilled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  clubdeskBilled: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
   noRate: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
 }
 
@@ -141,7 +143,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
     } catch { setRunErr(t('duesBillsError')) } finally { setBillBusy(null) }
   }
 
-  const statusLabel = (s: string) => ({ willBill: t('duesStatusWillBill'), alreadyBilled: t('duesStatusAlreadyBilled'), noRate: t('duesStatusNoRate') }[s] ?? s)
+  const statusLabel = (s: string) => ({ willBill: t('duesStatusWillBill'), alreadyBilled: t('duesStatusAlreadyBilled'), clubdeskBilled: t('duesStatusClubdeskBilled'), noRate: t('duesStatusNoRate') }[s] ?? s)
   const sektionLabel = (s: string | null) => s || t('duesSektionDefault')
   const sortedRates = useMemo(() => [...(ratesData?.rates ?? [])].sort((a, b) => a.category.localeCompare(b.category) || (a.sektion || '').localeCompare(b.sektion || '')), [ratesData])
 
@@ -269,6 +271,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   already: preview.totals.already_billed,
                   noRate: preview.totals.missing_rate,
                 })}
+                {preview.totals.clubdesk_billed > 0 && <span className="text-purple-700 dark:text-purple-400"> · {t('duesClubdeskBilledNote', { count: preview.totals.clubdesk_billed })}</span>}
                 {preview.totals.no_email > 0 && <span className="text-amber-700 dark:text-amber-400"> · {t('duesNoEmailNote', { count: preview.totals.no_email })}</span>}
               </p>
               <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
