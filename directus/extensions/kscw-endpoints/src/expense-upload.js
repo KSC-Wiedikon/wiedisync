@@ -36,6 +36,14 @@ const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 // Recipient for submitted reimbursements. Overridable per environment via env;
 // the default is the club finance inbox so a missing env var never drops the mail.
 const FINANCE_INBOX_EMAIL = process.env.FINANCE_INBOX_EMAIL || 'finance@mail.kscw.ch'
+// finance@mail.kscw.ch is a Migadu address whose forward to the treasurer lands
+// on ClubDesk (kscw.ch, DMARC p=quarantine), which quarantines the softfail
+// forwarded copy — so mail to the inbox alone never reaches the treasurer. Send
+// the notification DIRECTLY to their real inbox too (SES → Gmail authenticates
+// cleanly, same path the registration-approval mails already use). Comma list;
+// override per env (empty on dev to avoid mailing the treasurer during testing).
+const FINANCE_NOTIFY_EMAILS = (process.env.FINANCE_NOTIFY_EMAILS ?? 'radomir.radovanovic.b@gmail.com')
+  .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
 const UPLOAD_DIR = process.env.STORAGE_LOCAL_ROOT || '/directus/uploads'
 // Abuse / cost guard: each member may scan (OCR) and submit at most 5 receipts
 // per rolling hour. In-memory sliding window keyed by Directus user id — fine
@@ -424,8 +432,14 @@ export function registerExpenseUpload(router, { database, logger, services, getS
         const schema = await getSchema()
         const { MailService } = services
         const mail = new MailService({ schema, knex: database })
+        // Inbox stays as archive; the treasurer's real address(es) ride as direct
+        // recipients so the reimbursement actually lands (see FINANCE_NOTIFY_EMAILS).
+        const financeTo = [...new Set([
+          FINANCE_INBOX_EMAIL.toLowerCase(),
+          ...FINANCE_NOTIFY_EMAILS,
+        ])].join(', ')
         await mail.send({
-          to: FINANCE_INBOX_EMAIL,
+          to: financeTo,
           ...(submitterEmail ? { cc: submitterEmail } : {}),
           subject: `Spesen / expense — ${submitterName} — ${fmtAmount}`,
           html,
