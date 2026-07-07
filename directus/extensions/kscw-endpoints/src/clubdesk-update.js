@@ -1430,7 +1430,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         .filter((c) => c && EDITABLE.has(c.field))
         .map((c) => ({
           field: c.field,
-          old_value: c.old_value,
+          // Old birthdate arrives as ISO from the modal — render it Swiss like
+          // the new value (the Lasse email showed "2024-04-17" vs "17.04.1998").
+          old_value: c.field === 'birthdate' && /^\d{4}-\d{2}-\d{2}/.test(String(c.old_value ?? ''))
+            ? fmtBirthdateDDMMYYYY(c.old_value)
+            : c.old_value,
           new_value: c.field === 'birthdate' ? fmtBirthdateDDMMYYYY(member.birthdate)
             : c.field === 'sex' ? sexLabel
               : (member[c.field] ?? ''),
