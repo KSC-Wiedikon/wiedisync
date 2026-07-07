@@ -86,7 +86,7 @@ function AutoSignInCard() {
   }
 
   return (
-    <div className="mt-8">
+    <div data-tour="profile-attendance" className="mt-8">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('autoSignInTitle')}</h2>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('autoSignInHint')}</p>
       <div className="mt-3 divide-y divide-gray-100 rounded-lg border bg-white dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800">
@@ -176,7 +176,7 @@ function EmailNotificationCard() {
   }
 
   return (
-    <div className="mt-8">
+    <div data-tour="profile-emails" className="mt-8">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('emailNotifyTitle')}</h2>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('emailNotifyHint')}</p>
       <div className="mt-3 divide-y divide-gray-100 rounded-lg border bg-white dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800">
@@ -456,11 +456,11 @@ export default function ProfilePage() {
       <EmailNotificationCard />
 
       {/* Contact Info */}
-      <div className="mt-8">
+      <div data-tour="profile-contact" className="mt-8">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('contact')}</h2>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('contactPrivacyNotice')}</p>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <div data-tour="profile-privacy" className="rounded-lg border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
             <div className="flex items-center gap-2">
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('email')}</p>
               {user.hide_email && (

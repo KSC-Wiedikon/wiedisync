@@ -11,6 +11,7 @@ import TeamCard from './TeamCard'
 import type { Team } from '../../types'
 import { getCurrentSeason } from '../../utils/dateHelpers'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import { TourPageButton } from '../guide/TourPageButton'
 
 export default function TeamsPage() {
   const { t } = useTranslation('teams')
@@ -110,7 +111,7 @@ export default function TeamsPage() {
           description={hasElevatedAccess ? t('noTeamsDescription') : t('noTeamMembershipDescription')}
           action={
             !hasElevatedAccess ? (
-              <Button onClick={() => setJoinOpen(true)}>
+              <Button data-tour="teams-join" onClick={() => setJoinOpen(true)}>
                 <Plus className="h-4 w-4" />
                 {t('joinAnotherTeam')}
               </Button>
@@ -132,11 +133,14 @@ export default function TeamsPage() {
     <div>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
+            <TourPageButton />
+          </div>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('subtitleSeason', { season })}</p>
         </div>
         {!hasElevatedAccess && (
-          <Button variant="outline" size="sm" onClick={() => setJoinOpen(true)} className="shrink-0">
+          <Button data-tour="teams-join" variant="outline" size="sm" onClick={() => setJoinOpen(true)} className="shrink-0">
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">{t('manageTeams')}</span>
           </Button>
@@ -148,7 +152,7 @@ export default function TeamsPage() {
           {bbTeams.length > 0 && (
             <h2 className="mt-6 text-lg font-semibold text-gray-900 dark:text-gray-100">Volleyball</h2>
           )}
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div data-tour="teams-list" className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {vbTeams.map((team) => (
               <TeamCard key={team.id} team={team} playerCount={playersByTeam[team.id] ?? 0} guestCount={guestsByTeam[team.id] ?? 0} />
             ))}
@@ -159,7 +163,7 @@ export default function TeamsPage() {
       {bbTeams.length > 0 && (
         <>
           <h2 className="mt-8 text-lg font-semibold text-gray-900 dark:text-gray-100">Basketball</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div data-tour="teams-list" className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {bbTeams.map((team) => (
               <TeamCard key={team.id} team={team} playerCount={playersByTeam[team.id] ?? 0} guestCount={guestsByTeam[team.id] ?? 0} />
             ))}

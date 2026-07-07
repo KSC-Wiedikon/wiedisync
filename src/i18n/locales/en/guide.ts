@@ -43,7 +43,7 @@ export default {
         },
         home: {
           title: 'Home',
-          body: 'Your personal dashboard: upcoming games, trainings, and tasks at a glance.',
+          body: 'Your personal dashboard: upcoming games, trainings, open surveys, and forms to fill at a glance.',
         },
         profile: {
           title: 'My profile',
@@ -69,7 +69,7 @@ export default {
         },
         rsvpButtons: {
           title: 'RSVP',
-          body: 'Tap Yes, Maybe, or No. Your coach can see the attendance statistics.',
+          body: 'Tap Yes, Maybe, or No. Depending on your team settings you may already be auto-confirmed — then just tap No when you cannot make it. Your coach sees the attendance statistics.',
         },
         absence: {
           title: 'Absence note',
@@ -97,9 +97,9 @@ export default {
           title: 'Attendance list',
           body: 'View the full attendance list for each training and export it if needed.',
         },
-        notify: {
-          title: 'Notify players',
-          body: 'Send a push notification to all players who have not yet responded.',
+        cancel: {
+          title: 'Cancel a training',
+          body: 'Use the cancel icon on a training card to cancel it with an optional reason — players are notified and RSVPs freeze. The same spot reinstates a cancelled session.',
         },
       },
     },
@@ -113,11 +113,11 @@ export default {
         },
         rsvp: {
           title: 'Game RSVP',
-          body: 'Confirm whether you will be attending the game. Your coach sees these responses.',
+          body: 'Confirm whether you will be attending the game. With auto-confirm you are marked attending automatically — only act when you cannot come. Your coach sees these responses.',
         },
         result: {
           title: 'Results',
-          body: 'Match results and set scores are updated automatically from the league system.',
+          body: 'Match results and set scores are updated automatically from the league system. Use the season picker on the rankings to browse past seasons.',
         },
         details: {
           title: 'Game details',
@@ -127,23 +127,19 @@ export default {
     },
     gamesCoach: {
       title: 'Games — Coach',
-      description: 'How to manage games as a coach',
+      description: 'Coach tools on the games page',
       steps: {
-        overview: {
-          title: 'Game overview',
-          body: 'Your full game schedule with RSVP counts and result status for each match.',
+        dashboard: {
+          title: 'Attendance dashboard',
+          body: 'Open the Dashboard tab for attendance statistics of your team over a date range.',
         },
-        lineup: {
-          title: 'Line-up',
-          body: 'Define the player line-up for each game and share it with your team.',
+        stats: {
+          title: 'Per-player stats',
+          body: 'Games played, present, absent, and attendance rate per player — tap a row for the per-game drill-down.',
         },
-        scorer: {
-          title: 'Scorer assignment',
-          body: 'Assign a scorer for home games. The scorer receives a notification automatically.',
-        },
-        notes: {
-          title: 'Coach notes',
-          body: 'Add private notes to a game — only visible to coaches.',
+        manage: {
+          title: 'Manage a game',
+          body: 'Open a game for details and coach actions — cancelling or reinstating a game notifies your team. Match scheduling itself lives in the Spielplanung app.',
         },
       },
     },
@@ -191,31 +187,35 @@ export default {
           title: 'Scorer duty',
           body: 'If you are assigned as scorer for a game, you will see it here and receive a notification.',
         },
-        confirm: {
-          title: 'Confirm',
-          body: 'Confirm or decline your scorer assignment. Declining notifies your coach.',
+        filters: {
+          title: 'Filters',
+          body: 'Narrow your duties by date, team, or duty type, or search for a specific game.',
         },
         delegate: {
           title: 'Delegate',
-          body: 'If you cannot score, you can suggest another team member as replacement.',
+          body: 'Cannot make it? Tap Delegate next to your name to suggest a teammate — they receive a request they can accept or decline.',
         },
       },
     },
     scorerAdmin: {
       title: 'Scorer — Admin',
-      description: 'Manage scorer assignments',
+      description: 'Assign scorer duties automatically',
       steps: {
         overview: {
-          title: 'Scorer overview',
-          body: 'See all games that require a scorer and their current assignment status.',
+          title: 'Season overview',
+          body: 'All home games of the current season that need a scorer or Täfeler duty team are loaded here.',
+        },
+        run: {
+          title: 'Auto-assign',
+          body: 'Run the assignment algorithm to distribute duties fairly across teams. Open the algorithm rules panel to see how it decides.',
+        },
+        summary: {
+          title: 'Team summary',
+          body: 'How many duties each team received in this run — check the balance before saving.',
         },
         assign: {
-          title: 'Assign scorer',
-          body: 'Select a player for each game. They are automatically notified.',
-        },
-        history: {
-          title: 'History',
-          body: 'Track who has scored how many games — useful for fair rotation.',
+          title: 'Review and adjust',
+          body: 'Change the duty team of any game via its dropdown, then save all assignments.',
         },
       },
     },
@@ -228,16 +228,110 @@ export default {
           body: 'All hall time slots for your teams are shown here — trainings, games, and free slots.',
         },
         claim: {
-          title: 'Claim a slot',
-          body: 'Tap a free slot to claim it for your team. The slot is reserved immediately.',
+          title: 'Claim a freed slot',
+          body: 'When a team frees a slot, a pill appears here — tap it to see and claim available slots for your team.',
         },
         release: {
-          title: 'Release a slot',
-          body: 'If you no longer need a slot, release it so other teams can use it.',
+          title: 'Slot colors',
+          body: 'Colors encode the slot type: trainings, games, freed slots, and closures. Tap one of your team slots to manage or release it.',
         },
-        conflict: {
-          title: 'Conflicts',
-          body: 'Overlapping slots are highlighted. Contact the admin to resolve conflicts.',
+        virtual: {
+          title: 'Automatic entries',
+          body: 'Games, trainings, and calendar events appear automatically as entries with an "Auto" badge — they are projected live, not booked.',
+        },
+      },
+    },
+    profile: {
+      title: 'Profile & settings',
+      description: 'Tune your account',
+      steps: {
+        contact: {
+          title: 'Your details',
+          body: 'Keep your contact details up to date — your coaches rely on them. Change them via the Edit profile button.',
+        },
+        attendance: {
+          title: 'Auto sign-in',
+          body: 'Choose whether you are automatically confirmed for new trainings, games, and events. Absences always win over auto-confirmation.',
+        },
+        emails: {
+          title: 'Email notifications',
+          body: 'Switch off individual email alerts — the in-app notification bell always shows everything.',
+        },
+        privacy: {
+          title: 'Privacy',
+          body: 'A "Hidden" badge means teammates cannot see your email. Change this and more under Edit profile.',
+        },
+      },
+    },
+    teams: {
+      title: 'Teams',
+      description: 'Your teams — and how to join more',
+      steps: {
+        list: {
+          title: 'Your teams',
+          body: 'All your teams at a glance. Tap a team for the roster, staff, and games.',
+        },
+        join: {
+          title: 'Join another team',
+          body: 'Request to join another team — pick the sport and team, and a coach approves your request. Leaving a team works from the same place.',
+        },
+      },
+    },
+    forms: {
+      title: 'Forms',
+      description: 'Fill in club and team forms',
+      steps: {
+        list: {
+          title: 'Open forms',
+          body: 'Forms your club or team asks you to fill are listed here — open forms also appear on your home page.',
+        },
+        fill: {
+          title: 'Fill a form',
+          body: 'Tap Fill to answer. You can edit your response as long as the form stays open.',
+        },
+        create: {
+          title: 'Create forms',
+          body: 'Coaches, team responsibles, and the board can create forms, see responses, and export them.',
+        },
+      },
+    },
+    financeDues: {
+      title: 'My finances',
+      description: 'Pay dues and invoices in the app',
+      steps: {
+        iban: {
+          title: 'Payout IBAN',
+          body: 'Reimbursements from the club are paid to this account — add or update your IBAN here.',
+        },
+        list: {
+          title: 'Your invoices',
+          body: 'Membership dues and club invoices with their amounts and payment status.',
+        },
+        pay: {
+          title: 'Pay an invoice',
+          body: 'Tap an open invoice to expand it, then scan the Swiss QR-bill with TWINT or your banking app and tap "I have paid".',
+        },
+        status: {
+          title: 'Payment status',
+          body: 'After reporting a payment the invoice shows "Pending confirmation" until the treasurer confirms it.',
+        },
+      },
+    },
+    expenses: {
+      title: 'Expenses',
+      description: 'Get club expenses reimbursed',
+      steps: {
+        upload: {
+          title: 'Upload a receipt',
+          body: 'Pick a photo or PDF of your receipt — amount, date, and vendor are read automatically.',
+        },
+        iban: {
+          title: 'Check the IBAN',
+          body: 'Before submitting, check the pay-to IBAN — that is your own account the club reimburses to.',
+        },
+        submissions: {
+          title: 'My submissions',
+          body: 'Track your submissions here: pending, paid, or rejected. You are notified as soon as the treasurer decides.',
         },
       },
     },
