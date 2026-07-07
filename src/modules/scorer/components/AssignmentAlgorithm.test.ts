@@ -57,6 +57,24 @@ describe('runAssignment — referee / exclusions / no-licence', () => {
     expect(names).not.toContain('DU20')
   })
 
+  it('a team can cover a non-overlapping slot the same day (adjacency preferred)', () => {
+    const g1 = game('g1', '2', '2026-09-15', { time: '11:00', hall: 'h1' }) // H1 plays 11:00
+    const g2 = game('g2', '4', '2026-09-15', { time: '16:00', hall: 'h1' }) // D1 plays 16:00, same hall
+    const results = runAssignment(base([g1, g2]))
+    const g2res = results.find((r) => r.gameId === 'g2')!
+    // H1 (id '2') played the earlier game at this hall → eligible + adjacency bonus wins a slot
+    expect([g2res.scorerTeamId, g2res.scoreboardTeamId]).toContain('2')
+  })
+
+  it('a team cannot cover a game overlapping its own', () => {
+    const g1 = game('g1', '2', '2026-09-15', { time: '16:00', hall: 'h1' }) // H1 plays 16:00
+    const g2 = game('g2', '4', '2026-09-15', { time: '16:00', hall: 'h2' }) // D1 plays 16:00 elsewhere
+    const results = runAssignment(base([g1, g2]))
+    const g2res = results.find((r) => r.gameId === 'g2')!
+    expect(g2res.scorerTeamId).not.toBe('2')
+    expect(g2res.scoreboardTeamId).not.toBe('2')
+  })
+
   it('team summary counts referee duties and omits MiniVB / DU20', () => {
     const results = runAssignment(base([game('g1', '1', '2026-09-15')]))
     const counts = getTeamCounts(results, TEAMS, [game('g1', '1', '2026-09-15')])
