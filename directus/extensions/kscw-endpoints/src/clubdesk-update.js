@@ -1163,6 +1163,21 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       } else if (wIban) {
         fills.push({ field: 'iban', wiedisync: driftNorm(r.iban) })
       }
+      // Anrede / Nationalität / AHV: echo-protected like IBAN — conflict/fill
+      // only, NEVER blank_risk (the /up echo-back sends ClubDesk's own value
+      // when wiedisync's is empty, so an empty wiedisync field cannot blank it).
+      // AHV compares digits-only (dot formatting differs between the systems).
+      const cmpEcho = (field, wRaw, cRaw, wNorm, cNorm) => {
+        if (wNorm && cNorm) {
+          if (wNorm !== cNorm) conflicts.push({ field, wiedisync: driftNorm(wRaw), clubdesk: driftNorm(cRaw) })
+        } else if (wNorm) {
+          fills.push({ field, wiedisync: driftNorm(wRaw) })
+        }
+      }
+      cmpEcho('anrede', r.anrede, r.cd_anrede, driftLower(r.anrede), driftLower(r.cd_anrede))
+      cmpEcho('nationalitaet', r.nationalitaet, r.cd_nationalitaet, driftLower(r.nationalitaet), driftLower(r.cd_nationalitaet))
+      const ahvDigits = (v) => String(v ?? '').replace(/\D/g, '')
+      cmpEcho('ahv_nummer', r.ahv_nummer, r.cd_ahv_nummer, ahvDigits(r.ahv_nummer), ahvDigits(r.cd_ahv_nummer))
       if (!conflicts.length && !fills.length) continue
       candidates.push({
         member_id: r.id,

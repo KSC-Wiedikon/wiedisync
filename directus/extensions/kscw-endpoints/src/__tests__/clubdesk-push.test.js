@@ -20,13 +20,24 @@ const kacper = {
 }
 
 describe('buildPushCsv (update set)', () => {
-  it('emits exactly the 10 contact columns — no category, no Eintritt', () => {
+  it('emits exactly the 13 contact columns — no category, no Eintritt', () => {
     const csv = buildPushCsv([kacper])
     const [header, row] = csv.trim().split('\n')
-    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN')
+    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;AHV Nummer')
     expect(header).not.toContain('Beitragskategorie')
-    expect(row.split(';')).toHaveLength(10)
+    expect(row.split(';')).toHaveLength(13)
     expect(row).not.toContain('VB Erwerbstätige')
+  })
+
+  it('carries the echo-protected contact fields (anrede/nationalitaet/ahv) after IBAN', () => {
+    const row = buildPushCsv([{ ...kacper, iban: 'CH93', anrede: 'Herr', nationalitaet: 'Schweiz', ahv_nummer: '756.1.2.3' }])
+      .trim().split('\n')[1].split(';')
+    expect(row[9]).toBe('CH93')      // IBAN
+    expect(row[10]).toBe('Herr')     // Anrede
+    expect(row[11]).toBe('Schweiz')  // Nationalität
+    expect(row[12]).toBe('756.1.2.3') // AHV Nummer
+    const empty = buildPushCsv([kacper]).trim().split('\n')[1].split(';')
+    expect([empty[10], empty[11], empty[12]]).toEqual(['', '', '']) // /up echo-fills these
   })
 
   it('formats birthdate dd.mm.yyyy and maps sex to ClubDesk wording', () => {
@@ -35,7 +46,7 @@ describe('buildPushCsv (update set)', () => {
     expect(row.split(';')[8]).toBe('männlich')
   })
 
-  it('carries the member IBAN (or the /up-resolved ClubDesk echo) as the last cell', () => {
+  it('carries the member IBAN (or the /up-resolved ClubDesk echo) at index 9', () => {
     const withIban = buildPushCsv([{ ...kacper, iban: 'CH9300762011623852957' }]).trim().split('\n')[1]
     expect(withIban.split(';')[9]).toBe('CH9300762011623852957')
     const withoutIban = buildPushCsv([kacper]).trim().split('\n')[1]
@@ -50,36 +61,38 @@ describe('buildPushCsv (create set)', () => {
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
     expect(header.endsWith('Mitgliederbeitrag;Passivmitglied;Sektion;Schiedsrichter')).toBe(true)
     const cells = row.split(';')
-    expect(cells).toHaveLength(20)
+    expect(cells).toHaveLength(23)
     expect(cells[9]).toBe('CH9300762011623852957') // IBAN
-    expect(cells[10]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
-    expect(cells[11]).toBe('VB Erwerbstätige')       // Beitragskategorie
-    expect(cells[12]).toBe('27.06.2026')             // Eintritt
-    expect(cells[13]).toBe('VB H1 (Spieler*in)')     // Gruppen
-    expect(cells[14]).toBe('Aktivmitglied')          // Status
-    expect(cells[15]).toBe('VB SC')                  // Offiziellen Lizenz (scorer, not VB SR)
-    expect(cells[16]).toBe('440')                    // Mitgliederbeitrag
-    expect(cells[17]).toBe('Nein')                   // Passivmitglied
-    expect(cells[18]).toBe('Volleyball')             // Sektion
-    expect(cells[19]).toBe('Ja')                     // Schiedsrichter (referee)
+    // [10..12] = Anrede/Nationalität/AHV Nummer (empty on this fixture); create extras start at [13]
+    expect(cells[13]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
+    expect(cells[14]).toBe('VB Erwerbstätige')       // Beitragskategorie
+    expect(cells[15]).toBe('27.06.2026')             // Eintritt
+    expect(cells[16]).toBe('VB H1 (Spieler*in)')     // Gruppen
+    expect(cells[17]).toBe('Aktivmitglied')          // Status
+    expect(cells[18]).toBe('VB SC')                  // Offiziellen Lizenz (scorer, not VB SR)
+    expect(cells[19]).toBe('440')                    // Mitgliederbeitrag
+    expect(cells[20]).toBe('Nein')                   // Passivmitglied
+    expect(cells[21]).toBe('Volleyball')             // Sektion
+    expect(cells[22]).toBe('Ja')                     // Schiedsrichter (referee)
   })
 
   it('Telefon Mobil mirrors Telefon Privat (one number → both)', () => {
     const cells = buildPushCsv([kacper], { create: true }).trim().split('\n')[1].split(';')
-    expect(cells[3]).toBe(cells[10]) // Privat === Mobil
+    expect(cells[3]).toBe(cells[13]) // Privat === Mobil
   })
 
   it('empty create-set optional cells stay empty (safe on a new contact)', () => {
     const row = buildPushCsv([{ ...kacper, phone: '', beitragskategorie: null, eintritt: null, gruppen: '', cd_status: '' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    for (const i of [9, 10, 11, 12, 13, 14, 15]) expect(cells[i]).toBe('')
+    // IBAN, Anrede, Nationalität, AHV, Telefon Mobil, Beitragskategorie, Eintritt, Gruppen, Status
+    for (const i of [9, 10, 11, 12, 13, 14, 15, 16, 17]) expect(cells[i]).toBe('')
   })
 
   it('neutralises formula injection in the category cell', () => {
     const row = buildPushCsv([{ ...kacper, beitragskategorie: '=SUM(A1)' }], { create: true })
       .trim().split('\n')[1]
-    expect(row.split(';')[11]).toBe("'=SUM(A1)")
+    expect(row.split(';')[14]).toBe("'=SUM(A1)")
   })
 
   it('leaves phone-style leading + unguarded but escapes +formula (2026-07-06 apostrophe bug)', () => {
@@ -93,8 +106,8 @@ describe('buildPushCsv (create set)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(20)
-    expect(cells[13]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
+    expect(cells).toHaveLength(23)
+    expect(cells[16]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 })
 
