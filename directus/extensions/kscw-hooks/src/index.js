@@ -3661,6 +3661,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!existingMember.nationalitaet && reg.nationalitaet) updates.nationalitaet = reg.nationalitaet
       if (!existingMember.sex && reg.geschlecht) updates.sex = normalizeSex(reg.geschlecht)
       if (!existingMember.ahv_nummer && reg.ahv_nummer) updates.ahv_nummer = reg.ahv_nummer
+      // Payout IBAN from the signup form (migration 185) — fill-only, and
+      // confirmed: the member typed it themselves. Registration values arrive
+      // already mod-97-validated + normalized (registration.js).
+      if (!existingMember.iban && reg.iban) { updates.iban = reg.iban; updates.iban_confirmed = true }
       if (!existingMember.beitragskategorie && reg.beitragskategorie) updates.beitragskategorie = reg.beitragskategorie
       // Licences are per-flag booleans (migration 067; legacy `licences` json
       // dropped in migration 119). Additive: only ever set a flag true here.
@@ -3690,6 +3694,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         nationalitaet: reg.nationalitaet || null,
         sex: normalizeSex(reg.geschlecht),
         ahv_nummer: reg.ahv_nummer || null,
+        // Payout IBAN from the signup form (migration 185) — pre-validated
+        // (mod-97) + normalized by registration.js; confirmed since the member
+        // typed it themselves.
+        iban: reg.iban || null,
+        iban_confirmed: !!reg.iban,
         beitragskategorie: reg.beitragskategorie || null,
         // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
         scorer_vb: licences.includes('scorer_vb'),

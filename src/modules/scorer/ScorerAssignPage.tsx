@@ -15,7 +15,6 @@ import SportToggle from '../../components/SportToggle'
 import { runAssignment, getTeamCounts, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
 import { updateRecord } from '../../lib/api'
-import { asObj } from '../../utils/relations'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { TourPageButton } from '../guide/TourPageButton'
 
@@ -136,6 +135,14 @@ export default function ScorerAssignPage() {
     for (const tm of teams) m.set(tm.id, tm.name)
     return m
   }, [teams])
+
+  // Games carry a bare hall ID (not expanded), so resolve names from the halls
+  // list rather than asObj (which would render blank).
+  const hallNameById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const h of halls) m.set(String(h.id), h.name)
+    return m
+  }, [halls])
 
   const vbTeamCounts = useMemo(() => getTeamCounts(vbAssignments, teams, sportGames), [vbAssignments, teams, sportGames])
   const bbTeamCounts = useMemo(() => getBbTeamCounts(bbAssignments, teams, sportGames), [bbAssignments, teams, sportGames])
@@ -413,7 +420,7 @@ export default function ScorerAssignPage() {
                 ? vbAssignments.map((a) => {
                     const game = homeGames.find((g) => g.id === a.gameId)
                     if (!game) return null
-                    const hallName = asObj<Hall>(game.hall)?.name ?? ''
+                    const hallName = hallNameById.get(String(game.hall)) ?? ''
                     const isExisting = a.conflicts.some((c) => c.key === 'existingKept')
                     const hasNoAssignment = !a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId
 
@@ -481,7 +488,7 @@ export default function ScorerAssignPage() {
                 : bbAssignments.map((a) => {
                     const game = homeGames.find((g) => g.id === a.gameId)
                     if (!game) return null
-                    const hallName = asObj<Hall>(game.hall)?.name ?? ''
+                    const hallName = hallNameById.get(String(game.hall)) ?? ''
                     const isExisting = a.conflicts.some((c) => c.key === 'existingKept')
                     const hasNoAssignment = !a.dutyTeamId
 

@@ -5,6 +5,7 @@
  */
 
 import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, escHtml } from './email-template.js'
+import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
 import crypto from 'crypto'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
@@ -469,14 +470,72 @@ export function registerRegistration(router, { database, logger, services, getSc
         return res.status(400).json({ error: 'vorname, nachname, email, membership_type required' })
       }
 
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(body.email)) {
+      // ── Contact-data guards (2026-07-07) — reject un-normalizable values at the
+      // door and store the CANONICAL form (normalize.js), so both databases stay
+      // standardized (INFRA.md → "Contact-data normalization rule"). Messages are
+      // localized: they reach real users via the public form (which mirrors these
+      // checks client-side — server = bypass/stale-cache backstop).
+      const isEn = body.locale === 'en'
+      const emailNorm = normalizeEmail(body.email)
+      if (!emailNorm.ok || !emailNorm.value) {
         return res.status(400).json({ error: 'Invalid email format' })
+      }
+      const phoneNorm = normalizePhone(body.telefon_mobil)
+      if (!phoneNorm.ok) {
+        return res.status(400).json({
+          error: isEn
+            ? 'Please check the phone number — it does not look like a valid number.'
+            : 'Bitte überprüfe die Telefonnummer — sie scheint ungültig zu sein.',
+          code: 'invalid_phone',
+        })
+      }
+      const ahvNorm = normalizeAhv(body.ahv_nummer)
+      if (!ahvNorm.ok) {
+        return res.status(400).json({
+          error: isEn
+            ? 'Please check the AHV number (format 756.XXXX.XXXX.XX) — the check digit does not match.'
+            : 'Bitte überprüfe die AHV-Nummer (Format 756.XXXX.XXXX.XX) — die Prüfziffer stimmt nicht.',
+          code: 'invalid_ahv',
+        })
+      }
+      // IBAN is OPTIONAL and used only to pay money back (reimbursements) —
+      // registrations.iban, migration 185.
+      const ibanNorm = normalizeIban(body.iban)
+      if (!ibanNorm.ok) {
+        return res.status(400).json({
+          error: isEn
+            ? 'Please check the IBAN — it is not a valid account number.'
+            : 'Bitte überprüfe die IBAN — sie ist keine gültige Kontonummer.',
+          code: 'invalid_iban',
+        })
       }
 
       const validTypes = ['volleyball', 'basketball', 'passive']
       if (!validTypes.includes(body.membership_type)) {
         return res.status(400).json({ error: 'Invalid membership_type' })
+      }
+
+      // AHV requiredness mirror (the form enforces it client-side): active VB
+      // members under 23 and BB members under 25 need an AHV number for the
+      // association licence. Server-side so a bypassed/stale form can't create
+      // a licence-blocked registration.
+      if (!ahvNorm.value && body.geburtsdatum && ['volleyball', 'basketball'].includes(body.membership_type)) {
+        const dob = new Date(body.geburtsdatum)
+        if (!Number.isNaN(dob.getTime())) {
+          const now = new Date()
+          let age = now.getFullYear() - dob.getFullYear()
+          const m = now.getMonth() - dob.getMonth()
+          if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age--
+          const limit = body.membership_type === 'volleyball' ? 23 : 25
+          if (age < limit) {
+            return res.status(400).json({
+              error: isEn
+                ? 'The AHV number is required for the licence at your age.'
+                : 'Die AHV-Nummer ist für die Lizenz in deinem Alter erforderlich.',
+              code: 'ahv_required',
+            })
+          }
+        }
       }
 
       // Per-IP rate limit (defense-in-depth behind Turnstile — each submission
@@ -556,8 +615,8 @@ export function registerRegistration(router, { database, logger, services, getSc
         anrede: body.anrede || null,
         vorname: body.vorname.trim(),
         nachname: body.nachname.trim(),
-        email: body.email.trim().toLowerCase(),
-        telefon_mobil: body.telefon_mobil || null,
+        email: emailNorm.value,
+        telefon_mobil: phoneNorm.value,
         adresse: body.adresse || null,
         plz: body.plz || null,
         ort: body.ort || null,
@@ -565,7 +624,8 @@ export function registerRegistration(router, { database, logger, services, getSc
         nationalitaet: body.nationalitaet || null,
         nationalitaet_code: (body.nationalitaet_code || '').trim().toUpperCase().slice(0, 2) || null,
         geschlecht: body.geschlecht || null,
-        ahv_nummer: body.ahv_nummer || null,
+        ahv_nummer: ahvNorm.value,
+        iban: ibanNorm.value,
         team: Array.isArray(body.team) ? body.team.join(', ') : (body.team || null),
         beitragskategorie: body.beitragskategorie || null,
         kantonsschule: body.kantonsschule || null,

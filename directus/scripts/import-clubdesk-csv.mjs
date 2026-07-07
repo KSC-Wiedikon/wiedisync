@@ -247,7 +247,11 @@ const psqlInput =
   '  SELECT lower(btrim(lizenznummer)) lic,\n' +
   "         left(NULLIF(btrim(adresse),''),255) adresse, left(NULLIF(btrim(plz),''),10) plz, left(NULLIF(btrim(ort),''),100) ort,\n" +
   "         left(NULLIF(btrim(beitragskategorie),''),100) categ, left(NULLIF(btrim(sektion),''),32) sektion,\n" +
-  "         left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255) phone\n" +
+  // Phone fills canonicalized via kscw_normalize_phone (migration 186); an
+  // unrewritable ClubDesk value (legacy 9-digit, free text) fills raw — better
+  // a reachable oddball than a dropped number.
+  "         COALESCE(kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)),\n" +
+  "                  left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) phone\n" +
   "  FROM clubdesk_export WHERE NULLIF(btrim(lizenznummer),'') IS NOT NULL),\n" +
   'mt AS (\n' +
   '  SELECT DISTINCT ON (mm.id) mm.id, cd.adresse, cd.plz, cd.ort, cd.categ, cd.sektion, cd.phone\n' +
@@ -264,7 +268,11 @@ const psqlInput =
   "         lower(btrim(nachname)) nachname, lower(split_part(btrim(vorname),' ',1)) vn1,\n" +
   "         left(NULLIF(btrim(adresse),''),255) adresse, left(NULLIF(btrim(plz),''),10) plz, left(NULLIF(btrim(ort),''),100) ort,\n" +
   "         left(NULLIF(btrim(beitragskategorie),''),100) categ, left(NULLIF(btrim(sektion),''),32) sektion,\n" +
-  "         left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255) phone\n" +
+  // Phone fills canonicalized via kscw_normalize_phone (migration 186); an
+  // unrewritable ClubDesk value (legacy 9-digit, free text) fills raw — better
+  // a reachable oddball than a dropped number.
+  "         COALESCE(kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)),\n" +
+  "                  left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) phone\n" +
   '  FROM clubdesk_export),\n' +
   'mt AS (\n' +
   '  SELECT DISTINCT ON (mm.id) mm.id, cd.adresse, cd.plz, cd.ort, cd.categ, cd.sektion, cd.phone\n' +
@@ -306,18 +314,23 @@ const psqlInput =
   // log) rather than silently corrupting — so don't "simplify away" the CTEs.
   'BEGIN;\n' +
   // ── Wiedisync ID link (2026-07-07) — the AUTHORITATIVE key, runs FIRST ──────
-  // wiedisync pushes its own member id into the ClubDesk "Wiedisync ID" custom
-  // field on every create+update; here we read it straight back and link by an
-  // EXACT id match — immune to the name/email/accent drift the heuristic passes
-  // below suffer (it is what closes the create round-trip up→[Id]→down-link).
-  // Same unambiguity + not-already-held guards as the other passes; the partial
-  // unique index members_clubdesk_id_uq is the final backstop.
+  // wiedisync pushes its member UUID (members.uuid, migration 184; pre-184
+  // pushes carried the numeric members.id) into the ClubDesk "Wiedisync ID"
+  // custom field on every create+update; here we read it straight back and link
+  // by an EXACT key match — immune to the name/email/accent drift the heuristic
+  // passes below suffer (it is what closes the create round-trip
+  // up→[Id]→down-link). Both key formats stay accepted forever: UUID → uuid,
+  // digits → id. Same unambiguity + not-already-held guards as the other
+  // passes; the partial unique index members_clubdesk_id_uq is the final
+  // backstop.
   'WITH cd AS (\n' +
-  "  SELECT btrim(clubdesk_id) cdid, btrim(wiedisync_id) wid FROM clubdesk_export\n" +
-  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL AND btrim(wiedisync_id) ~ '^[0-9]+$'),\n" +
+  "  SELECT btrim(clubdesk_id) cdid, lower(btrim(wiedisync_id)) wid FROM clubdesk_export\n" +
+  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
+  "    AND (btrim(wiedisync_id) ~ '^[0-9]+$'\n" +
+  "         OR btrim(wiedisync_id) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')),\n" +
   'wid_match AS (\n' +
   '  SELECT mm.id, min(cd.cdid) cdid FROM members mm\n' +
-  '  JOIN cd ON cd.wid = mm.id::text\n' +
+  '  JOIN cd ON cd.wid = CASE WHEN cd.wid ~ \'^[0-9]+$\' THEN mm.id::text ELSE mm.uuid::text END\n' +
   '  WHERE mm.clubdesk_id IS NULL\n' +
   '  GROUP BY mm.id HAVING count(DISTINCT cd.cdid) = 1),\n' +
   'wid_uniq AS (SELECT cdid FROM wid_match GROUP BY cdid HAVING count(*) = 1)\n' +
@@ -420,7 +433,9 @@ const psqlInput =
   'WITH cd AS (\n' +
   '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
   "         left(btrim(vorname),255) AS first_name, left(btrim(nachname),255) AS last_name,\n" +
-  "         left(btrim(email),255) AS email,\n" +
+  // Stored lowercased — the canonical email shape (migration 186 backfilled the
+  // stock; match keys below were always lowercased).
+  "         lower(left(btrim(email),255)) AS email,\n" +
   "         lower(btrim(email)) AS email_l, lower(btrim(email_alternativ)) AS email_alt_l,\n" +
   "         lower(btrim(nachname)) AS nachname_l,\n" +
   "         lower(split_part(btrim(vorname),' ',1)) AS vn1\n" +
@@ -594,7 +609,10 @@ const psqlInput =
   "              THEN to_date(geburtsdatum,'DD.MM.YYYY') END AS dob,\n" +
   "         left(NULLIF(btrim(adresse),''),255) AS adresse, left(NULLIF(btrim(plz),''),10) AS plz,\n" +
   "         left(NULLIF(btrim(ort),''),100) AS ort,\n" +
-  "         left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255) AS phone,\n" +
+  // Phone fill canonicalized via kscw_normalize_phone (migration 186); an
+  // unrewritable value fills raw (same rule as the licence/email passes above).
+  "         COALESCE(kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)),\n" +
+  "                  left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) AS phone,\n" +
   "         left(NULLIF(btrim(beitragskategorie),''),100) AS categ, left(NULLIF(btrim(sektion),''),32) AS sektion\n" +
   '  FROM clubdesk_export\n' +
   "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +

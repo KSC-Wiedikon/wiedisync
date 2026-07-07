@@ -30,10 +30,12 @@ const sql = r.stdout;
 test('emit-sql exits 0 and produces the staging load', () => {
   assert.equal(r.status, 0, r.stderr);
   assert.ok(sql.includes('TRUNCATE clubdesk_export RESTART IDENTITY;'));
-  // \copy column list must match the 62 staging columns of migrations 064+065
+  // \copy column list must match the 63 staging columns of migrations 064+065
+  // (+ wiedisync_id, added 2026-07-07 for the round-trip linker)
   const copyLine = sql.split('\n').find((l) => l.startsWith('\\copy clubdesk_export('));
   assert.ok(copyLine, 'missing \\copy line');
-  assert.equal(copyLine.slice(copyLine.indexOf('(') + 1, copyLine.indexOf(')')).split(',').length, 62);
+  assert.equal(copyLine.slice(copyLine.indexOf('(') + 1, copyLine.indexOf(')')).split(',').length, 63);
+  assert.ok(copyLine.includes('wiedisync_id'), 'wiedisync_id missing from staging load');
 });
 
 test('member-create pass sits between the linker and the sex pass', () => {

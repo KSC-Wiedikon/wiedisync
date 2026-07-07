@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.26.0 — 2026-07-07
+
+### Standardized contact data + smarter signup form
+- **One canonical format everywhere**: phone (`+41 79 123 45 67` / compact E.164 for foreign), IBAN (compact uppercase, mod-97 verified), AHV (`756.1234.5678.97`, EAN-13 check digit verified), email (lowercase). Enforced at every write path — registration, profile edit, ClubDesk sync both directions — with a one-time backfill of existing data (migration 186, ~290 phones repaired). Rule documented in `INFRA.md → Contact-data normalization rule`; parity-tested mirrors in backend/frontend/SQL/website.
+- **Signup form (kscw.ch)**: validates AHV check digit, phone and email before submitting, and gains an **optional IBAN field** — collected only for paying money back (expense reimbursements), never for fee collection. Server-side guards mirror the client (localized errors), including the AHV-required rule (VB under 23 / BB under 25). Approved registrations carry the IBAN into the member profile as confirmed.
+- **Wiedisync ID becomes a UUID** (migration 184, `members.uuid`): the ClubDesk round-trip key is now globally unique and visually distinct from ClubDesk's own numeric IDs. Legacy numeric stamps stay valid — the sync linker accepts both formats.
+
 ## v1.25.0 — 2026-07-07
 
 ### Scorer duty: HU20 referee + no-licence assignment

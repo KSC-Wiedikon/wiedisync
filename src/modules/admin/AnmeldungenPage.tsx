@@ -48,6 +48,7 @@ interface Registration extends BaseRecord {
   lizenz: string | null
   schiedsrichter_stufe: string | null
   ahv_nummer: string | null
+  iban: string | null
   kantonsschule: string | null
   locale: string | null
   rejection_reason: string | null
@@ -813,6 +814,8 @@ function ExpandedDetails({
         {field('schiedsrichter_stufe', t('anmeldungenRefLevel'))}
         {field('kantonsschule', t('anmeldungenSchool'))}
         {field('ahv_nummer', 'AHV')}
+        {/* Payout IBAN (reimbursements only, migration 185) — pre-validated mod-97 at submission */}
+        {field('iban', 'IBAN')}
         {/* Passive members have no sport → the approver picks the ClubDesk Sektion */}
         {reg.membership_type === 'passive' && selectField('sektion_choice', t('anmeldungenSektion'), ['Volleyball', 'Basketball', 'KSCW'])}
         {field('bemerkungen', t('anmeldungenNotes'), { full: true })}

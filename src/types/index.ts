@@ -157,6 +157,9 @@ export interface Member extends BaseRecord {
   shell_expires: string
   shell_reminder_sent: boolean
   // ClubDesk sync fields
+  // Stable global member key (migration 184) — pushed to ClubDesk as
+  // "Wiedisync ID"; system-assigned, never edited.
+  uuid?: string
   adresse: string
   plz: string
   ort: string
