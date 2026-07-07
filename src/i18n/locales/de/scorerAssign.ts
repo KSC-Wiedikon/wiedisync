@@ -74,7 +74,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Regeln des Algorithmus',
-  rulesModeVb: 'Volleyball: separate Schreiber- und Täfeler-Teams. In Döltschi und in der 4L/5L macht ein Team beides (kombiniert). HU20-Heimspiele haben nur einen Schiedsrichter (kein Schreiber/Täfeler).',
+  rulesModeVb: 'Der Dienst richtet sich nach der Stufe des Heimteams: 4./5. Liga (alle) und DU23 → ein Team macht Schreiber + Täfeler (kombiniert, keine Lizenz). 3. Liga und höher sowie HU23 → separater Schreiber (mit Lizenz) + Täfeler. HU20 → nur Schiedsrichter (keine Lizenz).',
   refereeCount: 'Schiedsrichter',
   refereeTag: 'SR',
   noRefereeAvailable: 'Kein Schiedsrichter verfügbar',
@@ -85,7 +85,7 @@ export default {
   ruleVbHardGame: 'Team spielt ein zeitlich überlappendes Spiel (ein früherer/späterer Slot am selben Tag ist ok)',
   ruleVbHardDoltschi: 'Döltschi: nur U-Teams (HU20, HU23-1, DU23-1, DU23-2)',
   ruleVbHardDuty: 'Team hat am selben Tag bereits einen Dienst',
-  ruleVbHardLicence: 'Schreiber/kombiniert: Team braucht ein Mitglied mit Schreiber-Lizenz',
+  ruleVbHardLicence: 'Schreiber (3. Liga und höher, HU23): Team braucht ein Mitglied mit Schreiber-Lizenz',
   ruleVbSoftSequence: 'Spielt direkt davor/danach in derselben Halle: +50',
   ruleVbSoftHu20: 'HU20 als Täfeler: +15',
   ruleVbSoftDoltschi: 'U-Team kombiniert in Döltschi: +10',

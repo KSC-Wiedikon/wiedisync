@@ -74,7 +74,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Algorithm rules',
-  rulesModeVb: 'Volleyball: separate scorer and scoreboard teams. At Döltschi and in 4L/5L one team does both (combined). HU20 home games use only a referee (no scorer or scoreboard).',
+  rulesModeVb: 'Duty depends on the home team\'s level: 4th/5th league (all genders) and DU23 → one team does scorer + Täfeler (combined, no licence). 3rd league and up, and HU23 → separate scorer (needs a licence) + Täfeler. HU20 → referee only (no licence).',
   refereeCount: 'Referee',
   refereeTag: 'Ref',
   noRefereeAvailable: 'No referee available',
@@ -85,7 +85,7 @@ export default {
   ruleVbHardGame: 'Team plays a game overlapping this one (an earlier/later slot the same day is fine)',
   ruleVbHardDoltschi: 'Döltschi: Under teams only (HU20, HU23-1, DU23-1, DU23-2)',
   ruleVbHardDuty: 'Team already has a duty the same day',
-  ruleVbHardLicence: 'Scorer / combined: team needs a member with a scorer licence',
+  ruleVbHardLicence: 'Scorer (3rd league and up, HU23): team needs a member with a scorer licence',
   ruleVbSoftSequence: 'Plays right before/after in the same hall: +50',
   ruleVbSoftHu20: 'HU20 as scoreboard: +15',
   ruleVbSoftDoltschi: 'Under team combined at Döltschi: +10',

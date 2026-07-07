@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import DOMPurify from 'dompurify'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
-import type { Game, Member, Team, MemberTeam, ScorerDelegation } from '../../types'
+import type { Game, Member, Team, MemberTeam, ScorerDelegation, Absence } from '../../types'
 import { licencesOf } from '../../types'
 import { useCollection } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
@@ -135,6 +135,15 @@ export default function ScorerPage() {
     fields: ['id', 'first_name', 'last_name', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'kscw_membership_active', 'phone', 'email'],
   })
   const members = membersRaw ?? []
+
+  // The current user's own absences — to warn (not block) on self-claim.
+  const { data: myAbsencesRaw } = useCollection<Absence>('absences', {
+    filter: { member: { _eq: user?.id ?? '' } },
+    fields: ['id', 'member', 'start_date', 'end_date', 'affects', 'type', 'days_of_week'],
+    all: true,
+    enabled: !!user,
+  })
+  const myAbsences = myAbsencesRaw ?? []
 
   // Contact details (email/phone) for officials of the coach/TR's own duty games.
   // Empty for admins (they read contacts via the items API) and non-leaders.
@@ -474,6 +483,7 @@ export default function ScorerPage() {
       onDelegate={isPast ? undefined : handleDelegate}
       getPendingForRole={getPendingForRole}
       getDelegationTargetName={getDelegationTargetName}
+      myAbsences={myAbsences}
     />
   )
 

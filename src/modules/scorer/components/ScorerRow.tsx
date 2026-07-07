@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import DOMPurify from 'dompurify'
 import { useTranslation } from 'react-i18next'
-import type { Game, Member, Team, Hall, LicenceType, MemberTeam, ScorerDelegation } from '../../../types'
+import type { Game, Member, Team, Hall, LicenceType, MemberTeam, ScorerDelegation, Absence } from '../../../types'
+import { absenceCoversActivity } from '../../../utils/absenceHelpers'
 import TeamChip from '../../../components/TeamChip'
 import AssignmentEditor from './AssignmentEditor'
 import DelegationModal from './DelegationModal'
@@ -31,6 +32,8 @@ interface ScorerRowProps {
   onDelegate?: (gameId: string, role: ScorerDelegation['role'], toMemberId: string, fromTeamId: string, toTeamId: string) => void
   getPendingForRole: (gameId: string, role: string) => ScorerDelegation | undefined
   getDelegationTargetName: (delegation: ScorerDelegation, members: Member[]) => string
+  /** The current user's own absences — used to warn (not block) on self-claim. */
+  myAbsences?: Absence[]
 }
 
 import { asObj } from '../../../utils/relations'
@@ -163,6 +166,7 @@ export default function ScorerRow({
   onDelegate,
   getPendingForRole,
   getDelegationTargetName,
+  myAbsences = [],
 }: ScorerRowProps) {
   const { t } = useTranslation('scorer')
   const expanded = game as ExpandedGame
@@ -190,6 +194,10 @@ export default function ScorerRow({
   // HU20 games are scorer + referee (data-driven: referee_duty_team is written
   // by the admin-assign page). kscw_team isn't expanded here, so no name check.
   const vbReferee = isVbRefereeMode(game)
+
+  // The user has an absence on this game's date — self-claim is still allowed,
+  // but we warn them in the confirmation dialog.
+  const hasAbsenceOnGameDate = myAbsences.some((a) => absenceCoversActivity(a, 'game', String(game.date).slice(0, 10)))
 
   // Self-assign confirmation state
   const [confirmRole, setConfirmRole] = useState<AssignRole | null>(null)
@@ -227,8 +235,9 @@ export default function ScorerRow({
 
     if (sport === 'volleyball') {
       const vbRole = role as VbAssignRole
-      // No licence required for any VB duty (scorer / Täfeler / referee) — else a
-      // team assigned scorer duty with no licenced member would be unfillable.
+      // Separate-mode scorer (3L and up / HU23) needs a scorer licence; the
+      // combined scorer/Täfeler, the pure Täfeler and the referee need none.
+      if (vbRole === 'scorer' && !userLicences.includes('scorer_vb')) return false
       let dutyTeamId: string | undefined
       let currentPerson: string | undefined
       if (vbRole === 'scorer') {
@@ -433,7 +442,7 @@ export default function ScorerRow({
             renderVbEditor('referee', 'referee', undefined, 'referee_duty_team', 'referee_member')
           ) : (
             <>
-              {renderVbEditor('scorer', 'scorer', undefined, 'scorer_duty_team', 'scorer_member')}
+              {renderVbEditor('scorer', 'scorer', 'scorer_vb', 'scorer_duty_team', 'scorer_member')}
               {renderVbEditor('scoreboard', 'scoreboard', undefined, 'scoreboard_duty_team', 'scoreboard_member')}
             </>
           )
@@ -572,6 +581,17 @@ export default function ScorerRow({
                     }}
                   />
                 </div>
+
+                {/* Absence alert — the user is marked absent on this date. Does
+                    NOT block the claim, just warns. */}
+                {hasAbsenceOnGameDate && (
+                  <div className="flex gap-3 rounded-lg bg-red-50/80 px-3 py-2.5 dark:bg-red-900/10">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
+                    <p className="text-sm leading-relaxed text-red-700 dark:text-red-400">
+                      {t('confirmSelfAssignAbsence')}
+                    </p>
+                  </div>
+                )}
 
                 {/* Warning: final — delegation only */}
                 <div className="flex gap-3 rounded-lg bg-amber-50/80 px-3 py-2.5 dark:bg-amber-900/10">

@@ -79,6 +79,7 @@ export default {
   confirmSelfAssignArrival_referee: 'Du muäsch spötischtens <strong>30 Minute</strong> vor Spielbeginn i de Halle sii.',
   confirmSelfAssignArrival_bb: 'Du muäsch spötischtens <strong>15 Minute</strong> vor Spielbeginn i de Halle sii.',
   confirmSelfAssignWarning: 'Die Wahl isch <strong>entgültig</strong>. Sobald du e Ufgab übernimmsch, chasch sie nüm abgäh — du chasch sie nur <strong>a es anders Mitglied delegiere</strong>.',
+  confirmSelfAssignAbsence: 'Du häsch a däm Datum e Absänz iträit. Du chasch de Dienscht trotzdäm übernäh, aber prüef zerscht dini Verfüegbarkeit.',
   cancelAction: 'Abbräche',
   confirmAction: 'Bestätige',
 

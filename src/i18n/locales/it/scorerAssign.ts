@@ -74,7 +74,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Regole dell\'algoritmo',
-  rulesModeVb: 'Pallavolo: squadre di refertista e tabellone separate. A Döltschi e in 4L/5L una squadra fa entrambi (combinato). Le partite casalinghe HU20 usano solo un arbitro (niente refertista o tabellone).',
+  rulesModeVb: 'Il servizio dipende dal livello della squadra di casa: 4ª/5ª lega (tutti) e DU23 → una squadra fa refertista + tabellone (combinato, senza licenza). 3ª lega e superiori, e HU23 → refertista separato (con licenza) + tabellone. HU20 → solo arbitro (senza licenza).',
   refereeCount: 'Arbitro',
   refereeTag: 'Arb',
   noRefereeAvailable: 'Nessun arbitro disponibile',
@@ -85,7 +85,7 @@ export default {
   ruleVbHardGame: 'La squadra gioca una partita sovrapposta a questa (uno slot prima/dopo lo stesso giorno va bene)',
   ruleVbHardDoltschi: 'Döltschi: solo squadre U (HU20, HU23-1, DU23-1, DU23-2)',
   ruleVbHardDuty: 'La squadra ha già un servizio lo stesso giorno',
-  ruleVbHardLicence: 'Refertista / combinato: la squadra necessita di un membro con licenza da refertista',
+  ruleVbHardLicence: 'Refertista (3ª lega e superiori, HU23): la squadra necessita di un membro con licenza da refertista',
   ruleVbSoftSequence: 'Gioca subito prima/dopo nella stessa palestra: +50',
   ruleVbSoftHu20: 'HU20 al tabellone: +15',
   ruleVbSoftDoltschi: 'Squadra U in combinato a Döltschi: +10',
