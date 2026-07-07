@@ -115,7 +115,7 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
-- **2026-07-07** **v1.26.0 — Contact-data standardization** (canonical phone/IBAN/AHV/email everywhere, parity-tested mirrors + INFRA rule; migrations 184 `members.uuid` round-trip key / 185 `registrations.iban` / 186 normalize fn + backfill; registration guards client+server, website IBAN field; dev — prod pending).
+- **2026-07-07** **v1.26.0 — Contact-data standardization** (canonical phone/IBAN/AHV/email everywhere, parity-tested mirrors + INFRA rule; migrations 184 `members.uuid` round-trip key / 185 `registrations.iban` / 186 normalize fn + backfill / 187 all remaining columns; registration guards client+server, website IBAN field; **dev+prod**, 6 phones left for hand-fixing).
 - **2026-07-07** **Guides refresh** — CLAUDE.md/INFRA.md claim-audit fixes (kscw.ch cutover, spielplanung domain, deploy chains), kscw-website docs rewritten, in-app Guide tours 10→15 (finance/forms/teams/profile added, stale coach/scorer tours rebuilt), tour-target regression test (dev).
 - **2026-07-07** **v1.24.0 — Club stats season-scoped** (migration 181; season dimension on `stats_schreiber_coverage`, season picker on ClubStatsPage; dev+prod).
 - **2026-07-07** **v1.23.0 — Scorer-assignment admin page** surfaced in the Admin nav (`/admin/scorer-assign`; VB + BB auto-assign engines, per-team duty summary, algorithm-rules panel). Frontend-only, dev+prod.
