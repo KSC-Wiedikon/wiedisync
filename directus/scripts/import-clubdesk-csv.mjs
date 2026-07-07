@@ -342,6 +342,123 @@ const psqlInput =
   '    AND NOT EXISTS (SELECT 1 FROM members x WHERE x.clubdesk_id = email_match.cdid);\n' +
   'COMMIT;\n' +
   "SELECT 'members_linked_clubdesk' AS metric, (SELECT count(*) FROM members WHERE clubdesk_id IS NOT NULL) AS value;\n" +
+  // ── Create members for ClubDesk contacts with no Directus row (user 2026-07-07) ──
+  // Every pass in this script UPDATEs existing members rows — a ClubDesk contact
+  // with no members row was silently never created. That is why the ~167 Passiv-/
+  // Ehrenmitglieder (and any future direct-in-ClubDesk signup) were missing from
+  // Directus and from every member count derived from it. Create them here:
+  // AFTER the linker (a contact that just linked to an existing member must not
+  // be re-created) and BEFORE the sex/identity/contact passes (fresh rows get
+  // enriched in this same run). Scope: CURRENT members only — Status ∈ Aktiv/
+  // Passiv/Ehren/Zwischenjahr and no Austritt; 'Kein Mitglied' contacts
+  // (companies, parents, suppliers) and departed members stay out of members.
+  // clubdesk_id is set IN the insert: a row with clubdesk_id populated can never
+  // enter the sync-up CREATE set (clubdesk-update.js builds creates from
+  // whereNull('clubdesk_id')), so this pass cannot cause duplicate contacts in
+  // ClubDesk. SAME-PERSON GUARDS: ClubDesk itself carries duplicate contacts for
+  // one person (old exited twin + re-registered twin, married-name changes,
+  // first/middle-name order swaps — 18 such found in the 2026-07-07 rehearsal,
+  // sometimes with the members row linked to the STALE twin). A contact whose
+  // cdid is unclaimed may therefore still BE an already-represented person, so
+  // creation is skipped when ANY existing member (linked or not — unlinked also
+  // covers fresh wiedisync registrations the linker couldn't link yet) matches:
+  //   G1 same email + symmetric first-name prefix   (catches married-name change)
+  //   G2 same last name + symmetric first-name prefix (catches re-registrations)
+  //   G3 same email + same last name                  (catches name-order swaps)
+  // G1/G3 match the member email against BOTH staged emails (email +
+  // email_alternativ), like the linker — a married-name change whose old email
+  // survives only in E-Mail Alternativ would otherwise slip all three guards.
+  // The symmetric-prefix rule is the linker's own. G3 deliberately has no
+  // first-name condition: it also skips a family member sharing the household
+  // email AND last name (1 known case) — skipping + reporting a real person is
+  // recoverable (add by hand), creating a duplicate person silently is not.
+  // G4 (within-batch): the members-based guards can't see sibling rows of the
+  // same INSERT…SELECT, so two same-person twin contacts that are BOTH absent
+  // from Directus would both insert. A fresh row is dropped when another
+  // CURRENT contact with a lower [Id] (numeric-safe (length,value) text order)
+  // matches it on the same G1/G2/G3 rules — the older twin wins, the loser
+  // stays unclaimed and surfaces in the suspected-duplicate report (it matches
+  // the winner's member row from this run onward).
+  // Skipped contacts are reported below (clubdesk_contact_suspected_duplicate)
+  // for a human to merge in ClubDesk or add manually. Everything else rides on
+  // DB defaults (kscw_membership_active true, website_visible false,
+  // wiedisync_active false, consent_decision 'pending'); no Directus hook/flow
+  // fires on this raw-SQL channel. email falls back to '' when ClubDesk has none
+  // (a handful of passive contacts): NOT NULL allows it and
+  // trg_members_prevent_email_blanking only guards UPDATEs.
+  'BEGIN;\n' +
+  'WITH cd AS (\n' +
+  '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
+  "         left(btrim(vorname),255) AS first_name, left(btrim(nachname),255) AS last_name,\n" +
+  "         left(btrim(email),255) AS email,\n" +
+  "         lower(btrim(email)) AS email_l, lower(btrim(email_alternativ)) AS email_alt_l,\n" +
+  "         lower(btrim(nachname)) AS nachname_l,\n" +
+  "         lower(split_part(btrim(vorname),' ',1)) AS vn1\n" +
+  '  FROM clubdesk_export\n' +
+  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL AND length(btrim(clubdesk_id)) <= 64\n" +
+  "    AND NULLIF(btrim(austritt),'') IS NULL\n" +
+  "    AND btrim(status) IN ('Aktivmitglied','Passivmitglied','Ehrenmitglied','Zwischenjahr')\n" +
+  '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
+  'fresh AS (\n' +
+  '  SELECT cd.* FROM cd\n' +
+  '  WHERE NOT EXISTS (SELECT 1 FROM members m WHERE btrim(m.clubdesk_id) = cd.cdid)\n' +
+  '    AND NOT EXISTS (SELECT 1 FROM members m WHERE\n' +
+  "          NULLIF(btrim(m.email),'') IS NOT NULL AND lower(btrim(m.email)) IN (cd.email_l, cd.email_alt_l)\n" +
+  "          AND NULLIF(split_part(btrim(m.first_name),' ',1),'') IS NOT NULL AND NULLIF(cd.vn1,'') IS NOT NULL\n" +
+  "          AND (lower(split_part(btrim(m.first_name),' ',1)) LIKE cd.vn1 || '%'\n" +
+  "               OR cd.vn1 LIKE lower(split_part(btrim(m.first_name),' ',1)) || '%'))\n" +
+  '    AND NOT EXISTS (SELECT 1 FROM members m WHERE\n' +
+  '          lower(btrim(m.last_name)) = cd.nachname_l\n' +
+  "          AND NULLIF(split_part(btrim(m.first_name),' ',1),'') IS NOT NULL AND NULLIF(cd.vn1,'') IS NOT NULL\n" +
+  "          AND (lower(split_part(btrim(m.first_name),' ',1)) LIKE cd.vn1 || '%'\n" +
+  "               OR cd.vn1 LIKE lower(split_part(btrim(m.first_name),' ',1)) || '%'))\n" +
+  '    AND NOT EXISTS (SELECT 1 FROM members m WHERE\n' +
+  "          NULLIF(btrim(m.email),'') IS NOT NULL AND lower(btrim(m.email)) IN (cd.email_l, cd.email_alt_l)\n" +
+  '          AND lower(btrim(m.last_name)) = cd.nachname_l)\n' +
+  '    AND NOT EXISTS (SELECT 1 FROM cd c2 WHERE\n' +
+  '          (length(c2.cdid), c2.cdid) < (length(cd.cdid), cd.cdid)\n' +
+  "          AND (((NULLIF(cd.email_l,'') IS NOT NULL AND cd.email_l IN (c2.email_l, c2.email_alt_l))\n" +
+  "                OR (NULLIF(cd.email_alt_l,'') IS NOT NULL AND cd.email_alt_l IN (c2.email_l, c2.email_alt_l)))\n" +
+  '               AND (c2.nachname_l = cd.nachname_l\n' +
+  "                    OR (NULLIF(c2.vn1,'') IS NOT NULL AND NULLIF(cd.vn1,'') IS NOT NULL\n" +
+  "                        AND (c2.vn1 LIKE cd.vn1 || '%' OR cd.vn1 LIKE c2.vn1 || '%')))\n" +
+  '            OR (c2.nachname_l = cd.nachname_l\n' +
+  "                AND NULLIF(c2.vn1,'') IS NOT NULL AND NULLIF(cd.vn1,'') IS NOT NULL\n" +
+  "                AND (c2.vn1 LIKE cd.vn1 || '%' OR cd.vn1 LIKE c2.vn1 || '%'))))),\n" +
+  'ins AS (\n' +
+  '  INSERT INTO members (first_name, last_name, email, clubdesk_id)\n' +
+  "  SELECT first_name, last_name, COALESCE(email,''), cdid FROM fresh\n" +
+  '  RETURNING 1)\n' +
+  "SELECT 'members_created_from_clubdesk' AS metric, count(*) AS value FROM ins;\n" +
+  'COMMIT;\n' +
+  // Report the contacts the same-person guards skipped (current members whose
+  // cdid stayed unclaimed): each is either a ClubDesk duplicate contact to MERGE
+  // in ClubDesk, or (rarely) a real second person sharing the household email +
+  // last name — add that one manually. Mirrors clubdesk_link_ambiguous below.
+  'WITH cd AS (\n' +
+  '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
+  '         btrim(vorname) AS vorname, btrim(nachname) AS nachname,\n' +
+  "         lower(btrim(email)) AS email_l, lower(btrim(email_alternativ)) AS email_alt_l,\n" +
+  "         lower(btrim(nachname)) AS nachname_l,\n" +
+  "         lower(split_part(btrim(vorname),' ',1)) AS vn1\n" +
+  '  FROM clubdesk_export\n' +
+  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL AND length(btrim(clubdesk_id)) <= 64\n" +
+  "    AND NULLIF(btrim(austritt),'') IS NULL\n" +
+  "    AND btrim(status) IN ('Aktivmitglied','Passivmitglied','Ehrenmitglied','Zwischenjahr')\n" +
+  '  ORDER BY btrim(clubdesk_id), row_id DESC)\n' +
+  "SELECT 'clubdesk_contact_suspected_duplicate' AS metric, cd.cdid,\n" +
+  "       cd.vorname || ' ' || cd.nachname AS contact,\n" +
+  "       string_agg(DISTINCT m.id::text, ',' ORDER BY m.id::text) AS member_ids\n" +
+  '  FROM cd JOIN members m ON (\n' +
+  "       (NULLIF(btrim(m.email),'') IS NOT NULL AND lower(btrim(m.email)) IN (cd.email_l, cd.email_alt_l)\n" +
+  '        AND lower(btrim(m.last_name)) = cd.nachname_l)\n' +
+  "    OR ((NULLIF(btrim(m.email),'') IS NOT NULL AND lower(btrim(m.email)) IN (cd.email_l, cd.email_alt_l)\n" +
+  '         OR lower(btrim(m.last_name)) = cd.nachname_l)\n' +
+  "        AND NULLIF(split_part(btrim(m.first_name),' ',1),'') IS NOT NULL AND NULLIF(cd.vn1,'') IS NOT NULL\n" +
+  "        AND (lower(split_part(btrim(m.first_name),' ',1)) LIKE cd.vn1 || '%'\n" +
+  "             OR cd.vn1 LIKE lower(split_part(btrim(m.first_name),' ',1)) || '%')))\n" +
+  '  WHERE NOT EXISTS (SELECT 1 FROM members x WHERE btrim(x.clubdesk_id) = cd.cdid)\n' +
+  '  GROUP BY cd.cdid, cd.vorname, cd.nachname;\n' +
   // ── Apply ClubDesk Geschlecht → members.sex (fill-only) ──
   // Runs AFTER the linker so members linked this run are filled immediately.
   // sex historically only came from the Volleymanager path (licensed VB players),
@@ -516,7 +633,23 @@ const psqlInput =
   '  WHERE mm.clubdesk_id IS NULL)\n' +
   "SELECT 'clubdesk_link_ambiguous' AS metric, cdid,\n" +
   "       string_agg(member_id::text, ',' ORDER BY member_id) AS member_ids\n" +
-  '  FROM ambig GROUP BY cdid HAVING count(DISTINCT member_id) > 1;\n'
+  '  FROM ambig GROUP BY cdid HAVING count(DISTINCT member_id) > 1;\n' +
+  // ── Refresh public_stats.member_count (kscw-website About page) ──
+  // The website shows a live member count from the prod public_stats collection
+  // (public read on directus.kscw.ch /items/public_stats). Its Directus flow
+  // ("Public stats: recount") only fires on API writes — this raw-SQL channel
+  // bypasses the event bus — so refresh the count here explicitly after the
+  // create pass above. to_regclass-guarded: the dev DB has no public_stats and
+  // ON_ERROR_STOP=1 would otherwise abort the whole import.
+  'DO $$ BEGIN\n' +
+  "  IF to_regclass('public.public_stats') IS NOT NULL THEN\n" +
+  '    UPDATE public.public_stats\n' +
+  '       SET value = (SELECT count(*) FROM public.members WHERE kscw_membership_active),\n' +
+  '           date_updated = now()\n' +
+  "     WHERE id = 'member_count';\n" +
+  '  END IF;\n' +
+  'END $$;\n' +
+  "SELECT 'members_active_total' AS metric, (SELECT count(*) FROM members WHERE kscw_membership_active) AS value;\n"
 
 if (EMIT_SQL) {
   // Flush fully before exiting: process.exit() right after writing a large
