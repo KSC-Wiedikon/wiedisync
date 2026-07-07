@@ -70,6 +70,7 @@ export default {
   infraNotifCron: 'Benachrichtigungen',
   infraResponseTime: 'Antwortzeit',
   infraNoData: 'Keine Daten',
+  infraNothingDue: 'Nichts fällig',
   infraNever: 'Nie',
   infraAgo: 'her',
   infraMin: 'Min',
