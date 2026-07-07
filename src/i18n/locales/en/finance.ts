@@ -334,6 +334,8 @@ export default {
   duesColMember: 'Member',
   duesStatusWillBill: 'Will bill',
   duesStatusAlreadyBilled: 'Already billed',
+  duesStatusClubdeskBilled: 'Billed via ClubDesk',
+  duesClubdeskBilledNote: '{{count}} already billed via ClubDesk (skipped)',
   duesStatusNoRate: 'No rate',
   duesStatusNoEmail: 'No email on file',
   duesIssueCta: 'Issue {{count}} invoices',

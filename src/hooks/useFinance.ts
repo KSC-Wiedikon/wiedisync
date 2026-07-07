@@ -413,13 +413,15 @@ export interface DuesPreviewRow {
   sektion: string | null
   amount: number | null
   already_billed: boolean
+  /** ClubDesk-mirror dues invoice exists for this member + fiscal year (double-bill guard). */
+  clubdesk_billed: boolean
   missing_rate: boolean
   missing_email: boolean
 }
 export interface DuesPreviewResult {
   fiscal_year: { id: number; label: string }
   rows: DuesPreviewRow[]
-  totals: { members: number; billable: number; billable_amount: number; already_billed: number; missing_rate: number; no_email: number }
+  totals: { members: number; billable: number; billable_amount: number; already_billed: number; clubdesk_billed: number; missing_rate: number; no_email: number }
 }
 export interface DuesRunInput {
   fiscal_year: number
@@ -434,7 +436,7 @@ export const previewDuesRun = (input: DuesRunInput) =>
 
 export interface DuesRunResult {
   run: { id: number; label: string; fiscal_year: number; total_count: number; total_amount: number }
-  summary: { created: number; skipped_already_billed: number; skipped_no_rate: number }
+  summary: { created: number; skipped_already_billed: number; skipped_clubdesk_billed: number; skipped_no_rate: number }
   details: Array<{ member: number; invoice: string; amount: number }>
 }
 export const issueDuesRun = (input: DuesRunInput) =>

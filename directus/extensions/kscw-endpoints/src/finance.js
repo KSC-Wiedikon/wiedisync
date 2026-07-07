@@ -545,6 +545,23 @@ export function registerFinance(router, { database, logger, services, getSchema 
       .where('fiscal_year', fy.id).whereNotNull('dues_run').whereNotNull('member')
       .whereNot('status', 'cancelled').pluck('member')).map(Number))
 
+    // Members ClubDesk already billed this fiscal year. Mirror rows carry
+    // dues_run NULL (migration 138), so the native guard above is blind to
+    // them — without this a native run double-bills a cohort ClubDesk has
+    // already invoiced (surfaced 2026-07-07 when the ClubDesk down-sync began
+    // creating passive members, whose dues live in ClubDesk). A mirror invoice
+    // with a non-empty fee_category IS a membership-dues bill: the mirror's
+    // fee_category vocabulary equals members.beitragskategorie ('Passivmitglied',
+    // 'VB Erwerbstätige', …); blank fee_category = other invoice kinds and
+    // doesn't block. Mirror statuses are ClubDesk's German vocabulary — only
+    // 'Storniert' (cancelled) unblocks; 'Entwurf' (draft, about to be sent) and
+    // 'Abgeschrieben' (written off — the member WAS billed) both still count
+    // as ClubDesk-handled.
+    const clubdeskBilled = new Set((await database('finance_invoices')
+      .where('fiscal_year', fy.id).where('source', 'clubdesk').whereNotNull('member')
+      .whereRaw("NULLIF(btrim(fee_category), '') IS NOT NULL")
+      .whereNot('status', 'Storniert').pluck('member')).map(Number))
+
     const rows = members.map((m) => {
       const rate = pickRate(rates, m.beitragskategorie, m.sektion)
       return {
@@ -556,6 +573,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         amount: rate ? round2(rate.amount_chf) : null,
         subject_template: rate?.subject_template || null,
         already_billed: billed.has(Number(m.id)),
+        clubdesk_billed: clubdeskBilled.has(Number(m.id)),
         missing_rate: !rate,
         missing_email: !m.email,
       }
@@ -564,12 +582,13 @@ export function registerFinance(router, { database, logger, services, getSchema 
   }
 
   const duesTotals = (rows) => {
-    const billable = rows.filter((x) => !x.missing_rate && !x.already_billed)
+    const billable = rows.filter((x) => !x.missing_rate && !x.already_billed && !x.clubdesk_billed)
     return {
       members: rows.length,
       billable: billable.length,
       billable_amount: round2(billable.reduce((s, x) => s + (x.amount || 0), 0)),
       already_billed: rows.filter((x) => x.already_billed).length,
+      clubdesk_billed: rows.filter((x) => !x.already_billed && x.clubdesk_billed).length,
       missing_rate: rows.filter((x) => x.missing_rate).length,
       no_email: billable.filter((x) => x.missing_email).length,
     }
@@ -664,8 +683,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (r.error) return res.status(400).json({ error: r.error })
       // #21: never mint a 0-CHF invoice — a rate of 0 would create an "open"
       // invoice with open_amount 0 for the whole cohort. Skip amount ≤ 0.
-      const billable = r.rows.filter((x) => !x.missing_rate && !x.already_billed && round2(x.amount) > 0)
-      if (!billable.length) return res.status(409).json({ error: 'Nothing to bill (no members with a positive rate that are not already billed)' })
+      const billable = r.rows.filter((x) => !x.missing_rate && !x.already_billed && !x.clubdesk_billed && round2(x.amount) > 0)
+      if (!billable.length) return res.status(409).json({ error: 'Nothing to bill (no members with a positive rate that are not already billed natively or via ClubDesk)' })
 
       const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(body.due_date || '') ? body.due_date : null
       const invoiceDate = todayISO()
@@ -684,7 +703,13 @@ export function registerFinance(router, { database, logger, services, getSchema 
         const billedNow = new Set((await trx('finance_invoices')
           .where('fiscal_year', r.fy.id).whereNotNull('dues_run').whereNotNull('member')
           .whereNot('status', 'cancelled').pluck('member')).map(Number))
-        const toBill = billable.filter((x) => !billedNow.has(Number(x.member)))
+        // Re-check the ClubDesk-mirror guard too: the nightly finance sync (or a
+        // manual import) may have landed mirror invoices since the preview.
+        const clubdeskNow = new Set((await trx('finance_invoices')
+          .where('fiscal_year', r.fy.id).where('source', 'clubdesk').whereNotNull('member')
+          .whereRaw("NULLIF(btrim(fee_category), '') IS NOT NULL")
+          .whereNot('status', 'Storniert').pluck('member')).map(Number))
+        const toBill = billable.filter((x) => !billedNow.has(Number(x.member)) && !clubdeskNow.has(Number(x.member)))
         if (!toBill.length) return { runId: null, created: [], total: 0 }
 
         const runIns = await trx('finance_dues_runs').insert({
@@ -731,6 +756,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         summary: {
           created: result.created.length,
           skipped_already_billed: r.rows.filter((x) => x.already_billed).length,
+          skipped_clubdesk_billed: r.rows.filter((x) => !x.already_billed && x.clubdesk_billed).length,
           skipped_no_rate: r.rows.filter((x) => x.missing_rate).length,
           skipped_zero_rate: r.rows.filter((x) => !x.missing_rate && round2(x.amount) <= 0).length,
         },
