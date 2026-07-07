@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.27.0 — 2026-07-07
+
+### Home "next 7 days" ticker + team birthdays
+- **Upcoming ticker on the home page**: a full-width auto-scrolling banner surfaces everything in the next 7 days for the user's team(s) — games, trainings, events, hall closures/holidays, the member's own scoring duties, and 🎂 birthdays — in one place. Scoped to the user's teams; **admins see all teams** (global admins everything, VB/BB admins their sport). Pauses on hover, honours reduced-motion, and hides itself when nothing's coming up. Reuses the calendar's data engine (team-scoped, authed).
+- **Birthdays in the team calendar**: a new `birthday` entry type (cake icon) shows team members' birthdays, **visible only to that team — never public**. On by default for logged-in users, toggleable under Filter → "Birthdays"; the detail popup shows the age. Sourced through the `member_teams` junction so a user only ever sees their own teams' birthdays.
+- **Privacy**: only members whose `birthdate_visibility` is "full" appear in any birthday surface — "year only" (day/month hidden) and "hidden" members are never shown a birthday marker. Frontend-only change; no schema migration.
+
 ## v1.26.0 — 2026-07-07
 
 ### Standardized contact data + smarter signup form

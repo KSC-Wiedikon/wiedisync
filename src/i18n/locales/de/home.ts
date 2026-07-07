@@ -29,4 +29,8 @@ export default {
   ibanConfirmNudgeTitle: 'IBAN bestätigen',
   ibanConfirmNudgeBody: 'Wir haben eine IBAN für dich hinterlegt — bitte bestätige unter Finanzen, dass sie stimmt (oder ändere sie), damit Rückerstattungen ankommen.',
   ibanConfirmNudgeCta: 'In Finanzen bestätigen',
+  // Anstehende Termine (Ticker)
+  next7Days: 'Nächste 7 Tage',
+  today: 'Heute',
+  turnsAge: 'wird {{age}}',
 } as const

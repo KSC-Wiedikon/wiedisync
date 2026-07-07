@@ -21,6 +21,7 @@ export const barColors: Record<string, { bg: string; text: string; darkBg: strin
   hall:        { bg: 'bg-cyan-200', text: 'text-cyan-900', darkBg: 'dark:bg-cyan-800', darkText: 'dark:text-cyan-100' },
   absence:     { bg: 'bg-gray-900', text: 'text-white', darkBg: 'dark:bg-gray-100', darkText: 'dark:text-gray-900' },
   'scorer-duty': { bg: 'bg-indigo-200', text: 'text-indigo-900', darkBg: 'dark:bg-indigo-800', darkText: 'dark:text-indigo-100' },
+  birthday:    { bg: 'bg-pink-200', text: 'text-pink-900', darkBg: 'dark:bg-pink-800', darkText: 'dark:text-pink-100' },
   blue:        { bg: 'bg-blue-200', text: 'text-blue-900', darkBg: 'dark:bg-blue-800', darkText: 'dark:text-blue-100' },
 }
 
@@ -36,6 +37,7 @@ export const dotColors: Record<string, string> = {
   hall: 'bg-cyan-500',
   absence: 'bg-gray-900 dark:bg-gray-100',
   'scorer-duty': 'bg-indigo-500',
+  birthday: 'bg-pink-500',
   blue: 'bg-blue-500',
 }
 
@@ -51,6 +53,7 @@ export const iconColors: Record<string, string> = {
   hall: 'text-cyan-500',
   absence: 'text-gray-900 dark:text-gray-100',
   'scorer-duty': 'text-indigo-500',
+  birthday: 'text-pink-500',
 }
 
 /* ── filter-chip palette (hex) for the source multi-select ──── */
@@ -64,6 +67,7 @@ export const sourceColors: Record<string, { bg: string; text: string; border: st
   hall: { bg: '#0891b2', text: '#ffffff', border: '#0e7490' },
   closure: { bg: '#dc2626', text: '#ffffff', border: '#b91c1c' },
   absence: { bg: '#374151', text: '#ffffff', border: '#1f2937' },
+  birthday: { bg: '#ec4899', text: '#ffffff', border: '#db2777' },
 }
 
 /* ── key helpers ───────────────────────────────────────────── */

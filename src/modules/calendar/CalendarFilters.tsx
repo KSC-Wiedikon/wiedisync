@@ -31,6 +31,7 @@ export default function CalendarFilters({ open, onClose, filters, onChange, allo
     { value: 'hall', label: t('sourceHallHW'), color: sourceColors.hall, group: t('filterGroupVenue') },
     { value: 'closure', label: t('sourceClosures'), color: sourceColors.closure, group: t('filterGroupVenue') },
     { value: 'absence', label: t('sourceAbsences'), color: sourceColors.absence, group: t('filterGroupOther') },
+    { value: 'birthday', label: t('sourceBirthdays'), color: sourceColors.birthday, group: t('filterGroupOther') },
   ]
   const sourceOptions = allowedSources
     ? allSourceOptions.filter((o) => allowedSources.includes(o.value as SourceFilter))

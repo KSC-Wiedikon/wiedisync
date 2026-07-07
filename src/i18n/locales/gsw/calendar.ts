@@ -38,6 +38,7 @@ export default {
   gameTypeAway: 'Uswärtsspiel',
   sourceHallHW: 'Halle HW',
   sourceAbsences: 'Absänze',
+  sourceBirthdays: 'Geburtstäg',
 
   // Type labels
   typeGame: 'Spiel',
@@ -46,6 +47,8 @@ export default {
   typeEvent: 'Event',
   typeHall: 'Hallebelegig',
   typeAbsence: 'Absänz',
+  typeBirthday: 'Geburtstag',
+  turnsLabel: 'Wird',
 
   // Other
   noEntries: 'Käni Iiträg gfunde',

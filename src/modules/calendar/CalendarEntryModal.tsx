@@ -7,7 +7,7 @@ import ParticipationButton from '../../components/ParticipationButton'
 import ParticipationSummary from '../../components/ParticipationSummary'
 import AbsenceForm from '../absences/AbsenceForm'
 import { useAuth } from '../../hooks/useAuth'
-import type { CalendarEntry } from '../../types/calendar'
+import type { CalendarEntry, BirthdaySource } from '../../types/calendar'
 import type { Training, Event as KscwEvent, Absence, Member } from '../../types'
 import { formatDate } from '../../utils/dateUtils'
 import { asObj, memberName } from '../../utils/relations'
@@ -48,6 +48,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
     hall: t('typeHall'),
     absence: t('typeAbsence'),
     'scorer-duty': t('typeScorerDuty'),
+    birthday: t('typeBirthday'),
   }
 
   const typeBadgeStyles: Record<CalendarEntry['type'], string> = {
@@ -58,6 +59,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
     hall: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300',
     absence: 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900',
     'scorer-duty': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
+    birthday: 'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300',
   }
 
   const dateStr = formatDate(entry.date, 'EEEE, d. MMMM yyyy')
@@ -143,6 +145,11 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
 
             {/* Absence-specific fields */}
             {entry.type === 'absence' && renderAbsenceDetails(entry.source as Absence, t)}
+
+            {/* Birthday-specific fields */}
+            {entry.type === 'birthday' && (entry.source as BirthdaySource).age > 0 && (
+              <DetailRow label={t('turnsLabel')} value={String((entry.source as BirthdaySource).age)} />
+            )}
           </div>
 
           {/* Participation section for trainings */}

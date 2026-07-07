@@ -24,4 +24,8 @@ export default {
   ibanConfirmNudgeTitle: 'Conferma il tuo IBAN',
   ibanConfirmNudgeBody: 'Abbiamo un IBAN registrato per te — conferma sotto Finanze che è corretto (o modificalo) affinché i rimborsi arrivino al conto giusto.',
   ibanConfirmNudgeCta: 'Conferma in Finanze',
+  // Barra dei prossimi appuntamenti
+  next7Days: 'Prossimi 7 giorni',
+  today: 'Oggi',
+  turnsAge: 'compie {{age}} anni',
 } as const

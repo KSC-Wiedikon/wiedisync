@@ -189,6 +189,20 @@
 .animate-modal-enter { animation: modal-enter 250ms ease-out both; }
 .animate-modal-exit { animation: modal-exit 200ms ease-in both; }
 
+/* Marquee (Magic UI) — horizontal/vertical ticker. The component sets
+   --duration and --gap inline; the keyframe shifts one full content copy plus a
+   gap so the repeated copies loop seamlessly. */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-100% - var(--gap, 1rem))); }
+}
+@keyframes marquee-vertical {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(-100% - var(--gap, 1rem))); }
+}
+.animate-marquee { animation: marquee var(--duration, 40s) linear infinite; }
+.animate-marquee-vertical { animation: marquee-vertical var(--duration, 40s) linear infinite; }
+
 /* Hide number input spinners */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
@@ -238,6 +252,10 @@ input[type="number"] {
 /* Accessibility: respect reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
   .animate-game-pulse { animation: none; }
+  /* Keep the ticker static (readable in place) rather than looping once and
+     scrolling its content off-screen under the global iteration-count clamp. */
+  .animate-marquee,
+  .animate-marquee-vertical { animation: none; }
   *,
   *::before,
   *::after {

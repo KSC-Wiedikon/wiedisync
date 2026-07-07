@@ -38,6 +38,7 @@ import FormFillModal from '../forms/FormFillModal'
 import { useFillableForms, type FillableForm } from '../../hooks/useFillableForms'
 import YourDuesCard from '../finance/YourDuesCard'
 import HomePollsCard from '../polls/HomePollsCard'
+import UpcomingTicker from './components/UpcomingTicker'
 
 type ExpandedGame = Game & {
   kscw_team?: Team & BaseRecord | string
@@ -61,7 +62,7 @@ export default function HomePage() {
   const { t: tf } = useTranslation('forms')
   const { t: tg } = useTranslation('games')
 
-  const { user, isApproved, primarySport, coachTeamIds, isCoachOf } = useAuth()
+  const { user, isApproved, primarySport, coachTeamIds, isCoachOf, isAdmin, hasAdminAccessToTeam } = useAuth()
   const { items: fillableForms, refetch: refetchForms } = useFillableForms()
   const [fillItem, setFillItem] = useState<FillableForm | null>(null)
   // IBAN nudge — finance needs every member's up-to-date IBAN. Show a dismissible
@@ -140,6 +141,19 @@ export default function HomePage() {
     ...coachTeamIds,
   ].filter(Boolean))], [memberTeams, coachTeamIds])
   const hasTeams = userTeamIds.length > 0
+
+  // The upcoming-ticker scope: a member sees their own teams; an admin sees every
+  // team they can (all of them for a global admin, sport-scoped for VB/BB admins).
+  const { data: allActiveTeamsRaw } = useCollection<Team>('teams', {
+    enabled: !!user && isAdmin,
+    filter: { active: { _eq: true } },
+    fields: ['id', 'sport'],
+    all: true,
+  })
+  const tickerTeamIds = useMemo(() => {
+    if (isAdmin) return (allActiveTeamsRaw ?? []).filter((tm) => hasAdminAccessToTeam(tm.id)).map((tm) => tm.id)
+    return userTeamIds
+  }, [isAdmin, allActiveTeamsRaw, hasAdminAccessToTeam, userTeamIds])
 
   // Build team filter for games
   const teamGameFilter = useMemo((): Record<string, unknown> | null => {
@@ -434,6 +448,12 @@ export default function HomePage() {
           {t('subtitle')}
         </p>
       </div>
+
+      {/* Upcoming ticker — next 7 days across the user's teams (all teams for
+          admins): games, trainings, events, closures, duties, birthdays. */}
+      {user && isApproved && tickerTeamIds.length > 0 && (
+        <UpcomingTicker teamIds={tickerTeamIds} />
+      )}
 
       {/* Spielplanung absences reminder — volleyball players, until 2026-06-01 */}
       {user && isApproved && (primarySport === 'volleyball' || primarySport === 'both') && Date.now() < new Date('2026-06-01T23:59:59+02:00').getTime() && (
