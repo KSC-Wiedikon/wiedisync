@@ -180,6 +180,14 @@ export function toCp1252Buffer(str) {
 const CD_PUSH_HEADERS = [
   'Vorname', 'Nachname', 'E-Mail', 'Telefon Privat', 'Adresse',
   'PLZ', 'Ort', 'Geburtsdatum', 'Geschlecht', 'IBAN',
+  // Anrede/Nationalität/AHV Nummer joined the push scope 2026-07-07: the
+  // down-sync now fills members.anrede/nationalitaet/ahv_nummer, so wiedisync
+  // holds them, and /up ECHOES ClubDesk's own value back into any empty cell
+  // (like IBAN) — an empty wiedisync field can never blank the register. Anrede
+  // and Nationalität are ClubDesk PICKLISTS (values come from the down-sync so
+  // they already match); AHV Nummer is free text (pushing wiedisync's clean
+  // value also repairs ClubDesk cells the Zahl-format once mangled).
+  'Anrede', 'Nationalität', 'AHV Nummer',
 ]
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
@@ -436,21 +444,24 @@ function cdCell(val) {
 }
 
 export function buildPushCsv(members, { create = false } = {}) {
-  // Column order MUST match CD_PUSH_HEADERS (+ create extras). anrede/
-  // nationalitaet/ahv_nummer are intentionally excluded (wiedisync doesn't own
-  // them — see CD_PUSH_HEADERS). Create rows also carry Beitragskategorie +
-  // Eintritt + Gruppen + Status (see CD_PUSH_CREATE_HEADERS); m.eintritt,
-  // m.gruppen and m.cd_status are resolved by /up from the person's approved
-  // registration (+ wiedisync_active for the status fallback).
+  // Column order MUST match CD_PUSH_HEADERS (+ create extras). Create rows also
+  // carry Beitragskategorie + Eintritt + Gruppen + Status (see
+  // CD_PUSH_CREATE_HEADERS); m.eintritt, m.gruppen and m.cd_status are resolved
+  // by /up from the person's approved registration (+ wiedisync_active for the
+  // status fallback). anrede/nationalitaet/ahv_nummer are echo-resolved by /up
+  // for UPDATE rows (empty → ClubDesk's own value) — see CD_PUSH_HEADERS.
   const headers = create ? CD_PUSH_CREATE_HEADERS : CD_PUSH_HEADERS
   const rows = members.map((m) => {
     const cells = [
       m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
       fmtBirthdateDDMMYYYY(m.birthdate),
       m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
-      // /up pre-resolves m.iban to the ClubDesk echo when wiedisync's is empty
-      // (UPDATE rows only — see CD_PUSH_HEADERS comment). Creates push their own.
+      // /up pre-resolves m.iban / m.anrede / m.nationalitaet / m.ahv_nummer to
+      // ClubDesk's own value when wiedisync's is empty (UPDATE rows only — see
+      // CD_PUSH_HEADERS). Creates push their own values (a new contact has no
+      // ClubDesk value to blank).
       m.iban || '',
+      m.anrede || '', m.nationalitaet || '', m.ahv_nummer || '',
     ]
     if (create) {
       cells.push(
@@ -468,12 +479,14 @@ export function buildPushCsv(members, { create = false } = {}) {
 }
 
 // Member fields the push CSV reads (also the preview fetch set). anrede/
-// nationalitaet/ahv_nummer are no longer selected — they are never pushed.
-// beitragskategorie/wiedisync_active and the licence booleans are only ever
-// used on CREATE rows (buildPushCsv / deriveStatus / deriveOffiziellenLizenz).
+// nationalitaet/ahv_nummer joined the push 2026-07-07 (echo-protected for
+// updates — see CD_PUSH_HEADERS). beitragskategorie/wiedisync_active and the
+// licence booleans are only ever used on CREATE rows (buildPushCsv /
+// deriveStatus / deriveOffiziellenLizenz).
 const PUSH_FIELDS = [
   'id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
-  'ort', 'birthdate', 'sex', 'iban', 'clubdesk_id', 'clubdesk_push_changes',
+  'ort', 'birthdate', 'sex', 'iban', 'anrede', 'nationalitaet', 'ahv_nummer',
+  'clubdesk_id', 'clubdesk_push_changes',
   'beitragskategorie', 'wiedisync_active',
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
 ]
@@ -706,20 +719,27 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           code: 'blank_risk', skipped_blank_risk: blankRiskSkipped,
         })
       }
-      // IBAN echo-back (see CD_PUSH_HEADERS): an UPDATE row whose wiedisync
-      // IBAN is empty gets ClubDesk's own current IBAN so the import can never
-      // blank the register's banking data. The drift blank-risk guard above
-      // deliberately does NOT cover iban — this makes it structurally safe
-      // instead of dropping the member. Member-entered IBANs pass unchanged.
+      // Echo-back (see CD_PUSH_HEADERS): an UPDATE row whose wiedisync value is
+      // empty gets ClubDesk's own current value so the import can never blank
+      // the register. Covers iban + anrede + nationalitaet + ahv_nummer — the
+      // fields wiedisync does not exclusively own (blank cell could otherwise
+      // wipe an authoritative value). Member-set values pass unchanged. The
+      // drift blank-risk guard deliberately skips these four — this makes them
+      // structurally safe instead of dropping the member from the push.
       if (updates.length) {
         const cdids = updates.map((m) => String(m.clubdesk_id)).filter(Boolean)
-        const ibanRows = cdids.length ? await database.raw(`
-          SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, iban
+        const echoRows = cdids.length ? await database.raw(`
+          SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
+                 iban, anrede, nationalitaet, ahv_nummer
           FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
         `, [cdids]) : { rows: [] }
-        const cdIban = new Map(ibanRows.rows.map((r) => [r.cdid, String(r.iban || '').trim()]))
+        const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
         for (const m of updates) {
-          if (!String(m.iban || '').trim()) m.iban = cdIban.get(String(m.clubdesk_id)) || ''
+          const cd = cdEcho.get(String(m.clubdesk_id)) || {}
+          if (!String(m.iban || '').trim()) m.iban = String(cd.iban || '').trim()
+          if (!String(m.anrede || '').trim()) m.anrede = String(cd.anrede || '').trim()
+          if (!String(m.nationalitaet || '').trim()) m.nationalitaet = String(cd.nationalitaet || '').trim()
+          if (!String(m.ahv_nummer || '').trim()) m.ahv_nummer = String(cd.ahv_nummer || '').trim()
         }
       }
       // Eintritt = the registration SUBMISSION date — user rule 2026-07-06:
@@ -1058,17 +1078,19 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
     const res = await database.raw(`
       SELECT m.id, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
-             m.birthdate, m.sex, m.iban, m.clubdesk_id, m.clubdesk_push_pending,
+             m.birthdate, m.sex, m.iban, m.anrede, m.nationalitaet, m.ahv_nummer,
+             m.clubdesk_id, m.clubdesk_push_pending,
              cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
              cd.email_alternativ AS cd_email_alt, cd.telefon_privat AS cd_tel_priv,
              cd.telefon_mobil AS cd_tel_mob, cd.adresse AS cd_adresse, cd.plz AS cd_plz,
              cd.ort AS cd_ort, cd.geburtsdatum AS cd_geburtsdatum, cd.geschlecht AS cd_geschlecht,
-             cd.iban AS cd_iban
+             cd.iban AS cd_iban, cd.anrede AS cd_anrede, cd.nationalitaet AS cd_nationalitaet,
+             cd.ahv_nummer AS cd_ahv_nummer
       FROM members m
       JOIN (
         SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
                email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
-               geburtsdatum, geschlecht, iban
+               geburtsdatum, geschlecht, iban, anrede, nationalitaet, ahv_nummer
         FROM clubdesk_export
         WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
         ORDER BY BTRIM(clubdesk_id), row_id
