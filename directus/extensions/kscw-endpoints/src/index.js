@@ -2030,10 +2030,15 @@ export default {
         // substring), unlike per-hash annotations which hide one occurrence.
         // Enabled rules only. See migration 179.
         const muteRules = await database('error_mute_rules').where('enabled', true)
-        const matchMuteRule = (e) => muteRules.find(r =>
-          (!r.event || r.event === e.event) &&
-          e.error && String(e.error).toLowerCase().includes(String(r.error_match).toLowerCase())
-        )
+        // A rule matches on event only (mute the whole event — e.g. every
+        // network_error is a transient client drop by construction), message
+        // substring only, or both. Neither set → mutes nothing (guard).
+        const matchMuteRule = (e) => muteRules.find(r => {
+          if (!r.event && !r.error_match) return false
+          if (r.event && r.event !== e.event) return false
+          if (r.error_match && !(e.error && String(e.error).toLowerCase().includes(String(r.error_match).toLowerCase()))) return false
+          return true
+        })
 
         entries = entries.map((e, i) => {
           const anno = annoMap[hashes[i]]
@@ -2280,8 +2285,8 @@ export default {
         const event = req.body?.event ? String(req.body.event).slice(0, 64) : null
         const errorMatch = req.body?.error_match ? String(req.body.error_match).trim() : ''
         const note = req.body?.note ? String(req.body.note) : null
-        if (!errorMatch) {
-          return res.status(400).json({ error: 'error_match is required' })
+        if (!event && !errorMatch) {
+          return res.status(400).json({ error: 'event or error_match is required' })
         }
         const [row] = await database('error_mute_rules')
           .insert({ event, error_match: errorMatch, note, user_created: req.accountability?.user || null })

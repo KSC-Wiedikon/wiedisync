@@ -170,7 +170,7 @@ function ErrorRow({ entry, selected, onToggleSelect, onFilterEvent, onAnnotate, 
   const [muteSaving, setMuteSaving] = useState(false)
 
   async function saveMute() {
-    if (!muteMatch.trim()) return
+    if (!muteMatch.trim() && !muteEvent) return
     setMuteSaving(true)
     try {
       await onCreateMuteRule(muteEvent || null, muteMatch.trim(), muteNote.trim())
@@ -338,10 +338,11 @@ function ErrorRow({ entry, selected, onToggleSelect, onFilterEvent, onAnnotate, 
                       className="mt-0.5 w-full rounded border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
                     />
                   </label>
+                  <p className="text-[10px] text-gray-400">{t('errorLogsMuteHint')}</p>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={saveMute}
-                      disabled={muteSaving || !muteMatch.trim()}
+                      disabled={muteSaving || (!muteMatch.trim() && !muteEvent)}
                       className="flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
                     >
                       <BellOff className="h-3 w-3" />
@@ -581,8 +582,8 @@ export default function ErrorLogsPage() {
                     <span className={`rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium dark:bg-gray-700 ${r.enabled ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 line-through'}`}>
                       {r.event || t('errorLogsMuteAnyEvent')}
                     </span>
-                    <span className={`min-w-0 flex-1 truncate text-[11px] ${r.enabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 line-through'}`} title={r.error_match}>
-                      {r.error_match}
+                    <span className={`min-w-0 flex-1 truncate text-[11px] ${r.enabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 line-through'}`} title={r.error_match || t('errorLogsMuteAnyMessage')}>
+                      {r.error_match || <span className="italic text-gray-400">{t('errorLogsMuteAnyMessage')}</span>}
                       {r.note ? <span className="ml-1 text-gray-400">— {r.note}</span> : null}
                     </span>
                     <button

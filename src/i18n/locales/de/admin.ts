@@ -713,6 +713,8 @@ export default {
   errorLogsMuteEvent: 'Ereignis (optional)',
   errorLogsMuteAnyEvent: 'Alle Ereignisse',
   errorLogsMuteMatch: 'Meldung enthält',
+  errorLogsMuteAnyMessage: 'Alle Meldungen',
+  errorLogsMuteHint: 'Meldung leer lassen, um das ganze Ereignis stummzuschalten.',
   errorLogsMuteNote: 'Notiz (optional)',
   errorLogsMuteSave: 'Stummschalten',
   errorLogsMuteCreated: 'Stummschalt-Regel erstellt',
