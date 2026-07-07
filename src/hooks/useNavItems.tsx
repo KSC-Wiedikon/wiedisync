@@ -5,7 +5,7 @@ import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users,
-  Building2, CalendarClock, Activity,
+  Building2, CalendarClock, Activity, ClipboardList,
   HeartPulse, MessageSquare, Inbox, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
@@ -110,6 +110,7 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
     adminItems: [
       { to: '/admin/hallenplan', label: t('hallenplan'), icon: <Building2 className={iconClass} /> },
       { to: '/admin/referee-expenses', label: t('refereeExpenses'), icon: <Banknote className={iconClass} /> },
+      { to: '/admin/scorer-assign', label: t('scorerAssign'), icon: <ClipboardList className={iconClass} /> },
       { to: '/admin/anmeldungen', label: t('anmeldungen'), icon: <UserPlus className={iconClass} /> },
       { to: '/admin/club-stats', label: t('clubStats'), icon: <BarChart3 className={iconClass} /> },
       { to: '/admin/volley-feedback', label: t('volleyFeedback'), icon: <MessageSquare className={iconClass} /> },

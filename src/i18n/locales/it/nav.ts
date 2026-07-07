@@ -52,6 +52,7 @@ export default {
   changelog: 'Registro delle modifiche',
   whatsNew: 'Novità',
   refereeExpenses: 'Spese arbitrali',
+  scorerAssign: 'Assegnazione refertisti',
   clubStats: 'Statistiche',
   anmeldungen: 'Iscrizioni',
   guide: 'Guida',

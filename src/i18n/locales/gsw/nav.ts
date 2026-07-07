@@ -52,6 +52,7 @@ export default {
   changelog: 'Änderigslischtä',
   whatsNew: 'Was isch neu',
   refereeExpenses: 'Schiedsrichterchöschte',
+  scorerAssign: 'Schriiber-Zuteilig',
   clubStats: 'Vereinsstatistik',
   anmeldungen: 'Amäldigä',
   guide: 'Aleitig',

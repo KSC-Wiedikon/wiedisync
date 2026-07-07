@@ -21,6 +21,14 @@ import { TourPageButton } from '../guide/TourPageButton'
 
 type SportTab = 'volleyball' | 'basketball'
 
+// Rule labels shown in the collapsible "Algorithm rules" panel. The order and
+// point values mirror AssignmentAlgorithm.ts (VB) / AssignmentAlgorithmBb.ts
+// (BB) — keep them in sync if the engines change.
+const VB_HARD_RULES = ['ruleVbHardGame', 'ruleVbHardDoltschi', 'ruleVbHardDuty', 'ruleVbHardLicence']
+const VB_SOFT_RULES = ['ruleVbSoftSequence', 'ruleVbSoftHu20', 'ruleVbSoftDoltschi', 'ruleVbSoftLegends', 'ruleVbSoftWeekend', 'ruleVbSoftTraining', 'ruleVbSoftRotation']
+const BB_HARD_RULES = ['ruleBbHardGame', 'ruleBbHardDuty', 'ruleBbHardOtr1']
+const BB_SOFT_RULES = ['ruleBbSoftFullCrew', 'ruleBbSoftSequence', 'ruleBbSoftTraining', 'ruleBbSoftRotation', 'ruleBbSoftWeekend']
+
 export default function ScorerAssignPage() {
   const { t } = useTranslation('scorerAssign')
   const { user, hasAdminAccessToSport } = useAuth()
@@ -274,6 +282,102 @@ export default function ScorerAssignPage() {
         )}
       </div>
 
+      {/* Algorithm rules — collapsible; content switches with the sport
+          because VB and BB use different engines (AssignmentAlgorithm.ts vs
+          AssignmentAlgorithmBb.ts). */}
+      <details className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-800/40">
+        <summary className="cursor-pointer select-none font-medium text-gray-700 dark:text-gray-300">
+          {t('rulesTitle')}
+        </summary>
+        <div className="mt-3 space-y-3">
+          <p className="text-gray-600 dark:text-gray-400">
+            {sportTab === 'volleyball' ? t('rulesModeVb') : t('rulesModeBb')}
+          </p>
+          <div>
+            <h3 className="font-semibold text-gray-800 dark:text-gray-200">{t('rulesHardTitle')}</h3>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-gray-600 dark:text-gray-400">
+              {(sportTab === 'volleyball' ? VB_HARD_RULES : BB_HARD_RULES).map((k) => (
+                <li key={k}>{t(k)}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-800 dark:text-gray-200">{t('rulesSoftTitle')}</h3>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-gray-600 dark:text-gray-400">
+              {(sportTab === 'volleyball' ? VB_SOFT_RULES : BB_SOFT_RULES).map((k) => (
+                <li key={k}>{t(k)}</li>
+              ))}
+            </ul>
+          </div>
+          <p className="text-xs italic text-gray-500 dark:text-gray-400">{t('rulesExisting')}</p>
+        </div>
+      </details>
+
+      {/* Team summary — kept at the top so the "who got how many duties"
+          overview is visible before the per-game detail table. Split by sport
+          via sportTab (each engine only fills its own sport's counts). */}
+      {sportTab === 'volleyball' && vbTeamCounts.size > 0 && (
+        <div className="mt-6" data-tour="team-summary">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamSummary')}</h2>
+          <div className="mt-3 overflow-x-auto">
+            <Table className="w-fit text-left text-sm">
+              <TableHeader>
+                <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  <TableHead className="px-3 py-2">{t('teamName')}</TableHead>
+                  <TableHead className="px-3 py-2 text-center">{t('ownGames')}</TableHead>
+                  <TableHead className="px-3 py-2 text-center">{t('scorerCount')}</TableHead>
+                  <TableHead className="px-3 py-2 text-center">{t('scoreboardCount')}</TableHead>
+                  <TableHead className="px-3 py-2 text-center">{t('combinedCount')}</TableHead>
+                  <TableHead className="px-3 py-2 text-center">{t('totalCount')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from(vbTeamCounts.entries())
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([name, counts]) => (
+                    <TableRow key={name} className="border-b border-gray-100 dark:border-gray-700/50">
+                      <TableCell className="px-3 py-2"><TeamChip team={name} size="sm" /></TableCell>
+                      <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400">{counts.ownGames}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.scorer || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.scoreboard || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.combined || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{counts.totalDuties || '—'}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {sportTab === 'basketball' && bbTeamCounts.size > 0 && (
+        <div className="mt-6" data-tour="team-summary">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamSummary')}</h2>
+          <div className="mt-3 overflow-x-auto">
+            <Table className="w-fit text-left text-sm">
+              <TableHeader>
+                <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  <TableHead className="px-3 py-2">{t('teamName')}</TableHead>
+                  <TableHead className="px-3 py-2 text-center">{t('ownGames')}</TableHead>
+                  <TableHead className="px-3 py-2 text-center">{t('dutyCount')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from(bbTeamCounts.entries())
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([name, counts]) => (
+                    <TableRow key={name} className="border-b border-gray-100 dark:border-gray-700/50">
+                      <TableCell className="px-3 py-2"><TeamChip team={name} size="sm" /></TableCell>
+                      <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400">{counts.ownGames}</TableCell>
+                      <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{counts.duties || '—'}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
       {/* Results table */}
       {assignments.length > 0 && (
         <div data-tour="manual-assign" className="mt-6 overflow-x-auto">
@@ -401,69 +505,6 @@ export default function ScorerAssignPage() {
                   })}
             </TableBody>
           </Table>
-        </div>
-      )}
-
-      {/* Team summary */}
-      {sportTab === 'volleyball' && vbTeamCounts.size > 0 && (
-        <div className="mt-8" data-tour="team-summary">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamSummary')}</h2>
-          <div className="mt-3 overflow-x-auto">
-            <Table className="w-fit text-left text-sm">
-              <TableHeader>
-                <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                  <TableHead className="px-3 py-2">{t('teamName')}</TableHead>
-                  <TableHead className="px-3 py-2 text-center">{t('ownGames')}</TableHead>
-                  <TableHead className="px-3 py-2 text-center">{t('scorerCount')}</TableHead>
-                  <TableHead className="px-3 py-2 text-center">{t('scoreboardCount')}</TableHead>
-                  <TableHead className="px-3 py-2 text-center">{t('combinedCount')}</TableHead>
-                  <TableHead className="px-3 py-2 text-center">{t('totalCount')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Array.from(vbTeamCounts.entries())
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([name, counts]) => (
-                    <TableRow key={name} className="border-b border-gray-100 dark:border-gray-700/50">
-                      <TableCell className="px-3 py-2"><TeamChip team={name} size="sm" /></TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400">{counts.ownGames}</TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.scorer || '—'}</TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.scoreboard || '—'}</TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.combined || '—'}</TableCell>
-                      <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{counts.totalDuties || '—'}</TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      )}
-
-      {sportTab === 'basketball' && bbTeamCounts.size > 0 && (
-        <div className="mt-8" data-tour="team-summary">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamSummary')}</h2>
-          <div className="mt-3 overflow-x-auto">
-            <Table className="w-fit text-left text-sm">
-              <TableHeader>
-                <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                  <TableHead className="px-3 py-2">{t('teamName')}</TableHead>
-                  <TableHead className="px-3 py-2 text-center">{t('ownGames')}</TableHead>
-                  <TableHead className="px-3 py-2 text-center">{t('dutyCount')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Array.from(bbTeamCounts.entries())
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([name, counts]) => (
-                    <TableRow key={name} className="border-b border-gray-100 dark:border-gray-700/50">
-                      <TableCell className="px-3 py-2"><TeamChip team={name} size="sm" /></TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400">{counts.ownGames}</TableCell>
-                      <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{counts.duties || '—'}</TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </div>
         </div>
       )}
 

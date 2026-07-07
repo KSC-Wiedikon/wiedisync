@@ -70,4 +70,31 @@ export default {
 
   // Override
   selectTeam: '— Team —',
+
+  // Algorithm rules (info panel)
+  rulesTitle: 'Algorithm rules',
+  rulesModeVb: 'Volleyball: separate scorer and scoreboard teams. At Döltschi and in 4L/5L one team does both (combined).',
+  rulesModeBb: 'Basketball: one duty team per home game supplies all officials (scorer, timekeeper, and 24s operator when required).',
+  rulesHardTitle: 'Hard rules — team is excluded',
+  rulesSoftTitle: 'Soft rules — points (each team starts at 100, highest score wins)',
+  rulesExisting: 'Games that already have a saved assignment are kept unchanged.',
+  ruleVbHardGame: 'Team has its own game the same day',
+  ruleVbHardDoltschi: 'Döltschi: Under teams only (HU20, HU23-1, DU23-1, DU23-2)',
+  ruleVbHardDuty: 'Team already has a duty the same day',
+  ruleVbHardLicence: 'Scorer / combined: team needs a member with a scorer licence',
+  ruleVbSoftSequence: 'Plays right before/after in the same hall: +30',
+  ruleVbSoftHu20: 'HU20 as scoreboard: +15',
+  ruleVbSoftDoltschi: 'Under team combined at Döltschi: +10',
+  ruleVbSoftLegends: 'Legends as scorer: +8',
+  ruleVbSoftWeekend: 'Weekend without training: +5',
+  ruleVbSoftTraining: 'Training the same day: -20',
+  ruleVbSoftRotation: 'Fair rotation: -10 per duty already assigned',
+  ruleBbHardGame: 'Team has its own game the same day',
+  ruleBbHardDuty: 'Team already has a duty the same day',
+  ruleBbHardOtr1: 'Team needs a member with an OTR1 licence (scorer/timekeeper)',
+  ruleBbSoftFullCrew: 'Full crew (team also has OTR2/OTN for the 24s): +25',
+  ruleBbSoftSequence: 'Plays right before/after in the same hall: +30',
+  ruleBbSoftTraining: 'Training the same day: -20',
+  ruleBbSoftRotation: 'Fair rotation: -10 per duty already assigned',
+  ruleBbSoftWeekend: 'Weekend without training: +5',
 } as const

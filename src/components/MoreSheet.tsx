@@ -8,7 +8,7 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning } from 'lucide-react'
+import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
@@ -86,6 +86,7 @@ interface NavItem { to: string; labelKey: string; icon: ReactNode }
 const adminItems: NavItem[] = [
   { to: '/admin/hallenplan', labelKey: 'hallenplan', icon: <Building2 className={iconClass} /> },
   { to: '/admin/referee-expenses', labelKey: 'refereeExpenses', icon: <Banknote className={iconClass} /> },
+  { to: '/admin/scorer-assign', labelKey: 'scorerAssign', icon: <ClipboardList className={iconClass} /> },
   { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: <UserPlus className={iconClass} /> },
   { to: '/admin/club-stats', labelKey: 'clubStats', icon: <BarChart3 className={iconClass} /> },
   { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: <MessageSquare className={iconClass} /> },

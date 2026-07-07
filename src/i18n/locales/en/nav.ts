@@ -53,6 +53,7 @@ export default {
   changelog: 'Changelog',
   whatsNew: "What's new",
   refereeExpenses: 'Referee expenses',
+  scorerAssign: 'Scorer assignment',
   clubStats: 'Club stats',
   volleyFeedback: 'Volley feedback',
   anmeldungen: 'Registrations',

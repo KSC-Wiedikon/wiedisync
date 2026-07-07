@@ -70,4 +70,31 @@ export default {
 
   // Override
   selectTeam: '— Squadra —',
+
+  // Algorithm rules (info panel)
+  rulesTitle: 'Regole dell\'algoritmo',
+  rulesModeVb: 'Pallavolo: squadre di refertista e tabellone separate. A Döltschi e in 4L/5L una squadra fa entrambi (combinato).',
+  rulesModeBb: 'Basket: una squadra di servizio per partita casalinga fornisce tutti gli ufficiali (refertista, cronometrista e operatore dei 24s se necessario).',
+  rulesHardTitle: 'Regole rigide — la squadra è esclusa',
+  rulesSoftTitle: 'Regole flessibili — punti (ogni squadra parte da 100, vince il punteggio più alto)',
+  rulesExisting: 'Le partite con un\'assegnazione già salvata restano invariate.',
+  ruleVbHardGame: 'La squadra ha una propria partita lo stesso giorno',
+  ruleVbHardDoltschi: 'Döltschi: solo squadre U (HU20, HU23-1, DU23-1, DU23-2)',
+  ruleVbHardDuty: 'La squadra ha già un servizio lo stesso giorno',
+  ruleVbHardLicence: 'Refertista / combinato: la squadra necessita di un membro con licenza da refertista',
+  ruleVbSoftSequence: 'Gioca subito prima/dopo nella stessa palestra: +30',
+  ruleVbSoftHu20: 'HU20 al tabellone: +15',
+  ruleVbSoftDoltschi: 'Squadra U in combinato a Döltschi: +10',
+  ruleVbSoftLegends: 'Legends come refertista: +8',
+  ruleVbSoftWeekend: 'Weekend senza allenamento: +5',
+  ruleVbSoftTraining: 'Allenamento lo stesso giorno: -20',
+  ruleVbSoftRotation: 'Rotazione equa: -10 per ogni servizio già assegnato',
+  ruleBbHardGame: 'La squadra ha una propria partita lo stesso giorno',
+  ruleBbHardDuty: 'La squadra ha già un servizio lo stesso giorno',
+  ruleBbHardOtr1: 'La squadra necessita di un membro con licenza OTR1 (refertista/cronometrista)',
+  ruleBbSoftFullCrew: 'Crew completa (ha anche OTR2/OTN per i 24s): +25',
+  ruleBbSoftSequence: 'Gioca subito prima/dopo nella stessa palestra: +30',
+  ruleBbSoftTraining: 'Allenamento lo stesso giorno: -20',
+  ruleBbSoftRotation: 'Rotazione equa: -10 per ogni servizio già assegnato',
+  ruleBbSoftWeekend: 'Weekend senza allenamento: +5',
 } as const
