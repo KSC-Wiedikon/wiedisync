@@ -247,11 +247,11 @@ const psqlInput =
   '  SELECT lower(btrim(lizenznummer)) lic,\n' +
   "         left(NULLIF(btrim(adresse),''),255) adresse, left(NULLIF(btrim(plz),''),10) plz, left(NULLIF(btrim(ort),''),100) ort,\n" +
   "         left(NULLIF(btrim(beitragskategorie),''),100) categ, left(NULLIF(btrim(sektion),''),32) sektion,\n" +
-  // Phone fills canonicalized via kscw_normalize_phone (migration 186); an
-  // unrewritable ClubDesk value (legacy 9-digit, free text) fills raw — better
-  // a reachable oddball than a dropped number.
-  "         COALESCE(kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)),\n" +
-  "                  left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) phone\n" +
+  // Phone fills ONLY when canonical (kscw_normalize_phone, migration 186/189
+  // policy 2026-07-07): an unrewritable ClubDesk value (legacy 9-digit, free
+  // text, Excel-mangled) is NOT imported — same rule as the AHV intake. The
+  // member re-enters their number in the profile; garbage never crosses over.
+  "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) phone\n" +
   "  FROM clubdesk_export WHERE NULLIF(btrim(lizenznummer),'') IS NOT NULL),\n" +
   'mt AS (\n' +
   '  SELECT DISTINCT ON (mm.id) mm.id, cd.adresse, cd.plz, cd.ort, cd.categ, cd.sektion, cd.phone\n' +
@@ -268,11 +268,11 @@ const psqlInput =
   "         lower(btrim(nachname)) nachname, lower(split_part(btrim(vorname),' ',1)) vn1,\n" +
   "         left(NULLIF(btrim(adresse),''),255) adresse, left(NULLIF(btrim(plz),''),10) plz, left(NULLIF(btrim(ort),''),100) ort,\n" +
   "         left(NULLIF(btrim(beitragskategorie),''),100) categ, left(NULLIF(btrim(sektion),''),32) sektion,\n" +
-  // Phone fills canonicalized via kscw_normalize_phone (migration 186); an
-  // unrewritable ClubDesk value (legacy 9-digit, free text) fills raw — better
-  // a reachable oddball than a dropped number.
-  "         COALESCE(kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)),\n" +
-  "                  left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) phone\n" +
+  // Phone fills ONLY when canonical (kscw_normalize_phone, migration 186/189
+  // policy 2026-07-07): an unrewritable ClubDesk value (legacy 9-digit, free
+  // text, Excel-mangled) is NOT imported — same rule as the AHV intake. The
+  // member re-enters their number in the profile; garbage never crosses over.
+  "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) phone\n" +
   '  FROM clubdesk_export),\n' +
   'mt AS (\n' +
   '  SELECT DISTINCT ON (mm.id) mm.id, cd.adresse, cd.plz, cd.ort, cd.categ, cd.sektion, cd.phone\n' +
@@ -609,10 +609,9 @@ const psqlInput =
   "              THEN to_date(geburtsdatum,'DD.MM.YYYY') END AS dob,\n" +
   "         left(NULLIF(btrim(adresse),''),255) AS adresse, left(NULLIF(btrim(plz),''),10) AS plz,\n" +
   "         left(NULLIF(btrim(ort),''),100) AS ort,\n" +
-  // Phone fill canonicalized via kscw_normalize_phone (migration 186); an
-  // unrewritable value fills raw (same rule as the licence/email passes above).
-  "         COALESCE(kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)),\n" +
-  "                  left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) AS phone,\n" +
+  // Phone fill ONLY when canonical (same skip-garbage rule as the passes above
+  // and the AHV intake — migration 189 policy).
+  "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) AS phone,\n" +
   "         left(NULLIF(btrim(beitragskategorie),''),100) AS categ, left(NULLIF(btrim(sektion),''),32) AS sektion\n" +
   '  FROM clubdesk_export\n' +
   "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +

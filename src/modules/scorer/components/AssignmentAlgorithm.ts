@@ -366,16 +366,9 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
     }
 
     if (isRefereeGame) {
-      // === REFEREE MODE (HU20): scorer + referee ===
+      // === REFEREE MODE (HU20): referee ONLY — no scorer, no Täfeler ===
       const a = blank(game.id, 'referee')
-      const scorer = pickBest(game, 'scorer', hallName, adjacentTeams, [playingTeamId])
-      if (scorer) {
-        a.scorerTeamId = scorer.teamId; a.scorerTeamName = scorer.teamName; a.scorerScore = scorer.score
-        for (const r of scorer.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: scorer.teamName, role: 'scorer' } })
-        trackAssignment(scorer.teamId, game.date, assignmentCounts, dayAssignments)
-      } else a.conflicts.push({ key: 'noScorerAvailable' })
-
-      const referee = pickBest(game, 'referee', hallName, adjacentTeams, [playingTeamId, a.scorerTeamId])
+      const referee = pickBest(game, 'referee', hallName, adjacentTeams, [playingTeamId])
       if (referee) {
         a.refereeTeamId = referee.teamId; a.refereeTeamName = referee.teamName; a.scoreboardScore = referee.score
         for (const r of referee.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: referee.teamName, role: 'referee' } })

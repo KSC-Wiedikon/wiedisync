@@ -14,6 +14,7 @@ import TeamChip from '../../components/TeamChip'
 import SportToggle from '../../components/SportToggle'
 import { runAssignment, getTeamCounts, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
+import { buildAssignmentXlsx, buildTeamColors, downloadBytes, XLSX_MIME, type XlsxGameRow, type XlsxSummaryRow, type XlsxLabels } from './lib/assignmentExport'
 import { updateRecord } from '../../lib/api'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { TourPageButton } from '../guide/TourPageButton'
@@ -205,6 +206,50 @@ export default function ScorerAssignPage() {
     }
   }
 
+  async function handleDownloadXlsx() {
+    const isVb = sportTab === 'volleyball'
+    const teamColors = buildTeamColors((isVb ? vbTeams : bbTeams).map((tm) => tm.name))
+    const conflictText = (cs: { key: string; params?: Record<string, string | number> }[]) =>
+      cs.filter((c) => c.key !== 'existingKept').map((c) => t(c.key, c.params ?? {})).join('; ')
+    const blank = { scorer: '', scoreboard: '', combined: '', referee: '', dutyTeam: '' }
+    const meta = (gameId: string) => {
+      const g = homeGames.find((x) => x.id === gameId)
+      return {
+        date: g ? formatDateCompact(g.date) : '', time: g?.time ? formatTime(g.time) : '',
+        hall: g ? (hallNameById.get(String(g.hall)) ?? '') : '',
+        home: g?.home_team ?? '', away: g?.away_team ?? '', league: g?.league ?? '',
+      }
+    }
+    const gameRows: XlsxGameRow[] = isVb
+      ? vbAssignments.map((a) => ({
+          ...meta(a.gameId), ...blank,
+          scorer: a.scorerTeamName ?? '', scoreboard: a.scoreboardTeamName ?? '',
+          combined: a.combinedTeamName ?? '', referee: a.refereeTeamName ?? '',
+          conflicts: conflictText(a.conflicts),
+          status: a.conflicts.some((c) => c.key === 'existingKept') ? 'existing'
+            : (!a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId) ? 'unassigned' : 'ok',
+        }))
+      : bbAssignments.map((a) => ({
+          ...meta(a.gameId), ...blank, dutyTeam: a.dutyTeamName ?? '',
+          conflicts: conflictText(a.conflicts),
+          status: a.conflicts.some((c) => c.key === 'existingKept') ? 'existing' : !a.dutyTeamId ? 'unassigned' : 'ok',
+        }))
+    const summaryRows: XlsxSummaryRow[] = isVb
+      ? Array.from(vbTeamCounts.entries()).sort(([x], [y]) => x.localeCompare(y)).map(([team, c]) => ({
+          team, games: c.ownGames, scorer: c.scorer, scoreboard: c.scoreboard, combined: c.combined, referee: c.referee, duties: c.totalDuties, total: c.totalDuties }))
+      : Array.from(bbTeamCounts.entries()).sort(([x], [y]) => x.localeCompare(y)).map(([team, c]) => ({
+          team, games: c.ownGames, scorer: 0, scoreboard: 0, combined: 0, referee: 0, duties: c.duties, total: c.duties }))
+    const L: XlsxLabels = {
+      sheetGames: t('title'), sheetSummary: t('teamSummary'),
+      date: t('date'), time: t('time'), hall: t('hall'), home: t('home'), away: t('away'), league: t('league'),
+      scorer: t('autoScorer'), scoreboard: t('autoTaefeler'), combined: t('combinedCount'),
+      referee: t('refereeCount'), dutyTeam: t('autoDutyTeam'), conflicts: t('conflicts'),
+      team: t('teamName'), games: t('ownGames'), total: t('totalCount'),
+    }
+    const bytes = await buildAssignmentXlsx(sportTab, gameRows, summaryRows, teamColors, L)
+    downloadBytes(bytes, XLSX_MIME, `kscw_schreiber_zuteilung_${isVb ? 'vb' : 'bb'}_${season.replace('/', '-')}.xlsx`)
+  }
+
   function handleVbOverride(gameId: string, role: 'scorer' | 'scoreboard' | 'combined' | 'referee', teamId: string) {
     setVbAssignments((prev) =>
       prev.map((a) => {
@@ -271,6 +316,12 @@ export default function ScorerAssignPage() {
         {assignments.length > 0 && (
           <Button size="sm" onClick={handleSaveAll} loading={saving}>
             {saving ? t('saving') : t('saveAll')}
+          </Button>
+        )}
+
+        {assignments.length > 0 && (
+          <Button size="sm" variant="outline" onClick={handleDownloadXlsx}>
+            {t('downloadXlsx')}
           </Button>
         )}
       </div>
@@ -448,17 +499,12 @@ export default function ScorerAssignPage() {
                             </div>
                           </TableCell>
                         ) : a.mode === 'referee' ? (
-                          <>
-                            <TableCell className="px-2 py-2">
-                              <TeamSelect value={a.scorerTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'scorer', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
-                            </TableCell>
-                            <TableCell className="px-2 py-2">
-                              <div className="flex items-center gap-1">
-                                <span className="rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" title={t('refereeCount')}>{t('refereeTag')}</span>
-                                <TeamSelect value={a.refereeTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'referee', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
-                              </div>
-                            </TableCell>
-                          </>
+                          <TableCell className="px-2 py-2" colSpan={2}>
+                            <div className="flex items-center gap-1">
+                              <span className="rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" title={t('refereeCount')}>{t('refereeTag')}</span>
+                              <TeamSelect value={a.refereeTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'referee', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
+                            </div>
+                          </TableCell>
                         ) : (
                           <>
                             <TableCell className="px-2 py-2">

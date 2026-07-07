@@ -5,6 +5,7 @@ export default {
   // Actions
   runAlgorithm: 'Esegui algoritmo',
   saveAll: 'Salva tutto',
+  downloadXlsx: 'Scarica Excel',
   saving: 'Salvataggio...',
   running: 'Calcolo...',
 
@@ -73,7 +74,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Regole dell\'algoritmo',
-  rulesModeVb: 'Pallavolo: squadre di refertista e tabellone separate. A Döltschi e in 4L/5L una squadra fa entrambi (combinato). Le partite casalinghe HU20 usano refertista + arbitro invece del tabellone.',
+  rulesModeVb: 'Pallavolo: squadre di refertista e tabellone separate. A Döltschi e in 4L/5L una squadra fa entrambi (combinato). Le partite casalinghe HU20 usano solo un arbitro (niente refertista o tabellone).',
   refereeCount: 'Arbitro',
   refereeTag: 'Arb',
   noRefereeAvailable: 'Nessun arbitro disponibile',

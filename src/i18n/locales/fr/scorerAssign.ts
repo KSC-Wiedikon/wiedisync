@@ -5,6 +5,7 @@ export default {
   // Actions
   runAlgorithm: 'Lancer l\'algorithme',
   saveAll: 'Tout enregistrer',
+  downloadXlsx: 'Télécharger Excel',
   saving: 'Enregistrement...',
   running: 'Calcul...',
 
@@ -73,7 +74,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Règles de l\'algorithme',
-  rulesModeVb: 'Volleyball : équipes de marqueur et de tableau séparées. À Döltschi et en 4L/5L, une seule équipe fait les deux (combiné). Les matchs à domicile HU20 utilisent marqueur + arbitre au lieu du tableau.',
+  rulesModeVb: 'Volleyball : équipes de marqueur et de tableau séparées. À Döltschi et en 4L/5L, une seule équipe fait les deux (combiné). Les matchs à domicile HU20 n\'utilisent qu\'un arbitre (pas de marqueur ni tableau).',
   refereeCount: 'Arbitre',
   refereeTag: 'Arb',
   noRefereeAvailable: 'Aucun arbitre disponible',

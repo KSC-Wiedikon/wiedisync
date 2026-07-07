@@ -255,7 +255,7 @@ export default function AdminDashboardPage() {
   // VM (never pushed / push failed) or whose VM date drifted from our slot after
   // we pushed. Keyed by booking id. Re-fetched when bookings change (a re-push
   // updates vm_push_status, which flips a row out of the alert).
-  type HomeVmCheck = { status: 'not_pushed' | 'mismatch' | 'match' | 'no_vm'; agreed: string; vm: string | null; push: string | null }
+  type HomeVmCheck = { status: 'not_pushed' | 'mismatch' | 'match' | 'no_vm' | 'feed_authority'; agreed: string; vm: string | null; push: string | null }
   const [homeVmChecks, setHomeVmChecks] = useState<Record<string, HomeVmCheck>>({})
   useEffect(() => {
     if (!season?.id) { setHomeVmChecks({}); return }

@@ -25,16 +25,14 @@ const base = (games: Game[]): AssignmentInput => ({
 })
 
 describe('runAssignment — referee / exclusions / no-licence', () => {
-  it('HU20 home game → scorer + referee (never a scoreboard or combined team)', () => {
+  it('HU20 home game → referee only (no scorer, scoreboard or combined)', () => {
     const [a] = runAssignment(base([game('g1', '1', '2026-09-15')]))
     expect(a.mode).toBe('referee')
-    expect(a.scorerTeamId).toBeTruthy()
     expect(a.refereeTeamId).toBeTruthy()
+    expect(a.scorerTeamId).toBeNull()
     expect(a.scoreboardTeamId).toBeNull()
     expect(a.combinedTeamId).toBeNull()
-    // scorer and referee are two different teams, neither is the playing team
-    expect(a.scorerTeamId).not.toBe(a.refereeTeamId)
-    expect([a.scorerTeamId, a.refereeTeamId]).not.toContain('1')
+    expect(a.refereeTeamId).not.toBe('1') // not the playing team
   })
 
   it('assigns duties with NO licenced members present (licence rule dropped)', () => {
