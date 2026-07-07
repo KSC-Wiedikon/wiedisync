@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.25.0 — 2026-07-07
+
+### Scorer duty: HU20 referee + no-licence assignment
+- **HU20 home games** are now staffed **scorer + referee** instead of scorer + Täfeler (scoreboard). The referee is a duty *team* like the scorer (no licence required); a member of the assigned team claims it on the Scorer page. (Backend: migration 182 adds the referee duty columns; migration 183 makes the "missing duty" report HU20-aware.)
+- **Scorer and Täfeler no longer require a licence** — the auto-assignment can use any available team, and **MiniVB and DU20** are excluded as duty providers. The Legends and HU20 scoring preferences are kept.
+
 ## v1.24.0 — 2026-07-07
 
 ### Club stats: pick a season

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.24.0'
+const APP_VERSION = '1.25.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.25.0',
+    date: '07.07.2026',
+    sections: [
+      {
+        title: 'Scorer duty: HU20 referee + simpler assignment',
+        items: [
+          'HU20 home games are now staffed with a scorer and a referee instead of a scoreboard operator. The referee is assigned to a team like the scorer, and any member of that team can take it — no licence needed.',
+          'Scorer and scoreboard duties no longer require a licence either, so the auto-assignment can draw on any team. MiniVB and DU20 are no longer assigned scorer duties.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.24.0',
     date: '07.07.2026',
