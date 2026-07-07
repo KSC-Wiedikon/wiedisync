@@ -12,6 +12,7 @@ import { coercePositions, getPositionI18nKey, getSelectablePositions } from '../
 import { backendLangToI18n } from '../../utils/languageMap'
 import { asObj, relId, memberName } from '../../utils/relations'
 import { getCurrentSeason } from '../../utils/dateHelpers'
+import { normalizePhone, normalizeAhv } from '../../utils/contact'
 import { type BackendLanguage } from '../../i18n/languageConfig'
 import LanguageSelect from '@/components/LanguageSelect'
 import { CheckIcon } from 'lucide-react'
@@ -158,6 +159,24 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
         return
       }
 
+      // Canonicalize phone + AHV (src/utils/contact.ts — same rules as the
+      // registration backend), so members.phone/ahv_nummer only ever hold the
+      // canonical formats both databases converge on.
+      const phoneNorm = normalizePhone(phone)
+      if (!phoneNorm.ok) {
+        setError(t('invalidPhoneFormat'))
+        setLoading(false)
+        return
+      }
+      const phoneCanonical = phoneNorm.value ?? ''
+      const ahvNorm = normalizeAhv(ahvNummer)
+      if (!ahvNorm.ok) {
+        setError(t('invalidAhvFormat'))
+        setLoading(false)
+        return
+      }
+      const ahvCanonical = ahvNorm.value ?? ''
+
       // Check for duplicate number in the same team(s)
       if (number > 0 && number !== user.number) {
         const myTeams = await fetchAllItems('member_teams', {
@@ -187,7 +206,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
         first_name: fn,
         last_name: ln,
         email: em,
-        phone,
+        phone: phoneCanonical,
         number,
         hide_phone: hidePhone,
         hide_email: hideEmail,
@@ -199,13 +218,6 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       }
       if (birthdate) {
         payload.birthdate = birthdate
-      }
-
-      // Validate AHV format if provided
-      if (ahvNummer && !/^756\.\d{4}\.\d{4}\.\d{2}$/.test(ahvNummer)) {
-        setError(t('invalidAhvFormat'))
-        setLoading(false)
-        return
       }
 
       // Validate PLZ if provided
@@ -222,7 +234,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       payload.ort = ort
       payload.nationalitaet = nationalitaet
       payload.sex = sex
-      payload.ahv_nummer = ahvNummer
+      payload.ahv_nummer = ahvCanonical
 
       // Upload the photo to /files first (multipart), then set the FK in the
       // plain-JSON payload. Passing FormData straight to updateRecord() is a
@@ -240,7 +252,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
         first_name: { old: user.first_name, new: fn },
         last_name: { old: user.last_name, new: ln },
         email: { old: user.email, new: em },
-        phone: { old: user.phone, new: phone },
+        phone: { old: user.phone, new: phoneCanonical },
         birthdate: { old: user.birthdate?.slice(0, 10) || '', new: birthdate },
         anrede: { old: user.anrede || '', new: anrede },
         adresse: { old: user.adresse || '', new: adresse },
@@ -248,7 +260,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
         ort: { old: user.ort || '', new: ort },
         nationalitaet: { old: user.nationalitaet || '', new: nationalitaet },
         sex: { old: user.sex || '', new: sex },
-        ahv_nummer: { old: user.ahv_nummer || '', new: ahvNummer },
+        ahv_nummer: { old: user.ahv_nummer || '', new: ahvCanonical },
       }
       // Normalize before diffing — `undefined`/`null`/`''`/whitespace must all
       // compare equal, otherwise an empty optional field (e.g. phone) emits a

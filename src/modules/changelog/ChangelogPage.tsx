@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.25.0'
+const APP_VERSION = '1.26.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.26.0',
+    date: '07.07.2026',
+    sections: [
+      {
+        title: 'Standardized contact data + smarter signup form',
+        items: [
+          'Phone numbers, IBAN, AHV numbers and emails are now stored in one standard format everywhere (e.g. +41 79 123 45 67), and existing entries were cleaned up automatically. The ClubDesk sync repairs values in both directions.',
+          'The signup form on kscw.ch now checks the AHV number (check digit), phone number and email before submitting, and offers an optional IBAN field — used only to pay money back to you (e.g. expense reimbursements), never to collect payments.',
+          'Editing your profile validates the phone and AHV number the same way.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.25.0',
     date: '07.07.2026',

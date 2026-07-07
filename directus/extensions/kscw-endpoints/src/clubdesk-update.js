@@ -5,6 +5,11 @@
 
 import { buildEmailLayout, buildInfoCard, bucketEmailsByLocale } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
+import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
+
+/** Canonical form for an outgoing push cell; unrewritable values pass raw
+ *  (result.value carries the raw input when ok is false). */
+const normVal = (fn, v) => fn(v).value || ''
 
 const OWNER_EMAIL = 'luca.canepa@gmail.com'
 const ADMIN_EMAIL = 'kontakt@kscw.ch'
@@ -188,13 +193,16 @@ const CD_PUSH_HEADERS = [
   // they already match); AHV Nummer is free text (pushing wiedisync's clean
   // value also repairs ClubDesk cells the Zahl-format once mangled).
   'Anrede', 'Nationalität', 'AHV Nummer',
-  // Wiedisync ID (custom ClubDesk text field, 2026-07-07): wiedisync's own
-  // member id, pushed on EVERY create + update. wiedisync fully owns it (never
-  // echo, never empty), so the down-sync can link contact↔member by this exact
-  // id — immune to the name/email/accent drift that email+name matching suffers.
-  // This closes the create round-trip (up → new [Id] → down-link) with zero
-  // ambiguity. ClubDesk's import can't MATCH on it (no ID upsert), but the
-  // down-sync linker reads it back as the authoritative key.
+  // Wiedisync ID (custom ClubDesk text field, 2026-07-07): wiedisync's member
+  // UUID (members.uuid, migration 184 — globally unique, visually distinct from
+  // ClubDesk's own numeric [Id]; pre-184 stamps carried the numeric members.id
+  // and stay valid — the linker accepts both). Pushed on EVERY create + update;
+  // wiedisync fully owns it (never echo, never empty), so the down-sync can
+  // link contact↔member by this exact key — immune to the name/email/accent
+  // drift that email+name matching suffers. This closes the create round-trip
+  // (up → new [Id] → down-link) with zero ambiguity. ClubDesk's import can't
+  // MATCH on it (no ID upsert), but the down-sync linker reads it back as the
+  // authoritative key.
   'Wiedisync ID',
 ]
 
@@ -460,22 +468,33 @@ export function buildPushCsv(members, { create = false } = {}) {
   // for UPDATE rows (empty → ClubDesk's own value) — see CD_PUSH_HEADERS.
   const headers = create ? CD_PUSH_CREATE_HEADERS : CD_PUSH_HEADERS
   const rows = members.map((m) => {
+    // Outgoing repair: push the CANONICAL form (normalize.js) so every commit
+    // also standardizes ClubDesk's copy (INFRA.md → "Contact-data normalization
+    // rule"). Values that don't normalize (legacy 9-digit numbers, mangled
+    // cells) pass through raw — the push must never blank or reshape a value it
+    // can't parse.
+    const phoneOut = normVal(normalizePhone, m.phone)
+    const ibanOut = normVal(normalizeIban, m.iban)
+    const ahvOut = normVal(normalizeAhv, m.ahv_nummer)
+    const emailOut = normVal(normalizeEmail, m.email)
     const cells = [
-      m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
+      m.first_name, m.last_name, emailOut, phoneOut, m.adresse, m.plz, m.ort,
       fmtBirthdateDDMMYYYY(m.birthdate),
       m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
       // /up pre-resolves m.iban / m.anrede / m.nationalitaet / m.ahv_nummer to
       // ClubDesk's own value when wiedisync's is empty (UPDATE rows only — see
       // CD_PUSH_HEADERS). Creates push their own values (a new contact has no
       // ClubDesk value to blank).
-      m.iban || '',
-      m.anrede || '', m.nationalitaet || '', m.ahv_nummer || '',
-      // Wiedisync ID — always wiedisync's own member id (never echoed/blank).
-      m.id != null ? String(m.id) : '',
+      ibanOut,
+      m.anrede || '', m.nationalitaet || '', ahvOut,
+      // Wiedisync ID — the member UUID (migration 184), wiedisync-owned: never
+      // echoed, never blank. Pre-184 pushes carried the numeric members.id; the
+      // down-sync linker accepts both.
+      m.uuid ? String(m.uuid) : (m.id != null ? String(m.id) : ''),
     ]
     if (create) {
       cells.push(
-        m.phone || '', // Telefon Mobil = same as Privat (user: one number → both)
+        phoneOut, // Telefon Mobil = same as Privat (user: one number → both)
         mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt),
         m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m),
         deriveMitgliederbeitrag(m.beitragskategorie, m),
@@ -494,7 +513,7 @@ export function buildPushCsv(members, { create = false } = {}) {
 // licence booleans are only ever used on CREATE rows (buildPushCsv /
 // deriveStatus / deriveOffiziellenLizenz).
 const PUSH_FIELDS = [
-  'id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
+  'id', 'uuid', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
   'ort', 'birthdate', 'sex', 'iban', 'anrede', 'nationalitaet', 'ahv_nummer',
   'clubdesk_id', 'clubdesk_push_changes',
   'beitragskategorie', 'wiedisync_active',

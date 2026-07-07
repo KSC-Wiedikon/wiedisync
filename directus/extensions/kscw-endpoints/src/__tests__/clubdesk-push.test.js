@@ -29,17 +29,38 @@ describe('buildPushCsv (update set)', () => {
     expect(row).not.toContain('VB Erwerbstätige')
   })
 
-  it('carries the echo-protected fields + the Wiedisync ID (member id) after IBAN', () => {
+  it('carries the echo-protected fields + the Wiedisync ID (uuid, id fallback) after IBAN', () => {
     const row = buildPushCsv([{ ...kacper, id: 531, iban: 'CH93', anrede: 'Herr', nationalitaet: 'Schweiz', ahv_nummer: '756.1.2.3' }])
       .trim().split('\n')[1].split(';')
-    expect(row[9]).toBe('CH93')      // IBAN
+    expect(row[9]).toBe('CH93')      // IBAN — invalid (mod-97 fail) passes through raw, never blanked
     expect(row[10]).toBe('Herr')     // Anrede
     expect(row[11]).toBe('Schweiz')  // Nationalität
-    expect(row[12]).toBe('756.1.2.3') // AHV Nummer
-    expect(row[13]).toBe('531')      // Wiedisync ID = member id (always pushed)
+    expect(row[12]).toBe('756.1.2.3') // AHV Nummer — unrewritable passes through raw
+    expect(row[13]).toBe('531')      // Wiedisync ID: numeric id fallback (pre-184 rows)
+    // members.uuid (migration 184) wins over the numeric id
+    const uuid = 'a3e1f0b2-4c5d-4e6f-8a9b-0c1d2e3f4a5b'
+    const withUuid = buildPushCsv([{ ...kacper, id: 531, uuid }]).trim().split('\n')[1].split(';')
+    expect(withUuid[13]).toBe(uuid)
     const empty = buildPushCsv([kacper]).trim().split('\n')[1].split(';')
     expect([empty[10], empty[11], empty[12]]).toEqual(['', '', '']) // /up echo-fills these
-    expect(empty[13]).toBe('') // no id on the fixture → empty
+    expect(empty[13]).toBe('') // no uuid/id on the fixture → empty
+  })
+
+  it('repairs outgoing contact cells to the canonical formats (normalize.js)', () => {
+    const row = buildPushCsv([{
+      ...kacper,
+      email: ' K@Example.COM ',
+      phone: '0791234567',
+      iban: 'ch93 0076 2011 6238 5295 7',
+      ahv_nummer: '7561234567897',
+    }]).trim().split('\n')[1].split(';')
+    expect(row[2]).toBe('k@example.com')
+    expect(row[3]).toBe('+41 79 123 45 67')
+    expect(row[9]).toBe('CH9300762011623852957')
+    expect(row[12]).toBe('756.1234.5678.97')
+    // unrewritable values pass through raw — the push never blanks what it can't parse
+    const raw = buildPushCsv([{ ...kacper, phone: '01 451 60 38' }]).trim().split('\n')[1].split(';')
+    expect(raw[3]).toBe('01 451 60 38')
   })
 
   it('formats birthdate dd.mm.yyyy and maps sex to ClubDesk wording', () => {
