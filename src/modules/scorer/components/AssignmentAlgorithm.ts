@@ -87,6 +87,34 @@ export function buildTeamGameDates(games: Game[]): Map<string, Set<string>> {
   return map
 }
 
+/** Minutes-of-day for a "HH:MM"(:SS) time string, or null if unparseable. */
+export function timeToMin(time: string | null | undefined): number | null {
+  if (!time) return null
+  const m = /^(\d{1,2}):(\d{2})/.exec(time)
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null
+}
+
+/** Build lookup: "teamId|date" → array of the team's game start-times (minutes). */
+export function buildTeamGameTimes(games: Game[]): Map<string, number[]> {
+  const map = new Map<string, number[]>()
+  for (const g of games) {
+    if (!g.date || !g.kscw_team) continue
+    const min = timeToMin(g.time)
+    if (min == null) continue
+    const key = `${g.kscw_team}|${g.date}`
+    const arr = map.get(key)
+    if (arr) arr.push(min)
+    else map.set(key, [min])
+  }
+  return map
+}
+
+// A team can't do duty for a game that overlaps its own game (can't be in two
+// places). Games run ~2h and the real slots are ≥2.5h apart, so a 120-min
+// window disqualifies only same/near-simultaneous games — a team is free to
+// cover an earlier or later slot the same day (and adjacency is rewarded below).
+const OVERLAP_MINUTES = 120
+
 /** Build lookup: "teamId|date" → true if team has training */
 export function buildTrainingDates(trainings: Training[]): Set<string> {
   const set = new Set<string>()
@@ -141,7 +169,7 @@ function scoreTeam(
   game: Game,
   role: 'scorer' | 'scoreboard' | 'combined' | 'referee',
   hallName: string,
-  teamGameDates: Map<string, Set<string>>,
+  teamGameTimes: Map<string, number[]>,
   trainingDates: Set<string>,
   adjacentTeams: Set<string>,
   underTeamIds: Set<string>,
@@ -154,10 +182,19 @@ function scoreTeam(
 
   // === HARD RULES ===
 
-  // 1. Team has a game on this day → DISQUALIFY
-  const teamsPlayingToday = teamGameDates.get(game.date) ?? new Set()
-  if (teamsPlayingToday.has(teamId)) {
+  // 1. Team plays a game that OVERLAPS this one → DISQUALIFY (can't be in two
+  //    places). Playing a non-overlapping slot the same day is fine — and if the
+  //    team plays the adjacent game at this hall, that's the IDEAL duty team
+  //    (big preference below). If the duty game has no time, fall back to
+  //    same-day exclusion (can't reason about overlap).
+  const dutyMin = timeToMin(game.time)
+  const ownGameMins = teamGameTimes.get(`${teamId}|${game.date}`) ?? []
+  const overlaps = dutyMin == null
+    ? ownGameMins.length > 0
+    : ownGameMins.some((m) => Math.abs(m - dutyMin) < OVERLAP_MINUTES)
+  if (overlaps) {
     disqualified = true
+    // (Reason is never rendered — disqualified candidates are filtered out.)
     reasons.push({ key: 'reason_gameSameDay' })
   }
 
@@ -185,10 +222,11 @@ function scoreTeam(
     reasons.push({ key: 'reason_training', params: { points: -20 } })
   }
 
-  // Sequential game bonus: +30
+  // Adjacent-game preference: the team plays the game right before/after at this
+  // hall → strongly preferred (they're already on-site). +50.
   if (adjacentTeams.has(teamId)) {
-    score += 30
-    reasons.push({ key: 'reason_sequenceBonus', params: { points: 30 } })
+    score += 50
+    reasons.push({ key: 'reason_sequenceBonus', params: { points: 50 } })
   }
 
   // Fair rotation: -10 per existing assignment
@@ -255,7 +293,7 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
     if (UNDER_TEAM_NAMES.includes(t.name)) underTeamIds.add(t.id)
   }
 
-  const teamGameDates = buildTeamGameDates(games)
+  const teamGameTimes = buildTeamGameTimes(games)
   const trainingDates = buildTrainingDates(trainings)
   const gamesByDateHall = buildGamesByDateHall(games)
 
@@ -285,7 +323,7 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
       .filter((t) => !excludeIds.includes(t.id))
       .map((t) => scoreTeam(
         t.id, t.name, game, role, hallName,
-        teamGameDates, trainingDates, adjacentTeams,
+        teamGameTimes, trainingDates, adjacentTeams,
         underTeamIds, assignmentCounts, dayAssignments,
       ))
       .filter((s) => !s.disqualified)
