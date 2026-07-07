@@ -99,9 +99,10 @@ describe('buildPushCsv (create set)', () => {
 })
 
 describe('deriveOffiziellenLizenz', () => {
-  it('scorer → VB SC (referee marked separately now), BB by level, none → empty', () => {
+  it('VB scorer OR referee → VB SC (VB referee is auto a scorer), BB by level, none → empty', () => {
     expect(deriveOffiziellenLizenz({ referee_vb: true, scorer_vb: true })).toBe('VB SC')
-    expect(deriveOffiziellenLizenz({ referee_vb: true })).toBe('') // referee-only → no licence value
+    expect(deriveOffiziellenLizenz({ referee_vb: true })).toBe('VB SC') // VB referee ⇒ auto scorer
+    expect(deriveOffiziellenLizenz({ referee_bb: true })).toBe('') // BB referee is NOT auto a scorer
     expect(deriveOffiziellenLizenz({ scorer_vb: true })).toBe('VB SC')
     expect(deriveOffiziellenLizenz({ otr1_bb: true })).toBe('OTR1')
     expect(deriveOffiziellenLizenz({ otr2_bb: true })).toBe('OTR2')
