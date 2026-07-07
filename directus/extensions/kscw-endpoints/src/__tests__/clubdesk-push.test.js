@@ -9,7 +9,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, derivePassivmitglied } from '../clubdesk-update.js'
+import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, derivePassivmitglied, deriveSchiedsrichter } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -44,23 +44,24 @@ describe('buildPushCsv (update set)', () => {
 })
 
 describe('buildPushCsv (create set)', () => {
-  it('appends the create-set columns (Telefon Mobil … Sektion) in order', () => {
-    const csv = buildPushCsv([{ ...kacper, scorer_vb: true, iban: 'CH9300762011623852957', cd_passiv: 'Nein', cd_sektion: 'Volleyball' }], { create: true })
+  it('appends the create-set columns (Telefon Mobil … Schiedsrichter) in order', () => {
+    const csv = buildPushCsv([{ ...kacper, scorer_vb: true, referee_vb: true, iban: 'CH9300762011623852957', cd_passiv: 'Nein', cd_sektion: 'Volleyball' }], { create: true })
     const [header, row] = csv.trim().split('\n')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
-    expect(header.endsWith('Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Passivmitglied;Sektion')).toBe(true)
+    expect(header.endsWith('Mitgliederbeitrag;Passivmitglied;Sektion;Schiedsrichter')).toBe(true)
     const cells = row.split(';')
-    expect(cells).toHaveLength(19)
+    expect(cells).toHaveLength(20)
     expect(cells[9]).toBe('CH9300762011623852957') // IBAN
     expect(cells[10]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
     expect(cells[11]).toBe('VB Erwerbstätige')       // Beitragskategorie
     expect(cells[12]).toBe('27.06.2026')             // Eintritt
     expect(cells[13]).toBe('VB H1 (Spieler*in)')     // Gruppen
     expect(cells[14]).toBe('Aktivmitglied')          // Status
-    expect(cells[15]).toBe('VB SC')                  // Offiziellen Lizenz (scorer)
+    expect(cells[15]).toBe('VB SC')                  // Offiziellen Lizenz (scorer, not VB SR)
     expect(cells[16]).toBe('440')                    // Mitgliederbeitrag
     expect(cells[17]).toBe('Nein')                   // Passivmitglied
     expect(cells[18]).toBe('Volleyball')             // Sektion
+    expect(cells[19]).toBe('Ja')                     // Schiedsrichter (referee)
   })
 
   it('Telefon Mobil mirrors Telefon Privat (one number → both)', () => {
@@ -92,20 +93,41 @@ describe('buildPushCsv (create set)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(19)
+    expect(cells).toHaveLength(20)
     expect(cells[13]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 })
 
 describe('deriveOffiziellenLizenz', () => {
-  it('VB referee → VB SR, VB scorer → VB SC (SR wins), BB by level, none → empty', () => {
-    expect(deriveOffiziellenLizenz({ referee_vb: true, scorer_vb: true })).toBe('VB SR')
+  it('scorer → VB SC (referee marked separately now), BB by level, none → empty', () => {
+    expect(deriveOffiziellenLizenz({ referee_vb: true, scorer_vb: true })).toBe('VB SC')
+    expect(deriveOffiziellenLizenz({ referee_vb: true })).toBe('') // referee-only → no licence value
     expect(deriveOffiziellenLizenz({ scorer_vb: true })).toBe('VB SC')
     expect(deriveOffiziellenLizenz({ otr1_bb: true })).toBe('OTR1')
     expect(deriveOffiziellenLizenz({ otr2_bb: true })).toBe('OTR2')
     expect(deriveOffiziellenLizenz({ otn_bb: true })).toBe('OTN')
     expect(deriveOffiziellenLizenz({})).toBe('')
     expect(deriveOffiziellenLizenz(null)).toBe('')
+  })
+})
+
+describe('deriveSchiedsrichter', () => {
+  it('Ja for a VB or BB referee, Nein otherwise', () => {
+    expect(deriveSchiedsrichter({ referee_vb: true })).toBe('Ja')
+    expect(deriveSchiedsrichter({ referee_bb: true })).toBe('Ja')
+    expect(deriveSchiedsrichter({ scorer_vb: true })).toBe('Nein')
+    expect(deriveSchiedsrichter({})).toBe('Nein')
+    expect(deriveSchiedsrichter(null)).toBe('Nein')
+  })
+})
+
+describe('deriveGruppen officials', () => {
+  it('VB scorer → VB Schreiber*innen group; referees are NOT grouped', () => {
+    expect(deriveGruppen({ membership_type: 'volleyball', lizenz: 'Schreiber' })).toBe('VB Schreiber*innen')
+    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H1', rolle: 'Spieler*in', lizenz: 'Schreiber' }))
+      .toBe('VB H1 (Spieler*in), VB Schreiber*innen')
+    expect(deriveGruppen({ membership_type: 'volleyball', lizenz: 'Schiedsrichter' })).toBe('')
+    expect(deriveGruppen({ membership_type: 'basketball', lizenz: 'Schiedsrichter' })).toBe('')
   })
 })
 

@@ -474,6 +474,25 @@ const psqlInput =
   "    WHERE (m.birthdate IS NULL AND NULLIF(btrim(c.geburtsdatum),'') IS NOT NULL)\n" +
   "       OR (NULLIF(btrim(m.adresse),'') IS NULL AND NULLIF(btrim(c.adresse),'') IS NOT NULL)\n" +
   "       OR (NULLIF(btrim(m.phone),'') IS NULL AND COALESCE(NULLIF(btrim(c.telefon_mobil),''), NULLIF(btrim(c.telefon_privat),'')) IS NOT NULL)) AS value;\n" +
+  // ── Referee flags from ClubDesk group membership (user 2026-07-07) ──────────
+  // ClubDesk is the source of truth for "is a referee for Wiedikon": a member in
+  // the "VB Schiedsrichter*innen" group → referee_vb, in "Schiedsrichter BB" →
+  // referee_bb. Set-true only (a member dropped from the group keeps the flag
+  // until manually cleared — avoids clobbering a registration-set referee whose
+  // ClubDesk group the club hasn't assigned yet). The wiedisync profile reads
+  // these to show "Referee for Wiedikon" (read-only). gruppen_bracketed is the
+  // authoritative comma-joined group list ([Gruppen] col).
+  'BEGIN;\n' +
+  "UPDATE members m SET referee_vb = true\n" +
+  '  FROM clubdesk_export c\n' +
+  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.referee_vb IS DISTINCT FROM true\n" +
+  "    AND c.gruppen_bracketed ~* '(^|,)\\s*VB Schiedsrichter\\*innen\\s*(,|$)';\n" +
+  "UPDATE members m SET referee_bb = true\n" +
+  '  FROM clubdesk_export c\n' +
+  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.referee_bb IS DISTINCT FROM true\n" +
+  "    AND c.gruppen_bracketed ~* '(^|,)\\s*Schiedsrichter BB\\s*(,|$)';\n" +
+  'COMMIT;\n' +
+  "SELECT 'members_referee' AS metric, (SELECT count(*) FROM members WHERE referee_vb OR referee_bb) AS value;\n" +
   // Report contacts that would have matched MULTIPLE still-unlinked members (skipped
   // above) so a human can link them manually — "ambiguous, needs manual link".
   'WITH cd AS (\n' +
