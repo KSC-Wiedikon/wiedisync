@@ -8,7 +8,7 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList } from 'lucide-react'
+import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList, FolderSync } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
@@ -97,6 +97,7 @@ const adminItems: NavItem[] = [
 
 const superAdminItems: NavItem[] = [
   { to: '/admin/data-health', labelKey: 'dataHealth', icon: <HeartPulse className={iconClass} /> },
+  { to: '/admin/clubdesk-sync', labelKey: 'clubdeskSync', icon: <FolderSync className={iconClass} /> },
   { to: '/admin/infra', labelKey: 'infraHealth', icon: <Activity className={iconClass} /> },
   { to: '/admin/audit-log', labelKey: 'auditLog', icon: <ScrollText className={iconClass} /> },
   { to: '/admin/error-logs', labelKey: 'errorLogs', icon: <FileWarning className={iconClass} /> },

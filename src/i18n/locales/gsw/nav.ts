@@ -39,6 +39,7 @@ export default {
   impressum: 'Impressum',
   infraHealth: 'Infrastruktur',
   dataHealth: 'Datequalität',
+  clubdeskSync: 'ClubDesk-Sync',
   auditLog: 'Audit Log',
   sqlWorkspace: 'SQL-Workspace',
   bugfixes: 'Bugfixes',

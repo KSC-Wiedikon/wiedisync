@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Loader2, ArrowUpFromLine, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Loader2, ArrowUpFromLine, AlertTriangle, CheckCircle2, EyeOff } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -69,6 +69,20 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
       return n
     })
   }, [])
+
+  // Mute a member from the sync-up permanently (clubdesk_sync_exclude,
+  // migration 190) — for technical rows like the System KSCW account.
+  // Unmute via the Directus admin UI / Data Explorer.
+  const mute = useCallback(async (id: number) => {
+    try {
+      await kscwApi('/clubdesk-member-sync/mute', { method: 'POST', body: { member_id: id, muted: true } })
+      setPreview((p) => ({ changed: p.changed.filter((m) => m.id !== id), unlinked: p.unlinked.filter((m) => m.id !== id) }))
+      setSelected((prev) => { const n = new Set(prev); n.delete(id); return n })
+      toast.success(t('clubdeskUpMuted'))
+    } catch (e) {
+      toast.error((e as { body?: { error?: string } })?.body?.error || (e as Error).message)
+    }
+  }, [t])
 
   const push = useCallback(async () => {
     const ids = [...selected]
@@ -173,6 +187,7 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
                       <TableHead className="w-8" />
                       <TableHead>{t('clubdeskUpColName')}</TableHead>
                       <TableHead>{t('clubdeskUpColEmail')}</TableHead>
+                      <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -200,6 +215,16 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-normal break-words text-xs text-gray-500 dark:text-gray-400">{m.email}</TableCell>
+                        <TableCell className="w-10 text-right">
+                          <Button
+                            type="button" variant="ghost" size="icon"
+                            className="h-8 w-8 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                            title={t('clubdeskUpMute')}
+                            onClick={() => mute(m.id)}
+                          >
+                            <EyeOff className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
