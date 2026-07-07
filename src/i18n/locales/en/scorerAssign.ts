@@ -5,6 +5,7 @@ export default {
   // Actions
   runAlgorithm: 'Run algorithm',
   saveAll: 'Save all',
+  downloadXlsx: 'Download Excel',
   saving: 'Saving...',
   running: 'Computing...',
 
@@ -73,7 +74,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Algorithm rules',
-  rulesModeVb: 'Volleyball: separate scorer and scoreboard teams. At Döltschi and in 4L/5L one team does both (combined). HU20 home games use scorer + referee instead of a scoreboard operator.',
+  rulesModeVb: 'Volleyball: separate scorer and scoreboard teams. At Döltschi and in 4L/5L one team does both (combined). HU20 home games use only a referee (no scorer or scoreboard).',
   refereeCount: 'Referee',
   refereeTag: 'Ref',
   noRefereeAvailable: 'No referee available',

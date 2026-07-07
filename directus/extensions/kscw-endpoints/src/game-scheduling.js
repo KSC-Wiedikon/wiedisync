@@ -5847,6 +5847,15 @@ export function registerGameScheduling(router, { database, logger, services, get
         return manageCache.get(k)
       }
 
+      // Once the season's SV-feed takeover date (vm_authority_date) passes, the
+      // official feed is authoritative for date/time/venue (same rule sv-sync
+      // applies to the games mirror) — a home game whose VM date then differs
+      // from our frozen slot is the feed's call, not a "you must re-push".
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first('vm_authority_date')
+      const takeover = seasonRow?.vm_authority_date ? new Date(seasonRow.vm_authority_date).toISOString().slice(0, 10) : null
+      const todayStr = new Date().toISOString().slice(0, 10)
+      const feedHasTakenOver = !!(takeover && todayStr >= takeover)
+
       // Our scheduled slot → lexical dd.mm.yyyy HH:MM with the weekday-20:00 rule.
       const fmtAgreed = (dateYmd, st) => {
         const m = String(dateYmd || '').match(/^(\d{4})-(\d{2})-(\d{2})/)
@@ -5859,9 +5868,18 @@ export function registerGameScheduling(router, { database, logger, services, get
       for (const r of rows) {
         if (!(await canManage(r.kscw_team))) continue
         const agreed = fmtAgreed(r.slot_date, r.slot_st)
+        // Already in sync: VM (the SVRZ mirror) carries our exact agreed
+        // date/time — regardless of push status. This covers league-APPROVED
+        // fixtures, which reject any further push (vm_push_status stays 'failed'
+        // with "VM game status is approved, not open") even though VM already
+        // matches: not pushed, but nothing to push → a match, not an alert.
+        if (r.vm_zurich && r.vm_zurich === agreed) { out[r.id] = { status: 'match', agreed, vm: r.vm_zurich, push: r.vps }; continue }
+        // Past the takeover date the feed wins date/time/venue: surface a VM≠agreed
+        // divergence as feed_authority (not an actionable re-push alert). The
+        // dashboard alert ignores any status other than not_pushed/mismatch.
+        if (feedHasTakenOver && r.vm_zurich) { out[r.id] = { status: 'feed_authority', agreed, vm: r.vm_zurich, push: r.vps }; continue }
         if (!PUSHED.has(r.vps)) { out[r.id] = { status: 'not_pushed', agreed, vm: r.vm_zurich || null, push: r.vps || null }; continue }
         if (!r.vm_zurich) { out[r.id] = { status: 'no_vm', agreed, vm: null, push: r.vps }; continue }
-        if (r.vm_zurich === agreed) { out[r.id] = { status: 'match', agreed, vm: r.vm_zurich, push: r.vps }; continue }
         // VM differs from our slot — only a genuine drift if VM was re-scraped
         // AFTER we pushed (else svrz_games is just lagging our own push).
         const drifted = r.vm_synced_at && r.pushed_at && new Date(r.vm_synced_at) > new Date(r.pushed_at)

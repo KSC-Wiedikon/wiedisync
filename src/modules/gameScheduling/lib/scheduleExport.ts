@@ -83,6 +83,9 @@ const homeGameTime = (dateYmd: string | null | undefined, slotStart: string | nu
 // to be updated — the default for anything not confirmed-and-matched).
 const VM_MATCH_LABEL: Record<string, string> = {
   match: 'MATCH', mismatch: 'NO MATCH', no_vm: 'TBU', unset: 'TBU', not_pushed: 'TBU',
+  // Past the SV-feed takeover date the official feed is authoritative and the
+  // games mirror already reflects it — treat as matched in the export.
+  feed_authority: 'MATCH',
 }
 const vmMatchLabel = (s: string | null | undefined): string => VM_MATCH_LABEL[String(s ?? '')] || 'TBU'
 const statusLabel = (s: string | null | undefined): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '')

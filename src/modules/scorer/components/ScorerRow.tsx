@@ -65,8 +65,8 @@ export function hasAnyVbAssignment(game: Game): boolean {
 
 function isVbFullyAssigned(game: Game): boolean {
   if (isVbCombinedMode(game)) return !!game.scorer_scoreboard_member
-  // Check referee mode before separate: an HU20 game has scorer_duty_team set too.
-  if (isVbRefereeMode(game)) return !!(game.scorer_member && game.referee_member)
+  // Referee mode (HU20): referee only, no scorer/Täfeler. Check before separate.
+  if (isVbRefereeMode(game)) return !!game.referee_member
   if (isVbSeparateMode(game)) return !!(game.scorer_member && game.scoreboard_member)
   return false
 }
@@ -430,10 +430,7 @@ export default function ScorerRow({
           vbCombined ? (
             renderVbEditor('scorer_scoreboard', 'scorerTaefeler', undefined, 'scorer_scoreboard_duty_team', 'scorer_scoreboard_member')
           ) : vbReferee ? (
-            <>
-              {renderVbEditor('scorer', 'scorer', undefined, 'scorer_duty_team', 'scorer_member')}
-              {renderVbEditor('referee', 'referee', undefined, 'referee_duty_team', 'referee_member')}
-            </>
+            renderVbEditor('referee', 'referee', undefined, 'referee_duty_team', 'referee_member')
           ) : (
             <>
               {renderVbEditor('scorer', 'scorer', undefined, 'scorer_duty_team', 'scorer_member')}

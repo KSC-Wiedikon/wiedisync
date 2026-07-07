@@ -5,6 +5,7 @@ export default {
   // Actions
   runAlgorithm: 'Algorithmus starten',
   saveAll: 'Alle speichern',
+  downloadXlsx: 'Excel herunterladen',
   saving: 'Speichern...',
   running: 'Berechne...',
 
@@ -73,7 +74,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Regeln des Algorithmus',
-  rulesModeVb: 'Volleyball: separate Schreiber- und Täfeler-Teams. In Döltschi und in der 4L/5L macht ein Team beides (kombiniert). HU20-Heimspiele haben Schreiber + Schiedsrichter statt Täfeler.',
+  rulesModeVb: 'Volleyball: separate Schreiber- und Täfeler-Teams. In Döltschi und in der 4L/5L macht ein Team beides (kombiniert). HU20-Heimspiele haben nur einen Schiedsrichter (kein Schreiber/Täfeler).',
   refereeCount: 'Schiedsrichter',
   refereeTag: 'SR',
   noRefereeAvailable: 'Kein Schiedsrichter verfügbar',
