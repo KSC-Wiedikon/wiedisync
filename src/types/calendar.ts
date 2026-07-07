@@ -1,9 +1,20 @@
 import type { Game, Training, Event, HallClosure, HallEvent, Absence } from './index'
 
+/** Synthetic source for birthday entries — they have no backing collection row
+ *  (they're derived from `members.birthdate`), but every `CalendarEntry.source`
+ *  needs an `id` for the iCal UID and for generic handling. */
+export interface BirthdaySource {
+  id: string
+  member_id: string
+  /** Age the member turns on this occurrence. */
+  age: number
+  birthday: true
+}
+
 /** Unified calendar entry for rendering and iCal export */
 export interface CalendarEntry {
   id: string
-  type: 'game' | 'training' | 'event' | 'closure' | 'hall' | 'absence' | 'scorer-duty'
+  type: 'game' | 'training' | 'event' | 'closure' | 'hall' | 'absence' | 'scorer-duty' | 'birthday'
   title: string
   date: Date
   /** End date for multi-day entries (closures, multi-day events). Undefined = single-day. */
@@ -14,7 +25,7 @@ export interface CalendarEntry {
   location: string
   teamNames: string[]
   description: string
-  source: Game | Training | Event | HallClosure | HallEvent | Absence
+  source: Game | Training | Event | HallClosure | HallEvent | Absence | BirthdaySource
   /** Only set for game entries */
   gameType?: 'home' | 'away'
   /** Opponent team name — set for game entries (the non-KSCW side). */
@@ -34,7 +45,7 @@ export type CalendarViewMode = 'hallenplan' | 'month' | 'week' | 'schedule'
 
 export type SportFilter = 'volleyball' | 'basketball' | 'all'
 export type GameTypeFilter = 'home' | 'away' | 'all'
-export type SourceFilter = 'game-home' | 'game-away' | 'training' | 'event' | 'closure' | 'hall' | 'absence' | 'scorer-duty'
+export type SourceFilter = 'game-home' | 'game-away' | 'training' | 'event' | 'closure' | 'hall' | 'absence' | 'scorer-duty' | 'birthday'
 
 export interface SpielplanungFilterState {
   sport: SportFilter

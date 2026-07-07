@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.26.0'
+const APP_VERSION = '1.27.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.27.0',
+    date: '07.07.2026',
+    sections: [
+      {
+        title: 'Home “next 7 days” ticker + team birthdays',
+        items: [
+          'The home page now has a scrolling banner showing everything coming up in the next 7 days for your team(s) — games, trainings, events, hall closures and birthdays — all in one glance. Admins see it across every team.',
+          'Team birthdays now appear in the calendar too, visible only to that team (never public). Toggle them under Filter → “Birthdays”. Only members whose birthday visibility is set to “full” are shown, so anyone who kept theirs private stays private.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.26.0',
     date: '07.07.2026',

@@ -38,6 +38,7 @@ export default {
   gameTypeAway: 'Partite fuori casa',
   sourceHallHW: 'Halle HW',
   sourceAbsences: 'Assenze',
+  sourceBirthdays: 'Compleanni',
 
   // Type labels
   typeGame: 'Partita',
@@ -46,6 +47,8 @@ export default {
   typeEvent: 'Evento',
   typeHall: 'Prenotazione palestra',
   typeAbsence: 'Assenza',
+  typeBirthday: 'Compleanno',
+  turnsLabel: 'Compie',
 
   // Other
   noEntries: 'Nessun elemento trovato',

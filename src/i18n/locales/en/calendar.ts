@@ -38,6 +38,7 @@ export default {
   gameTypeAway: 'Away games',
   sourceHallHW: 'Halle HW',
   sourceAbsences: 'Absences',
+  sourceBirthdays: 'Birthdays',
 
   // Type labels
   typeGame: 'Game',
@@ -46,6 +47,8 @@ export default {
   typeEvent: 'Event',
   typeHall: 'Hall booking',
   typeAbsence: 'Absence',
+  typeBirthday: 'Birthday',
+  turnsLabel: 'Turns',
 
   // Other
   noEntries: 'No entries found',

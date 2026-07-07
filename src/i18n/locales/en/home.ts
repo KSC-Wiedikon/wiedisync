@@ -29,4 +29,8 @@ export default {
   ibanConfirmNudgeTitle: 'Confirm your IBAN',
   ibanConfirmNudgeBody: "We have an IBAN on file for you — please confirm it's correct (or change it) under Finance, so reimbursements reach the right account.",
   ibanConfirmNudgeCta: 'Confirm in Finance',
+  // Upcoming ticker
+  next7Days: 'Next 7 days',
+  today: 'Today',
+  turnsAge: 'turns {{age}}',
 } as const

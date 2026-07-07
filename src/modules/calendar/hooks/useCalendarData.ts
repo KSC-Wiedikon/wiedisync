@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import { useCollection } from '../../../lib/query'
 import { useUserVisibleEventIds } from '../../../hooks/useUserVisibleEventIds'
-import type { Game, Training, Event, HallClosure, HallEvent, Team, Absence, MemberTeam } from '../../../types'
+import type { Game, Training, Event, HallClosure, HallEvent, Team, Absence, MemberTeam, Member } from '../../../types'
 import type { CalendarEntry, CalendarFilterState } from '../../../types/calendar'
+import { birthdayOccurrencesInRange } from '../../../utils/birthdays'
 import {
   parseDate,
   toDateKey,
@@ -308,6 +309,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
   const fetchEvents = enabled && authed && filters.sources.includes('event')
   const fetchHallEvents = enabled && authed && filters.sources.includes('hall')
   const fetchAbsences = enabled && filters.sources.includes('absence')
+  const wantBirthdays = filters.sources.includes('birthday')
 
   const { data: gamesRaw, isLoading: gamesLoading } = useCollection<Game>('games', {
     enabled: fetchGames,
@@ -382,6 +384,23 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
     all: true,
   })
   const teamMemberLinks = teamMemberLinksRaw ?? []
+
+  // Team members' birthdays — team-scoped (never club-wide/public) and authed
+  // only. Sourced through the single-level `member_teams` junction filtered by
+  // the selected teams (same pattern as absences) so we sidestep the deep-M2M
+  // policy trap. Only the fields the birthday marker needs are pulled; the
+  // `birthdate_visibility === 'full'` gate is applied client-side in the util
+  // (mirrors the roster gate — this ships no more than the roster already does).
+  const fetchBirthdays = enabled && authed && wantBirthdays && hasTeamFilter
+  const { data: birthdayLinksRaw } = useCollection<MemberTeam & { member?: Member | string }>('member_teams', {
+    enabled: fetchBirthdays && isAuthenticated(),
+    filter: hasTeamFilter
+      ? { team: { _in: filters.selectedTeamIds } }
+      : { id: { _eq: -1 } },
+    fields: ['member.id', 'member.first_name', 'member.last_name', 'member.birthdate', 'member.birthdate_visibility'],
+    all: true,
+  })
+  const birthdayLinks = birthdayLinksRaw ?? []
 
   const { data: absencesRaw, isLoading: absencesLoading } = useCollection<Absence & { member?: { first_name: string; last_name: string } | string }>('absences', {
     enabled: fetchAbsences && isAuthenticated(),
@@ -530,6 +549,35 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       }
     }
 
+    if (fetchBirthdays) {
+      // One marker per member per intersecting year. Dedupe members (a member in
+      // two selected teams appears once). Visibility (`full` only) + parse gating
+      // lives in birthdayOccurrencesInRange.
+      const seenBday = new Set<string>()
+      for (const link of birthdayLinks) {
+        const m = asObj<Member>(link.member)
+        if (!m?.id) continue
+        const mid = String(m.id)
+        if (seenBday.has(mid)) continue
+        seenBday.add(mid)
+        for (const occ of birthdayOccurrencesInRange(m, rangeStart, rangeEnd)) {
+          all.push({
+            id: `bday-${mid}:${occ.date.getFullYear()}`,
+            type: 'birthday',
+            title: memberName(m) || m.first_name || '?',
+            date: occ.date,
+            startTime: null,
+            endTime: null,
+            allDay: true,
+            location: '',
+            teamNames: [],
+            description: '',
+            source: { id: `bday-${mid}`, member_id: mid, age: occ.age, birthday: true },
+          })
+        }
+      }
+    }
+
     // Filter to visible range
     const filtered = all.filter((entry) => entryOverlapsRange(entry, rangeStart, rangeEnd))
 
@@ -542,7 +590,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
     })
 
     return filtered
-  }, [games, trainings, events, closuresRaw, hallEvents, absences, dutyGames, teamMemberLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, fetchScorerDuties, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds, filters.showHiddenAbsences])
+  }, [games, trainings, events, closuresRaw, hallEvents, absences, dutyGames, teamMemberLinks, birthdayLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, fetchScorerDuties, fetchBirthdays, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds, filters.showHiddenAbsences])
 
   const closedDates = useMemo(() => {
     const dates = new Set<string>()

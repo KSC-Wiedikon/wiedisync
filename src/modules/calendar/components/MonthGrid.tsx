@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CalendarEntry } from '../../../types/calendar'
 import { relId } from '../../../utils/relations'
-import { CalendarOff, TrafficCone, CircleX, Star, ClipboardList } from 'lucide-react'
+import { CalendarOff, TrafficCone, CircleX, Star, ClipboardList, Cake } from 'lucide-react'
 import BasketballIcon from '../../../components/BasketballIcon'
 import VolleyballIcon from '../../../components/VolleyballIcon'
 import { barColors, dotColors, colorKey, paintKey } from '../entryStyle'
@@ -44,6 +44,9 @@ const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'voll
   }
   if (type === 'scorer-duty') {
     return <ClipboardList className={`${ICON_CLASS} ${className}`} strokeWidth={2.5} />
+  }
+  if (type === 'birthday') {
+    return <Cake className={`${ICON_CLASS} ${className}`} strokeWidth={2.5} />
   }
   if (type === 'hall') {
     return <BasketballIcon className={ICON_CLASS} filled />
