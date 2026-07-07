@@ -268,10 +268,10 @@ export function deriveStatus(reg, member) {
 // sport) — first match in this order wins.
 export function deriveOffiziellenLizenz(m) {
   // VB referees are marked by the separate Schiedsrichter Ja/Nein field now
-  // (user 2026-07-07) — Offiziellen Lizenz carries the SCORER / table-officials
-  // licence only (referees are also scorers → VB SC). A referee who is not a
-  // scorer gets no value here; Schiedsrichter=Ja still marks them.
-  if (m?.scorer_vb === true) return 'VB SC'
+  // (user 2026-07-07). Offiziellen Lizenz carries the scorer/table-officials
+  // licence: a VB referee is AUTOMATICALLY a scorer (user 2026-07-07), so
+  // scorer_vb OR referee_vb → VB SC. BB officials by level. Nothing → empty.
+  if (m?.scorer_vb === true || m?.referee_vb === true) return 'VB SC'
   if (m?.otr1_bb === true) return 'OTR1'
   if (m?.otr2_bb === true) return 'OTR2'
   if (m?.otn_bb === true) return 'OTN'

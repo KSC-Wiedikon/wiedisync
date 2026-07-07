@@ -491,6 +491,10 @@ const psqlInput =
   '  FROM clubdesk_export c\n' +
   "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.referee_bb IS DISTINCT FROM true\n" +
   "    AND c.gruppen_bracketed ~* '(^|,)\\s*Schiedsrichter BB\\s*(,|$)';\n" +
+  // Every VOLLEYBALL referee is automatically a scorer (user 2026-07-07) — so a
+  // VB referee always carries the Schreiber licence too. Basketball is separate
+  // (a BB referee is NOT auto-made a table official). Set-true only.
+  "UPDATE members SET scorer_vb = true WHERE referee_vb = true AND scorer_vb IS DISTINCT FROM true;\n" +
   'COMMIT;\n' +
   "SELECT 'members_referee' AS metric, (SELECT count(*) FROM members WHERE referee_vb OR referee_bb) AS value;\n" +
   // Report contacts that would have matched MULTIPLE still-unlinked members (skipped
