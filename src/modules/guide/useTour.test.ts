@@ -42,9 +42,31 @@ describe('Tour state persistence', () => {
 })
 
 describe('Tour registry', () => {
-  it('exports all 10 tours', async () => {
+  it('exports all 15 tours', async () => {
     const { tourRegistry } = await import('./tours')
-    expect(tourRegistry).toHaveLength(10)
+    expect(tourRegistry).toHaveLength(15)
+  })
+
+  it('every step target has a matching data-tour attribute in src/', async () => {
+    const { tourRegistry } = await import('./tours')
+    // Superset extraction: plain data-tour="x" plus every quoted string inside
+    // conditional data-tour={cond ? 'x' : undefined} expressions.
+    const modules = import.meta.glob('../../**/*.{ts,tsx}', { query: '?raw', import: 'default' })
+    const attrs = new Set<string>()
+    for (const load of Object.values(modules)) {
+      const text = (await load()) as string
+      for (const m of text.matchAll(/data-tour=(?:"([^"]+)"|\{([^}]*)\})/g)) {
+        if (m[1]) attrs.add(m[1])
+        else if (m[2]) for (const q of m[2].matchAll(/'([^']+)'/g)) attrs.add(q[1])
+      }
+    }
+    for (const tour of tourRegistry) {
+      for (const step of tour.steps) {
+        const name = step.target.match(/^\[data-tour="([^"]+)"\]$/)?.[1]
+        expect(name, `${tour.id}: unparsable target ${step.target}`).toBeTruthy()
+        expect(attrs.has(name!), `${tour.id}: no data-tour="${name}" anywhere in src/`).toBe(true)
+      }
+    }
   })
 
   it('each tour has required fields', async () => {

@@ -188,6 +188,14 @@ const CD_PUSH_HEADERS = [
   // they already match); AHV Nummer is free text (pushing wiedisync's clean
   // value also repairs ClubDesk cells the Zahl-format once mangled).
   'Anrede', 'Nationalität', 'AHV Nummer',
+  // Wiedisync ID (custom ClubDesk text field, 2026-07-07): wiedisync's own
+  // member id, pushed on EVERY create + update. wiedisync fully owns it (never
+  // echo, never empty), so the down-sync can link contact↔member by this exact
+  // id — immune to the name/email/accent drift that email+name matching suffers.
+  // This closes the create round-trip (up → new [Id] → down-link) with zero
+  // ambiguity. ClubDesk's import can't MATCH on it (no ID upsert), but the
+  // down-sync linker reads it back as the authoritative key.
+  'Wiedisync ID',
 ]
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
@@ -462,6 +470,8 @@ export function buildPushCsv(members, { create = false } = {}) {
       // ClubDesk value to blank).
       m.iban || '',
       m.anrede || '', m.nationalitaet || '', m.ahv_nummer || '',
+      // Wiedisync ID — always wiedisync's own member id (never echoed/blank).
+      m.id != null ? String(m.id) : '',
     ]
     if (create) {
       cells.push(

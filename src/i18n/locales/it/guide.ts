@@ -43,7 +43,7 @@ export default {
         },
         home: {
           title: 'Home',
-          body: 'La tua dashboard personale: prossime partite, allenamenti e compiti in un colpo d\'occhio.',
+          body: 'La tua dashboard personale: prossime partite, allenamenti, sondaggi aperti e moduli da compilare in un colpo d\'occhio.',
         },
         profile: {
           title: 'Il mio profilo',
@@ -69,7 +69,7 @@ export default {
         },
         rsvpButtons: {
           title: 'RSVP',
-          body: 'Tocca Sì, Forse o No. Il tuo coach può vedere le statistiche di partecipazione.',
+          body: 'Tocca Sì, Forse o No. A seconda delle impostazioni della tua squadra potresti essere già confermato automaticamente — in tal caso tocca No solo quando non puoi venire. Il tuo coach vede le statistiche di partecipazione.',
         },
         absence: {
           title: 'Nota di assenza',
@@ -97,9 +97,9 @@ export default {
           title: 'Lista presenze',
           body: 'Visualizza la lista completa delle presenze per ogni allenamento ed esportala se necessario.',
         },
-        notify: {
-          title: 'Notifica giocatori',
-          body: 'Invia una notifica push a tutti i giocatori che non hanno ancora risposto.',
+        cancel: {
+          title: 'Annulla un allenamento',
+          body: 'Usa l\'icona di annullamento su una scheda allenamento per annullarlo con un motivo facoltativo — i giocatori vengono notificati e gli RSVP si bloccano. Dallo stesso punto puoi ripristinare una sessione annullata.',
         },
       },
     },
@@ -113,11 +113,11 @@ export default {
         },
         rsvp: {
           title: 'RSVP partita',
-          body: 'Conferma se sarai presente alla partita. Il tuo coach vede queste risposte.',
+          body: 'Conferma se sarai presente alla partita. Con la conferma automatica risulti presente in automatico — intervieni solo quando non puoi venire. Il tuo coach vede queste risposte.',
         },
         result: {
           title: 'Risultati',
-          body: 'I risultati e i punteggi dei set vengono aggiornati automaticamente dal sistema lega.',
+          body: 'I risultati e i punteggi dei set vengono aggiornati automaticamente dal sistema lega. Usa il selettore di stagione nelle classifiche per sfogliare le stagioni passate.',
         },
         details: {
           title: 'Dettagli partita',
@@ -127,23 +127,19 @@ export default {
     },
     gamesCoach: {
       title: 'Partite — Coach',
-      description: 'Come gestire le partite come coach',
+      description: 'Strumenti coach nella pagina partite',
       steps: {
-        overview: {
-          title: 'Panoramica partite',
-          body: 'Il tuo calendario completo con i conteggi RSVP e lo stato dei risultati per ogni partita.',
+        dashboard: {
+          title: 'Dashboard presenze',
+          body: 'Apri la scheda Dashboard per le statistiche di presenza della tua squadra su un intervallo di date.',
         },
-        lineup: {
-          title: 'Formazione',
-          body: 'Definisci la formazione per ogni partita e condividila con la tua squadra.',
+        stats: {
+          title: 'Statistiche per giocatore',
+          body: 'Partite giocate, presenze, assenze e tasso di presenza per giocatore — tocca una riga per il dettaglio partita per partita.',
         },
-        scorer: {
-          title: 'Assegnazione refertista',
-          body: 'Assegna un refertista per le partite in casa. Viene notificato automaticamente.',
-        },
-        notes: {
-          title: 'Note coach',
-          body: 'Aggiungi note private a una partita — visibili solo ai coach.',
+        manage: {
+          title: 'Gestisci una partita',
+          body: 'Apri una partita per i dettagli e le azioni coach — annullare o ripristinare una partita notifica la tua squadra. La pianificazione delle partite avviene nell\'app Spielplanung.',
         },
       },
     },
@@ -191,31 +187,35 @@ export default {
           title: 'Turno refertista',
           body: 'Se sei assegnato come refertista per una partita, lo vedrai qui e riceverai una notifica.',
         },
-        confirm: {
-          title: 'Conferma',
-          body: 'Conferma o rifiuta la tua assegnazione. Un rifiuto notifica il tuo coach.',
+        filters: {
+          title: 'Filtri',
+          body: 'Restringi i tuoi turni per data, squadra o tipo di turno, oppure cerca una partita specifica.',
         },
         delegate: {
           title: 'Delega',
-          body: 'Se non puoi fare il refertista, puoi suggerire un altro membro della squadra come sostituto.',
+          body: 'Non puoi venire? Tocca Delega accanto al tuo nome per suggerire un compagno di squadra — riceverà una richiesta che può accettare o rifiutare.',
         },
       },
     },
     scorerAdmin: {
       title: 'Refertista — Admin',
-      description: 'Gestisci le assegnazioni refertista',
+      description: 'Assegna i turni refertista automaticamente',
       steps: {
         overview: {
-          title: 'Panoramica refertisti',
-          body: 'Vedi tutte le partite che richiedono un refertista e il loro stato di assegnazione.',
+          title: 'Panoramica stagione',
+          body: 'Qui vengono caricate tutte le partite in casa della stagione corrente che richiedono una squadra di turno refertista o Täfeler.',
+        },
+        run: {
+          title: 'Assegnazione automatica',
+          body: 'Esegui l\'algoritmo di assegnazione per distribuire i turni equamente tra le squadre. Apri il pannello delle regole dell\'algoritmo per vedere come decide.',
+        },
+        summary: {
+          title: 'Riepilogo squadre',
+          body: 'Quanti turni ha ricevuto ogni squadra in questa esecuzione — controlla l\'equilibrio prima di salvare.',
         },
         assign: {
-          title: 'Assegna refertista',
-          body: 'Seleziona un giocatore per ogni partita. Viene notificato automaticamente.',
-        },
-        history: {
-          title: 'Storico',
-          body: 'Tieni traccia di chi ha fatto quante partite — utile per una rotazione equa.',
+          title: 'Rivedi e correggi',
+          body: 'Cambia la squadra di turno di qualsiasi partita tramite il suo menu a tendina, poi salva tutte le assegnazioni.',
         },
       },
     },
@@ -228,16 +228,110 @@ export default {
           body: 'Tutti gli slot di palestra per le tue squadre sono mostrati qui — allenamenti, partite e slot liberi.',
         },
         claim: {
-          title: 'Prenota uno slot',
-          body: 'Tocca uno slot libero per prenotarlo per la tua squadra. La prenotazione è immediata.',
+          title: 'Prenota uno slot liberato',
+          body: 'Quando una squadra libera uno slot, qui appare un badge — toccalo per vedere e prenotare gli slot disponibili per la tua squadra.',
         },
         release: {
-          title: 'Libera uno slot',
-          body: 'Se non hai più bisogno di uno slot, liberalo in modo che altre squadre possano usarlo.',
+          title: 'Colori degli slot',
+          body: 'I colori indicano il tipo di slot: allenamenti, partite, slot liberati e chiusure. Tocca uno slot della tua squadra per gestirlo o liberarlo.',
         },
-        conflict: {
-          title: 'Conflitti',
-          body: 'Gli slot sovrapposti sono evidenziati. Contatta l\'admin per risolvere i conflitti.',
+        virtual: {
+          title: 'Voci automatiche',
+          body: 'Partite, allenamenti ed eventi del calendario appaiono automaticamente come voci con un badge "Auto" — sono proiettati in tempo reale, non prenotati.',
+        },
+      },
+    },
+    profile: {
+      title: 'Profilo e impostazioni',
+      description: 'Configura il tuo account',
+      steps: {
+        contact: {
+          title: 'I tuoi dati',
+          body: 'Mantieni aggiornati i tuoi contatti — i tuoi coach ci fanno affidamento. Modificali tramite il pulsante Modifica profilo.',
+        },
+        attendance: {
+          title: 'Conferma automatica',
+          body: 'Scegli se essere confermato automaticamente per nuovi allenamenti, partite ed eventi. Le assenze hanno sempre la precedenza sulla conferma automatica.',
+        },
+        emails: {
+          title: 'Notifiche email',
+          body: 'Disattiva i singoli avvisi email — la campanella delle notifiche in-app mostra sempre tutto.',
+        },
+        privacy: {
+          title: 'Privacy',
+          body: 'Un badge "Nascosto" significa che i compagni di squadra non possono vedere la tua email. Modifica questo e altro in Modifica profilo.',
+        },
+      },
+    },
+    teams: {
+      title: 'Squadre',
+      description: 'Le tue squadre — e come unirti ad altre',
+      steps: {
+        list: {
+          title: 'Le tue squadre',
+          body: 'Tutte le tue squadre in un colpo d\'occhio. Tocca una squadra per vedere la rosa, lo staff e le partite.',
+        },
+        join: {
+          title: 'Unisciti a un\'altra squadra',
+          body: 'Richiedi di unirti a un\'altra squadra — scegli lo sport e la squadra, e un coach approva la tua richiesta. Anche lasciare una squadra funziona dallo stesso posto.',
+        },
+      },
+    },
+    forms: {
+      title: 'Moduli',
+      description: 'Compila i moduli del club e della squadra',
+      steps: {
+        list: {
+          title: 'Moduli aperti',
+          body: 'I moduli che il tuo club o la tua squadra ti chiedono di compilare sono elencati qui — i moduli aperti appaiono anche nella tua home.',
+        },
+        fill: {
+          title: 'Compila un modulo',
+          body: 'Tocca Compila per rispondere. Puoi modificare la tua risposta finché il modulo resta aperto.',
+        },
+        create: {
+          title: 'Crea moduli',
+          body: 'Coach, responsabili di squadra e comitato possono creare moduli, vedere le risposte ed esportarle.',
+        },
+      },
+    },
+    financeDues: {
+      title: 'Le mie finanze',
+      description: 'Paga quote e fatture nell\'app',
+      steps: {
+        iban: {
+          title: 'IBAN per i rimborsi',
+          body: 'I rimborsi del club vengono versati su questo conto — aggiungi o aggiorna il tuo IBAN qui.',
+        },
+        list: {
+          title: 'Le tue fatture',
+          body: 'Quote sociali e fatture del club con importi e stato di pagamento.',
+        },
+        pay: {
+          title: 'Paga una fattura',
+          body: 'Tocca una fattura aperta per espanderla, poi scansiona la QR-fattura svizzera con TWINT o la tua app bancaria e tocca "Ho pagato".',
+        },
+        status: {
+          title: 'Stato del pagamento',
+          body: 'Dopo aver segnalato un pagamento la fattura mostra "In attesa di conferma" finché il tesoriere non la conferma.',
+        },
+      },
+    },
+    expenses: {
+      title: 'Spese',
+      description: 'Fatti rimborsare le spese del club',
+      steps: {
+        upload: {
+          title: 'Carica una ricevuta',
+          body: 'Scegli una foto o un PDF della tua ricevuta — importo, data e fornitore vengono letti automaticamente.',
+        },
+        iban: {
+          title: 'Controlla l\'IBAN',
+          body: 'Prima di inviare, controlla l\'IBAN di accredito — è il tuo conto su cui il club effettua il rimborso.',
+        },
+        submissions: {
+          title: 'Le mie richieste',
+          body: 'Segui qui le tue richieste: in attesa, pagate o rifiutate. Ricevi una notifica non appena il tesoriere decide.',
         },
       },
     },

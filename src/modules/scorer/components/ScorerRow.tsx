@@ -53,12 +53,20 @@ function isVbCombinedMode(game: Game): boolean {
   return !!(game.scorer_scoreboard_duty_team || game.scorer_scoreboard_member)
 }
 
+// HU20 home games: scorer + referee (instead of Täfeler). Detected from the
+// referee columns; the admin-assign page writes referee_duty_team for HU20.
+function isVbRefereeMode(game: Game): boolean {
+  return !!(game.referee_duty_team || game.referee_member)
+}
+
 export function hasAnyVbAssignment(game: Game): boolean {
-  return !!(game.scorer_member || game.scoreboard_member || game.scorer_scoreboard_member)
+  return !!(game.scorer_member || game.scoreboard_member || game.scorer_scoreboard_member || game.referee_member)
 }
 
 function isVbFullyAssigned(game: Game): boolean {
   if (isVbCombinedMode(game)) return !!game.scorer_scoreboard_member
+  // Check referee mode before separate: an HU20 game has scorer_duty_team set too.
+  if (isVbRefereeMode(game)) return !!(game.scorer_member && game.referee_member)
   if (isVbSeparateMode(game)) return !!(game.scorer_member && game.scoreboard_member)
   return false
 }
@@ -122,15 +130,16 @@ function handleExportICal(game: ExpandedGame, title: string) {
   downloadICal([entry], `scorer-duty-${game.date}.ics`)
 }
 
-type VbAssignRole = 'scorer' | 'scoreboard' | 'scorer_scoreboard'
+type VbAssignRole = 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'referee'
 type BbAssignRole = 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official'
 type AssignRole = VbAssignRole | BbAssignRole
 
-// Per-role "confirmed by"/at columns (migration 123), keyed by assign role.
+// Per-role "confirmed by"/at columns (migration 123/182), keyed by assign role.
 const CONFIRM_COLS: Record<AssignRole, { byName: keyof Game; at: keyof Game }> = {
   scorer: { byName: 'scorer_confirmed_by_name', at: 'scorer_confirmed_at' },
   scoreboard: { byName: 'scoreboard_confirmed_by_name', at: 'scoreboard_confirmed_at' },
   scorer_scoreboard: { byName: 'scorer_scoreboard_confirmed_by_name', at: 'scorer_scoreboard_confirmed_at' },
+  referee: { byName: 'referee_confirmed_by_name', at: 'referee_confirmed_at' },
   bb_scorer: { byName: 'bb_scorer_confirmed_by_name', at: 'bb_scorer_confirmed_at' },
   bb_timekeeper: { byName: 'bb_timekeeper_confirmed_by_name', at: 'bb_timekeeper_confirmed_at' },
   bb_24s_official: { byName: 'bb_24s_confirmed_by_name', at: 'bb_24s_confirmed_at' },
@@ -178,6 +187,9 @@ export default function ScorerRow({
   const effectiveCanEdit = canEdit && !isGamePast
 
   const vbCombined = isVbCombinedMode(game)
+  // HU20 games are scorer + referee (data-driven: referee_duty_team is written
+  // by the admin-assign page). kscw_team isn't expanded here, so no name check.
+  const vbReferee = isVbRefereeMode(game)
 
   // Self-assign confirmation state
   const [confirmRole, setConfirmRole] = useState<AssignRole | null>(null)
@@ -215,7 +227,8 @@ export default function ScorerRow({
 
     if (sport === 'volleyball') {
       const vbRole = role as VbAssignRole
-      if ((vbRole === 'scorer' || vbRole === 'scorer_scoreboard') && !userLicences.includes('scorer_vb')) return false
+      // No licence required for any VB duty (scorer / Täfeler / referee) — else a
+      // team assigned scorer duty with no licenced member would be unfillable.
       let dutyTeamId: string | undefined
       let currentPerson: string | undefined
       if (vbRole === 'scorer') {
@@ -224,6 +237,9 @@ export default function ScorerRow({
       } else if (vbRole === 'scoreboard') {
         dutyTeamId = game.scoreboard_duty_team
         currentPerson = game.scoreboard_member
+      } else if (vbRole === 'referee') {
+        dutyTeamId = game.referee_duty_team
+        currentPerson = game.referee_member
       } else {
         dutyTeamId = game.scorer_scoreboard_duty_team
         currentPerson = game.scorer_scoreboard_member
@@ -252,6 +268,7 @@ export default function ScorerRow({
       const vbRole = role as VbAssignRole
       if (vbRole === 'scorer') fields.scorer_member = userId
       else if (vbRole === 'scoreboard') fields.scoreboard_member = userId
+      else if (vbRole === 'referee') fields.referee_member = userId
       else fields.scorer_scoreboard_member = userId
     } else {
       const bbRole = role as BbAssignRole
@@ -274,6 +291,7 @@ export default function ScorerRow({
     if (role === 'scorer') return t('scorer')
     if (role === 'scoreboard') return t('scoreboard')
     if (role === 'scorer_scoreboard') return t('scorerTaefeler')
+    if (role === 'referee') return t('referee')
     if (role === 'bb_scorer') return t('bbScorer')
     if (role === 'bb_timekeeper') return t('bbTimekeeper')
     if (role === 'bb_24s_official') return t('bb24sOfficial')
@@ -285,6 +303,7 @@ export default function ScorerRow({
     if (sport === 'volleyball') {
       if (role === 'scorer') return game.scorer_duty_team ?? ''
       if (role === 'scoreboard') return game.scoreboard_duty_team ?? ''
+      if (role === 'referee') return game.referee_duty_team ?? ''
       return game.scorer_scoreboard_duty_team ?? ''
     }
     if (role === 'bb_scorer') return game.bb_scorer_duty_team ?? game.bb_duty_team ?? ''
@@ -299,6 +318,7 @@ export default function ScorerRow({
     if (sport === 'volleyball') {
       if (role === 'scorer') return game.scorer_member === userId
       if (role === 'scoreboard') return game.scoreboard_member === userId
+      if (role === 'referee') return game.referee_member === userId
       return game.scorer_scoreboard_member === userId
     }
     return game[role as BbAssignRole] === userId
@@ -408,10 +428,15 @@ export default function ScorerRow({
       <div className="mt-3 flex-1 space-y-3">
         {sport === 'volleyball' ? (
           vbCombined ? (
-            renderVbEditor('scorer_scoreboard', 'scorerTaefeler', 'scorer_vb', 'scorer_scoreboard_duty_team', 'scorer_scoreboard_member')
+            renderVbEditor('scorer_scoreboard', 'scorerTaefeler', undefined, 'scorer_scoreboard_duty_team', 'scorer_scoreboard_member')
+          ) : vbReferee ? (
+            <>
+              {renderVbEditor('scorer', 'scorer', undefined, 'scorer_duty_team', 'scorer_member')}
+              {renderVbEditor('referee', 'referee', undefined, 'referee_duty_team', 'referee_member')}
+            </>
           ) : (
             <>
-              {renderVbEditor('scorer', 'scorer', 'scorer_vb', 'scorer_duty_team', 'scorer_member')}
+              {renderVbEditor('scorer', 'scorer', undefined, 'scorer_duty_team', 'scorer_member')}
               {renderVbEditor('scoreboard', 'scoreboard', undefined, 'scoreboard_duty_team', 'scoreboard_member')}
             </>
           )

@@ -12,6 +12,7 @@ export default {
   scorer: 'Marqueur',
   scoreboard: 'Tableau d\'affichage',
   scorerTaefeler: 'Marqueur/Tableau',
+  referee: 'Arbitre',
   confirmed: 'Confirme',
 
   // Labels — Basketball
@@ -75,6 +76,7 @@ export default {
   confirmSelfAssignArrival_scorer: 'Vous devez etre dans la salle au moins <strong>30 minutes</strong> avant le debut du match.',
   confirmSelfAssignArrival_scoreboard: 'Vous devez etre dans la salle au moins <strong>10 minutes</strong> avant le debut du match.',
   confirmSelfAssignArrival_scorer_scoreboard: 'Vous devez etre dans la salle au moins <strong>30 minutes</strong> avant le debut du match.',
+  confirmSelfAssignArrival_referee: 'Vous devez etre dans la salle au moins <strong>30 minutes</strong> avant le debut du match.',
   confirmSelfAssignArrival_bb: 'Vous devez etre dans la salle au moins <strong>15 minutes</strong> avant le debut du match.',
   confirmSelfAssignWarning: 'Ce choix est <strong>définitif</strong>. Une fois une tâche acceptée, tu ne peux plus l\'abandonner — le seul moyen de t\'en défaire est de la <strong>déléguer à un autre membre</strong>.',
   cancelAction: 'Annuler',

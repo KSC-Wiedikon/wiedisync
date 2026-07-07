@@ -29,10 +29,10 @@ export const trainingCoachTour: TourDefinition = {
       placement: 'bottom',
     },
     {
-      target: '[data-tour="share-training"]',
-      titleKey: 'guide:tours.trainingCoach.steps.notify.title',
-      bodyKey: 'guide:tours.trainingCoach.steps.notify.body',
-      placement: 'bottom',
+      target: '[data-tour="training-card"]',
+      titleKey: 'guide:tours.trainingCoach.steps.cancel.title',
+      bodyKey: 'guide:tours.trainingCoach.steps.cancel.body',
+      placement: 'top',
     },
   ],
 }

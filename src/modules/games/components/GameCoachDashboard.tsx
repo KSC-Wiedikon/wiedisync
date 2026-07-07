@@ -127,28 +127,30 @@ export default function GameCoachDashboard({ teamId }: Props) {
         {rangeError && <p className="w-full text-xs text-red-500">{rangeError}</p>}
       </div>
 
-      {stats.length === 0 ? (
-        <EmptyState
-          icon={<BarChart3 className="h-10 w-10" />}
-          title={tTrainings('noDataAvailable')}
-          description={tTrainings('noDataDescription')}
-        />
-      ) : (
-        <AttendanceTable
-          stats={stats}
-          namespace="games"
-          countColKey="gamesCol"
-          expandedPlayerId={expandedPlayerId}
-          onPlayerClick={(id) => setExpandedPlayerId((cur) => (cur === id ? null : id))}
-          renderDrilldown={(memberId) => (
-            <GameAttendanceDrilldown
-              memberId={memberId}
-              stats={stats}
-              gamesById={gamesById}
-            />
-          )}
-        />
-      )}
+      <div data-tour="game-coach-stats">
+        {stats.length === 0 ? (
+          <EmptyState
+            icon={<BarChart3 className="h-10 w-10" />}
+            title={tTrainings('noDataAvailable')}
+            description={tTrainings('noDataDescription')}
+          />
+        ) : (
+          <AttendanceTable
+            stats={stats}
+            namespace="games"
+            countColKey="gamesCol"
+            expandedPlayerId={expandedPlayerId}
+            onPlayerClick={(id) => setExpandedPlayerId((cur) => (cur === id ? null : id))}
+            renderDrilldown={(memberId) => (
+              <GameAttendanceDrilldown
+                memberId={memberId}
+                stats={stats}
+                gamesById={gamesById}
+              />
+            )}
+          />
+        )}
+      </div>
     </div>
   )
 }

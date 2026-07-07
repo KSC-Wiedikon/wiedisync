@@ -29,9 +29,9 @@ export const hallenplanCoachTour: TourDefinition = {
       placement: 'bottom',
     },
     {
-      target: '[data-tour="closures"]',
-      titleKey: 'guide:tours.hallenplanCoach.steps.conflict.title',
-      bodyKey: 'guide:tours.hallenplanCoach.steps.conflict.body',
+      target: '[data-tour="virtual-slots"]',
+      titleKey: 'guide:tours.hallenplanCoach.steps.virtual.title',
+      bodyKey: 'guide:tours.hallenplanCoach.steps.virtual.body',
       placement: 'bottom',
     },
   ],

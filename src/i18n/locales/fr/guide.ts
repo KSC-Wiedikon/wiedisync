@@ -43,7 +43,7 @@ export default {
         },
         home: {
           title: 'Accueil',
-          body: 'Votre tableau de bord personnel : prochains matchs, entraînements et tâches en un coup d\'œil.',
+          body: 'Votre tableau de bord personnel : prochains matchs, entraînements, sondages ouverts et formulaires à remplir en un coup d\'œil.',
         },
         profile: {
           title: 'Mon profil',
@@ -69,7 +69,7 @@ export default {
         },
         rsvpButtons: {
           title: 'RSVP',
-          body: 'Appuyez sur Oui, Peut-être ou Non. Votre coach peut voir les statistiques de présence.',
+          body: 'Appuyez sur Oui, Peut-être ou Non. Selon les réglages de votre équipe, vous êtes peut-être déjà confirmé automatiquement — dans ce cas, appuyez simplement sur Non quand vous ne pouvez pas venir. Votre coach voit les statistiques de présence.',
         },
         absence: {
           title: 'Note d\'absence',
@@ -97,9 +97,9 @@ export default {
           title: 'Liste de présence',
           body: 'Consultez la liste complète de présence pour chaque entraînement et exportez-la si nécessaire.',
         },
-        notify: {
-          title: 'Notifier les joueurs',
-          body: 'Envoyez une notification push à tous les joueurs qui n\'ont pas encore répondu.',
+        cancel: {
+          title: 'Annuler un entraînement',
+          body: 'Utilisez l\'icône d\'annulation sur une carte d\'entraînement pour l\'annuler avec un motif facultatif — les joueurs sont notifiés et les RSVP sont gelés. Le même endroit permet de rétablir une séance annulée.',
         },
       },
     },
@@ -113,11 +113,11 @@ export default {
         },
         rsvp: {
           title: 'RSVP match',
-          body: 'Confirmez si vous serez présent au match. Votre coach voit ces réponses.',
+          body: 'Confirmez si vous serez présent au match. Avec la confirmation automatique, vous êtes marqué présent d\'office — n\'agissez que si vous ne pouvez pas venir. Votre coach voit ces réponses.',
         },
         result: {
           title: 'Résultats',
-          body: 'Les résultats et scores de sets sont mis à jour automatiquement depuis le système de ligue.',
+          body: 'Les résultats et scores de sets sont mis à jour automatiquement depuis le système de ligue. Utilisez le sélecteur de saison dans les classements pour consulter les saisons passées.',
         },
         details: {
           title: 'Détails du match',
@@ -127,23 +127,19 @@ export default {
     },
     gamesCoach: {
       title: 'Matchs — Coach',
-      description: 'Comment gérer les matchs en tant que coach',
+      description: 'Outils coach sur la page des matchs',
       steps: {
-        overview: {
-          title: 'Vue d\'ensemble des matchs',
-          body: 'Votre calendrier complet avec les comptages RSVP et le statut des résultats.',
+        dashboard: {
+          title: 'Tableau de bord des présences',
+          body: 'Ouvrez l\'onglet Tableau de bord pour les statistiques de présence de votre équipe sur une période donnée.',
         },
-        lineup: {
-          title: 'Composition',
-          body: 'Définissez la composition pour chaque match et partagez-la avec votre équipe.',
+        stats: {
+          title: 'Statistiques par joueur',
+          body: 'Matchs joués, présences, absences et taux de présence par joueur — appuyez sur une ligne pour le détail match par match.',
         },
-        scorer: {
-          title: 'Attribution du marqueur',
-          body: 'Assignez un marqueur pour les matchs à domicile. Il est automatiquement notifié.',
-        },
-        notes: {
-          title: 'Notes du coach',
-          body: 'Ajoutez des notes privées à un match — visibles uniquement par les coaches.',
+        manage: {
+          title: 'Gérer un match',
+          body: 'Ouvrez un match pour voir les détails et les actions coach — annuler ou rétablir un match notifie votre équipe. La planification des matchs se fait dans l\'application Spielplanung.',
         },
       },
     },
@@ -191,31 +187,35 @@ export default {
           title: 'Service de marqueur',
           body: 'Si vous êtes désigné marqueur pour un match, vous le verrez ici et recevrez une notification.',
         },
-        confirm: {
-          title: 'Confirmer',
-          body: 'Confirmez ou refusez votre attribution. Un refus notifie votre coach.',
+        filters: {
+          title: 'Filtres',
+          body: 'Filtrez vos services par date, équipe ou type de service, ou recherchez un match précis.',
         },
         delegate: {
           title: 'Déléguer',
-          body: 'Si vous ne pouvez pas assurer le service, vous pouvez proposer un autre membre de l\'équipe en remplacement.',
+          body: 'Vous ne pouvez pas venir ? Appuyez sur Déléguer à côté de votre nom pour proposer un coéquipier — il reçoit une demande qu\'il peut accepter ou refuser.',
         },
       },
     },
     scorerAdmin: {
       title: 'Marqueur — Admin',
-      description: 'Gérer les attributions de marqueur',
+      description: 'Attribuer les services de marqueur automatiquement',
       steps: {
         overview: {
-          title: 'Vue d\'ensemble',
-          body: 'Voyez tous les matchs nécessitant un marqueur et leur statut d\'attribution.',
+          title: 'Vue d\'ensemble de la saison',
+          body: 'Tous les matchs à domicile de la saison en cours qui nécessitent une équipe de service marqueur ou Täfeler sont chargés ici.',
+        },
+        run: {
+          title: 'Attribution automatique',
+          body: 'Lancez l\'algorithme d\'attribution pour répartir les services équitablement entre les équipes. Ouvrez le panneau des règles de l\'algorithme pour voir comment il décide.',
+        },
+        summary: {
+          title: 'Résumé par équipe',
+          body: 'Combien de services chaque équipe a reçus lors de cette exécution — vérifiez l\'équilibre avant d\'enregistrer.',
         },
         assign: {
-          title: 'Attribuer un marqueur',
-          body: 'Sélectionnez un joueur pour chaque match. Il est automatiquement notifié.',
-        },
-        history: {
-          title: 'Historique',
-          body: 'Suivez qui a assuré combien de services — utile pour une rotation équitable.',
+          title: 'Vérifier et ajuster',
+          body: 'Changez l\'équipe de service de n\'importe quel match via son menu déroulant, puis enregistrez toutes les attributions.',
         },
       },
     },
@@ -228,16 +228,110 @@ export default {
           body: 'Tous les créneaux de salle de vos équipes sont affichés ici — entraînements, matchs et créneaux libres.',
         },
         claim: {
-          title: 'Réserver un créneau',
-          body: 'Appuyez sur un créneau libre pour le réserver pour votre équipe. La réservation est immédiate.',
+          title: 'Réserver un créneau libéré',
+          body: 'Quand une équipe libère un créneau, une pastille apparaît ici — appuyez dessus pour voir et réserver les créneaux disponibles pour votre équipe.',
         },
         release: {
-          title: 'Libérer un créneau',
-          body: 'Si vous n\'avez plus besoin d\'un créneau, libérez-le pour que d\'autres équipes puissent l\'utiliser.',
+          title: 'Couleurs des créneaux',
+          body: 'Les couleurs indiquent le type de créneau : entraînements, matchs, créneaux libérés et fermetures. Appuyez sur un créneau de votre équipe pour le gérer ou le libérer.',
         },
-        conflict: {
-          title: 'Conflits',
-          body: 'Les créneaux qui se chevauchent sont mis en évidence. Contactez l\'admin pour résoudre les conflits.',
+        virtual: {
+          title: 'Entrées automatiques',
+          body: 'Les matchs, entraînements et événements du calendrier apparaissent automatiquement comme entrées avec un badge « Auto » — ils sont projetés en direct, pas réservés.',
+        },
+      },
+    },
+    profile: {
+      title: 'Profil et paramètres',
+      description: 'Ajustez votre compte',
+      steps: {
+        contact: {
+          title: 'Vos coordonnées',
+          body: 'Gardez vos coordonnées à jour — vos coaches en dépendent. Modifiez-les via le bouton Modifier le profil.',
+        },
+        attendance: {
+          title: 'Inscription automatique',
+          body: 'Choisissez si vous êtes automatiquement confirmé pour les nouveaux entraînements, matchs et événements. Les absences priment toujours sur la confirmation automatique.',
+        },
+        emails: {
+          title: 'Notifications par e-mail',
+          body: 'Désactivez des alertes e-mail individuelles — la cloche de notification in-app affiche toujours tout.',
+        },
+        privacy: {
+          title: 'Confidentialité',
+          body: 'Un badge « Masqué » signifie que vos coéquipiers ne voient pas votre e-mail. Modifiez cela et plus encore sous Modifier le profil.',
+        },
+      },
+    },
+    teams: {
+      title: 'Équipes',
+      description: 'Vos équipes — et comment en rejoindre d\'autres',
+      steps: {
+        list: {
+          title: 'Vos équipes',
+          body: 'Toutes vos équipes en un coup d\'œil. Appuyez sur une équipe pour voir l\'effectif, le staff et les matchs.',
+        },
+        join: {
+          title: 'Rejoindre une autre équipe',
+          body: 'Demandez à rejoindre une autre équipe — choisissez le sport et l\'équipe, et un coach approuve votre demande. Quitter une équipe se fait au même endroit.',
+        },
+      },
+    },
+    forms: {
+      title: 'Formulaires',
+      description: 'Remplissez les formulaires du club et de l\'équipe',
+      steps: {
+        list: {
+          title: 'Formulaires ouverts',
+          body: 'Les formulaires que votre club ou votre équipe vous demande de remplir sont listés ici — les formulaires ouverts apparaissent aussi sur votre page d\'accueil.',
+        },
+        fill: {
+          title: 'Remplir un formulaire',
+          body: 'Appuyez sur Remplir pour répondre. Vous pouvez modifier votre réponse tant que le formulaire reste ouvert.',
+        },
+        create: {
+          title: 'Créer des formulaires',
+          body: 'Les coaches, responsables d\'équipe et le comité peuvent créer des formulaires, voir les réponses et les exporter.',
+        },
+      },
+    },
+    financeDues: {
+      title: 'Mes finances',
+      description: 'Payez cotisations et factures dans l\'application',
+      steps: {
+        iban: {
+          title: 'IBAN de remboursement',
+          body: 'Les remboursements du club sont versés sur ce compte — ajoutez ou mettez à jour votre IBAN ici.',
+        },
+        list: {
+          title: 'Vos factures',
+          body: 'Cotisations de membre et factures du club avec leurs montants et leur statut de paiement.',
+        },
+        pay: {
+          title: 'Payer une facture',
+          body: 'Appuyez sur une facture ouverte pour la déplier, puis scannez la QR-facture suisse avec TWINT ou votre application bancaire et appuyez sur « J\'ai payé ».',
+        },
+        status: {
+          title: 'Statut de paiement',
+          body: 'Après avoir signalé un paiement, la facture affiche « En attente de confirmation » jusqu\'à ce que le trésorier la confirme.',
+        },
+      },
+    },
+    expenses: {
+      title: 'Frais',
+      description: 'Faites-vous rembourser les frais du club',
+      steps: {
+        upload: {
+          title: 'Importer un justificatif',
+          body: 'Choisissez une photo ou un PDF de votre justificatif — le montant, la date et le fournisseur sont lus automatiquement.',
+        },
+        iban: {
+          title: 'Vérifier l\'IBAN',
+          body: 'Avant d\'envoyer, vérifiez l\'IBAN de versement — c\'est votre propre compte sur lequel le club vous rembourse.',
+        },
+        submissions: {
+          title: 'Mes demandes',
+          body: 'Suivez vos demandes ici : en attente, payées ou refusées. Vous êtes notifié dès que le trésorier décide.',
         },
       },
     },

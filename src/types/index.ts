@@ -341,6 +341,10 @@ export interface Game extends BaseRecord {
   scorer_duty_team: string
   scoreboard_duty_team: string
   scorer_scoreboard_duty_team: string
+  // Referee duty — HU20 home games use scorer + referee instead of scorer + Täfeler.
+  // No licence required; assigned as a duty team like scorer (migration 182).
+  referee_member: string
+  referee_duty_team: string
   // Basketball duty assignments
   bb_scorer_member: string
   bb_timekeeper_member: string
@@ -358,6 +362,8 @@ export interface Game extends BaseRecord {
   scoreboard_confirmed_at: string | null
   scorer_scoreboard_confirmed_by_name: string | null
   scorer_scoreboard_confirmed_at: string | null
+  referee_confirmed_by_name: string | null
+  referee_confirmed_at: string | null
   bb_scorer_confirmed_by_name: string | null
   bb_scorer_confirmed_at: string | null
   bb_timekeeper_confirmed_by_name: string | null
@@ -818,7 +824,7 @@ export interface GameSchedulingBooking extends BaseRecord {
 
 export interface ScorerDelegation extends BaseRecord {
   game: string
-  role: 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official'
+  role: 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'referee' | 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official'
   from_member: string
   to_member: string
   from_team: string

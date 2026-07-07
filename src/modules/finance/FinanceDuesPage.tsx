@@ -9,6 +9,7 @@ import type { FinanceInvoice } from './types'
 import InvoiceQrBill from './InvoiceQrBill'
 import PayoutIbanCard from './PayoutIbanCard'
 import MyPayoutsCard from './MyPayoutsCard'
+import { TourPageButton } from '../guide/TourPageButton'
 
 /** Status pill: native invoices use the lifecycle labels; ClubDesk rows show the raw status. */
 function StatusBadge({ inv }: { inv: FinanceInvoice }) {
@@ -50,6 +51,9 @@ export default function FinanceDuesPage() {
     [invoices],
   )
 
+  // Guided-tour anchor: the first payable row doubles as the pay/QR affordance.
+  const firstPayableId = invoices.find(isOpenInvoice)?.id
+
   async function handlePaid(id: string) {
     setSubmitting(id)
     try {
@@ -64,12 +68,17 @@ export default function FinanceDuesPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('myDuesTitle')}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('myDuesTitle')}</h1>
+          <TourPageButton />
+        </div>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('myDuesSubtitle')}</p>
       </div>
 
       {/* Payout IBAN — the canonical add/edit/check place (was in profile editor) */}
-      <PayoutIbanCard />
+      <div data-tour="payout-iban">
+        <PayoutIbanCard />
+      </div>
 
       {/* Reimbursements the club is sending this member (migration 137) */}
       <MyPayoutsCard />
@@ -91,11 +100,11 @@ export default function FinanceDuesPage() {
       {isLoading ? (
         <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">…</div>
       ) : invoices.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <div data-tour="dues-list" className="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           {t('noInvoices')}
         </div>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div data-tour="dues-list" className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
           <Table>
             <TableHeader>
               <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
@@ -108,7 +117,7 @@ export default function FinanceDuesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoices.map((inv) => {
+              {invoices.map((inv, idx) => {
                 const open = toNum(inv.open_amount)
                 const payable = isOpenInvoice(inv)
                 const native = isNativeInvoice(inv)
@@ -117,6 +126,7 @@ export default function FinanceDuesPage() {
                 return (
                   <Fragment key={inv.id}>
                     <TableRow
+                      data-tour={inv.id === firstPayableId ? 'dues-pay' : undefined}
                       className={`border-gray-200 dark:border-gray-700 ${payable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}`}
                       onClick={payable ? () => setPayRow((p) => (p === inv.id ? null : inv.id)) : undefined}
                     >
@@ -146,7 +156,7 @@ export default function FinanceDuesPage() {
                       <TableCell className={`text-right tabular-nums ${open > 0 && !pending ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}>
                         {open > 0 && payable ? formatChf(open) : '–'}
                       </TableCell>
-                      <TableCell><StatusBadge inv={inv} /></TableCell>
+                      <TableCell data-tour={idx === 0 ? 'dues-status' : undefined}><StatusBadge inv={inv} /></TableCell>
                     </TableRow>
                     {expanded && payable && (
                       <TableRow className="border-gray-200 dark:border-gray-700">

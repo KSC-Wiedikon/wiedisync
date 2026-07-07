@@ -18,12 +18,12 @@ export const scorerPlayerTour: TourDefinition = {
     },
     {
       target: '[data-tour="scorer-filters"]',
-      titleKey: 'guide:tours.scorerPlayer.steps.confirm.title',
-      bodyKey: 'guide:tours.scorerPlayer.steps.confirm.body',
+      titleKey: 'guide:tours.scorerPlayer.steps.filters.title',
+      bodyKey: 'guide:tours.scorerPlayer.steps.filters.body',
       placement: 'bottom',
     },
     {
-      target: '[data-tour="delegation"]',
+      target: '[data-tour="delegate-duty"]',
       titleKey: 'guide:tours.scorerPlayer.steps.delegate.title',
       bodyKey: 'guide:tours.scorerPlayer.steps.delegate.body',
       placement: 'bottom',

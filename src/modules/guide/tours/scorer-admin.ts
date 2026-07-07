@@ -17,16 +17,22 @@ export const scorerAdminTour: TourDefinition = {
       placement: 'bottom',
     },
     {
-      target: '[data-tour="manual-assign"]',
-      titleKey: 'guide:tours.scorerAdmin.steps.assign.title',
-      bodyKey: 'guide:tours.scorerAdmin.steps.assign.body',
+      target: '[data-tour="auto-assign"]',
+      titleKey: 'guide:tours.scorerAdmin.steps.run.title',
+      bodyKey: 'guide:tours.scorerAdmin.steps.run.body',
       placement: 'bottom',
     },
     {
       target: '[data-tour="team-summary"]',
-      titleKey: 'guide:tours.scorerAdmin.steps.history.title',
-      bodyKey: 'guide:tours.scorerAdmin.steps.history.body',
+      titleKey: 'guide:tours.scorerAdmin.steps.summary.title',
+      bodyKey: 'guide:tours.scorerAdmin.steps.summary.body',
       placement: 'bottom',
+    },
+    {
+      target: '[data-tour="manual-assign"]',
+      titleKey: 'guide:tours.scorerAdmin.steps.assign.title',
+      bodyKey: 'guide:tours.scorerAdmin.steps.assign.body',
+      placement: 'top',
     },
   ],
 }

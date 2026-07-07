@@ -24,7 +24,7 @@ type SportTab = 'volleyball' | 'basketball'
 // Rule labels shown in the collapsible "Algorithm rules" panel. The order and
 // point values mirror AssignmentAlgorithm.ts (VB) / AssignmentAlgorithmBb.ts
 // (BB) — keep them in sync if the engines change.
-const VB_HARD_RULES = ['ruleVbHardGame', 'ruleVbHardDoltschi', 'ruleVbHardDuty', 'ruleVbHardLicence']
+const VB_HARD_RULES = ['ruleVbHardGame', 'ruleVbHardDoltschi', 'ruleVbHardDuty']
 const VB_SOFT_RULES = ['ruleVbSoftSequence', 'ruleVbSoftHu20', 'ruleVbSoftDoltschi', 'ruleVbSoftLegends', 'ruleVbSoftWeekend', 'ruleVbSoftTraining', 'ruleVbSoftRotation']
 const BB_HARD_RULES = ['ruleBbHardGame', 'ruleBbHardDuty', 'ruleBbHardOtr1']
 const BB_SOFT_RULES = ['ruleBbSoftFullCrew', 'ruleBbSoftSequence', 'ruleBbSoftTraining', 'ruleBbSoftRotation', 'ruleBbSoftWeekend']
@@ -162,11 +162,12 @@ export default function ScorerAssignPage() {
       if (sportTab === 'volleyball') {
         for (const a of vbAssignments) {
           if (a.conflicts.some((c) => c.key === 'existingKept')) continue
-          if (!a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId) continue
+          if (!a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId) continue
           const fields: Partial<Game> = {}
           if (a.scorerTeamId) fields.scorer_duty_team = a.scorerTeamId
           if (a.scoreboardTeamId) fields.scoreboard_duty_team = a.scoreboardTeamId
           if (a.combinedTeamId) fields.scorer_scoreboard_duty_team = a.combinedTeamId
+          if (a.refereeTeamId) fields.referee_duty_team = a.refereeTeamId
           tasks.push({ gameId: a.gameId, fields })
         }
       } else {
@@ -195,13 +196,14 @@ export default function ScorerAssignPage() {
     }
   }
 
-  function handleVbOverride(gameId: string, role: 'scorer' | 'scoreboard' | 'combined', teamId: string) {
+  function handleVbOverride(gameId: string, role: 'scorer' | 'scoreboard' | 'combined' | 'referee', teamId: string) {
     setVbAssignments((prev) =>
       prev.map((a) => {
         if (a.gameId !== gameId) return a
         const teamName = teamNameById.get(teamId) ?? null
         if (role === 'combined') return { ...a, combinedTeamId: teamId || null, combinedTeamName: teamName }
         if (role === 'scorer') return { ...a, scorerTeamId: teamId || null, scorerTeamName: teamName }
+        if (role === 'referee') return { ...a, refereeTeamId: teamId || null, refereeTeamName: teamName }
         return { ...a, scoreboardTeamId: teamId || null, scoreboardTeamName: teamName }
       }),
     )
@@ -328,6 +330,7 @@ export default function ScorerAssignPage() {
                   <TableHead className="px-3 py-2 text-center">{t('scorerCount')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('scoreboardCount')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('combinedCount')}</TableHead>
+                  <TableHead className="px-3 py-2 text-center">{t('refereeCount')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('totalCount')}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -341,6 +344,7 @@ export default function ScorerAssignPage() {
                       <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.scorer || '—'}</TableCell>
                       <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.scoreboard || '—'}</TableCell>
                       <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.combined || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.referee || '—'}</TableCell>
                       <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{counts.totalDuties || '—'}</TableCell>
                     </TableRow>
                   ))}
@@ -409,7 +413,7 @@ export default function ScorerAssignPage() {
                     if (!game) return null
                     const hallName = asObj<Hall>(game.hall)?.name ?? ''
                     const isExisting = a.conflicts.some((c) => c.key === 'existingKept')
-                    const hasNoAssignment = !a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId
+                    const hasNoAssignment = !a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId
 
                     return (
                       <TableRow
@@ -434,6 +438,18 @@ export default function ScorerAssignPage() {
                               <TeamSelect value={a.combinedTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'combined', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
                             </div>
                           </TableCell>
+                        ) : a.mode === 'referee' ? (
+                          <>
+                            <TableCell className="px-2 py-2">
+                              <TeamSelect value={a.scorerTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'scorer', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
+                            </TableCell>
+                            <TableCell className="px-2 py-2">
+                              <div className="flex items-center gap-1">
+                                <span className="rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" title={t('refereeCount')}>{t('refereeTag')}</span>
+                                <TeamSelect value={a.refereeTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'referee', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
+                              </div>
+                            </TableCell>
+                          </>
                         ) : (
                           <>
                             <TableCell className="px-2 py-2">

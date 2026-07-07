@@ -16,7 +16,8 @@ Use `encode()` from `@toon-format/toon` when passing uniform object arrays to LL
 ## Work Style
 - **Parallel subagents**: Dispatch independent work (edits, research, checks) as parallel subagents, not sequentially.
 - **NEVER commit plans/specs**: Plan + spec docs often contain credentials/tokens/internal URLs. Write to `.planning/` (gitignored) or keep in conversation. `docs/superpowers/plans/` + `docs/superpowers/specs/` are gitignored.
-- **NEVER mass-email real users for testing**: Use `/events/test-email` or a single test member (e.g. ID 8). Never call notify with `send_email: true` on an all-roles/large-audience event.
+- **NEVER mass-email real users for testing**: Test against a single test member (e.g. ID 8) or an event whose audience is only that member. Never call `POST /kscw/events/:id/notify` with `send_email: true` on an all-roles/large-audience event. (There is no dedicated test-email endpoint.)
+- **Verification gate**: `npm run build` (tsc -b + vite) is the type gate — never `tsc --noEmit`. ALSO run `npm run lint` on React component edits (the build gate skips rules-of-hooks → React #310 crashes ship). Tests: `npm run test:unit` (vitest), `npm run test` (Playwright e2e), `npm run test:scripts` (node --test for directus scripts).
 
 ## Key Patterns
 - **shadcn/ui**: Load the `/kscw-ui` skill for all UI work — KSCW conventions, shadcn + Magic UI + Aceternity catalog, theming, dark mode, animations (single source of UI truth for wiedisync + kscw-website).
@@ -50,7 +51,8 @@ Use `encode()` from `@toon-format/toon` when passing uniform object arrays to LL
 - **Extensions**: Endpoints in `directus/extensions/kscw-endpoints/`, hooks in `directus/extensions/kscw-hooks/`. Deploy by restarting container.
 - **Deleting collections/records**: Confirm with user first.
 - **M2M fields MUST be created via the admin UI** — API-created M2M relations show "relationship hasn't been configured correctly". Flow: (1) nuke junction + PG table + field, (2) create via Settings → Data Model → Add Field → Many to Many in browser, (3) restore data via API. UI auto-generates junction names (e.g. `teams_members_3`) — rename via SQL after + update Directus metadata. Check names via `/relations` API.
-- **Junction names (prod)**: `hall_slots_teams`, `teams_coaches`, `teams_responsibles`, `teams_sponsors`, `events_teams`, `hall_events_halls`. `captain` is M2O on `teams` (not a junction).
+- **Junction names (prod)**: `hall_slots_teams`, `teams_coaches`, `teams_responsibles`, `teams_sponsors`, `events_teams`, `events_members`, `forms_teams`, `hall_events_halls`. `captain` is M2O on `teams` (not a junction).
+- **Dev DB is overwritten nightly** by a scrubbed prod clone (03:00 UTC cron; on demand via `npm run db:refresh-dev`). Dev-only data does not survive the night; test tokens are re-pinned by the refresh script.
 
 ## Migration & Permission Policy (READ BEFORE TOUCHING SQL OR PERMS)
 The "every audit pass breaks something" loop comes from treating permissions as patches. Hard rules:
@@ -59,7 +61,7 @@ The "every audit pass breaks something" loop comes from treating permissions as 
 2. **Numbered migrations are SCHEMA-ONLY.** DDL, triggers, RLS policies, grants, foreign keys, data backfills. Each must be idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`, `DROP IF EXISTS`-then-`CREATE`, `DO $$ … END $$` for FK adds, `ON CONFLICT DO NOTHING` for backfills). One numbered migration = one bounded change.
 3. **The runner enforces apply-once.** `npm run db:migrate:dev|prod` reads `kscw_migrations` (filename + sha256), applies pending in numeric order, errors if any applied migration's on-disk content has been edited (sha mismatch). Don't edit applied migrations — fix forward with a new number.
 4. **Deploy command is one of these, not bespoke psql:**
-   - `npm run db:deploy:dev` — runs `db:migrate:dev` → `db:setup-perms:dev` → `db:smoke:dev`
+   - `npm run db:deploy:dev` — runs `db:snapshot:dev` (pre-deploy DB snapshot on the VPS) → `db:migrate:dev` → `db:setup-perms:dev` → `db:smoke:dev`
    - `npm run db:deploy:prod` — same on prod
    - **When a change touches BOTH schema and extension code, deploy schema FIRST: `npm run deploy:dev` / `npm run deploy:prod` chain `db:deploy:*` → `ext:deploy:*`** so the migration that adds a column lands before the endpoint code that selects it restarts. Shipping `ext:deploy` ahead of its migration is what produced the 2026-06-19 `public/team` 500s (`column … does not exist`). Frontend still deploys separately on git push (CF Pages).
 5. **Smoke test is part of deploy.** `db:smoke` logs in as a non-admin Member and exercises every collection that `loadTeamContext` + the home page touch. Catches the silent `Promise.all` failure pattern (4.4.4) the same minute it ships.
@@ -76,11 +78,12 @@ If a future change tempts you to add a permission row in a numbered SQL file: st
 - See `INFRA.md → Hetzner VPS Management`.
 
 ## Domains
-- `kscw.ch` — ClubDesk (external). **Do NOT change until explicitly confirmed.**
+- `kscw.ch` — Public website (Astro, CF Pages project `kscw-website`) since the 2026-06-18 cutover — no longer ClubDesk. `kscw-website.pages.dev` 302-redirects here (`functions/_middleware.js` in that repo).
 - `wiedisync.kscw.ch` — React prod, CF Pages `wiedisync` (`prod` branch) → `directus.kscw.ch`
 - `wiedisync.pages.dev` — React dev, CF Pages (`dev` branch) → `directus-dev.kscw.ch` (auto-detected in `src/lib/api.ts`)
+- `spielplanung.wiedisync.kscw.ch` — Spielplanung standalone app (own CF Pages project; built via `npm run build:scheduling` / `VITE_APP_TARGET=scheduling`; cookie-session SSO from the member app). In-app `/admin/spielplanung|terminplanung` routes redirect here.
 - `directus.kscw.ch` / `directus-dev.kscw.ch` — Directus API prod/dev (plain Docker on Hetzner, not Coolify)
-- `kscw-website.pages.dev` — Public static site. Dev-first like wiedisync (`dev` branch → preview, `prod` branch → live); promote `dev` → `prod` with user approval. (Prior "dev/preview only" hold lifted 2026-06-20.)
+- `kscw-website.pages.dev` — CF Pages project behind `kscw.ch`. Dev-first like wiedisync (`dev` branch → preview, `prod` branch → live at `kscw.ch`); promote `dev` → `prod` with user approval.
 - `kscw-push.lucanepa.workers.dev` — Web push CF Worker
 
 See `INFRA.md → Domains & Hosting Overview` for full map.
@@ -92,7 +95,7 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 **All changes go through `dev` first.** Never push to `prod` unless explicitly told. Flow:
 1. Commit on `dev`
 2. Frontend deploys automatically on push
-3. Backend: `npm run ext:deploy:dev` (rsyncs `directus/extensions/` to VPS + restarts; not Coolify-managed)
+3. Backend: `npm run ext:deploy:dev` — runs `ext:install` (npm ci in `kscw-endpoints`; skipping this once crashed ALL `/kscw/*` routes) → rsync `directus/extensions/` to VPS → restart container → `ext:smoke:dev` curl-check. Note: `directus/scripts/` is a separate bind-mount deployed via `npm run scripts:deploy:dev|prod`, NOT covered by `ext:deploy`.
 4. Test on `wiedisync.pages.dev` → `directus-dev.kscw.ch`
 5. With user approval, merge `dev` → `prod` and push
 6. `npm run ext:deploy:prod` for backend extensions
@@ -112,6 +115,10 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
-- **2026-06-19** **v1.0.0 baseline** — consolidated the entire pre-1.0 history (internal v5.2.0) into a single official **v1.0.0**: `CHANGELOG.md` + the in-app "What's New" (`ChangelogPage.tsx`, `APP_VERSION`→`1.0.0`) collapsed to one launch entry, `package.json` `5.2.0`→`1.0.0`, DEVLOG reset to baseline with prior entries moved verbatim to `docs/DEVLOG-archive.md` (`kscw-website` re-baselined to `1.0.0` in the same pass). Docs + version metadata only — no code/schema/runtime change. See [`docs/DEVLOG.md`](docs/DEVLOG.md).
+- **2026-07-07** **Guides refresh** — CLAUDE.md/INFRA.md claim-audit fixes (kscw.ch cutover, spielplanung domain, deploy chains), kscw-website docs rewritten, in-app Guide tours 10→15 (finance/forms/teams/profile added, stale coach/scorer tours rebuilt), tour-target regression test (dev).
+- **2026-07-07** **v1.24.0 — Club stats season-scoped** (migration 181; season dimension on `stats_schreiber_coverage`, season picker on ClubStatsPage; dev+prod).
+- **2026-07-07** **v1.23.0 — Scorer-assignment admin page** surfaced in the Admin nav (`/admin/scorer-assign`; VB + BB auto-assign engines, per-team duty summary, algorithm-rules panel). Frontend-only, dev+prod.
+- **2026-07-07** **Error-log triage** — archive/important buttons, bulk actions, class-level mute rules (migration 179, dev+prod).
+- **2026-07-07** **Mail-forward fixes** — spielplanung Google-Group remailer reposts AS the mailbox (migration 178); expense mails sent directly to the treasurer's Gmail (prod COMMIT=1, dev dry-run).
 
-**Older entries → [`docs/DEVLOG-archive.md`](docs/DEVLOG-archive.md)** (full pre-1.0 dev/deploy history).
+**Full history → [`docs/DEVLOG.md`](docs/DEVLOG.md)** · **pre-1.0 → [`docs/DEVLOG-archive.md`](docs/DEVLOG-archive.md)** (v1.0.0 baseline consolidated 2026-06-19).

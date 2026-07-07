@@ -27,6 +27,7 @@ export default function GameTabs({ activeTab, onChange, tabs = DEFAULT_TABS }: G
       {tabs.map((tab) => (
         <button
           key={tab}
+          data-tour={tab === 'dashboard' ? 'games-dashboard-tab' : undefined}
           onClick={() => onChange(tab)}
           className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition-colors sm:py-2.5 ${
             activeTab === tab

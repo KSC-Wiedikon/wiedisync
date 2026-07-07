@@ -179,6 +179,7 @@ export default function AssignmentEditor({
               </span>
               {isCurrentUserAssigned && onDelegate && (
                 <button
+                  data-tour="delegate-duty"
                   onClick={onDelegate}
                   className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-3 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 dark:bg-brand-900/20 dark:text-brand-400 dark:hover:bg-brand-900/40"
                 >

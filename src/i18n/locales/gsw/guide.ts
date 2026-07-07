@@ -43,7 +43,7 @@ export default {
         },
         home: {
           title: 'Startsiite',
-          body: 'Dis persönlichs Dashboard: nächschti Spiel, Training und Ufgabe uf eim Blick.',
+          body: 'Dis persönlichs Dashboard: nächschti Spiel, Training, offeni Umfrage und Formular zum Usfülle uf eim Blick.',
         },
         profile: {
           title: 'Mis Profil',
@@ -69,7 +69,7 @@ export default {
         },
         rsvpButtons: {
           title: 'RSVP',
-          body: 'Klick uf Ja, Villicht oder Nei. Din Coach gseht d Teilnahm-Statistike.',
+          body: 'Tipf uf Ja, Villicht oder Nei. Je nach Team-Iistellige bisch du villicht scho automatisch bestätigt – denn tipf eifach uf Nei, wenn du nöd cha. Din Coach gseht d Teilnahm-Statistike.',
         },
         absence: {
           title: 'Abwesenheitsnotiz',
@@ -97,9 +97,9 @@ export default {
           title: 'Anwesenhaitslischte',
           body: 'Zeig d vollständigi Anwesenhaitslischte für jedes Training ah und exportier si bi Bedarf.',
         },
-        notify: {
-          title: 'Spieler benachrichtige',
-          body: 'Schick en Push-Benachrichtiging an alli Spieler, die no nöd gantwortet hend.',
+        cancel: {
+          title: 'Es Training absäge',
+          body: 'Bruuch s Absage-Symbol uf ere Trainings-Charte, zum s Training mit eme optionale Grund abzsäge – d Spieler werde benachrichtigt und d RSVPs werde iigfrore. Am gliiche Ort chasch es abgsaits Training wieder aktiviere.',
         },
       },
     },
@@ -113,11 +113,11 @@ export default {
         },
         rsvp: {
           title: 'Spiel-RSVP',
-          body: 'Bestätig, ob du am Spiel teilnimmsch. Din Coach gseht disi Antwort.',
+          body: 'Bestätig, ob du am Spiel teilnimmsch. Mit Auto-Bestätigig bisch automatisch als dabii markiert – reagier nur, wenn du nöd cha cho. Din Coach gseht die Antworte.',
         },
         result: {
           title: 'Resultat',
-          body: 'Spielresultat und Satzstand werde automatisch us em Liga-System aktualisiert.',
+          body: 'Spielresultat und Satzstand werde automatisch us em Liga-System aktualisiert. Mit de Saison-Uswahl bi de Ranglischte chasch vergangeni Saisone aaluege.',
         },
         details: {
           title: 'Spieldetails',
@@ -127,23 +127,19 @@ export default {
     },
     gamesCoach: {
       title: 'Spiel – Coach',
-      description: 'Wie du Spiel als Coach verwaltesch',
+      description: 'Coach-Tools uf de Spielsiite',
       steps: {
-        overview: {
-          title: 'Spielübersicht',
-          body: 'Din gsamte Spielplan mit RSVP-Zahle und Resultatsstatus für jedes Spiel.',
+        dashboard: {
+          title: 'Anwesenheits-Dashboard',
+          body: 'Öffne de Dashboard-Tab für Anwesenheitsstatistike vo dim Team über en Zitruum.',
         },
-        lineup: {
-          title: 'Ufstellig',
-          body: 'Definier d Spielerufstellig für jedes Spiel und teil sie mit dim Team.',
+        stats: {
+          title: 'Statistik pro Spieler',
+          body: 'Gspielti Spiel, dabii, gfehlt und Anwesenheitsquote pro Spieler – tipf uf e Ziile für d Details pro Spiel.',
         },
-        scorer: {
-          title: 'Schriber-Zueteilig',
-          body: 'Wis emem Heimspiel en Schriber zue. De Schriber wird automatisch benachrichtigt.',
-        },
-        notes: {
-          title: 'Coach-Notize',
-          body: 'Füeg emem Spiel privati Notize iine – nur für Coach sichtbar.',
+        manage: {
+          title: 'Es Spiel verwalte',
+          body: 'Öffne es Spiel für Details und Coach-Aktione – s Absäge oder Wiederaktiviere vo eme Spiel benachrichtigt dis Team. D Spielplanig sälber passiert i de Spielplanung-App.',
         },
       },
     },
@@ -191,31 +187,35 @@ export default {
           title: 'Schribereisatz',
           body: 'Wenn du als Schriber für es Spiel iigtäilt bisch, gsehtsch es da und kriegsch en Benachrichtiging.',
         },
-        confirm: {
-          title: 'Bestätige',
-          body: 'Bestätig oder lehne dini Schriber-Zueteilig ab. E Ablehning benachrichtigt din Coach.',
+        filters: {
+          title: 'Filter',
+          body: 'Grenz dini Iisätz nach Datum, Team oder Iisatz-Typ ii oder suech nach eme bestimmte Spiel.',
         },
         delegate: {
           title: 'Delegiere',
-          body: 'Falls du nöd schribe chasch, chasch es anderes Teammitglied als Ersatz vorschlah.',
+          body: 'Chasch nöd? Tipf uf Delegiere näbed dim Name, zum es Teammitglied vorzschlah – es kriegt e Aafrag, wo es cha aanäh oder ablehne.',
         },
       },
     },
     scorerAdmin: {
       title: 'Schriber – Admin',
-      description: 'Schriber-Zueteiligige verwalte',
+      description: 'Schriber-Iisätz automatisch zueteile',
       steps: {
         overview: {
-          title: 'Schriber-Übersicht',
-          body: 'Gseht alli Spiel, wo en Schriber bruche, und de aktuell Zueteiligsstatus.',
+          title: 'Saison-Übersicht',
+          body: 'Alli Heimspiel vo de aktuelle Saison, wo es Schriber- oder Täfeler-Team bruuched, werde da glade.',
+        },
+        run: {
+          title: 'Automatisch zueteile',
+          body: 'Start de Zueteiligs-Algorithmus, zum d Iisätz fair uf d Teams z verteile. Öffne s Panel mit de Algorithmus-Regle, zum z gseh, wie er entscheidet.',
+        },
+        summary: {
+          title: 'Team-Zämefassig',
+          body: 'Wie vili Iisätz jedes Team i dem Durchlauf übercho het – prüef d Verteilig vor em Speichere.',
         },
         assign: {
-          title: 'Schriber zuwise',
-          body: 'Wähl für jedes Spiel en Spieler us. Er wird automatisch benachrichtigt.',
-        },
-        history: {
-          title: 'Verlauf',
-          body: 'Verfölg, wer wie vili Spiel gschribe het – nützlich für en faire Rotation.',
+          title: 'Prüefe und aapasse',
+          body: 'Änder s Iisatz-Team vo jedem Spiel über s Dropdown und speicher denn alli Zueteiligige.',
         },
       },
     },
@@ -228,16 +228,110 @@ export default {
           body: 'Alli Hallezitslot für dini Teams werde da aazeigt – Training, Spiel und freii Slot.',
         },
         claim: {
-          title: 'Slot beanspruche',
-          body: 'Tipf uf en freie Slot, um ihn für dis Team z reserviere. De Slot wird sofort belegt.',
+          title: 'En fröigegebne Slot beanspruche',
+          body: 'Wenn es Team en Slot fröigit, erschiint da en Hiiwis – tipf druf, zum verfüegbari Slot z gseh und für dis Team z beanspruche.',
         },
         release: {
-          title: 'Slot fröigeh',
-          body: 'Falls du en Slot nümm bruuchsch, gib ihn fröi, damit anderi Teams ihn nutze chönd.',
+          title: 'Slot-Farbe',
+          body: 'D Farbe zeiged de Slot-Typ: Training, Spiel, fröigegebni Slot und Schliessige. Tipf uf en Slot vo dim Team, zum ihn z verwalte oder fröizgeh.',
         },
-        conflict: {
-          title: 'Konflikte',
-          body: 'Überlappendi Slot werde hervorgehobe. Kontaktier de Admin, um Konflikte z löse.',
+        virtual: {
+          title: 'Automatischi Iiträg',
+          body: 'Spiel, Training und Kalender-Events erschiined automatisch als Iiträg mit eme "Auto"-Badge – si werde live iigblendet, nöd buechet.',
+        },
+      },
+    },
+    profile: {
+      title: 'Profil & Iistellige',
+      description: 'Pass dis Konto aa',
+      steps: {
+        contact: {
+          title: 'Dini Aagabe',
+          body: 'Halt dini Kontaktdate aktuell – dini Coach verlönd sich druf. Änder si über de Knopf Profil bearbeite.',
+        },
+        attendance: {
+          title: 'Auto-Aamäldig',
+          body: 'Wähl, öb du für neui Training, Spiel und Events automatisch bestätigt wirsch. Abwesenheite hend immer Vorrang vor de Auto-Bestätigig.',
+        },
+        emails: {
+          title: 'E-Mail-Benachrichtigige',
+          body: 'Schalt einzelni E-Mail-Benachrichtigige us – d Glogge i de App zeigt immer alles.',
+        },
+        privacy: {
+          title: 'Privatsphäre',
+          body: 'Es "Versteckt"-Badge heisst, dass Teamkollege dini E-Mail nöd gsehnd. Änder das und meh under Profil bearbeite.',
+        },
+      },
+    },
+    teams: {
+      title: 'Teams',
+      description: 'Dini Teams – und wie du bi wiitere Teams mitmachsch',
+      steps: {
+        list: {
+          title: 'Dini Teams',
+          body: 'Alli dini Teams uf eim Blick. Tipf uf es Team für Kader, Staff und Spiel.',
+        },
+        join: {
+          title: 'Eme andere Team biiträte',
+          body: 'Stell e Aafrag für es anders Team – wähl Sportart und Team, und en Coach genehmigt dini Aafrag. Es Team verlah gaht am gliiche Ort.',
+        },
+      },
+    },
+    forms: {
+      title: 'Formular',
+      description: 'Verein- und Team-Formular usfülle',
+      steps: {
+        list: {
+          title: 'Offeni Formular',
+          body: 'Formular, wo de Verein oder dis Team vo dir usgfüllt ha wott, sind da ufglistet – offeni Formular erschiined au uf dinere Startsiite.',
+        },
+        fill: {
+          title: 'Es Formular usfülle',
+          body: 'Tipf uf Usfülle, zum z antworte. Du chasch dini Antwort bearbeite, solang s Formular offe isch.',
+        },
+        create: {
+          title: 'Formular erstelle',
+          body: 'Coach, Team-Verantwortlichi und de Vorstand chönd Formular erstelle, Antworte aaluege und exportiere.',
+        },
+      },
+    },
+    financeDues: {
+      title: 'Mini Finanze',
+      description: 'Beiträg und Rechnige i de App zahle',
+      steps: {
+        iban: {
+          title: 'Uszahligs-IBAN',
+          body: 'Rückzahlige vom Verein gönd uf das Konto – füeg dini IBAN da ii oder aktualisier si.',
+        },
+        list: {
+          title: 'Dini Rechnige',
+          body: 'Mitgliiderbeiträg und Vereinsrechnige mit Beträg und Zahligsstatus.',
+        },
+        pay: {
+          title: 'E Rechnig zahle',
+          body: 'Tipf uf en offeni Rechnig, zum si ufzklappe, denn scan d Schwiizer QR-Rechnig mit TWINT oder dinere Banking-App und tipf uf "Ich ha zahlt".',
+        },
+        status: {
+          title: 'Zahligsstatus',
+          body: 'Nach em Mälde vo de Zahlig zeigt d Rechnig "Wartet uf Bestätigig", bis de Kassier si bestätigt.',
+        },
+      },
+    },
+    expenses: {
+      title: 'Spese',
+      description: 'Lah dir Vereinsspese zrückzahle',
+      steps: {
+        upload: {
+          title: 'En Beleg ufelade',
+          body: 'Wähl es Foti oder PDF vo dim Beleg – Betrag, Datum und Händler werde automatisch usgläse.',
+        },
+        iban: {
+          title: 'D IBAN prüefe',
+          body: 'Prüef vor em Abschicke d Uszahligs-IBAN – das isch dis eigene Konto, wo de Verein druf zrückzahlt.',
+        },
+        submissions: {
+          title: 'Mini Iigabe',
+          body: 'Verfölg dini Iigabe da: usstehend, zahlt oder abglehnt. Du wirsch benachrichtigt, sobald de Kassier entscheidet.',
         },
       },
     },
