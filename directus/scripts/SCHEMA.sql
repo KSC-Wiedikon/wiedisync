@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-07T10:28:52.060Z
+-- Generated:   2026-07-07T12:31:16.862Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -2277,7 +2277,8 @@ CREATE TABLE public.clubdesk_export (
     zuletzt_geaendert_am text,
     zuletzt_geaendert_von text,
     gruppen_bracketed text,
-    rolle_bracketed text
+    rolle_bracketed text,
+    wiedisync_id text
 );
 
 
@@ -4535,7 +4536,11 @@ CREATE TABLE public.games (
     bb_timekeeper_confirmed_by_name character varying(255),
     bb_timekeeper_confirmed_at timestamp with time zone,
     bb_24s_confirmed_by_name character varying(255),
-    bb_24s_confirmed_at timestamp with time zone
+    bb_24s_confirmed_at timestamp with time zone,
+    referee_duty_team integer,
+    referee_member integer,
+    referee_confirmed_by_name character varying(255),
+    referee_confirmed_at timestamp with time zone
 );
 
 
@@ -6429,6 +6434,15 @@ CREATE VIEW public.stats_games_missing_schreiber WITH (security_invoker='true') 
     t.name AS team_name,
     t.sport,
         CASE
+            WHEN (((t.sport)::text = 'volleyball'::text) AND ((t.name)::text = 'HU20'::text)) THEN concat_ws(', '::text,
+            CASE
+                WHEN ((g.scorer_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) THEN 'Schreiber'::text
+                ELSE NULL::text
+            END,
+            CASE
+                WHEN (g.referee_member IS NULL) THEN 'Schiedsrichter'::text
+                ELSE NULL::text
+            END)
             WHEN ((t.sport)::text = 'volleyball'::text) THEN concat_ws(', '::text,
             CASE
                 WHEN ((g.scorer_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) THEN 'Schreiber'::text
@@ -6456,7 +6470,7 @@ CREATE VIEW public.stats_games_missing_schreiber WITH (security_invoker='true') 
     COALESCE(g.scorer_duty_team, g.bb_duty_team) AS duty_team_id
    FROM (public.games g
      JOIN public.teams t ON ((t.id = g.kscw_team)))
-  WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying])::text[])) AND ((((t.sport)::text = 'volleyball'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))
+  WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying])::text[])) AND ((((t.sport)::text = 'volleyball'::text) AND ((t.name)::text = 'HU20'::text) AND ((g.scorer_member IS NULL) OR (g.referee_member IS NULL))) OR (((t.sport)::text = 'volleyball'::text) AND ((t.name)::text <> 'HU20'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))
   ORDER BY g.date, g."time";
 
 
