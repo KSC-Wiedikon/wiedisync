@@ -207,7 +207,7 @@ const CD_PUSH_HEADERS = [
 // Passivmitglied Ja/Nein checkbox + Sektion (Volleyball/Basketball/KSCW). These
 // are CREATE-only — an UPDATE never overwrites a distinct Mobil / ClubDesk-owned
 // Sektion on an existing contact.
-export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Passivmitglied', 'Sektion']
+export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Passivmitglied', 'Sektion', 'Schiedsrichter']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -234,13 +234,11 @@ export function deriveGruppen(reg) {
       groups.push(`${prefix} ${t} (${funktion})`)
     }
   }
+  // VB scorers go in the "VB Schreiber*innen" group (user 2026-07-07, exact
+  // ClubDesk group name). Referees are NOT grouped here — they are marked by
+  // the Schiedsrichter Ja/Nein field instead (deriveSchiedsrichter).
   const lic = String(reg.lizenz || '').toLowerCase()
-  if (prefix === 'VB') {
-    if (lic.includes('schreiber')) groups.push('VB Schreiber:innen')
-    if (lic.includes('schiedsrichter')) groups.push('VB Schiedsrichter:innen')
-  } else if (prefix === 'BB') {
-    if (lic.includes('schiedsrichter') || lic.includes('referee')) groups.push('Schiedsrichter BB')
-  }
+  if (prefix === 'VB' && lic.includes('schreiber')) groups.push('VB Schreiber*innen')
   return groups.join(', ')
 }
 
@@ -269,12 +267,22 @@ export function deriveStatus(reg, member) {
 // Cross-sport dual holders can't happen at create time (one registration = one
 // sport) — first match in this order wins.
 export function deriveOffiziellenLizenz(m) {
-  if (m?.referee_vb === true) return 'VB SR'
+  // VB referees are marked by the separate Schiedsrichter Ja/Nein field now
+  // (user 2026-07-07) — Offiziellen Lizenz carries the SCORER / table-officials
+  // licence only (referees are also scorers → VB SC). A referee who is not a
+  // scorer gets no value here; Schiedsrichter=Ja still marks them.
   if (m?.scorer_vb === true) return 'VB SC'
   if (m?.otr1_bb === true) return 'OTR1'
   if (m?.otr2_bb === true) return 'OTR2'
   if (m?.otn_bb === true) return 'OTN'
   return ''
+}
+
+// The ClubDesk "Schiedsrichter" Ja/Nein field (user 2026-07-07): Ja when the
+// member holds a referee licence (VB or BB), else Nein. Referees are marked
+// here instead of via a referee group.
+export function deriveSchiedsrichter(m) {
+  return (m?.referee_vb === true || m?.referee_bb === true) ? 'Ja' : 'Nein'
 }
 
 // Derive the ClubDesk Sektion for a NEW contact from the registration's sport:
@@ -451,6 +459,7 @@ export function buildPushCsv(members, { create = false } = {}) {
         m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m),
         deriveMitgliederbeitrag(m.beitragskategorie, m),
         m.cd_passiv || '', m.cd_sektion || '', // resolved by /up from the registration
+        deriveSchiedsrichter(m),
       )
     }
     return cells.map(cdCell).join(';')
