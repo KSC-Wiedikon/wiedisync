@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-07T12:31:16.862Z
+-- Generated:   2026-07-07T13:41:19.850Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -1086,6 +1086,50 @@ $$;
 --
 
 COMMENT ON FUNCTION public.kscw_fine_window_start(p_window text, p_ts timestamp with time zone) IS 'Start timestamp of the offense-counter window for a fine_rules.reset_window value. calendar_month/season anchor to Europe/Zurich wall-clock (1st of month / Sep 1); rolling windows subtract N days from now.';
+
+
+--
+-- Name: kscw_normalize_phone(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_normalize_phone(raw text) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    AS $_$
+DECLARE
+  s text; compact text; cc text; nat text;
+BEGIN
+  s := btrim(coalesce(raw, ''));
+  IF s = '' THEN RETURN NULL; END IF;
+  -- Decorations → spaces: apostrophes (legacy CSV-guard corruption), ./-/()
+  s := regexp_replace(s, '[''’/.()-]', ' ', 'g');
+  s := btrim(regexp_replace(s, '\s+', ' ', 'g'));
+  IF s ~ '[^0-9+ ]' THEN RETURN NULL; END IF;
+  compact := replace(s, ' ', '');
+  -- at most one '+', and only leading
+  IF length(compact) - length(replace(compact, '+', '')) > 1
+     OR position('+' in compact) > 1 THEN RETURN NULL; END IF;
+  IF left(compact, 1) = '+' THEN cc := substr(compact, 2);
+  ELSIF left(compact, 2) = '00' THEN cc := substr(compact, 3);
+  ELSIF left(compact, 1) = '0' THEN
+    nat := substr(compact, 2);
+    -- 10-digit Swiss national only; 9-digit values are pre-2007 numbers → NULL
+    IF length(nat) <> 9 THEN RETURN NULL; END IF;
+    cc := '41' || nat;
+  ELSIF length(compact) = 11 AND left(compact, 2) = '41' THEN cc := compact;
+  -- bare 9 digits = Swiss national typed without the 0 (14 prod cases 2026-07-07)
+  ELSIF length(compact) = 9 THEN cc := '41' || compact;
+  ELSE RETURN NULL;
+  END IF;
+  IF cc !~ '^[1-9][0-9]{7,14}$' THEN RETURN NULL; END IF;
+  IF left(cc, 2) = '41' THEN
+    nat := substr(cc, 3);
+    IF length(nat) = 10 AND left(nat, 1) = '0' THEN nat := substr(nat, 2); END IF; -- "+41 (0)79 …"
+    IF length(nat) <> 9 OR left(nat, 1) = '0' THEN RETURN NULL; END IF;
+    RETURN '+41 ' || substr(nat, 1, 2) || ' ' || substr(nat, 3, 3) || ' '
+                  || substr(nat, 6, 2) || ' ' || substr(nat, 8, 2);
+  END IF;
+  RETURN '+' || cc;
+END $_$;
 
 
 --
@@ -4922,6 +4966,7 @@ CREATE TABLE public.members (
     clubdesk_push_pending boolean DEFAULT false NOT NULL,
     clubdesk_push_changes jsonb,
     clubdesk_pushed_at timestamp with time zone,
+    uuid uuid DEFAULT gen_random_uuid() NOT NULL,
     CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb))
 );
 
@@ -5653,7 +5698,8 @@ CREATE TABLE public.registrations (
     locale character varying(5) DEFAULT 'de'::character varying,
     rejection_reason text,
     nationalitaet_code character varying(2),
-    sektion_choice character varying(32)
+    sektion_choice character varying(32),
+    iban character varying(34)
 );
 
 
@@ -9825,6 +9871,13 @@ CREATE INDEX members_requested_team_index ON public.members USING btree (request
 --
 
 CREATE INDEX members_user_index ON public.members USING btree ("user");
+
+
+--
+-- Name: members_uuid_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX members_uuid_unique ON public.members USING btree (uuid);
 
 
 --
