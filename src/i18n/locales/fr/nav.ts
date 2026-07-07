@@ -52,6 +52,7 @@ export default {
   changelog: 'Journal des modifications',
   whatsNew: 'Nouveautes',
   refereeExpenses: 'Frais d\'arbitrage',
+  scorerAssign: 'Attribution des marqueurs',
   clubStats: 'Statistiques',
   anmeldungen: 'Inscriptions',
   guide: 'Guide',

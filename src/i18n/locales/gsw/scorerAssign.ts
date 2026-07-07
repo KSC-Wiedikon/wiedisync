@@ -70,4 +70,31 @@ export default {
 
   // Override
   selectTeam: '— Team —',
+
+  // Algorithm rules (info panel)
+  rulesTitle: 'Regle vom Algorithmus',
+  rulesModeVb: 'Volleyball: separati Schriiber- und Täfeler-Teams. In Döltschi und i de 4L/5L macht ei Team beids (kombiniert).',
+  rulesModeBb: 'Basketball: ei Dienscht-Team pro Heimspiel stellt alli Offizielle (Aaschriiber, Ziitnämmer und bi Bedarf 24s-Operator).',
+  rulesHardTitle: 'Harti Regle — s Team wird usgschlosse',
+  rulesSoftTitle: 'Weichi Regle — Pünkt (jedes Team fangt bi 100 aa, di höchscht Punktzahl gwinnt)',
+  rulesExisting: 'Spiel wo scho e gspeicherti Zuteilig händ, blibed unveränderet.',
+  ruleVbHardGame: 'S Team het am gliiche Tag es eiges Spiel',
+  ruleVbHardDoltschi: 'Döltschi: nur U-Teams (HU20, HU23-1, DU23-1, DU23-2)',
+  ruleVbHardDuty: 'S Team het am gliiche Tag scho en Dienscht',
+  ruleVbHardLicence: 'Schriiber/kombiniert: s Team bruucht es Mitglied mit Schriiber-Lizänz',
+  ruleVbSoftSequence: 'Spilt grad devor/dennah i de gliiche Halle: +30',
+  ruleVbSoftHu20: 'HU20 als Täfeler: +15',
+  ruleVbSoftDoltschi: 'U-Team kombiniert z Döltschi: +10',
+  ruleVbSoftLegends: 'Legends als Schriiber: +8',
+  ruleVbSoftWeekend: 'Wochenänd ohni Training: +5',
+  ruleVbSoftTraining: 'Training am gliiche Tag: -20',
+  ruleVbSoftRotation: 'Fairi Rotation: -10 pro scho überchoge Dienscht',
+  ruleBbHardGame: 'S Team het am gliiche Tag es eiges Spiel',
+  ruleBbHardDuty: 'S Team het am gliiche Tag scho en Dienscht',
+  ruleBbHardOtr1: 'S Team bruucht es Mitglied mit OTR1-Lizänz (Aaschriiber/Ziitnämmer)',
+  ruleBbSoftFullCrew: 'Volli Crew (s Team het au OTR2/OTN für d 24s): +25',
+  ruleBbSoftSequence: 'Spilt grad devor/dennah i de gliiche Halle: +30',
+  ruleBbSoftTraining: 'Training am gliiche Tag: -20',
+  ruleBbSoftRotation: 'Fairi Rotation: -10 pro scho überchoge Dienscht',
+  ruleBbSoftWeekend: 'Wochenänd ohni Training: +5',
 } as const

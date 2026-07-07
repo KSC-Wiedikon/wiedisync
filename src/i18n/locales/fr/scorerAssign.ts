@@ -70,4 +70,31 @@ export default {
 
   // Override
   selectTeam: '— Equipe —',
+
+  // Algorithm rules (info panel)
+  rulesTitle: 'Règles de l\'algorithme',
+  rulesModeVb: 'Volleyball : équipes de marqueur et de tableau séparées. À Döltschi et en 4L/5L, une seule équipe fait les deux (combiné).',
+  rulesModeBb: 'Basketball : une équipe de service par match à domicile fournit tous les officiels (marqueur, chronométreur et opérateur des 24s si nécessaire).',
+  rulesHardTitle: 'Règles strictes — l\'équipe est exclue',
+  rulesSoftTitle: 'Règles souples — points (chaque équipe démarre à 100, le meilleur score gagne)',
+  rulesExisting: 'Les matchs avec une attribution déjà enregistrée restent inchangés.',
+  ruleVbHardGame: 'L\'équipe a son propre match le même jour',
+  ruleVbHardDoltschi: 'Döltschi : équipes U uniquement (HU20, HU23-1, DU23-1, DU23-2)',
+  ruleVbHardDuty: 'L\'équipe a déjà un service le même jour',
+  ruleVbHardLicence: 'Marqueur / combiné : l\'équipe a besoin d\'un membre avec licence de marqueur',
+  ruleVbSoftSequence: 'Joue juste avant/après dans la même salle : +30',
+  ruleVbSoftHu20: 'HU20 au tableau : +15',
+  ruleVbSoftDoltschi: 'Équipe U en combiné à Döltschi : +10',
+  ruleVbSoftLegends: 'Legends comme marqueur : +8',
+  ruleVbSoftWeekend: 'Week-end sans entraînement : +5',
+  ruleVbSoftTraining: 'Entraînement le même jour : -20',
+  ruleVbSoftRotation: 'Rotation équitable : -10 par service déjà attribué',
+  ruleBbHardGame: 'L\'équipe a son propre match le même jour',
+  ruleBbHardDuty: 'L\'équipe a déjà un service le même jour',
+  ruleBbHardOtr1: 'L\'équipe a besoin d\'un membre avec licence OTR1 (marqueur/chronométreur)',
+  ruleBbSoftFullCrew: 'Équipe complète (a aussi OTR2/OTN pour les 24s) : +25',
+  ruleBbSoftSequence: 'Joue juste avant/après dans la même salle : +30',
+  ruleBbSoftTraining: 'Entraînement le même jour : -20',
+  ruleBbSoftRotation: 'Rotation équitable : -10 par service déjà attribué',
+  ruleBbSoftWeekend: 'Week-end sans entraînement : +5',
 } as const

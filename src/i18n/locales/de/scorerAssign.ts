@@ -70,4 +70,31 @@ export default {
 
   // Override
   selectTeam: '— Team —',
+
+  // Algorithm rules (info panel)
+  rulesTitle: 'Regeln des Algorithmus',
+  rulesModeVb: 'Volleyball: separate Schreiber- und Täfeler-Teams. In Döltschi und in der 4L/5L macht ein Team beides (kombiniert).',
+  rulesModeBb: 'Basketball: ein Dienst-Team pro Heimspiel stellt alle Offiziellen (Anschreiber, Zeitnehmer und bei Bedarf 24s-Operator).',
+  rulesHardTitle: 'Harte Regeln – Team wird ausgeschlossen',
+  rulesSoftTitle: 'Weiche Regeln – Punkte (jedes Team startet bei 100, höchste Punktzahl gewinnt)',
+  rulesExisting: 'Spiele mit bereits gespeicherter Zuteilung bleiben unverändert.',
+  ruleVbHardGame: 'Team hat am selben Tag ein eigenes Spiel',
+  ruleVbHardDoltschi: 'Döltschi: nur U-Teams (HU20, HU23-1, DU23-1, DU23-2)',
+  ruleVbHardDuty: 'Team hat am selben Tag bereits einen Dienst',
+  ruleVbHardLicence: 'Schreiber/kombiniert: Team braucht ein Mitglied mit Schreiber-Lizenz',
+  ruleVbSoftSequence: 'Spielt direkt davor/danach in derselben Halle: +30',
+  ruleVbSoftHu20: 'HU20 als Täfeler: +15',
+  ruleVbSoftDoltschi: 'U-Team kombiniert in Döltschi: +10',
+  ruleVbSoftLegends: 'Legends als Schreiber: +8',
+  ruleVbSoftWeekend: 'Wochenende ohne Training: +5',
+  ruleVbSoftTraining: 'Training am selben Tag: -20',
+  ruleVbSoftRotation: 'Faire Rotation: -10 pro bereits erhaltenem Dienst',
+  ruleBbHardGame: 'Team hat am selben Tag ein eigenes Spiel',
+  ruleBbHardDuty: 'Team hat am selben Tag bereits einen Dienst',
+  ruleBbHardOtr1: 'Team braucht ein Mitglied mit OTR1-Lizenz (Anschreiber/Zeitnehmer)',
+  ruleBbSoftFullCrew: 'Volle Crew (Team hat auch OTR2/OTN für 24s): +25',
+  ruleBbSoftSequence: 'Spielt direkt davor/danach in derselben Halle: +30',
+  ruleBbSoftTraining: 'Training am selben Tag: -20',
+  ruleBbSoftRotation: 'Faire Rotation: -10 pro bereits erhaltenem Dienst',
+  ruleBbSoftWeekend: 'Wochenende ohne Training: +5',
 } as const

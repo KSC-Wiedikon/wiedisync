@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.23.0 — 2026-07-07
+
+### Scorer assignment tool for admins
+- New **Scorer assignment** admin page (Admin menu): auto-assigns scorer and Täfeler (scoreboard) duty *teams* to home games for both volleyball and basketball, using licence data (`members.scorer_vb` for VB, OTR licences for BB) and a scoring engine (fair rotation, sequential-game bonus, training/venue rules). The page was already built but unlinked — it becomes usable now that scorer licences are populated from the ClubDesk sync.
+- Per-team summary at the top (own games + scorer / Täfeler / combined / total duties), editable per-game team assignments before saving, and a collapsible panel documenting the algorithm's hard and soft rules — split by sport, since volleyball and basketball use different engines. It assigns duty *teams*; the individual official is still chosen afterwards (self-claim / admin / delegation) on the Scorer page.
+
 ## v1.22.0 — 2026-07-06
 
 ### Expense reimbursements: status tracking

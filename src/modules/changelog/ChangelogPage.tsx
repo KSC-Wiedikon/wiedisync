@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.22.0'
+const APP_VERSION = '1.23.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.23.0',
+    date: '07.07.2026',
+    sections: [
+      {
+        title: 'Scorer assignment tool for admins',
+        items: [
+          'Admins have a new "Scorer assignment" page in the Admin menu that automatically assigns scorer and scoreboard (Täfeler) duty teams to home games — for both volleyball and basketball.',
+          'A per-team overview at the top shows how many duties each team received; every game can be reviewed and changed before saving, and a built-in rules panel explains how the algorithm decides.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.22.0',
     date: '06.07.2026',
