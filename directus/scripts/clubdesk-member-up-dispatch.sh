@@ -151,6 +151,20 @@ if [ -s "$CSVUTF_U" ]; then
     fail_run 'Dry-run preview failed (update set) — see up-run.log' "$PREVIEW_U"
     echo "=== up-dispatch: FAILED (preview, update set) ==="; exit 0
   fi
+  # ── Duplicate guard (2026-07-07) ────────────────────────────────────────────
+  # The UPDATE set is, by definition, linked members whose ClubDesk contacts
+  # already exist — it must NEVER create a contact. If the preview reports any
+  # "Neue" rows, a name did NOT match its stored contact (a name-drift or CSV
+  # encoding hiccup — e.g. an accented char ClubDesk decodes to "?"), and
+  # committing would DUPLICATE that contact with a mangled name. Refuse the
+  # whole commit and report the count so the operator fixes the mismatched rows
+  # instead of silently spawning garbage dups. This is the guard whose absence
+  # created 19 mangled "?" duplicate contacts on 2026-07-07.
+  NEU_U=$(printf '%s' "$PREVIEW_U" | grep -oE '"neu":[0-9]+' | grep -oE '[0-9]+' || true)
+  if [ -n "$NEU_U" ] && [ "$NEU_U" -gt 0 ]; then
+    fail_run "Update-set push REFUSED: preview would create ${NEU_U} contact(s). An update push must only match existing contacts — a 'Neue' row means a name/encoding mismatch that would duplicate. Fix the mismatched rows and retry." "$PREVIEW_U"
+    echo "=== up-dispatch: FAILED (update set would create ${NEU_U} — dup guard) ==="; exit 0
+  fi
 fi
 if [ -s "$CSVUTF_C" ]; then
   PREVIEW_C=$(scrape "$CSV_C" preview)
