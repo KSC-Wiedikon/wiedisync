@@ -370,6 +370,28 @@ export function captureAuthError(
     console.info('[Auth] Refresh token expired — user must re-authenticate')
     return
   }
+
+  // A failed login ("Invalid user credentials") is a user typing the wrong
+  // password/email — expected, not a bug. Mirror the network + token-expired
+  // carve-outs: console + a downgraded `network`-style `auth_error` at warn
+  // (kept in the JSONL for debugging, hidden from the default error view and
+  // never paged to Sentry). Anchored to the exact Directus message so a real
+  // login failure (a 500, a broken auth flow) still surfaces at error level.
+  if (context.action === 'login' && /invalid user credentials/i.test(err.message)) {
+    console.info('[Auth] Login failed — invalid credentials (expected, skipping Sentry)')
+    sendToErrorLog({
+      source: 'frontend',
+      project: 'wiedisync',
+      event: 'auth_error',
+      level: 'warn',
+      action: 'login',
+      method: context.method,
+      page: window.location.pathname,
+      userAgent: navigator.userAgent,
+      error: err.message,
+    })
+    return
+  }
   Sentry.withScope((scope) => {
     scope.setTag('auth.action', context.action)
     if (context.method) scope.setTag('auth.method', context.method)

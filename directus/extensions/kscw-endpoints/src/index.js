@@ -2026,18 +2026,34 @@ export default {
           .whereIn('error_hash', [...new Set(hashes)])
         const annoMap = Object.fromEntries(annotations.map(a => [a.error_hash, a]))
 
+        // Class-level mute rules: hide EVERY entry matching (event + error
+        // substring), unlike per-hash annotations which hide one occurrence.
+        // Enabled rules only. See migration 179.
+        const muteRules = await database('error_mute_rules').where('enabled', true)
+        const matchMuteRule = (e) => muteRules.find(r =>
+          (!r.event || r.event === e.event) &&
+          e.error && String(e.error).toLowerCase().includes(String(r.error_match).toLowerCase())
+        )
+
         entries = entries.map((e, i) => {
           const anno = annoMap[hashes[i]]
+          const rule = matchMuteRule(e)
           return {
             ...e,
             _hash: hashes[i],
             _annotation: anno ? { status: anno.status, note: anno.note, resolved_commit: anno.resolved_commit, date_updated: anno.date_updated } : null,
+            _muted: rule ? { rule_id: rule.id, note: rule.note } : null,
           }
         })
 
-        // Hide solved by default
+        // Hide solved + muted by default; the "Show archived" toggle reveals both.
+        // An explicit `important` annotation always wins — it shows even if a mute
+        // rule matches, so flagging one instance overrides its category mute.
         if (!showSolved) {
-          entries = entries.filter(e => e._annotation?.status !== 'solved')
+          entries = entries.filter(e =>
+            e._annotation?.status !== 'solved' &&
+            (!e._muted || e._annotation?.status === 'important'),
+          )
         }
 
         // ── Enrich with human-readable context ──────────────────
@@ -2240,6 +2256,85 @@ export default {
         res.json({ data: rows, total: rows.length })
       } catch (err) {
         logEndpointError(log, 'admin/error-logs/annotations', err, req)
+        res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
+      }
+    })
+
+    // GET /kscw/admin/error-logs/mute-rules — list class-level mute rules
+    router.get('/admin/error-logs/mute-rules', async (req, res) => {
+      try {
+        requireAdmin(req, log)
+        const rows = await database('error_mute_rules').orderBy('date_created', 'desc')
+        res.json({ data: rows, total: rows.length })
+      } catch (err) {
+        logEndpointError(log, 'admin/error-logs/mute-rules', err, req)
+        res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
+      }
+    })
+
+    // POST /kscw/admin/error-logs/mute-rules — create a mute rule
+    // Body: { event?: string|null, error_match: string, note?: string }
+    router.post('/admin/error-logs/mute-rules', async (req, res) => {
+      try {
+        requireAdmin(req, log)
+        const event = req.body?.event ? String(req.body.event).slice(0, 64) : null
+        const errorMatch = req.body?.error_match ? String(req.body.error_match).trim() : ''
+        const note = req.body?.note ? String(req.body.note) : null
+        if (!errorMatch) {
+          return res.status(400).json({ error: 'error_match is required' })
+        }
+        const [row] = await database('error_mute_rules')
+          .insert({ event, error_match: errorMatch, note, user_created: req.accountability?.user || null })
+          .returning('*')
+        await writeUserLog(database, log, {
+          accountability: req.accountability,
+          action: 'create', collection: 'error_mute_rules', recordId: String(row.id),
+          data: { event, error_match: errorMatch },
+        }).catch(() => {})
+        res.json({ data: row })
+      } catch (err) {
+        logEndpointError(log, 'admin/error-logs/mute-rules', err, req)
+        res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
+      }
+    })
+
+    // PATCH /kscw/admin/error-logs/mute-rules/:id — enable/disable a rule
+    router.patch('/admin/error-logs/mute-rules/:id', async (req, res) => {
+      try {
+        requireAdmin(req, log)
+        const id = parseInt(req.params.id, 10)
+        if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+        const enabled = req.body?.enabled === true
+        const updated = await database('error_mute_rules').where('id', id).update({ enabled }).returning('*')
+        if (!updated.length) return res.status(404).json({ error: 'Rule not found' })
+        await writeUserLog(database, log, {
+          accountability: req.accountability,
+          action: 'update', collection: 'error_mute_rules', recordId: String(id),
+          data: { enabled },
+        }).catch(() => {})
+        res.json({ data: updated[0] })
+      } catch (err) {
+        logEndpointError(log, 'admin/error-logs/mute-rules', err, req)
+        res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
+      }
+    })
+
+    // DELETE /kscw/admin/error-logs/mute-rules/:id — remove a rule
+    router.delete('/admin/error-logs/mute-rules/:id', async (req, res) => {
+      try {
+        requireAdmin(req, log)
+        const id = parseInt(req.params.id, 10)
+        if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+        const deleted = await database('error_mute_rules').where('id', id).del().returning('*')
+        if (!deleted.length) return res.status(404).json({ error: 'Rule not found' })
+        await writeUserLog(database, log, {
+          accountability: req.accountability,
+          action: 'delete', collection: 'error_mute_rules', recordId: String(id),
+          data: { event: deleted[0].event, error_match: deleted[0].error_match },
+        }).catch(() => {})
+        res.json({ data: deleted[0] })
+      } catch (err) {
+        logEndpointError(log, 'admin/error-logs/mute-rules', err, req)
         res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
       }
     })
