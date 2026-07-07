@@ -1,4 +1,4 @@
--- Migration 188: delete unparseable phone values (user decision 2026-07-07:
+-- Migration 189: delete unparseable phone values (user decision 2026-07-07:
 -- "delete phones that don't match, worst case they update them on their
 -- profile"). After the 186/187 backfills, 6 members.phone values remained that
 -- kscw_normalize_phone cannot safely rewrite (Excel-destroyed cells, digit-
