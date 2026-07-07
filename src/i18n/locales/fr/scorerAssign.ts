@@ -73,7 +73,10 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Règles de l\'algorithme',
-  rulesModeVb: 'Volleyball : équipes de marqueur et de tableau séparées. À Döltschi et en 4L/5L, une seule équipe fait les deux (combiné).',
+  rulesModeVb: 'Volleyball : équipes de marqueur et de tableau séparées. À Döltschi et en 4L/5L, une seule équipe fait les deux (combiné). Les matchs à domicile HU20 utilisent marqueur + arbitre au lieu du tableau.',
+  refereeCount: 'Arbitre',
+  refereeTag: 'Arb',
+  noRefereeAvailable: 'Aucun arbitre disponible',
   rulesModeBb: 'Basketball : une équipe de service par match à domicile fournit tous les officiels (marqueur, chronométreur et opérateur des 24s si nécessaire).',
   rulesHardTitle: 'Règles strictes — l\'équipe est exclue',
   rulesSoftTitle: 'Règles souples — points (chaque équipe démarre à 100, le meilleur score gagne)',

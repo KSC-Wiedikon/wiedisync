@@ -232,7 +232,7 @@ export default function ScorerPage() {
       // "Selected" scope: only games I'm personally assigned to (signed up for)
       if (dutyScope === 'mine' && user) {
         const isPersonallyAssigned = sportTab === 'volleyball'
-          ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member].includes(String(user.id))
+          ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member, g.referee_member].includes(String(user.id))
           : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
         if (!isPersonallyAssigned) return false
       }
@@ -240,10 +240,10 @@ export default function ScorerPage() {
       // Non-admins: only show games where their team has duty or they are personally assigned
       if (!effectiveIsAdmin && !effectiveIsVorstand && user) {
         const isPersonallyAssigned = sportTab === 'volleyball'
-          ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member].includes(String(user.id))
+          ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member, g.referee_member].includes(String(user.id))
           : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
         const teamHasDuty = sportTab === 'volleyball'
-          ? myDutyTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team)
+          ? myDutyTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team || tid === g.referee_duty_team)
           : myDutyTeamIds.some((tid) => tid === (g.bb_scorer_duty_team || g.bb_duty_team) || tid === (g.bb_timekeeper_duty_team || g.bb_duty_team) || tid === (g.bb_24s_duty_team || g.bb_duty_team))
         if (!isPersonallyAssigned && !teamHasDuty) return false
       }
@@ -283,7 +283,8 @@ export default function ScorerPage() {
             const hasUnassigned =
               ((g.scorer_duty_team || g.scorer_member) && !g.scorer_member) ||
               ((g.scoreboard_duty_team || g.scoreboard_member) && !g.scoreboard_member) ||
-              ((g.scorer_scoreboard_duty_team || g.scorer_scoreboard_member) && !g.scorer_scoreboard_member)
+              ((g.scorer_scoreboard_duty_team || g.scorer_scoreboard_member) && !g.scorer_scoreboard_member) ||
+              ((g.referee_duty_team || g.referee_member) && !g.referee_member)
             if (!hasUnassigned && hasAnyVbAssignment(g)) return false
             if (!hasUnassigned && !hasAnyVbAssignment(g)) return true
           } else if (vbFilter === 'scorer') {
@@ -320,7 +321,7 @@ export default function ScorerPage() {
       if (searchAssignee.trim()) {
         const q = searchAssignee.toLowerCase()
         const ids = sportTab === 'volleyball'
-          ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member].filter(Boolean) as string[]
+          ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member, g.referee_member].filter(Boolean) as string[]
           : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].filter(Boolean) as string[]
         const matches = ids.some((id) => {
           const m = memberMap.get(id)
@@ -355,10 +356,10 @@ export default function ScorerPage() {
     if (getGameSport(g) !== sportTab) return false
     if (!effectiveIsAdmin && !effectiveIsVorstand && user) {
       const isPersonallyAssigned = sportTab === 'volleyball'
-        ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member].includes(String(user.id))
+        ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member, g.referee_member].includes(String(user.id))
         : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
       const teamHasDuty = sportTab === 'volleyball'
-        ? myDutyTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team)
+        ? myDutyTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team || tid === g.referee_duty_team)
         : myDutyTeamIds.some((tid) => tid === (g.bb_scorer_duty_team || g.bb_duty_team) || tid === (g.bb_timekeeper_duty_team || g.bb_duty_team) || tid === (g.bb_24s_duty_team || g.bb_duty_team))
       if (!isPersonallyAssigned && !teamHasDuty) return false
     }
@@ -552,17 +553,18 @@ export default function ScorerPage() {
         </button>
       )}
 
-      {/* Sport toggle + Tab bar — the sport split shows for everyone (members
-          who cover both sports need it too), not just admins. */}
+      {/* Sport toggle + Tab bar */}
       <div className="mt-4 flex items-center justify-between gap-4">
-        <SportToggle
-          value={sportTab === 'volleyball' ? 'vb' : 'bb'}
-          onChange={(v: SportView) => {
-            setSportTab(v === 'bb' ? 'basketball' : 'volleyball')
-            clearFilters()
-          }}
-          showAll={false}
-        />
+        {effectiveIsAdmin ? (
+          <SportToggle
+            value={sportTab === 'volleyball' ? 'vb' : 'bb'}
+            onChange={(v: SportView) => {
+              setSportTab(v === 'bb' ? 'basketball' : 'volleyball')
+              clearFilters()
+            }}
+            showAll={false}
+          />
+        ) : <div />}
         <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
           {(['games', 'overview'] as Tab[]).map((key) => (
             <button

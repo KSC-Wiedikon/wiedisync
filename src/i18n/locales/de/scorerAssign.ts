@@ -73,7 +73,10 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Regeln des Algorithmus',
-  rulesModeVb: 'Volleyball: separate Schreiber- und Täfeler-Teams. In Döltschi und in der 4L/5L macht ein Team beides (kombiniert).',
+  rulesModeVb: 'Volleyball: separate Schreiber- und Täfeler-Teams. In Döltschi und in der 4L/5L macht ein Team beides (kombiniert). HU20-Heimspiele haben Schreiber + Schiedsrichter statt Täfeler.',
+  refereeCount: 'Schiedsrichter',
+  refereeTag: 'SR',
+  noRefereeAvailable: 'Kein Schiedsrichter verfügbar',
   rulesModeBb: 'Basketball: ein Dienst-Team pro Heimspiel stellt alle Offiziellen (Anschreiber, Zeitnehmer und bei Bedarf 24s-Operator).',
   rulesHardTitle: 'Harte Regeln – Team wird ausgeschlossen',
   rulesSoftTitle: 'Weiche Regeln – Punkte (jedes Team startet bei 100, höchste Punktzahl gewinnt)',

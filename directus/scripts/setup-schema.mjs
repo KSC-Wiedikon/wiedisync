@@ -712,6 +712,8 @@ const RELATIONS = [
   ['games', 'scorer_duty_team', 'teams'],
   ['games', 'scoreboard_duty_team', 'teams'],
   ['games', 'scorer_scoreboard_duty_team', 'teams'],
+  ['games', 'referee_member', 'members'],
+  ['games', 'referee_duty_team', 'teams'],
   ['games', 'bb_scorer_member', 'members'],
   ['games', 'bb_timekeeper_member', 'members'],
   ['games', 'bb_24s_official', 'members'],

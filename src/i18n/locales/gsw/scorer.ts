@@ -12,6 +12,7 @@ export default {
   scorer: 'Schriiber',
   scoreboard: 'Täfeler',
   scorerTaefeler: 'Schriiber/Täfeler',
+  referee: 'Schiedsrichter',
   confirmed: 'Bestätigt',
 
   // Labels — Basketball
@@ -75,6 +76,7 @@ export default {
   confirmSelfAssignArrival_scorer: 'Du muäsch spötischtens <strong>30 Minute</strong> vor Spielbeginn i de Halle sii.',
   confirmSelfAssignArrival_scoreboard: 'Du muäsch spötischtens <strong>10 Minute</strong> vor Spielbeginn i de Halle sii.',
   confirmSelfAssignArrival_scorer_scoreboard: 'Du muäsch spötischtens <strong>30 Minute</strong> vor Spielbeginn i de Halle sii.',
+  confirmSelfAssignArrival_referee: 'Du muäsch spötischtens <strong>30 Minute</strong> vor Spielbeginn i de Halle sii.',
   confirmSelfAssignArrival_bb: 'Du muäsch spötischtens <strong>15 Minute</strong> vor Spielbeginn i de Halle sii.',
   confirmSelfAssignWarning: 'Die Wahl isch <strong>entgültig</strong>. Sobald du e Ufgab übernimmsch, chasch sie nüm abgäh — du chasch sie nur <strong>a es anders Mitglied delegiere</strong>.',
   cancelAction: 'Abbräche',

@@ -73,7 +73,10 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Algorithm rules',
-  rulesModeVb: 'Volleyball: separate scorer and scoreboard teams. At Döltschi and in 4L/5L one team does both (combined).',
+  rulesModeVb: 'Volleyball: separate scorer and scoreboard teams. At Döltschi and in 4L/5L one team does both (combined). HU20 home games use scorer + referee instead of a scoreboard operator.',
+  refereeCount: 'Referee',
+  refereeTag: 'Ref',
+  noRefereeAvailable: 'No referee available',
   rulesModeBb: 'Basketball: one duty team per home game supplies all officials (scorer, timekeeper, and 24s operator when required).',
   rulesHardTitle: 'Hard rules — team is excluded',
   rulesSoftTitle: 'Soft rules — points (each team starts at 100, highest score wins)',

@@ -73,7 +73,10 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Regole dell\'algoritmo',
-  rulesModeVb: 'Pallavolo: squadre di refertista e tabellone separate. A Döltschi e in 4L/5L una squadra fa entrambi (combinato).',
+  rulesModeVb: 'Pallavolo: squadre di refertista e tabellone separate. A Döltschi e in 4L/5L una squadra fa entrambi (combinato). Le partite casalinghe HU20 usano refertista + arbitro invece del tabellone.',
+  refereeCount: 'Arbitro',
+  refereeTag: 'Arb',
+  noRefereeAvailable: 'Nessun arbitro disponibile',
   rulesModeBb: 'Basket: una squadra di servizio per partita casalinga fornisce tutti gli ufficiali (refertista, cronometrista e operatore dei 24s se necessario).',
   rulesHardTitle: 'Regole rigide — la squadra è esclusa',
   rulesSoftTitle: 'Regole flessibili — punti (ogni squadra parte da 100, vince il punteggio più alto)',

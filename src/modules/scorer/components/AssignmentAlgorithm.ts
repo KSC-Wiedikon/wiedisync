@@ -7,10 +7,20 @@ const UNDER_TEAM_NAMES = ['HU20', 'HU23-1', 'DU23-1', 'DU23-2']
 // Based on sheet: Döltschi games, Legends (4L), D3 (5L), D4 (5L) all use combined
 const COMBINED_LEAGUES = ['4L', '5L']
 
+// Teams whose HOME games use a referee instead of a Täfeler (scoreboard):
+// HU20 home games are staffed scorer + referee. The referee is a duty team
+// like the scorer (no licence required).
+const REFEREE_HOME_TEAM_NAMES = ['HU20']
+
+// Teams that must NEVER be assigned duty (Minis / DU20 don't cover duties).
+const EXCLUDED_DUTY_TEAM_NAMES = ['MiniVB', 'DU20']
+
 export interface AssignmentInput {
   games: Game[]
   teams: Team[]
   trainings: Training[]
+  // members/memberTeams are no longer consumed (scorer duty needs no licence),
+  // kept on the input for a stable call signature.
   members: Member[]
   memberTeams: MemberTeam[]
   halls: { id: string; name: string }[]
@@ -23,13 +33,17 @@ export interface ConflictEntry {
 
 export interface GameAssignment {
   gameId: string
-  mode: 'separate' | 'combined'
+  // 'separate' = scorer + Täfeler; 'combined' = one team does both;
+  // 'referee' = scorer + referee (HU20 home games).
+  mode: 'separate' | 'combined' | 'referee'
   scorerTeamId: string | null
   scorerTeamName: string | null
   scoreboardTeamId: string | null
   scoreboardTeamName: string | null
   combinedTeamId: string | null
   combinedTeamName: string | null
+  refereeTeamId: string | null
+  refereeTeamName: string | null
   scorerScore: number
   scoreboardScore: number
   conflicts: ConflictEntry[]
@@ -59,23 +73,6 @@ function shouldUseCombined(game: Game, hallName: string): boolean {
     if (COMBINED_LEAGUES.some((l) => league.includes(l))) return true
   }
   return false
-}
-
-/** Build a set of team IDs that have scorer-licenced members */
-function buildScorerTeams(members: Member[], memberTeams: MemberTeam[]): Set<string> {
-  const scorerMemberIds = new Set<string>()
-  for (const m of members) {
-    if (m.scorer_vb) {
-      scorerMemberIds.add(m.id)
-    }
-  }
-  const teams = new Set<string>()
-  for (const mt of memberTeams) {
-    if (scorerMemberIds.has(mt.member) && (mt.guest_level ?? 0) === 0) {
-      teams.add(mt.team)
-    }
-  }
-  return teams
 }
 
 /** Build lookup: date string → set of team IDs that have a game */
@@ -141,12 +138,11 @@ function scoreTeam(
   teamId: string,
   teamName: string,
   game: Game,
-  role: 'scorer' | 'scoreboard' | 'combined',
+  role: 'scorer' | 'scoreboard' | 'combined' | 'referee',
   hallName: string,
   teamGameDates: Map<string, Set<string>>,
   trainingDates: Set<string>,
   adjacentTeams: Set<string>,
-  scorerTeams: Set<string>,
   underTeamIds: Set<string>,
   assignmentCounts: Map<string, number>,
   dayAssignments: Map<string, Set<string>>,
@@ -176,11 +172,7 @@ function scoreTeam(
     reasons.push({ key: 'reason_alreadyDuty' })
   }
 
-  // 4. Scorer/combined role requires licence
-  if ((role === 'scorer' || role === 'combined') && !scorerTeams.has(teamId)) {
-    disqualified = true
-    reasons.push({ key: 'reason_noLicence' })
-  }
+  // (No licence requirement — scorer / Täfeler / referee need no licence.)
 
   if (disqualified) return { teamId, teamName, score: -Infinity, disqualified, reasons }
 
@@ -247,9 +239,11 @@ export function trackAssignment(
 }
 
 export function runAssignment(input: AssignmentInput): GameAssignment[] {
-  const { games, teams, trainings, members, memberTeams, halls } = input
+  const { games, teams, trainings, halls } = input
 
   const vbTeams = teams.filter((t) => t.sport === 'volleyball' && t.active)
+  // Candidate duty providers: exclude Minis / DU20 (they never cover duties).
+  const candidateTeams = vbTeams.filter((t) => !EXCLUDED_DUTY_TEAM_NAMES.includes(t.name))
 
   // Build lookups
   const hallNameById = new Map<string, string>()
@@ -260,7 +254,6 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
     if (UNDER_TEAM_NAMES.includes(t.name)) underTeamIds.add(t.id)
   }
 
-  const scorerTeams = buildScorerTeams(members, memberTeams)
   const teamGameDates = buildTeamGameDates(games)
   const trainingDates = buildTrainingDates(trainings)
   const gamesByDateHall = buildGamesByDateHall(games)
@@ -276,131 +269,109 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
 
   const results: GameAssignment[] = []
 
+  const blank = (gameId: string, mode: GameAssignment['mode']): GameAssignment => ({
+    gameId, mode,
+    scorerTeamId: null, scorerTeamName: null,
+    scoreboardTeamId: null, scoreboardTeamName: null,
+    combinedTeamId: null, combinedTeamName: null,
+    refereeTeamId: null, refereeTeamName: null,
+    scorerScore: 0, scoreboardScore: 0, conflicts: [],
+  })
+
+  // Pick the best available candidate team for a role, excluding `excludeIds`.
+  const pickBest = (game: Game, role: 'scorer' | 'scoreboard' | 'combined' | 'referee', hallName: string, adjacentTeams: Set<string>, excludeIds: (string | null)[]): TeamScore | null => {
+    const scores = candidateTeams
+      .filter((t) => !excludeIds.includes(t.id))
+      .map((t) => scoreTeam(
+        t.id, t.name, game, role, hallName,
+        teamGameDates, trainingDates, adjacentTeams,
+        underTeamIds, assignmentCounts, dayAssignments,
+      ))
+      .filter((s) => !s.disqualified)
+      .sort((a, b) => b.score - a.score)
+    return scores[0] ?? null
+  }
+
   for (const game of homeGames) {
     const hallName = hallNameById.get(game.hall) ?? ''
     const adjacentTeams = getAdjacentTeams(game, gamesByDateHall)
-    const useCombined = shouldUseCombined(game, hallName)
+    const playingTeamId = game.kscw_team
+    const playingTeamName = vbTeams.find((t) => t.id === playingTeamId)?.name ?? ''
+    const isRefereeGame = REFEREE_HOME_TEAM_NAMES.includes(playingTeamName)
+    // HU20 games are scorer + referee (never combined).
+    const useCombined = !isRefereeGame && shouldUseCombined(game, hallName)
 
-    // Skip games that already have assignments
+    // Skip games that already have assignments (keep them, still count for fairness)
     const alreadyHasSeparate = !!(game.scorer_duty_team || game.scoreboard_duty_team)
     const alreadyHasCombined = !!game.scorer_scoreboard_duty_team
+    const alreadyHasReferee = !!game.referee_duty_team
 
-    if (alreadyHasSeparate || alreadyHasCombined) {
-      if (game.scorer_duty_team) trackAssignment(game.scorer_duty_team, game.date, assignmentCounts, dayAssignments)
-      if (game.scoreboard_duty_team) trackAssignment(game.scoreboard_duty_team, game.date, assignmentCounts, dayAssignments)
-      if (game.scorer_scoreboard_duty_team) trackAssignment(game.scorer_scoreboard_duty_team, game.date, assignmentCounts, dayAssignments)
-
-      results.push({
-        gameId: game.id,
-        mode: alreadyHasCombined ? 'combined' : 'separate',
-        scorerTeamId: game.scorer_duty_team || null,
-        scorerTeamName: game.scorer_duty_team ? vbTeams.find((t) => t.id === game.scorer_duty_team)?.name ?? null : null,
-        scoreboardTeamId: game.scoreboard_duty_team || null,
-        scoreboardTeamName: game.scoreboard_duty_team ? vbTeams.find((t) => t.id === game.scoreboard_duty_team)?.name ?? null : null,
-        combinedTeamId: game.scorer_scoreboard_duty_team || null,
-        combinedTeamName: game.scorer_scoreboard_duty_team ? vbTeams.find((t) => t.id === game.scorer_scoreboard_duty_team)?.name ?? null : null,
-        scorerScore: 0,
-        scoreboardScore: 0,
-        conflicts: [{ key: 'existingKept' }],
-      })
+    if (alreadyHasSeparate || alreadyHasCombined || alreadyHasReferee) {
+      const nameOf = (id: string) => vbTeams.find((t) => t.id === id)?.name ?? null
+      for (const id of [game.scorer_duty_team, game.scoreboard_duty_team, game.scorer_scoreboard_duty_team, game.referee_duty_team]) {
+        if (id) trackAssignment(id, game.date, assignmentCounts, dayAssignments)
+      }
+      const mode: GameAssignment['mode'] = alreadyHasReferee ? 'referee' : alreadyHasCombined ? 'combined' : 'separate'
+      const a = blank(game.id, mode)
+      a.scorerTeamId = game.scorer_duty_team || null
+      a.scorerTeamName = game.scorer_duty_team ? nameOf(game.scorer_duty_team) : null
+      a.scoreboardTeamId = game.scoreboard_duty_team || null
+      a.scoreboardTeamName = game.scoreboard_duty_team ? nameOf(game.scoreboard_duty_team) : null
+      a.combinedTeamId = game.scorer_scoreboard_duty_team || null
+      a.combinedTeamName = game.scorer_scoreboard_duty_team ? nameOf(game.scorer_scoreboard_duty_team) : null
+      a.refereeTeamId = game.referee_duty_team || null
+      a.refereeTeamName = game.referee_duty_team ? nameOf(game.referee_duty_team) : null
+      a.conflicts.push({ key: 'existingKept' })
+      results.push(a)
       continue
     }
 
-    const playingTeamId = game.kscw_team
+    if (isRefereeGame) {
+      // === REFEREE MODE (HU20): scorer + referee ===
+      const a = blank(game.id, 'referee')
+      const scorer = pickBest(game, 'scorer', hallName, adjacentTeams, [playingTeamId])
+      if (scorer) {
+        a.scorerTeamId = scorer.teamId; a.scorerTeamName = scorer.teamName; a.scorerScore = scorer.score
+        for (const r of scorer.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: scorer.teamName, role: 'scorer' } })
+        trackAssignment(scorer.teamId, game.date, assignmentCounts, dayAssignments)
+      } else a.conflicts.push({ key: 'noScorerAvailable' })
 
-    if (useCombined) {
+      const referee = pickBest(game, 'referee', hallName, adjacentTeams, [playingTeamId, a.scorerTeamId])
+      if (referee) {
+        a.refereeTeamId = referee.teamId; a.refereeTeamName = referee.teamName; a.scoreboardScore = referee.score
+        for (const r of referee.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: referee.teamName, role: 'referee' } })
+        trackAssignment(referee.teamId, game.date, assignmentCounts, dayAssignments)
+      } else a.conflicts.push({ key: 'noRefereeAvailable' })
+
+      results.push(a)
+    } else if (useCombined) {
       // === COMBINED MODE ===
-      const assignment: GameAssignment = {
-        gameId: game.id, mode: 'combined',
-        scorerTeamId: null, scorerTeamName: null,
-        scoreboardTeamId: null, scoreboardTeamName: null,
-        combinedTeamId: null, combinedTeamName: null,
-        scorerScore: 0, scoreboardScore: 0, conflicts: [],
-      }
-
-      const scores = vbTeams
-        .filter((t) => t.id !== playingTeamId)
-        .map((t) => scoreTeam(
-          t.id, t.name, game, 'combined', hallName,
-          teamGameDates, trainingDates, adjacentTeams,
-          scorerTeams, underTeamIds, assignmentCounts, dayAssignments,
-        ))
-        .filter((s) => !s.disqualified)
-        .sort((a, b) => b.score - a.score)
-
-      if (scores.length > 0) {
-        const best = scores[0]
-        assignment.combinedTeamId = best.teamId
-        assignment.combinedTeamName = best.teamName
-        assignment.scorerScore = best.score
-        for (const r of best.reasons) {
-          assignment.conflicts.push({ ...r, params: { ...r.params, team: best.teamName } })
-        }
+      const a = blank(game.id, 'combined')
+      const best = pickBest(game, 'combined', hallName, adjacentTeams, [playingTeamId])
+      if (best) {
+        a.combinedTeamId = best.teamId; a.combinedTeamName = best.teamName; a.scorerScore = best.score
+        for (const r of best.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: best.teamName } })
         trackAssignment(best.teamId, game.date, assignmentCounts, dayAssignments)
-      } else {
-        assignment.conflicts.push({ key: 'noTeamAvailable' })
-      }
-
-      results.push(assignment)
+      } else a.conflicts.push({ key: 'noTeamAvailable' })
+      results.push(a)
     } else {
-      // === SEPARATE MODE ===
-      const assignment: GameAssignment = {
-        gameId: game.id, mode: 'separate',
-        scorerTeamId: null, scorerTeamName: null,
-        scoreboardTeamId: null, scoreboardTeamName: null,
-        combinedTeamId: null, combinedTeamName: null,
-        scorerScore: 0, scoreboardScore: 0, conflicts: [],
-      }
+      // === SEPARATE MODE: scorer + Täfeler ===
+      const a = blank(game.id, 'separate')
+      const scorer = pickBest(game, 'scorer', hallName, adjacentTeams, [playingTeamId])
+      if (scorer) {
+        a.scorerTeamId = scorer.teamId; a.scorerTeamName = scorer.teamName; a.scorerScore = scorer.score
+        for (const r of scorer.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: scorer.teamName, role: 'scorer' } })
+        trackAssignment(scorer.teamId, game.date, assignmentCounts, dayAssignments)
+      } else a.conflicts.push({ key: 'noScorerAvailable' })
 
-      // Score all teams for SCORER
-      const scorerScores = vbTeams
-        .filter((t) => t.id !== playingTeamId)
-        .map((t) => scoreTeam(
-          t.id, t.name, game, 'scorer', hallName,
-          teamGameDates, trainingDates, adjacentTeams,
-          scorerTeams, underTeamIds, assignmentCounts, dayAssignments,
-        ))
-        .filter((s) => !s.disqualified)
-        .sort((a, b) => b.score - a.score)
+      const scoreboard = pickBest(game, 'scoreboard', hallName, adjacentTeams, [playingTeamId, a.scorerTeamId])
+      if (scoreboard) {
+        a.scoreboardTeamId = scoreboard.teamId; a.scoreboardTeamName = scoreboard.teamName; a.scoreboardScore = scoreboard.score
+        for (const r of scoreboard.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: scoreboard.teamName, role: 'scoreboard' } })
+        trackAssignment(scoreboard.teamId, game.date, assignmentCounts, dayAssignments)
+      } else a.conflicts.push({ key: 'noTaefelerAvailable' })
 
-      if (scorerScores.length > 0) {
-        const best = scorerScores[0]
-        assignment.scorerTeamId = best.teamId
-        assignment.scorerTeamName = best.teamName
-        assignment.scorerScore = best.score
-        for (const r of best.reasons) {
-          assignment.conflicts.push({ ...r, params: { ...r.params, team: best.teamName, role: 'scorer' } })
-        }
-        trackAssignment(best.teamId, game.date, assignmentCounts, dayAssignments)
-      } else {
-        assignment.conflicts.push({ key: 'noScorerAvailable' })
-      }
-
-      // Score all teams for SCOREBOARD (exclude scorer team)
-      const scoreboardScores = vbTeams
-        .filter((t) => t.id !== playingTeamId && t.id !== assignment.scorerTeamId)
-        .map((t) => scoreTeam(
-          t.id, t.name, game, 'scoreboard', hallName,
-          teamGameDates, trainingDates, adjacentTeams,
-          scorerTeams, underTeamIds, assignmentCounts, dayAssignments,
-        ))
-        .filter((s) => !s.disqualified)
-        .sort((a, b) => b.score - a.score)
-
-      if (scoreboardScores.length > 0) {
-        const best = scoreboardScores[0]
-        assignment.scoreboardTeamId = best.teamId
-        assignment.scoreboardTeamName = best.teamName
-        assignment.scoreboardScore = best.score
-        for (const r of best.reasons) {
-          assignment.conflicts.push({ ...r, params: { ...r.params, team: best.teamName, role: 'scoreboard' } })
-        }
-        trackAssignment(best.teamId, game.date, assignmentCounts, dayAssignments)
-      } else {
-        assignment.conflicts.push({ key: 'noTaefelerAvailable' })
-      }
-
-      results.push(assignment)
+      results.push(a)
     }
   }
 
@@ -411,6 +382,7 @@ export interface TeamCountRow {
   scorer: number
   scoreboard: number
   combined: number
+  referee: number
   totalDuties: number
   ownGames: number
 }
@@ -426,23 +398,23 @@ export function getTeamCounts(
   for (const t of allTeams) {
     if (t.sport === 'volleyball' && t.active) {
       const ownGames = allGames.filter((g) => String(g.kscw_team) === t.id).length
-      counts.set(t.name, { scorer: 0, scoreboard: 0, combined: 0, totalDuties: 0, ownGames })
+      counts.set(t.name, { scorer: 0, scoreboard: 0, combined: 0, referee: 0, totalDuties: 0, ownGames })
+    }
+  }
+
+  const bump = (name: string | null, key: 'scorer' | 'scoreboard' | 'combined' | 'referee') => {
+    if (name && counts.has(name)) {
+      const row = counts.get(name)!
+      row[key]++
+      row.totalDuties++
     }
   }
 
   for (const r of results) {
-    if (r.scorerTeamName && counts.has(r.scorerTeamName)) {
-      counts.get(r.scorerTeamName)!.scorer++
-      counts.get(r.scorerTeamName)!.totalDuties++
-    }
-    if (r.scoreboardTeamName && counts.has(r.scoreboardTeamName)) {
-      counts.get(r.scoreboardTeamName)!.scoreboard++
-      counts.get(r.scoreboardTeamName)!.totalDuties++
-    }
-    if (r.combinedTeamName && counts.has(r.combinedTeamName)) {
-      counts.get(r.combinedTeamName)!.combined++
-      counts.get(r.combinedTeamName)!.totalDuties++
-    }
+    bump(r.scorerTeamName, 'scorer')
+    bump(r.scoreboardTeamName, 'scoreboard')
+    bump(r.combinedTeamName, 'combined')
+    bump(r.refereeTeamName, 'referee')
   }
 
   return counts
