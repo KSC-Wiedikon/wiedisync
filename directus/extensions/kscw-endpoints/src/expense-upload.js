@@ -144,6 +144,17 @@ function isValidIban(raw) {
 const cleanIban = (s) => String(s || '').replace(/\s+/g, '').toUpperCase()
 const isChLiIban = (i) => /^(CH|LI)/.test(i) && isValidIban(i)
 
+/** ClubDesk Sektion → finance section code (matches finance_accounts.division).
+ *  Routes an expense to the right section's TK (vb_admin / bb_admin). */
+function sektionToSection(sektion) {
+  const s = String(sektion || '').trim().toLowerCase()
+  if (s === 'volleyball') return 'vb'
+  if (s === 'basketball') return 'bb'
+  return 'club'
+}
+// Which section a Sport Admin role is the TK for.
+const SECTION_FOR_ROLE = { vb_admin: 'vb', bb_admin: 'bb' }
+
 const fmtAmountFor = (amount, currency) =>
   `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -360,11 +371,18 @@ export function registerExpenseUpload(router, { database, logger, services, getS
       const reference = String(req.body?.reference || '').replace(/[\r\n]/g, ' ').slice(0, 140)
       const note = String(req.body?.note || '').slice(0, 1000)
       const payToIban = String(req.body?.payToIban || '').replace(/\s+/g, '').toUpperCase().slice(0, 34)
+      const memberAlreadyPaid = req.body?.memberAlreadyPaid === true || req.body?.memberAlreadyPaid === 'true'
+
+      // A reimbursement always needs an account to pay it to — reject rather than
+      // persist a row finance can never pay out (frontend enforces this too).
+      if (!payToIban || !isValidIban(payToIban)) {
+        return res.status(400).json({ error: 'A valid IBAN is required for the reimbursement', code: 'iban_required' })
+      }
 
       // Submitter identity for the finance email + the persisted row.
       const member = await database('members')
         .where({ user: userId })
-        .first('id', 'first_name', 'last_name', 'email')
+        .first('id', 'first_name', 'last_name', 'email', 'sektion')
       const submitterName = member ? `${member.first_name || ''} ${member.last_name || ''}`.trim() : 'Unknown member'
       const submitterEmail = member?.email || null
 
@@ -390,6 +408,8 @@ export function registerExpenseUpload(router, { database, logger, services, getS
               reference: reference || null,
               pay_to_iban: payToIban || null,
               member_note: note || null,
+              member_already_paid: memberAlreadyPaid,
+              section: sektionToSection(member.sektion),
               status: 'pending',
               user_created: userId,
             })
@@ -488,6 +508,24 @@ export function registerExpenseUpload(router, { database, logger, services, getS
   // Same gate as finance.js: board or the orthogonal 'finance' role.
   const canManageFinance = (req, mem) =>
     !!req.accountability?.admin || (!!mem && ['vorstand', 'admin', 'superuser', 'finance'].some((r) => mem.roles.includes(r)))
+
+  /** Sections the caller may act as TK for. Board / finance see every section
+   *  (incl. rows with no section); a Sport Admin sees only their own. Empty = not
+   *  a TK for anything → 403. */
+  function tkSections(req, mem) {
+    if (canManageFinance(req, mem)) return ['vb', 'bb', 'club']
+    const out = new Set()
+    if (mem) for (const r of mem.roles) if (SECTION_FOR_ROLE[r]) out.add(SECTION_FOR_ROLE[r])
+    return [...out]
+  }
+  const seesAllSections = (sections) => sections.length >= 3
+
+  /** Reshape a raw joined expense row into the { member: {…} } shape the app's
+   *  FinanceExpense type expects (mirrors the items-API expand). */
+  function shapeExpenseRow(r) {
+    const { member_first_name, member_last_name, ...rest } = r
+    return { ...rest, member: { id: r.member, first_name: member_first_name, last_name: member_last_name } }
+  }
 
   // ── Receipt: stream the uploaded file (owner or finance) ────────────────────
   router.get('/expenses/:id/receipt', async (req, res) => {
@@ -742,6 +780,85 @@ export function registerExpenseUpload(router, { database, logger, services, getS
       res.json({ success: true, expense: updated, payoutCreated, payoutCancelled, ...(payoutSkipped ? { payoutSkipped } : {}) })
     } catch (err) {
       log.error({ msg: `expense update: ${err.message}`, stack: err.stack })
+      res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
+    }
+  })
+
+  // ── TK queue: expenses the caller (Sport Admin / finance) may confirm ────────
+  router.get('/expenses/tk-queue', async (req, res) => {
+    try {
+      requireMember(req)
+      const mem = await actingMember(req)
+      const sections = tkSections(req, mem)
+      if (!sections.length) return res.status(403).json({ error: 'Forbidden' })
+
+      let q = database('finance_expenses as e')
+        .leftJoin('members as m', 'm.id', 'e.member')
+        .select(
+          'e.*',
+          'm.first_name as member_first_name',
+          'm.last_name as member_last_name',
+        )
+        .orderBy('e.date_created', 'desc')
+      // A section TK sees only their section; board/finance see all (incl. NULL).
+      if (!seesAllSections(sections)) q = q.whereIn('e.section', sections)
+      const rows = await q
+      res.json({ expenses: rows.map(shapeExpenseRow), sections })
+    } catch (err) {
+      log.error({ msg: `expense tk-queue: ${err.message}` })
+      res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
+    }
+  })
+
+  // ── TK confirm: section admin confirms budget + tells finance if already paid ─
+  // Informational only — never touches status / payouts / the ClubDesk mirror.
+  router.post('/expenses/:id/tk-confirm', async (req, res) => {
+    try {
+      requireMember(req)
+      const mem = await actingMember(req)
+      const sections = tkSections(req, mem)
+      if (!sections.length) return res.status(403).json({ error: 'Forbidden' })
+
+      const expenseId = Number(req.params.id)
+      if (!Number.isInteger(expenseId) || expenseId <= 0) return res.status(400).json({ error: 'Invalid id' })
+      const expense = await database('finance_expenses').where({ id: expenseId }).first()
+      if (!expense) return res.status(404).json({ error: 'Not found' })
+
+      const section = expense.section || 'club'
+      if (!seesAllSections(sections) && !sections.includes(section)) {
+        return res.status(403).json({ error: 'Forbidden' })
+      }
+
+      const b = req.body || {}
+      const confirmed = b.confirmed !== false // the "Confirm" button; false = un-confirm
+      const patch = {
+        tk_already_paid: b.already_paid === true || b.already_paid === 'true',
+        tk_note: String(b.note || '').replace(/\r/g, '').slice(0, 1000) || null,
+      }
+      if (confirmed && !expense.tk_confirmed_at) {
+        // Stamp the confirmation once (keep the original actor/time on later edits).
+        patch.tk_confirmed_at = new Date()
+        patch.tk_confirmed_by_name = mem?.name || (req.accountability?.admin ? 'Admin' : null)
+        patch.tk_confirmed_by_email = mem?.email || null
+      } else if (!confirmed) {
+        patch.tk_confirmed_at = null
+        patch.tk_confirmed_by_name = null
+        patch.tk_confirmed_by_email = null
+      }
+
+      await database('finance_expenses').where({ id: expenseId }).update(patch)
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: confirmed ? 'expense_tk_confirm' : 'expense_tk_unconfirm',
+        collection: 'finance_expenses',
+        recordId: expenseId,
+        data: patch,
+      })
+
+      res.json({ success: true, expense: { ...expense, ...patch } })
+    } catch (err) {
+      log.error({ msg: `expense tk-confirm: ${err.message}`, stack: err.stack })
       res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
     }
   })

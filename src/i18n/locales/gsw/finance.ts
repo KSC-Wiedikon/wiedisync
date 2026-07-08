@@ -149,6 +149,37 @@ export default {
   expensesTabHint: 'Vo Mitglider iigreichti Spese. E Statusänderig benachrichtigt s Mitglid; «Zahlt» erstellt zuesätzlich di verknüpfti Uszahlig.',
   tabExpenses: 'Spese',
 
+  // ── Mitglid-Formular: Rückerstattigs-IBAN + scho zahlt (Migration 192) ──
+  expenseReimburseIban: 'Uf das Konto zrugerstatte',
+  expenseReimburseIbanHint: 'Dini Rückerstattig gaht do ane – vorusgfüllt us dim Profil. Für die Spese chasch es ändere.',
+  expenseReimburseIbanHintEmpty: 'No kei IBAN hinterleit – gib s Konto für d Rückerstattig aa. Zum Sende nötig.',
+  expenseIbanRequired: 'Bitte gib d IBAN für d Rückerstattig aa.',
+  expenseAlreadyPaid: 'Scho zahlt?',
+  expenseAlreadyPaidHint: 'Aakrüzle, wenn du die Rächnig scho sälber zahlt hesch.',
+
+  // ── TK-Bestätigung (Sport-Admin) – Ansicht vo de Finanze ──
+  expenseTkCol: 'TK-Bestätigung',
+  expenseTkConfirmed: 'TK-bestätigt',
+  expenseTkConfirmedBy: 'Bestätigt vo {{name}}',
+  expenseTkAwaiting: 'Wartet uf TK',
+  expenseTkAwaitingSection: 'Wartet uf TK {{section}}',
+  expenseTkAlreadyPaid: 'Vo Sektion zahlt',
+  expenseMemberAlreadyPaid: 'Mitglid het sälber zahlt',
+
+  // ── TK-Bestätigungssite (Sport-Admin) ──
+  tkExpensesTitle: 'Spese bestätige',
+  tkExpensesSubtitle: 'Bestätig, dass die Rückerstattige budgetiert sind und chönd zahlt werde, und säg de Finanze, öb dini Sektion s Mitglid scho zrugerstattet het.',
+  tkExpensesEmpty: 'Kei Spese zum Bestätige.',
+  tkExpensesNav: 'Spese bestätige',
+  expenseTkActionCol: 'Bestätigung',
+  expenseTkAlreadyPaidLabel: 'Sektion het s Mitglid scho zrugerstattet',
+  expenseTkNotePlaceholder: 'Notiz a d Finanze (optional)',
+  expenseTkConfirmBtn: 'Bestätige',
+  expenseTkSave: 'Speichere',
+  expenseTkUnconfirm: 'Bestätigung ufhebe',
+  expenseTkConfirmedToast: 'Bestätigt.',
+  expenseTkUnconfirmedToast: 'Bestätigung entfernt.',
+
   // ── Native Rächnige (Migratione 128/129) ──
   tabInvoices: 'Rächnige',
   cancel: 'Abbräche',

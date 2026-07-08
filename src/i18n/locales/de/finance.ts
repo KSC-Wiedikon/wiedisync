@@ -154,6 +154,37 @@ export default {
   expensesTabHint: 'Von Mitgliedern eingereichte Spesen. Eine Statusänderung benachrichtigt das Mitglied; «Bezahlt» erstellt zusätzlich die verknüpfte Auszahlung.',
   tabExpenses: 'Spesen',
 
+  // ── Mitglied-Formular: Rückerstattungs-IBAN + bereits bezahlt (Migration 192) ──
+  expenseReimburseIban: 'Auf dieses Konto zurückerstatten',
+  expenseReimburseIbanHint: 'Deine Rückerstattung geht hierhin – vorausgefüllt aus deinem Profil. Du kannst es für diese Spese ändern.',
+  expenseReimburseIbanHintEmpty: 'Noch keine IBAN hinterlegt – gib das Konto für die Rückerstattung ein. Zum Senden erforderlich.',
+  expenseIbanRequired: 'Bitte gib die IBAN für die Rückerstattung ein.',
+  expenseAlreadyPaid: 'Bereits bezahlt?',
+  expenseAlreadyPaidHint: 'Ankreuzen, wenn du diese Rechnung bereits selbst bezahlt hast.',
+
+  // ── TK-Bestätigung (Sport-Admin) – Ansicht der Finanzen ──
+  expenseTkCol: 'TK-Bestätigung',
+  expenseTkConfirmed: 'TK-bestätigt',
+  expenseTkConfirmedBy: 'Bestätigt von {{name}}',
+  expenseTkAwaiting: 'Wartet auf TK',
+  expenseTkAwaitingSection: 'Wartet auf TK {{section}}',
+  expenseTkAlreadyPaid: 'Von Sektion bezahlt',
+  expenseMemberAlreadyPaid: 'Mitglied hat selbst bezahlt',
+
+  // ── TK-Bestätigungsseite (Sport-Admin) ──
+  tkExpensesTitle: 'Spesen bestätigen',
+  tkExpensesSubtitle: 'Bestätige, dass diese Rückerstattungen budgetiert sind und bezahlt werden können, und teile den Finanzen mit, ob deine Sektion das Mitglied bereits zurückerstattet hat.',
+  tkExpensesEmpty: 'Keine Spesen zu bestätigen.',
+  tkExpensesNav: 'Spesen bestätigen',
+  expenseTkActionCol: 'Bestätigung',
+  expenseTkAlreadyPaidLabel: 'Sektion hat das Mitglied bereits zurückerstattet',
+  expenseTkNotePlaceholder: 'Notiz an die Finanzen (optional)',
+  expenseTkConfirmBtn: 'Bestätigen',
+  expenseTkSave: 'Speichern',
+  expenseTkUnconfirm: 'Bestätigung aufheben',
+  expenseTkConfirmedToast: 'Bestätigt.',
+  expenseTkUnconfirmedToast: 'Bestätigung entfernt.',
+
   // ── Native Rechnungen (Migrationen 128/129) ──
   tabInvoices: 'Rechnungen',
   cancel: 'Abbrechen',

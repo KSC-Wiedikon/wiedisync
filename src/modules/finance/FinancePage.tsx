@@ -193,15 +193,29 @@ export default function FinancePage() {
   // Board dashboard = the ClubDesk-mirror book (source='clubdesk'). The native ledger
   // (source='native') is a parallel book with its own reports — never summed here, or
   // a year with both would double-count. Flip this when native becomes the book of record.
-  const { data: txRaw, isLoading } = useFinanceTransactions(activeFyId || null, !!activeFyId, 'clubdesk')
+  const { data: txRaw } = useFinanceTransactions(activeFyId || null, !!activeFyId, 'clubdesk')
   const transactions = txRaw ?? []
   const { data: invoicesRaw } = useFinanceInvoices()
   const invoices = invoicesRaw ?? []
   const { data: importsRaw } = useFinanceImports()
   const imports = importsRaw ?? []
 
+  // Whole-page boot flag. The transactions query is DISABLED until fiscal years
+  // load (activeFyId is '' at first paint), and a disabled react-query reports
+  // isLoading=false — so keying off the transactions loading flag alone lifted
+  // the boot gate too early and briefly rendered the "No data" empty state before
+  // the real data arrived (the flash of nothing → full dashboard). Stay "loading"
+  // until every source the reveal depends on has actually resolved (raw data is
+  // `undefined` only while a query is in-flight; an empty result is `[]`).
+  const bootLoading =
+    fiscalYearsRaw === undefined ||
+    accountsRaw === undefined ||
+    invoicesRaw === undefined ||
+    (!!activeFyId && txRaw === undefined)
+  const isLoading = bootLoading
+
   // Report to the app boot gate — see usePageReady.tsx
-  useReportPageLoading(isLoading)
+  useReportPageLoading(bootLoading)
 
   // Per-account debit/credit totals. allStats = every booking (balance sheet +
   // liquidity); plStats EXCLUDES year-end closing entries (typ 'Abschluss'), which

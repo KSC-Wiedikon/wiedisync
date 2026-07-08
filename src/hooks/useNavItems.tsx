@@ -5,7 +5,7 @@ import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users,
-  Building2, CalendarClock, Activity, ClipboardList,
+  Building2, CalendarClock, Activity, ClipboardList, ClipboardCheck,
   HeartPulse, MessageSquare, Inbox, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, FolderSync,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
@@ -26,7 +26,7 @@ export interface NavItem {
  */
 export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number | string | null) {
   const { t } = useTranslation('nav')
-  const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin, isVorstand, canAccessFinance, coachTeamIds, teamResponsibleIds } = useAuth()
+  const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, coachTeamIds, teamResponsibleIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   // Forms authoring is a leadership tool — gated on ROLE (not the admin-mode
   // toggle), like the Spielplaner items below. Members reach forms-to-fill via
@@ -71,10 +71,14 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
   ]
   // Finance — own section: personal dues, fines, expense-reimbursement upload (all
   // members), and the board club-finances dashboard (Vorstand only).
+  // The section TK (vb_admin / bb_admin) — and finance/board — get the expense
+  // confirmation queue for their section.
+  const isTk = isVbAdmin || isBbAdmin
   const financeItems: NavItem[] = [
     { to: '/finance/dues', label: t('finance:myDuesTitle'), icon: <Wallet className={iconClass} /> },
     { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
     { to: '/finance/expense', label: t('uploadInvoice'), icon: <ReceiptText className={iconClass} /> },
+    ...(isTk ? [{ to: '/finance/tk-expenses', label: t('finance:tkExpensesNav'), icon: <ClipboardCheck className={iconClass} /> }] : []),
     ...(canAccessFinance ? [{ to: '/admin/finance', label: t('finance:title'), icon: <Landmark className={iconClass} /> }] : []),
   ]
   // Spielplaner tools — their own role-gated section (NOT the Admin section).

@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { Upload, Loader2, FileText, X, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { FormInput, FormTextarea } from '@/components/FormField'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -118,6 +119,7 @@ export default function ExpenseUploadPage() {
   const [reference, setReference] = useState('')
   const [payToIban, setPayToIban] = useState('')
   const [note, setNote] = useState('')
+  const [alreadyPaid, setAlreadyPaid] = useState(false)
 
   function resetForm() {
     setStep('idle')
@@ -126,7 +128,7 @@ export default function ExpenseUploadPage() {
     setScanFailed(false)
     setError('')
     setAmount(''); setCurrency('CHF'); setDate(''); setVendor('')
-    setDescription(''); setReference(''); setPayToIban(''); setNote('')
+    setDescription(''); setReference(''); setPayToIban(''); setNote(''); setAlreadyPaid(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
     turnstileRef.current?.reset()
     setTurnstileToken('')
@@ -194,7 +196,12 @@ export default function ExpenseUploadPage() {
       setError(t('expenseAmountRequired'))
       return
     }
-    if (payToIban.trim() && !isValidIban(payToIban)) {
+    // A reimbursement needs an account to pay to — require a valid IBAN before send.
+    if (!payToIban.trim()) {
+      setError(t('expenseIbanRequired'))
+      return
+    }
+    if (!isValidIban(payToIban)) {
       setError(t('expenseInvalidIban'))
       return
     }
@@ -210,8 +217,9 @@ export default function ExpenseUploadPage() {
           vendor,
           description,
           reference,
-          payToIban: payToIban.trim() ? normalizeIban(payToIban) : '',
+          payToIban: normalizeIban(payToIban),
           note,
+          memberAlreadyPaid: alreadyPaid,
         },
       })
       toast.success(t('expenseSuccess'))
@@ -347,13 +355,24 @@ export default function ExpenseUploadPage() {
               <FormInput label={t('expenseReference')} value={reference} onChange={(e) => setReference(e.target.value)} />
               <FormInput
                 data-tour="expense-iban"
-                label={t('expensePayToIban')}
+                label={t('expenseReimburseIban')}
                 value={payToIban}
                 onChange={(e) => setPayToIban(e.target.value)}
                 placeholder="CH00 0000 0000 0000 0000 0"
-                helperText={t('expensePayToIbanHint')}
+                helperText={user?.iban ? t('expenseReimburseIbanHint') : t('expenseReimburseIbanHintEmpty')}
               />
               <FormTextarea label={t('expenseNote')} value={note} onChange={(e) => setNote(e.target.value)} rows={3} />
+              <label className="flex items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={alreadyPaid}
+                  onCheckedChange={(v) => setAlreadyPaid(v === true)}
+                />
+                <span>
+                  {t('expenseAlreadyPaid')}
+                  <span className="mt-0.5 block text-xs text-gray-400 dark:text-gray-500">{t('expenseAlreadyPaidHint')}</span>
+                </span>
+              </label>
             </div>
           </div>
 

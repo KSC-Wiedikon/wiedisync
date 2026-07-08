@@ -49,6 +49,8 @@ import DatenschutzPage from './modules/legal/DatenschutzPage'
 import ImpressumPage from './modules/legal/ImpressumPage'
 import AuthRoute from './components/AuthRoute'
 import FinanceRoute from './components/FinanceRoute'
+import TkRoute from './components/TkRoute'
+const TkExpensesPage = lazy(() => import('./modules/finance/TkExpensesPage'))
 import ScorerAssignPage from './modules/scorer/ScorerAssignPage'
 import BugfixDashboardPage from './modules/admin/BugfixDashboardPage'
 import StatusPage from './modules/admin/StatusPage'
@@ -170,6 +172,7 @@ export default function App() {
             <Route path="fines" element={<AuthRoute><FinesPage /></AuthRoute>} />
             <Route path="finance/dues" element={<AuthRoute><FinanceDuesPage /></AuthRoute>} />
             <Route path="finance/expense" element={<AuthRoute><ExpenseUploadPage /></AuthRoute>} />
+            <Route path="finance/tk-expenses" element={<TkRoute><Suspense fallback={null}><TkExpensesPage /></Suspense></TkRoute>} />
             <Route path="datenschutz" element={<DatenschutzPage />} />
             <Route path="impressum" element={<ImpressumPage />} />
             <Route path="feedback" element={<FeedbackPage />} />

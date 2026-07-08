@@ -2,13 +2,54 @@ import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, Pencil, Receipt, Save, X } from 'lucide-react'
+import { CheckCircle2, Clock, Loader2, Pencil, Receipt, Save, Wallet, X } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { FormInput, FormTextarea } from '../../components/FormField'
 import { Button } from '../../components/ui/button'
 import { useAllExpenses, patchExpense, openExpenseReceipt, formatExpenseAmount, type FinanceExpense } from '../../hooks/useFinance'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { ExpenseStatusBadge } from './expenseShared'
+
+/** The section TK's confirmation state, as the treasurer sees it (read-only).
+ *  Informational — it never gates the paid/rejected lifecycle. */
+function TkConfirmCell({ e }: { e: FinanceExpense }) {
+  const { t } = useTranslation('finance')
+  const sectionLabel = e.section
+    ? t(e.section === 'vb' ? 'divVb' : e.section === 'bb' ? 'divBb' : 'divClub')
+    : null
+  return (
+    <div className="flex flex-col items-start gap-1 text-xs">
+      {e.tk_confirmed_at ? (
+        <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+          {t('expenseTkConfirmed')}
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+          <Clock className="h-3.5 w-3.5 shrink-0" />
+          {sectionLabel ? t('expenseTkAwaitingSection', { section: sectionLabel }) : t('expenseTkAwaiting')}
+        </span>
+      )}
+      {e.tk_confirmed_at && e.tk_confirmed_by_name && (
+        <span className="text-[11px] text-gray-400 dark:text-gray-500">
+          {e.tk_confirmed_by_name} · {formatDateCompactZurich(e.tk_confirmed_at)}
+        </span>
+      )}
+      {e.tk_already_paid && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+          <Wallet className="h-3 w-3 shrink-0" />
+          {t('expenseTkAlreadyPaid')}
+        </span>
+      )}
+      {e.member_already_paid && (
+        <span className="text-[11px] italic text-gray-400 dark:text-gray-500">{t('expenseMemberAlreadyPaid')}</span>
+      )}
+      {e.tk_note && (
+        <span className="whitespace-normal break-words text-[11px] italic text-gray-500 dark:text-gray-400">«{e.tk_note}»</span>
+      )}
+    </div>
+  )
+}
 
 /**
  * Finance queue for the expense reimbursements members submit on /finance/expense
@@ -138,6 +179,7 @@ export default function ExpensesTab() {
                 <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseAmount')}</TableHead>
                 <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseVendor')}</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseStatusCol')}</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseTkCol')}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -178,6 +220,9 @@ export default function ExpensesTab() {
                         <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">{e.status_changed_by_name}</p>
                       )}
                     </TableCell>
+                    <TableCell className="align-top">
+                      <TkConfirmCell e={e} />
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:justify-end">
                         {e.file && (
@@ -203,7 +248,7 @@ export default function ExpensesTab() {
                   </TableRow>
                   {editingId === e.id && edit && (
                     <TableRow>
-                      <TableCell colSpan={6} className="bg-gray-50 dark:bg-gray-900/40">
+                      <TableCell colSpan={7} className="bg-gray-50 dark:bg-gray-900/40">
                         <div className="grid grid-cols-1 gap-3 py-2 sm:grid-cols-2">
                           <FormInput label={t('expenseAmount')} type="text" inputMode="decimal" value={edit.amount}
                             onChange={(ev) => setEdit({ ...edit, amount: ev.target.value })} />

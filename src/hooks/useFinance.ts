@@ -275,11 +275,29 @@ export interface FinanceExpense {
   payout?: string | number | null
   status_changed_by_name?: string | null
   date_created?: string | null
+  // TK (Sport Admin) confirmation — migration 192, informational only.
+  section?: 'vb' | 'bb' | 'club' | null
+  member_already_paid?: boolean | null
+  tk_confirmed_at?: string | null
+  tk_confirmed_by_name?: string | null
+  tk_confirmed_by_email?: string | null
+  tk_already_paid?: boolean | null
+  tk_note?: string | null
 }
-const EXPENSE_FIELDS = [
+// Member-facing (own submissions) — MUST stay within the MEMBER_POLICY field
+// scope on finance_expenses (setup-permissions.mjs). The TK/section columns are
+// board-only and are NOT listed here.
+const MY_EXPENSE_FIELDS = [
   'id', 'member.id', 'member.first_name', 'member.last_name', 'file', 'amount', 'currency',
   'expense_date', 'vendor', 'description', 'reference', 'pay_to_iban', 'member_note',
   'status', 'finance_note', 'payout', 'status_changed_by_name', 'date_created',
+]
+// Board/finance view (Vorstand + Finance policies grant `*`, so the TK/section
+// columns added in migration 192 are readable here).
+const EXPENSE_FIELDS = [
+  ...MY_EXPENSE_FIELDS,
+  'section', 'member_already_paid', 'tk_confirmed_at', 'tk_confirmed_by_name',
+  'tk_confirmed_by_email', 'tk_already_paid', 'tk_note',
 ]
 
 /** "EUR 1'234.50" — expense amounts keep their own currency (unlike formatChf). */
@@ -295,7 +313,7 @@ export function useMyExpenses() {
   return useQuery({
     queryKey: ['finance', 'my-expenses', user?.id ?? null],
     queryFn: () => fetchAllItems<FinanceExpense>('finance_expenses', {
-      filter: { member: { _eq: user!.id } }, fields: EXPENSE_FIELDS, sort: ['-date_created'],
+      filter: { member: { _eq: user!.id } }, fields: MY_EXPENSE_FIELDS, sort: ['-date_created'],
     }),
     enabled: !!user,
   })
@@ -315,6 +333,28 @@ export function useAllExpenses(enabled = true) {
 export function patchExpense(id: string | number, body: Partial<FinanceExpense>) {
   return kscwApi<{ success: boolean; expense: FinanceExpense; payoutCreated: boolean; payoutCancelled: boolean; payoutSkipped?: string }>(
     `/expenses/${id}`, { method: 'PATCH', body },
+  )
+}
+
+/** The expense queue a section TK (vb_admin / bb_admin) or finance may confirm —
+ *  server-scoped to the caller's section(s) via /expenses/tk-queue. */
+export function useTkExpenses(enabled = true) {
+  return useQuery({
+    queryKey: ['finance', 'tk-expenses'],
+    queryFn: () => kscwApi<{ expenses: FinanceExpense[]; sections: string[] }>('/expenses/tk-queue'),
+    enabled,
+    select: (r) => r.expenses,
+  })
+}
+
+/** TK confirmation write. `confirmed` defaults to true (the Confirm button);
+ *  pass false to un-confirm. `already_paid` / `note` are always applied. */
+export function tkConfirmExpense(
+  id: string | number,
+  body: { confirmed?: boolean; already_paid?: boolean; note?: string },
+) {
+  return kscwApi<{ success: boolean; expense: FinanceExpense }>(
+    `/expenses/${id}/tk-confirm`, { method: 'POST', body },
   )
 }
 
