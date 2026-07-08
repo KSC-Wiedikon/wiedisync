@@ -45,10 +45,15 @@ export interface JsExportData {
 export const JS_ACTIVITY_HEADERS = ['AKTIVITAETSTYP', 'DATUM', 'ZEIT', 'DAUER', 'ORT', 'FOKUS'] as const
 export const JS_ATTENDANCE_HEADERS = ['PERSONENNUMMER', 'FUNKTION', 'DATUM', 'AKTIVITÄTSTYP', 'ZEIT', 'DAUER', 'ORT'] as const
 
-export async function fetchJsExport(teamId: string | number, season: string): Promise<JsExportData> {
-  const resp = await kscwApi<{ data: JsExportData }>(
-    `/js-export/team/${teamId}?season=${encodeURIComponent(season)}`,
-  )
+export async function fetchJsExport(
+  teamId: string | number,
+  season: string,
+  range?: { from?: string; to?: string },
+): Promise<JsExportData> {
+  const qs = new URLSearchParams({ season })
+  if (range?.from) qs.set('start', range.from)
+  if (range?.to) qs.set('end', range.to)
+  const resp = await kscwApi<{ data: JsExportData }>(`/js-export/team/${teamId}?${qs.toString()}`)
   return resp.data
 }
 
@@ -102,6 +107,12 @@ export function jsSeasonForDate(d: Date): string {
   const y = d.getFullYear()
   const startYear = d.getMonth() >= 8 ? y : y - 1 // Sep(8)..Dec → this year; Jan..Aug → last year
   return `${startYear}/${String(startYear + 1).slice(2)}`
+}
+
+/** Season "YYYY/YY" → its Sep 1 → Aug 31 date window (the default export range). */
+export function jsSeasonRange(season: string): { start: string; end: string } {
+  const startYear = Number(String(season).slice(0, 4))
+  return { start: `${startYear}-09-01`, end: `${startYear + 1}-08-31` }
 }
 
 export function jsSeasonOptions(today: Date = new Date()): string[] {

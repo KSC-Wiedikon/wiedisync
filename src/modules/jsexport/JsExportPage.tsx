@@ -10,7 +10,7 @@ import LoadingSpinner from '../../components/LoadingSpinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import {
   fetchJsExport, downloadJsCsv, jsExportFilename, activityCsvRows, attendanceCsvRows,
-  JS_ACTIVITY_HEADERS, JS_ATTENDANCE_HEADERS, jsSeasonForDate, jsSeasonOptions,
+  JS_ACTIVITY_HEADERS, JS_ATTENDANCE_HEADERS, jsSeasonForDate, jsSeasonOptions, jsSeasonRange,
   type JsExportData,
 } from './jsExport'
 
@@ -29,13 +29,24 @@ export default function JsExportPage() {
 
   const [season, setSeason] = useState(() => jsSeasonForDate(new Date()))
   const seasons = useMemo(() => jsSeasonOptions(), [])
+  // Explicit activity window — defaults to the season's Sep 1 → Aug 31 span, but
+  // the coach can narrow it to control which activities/events fall in scope.
+  const [from, setFrom] = useState(() => jsSeasonRange(jsSeasonForDate(new Date())).start)
+  const [to, setTo] = useState(() => jsSeasonRange(jsSeasonForDate(new Date())).end)
   const [teams, setTeams] = useState<TeamRow[]>([])
   const [teamsFetching, setTeamsFetching] = useState(true)
   const [busyKey, setBusyKey] = useState<string | null>(null)
 
-  // Cache the endpoint result per team+season so the two buttons don't double-fetch.
+  function handleSeasonChange(next: string) {
+    setSeason(next)
+    const r = jsSeasonRange(next)
+    setFrom(r.start)
+    setTo(r.end)
+  }
+
+  // Cache the endpoint result per team+season+window so the two buttons don't double-fetch.
   const cacheRef = useRef<Map<string, JsExportData>>(new Map())
-  useEffect(() => { cacheRef.current.clear() }, [season])
+  useEffect(() => { cacheRef.current.clear() }, [season, from, to])
 
   const teamKey = leaderTeamIds.join(',')
   useEffect(() => {
@@ -79,10 +90,10 @@ export default function JsExportPage() {
   async function handleDownload(team: TeamRow, kind: 'activities' | 'attendance') {
     setBusyKey(`${team.id}:${kind}`)
     try {
-      const cacheKey = `${team.id}:${season}`
+      const cacheKey = `${team.id}:${season}:${from}:${to}`
       let data = cacheRef.current.get(cacheKey)
       if (!data) {
-        data = await fetchJsExport(team.id, season)
+        data = await fetchJsExport(team.id, season, { from, to })
         cacheRef.current.set(cacheKey, data)
       }
       surfaceWarnings(data)
@@ -117,16 +128,35 @@ export default function JsExportPage() {
         <p className="text-xs">{t('formatNote')}</p>
       </div>
 
-      <div className="flex items-center gap-3">
-        <label htmlFor="js-season" className="text-sm font-medium text-foreground">{t('season')}</label>
-        <select
-          id="js-season"
-          value={season}
-          onChange={(e) => setSeason(e.target.value)}
-          className="rounded-md border border-border bg-background px-3 py-2 text-sm dark:bg-gray-800"
-        >
-          {seasons.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="js-season" className="text-sm font-medium text-foreground">{t('season')}</label>
+          <select
+            id="js-season"
+            value={season}
+            onChange={(e) => handleSeasonChange(e.target.value)}
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm dark:bg-gray-800"
+          >
+            {seasons.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="js-from" className="text-sm font-medium text-foreground">{t('from')}</label>
+          <input
+            id="js-from" type="date" value={from} max={to}
+            onChange={(e) => setFrom(e.target.value)}
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm dark:bg-gray-800"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="js-to" className="text-sm font-medium text-foreground">{t('to')}</label>
+          <input
+            id="js-to" type="date" value={to} min={from}
+            onChange={(e) => setTo(e.target.value)}
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm dark:bg-gray-800"
+          />
+        </div>
+        <p className="w-full text-xs text-muted-foreground">{t('dateRangeHint')}</p>
       </div>
 
       {teamsFetching ? (
