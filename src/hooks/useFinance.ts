@@ -283,6 +283,8 @@ export interface FinanceExpense {
   tk_confirmed_by_email?: string | null
   tk_already_paid?: boolean | null
   tk_note?: string | null
+  // Shared back-office note (finance / TK / admin — migration 193). Never member-facing.
+  internal_note?: string | null
 }
 // Member-facing (own submissions) — MUST stay within the MEMBER_POLICY field
 // scope on finance_expenses (setup-permissions.mjs). The TK/section columns are
@@ -297,7 +299,7 @@ const MY_EXPENSE_FIELDS = [
 const EXPENSE_FIELDS = [
   ...MY_EXPENSE_FIELDS,
   'section', 'member_already_paid', 'tk_confirmed_at', 'tk_confirmed_by_name',
-  'tk_confirmed_by_email', 'tk_already_paid', 'tk_note',
+  'tk_confirmed_by_email', 'tk_already_paid', 'tk_note', 'internal_note',
 ]
 
 /** "EUR 1'234.50" — expense amounts keep their own currency (unlike formatChf). */
@@ -351,7 +353,7 @@ export function useTkExpenses(enabled = true) {
  *  pass false to un-confirm. `already_paid` / `note` are always applied. */
 export function tkConfirmExpense(
   id: string | number,
-  body: { confirmed?: boolean; already_paid?: boolean; note?: string },
+  body: { confirmed?: boolean; already_paid?: boolean; note?: string; internal_note?: string },
 ) {
   return kscwApi<{ success: boolean; expense: FinanceExpense }>(
     `/expenses/${id}/tk-confirm`, { method: 'POST', body },

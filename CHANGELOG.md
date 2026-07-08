@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.28.0 — 2026-07-08
+
+### Shared internal note on expenses
+- **Back-office note between finance, TK and admin**: each expense reimbursement gains an `internal_note` (migration 193) that finance/admin edit on the Expenses tab and the section TK edits on the Confirm-expenses page. All three roles see the same text; it is **never shown to the member** (separate from the member-facing "note to the member" and the TK's own note to the treasurer). Written through the existing `PATCH /kscw/expenses/:id` and `POST /kscw/expenses/:id/tk-confirm` endpoints (raw knex + audit log).
+
 ## v1.27.0 — 2026-07-07
 
 ### Home "next 7 days" ticker + team birthdays
