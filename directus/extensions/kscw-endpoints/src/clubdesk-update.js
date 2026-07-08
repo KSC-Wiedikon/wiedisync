@@ -1053,7 +1053,25 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const email = reg.email.toLowerCase().trim()
       const emailRows = await database('members').whereRaw('LOWER(email) = ?', [email])
         .select('id', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at')
-      const member = emailRows.find((r) => firstNamesMatchCd(r.first_name, reg.vorname)) || null
+      let member = emailRows.find((r) => firstNamesMatchCd(r.first_name, reg.vorname)) || null
+      if (!member) {
+        // Divergent-email fallback (2026-07-08, Neo Paladino case): a child often
+        // registers under a PARENT's email while the member row (materialized
+        // from ClubDesk, or later edited) carries the person's own address — the
+        // email-only lookup then shows a false "no member record" for someone who
+        // exists and is even linked. Fall back to exact last-name equality + the
+        // symmetric first-name-prefix rule, and accept ONLY a unique candidate
+        // (ambiguity keeps no_member — this result also feeds the one-click link
+        // zone, so we never guess between two same-named people).
+        const nachname = String(reg.nachname || '').toLowerCase().trim()
+        if (nachname) {
+          const nameRows = await database('members')
+            .whereRaw('LOWER(BTRIM(last_name)) = ?', [nachname])
+            .select('id', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at')
+          const hits = nameRows.filter((r) => firstNamesMatchCd(r.first_name, reg.vorname))
+          if (hits.length === 1) member = hits[0]
+        }
+      }
       if (!member) return { status: 'no_member' }
 
       const base = { member_id: member.id }
