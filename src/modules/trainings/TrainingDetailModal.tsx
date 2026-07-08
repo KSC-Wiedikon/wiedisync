@@ -97,6 +97,11 @@ export default function TrainingDetailModal({ training, onClose }: TrainingDetai
                 {t('cancelled')}
               </span>
             )}
+            {!training.cancelled && training.auto_shortened_by_game != null && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                {t('shortenedBadge')}
+              </span>
+            )}
           </div>
 
           {/* Details */}
@@ -149,6 +154,13 @@ export default function TrainingDetailModal({ training, onClose }: TrainingDetai
           {training.cancelled && training.cancel_reason && (
             <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
               {training.cancel_reason}
+            </p>
+          )}
+
+          {/* Auto-shortened by home game */}
+          {!training.cancelled && training.auto_shortened_by_game != null && (
+            <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+              {t('shortenedHint')}
             </p>
           )}
 

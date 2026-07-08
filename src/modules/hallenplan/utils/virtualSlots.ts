@@ -104,7 +104,9 @@ export function trainingToVirtualSlot(
     valid_until: trainingDate,
     label: training.cancelled
       ? `Abgesagt${training.cancel_reason ? ': ' + training.cancel_reason : ''}`
-      : (training.is_trial ? 'Probetraining' : ''),
+      : (training.auto_shortened_by_game != null
+          ? 'Verkürzt (Heimspiel)'
+          : (training.is_trial ? 'Probetraining' : '')),
     notes: training.notes || '',
     _virtual: {
       source: 'training',

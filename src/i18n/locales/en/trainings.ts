@@ -107,4 +107,6 @@ export default {
   isTrialTraining: 'Trial training (Probetraining)',
   isTrialTrainingHint: 'Publicly visible on the team page when the team is open for new players.',
   trialBadge: 'Probetraining',
+  shortenedBadge: 'Shortened',
+  shortenedHint: 'Ends earlier — home game in this hall afterwards',
 } as const

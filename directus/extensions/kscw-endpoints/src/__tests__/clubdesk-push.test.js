@@ -75,6 +75,24 @@ describe('buildPushCsv (update set)', () => {
     const withoutIban = buildPushCsv([kacper]).trim().split('\n')[1]
     expect(withoutIban.split(';')[9]).toBe('')
   })
+
+  it('matches on ClubDesk\'s stored name (cd_match_*) so drifted names still update, not duplicate', () => {
+    // Member renamed to a short first name / lost the register\'s double surname in
+    // wiedisync; /up resolves ClubDesk\'s own stored name into cd_match_* so the
+    // import matches by name and UPDATES instead of creating a "Neue" dup.
+    const row = buildPushCsv([{
+      ...kacper, first_name: 'Alex', last_name: 'Neumann',
+      cd_match_first: 'Alexander', cd_match_last: 'Neumann Jurca',
+    }]).trim().split('\n')[1].split(';')
+    expect(row[0]).toBe('Alexander')       // ClubDesk\'s stored Vorname wins for the match
+    expect(row[1]).toBe('Neumann Jurca')   // ClubDesk\'s stored Nachname wins
+  })
+
+  it('falls back to the wiedisync name when ClubDesk has no stored name (cd_match_* unset)', () => {
+    const row = buildPushCsv([kacper]).trim().split('\n')[1].split(';')
+    expect(row[0]).toBe('Kacper')
+    expect(row[1]).toBe('Krawczyński')
+  })
 })
 
 describe('buildPushCsv (create set)', () => {

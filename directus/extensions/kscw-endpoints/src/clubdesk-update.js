@@ -478,7 +478,12 @@ export function buildPushCsv(members, { create = false } = {}) {
     const ahvOut = normVal(normalizeAhv, m.ahv_nummer)
     const emailOut = normVal(normalizeEmail, m.email)
     const cells = [
-      m.first_name, m.last_name, emailOut, phoneOut, m.adresse, m.plz, m.ort,
+      // UPDATE rows match on ClubDesk's own stored name (cd_match_*, resolved by
+      // /up's echo block) so a name that drifted from the register still updates
+      // instead of spawning a "Neue" dup; CREATE rows have no cd_match_* and carry
+      // the real wiedisync name for the brand-new contact.
+      m.cd_match_first ?? m.first_name, m.cd_match_last ?? m.last_name,
+      emailOut, phoneOut, m.adresse, m.plz, m.ort,
       fmtBirthdateDDMMYYYY(m.birthdate),
       m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
       // /up pre-resolves m.iban / m.anrede / m.nationalitaet / m.ahv_nummer to
@@ -789,12 +794,26 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         const cdids = updates.map((m) => String(m.clubdesk_id)).filter(Boolean)
         const echoRows = cdids.length ? await database.raw(`
           SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
-                 iban, anrede, nationalitaet, ahv_nummer
+                 vorname, nachname, iban, anrede, nationalitaet, ahv_nummer
           FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
         `, [cdids]) : { rows: [] }
         const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
         for (const m of updates) {
           const cd = cdEcho.get(String(m.clubdesk_id)) || {}
+          // Match on ClubDesk's OWN stored name (2026-07-08). ClubDesk's import
+          // keys contacts BY NAME, so a linked member whose wiedisync name drifted
+          // from the register — short↔full first name (Alex/Alexander), added
+          // nickname, married/double surname, accent, a CD-side typo, or a
+          // non-CP1252 char the CSV transcode mangles (ć→?, ł→l) — previews as
+          // "Neue" and is refused by the up-dispatcher's duplicate guard. An UPDATE
+          // push carries contact data, never a rename, so emitting ClubDesk's own
+          // stored name is a NO-OP on the register yet guarantees the match. It
+          // never corrupts the member's chosen wiedisync name (only the CSV cell).
+          // Empty CD name (contact gone from ClubDesk, e.g. a leaver whose
+          // clubdesk_id is stale) → keep wiedisync's; that member is a real "Neue"
+          // and must be muted/relinked, not silently duplicated.
+          if (String(cd.vorname || '').trim()) m.cd_match_first = String(cd.vorname).trim()
+          if (String(cd.nachname || '').trim()) m.cd_match_last = String(cd.nachname).trim()
           if (!String(m.iban || '').trim()) m.iban = String(cd.iban || '').trim()
           if (!String(m.anrede || '').trim()) m.anrede = String(cd.anrede || '').trim()
           if (!String(m.nationalitaet || '').trim()) m.nationalitaet = String(cd.nationalitaet || '').trim()

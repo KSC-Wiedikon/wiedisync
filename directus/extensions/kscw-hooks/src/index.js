@@ -27,6 +27,7 @@ import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-end
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
+import { sweepGameTrainingShorten } from './game-training-shorten.js'
 
 // Frontend URL — env var or auto-detect from Directus PUBLIC_URL
 const FRONTEND_URL = process.env.FRONTEND_URL
@@ -4698,6 +4699,32 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       log.error({ msg: `[slot-cascade] nightly top-up failed: ${err.message}`, event: 'slot_topup_cron_failed', stack: err.stack })
     }
   })
+
+  // Home-game → training auto-shorten (migration 191). Nightly at 02:20 UTC,
+  // right after the top-up above so freshly generated trainings get shortened
+  // the same night. Also swept on games.items.* actions for admin-UI edits;
+  // sv-sync/bp-sync/spielplanung write games via raw knex (no items hooks),
+  // which the nightly run covers.
+  schedule('20 2 * * *', async () => {
+    try {
+      const res = await sweepGameTrainingShorten(database, log)
+      log.info({ msg: `[game-training-shorten] nightly sweep: ${res.shortened} shortened, ${res.restored} restored`, event: 'game_training_shorten_cron_done', ...res })
+    } catch (err) {
+      log.error({ msg: `[game-training-shorten] nightly sweep failed: ${err.message}`, event: 'game_training_shorten_cron_failed', stack: err.stack })
+      logCronError('game_training_shorten', err)
+    }
+  })
+
+  const runGameTrainingShorten = async () => {
+    try {
+      await sweepGameTrainingShorten(database, log)
+    } catch (err) {
+      log.error({ msg: `[game-training-shorten] action sweep failed: ${err.message}`, event: 'game_training_shorten_action_failed', stack: err.stack })
+    }
+  }
+  action('games.items.create', runGameTrainingShorten)
+  action('games.items.update', runGameTrainingShorten)
+  action('games.items.delete', runGameTrainingShorten)
 
   // ── Fines (migration 069) — escalation engine + notifications ──
   //

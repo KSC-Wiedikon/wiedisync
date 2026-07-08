@@ -472,6 +472,10 @@ export interface Training extends BaseRecord {
   auto_confirm_rsvp?: boolean | null
   /** Trial training (Probetraining): publicly visible on the website when the team is open for new players. */
   is_trial?: boolean
+  /** games.id whose warm-up block auto-shortened this training (sweep-managed, migration 191). */
+  auto_shortened_by_game?: number | null
+  /** End time before the game auto-shorten; set only while shortened. */
+  original_end_time?: string | null
 }
 
 export interface Absence extends BaseRecord {

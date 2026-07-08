@@ -23,6 +23,10 @@ export default {
   autoTaefeler: 'Tableau',
   score: 'Score',
   conflicts: 'Conflits',
+  notes: 'Notes',
+  noteTraining: '{{team}} manque un entraînement',
+  noteAdjacent: '{{team}} : juste avant/après son match',
+  noteMatchConflict: '⚠ {{team}} joue un match à ce moment !',
 
   // Summary
   teamSummary: 'Resume par equipe',

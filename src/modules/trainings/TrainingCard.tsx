@@ -82,6 +82,11 @@ export default function TrainingCard({ training, participations, myParticipation
               {t('cancelled')}
             </span>
           )}
+          {!training.cancelled && training.auto_shortened_by_game != null && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+              {t('shortenedBadge')}
+            </span>
+          )}
           <CancelActivityButton
             kind="training"
             activityId={training.id}
@@ -101,6 +106,9 @@ export default function TrainingCard({ training, participations, myParticipation
 
       {training.cancelled && training.cancel_reason && (
         <p className="mt-1 text-xs text-red-600 dark:text-red-400">{training.cancel_reason}</p>
+      )}
+      {!training.cancelled && training.auto_shortened_by_game != null && (
+        <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{t('shortenedHint')}</p>
       )}
       {training.notes && !training.cancelled && (
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{training.notes}</p>
