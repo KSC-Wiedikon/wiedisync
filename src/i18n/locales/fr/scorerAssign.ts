@@ -6,6 +6,10 @@ export default {
   runAlgorithm: 'Lancer l\'algorithme',
   saveAll: 'Tout enregistrer',
   downloadXlsx: 'Télécharger Excel',
+  rollOut: 'Déployer',
+  rollingOut: 'Déploiement...',
+  rollOutHint: 'Écrire ces services dans les matchs (officialiser)',
+  draftSaved: 'Brouillon enregistré',
   saving: 'Enregistrement...',
   running: 'Calcul...',
 

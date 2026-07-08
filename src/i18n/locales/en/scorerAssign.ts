@@ -6,6 +6,10 @@ export default {
   runAlgorithm: 'Run algorithm',
   saveAll: 'Save all',
   downloadXlsx: 'Download Excel',
+  rollOut: 'Roll out',
+  rollingOut: 'Rolling out...',
+  rollOutHint: 'Write these duties to the games (makes them official)',
+  draftSaved: 'Draft saved',
   saving: 'Saving...',
   running: 'Computing...',
 
