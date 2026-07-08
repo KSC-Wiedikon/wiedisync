@@ -6,6 +6,10 @@ export default {
   runAlgorithm: 'Algorithmus starte',
   saveAll: 'Alli speichere',
   downloadXlsx: 'Excel abelade',
+  rollOut: 'Usrolle',
+  rollingOut: 'Wird usgrollt...',
+  rollOutHint: 'Die Dienscht definitiv i d Spiel schriibe',
+  draftSaved: 'Entwurf gspeicheret',
   saving: 'Speichere...',
   running: 'Berechne...',
 

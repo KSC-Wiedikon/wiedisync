@@ -6,6 +6,10 @@ export default {
   runAlgorithm: 'Esegui algoritmo',
   saveAll: 'Salva tutto',
   downloadXlsx: 'Scarica Excel',
+  rollOut: 'Distribuisci',
+  rollingOut: 'Distribuzione...',
+  rollOutHint: 'Scrivi questi servizi nelle partite (ufficializza)',
+  draftSaved: 'Bozza salvata',
   saving: 'Salvataggio...',
   running: 'Calcolo...',
 

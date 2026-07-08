@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import type { Game, Team, Training, Member, MemberTeam, Hall } from '../../types'
@@ -20,6 +20,19 @@ import { useReportPageLoading } from '../../hooks/usePageReady'
 import { TourPageButton } from '../guide/TourPageButton'
 
 type SportTab = 'volleyball' | 'basketball'
+
+// The working matching is a DRAFT — auto-persisted to localStorage (per sport +
+// season) so it survives reloads. "Roll out" writes the duties to the games.
+const DRAFT_KEY = (sport: SportTab, season: string) => `kscw:scorer-assign-draft:${sport}:${season}`
+function loadDraft<T>(sport: SportTab, season: string): T[] {
+  try { const raw = localStorage.getItem(DRAFT_KEY(sport, season)); return raw ? (JSON.parse(raw) as T[]) : [] } catch { return [] }
+}
+function saveDraft(sport: SportTab, season: string, data: unknown[]) {
+  try {
+    if (data.length) localStorage.setItem(DRAFT_KEY(sport, season), JSON.stringify(data))
+    else localStorage.removeItem(DRAFT_KEY(sport, season))
+  } catch { /* storage full / disabled — draft just won't persist */ }
+}
 
 // Rule labels shown in the collapsible "Algorithm rules" panel. The order and
 // point values mirror AssignmentAlgorithm.ts (VB) / AssignmentAlgorithmBb.ts
@@ -94,8 +107,11 @@ export default function ScorerAssignPage() {
 
   // State
   const [sportTab, setSportTab] = useState<SportTab>(canVb ? 'volleyball' : 'basketball')
-  const [vbAssignments, setVbAssignments] = useState<GameAssignment[]>([])
-  const [bbAssignments, setBbAssignments] = useState<BbGameAssignment[]>([])
+  const [vbAssignments, setVbAssignments] = useState<GameAssignment[]>(() => loadDraft<GameAssignment>('volleyball', season))
+  const [bbAssignments, setBbAssignments] = useState<BbGameAssignment[]>(() => loadDraft<BbGameAssignment>('basketball', season))
+  // Auto-save the draft whenever it changes (external system → effect is correct).
+  useEffect(() => { saveDraft('volleyball', season, vbAssignments) }, [vbAssignments, season])
+  useEffect(() => { saveDraft('basketball', season, bbAssignments) }, [bbAssignments, season])
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ text: string; error: boolean } | null>(null)
   const [running, setRunning] = useState(false)
@@ -348,8 +364,8 @@ export default function ScorerAssignPage() {
         </Button>
 
         {assignments.length > 0 && (
-          <Button size="sm" onClick={handleSaveAll} loading={saving}>
-            {saving ? t('saving') : t('saveAll')}
+          <Button size="sm" onClick={handleSaveAll} loading={saving} title={t('rollOutHint')}>
+            {saving ? t('rollingOut') : t('rollOut')}
           </Button>
         )}
 
@@ -370,6 +386,9 @@ export default function ScorerAssignPage() {
           <span className="text-sm text-green-600 dark:text-green-400">
             {t('assignmentsDone', { assigned: assignedCount, total: homeGames.length })}
           </span>
+        )}
+        {assignments.length > 0 && (
+          <span className="text-sm text-gray-400 dark:text-gray-500">· {t('draftSaved')}</span>
         )}
         {saveMsg && (
           <span className={`text-sm ${saveMsg.error ? 'text-red-600' : 'text-green-600 dark:text-green-400'}`}>
