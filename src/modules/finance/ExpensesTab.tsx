@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, Clock, Loader2, Pencil, Receipt, Save, Wallet, X } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { FormInput, FormTextarea } from '../../components/FormField'
+import { useConfirm } from '../../components/ConfirmProvider'
 import { Button } from '../../components/ui/button'
 import { useAllExpenses, patchExpense, openExpenseReceipt, formatExpenseAmount, type FinanceExpense } from '../../hooks/useFinance'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
@@ -83,6 +84,7 @@ interface EditState {
 export default function ExpensesTab() {
   const { t } = useTranslation('finance')
   const qc = useQueryClient()
+  const confirm = useConfirm()
   const { data, isLoading } = useAllExpenses()
   const rows = data ?? []
   const [editingId, setEditingId] = useState<string | number | null>(null)
@@ -119,9 +121,12 @@ export default function ExpensesTab() {
   async function changeStatus(e: FinanceExpense, status: string) {
     if (status === (e.status || 'pending')) return
     // Paid/rejected notifies the member — make the flip deliberate.
-    if ((status === 'paid' || status === 'rejected') &&
-        !window.confirm(t(status === 'paid' ? 'expenseConfirmPaid' : 'expenseConfirmRejected', { amount: formatExpenseAmount(e), member: memberName(e) }))) {
-      return
+    if (status === 'paid' || status === 'rejected') {
+      const ok = await confirm({
+        message: t(status === 'paid' ? 'expenseConfirmPaid' : 'expenseConfirmRejected', { amount: formatExpenseAmount(e), member: memberName(e) }),
+        danger: status === 'rejected',
+      })
+      if (!ok) return
     }
     await apply(e, { status }, t('expenseStatusUpdated'))
   }

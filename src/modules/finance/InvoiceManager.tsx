@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Search, Check, X, Link2, Loader2, Upload, Coins } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { useCollection } from '../../lib/query'
 import { useTeams } from '../../hooks/useTeams'
@@ -353,6 +354,7 @@ const ORPHAN_CAP = 100
 
 export default function InvoiceManager() {
   const { t } = useTranslation('finance')
+  const confirm = useConfirm()
   const { data: invoicesRaw, refetch } = useFinanceInvoices()
   const invoices = invoicesRaw ?? []
   const { data: allTeamsRaw } = useTeams('all')
@@ -443,7 +445,7 @@ export default function InvoiceManager() {
                           </button>
                         )}
                         {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                          <button type="button" disabled={busyId === inv.id} onClick={() => { if (window.confirm(t('cancelInvoiceSure'))) act(inv.id, cancelInvoice) }}
+                          <button type="button" disabled={busyId === inv.id} onClick={async () => { if (await confirm({ message: t('cancelInvoiceSure'), danger: true })) act(inv.id, cancelInvoice) }}
                             className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
                             {t('cancelInvoiceCta')}
                           </button>

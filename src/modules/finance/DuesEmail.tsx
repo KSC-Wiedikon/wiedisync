@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Send, ShieldCheck, ShieldAlert, Mail } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import {
   useFinanceEmailSettings, saveFinanceEmailSettings,
@@ -25,13 +26,14 @@ export function DuesEmailSettings() {
 
 function DuesEmailForm({ initial, onSaved }: { initial: FinanceEmailSettings; onSaved: () => void }) {
   const { t } = useTranslation('finance')
+  const confirm = useConfirm()
   const [recipient, setRecipient] = useState(initial.test_recipient || '')
   const [testMode, setTestMode] = useState(initial.test_mode)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
   async function save(nextTestMode: boolean) {
-    if (!nextTestMode && !window.confirm(t('duesEmailLiveConfirm'))) return
+    if (!nextTestMode && !(await confirm({ message: t('duesEmailLiveConfirm'), danger: true }))) return
     setBusy(true); setMsg('')
     try {
       const r = await saveFinanceEmailSettings({ test_mode: nextTestMode, test_recipient: recipient.trim() || null })

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.28.0'
+const APP_VERSION = '1.29.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.29.0',
+    date: '08.07.2026',
+    sections: [
+      {
+        title: 'Issue a fine directly, branded confirmations',
+        items: [
+          'Coaches, team responsibles and admins can now issue a fine directly from the Fines page — pick a team and member, and the amount fills in from that team’s fine catalog. Previously a fine could only be started from the roster’s late-sign-in prompt.',
+          'Confirmation pop-ups across Club finances (mark an expense paid/rejected, delete a ledger or team entry, cancel an invoice, switch dues emails to live) are now proper in-app dialogs — themed and dark-mode aware — instead of the plain browser pop-up.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.28.0',
     date: '08.07.2026',

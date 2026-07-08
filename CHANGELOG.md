@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.29.0 — 2026-07-08
+
+### Issue a fine directly + branded confirmation dialogs
+- **Standalone "Issue fine"** on the Fines page (`/fines`): coaches / team responsibles (their teams) and admins/Vorstand (any active team) can pick a team + member and issue a fine directly — the amount pre-fills from that team's fine catalog (escalation engine), overridable. Previously the only entry point was the roster's automatic late-sign-in prompt. Frontend-only; reuses the existing `IssueFineModal` + `fine_rules` engine.
+- **No more native browser pop-ups**: every `window.confirm` / `alert` in Club finances (expense paid/rejected, ledger + team-entry delete, invoice cancel, dues-email live switch, export error) now uses the app's branded, dark-mode-aware modal (`useConfirm`) or a toast. The rest of the app already used these. New convention documented in `CLAUDE.md`: native browser dialogs are banned.
+
 ## v1.28.0 — 2026-07-08
 
 ### Shared internal note on expenses

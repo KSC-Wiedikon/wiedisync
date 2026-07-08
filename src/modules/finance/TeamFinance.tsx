@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { useTeams } from '../../hooks/useTeams'
@@ -20,12 +21,13 @@ const netCls = (n: number) => (n >= 0 ? 'text-green-600 dark:text-green-400' : '
 /** A team's entries, shown when its summary row is expanded. */
 function TeamEntries({ teamId, fiscalYearId, onChanged }: { teamId: number; fiscalYearId: string; onChanged: () => void }) {
   const { t } = useTranslation('finance')
+  const confirm = useConfirm()
   const { data: entries, refetch } = useTeamEntries(teamId, fiscalYearId)
   const [busyDel, setBusyDel] = useState<number | null>(null)
   const [delErr, setDelErr] = useState('')
   const kindLabel = (k: string) => ({ sponsoring: t('teamKindSponsoring'), income: t('teamKindIncome'), expense: t('teamKindExpense') }[k] ?? k)
   async function remove(id: number) {
-    if (!window.confirm(t('teamEntryDeleteSure'))) return
+    if (!(await confirm({ message: t('teamEntryDeleteSure'), danger: true }))) return
     setBusyDel(id); setDelErr('')
     try { await deleteTeamEntry(id); await refetch(); onChanged() }
     catch (e) { setDelErr(apiErr(e, t('ledActionError'))) }

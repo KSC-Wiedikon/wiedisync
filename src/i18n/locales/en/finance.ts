@@ -483,6 +483,7 @@ export default {
   exportPdf: 'PDF',
   exportExcel: 'Excel',
   exportPpt: 'PowerPoint',
+  exportError: 'Export failed.',
   total: 'Total',
 
   // Dunning / Mahnwesen

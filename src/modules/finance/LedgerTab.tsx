@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus, Undo2, Trash2, BookOpen, ListTree, Scale, Lock, Settings2, RefreshCw } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import ReportExportMenu from './ReportExportMenu'
@@ -66,6 +67,7 @@ export default function LedgerTab({ fiscalYearId }: { fiscalYearId?: string | nu
 /* ── Journal ─────────────────────────────────────────────────────────── */
 function Journal({ fyId, fyClosed }: { fyId: string; fyClosed?: boolean }) {
   const { t } = useTranslation('finance')
+  const confirm = useConfirm()
   const qc = useQueryClient()
   const { data: entries } = useLedgerEntries(fyId || null, !!fyId)
   const [open, setOpen] = useState(false)
@@ -73,7 +75,7 @@ function Journal({ fyId, fyClosed }: { fyId: string; fyClosed?: boolean }) {
   const refresh = () => qc.invalidateQueries({ queryKey: ['finance'] })
 
   async function reverse(id: number) { setBusy(id); try { await reverseLedgerEntry(id); refresh() } catch (e) { toast.error(apiErr(e, t('ledActionError'))) } finally { setBusy(null) } }
-  async function remove(id: number) { if (!window.confirm(t('ledDeleteSure'))) return; setBusy(id); try { await deleteLedgerEntry(id); refresh() } catch (e) { toast.error(apiErr(e, t('ledActionError'))) } finally { setBusy(null) } }
+  async function remove(id: number) { if (!(await confirm({ message: t('ledDeleteSure'), danger: true }))) return; setBusy(id); try { await deleteLedgerEntry(id); refresh() } catch (e) { toast.error(apiErr(e, t('ledActionError'))) } finally { setBusy(null) } }
 
   const rows = entries ?? []
   return (
