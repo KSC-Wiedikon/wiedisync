@@ -23,6 +23,10 @@ export default {
   autoTaefeler: 'Scoreboard',
   score: 'Score',
   conflicts: 'Conflicts',
+  notes: 'Notes',
+  noteTraining: '{{team}} misses a training',
+  noteAdjacent: '{{team}}: right before/after own game',
+  noteMatchConflict: '⚠ {{team}} plays a match then!',
 
   // Summary
   teamSummary: 'Team summary',

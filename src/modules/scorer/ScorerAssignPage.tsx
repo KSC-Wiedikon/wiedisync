@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import TeamSelect from '../../components/TeamSelect'
 import TeamChip from '../../components/TeamChip'
 import SportToggle from '../../components/SportToggle'
-import { runAssignment, getTeamCounts, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
+import { runAssignment, getTeamCounts, buildTeamGameTimes, timeToMin, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
 import { buildAssignmentXlsx, buildTeamColors, downloadBytes, XLSX_MIME, type XlsxGameRow, type XlsxSummaryRow, type XlsxLabels } from './lib/assignmentExport'
 import { updateRecord } from '../../lib/api'
@@ -144,6 +144,40 @@ export default function ScorerAssignPage() {
     for (const h of halls) m.set(String(h.id), h.name)
     return m
   }, [halls])
+
+  // Game start-times per team/day — for the render-time "plays a match then" note.
+  const teamGameTimes = useMemo(() => buildTeamGameTimes(sportGames), [sportGames])
+
+  // Curated, human-readable notes for a game's assignment (only the meaningful
+  // items — misses training, duty next to own game, missing slot — plus a
+  // safety check that no assigned team actually plays at that time).
+  type Note = { text: string; tone: 'danger' | 'warn' | 'ok' | 'muted' }
+  const notesFor = (conflicts: GameAssignment['conflicts'], assigned: Array<[string | null, string | null]>, game: Game): Note[] => {
+    const out: Note[] = []
+    const seen = new Set<string>()
+    const add = (text: string, tone: Note['tone']) => { if (text && !seen.has(text)) { seen.add(text); out.push({ text, tone }) } }
+    for (const c of conflicts) {
+      const team = (c.params?.team as string) ?? ''
+      if (c.key === 'reason_training') add(t('noteTraining', { team }), 'warn')
+      else if (c.key === 'reason_sequenceBonus') add(t('noteAdjacent', { team }), 'ok')
+      else if (c.key === 'existingKept') add(t('existingKept'), 'muted')
+      else if (c.key === 'noScorerAvailable' || c.key === 'noTaefelerAvailable' || c.key === 'noRefereeAvailable' || c.key === 'noTeamAvailable') add(t(c.key), 'warn')
+    }
+    const dutyMin = timeToMin(game.time)
+    if (dutyMin != null) {
+      for (const [tid, tname] of assigned) {
+        if (!tid) continue
+        const mins = teamGameTimes.get(`${tid}|${game.date}`) ?? []
+        if (mins.some((m) => Math.abs(m - dutyMin) < 120)) add(t('noteMatchConflict', { team: tname ?? '' }), 'danger')
+      }
+    }
+    return out
+  }
+  const noteToneClass = (tone: Note['tone']) =>
+    tone === 'danger' ? 'text-red-600 dark:text-red-400 font-medium'
+      : tone === 'warn' ? 'text-amber-600 dark:text-amber-400'
+        : tone === 'ok' ? 'text-green-600 dark:text-green-400'
+          : 'text-gray-400 dark:text-gray-500'
 
   const vbTeamCounts = useMemo(() => getTeamCounts(vbAssignments, teams, sportGames), [vbAssignments, teams, sportGames])
   const bbTeamCounts = useMemo(() => getBbTeamCounts(bbAssignments, teams, sportGames), [bbAssignments, teams, sportGames])
@@ -462,7 +496,7 @@ export default function ScorerAssignPage() {
                 ) : (
                   <TableHead className="px-2 py-2">{t('autoDutyTeam')}</TableHead>
                 )}
-                <TableHead className="px-2 py-2">{t('conflicts')}</TableHead>
+                <TableHead className="px-2 py-2">{t('notes')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -473,6 +507,7 @@ export default function ScorerAssignPage() {
                     const hallName = hallNameById.get(String(game.hall)) ?? ''
                     const isExisting = a.conflicts.some((c) => c.key === 'existingKept')
                     const hasNoAssignment = !a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId
+                    const assignedTeams: Array<[string | null, string | null]> = [[a.scorerTeamId, a.scorerTeamName], [a.scoreboardTeamId, a.scoreboardTeamName], [a.combinedTeamId, a.combinedTeamName], [a.refereeTeamId, a.refereeTeamName]]
 
                     return (
                       <TableRow
@@ -518,15 +553,12 @@ export default function ScorerAssignPage() {
                             <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
                           </>
                         )}
-                        <TableCell className="max-w-[200px] px-2 py-2">
-                          {a.conflicts.length > 0 && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {a.conflicts.map((c, i) => {
-                                const text = t(c.key, c.params ?? {})
-                                return <div key={i} className="truncate" title={text}>{text}</div>
-                              })}
-                            </div>
-                          )}
+                        <TableCell className="max-w-[240px] px-2 py-2">
+                          <div className="space-y-0.5 text-xs">
+                            {notesFor(a.conflicts, assignedTeams, game).map((n, i) => (
+                              <div key={i} className={`truncate ${noteToneClass(n.tone)}`} title={n.text}>{n.text}</div>
+                            ))}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
@@ -537,6 +569,7 @@ export default function ScorerAssignPage() {
                     const hallName = hallNameById.get(String(game.hall)) ?? ''
                     const isExisting = a.conflicts.some((c) => c.key === 'existingKept')
                     const hasNoAssignment = !a.dutyTeamId
+                    const assignedTeams: Array<[string | null, string | null]> = [[a.dutyTeamId, a.dutyTeamName]]
 
                     return (
                       <TableRow
@@ -562,15 +595,12 @@ export default function ScorerAssignPage() {
                             <TeamSelect value={a.dutyTeamId ?? ''} onChange={(v) => handleBbOverride(a.gameId, v)} teams={bbTeams} placeholder={t('selectTeam')} compact />
                           </div>
                         </TableCell>
-                        <TableCell className="max-w-[200px] px-2 py-2">
-                          {a.conflicts.length > 0 && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {a.conflicts.map((c, i) => {
-                                const text = t(c.key, c.params ?? {})
-                                return <div key={i} className="truncate" title={text}>{text}</div>
-                              })}
-                            </div>
-                          )}
+                        <TableCell className="max-w-[240px] px-2 py-2">
+                          <div className="space-y-0.5 text-xs">
+                            {notesFor(a.conflicts, assignedTeams, game).map((n, i) => (
+                              <div key={i} className={`truncate ${noteToneClass(n.tone)}`} title={n.text}>{n.text}</div>
+                            ))}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
