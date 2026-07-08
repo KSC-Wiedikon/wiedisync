@@ -102,7 +102,7 @@ export default function UpcomingTicker({ teamIds }: { teamIds: string[] }) {
         <Marquee
           pauseOnHover
           repeat={items.length <= 8 ? 4 : 2}
-          className="[--duration:45s] [--gap:0.75rem] py-1 [mask-image:linear-gradient(to_right,transparent,black_4%,black_96%,transparent)]"
+          className="[--duration:60s] [--gap:0.75rem] py-1 [mask-image:linear-gradient(to_right,transparent,black_4%,black_96%,transparent)]"
         >
           {items.map((entry) => (
             <TickerPill key={entry.id} entry={entry} todayKey={todayKey} />

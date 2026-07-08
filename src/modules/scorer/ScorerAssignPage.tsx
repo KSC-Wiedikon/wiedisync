@@ -24,8 +24,8 @@ type SportTab = 'volleyball' | 'basketball'
 // Rule labels shown in the collapsible "Algorithm rules" panel. The order and
 // point values mirror AssignmentAlgorithm.ts (VB) / AssignmentAlgorithmBb.ts
 // (BB) — keep them in sync if the engines change.
-const VB_HARD_RULES = ['ruleVbHardGame', 'ruleVbHardDoltschi', 'ruleVbHardDuty']
-const VB_SOFT_RULES = ['ruleVbSoftSequence', 'ruleVbSoftHu20', 'ruleVbSoftDoltschi', 'ruleVbSoftLegends', 'ruleVbSoftWeekend', 'ruleVbSoftTraining', 'ruleVbSoftRotation']
+const VB_HARD_RULES = ['ruleVbHardGame', 'ruleVbHardDuty', 'ruleVbHardLicence']
+const VB_SOFT_RULES = ['ruleVbSoftSequence', 'ruleVbSoftHu20', 'ruleVbSoftLegends', 'ruleVbSoftWeekend', 'ruleVbSoftTraining', 'ruleVbSoftRotation']
 const BB_HARD_RULES = ['ruleBbHardGame', 'ruleBbHardDuty', 'ruleBbHardOtr1']
 const BB_SOFT_RULES = ['ruleBbSoftFullCrew', 'ruleBbSoftSequence', 'ruleBbSoftTraining', 'ruleBbSoftRotation', 'ruleBbSoftWeekend']
 

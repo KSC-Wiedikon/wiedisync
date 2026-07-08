@@ -624,6 +624,30 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
+  // ── Sync-UP: mute/unmute a member (clubdesk_sync_exclude, migration 190) ────
+  // A muted member disappears from both preview lists and is refused by /up —
+  // for technical rows (System KSCW) and deliberate never-sync members.
+  router.post('/clubdesk-member-sync/mute', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const memberId = Number(req.body?.member_id)
+      if (!Number.isInteger(memberId)) return res.status(400).json({ error: 'member_id required' })
+      const muted = req.body?.muted !== false // default true
+      const n = await database('members').where('id', memberId)
+        .update({ clubdesk_sync_exclude: muted })
+      if (!n) return res.status(404).json({ error: 'Member not found' })
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update',
+        collection: 'members', recordId: memberId,
+        data: { kind: 'clubdesk_sync_mute', clubdesk_sync_exclude: muted },
+      })
+      return res.json({ ok: true, member_id: memberId, muted })
+    } catch (err) {
+      log.error({ msg: `clubdesk mute: ${err.message}`, endpoint: 'clubdesk-member-sync/mute', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // ── Sync-UP: preview what would be pushed to ClubDesk ───────────────────────
   // changed  = members edited in wiedisync since the last push AND linked to a
   //            ClubDesk contact (clubdesk_id) → ClubDesk will UPDATE them.
@@ -635,6 +659,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
       const changedRows = await database('members')
         .where('clubdesk_push_pending', true).whereNotNull('clubdesk_id')
+        // Muted members (clubdesk_sync_exclude, migration 190 — e.g. the System
+        // KSCW technical account) never appear in either preview list.
+        .where('clubdesk_sync_exclude', false)
         .select('id', 'first_name', 'last_name', 'email', 'clubdesk_id', 'clubdesk_push_changes')
         .orderBy('last_name')
       const changed = changedRows.map((m) => {
@@ -651,6 +678,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const unlinkedRows = await database('members')
         .whereNull('clubdesk_id')
         .whereNull('clubdesk_pushed_at')
+        .where('clubdesk_sync_exclude', false)
         .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie',
           'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb')
         .orderBy('last_name')
@@ -705,15 +733,17 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         return res.status(409).json({ error: 'A sync-up is already in progress', state: s.up_state })
       }
       const fetched = await database('members').whereIn('id', ids)
-        .select([...PUSH_FIELDS, 'clubdesk_push_pending', 'clubdesk_pushed_at'])
+        .select([...PUSH_FIELDS, 'clubdesk_push_pending', 'clubdesk_pushed_at', 'clubdesk_sync_exclude'])
       // Server-side eligibility re-check — mirrors up-preview: an UPDATE push needs
       // a linked contact with pending changes; a CREATE push must be neither linked
       // nor already pushed (a pushed-awaiting-link member would DUPLICATE the
-      // contact in ClubDesk). The preview enforced this only client-side, but /up
-      // callers can act on stale state (per-registration zone, second admin), so
-      // refuse ineligible ids here.
+      // contact in ClubDesk). Muted members (clubdesk_sync_exclude) are refused
+      // outright. The preview enforced this only client-side, but /up callers can
+      // act on stale state (per-registration zone, second admin), so refuse
+      // ineligible ids here.
       const members = fetched.filter((m) =>
-        (m.clubdesk_push_pending && m.clubdesk_id) || (!m.clubdesk_id && !m.clubdesk_pushed_at))
+        !m.clubdesk_sync_exclude &&
+        ((m.clubdesk_push_pending && m.clubdesk_id) || (!m.clubdesk_id && !m.clubdesk_pushed_at)))
       if (!members.length) {
         return res.status(409).json({ error: 'No eligible members — already in ClubDesk or awaiting link-back', code: 'not_eligible' })
       }
@@ -1430,7 +1460,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         .filter((c) => c && EDITABLE.has(c.field))
         .map((c) => ({
           field: c.field,
-          old_value: c.old_value,
+          // Old birthdate arrives as ISO from the modal — render it Swiss like
+          // the new value (the Lasse email showed "2024-04-17" vs "17.04.1998").
+          old_value: c.field === 'birthdate' && /^\d{4}-\d{2}-\d{2}/.test(String(c.old_value ?? ''))
+            ? fmtBirthdateDDMMYYYY(c.old_value)
+            : c.old_value,
           new_value: c.field === 'birthdate' ? fmtBirthdateDDMMYYYY(member.birthdate)
             : c.field === 'sex' ? sexLabel
               : (member[c.field] ?? ''),

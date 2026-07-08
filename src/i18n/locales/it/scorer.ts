@@ -79,6 +79,7 @@ export default {
   confirmSelfAssignArrival_referee: 'Devi essere in palestra almeno <strong>30 minuti</strong> prima dell\'inizio del gioco.',
   confirmSelfAssignArrival_bb: 'Devi essere in palestra almeno <strong>15 minuti</strong> prima dell\'inizio del gioco.',
   confirmSelfAssignWarning: 'Questa scelta è <strong>definitiva</strong>. Una volta presa una mansione non puoi più lasciarla — l\'unico modo per cederla è <strong>delegarla a un altro membro</strong>.',
+  confirmSelfAssignAbsence: 'Hai un\'assenza registrata in questa data. Puoi comunque assumere il servizio, ma controlla prima la tua disponibilità.',
   cancelAction: 'Annulla',
   confirmAction: 'Conferma',
 

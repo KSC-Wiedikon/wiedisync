@@ -79,6 +79,7 @@ export default {
   confirmSelfAssignArrival_referee: 'Vous devez etre dans la salle au moins <strong>30 minutes</strong> avant le debut du match.',
   confirmSelfAssignArrival_bb: 'Vous devez etre dans la salle au moins <strong>15 minutes</strong> avant le debut du match.',
   confirmSelfAssignWarning: 'Ce choix est <strong>définitif</strong>. Une fois une tâche acceptée, tu ne peux plus l\'abandonner — le seul moyen de t\'en défaire est de la <strong>déléguer à un autre membre</strong>.',
+  confirmSelfAssignAbsence: 'Tu as une absence enregistrée à cette date. Tu peux quand même prendre le service, mais vérifie d\'abord ta disponibilité.',
   cancelAction: 'Annuler',
   confirmAction: 'Confirmer',
 

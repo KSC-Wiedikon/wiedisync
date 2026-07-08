@@ -74,7 +74,7 @@ export default {
 
   // Algorithm rules (info panel)
   rulesTitle: 'Règles de l\'algorithme',
-  rulesModeVb: 'Volleyball : équipes de marqueur et de tableau séparées. À Döltschi et en 4L/5L, une seule équipe fait les deux (combiné). Les matchs à domicile HU20 n\'utilisent qu\'un arbitre (pas de marqueur ni tableau).',
+  rulesModeVb: 'Le service dépend du niveau de l\'équipe à domicile : 4e/5e ligue (tous) et DU23 → une équipe fait marqueur + tableau (combiné, sans licence). 3e ligue et plus, et HU23 → marqueur séparé (avec licence) + tableau. HU20 → arbitre uniquement (sans licence).',
   refereeCount: 'Arbitre',
   refereeTag: 'Arb',
   noRefereeAvailable: 'Aucun arbitre disponible',
@@ -85,7 +85,7 @@ export default {
   ruleVbHardGame: 'L\'équipe joue un match qui chevauche celui-ci (un créneau plus tôt/tard le même jour est ok)',
   ruleVbHardDoltschi: 'Döltschi : équipes U uniquement (HU20, HU23-1, DU23-1, DU23-2)',
   ruleVbHardDuty: 'L\'équipe a déjà un service le même jour',
-  ruleVbHardLicence: 'Marqueur / combiné : l\'équipe a besoin d\'un membre avec licence de marqueur',
+  ruleVbHardLicence: 'Marqueur (3e ligue et plus, HU23) : l\'équipe a besoin d\'un membre avec licence de marqueur',
   ruleVbSoftSequence: 'Joue juste avant/après dans la même salle : +50',
   ruleVbSoftHu20: 'HU20 au tableau : +15',
   ruleVbSoftDoltschi: 'Équipe U en combiné à Döltschi : +10',

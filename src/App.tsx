@@ -25,6 +25,7 @@ import PlayerProfile from './modules/teams/PlayerProfile'
 import RosterEditor from './modules/teams/RosterEditor'
 import InfraHealthPage from './modules/admin/InfraHealthPage'
 import DataHealthPage from './modules/admin/DataHealthPage'
+import ClubdeskSyncPage from './modules/admin/ClubdeskSyncPage'
 import AuditLogPage from './modules/admin/AuditLogPage'
 import RefereeExpensesPage from './modules/admin/RefereeExpensesPage'
 import ClubStatsPage from './modules/admin/ClubStatsPage'
@@ -195,6 +196,7 @@ export default function App() {
             <Route path="news" element={<AuthRoute><NewsArchivePage /></AuthRoute>} />
             <Route path="admin/infra" element={<SuperAdminRoute><InfraHealthPage /></SuperAdminRoute>} />
             <Route path="admin/data-health" element={<SuperAdminRoute><DataHealthPage /></SuperAdminRoute>} />
+            <Route path="admin/clubdesk-sync" element={<SuperAdminRoute><ClubdeskSyncPage /></SuperAdminRoute>} />
             <Route path="admin/audit-log" element={<SuperAdminRoute><AuditLogPage /></SuperAdminRoute>} />
             <Route path="admin/error-logs" element={<SuperAdminRoute><ErrorLogsPage /></SuperAdminRoute>} />
             <Route path="admin/sql" element={<SuperAdminRoute><SqlWorkspacePage /></SuperAdminRoute>} />

@@ -79,6 +79,7 @@ export default {
   confirmSelfAssignArrival_referee: 'Du musst spätestens <strong>30 Minuten</strong> vor Spielbeginn in der Halle sein.',
   confirmSelfAssignArrival_bb: 'Du musst spätestens <strong>15 Minuten</strong> vor Spielbeginn in der Halle sein.',
   confirmSelfAssignWarning: 'Diese Wahl ist <strong>endgültig</strong>. Sobald du eine Aufgabe übernimmst, kannst du sie nicht mehr abgeben — der einzige Weg ist, sie <strong>an ein anderes Mitglied zu delegieren</strong>.',
+  confirmSelfAssignAbsence: 'Du hast an diesem Datum eine Absenz eingetragen. Du kannst den Dienst trotzdem übernehmen, prüfe aber zuerst deine Verfügbarkeit.',
   cancelAction: 'Abbrechen',
   confirmAction: 'Bestätigen',
 

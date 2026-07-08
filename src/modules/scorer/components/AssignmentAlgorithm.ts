@@ -1,30 +1,29 @@
 import type { Game, Team, Training, Member, MemberTeam } from '../../../types'
 
-// Teams that can score at Döltschi venue
-const UNDER_TEAM_NAMES = ['HU20', 'HU23-1', 'DU23-1', 'DU23-2']
-
-// Teams/leagues that use combined mode (scorer/scoreboard = 1 team does both)
-// Based on sheet: Döltschi games, Legends (4L), D3 (5L), D4 (5L) all use combined
-const COMBINED_LEAGUES = ['4L', '5L']
-
-// Teams whose HOME games use a referee instead of a Täfeler (scoreboard):
-// HU20 home games are staffed scorer + referee. The referee is a duty team
-// like the scorer (no licence required).
-const REFEREE_HOME_TEAM_NAMES = ['HU20']
-
 // Teams that are OUT of the duty system entirely (Minis / DU20): never assigned
 // duty, and hidden from the assign page's team summary + manual dropdowns.
 export const EXCLUDED_DUTY_TEAM_NAMES = ['MiniVB', 'DU20']
+
+// Duty type per PLAYING team:
+//   referee  → HU20            (referee only, no licence)
+//   combined → 4L / 5L (any gender) and DU23  (one team does scorer + Täfeler, no licence)
+//   separate → 3L and up (2L, 1L, …) and HU23 (scorer NEEDS a licence + Täfeler)
+export function classifyVbMode(teamName: string, league: string): 'referee' | 'combined' | 'separate' {
+  if (teamName.startsWith('HU20')) return 'referee'
+  if (teamName.startsWith('DU23')) return 'combined'
+  if (teamName.startsWith('HU23')) return 'separate'
+  const m = /^(\d+)L/.exec((league ?? '').trim()) // teams.league is '2L', '4L', …
+  if (m) return Number(m[1]) >= 4 ? 'combined' : 'separate'
+  return 'separate'
+}
 
 export interface AssignmentInput {
   games: Game[]
   teams: Team[]
   trainings: Training[]
-  // members/memberTeams are no longer consumed (scorer duty needs no licence),
-  // kept on the input for a stable call signature.
-  members: Member[]
+  members: Member[]        // for scorer-licence teams (separate-mode scorer)
   memberTeams: MemberTeam[]
-  halls: { id: string; name: string }[]
+  halls: { id: string; name: string }[] // kept for a stable call signature
 }
 
 export interface ConflictEntry {
@@ -34,8 +33,8 @@ export interface ConflictEntry {
 
 export interface GameAssignment {
   gameId: string
-  // 'separate' = scorer + Täfeler; 'combined' = one team does both;
-  // 'referee' = scorer + referee (HU20 home games).
+  // 'separate' = scorer(licence) + Täfeler; 'combined' = one team does both;
+  // 'referee' = referee only (HU20).
   mode: 'separate' | 'combined' | 'referee'
   scorerTeamId: string | null
   scorerTeamName: string | null
@@ -58,25 +57,7 @@ interface TeamScore {
   reasons: ConflictEntry[]
 }
 
-/** Check if a hall name matches Döltschi */
-function isDoltschi(hallName: string): boolean {
-  const n = hallName.toLowerCase()
-  return n.includes('döltschi') || n.includes('doltschi')
-}
-
-/** Determine if a game should use combined mode based on sheet patterns */
-function shouldUseCombined(game: Game, hallName: string): boolean {
-  // Döltschi games always combined
-  if (isDoltschi(hallName)) return true
-  // Lower leagues (4L, 5L) use combined
-  if (game.league) {
-    const league = game.league.trim()
-    if (COMBINED_LEAGUES.some((l) => league.includes(l))) return true
-  }
-  return false
-}
-
-/** Build lookup: date string → set of team IDs that have a game */
+/** Build lookup: date string → set of team IDs that have a game (used by BB). */
 export function buildTeamGameDates(games: Game[]): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>()
   for (const g of games) {
@@ -109,19 +90,15 @@ export function buildTeamGameTimes(games: Game[]): Map<string, number[]> {
   return map
 }
 
-// A team can't do duty for a game that overlaps its own game (can't be in two
-// places). Games run ~2h and the real slots are ≥2.5h apart, so a 120-min
-// window disqualifies only same/near-simultaneous games — a team is free to
-// cover an earlier or later slot the same day (and adjacency is rewarded below).
+// A team can't do duty for a game overlapping its own (±120 min); a non-overlapping
+// slot the same day is allowed, and the adjacent slot is rewarded below.
 const OVERLAP_MINUTES = 120
 
 /** Build lookup: "teamId|date" → true if team has training */
 export function buildTrainingDates(trainings: Training[]): Set<string> {
   const set = new Set<string>()
   for (const tr of trainings) {
-    if (tr.team && tr.date && !tr.cancelled) {
-      set.add(`${tr.team}|${tr.date}`)
-    }
+    if (tr.team && tr.date && !tr.cancelled) set.add(`${tr.team}|${tr.date}`)
   }
   return set
 }
@@ -135,9 +112,7 @@ export function buildGamesByDateHall(games: Game[]): Map<string, Game[]> {
     if (!map.has(key)) map.set(key, [])
     map.get(key)!.push(g)
   }
-  for (const arr of map.values()) {
-    arr.sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
-  }
+  for (const arr of map.values()) arr.sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
   return map
 }
 
@@ -145,21 +120,24 @@ export function buildGamesByDateHall(games: Game[]): Map<string, Game[]> {
 export function getAdjacentTeams(game: Game, gamesByDateHall: Map<string, Game[]>): Set<string> {
   const adjacent = new Set<string>()
   if (!game.date || !game.hall) return adjacent
-
-  const key = `${game.date}|${game.hall}`
-  const gamesAtHall = gamesByDateHall.get(key)
+  const gamesAtHall = gamesByDateHall.get(`${game.date}|${game.hall}`)
   if (!gamesAtHall || gamesAtHall.length <= 1) return adjacent
-
   const idx = gamesAtHall.findIndex((g) => g.id === game.id)
   if (idx === -1) return adjacent
-
-  if (idx > 0 && gamesAtHall[idx - 1].kscw_team) {
-    adjacent.add(gamesAtHall[idx - 1].kscw_team)
-  }
-  if (idx < gamesAtHall.length - 1 && gamesAtHall[idx + 1].kscw_team) {
-    adjacent.add(gamesAtHall[idx + 1].kscw_team)
-  }
+  if (idx > 0 && gamesAtHall[idx - 1].kscw_team) adjacent.add(gamesAtHall[idx - 1].kscw_team)
+  if (idx < gamesAtHall.length - 1 && gamesAtHall[idx + 1].kscw_team) adjacent.add(gamesAtHall[idx + 1].kscw_team)
   return adjacent
+}
+
+/** Team IDs that have a scorer-licenced (scorer_vb) non-guest member. */
+function buildScorerTeams(members: Member[], memberTeams: MemberTeam[]): Set<string> {
+  const licenced = new Set<string>()
+  for (const m of members) if (m.scorer_vb) licenced.add(m.id)
+  const teams = new Set<string>()
+  for (const mt of memberTeams) {
+    if (licenced.has(mt.member) && (mt.guest_level ?? 0) === 0) teams.add(mt.team)
+  }
+  return teams
 }
 
 /** Score a candidate team for a specific game and role */
@@ -168,11 +146,10 @@ function scoreTeam(
   teamName: string,
   game: Game,
   role: 'scorer' | 'scoreboard' | 'combined' | 'referee',
-  hallName: string,
   teamGameTimes: Map<string, number[]>,
   trainingDates: Set<string>,
   adjacentTeams: Set<string>,
-  underTeamIds: Set<string>,
+  scorerTeams: Set<string>,
   assignmentCounts: Map<string, number>,
   dayAssignments: Map<string, Set<string>>,
 ): TeamScore {
@@ -183,10 +160,8 @@ function scoreTeam(
   // === HARD RULES ===
 
   // 1. Team plays a game that OVERLAPS this one → DISQUALIFY (can't be in two
-  //    places). Playing a non-overlapping slot the same day is fine — and if the
-  //    team plays the adjacent game at this hall, that's the IDEAL duty team
-  //    (big preference below). If the duty game has no time, fall back to
-  //    same-day exclusion (can't reason about overlap).
+  //    places). A non-overlapping slot the same day is fine (adjacency rewarded
+  //    below). Unknown time → fall back to same-day exclusion.
   const dutyMin = timeToMin(game.time)
   const ownGameMins = teamGameTimes.get(`${teamId}|${game.date}`) ?? []
   const overlaps = dutyMin == null
@@ -194,23 +169,21 @@ function scoreTeam(
     : ownGameMins.some((m) => Math.abs(m - dutyMin) < OVERLAP_MINUTES)
   if (overlaps) {
     disqualified = true
-    // (Reason is never rendered — disqualified candidates are filtered out.)
-    reasons.push({ key: 'reason_gameSameDay' })
+    reasons.push({ key: 'reason_gameSameDay' }) // never rendered (candidate filtered out)
   }
 
-  // 2. Döltschi venue → only Under teams allowed
-  if (isDoltschi(hallName) && !underTeamIds.has(teamId)) {
-    disqualified = true
-    reasons.push({ key: 'reason_doltschiUnderOnly' })
-  }
-
-  // 3. Already assigned a duty on this day → DISQUALIFY
+  // 2. Already assigned a duty on this day → DISQUALIFY
   if (dayAssignments.get(game.date)?.has(teamId)) {
     disqualified = true
     reasons.push({ key: 'reason_alreadyDuty' })
   }
 
-  // (No licence requirement — scorer / Täfeler / referee need no licence.)
+  // 3. Separate-mode SCORER (3L and up / HU23) needs a scorer licence.
+  //    Täfeler, combined and referee need none.
+  if (role === 'scorer' && !scorerTeams.has(teamId)) {
+    disqualified = true
+    reasons.push({ key: 'reason_noLicence' })
+  }
 
   if (disqualified) return { teamId, teamName, score: -Infinity, disqualified, reasons }
 
@@ -222,8 +195,8 @@ function scoreTeam(
     reasons.push({ key: 'reason_training', params: { points: -20 } })
   }
 
-  // Adjacent-game preference: the team plays the game right before/after at this
-  // hall → strongly preferred (they're already on-site). +50.
+  // Adjacent-game preference: plays right before/after at this hall → strongly
+  // preferred (already on-site). +50.
   if (adjacentTeams.has(teamId)) {
     score += 50
     reasons.push({ key: 'reason_sequenceBonus', params: { points: 50 } })
@@ -241,12 +214,6 @@ function scoreTeam(
   if (role === 'scoreboard' && teamName === 'HU20') {
     score += 15
     reasons.push({ key: 'reason_hu20Taefeler', params: { points: 15 } })
-  }
-
-  // Under teams preferred for combined mode at Döltschi: +10
-  if (role === 'combined' && isDoltschi(hallName) && underTeamIds.has(teamId)) {
-    score += 10
-    reasons.push({ key: 'reason_underDoltschi', params: { points: 10 } })
   }
 
   // Legends bonus for scorer role: +8
@@ -278,34 +245,23 @@ export function trackAssignment(
 }
 
 export function runAssignment(input: AssignmentInput): GameAssignment[] {
-  const { games, teams, trainings, halls } = input
+  const { games, teams, trainings, members, memberTeams } = input
 
   const vbTeams = teams.filter((t) => t.sport === 'volleyball' && t.active)
   // Candidate duty providers: exclude Minis / DU20 (they never cover duties).
   const candidateTeams = vbTeams.filter((t) => !EXCLUDED_DUTY_TEAM_NAMES.includes(t.name))
 
-  // Build lookups
-  const hallNameById = new Map<string, string>()
-  for (const h of halls) hallNameById.set(h.id, h.name)
-
-  const underTeamIds = new Set<string>()
-  for (const t of vbTeams) {
-    if (UNDER_TEAM_NAMES.includes(t.name)) underTeamIds.add(t.id)
-  }
-
+  const scorerTeams = buildScorerTeams(members, memberTeams)
   const teamGameTimes = buildTeamGameTimes(games)
   const trainingDates = buildTrainingDates(trainings)
   const gamesByDateHall = buildGamesByDateHall(games)
 
-  // Home games to assign, sorted by date+time
   const homeGames = games
     .filter((g) => g.type === 'home' && g.status !== 'postponed')
     .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || (a.time ?? '').localeCompare(b.time ?? ''))
 
-  // Running counters
   const assignmentCounts = new Map<string, number>()
   const dayAssignments = new Map<string, Set<string>>()
-
   const results: GameAssignment[] = []
 
   const blank = (gameId: string, mode: GameAssignment['mode']): GameAssignment => ({
@@ -317,14 +273,13 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
     scorerScore: 0, scoreboardScore: 0, conflicts: [],
   })
 
-  // Pick the best available candidate team for a role, excluding `excludeIds`.
-  const pickBest = (game: Game, role: 'scorer' | 'scoreboard' | 'combined' | 'referee', hallName: string, adjacentTeams: Set<string>, excludeIds: (string | null)[]): TeamScore | null => {
+  const pickBest = (game: Game, role: 'scorer' | 'scoreboard' | 'combined' | 'referee', adjacentTeams: Set<string>, excludeIds: (string | null)[]): TeamScore | null => {
     const scores = candidateTeams
       .filter((t) => !excludeIds.includes(t.id))
       .map((t) => scoreTeam(
-        t.id, t.name, game, role, hallName,
+        t.id, t.name, game, role,
         teamGameTimes, trainingDates, adjacentTeams,
-        underTeamIds, assignmentCounts, dayAssignments,
+        scorerTeams, assignmentCounts, dayAssignments,
       ))
       .filter((s) => !s.disqualified)
       .sort((a, b) => b.score - a.score)
@@ -332,13 +287,10 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
   }
 
   for (const game of homeGames) {
-    const hallName = hallNameById.get(game.hall) ?? ''
     const adjacentTeams = getAdjacentTeams(game, gamesByDateHall)
     const playingTeamId = game.kscw_team
-    const playingTeamName = vbTeams.find((t) => t.id === playingTeamId)?.name ?? ''
-    const isRefereeGame = REFEREE_HOME_TEAM_NAMES.includes(playingTeamName)
-    // HU20 games are scorer + referee (never combined).
-    const useCombined = !isRefereeGame && shouldUseCombined(game, hallName)
+    const playingTeam = vbTeams.find((t) => t.id === playingTeamId)
+    const mode = classifyVbMode(playingTeam?.name ?? '', playingTeam?.league ?? '')
 
     // Skip games that already have assignments (keep them, still count for fairness)
     const alreadyHasSeparate = !!(game.scorer_duty_team || game.scoreboard_duty_team)
@@ -350,8 +302,8 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
       for (const id of [game.scorer_duty_team, game.scoreboard_duty_team, game.scorer_scoreboard_duty_team, game.referee_duty_team]) {
         if (id) trackAssignment(id, game.date, assignmentCounts, dayAssignments)
       }
-      const mode: GameAssignment['mode'] = alreadyHasReferee ? 'referee' : alreadyHasCombined ? 'combined' : 'separate'
-      const a = blank(game.id, mode)
+      const existingMode: GameAssignment['mode'] = alreadyHasReferee ? 'referee' : alreadyHasCombined ? 'combined' : 'separate'
+      const a = blank(game.id, existingMode)
       a.scorerTeamId = game.scorer_duty_team || null
       a.scorerTeamName = game.scorer_duty_team ? nameOf(game.scorer_duty_team) : null
       a.scoreboardTeamId = game.scoreboard_duty_team || null
@@ -365,21 +317,20 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
       continue
     }
 
-    if (isRefereeGame) {
-      // === REFEREE MODE (HU20): referee ONLY — no scorer, no Täfeler ===
+    if (mode === 'referee') {
+      // === REFEREE ONLY (HU20) ===
       const a = blank(game.id, 'referee')
-      const referee = pickBest(game, 'referee', hallName, adjacentTeams, [playingTeamId])
+      const referee = pickBest(game, 'referee', adjacentTeams, [playingTeamId])
       if (referee) {
         a.refereeTeamId = referee.teamId; a.refereeTeamName = referee.teamName; a.scoreboardScore = referee.score
         for (const r of referee.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: referee.teamName, role: 'referee' } })
         trackAssignment(referee.teamId, game.date, assignmentCounts, dayAssignments)
       } else a.conflicts.push({ key: 'noRefereeAvailable' })
-
       results.push(a)
-    } else if (useCombined) {
-      // === COMBINED MODE ===
+    } else if (mode === 'combined') {
+      // === COMBINED (4L/5L/DU23): one team, no licence ===
       const a = blank(game.id, 'combined')
-      const best = pickBest(game, 'combined', hallName, adjacentTeams, [playingTeamId])
+      const best = pickBest(game, 'combined', adjacentTeams, [playingTeamId])
       if (best) {
         a.combinedTeamId = best.teamId; a.combinedTeamName = best.teamName; a.scorerScore = best.score
         for (const r of best.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: best.teamName } })
@@ -387,16 +338,16 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
       } else a.conflicts.push({ key: 'noTeamAvailable' })
       results.push(a)
     } else {
-      // === SEPARATE MODE: scorer + Täfeler ===
+      // === SEPARATE (3L+/HU23): scorer(licence) + Täfeler ===
       const a = blank(game.id, 'separate')
-      const scorer = pickBest(game, 'scorer', hallName, adjacentTeams, [playingTeamId])
+      const scorer = pickBest(game, 'scorer', adjacentTeams, [playingTeamId])
       if (scorer) {
         a.scorerTeamId = scorer.teamId; a.scorerTeamName = scorer.teamName; a.scorerScore = scorer.score
         for (const r of scorer.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: scorer.teamName, role: 'scorer' } })
         trackAssignment(scorer.teamId, game.date, assignmentCounts, dayAssignments)
       } else a.conflicts.push({ key: 'noScorerAvailable' })
 
-      const scoreboard = pickBest(game, 'scoreboard', hallName, adjacentTeams, [playingTeamId, a.scorerTeamId])
+      const scoreboard = pickBest(game, 'scoreboard', adjacentTeams, [playingTeamId, a.scorerTeamId])
       if (scoreboard) {
         a.scoreboardTeamId = scoreboard.teamId; a.scoreboardTeamName = scoreboard.teamName; a.scoreboardScore = scoreboard.score
         for (const r of scoreboard.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: scoreboard.teamName, role: 'scoreboard' } })
