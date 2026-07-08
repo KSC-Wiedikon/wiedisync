@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Download, Loader2 } from 'lucide-react'
 import { exportReport, type FinanceReport, type ExportFormat } from './reportExport'
 
@@ -11,7 +12,7 @@ export default function ReportExportMenu({ build, filename }: { build: () => Fin
 
   async function go(fmt: ExportFormat) {
     setOpen(false); setBusy(fmt)
-    try { await exportReport(fmt, build(), filename) } catch (e) { alert((e as Error)?.message || 'Export failed') } finally { setBusy(null) }
+    try { await exportReport(fmt, build(), filename) } catch (e) { toast.error((e as Error)?.message || t('exportError')) } finally { setBusy(null) }
   }
   const opts: { fmt: ExportFormat; label: string }[] = [
     { fmt: 'pdf', label: t('exportPdf') },

@@ -12,6 +12,7 @@ file paths, root-cause notes). It is deliberately distinct from:
 At the end of a substantive backend/deploy session, append a dated entry here (one line per entry).
 `CLAUDE.md → Recent dev log` keeps only the last few entries for at-a-glance context.
 
+- **2026-07-08** **v1.29.0 — Issue-fine button + browser-dialog ban** — standalone "Issue fine" on `/fines` (new `IssueFinePickerModal`: team→member pick via `useTeamMembers`, hands to `IssueFineModal` w/ catalog-engine amount; gated to coach/TR/admin like the mark-paid buttons); + swept all native `window.confirm`/`alert` out of the finance module (ExpensesTab, LedgerTab, TeamFinance, DuesEmail, PaymentLedgerModal, InvoiceManager, ReportExportMenu) → `useConfirm()` modal / `toast`; rule added to CLAUDE.md + INFRA.md (INFRA gitignored). Also this turn: nav gate widened so finance/superadmins see "Confirm expenses" (`useNavItems` `isTk`→`canAccessFinance`). Frontend-only, no schema/endpoint change. **dev+prod**.
 - **2026-07-08** **v1.28.0 — Expense shared internal note** (migration 193 `finance_expenses.internal_note`; one back-office note edited by finance/admin via `PATCH /expenses/:id` + section TK via `POST /expenses/:id/tk-confirm`, shown on both the Expenses tab and the Confirm-expenses page, NOT in the member policy field scope so never member-visible; keeps existing member-facing `finance_note` + TK-only `tk_note`; i18n en/de/gsw/fr/it).
 
 The full pre-1.0 operator/deploy history is preserved in [`DEVLOG-archive.md`](DEVLOG-archive.md).

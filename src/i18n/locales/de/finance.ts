@@ -478,6 +478,7 @@ export default {
   exportPdf: 'PDF',
   exportExcel: 'Excel',
   exportPpt: 'PowerPoint',
+  exportError: 'Export fehlgeschlagen.',
   total: 'Total',
 
   // Mahnwesen

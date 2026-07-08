@@ -14,6 +14,8 @@ import EmptyState from '../../components/EmptyState'
 import TabBar from '../../components/TabBar'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import WaiveFineModal from './WaiveFineModal'
+import IssueFineModal from './IssueFineModal'
+import IssueFinePickerModal, { type FinePickSelection } from './IssueFinePickerModal'
 import type { Fine, FineStatus, Member, Team } from '../../types'
 
 type Scope = 'mine' | 'team'
@@ -53,6 +55,8 @@ export default function FinesPage() {
   const [teamFilter, setTeamFilter] = useState<string | 'all'>('all')
 
   const [waiving, setWaiving] = useState<Fine | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [issuing, setIssuing] = useState<FinePickSelection | null>(null)
 
   // Fine query — leaders see their teams (server-side scoped), members see own.
   const finesFilter = useMemo<Record<string, unknown> | undefined>(() => {
@@ -110,6 +114,27 @@ export default function FinesPage() {
     return coachTeamIds.includes(String(teamId))
   }
 
+  // Teams the leader may ISSUE a fine for: their coached/TR teams, or every
+  // active team for admins/Vorstand. Separate from `leaderTeams` above, which
+  // only lists teams that already have fines (so it can't seed a new fine).
+  const issueTeamsFilter = useMemo<Record<string, unknown>>(
+    () =>
+      effectiveIsAdmin || effectiveIsVorstand
+        ? { active: { _eq: true } }
+        : coachTeamIds.length ? { id: { _in: coachTeamIds } } : { id: { _eq: -1 } },
+    [effectiveIsAdmin, effectiveIsVorstand, coachTeamIds],
+  )
+  const { data: issueTeamsRaw } = useCollection<Team>('teams', {
+    filter: issueTeamsFilter,
+    fields: ['id', 'name'],
+    enabled: isLeader,
+    all: true,
+  })
+  const issueTeams = useMemo(
+    () => [...(issueTeamsRaw ?? [])].sort((a, b) => String(a.name).localeCompare(String(b.name))),
+    [issueTeamsRaw],
+  )
+
   // Totals strip (for the active filter)
   const total = fines.reduce((acc, f) => acc + (Number(f.amount) || 0), 0)
   const openOnly = fines.filter((f) => f.status === 'open')
@@ -137,6 +162,12 @@ export default function FinesPage() {
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('fines:subtitle')}</p>
         </div>
+        {isLeader && (
+          <Button size="sm" onClick={() => setPickerOpen(true)} className="gap-1.5">
+            <Gavel className="h-4 w-4" />
+            {t('fines:issueFine')}
+          </Button>
+        )}
       </div>
 
       {/* Member outstanding strip */}
@@ -256,6 +287,27 @@ export default function FinesPage() {
           onClose={() => setWaiving(null)}
           fine={waiving}
           onSuccess={() => refetch()}
+        />
+      )}
+
+      {isLeader && pickerOpen && (
+        <IssueFinePickerModal
+          open
+          onClose={() => setPickerOpen(false)}
+          teams={issueTeams}
+          onPicked={(sel) => { setPickerOpen(false); setIssuing(sel) }}
+        />
+      )}
+      {issuing && (
+        <IssueFineModal
+          open
+          onClose={() => setIssuing(null)}
+          memberId={issuing.memberId}
+          memberName={issuing.memberName}
+          teamId={issuing.teamId}
+          teamName={issuing.teamName}
+          category="custom"
+          onSuccess={() => { setIssuing(null); refetch() }}
         />
       )}
     </div>

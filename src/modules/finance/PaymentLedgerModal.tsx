@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Loader2 } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
@@ -24,6 +25,7 @@ export default function PaymentLedgerModal({ invoice, onClose, onChanged }: {
   invoice: FinanceInvoice | null; onClose: () => void; onChanged: () => void
 }) {
   const { t } = useTranslation('finance')
+  const confirm = useConfirm()
   const { data: payments, refetch } = useInvoicePayments(invoice?.id)
   const [entryType, setEntryType] = useState<PaymentEntryType>('payment')
   const [amount, setAmount] = useState('')
@@ -51,7 +53,7 @@ export default function PaymentLedgerModal({ invoice, onClose, onChanged }: {
     } catch (e) { setError(apiErr(e, t('payAddError'))) } finally { setBusy(false) }
   }
   async function remove(pid: number) {
-    if (!invoice || !window.confirm(t('payDeleteSure'))) return
+    if (!invoice || !(await confirm({ message: t('payDeleteSure'), danger: true }))) return
     setBusyDel(pid); setError('')
     try { await deleteInvoicePayment(invoice.id, pid); await refetch(); onChanged() }
     catch (e) { setError(apiErr(e, t('payDeleteError'))) } finally { setBusyDel(null) }
