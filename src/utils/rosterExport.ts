@@ -35,6 +35,10 @@ export type RosterExportMeta = {
   activityTitle: string
   activityDate: string
   filterLabel: string
+  /** English filter label for the download filename (exports-always-English
+   *  convention). `filterLabel` stays localized because it also renders inside
+   *  the PNG/PDF snapshot, which is localized like the rest of the modal. */
+  filterLabelEn?: string
   exportedAt: string
   totalCount: number
   /** Comma-separated `<count> <label>` for each position in the export
@@ -65,9 +69,10 @@ export function buildExportFilename(meta: RosterExportMeta, ext: 'csv' | 'png' |
   // "H3-—-11_05_2026_11_05_2026" duplicate. Trust the title to be unique
   // enough; fall back to date when the title doesn't contain it.
   const titleHasDate = meta.activityDate && meta.activityTitle.includes(meta.activityDate)
+  const filterLabel = meta.filterLabelEn ?? meta.filterLabel
   const parts = titleHasDate
-    ? [meta.activityTitle, meta.filterLabel]
-    : [meta.activityTitle, meta.activityDate, meta.filterLabel]
+    ? [meta.activityTitle, filterLabel]
+    : [meta.activityTitle, meta.activityDate, filterLabel]
   return `${sanitizeFilename(parts.filter(Boolean).join('_'))}.${ext}`
 }
 
