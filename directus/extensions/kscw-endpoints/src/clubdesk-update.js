@@ -1051,9 +1051,38 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!reg || !reg.email) return { status: 'no_member' }
 
       const email = reg.email.toLowerCase().trim()
-      const emailRows = await database('members').whereRaw('LOWER(email) = ?', [email])
-        .select('id', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at')
-      const member = emailRows.find((r) => firstNamesMatchCd(r.first_name, reg.vorname)) || null
+      const MEMBER_COLS = ['id', 'uuid', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at']
+      // ID-FIRST (user rule 2026-07-08: "lookup should be by ID"). The approval
+      // hook stamps registrations.member (migration 194 backfilled legacy rows),
+      // so the FK is the authoritative link — the heuristics below only cover
+      // unstamped legacy rows the backfill couldn't uniquely resolve.
+      let member = null
+      if (reg.member) {
+        member = await database('members').where('id', reg.member).first(...MEMBER_COLS) || null
+      }
+      if (!member) {
+        const emailRows = await database('members').whereRaw('LOWER(email) = ?', [email])
+          .select(...MEMBER_COLS)
+        member = emailRows.find((r) => firstNamesMatchCd(r.first_name, reg.vorname)) || null
+      }
+      if (!member) {
+        // Divergent-email fallback (2026-07-08, Neo Paladino case): a child often
+        // registers under a PARENT's email while the member row (materialized
+        // from ClubDesk, or later edited) carries the person's own address — the
+        // email-only lookup then shows a false "no member record" for someone who
+        // exists and is even linked. Fall back to exact last-name equality + the
+        // symmetric first-name-prefix rule, and accept ONLY a unique candidate
+        // (ambiguity keeps no_member — this result also feeds the one-click link
+        // zone, so we never guess between two same-named people).
+        const nachname = String(reg.nachname || '').toLowerCase().trim()
+        if (nachname) {
+          const nameRows = await database('members')
+            .whereRaw('LOWER(BTRIM(last_name)) = ?', [nachname])
+            .select(...MEMBER_COLS)
+          const hits = nameRows.filter((r) => firstNamesMatchCd(r.first_name, reg.vorname))
+          if (hits.length === 1) member = hits[0]
+        }
+      }
       if (!member) return { status: 'no_member' }
 
       const base = { member_id: member.id }
@@ -1061,8 +1090,41 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         return { ...base, status: 'linked', clubdesk_id: member.clubdesk_id }
       }
 
-      // Unlinked → look for the person in the ClubDesk snapshot. Candidates come
-      // from an email or exact-name SQL match, but an email hit only COUNTS when
+      // Unlinked → AUTHORITATIVE KEY FIRST (2026-07-08, "lookup should be by
+      // ID"): the contact may already carry this member's Wiedisync ID (pushed
+      // on every create + update; the down-sync linker reads it back). A
+      // snapshot row holding it IS this member's contact — no name/email
+      // guessing, no ambiguity. Pre-184 stamps carried the numeric members.id,
+      // so accept both formats (same rule as the down-sync linker).
+      const widKeys = [
+        member.uuid ? String(member.uuid).toLowerCase().trim() : null,
+        String(member.id),
+      ].filter(Boolean)
+      const widRow = await database('clubdesk_export')
+        .whereRaw('LOWER(BTRIM(wiedisync_id)) = ANY(?)', [widKeys])
+        .whereRaw("NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL")
+        .orderBy('row_id')
+        .first('clubdesk_id', 'vorname', 'nachname', 'email', 'email_alternativ')
+      if (widRow) {
+        const widCdid = String(widRow.clubdesk_id).trim()
+        const widLinked = await database('members').where('clubdesk_id', widCdid)
+          .first('id', 'first_name', 'last_name')
+        return {
+          ...base,
+          status: 'match_unlinked',
+          clubdesk_id: widCdid,
+          clubdesk_name: `${(widRow.vorname || '').trim()} ${(widRow.nachname || '').trim()}`.trim() || null,
+          clubdesk_email: widRow.email || widRow.email_alternativ || null,
+          ambiguous: false,
+          matched_by: 'wiedisync_id',
+          duplicate_of: widLinked && widLinked.id !== member.id
+            ? { id: widLinked.id, name: `${widLinked.first_name || ''} ${widLinked.last_name || ''}`.trim() }
+            : null,
+        }
+      }
+
+      // Heuristic candidates (legacy contacts without a Wiedisync ID). Candidates
+      // come from an email or exact-name SQL match, but an email hit only COUNTS when
       // the contact's name also matches the member — same family-shared-email rule
       // as createMemberFromRegistration and the sync-down auto-linker: a child
       // registering with the parent's address must never be offered a one-click
@@ -1132,7 +1194,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const regId = Number(String(req.query.registration_id || '').trim())
       if (!Number.isInteger(regId)) return res.status(400).json({ error: 'registration_id required' })
       const reg = await database('registrations').where('id', regId)
-        .first('id', 'email', 'vorname', 'status')
+        .first('id', 'email', 'vorname', 'nachname', 'status', 'member')
       if (!reg) return res.status(404).json({ error: 'Registration not found' })
       return res.json(await cdStatusForRegistration(reg))
     } catch (err) {
@@ -1152,7 +1214,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         : []
       if (!ids.length) return res.status(400).json({ error: 'registration_ids required' })
       const regs = await database('registrations').whereIn('id', ids)
-        .select('id', 'email', 'vorname', 'status')
+        .select('id', 'email', 'vorname', 'nachname', 'status', 'member')
       const statuses = {}
       for (const reg of regs) {
         statuses[reg.id] = await cdStatusForRegistration(reg)

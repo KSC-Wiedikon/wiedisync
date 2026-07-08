@@ -545,6 +545,10 @@ export interface Event extends BaseRecord {
   send_email_invite: boolean
   cancelled: boolean
   cancel_reason: string
+  /** Migration 194: opt-in to the J+S (Jugend+Sport) export. */
+  js_relevant?: boolean
+  /** J+S NDS activity type used when js_relevant is set. */
+  js_activity_type?: 'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag' | null
 
 }
 

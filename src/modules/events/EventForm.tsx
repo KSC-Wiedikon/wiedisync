@@ -108,6 +108,8 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
   const [invitedRoles, setInvitedRoles] = useState<string[]>([])
   const [invitedMembers, setInvitedMembers] = useState<string[]>([])
   const [sendEmailInvite, setSendEmailInvite] = useState(false)
+  const [jsRelevant, setJsRelevant] = useState(false)
+  const [jsActivityType, setJsActivityType] = useState<'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag'>('Training')
   const [error, setError] = useState('')
 
   // Fetch existing sessions when editing
@@ -153,6 +155,8 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
         (event.invited_members ?? []).map((m: any) => typeof m === 'object' ? String(m.members_id?.id ?? m.members_id ?? m) : String(m))
       )
       setSendEmailInvite(event.send_email_invite ?? false)
+      setJsRelevant(!!event.js_relevant)
+      setJsActivityType((event.js_activity_type as 'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag') || 'Training')
     } else {
       setTitle('')
       setEventType(effectiveIsAdmin ? 'verein' : 'social')
@@ -175,6 +179,8 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setInvitedRoles([])
       setInvitedMembers([])
       setSendEmailInvite(false)
+      setJsRelevant(false)
+      setJsActivityType('Training')
     }
     setError('')
   }, [event, open])
@@ -292,6 +298,8 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       invited_roles: invitedRoles.length > 0 ? invitedRoles : null,
       invited_members: invitedMembers.map((id) => ({ members_id: id })),
       send_email_invite: sendEmailInvite,
+      js_relevant: jsRelevant,
+      js_activity_type: jsRelevant ? jsActivityType : null,
     }
 
     try {
@@ -489,6 +497,30 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
             <span>{t('enableTasks')}</span>
             <p className="text-xs text-muted-foreground">{t('enableTasksHint')}</p>
           </div>
+        </div>
+
+        {/* J+S export opt-in — flags the event as a J+S activity and picks its NDS type. */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <Switch checked={jsRelevant} onCheckedChange={setJsRelevant} />
+            <div>
+              <span>{t('eventJsInScope', { ns: 'jsExport' })}</span>
+              <p className="text-xs text-muted-foreground">{t('eventJsInScopeHint', { ns: 'jsExport' })}</p>
+            </div>
+          </div>
+          {jsRelevant && (
+            <FormField label={t('eventJsType', { ns: 'jsExport' })}>
+              <Select value={jsActivityType} onValueChange={(v) => setJsActivityType(v as typeof jsActivityType)}>
+                <SelectTrigger className="min-h-[44px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Training">Training</SelectItem>
+                  <SelectItem value="Wettkampf">Wettkampf</SelectItem>
+                  <SelectItem value="Trainingstag">Trainingstag</SelectItem>
+                  <SelectItem value="Lagertag">Lagertag</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormField>
+          )}
         </div>
 
         {['tournament', 'trainingsweekend', 'friendly'].includes(eventType) && (

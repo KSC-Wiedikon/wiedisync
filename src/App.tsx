@@ -69,6 +69,7 @@ import { SentryErrorBoundary } from './lib/sentry'
 import { maybeReloadOnStaleChunk } from './lib/chunkReload'
 
 const GuidePage = lazy(() => import('./modules/guide/GuidePage'))
+const JsExportPage = lazy(() => import('./modules/jsexport/JsExportPage'))
 const InboxPage = lazy(() => import('./modules/messaging/pages/InboxPage'))
 const ConversationPage = lazy(() => import('./modules/messaging/pages/ConversationPage'))
 const MessagingSettingsPage = lazy(() => import('./modules/messaging/pages/MessagingSettingsPage'))
@@ -167,6 +168,7 @@ export default function App() {
             <Route path="teams/player/:memberId" element={<AuthRoute><PlayerProfile /></AuthRoute>} />
             <Route path="events" element={<AuthRoute><EventsPage /></AuthRoute>} />
             <Route path="forms" element={<AuthRoute><FormsPage /></AuthRoute>} />
+            <Route path="js-export" element={<AuthRoute><Suspense fallback={null}><JsExportPage /></Suspense></AuthRoute>} />
             <Route path="forms/new" element={<AuthRoute><FormBuilderPage /></AuthRoute>} />
             <Route path="forms/:formId/edit" element={<AuthRoute><FormBuilderPage /></AuthRoute>} />
             <Route path="fines" element={<AuthRoute><FinesPage /></AuthRoute>} />

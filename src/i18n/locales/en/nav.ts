@@ -24,6 +24,7 @@ export default {
   admin: 'Admin',
   superadmin: 'Superadmin',
   memberTools: 'Member tools',
+  jsExport: 'J+S export',
   finance: 'Finances',
   uploadInvoice: 'Upload invoice',
   spielplanung: 'Planning',

@@ -53,6 +53,8 @@ function buildSecondaryItems(
       ? [{ to: '/inbox', labelKey: 'inbox', icon: <Inbox className={iconClass} /> }]
       : []),
     ...(sched.canManageForms ? [{ to: '/forms', labelKey: 'forms', icon: <ScrollText className={iconClass} /> }] : []),
+    // J+S export — coaches and above (same audience as Forms authoring).
+    ...(sched.canManageForms ? [{ to: '/js-export', labelKey: 'jsExport', icon: <GraduationCap className={iconClass} /> }] : []),
     { to: '/news', labelKey: 'news', icon: <Newspaper className={iconClass} /> },
   ]
   // Finance — own section (mirrors useNavItems): personal dues, fines, expense

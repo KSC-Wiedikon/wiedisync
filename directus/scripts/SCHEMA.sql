@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-07T13:41:19.850Z
+-- Generated:   2026-07-08T10:59:59.961Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -3223,6 +3223,15 @@ CREATE TABLE public.finance_expenses (
     status_changed_at timestamp with time zone,
     date_created timestamp with time zone DEFAULT now() NOT NULL,
     user_created uuid,
+    section character varying(8),
+    member_already_paid boolean DEFAULT false NOT NULL,
+    tk_confirmed_at timestamp with time zone,
+    tk_confirmed_by_name character varying(255),
+    tk_confirmed_by_email character varying(255),
+    tk_already_paid boolean DEFAULT false NOT NULL,
+    tk_note character varying(1000),
+    internal_note character varying(1000),
+    CONSTRAINT finance_expenses_section_check CHECK (((section IS NULL) OR ((section)::text = ANY ((ARRAY['vb'::character varying, 'bb'::character varying, 'club'::character varying])::text[])))),
     CONSTRAINT finance_expenses_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'paid'::character varying, 'rejected'::character varying])::text[])))
 );
 
@@ -4967,6 +4976,7 @@ CREATE TABLE public.members (
     clubdesk_push_changes jsonb,
     clubdesk_pushed_at timestamp with time zone,
     uuid uuid DEFAULT gen_random_uuid() NOT NULL,
+    clubdesk_sync_exclude boolean DEFAULT false NOT NULL,
     CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb))
 );
 
@@ -6259,7 +6269,9 @@ CREATE TABLE public.trainings (
     auto_confirm_rsvp boolean,
     is_trial boolean DEFAULT false NOT NULL,
     auto_cancelled_by_trial integer,
-    recruiting_positions jsonb
+    recruiting_positions jsonb,
+    auto_shortened_by_game integer,
+    original_end_time time without time zone
 );
 
 
@@ -6480,15 +6492,7 @@ CREATE VIEW public.stats_games_missing_schreiber WITH (security_invoker='true') 
     t.name AS team_name,
     t.sport,
         CASE
-            WHEN (((t.sport)::text = 'volleyball'::text) AND ((t.name)::text = 'HU20'::text)) THEN concat_ws(', '::text,
-            CASE
-                WHEN ((g.scorer_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) THEN 'Schreiber'::text
-                ELSE NULL::text
-            END,
-            CASE
-                WHEN (g.referee_member IS NULL) THEN 'Schiedsrichter'::text
-                ELSE NULL::text
-            END)
+            WHEN (((t.sport)::text = 'volleyball'::text) AND ((t.name)::text = 'HU20'::text)) THEN 'Schiedsrichter'::text
             WHEN ((t.sport)::text = 'volleyball'::text) THEN concat_ws(', '::text,
             CASE
                 WHEN ((g.scorer_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) THEN 'Schreiber'::text
@@ -6513,10 +6517,10 @@ CREATE VIEW public.stats_games_missing_schreiber WITH (security_invoker='true') 
             END)
             ELSE NULL::text
         END AS missing_roles,
-    COALESCE(g.scorer_duty_team, g.bb_duty_team) AS duty_team_id
+    COALESCE(g.scorer_duty_team, g.referee_duty_team, g.bb_duty_team) AS duty_team_id
    FROM (public.games g
      JOIN public.teams t ON ((t.id = g.kscw_team)))
-  WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying])::text[])) AND ((((t.sport)::text = 'volleyball'::text) AND ((t.name)::text = 'HU20'::text) AND ((g.scorer_member IS NULL) OR (g.referee_member IS NULL))) OR (((t.sport)::text = 'volleyball'::text) AND ((t.name)::text <> 'HU20'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))
+  WHERE (((g.type)::text = 'home'::text) AND (g.date >= CURRENT_DATE) AND ((g.status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying])::text[])) AND ((((t.sport)::text = 'volleyball'::text) AND ((t.name)::text = 'HU20'::text) AND (g.referee_member IS NULL)) OR (((t.sport)::text = 'volleyball'::text) AND ((t.name)::text <> 'HU20'::text) AND (g.scorer_member IS NULL) AND (g.scoreboard_member IS NULL) AND (g.scorer_scoreboard_member IS NULL)) OR (((t.sport)::text = 'basketball'::text) AND (g.bb_scorer_member IS NULL) AND (g.bb_timekeeper_member IS NULL) AND (g.bb_24s_official IS NULL))))
   ORDER BY g.date, g."time";
 
 
@@ -9038,6 +9042,13 @@ CREATE INDEX finance_email_jobs_run_idx ON public.finance_email_jobs USING btree
 --
 
 CREATE INDEX finance_expenses_member_idx ON public.finance_expenses USING btree (member);
+
+
+--
+-- Name: finance_expenses_section_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_expenses_section_idx ON public.finance_expenses USING btree (section);
 
 
 --

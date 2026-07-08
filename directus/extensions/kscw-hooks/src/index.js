@@ -3904,6 +3904,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           } catch (memberErr) {
             log.error({ msg: `Member creation failed: ${memberErr.message}`, id, stack: memberErr.stack })
           }
+          // Stamp the authoritative registration → member link (migration 194).
+          // createMemberFromRegistration returns the id on BOTH paths (created
+          // + linked-to-existing); persisting it here means every later
+          // consumer (ClubDesk status badge, per-registration zone) resolves
+          // by ID instead of re-deriving via email/name heuristics — which
+          // false-negative on divergent emails (parent-email registrations).
+          if (memberId) {
+            try {
+              await database('registrations').where('id', id).update({ member: memberId })
+            } catch (stampErr) {
+              log.warn({ msg: `registrations.member stamp failed: ${stampErr.message}`, id, memberId })
+            }
+          }
 
           // ── 3. Mint a signup token when the member has no account yet ──
           let inviteToken = null
