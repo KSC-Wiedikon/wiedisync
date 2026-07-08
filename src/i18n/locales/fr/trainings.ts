@@ -107,4 +107,6 @@ export default {
   isTrialTraining: 'Entraînement d\'essai',
   isTrialTrainingHint: 'Visible publiquement sur la page d\'équipe lorsque l\'équipe est ouverte aux nouveaux joueurs.',
   trialBadge: 'Essai',
+  shortenedBadge: 'Raccourci',
+  shortenedHint: 'Se termine plus tôt — match à domicile dans la salle ensuite',
 } as const

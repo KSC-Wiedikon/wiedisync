@@ -107,4 +107,6 @@ export default {
   isTrialTraining: 'Probetraining',
   isTrialTrainingHint: 'Uf de Teamsiite öffentlich sichtbar, wenn s Team für neui Spieler offe isch.',
   trialBadge: 'Probetraining',
+  shortenedBadge: 'Verchürzt',
+  shortenedHint: 'Ändet früener — nachane isch es Heimspiel i de Halle',
 } as const
