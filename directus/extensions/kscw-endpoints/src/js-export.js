@@ -108,6 +108,14 @@ export function seasonWindow(season) {
   return { season, start: `${startYear}-09-01`, end: `${startYear + 1}-08-31` }
 }
 
+/** Validate a real calendar 'YYYY-MM-DD' date; returns it or null (rejects 2026-13-40). */
+export function parseYmd(v) {
+  const s = String(v ?? '')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  const d = new Date(s + 'T00:00:00Z')
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s ? s : null
+}
+
 function normalizeRole(role) {
   if (Array.isArray(role)) return role
   if (typeof role === 'string') { try { const p = JSON.parse(role); return Array.isArray(p) ? p : [] } catch { return [] } }
@@ -136,7 +144,24 @@ export function registerJsExport(router, { database, logger }) {
       if (!win) {
         return res.status(400).json({ error: 'Invalid or missing season (expected YYYY/YY)', code: 'bad_season' })
       }
-      const { season, start: startYMD, end: endYMD } = win
+      const { season } = win
+      let startYMD = win.start
+      let endYMD = win.end
+      // Optional explicit date-window override (the coach sets a from/to to scope
+      // which activities + events fall in range). The roster stays season-tagged;
+      // only the activity window moves.
+      if (req.query.start != null || req.query.end != null) {
+        const s = parseYmd(req.query.start)
+        const e = parseYmd(req.query.end)
+        if (!s || !e) {
+          return res.status(400).json({ error: 'Invalid start/end (expected YYYY-MM-DD)', code: 'bad_range' })
+        }
+        if (s > e) {
+          return res.status(400).json({ error: 'start must be on or before end', code: 'bad_range' })
+        }
+        startYMD = s
+        endYMD = e
+      }
 
       const team = await database('teams').where('id', teamId).first('id', 'name', 'sport')
       if (!team) return res.status(404).json({ error: 'Team not found', code: 'no_team' })

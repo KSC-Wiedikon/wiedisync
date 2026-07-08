@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   ymdToDots, hhmm, sanitizeDauer, computeTrainingMinutes, applyJsFieldRules,
-  weekdayMon0, absenceCoversDate, seasonWindow,
+  weekdayMon0, absenceCoversDate, seasonWindow, parseYmd,
 } from '../js-export.js'
 
 describe('date/time formatting', () => {
@@ -108,5 +108,20 @@ describe('seasonWindow', () => {
     expect(seasonWindow('2025/2026')).toBeNull()
     expect(seasonWindow('nope')).toBeNull()
     expect(seasonWindow('')).toBeNull()
+  })
+})
+
+describe('parseYmd — explicit date-window override', () => {
+  it('accepts real calendar dates', () => {
+    expect(parseYmd('2026-09-01')).toBe('2026-09-01')
+    expect(parseYmd('2026-08-31')).toBe('2026-08-31')
+  })
+  it('rejects malformed or impossible dates', () => {
+    expect(parseYmd('2026-13-40')).toBeNull()
+    expect(parseYmd('2026-02-30')).toBeNull()
+    expect(parseYmd('10.05.2026')).toBeNull()
+    expect(parseYmd('')).toBeNull()
+    expect(parseYmd(null)).toBeNull()
+    expect(parseYmd(undefined)).toBeNull()
   })
 })
