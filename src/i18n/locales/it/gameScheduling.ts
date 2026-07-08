@@ -2,6 +2,18 @@ export default {
   // Panoramica stagione (calendario)
   overviewTitle: 'Panoramica stagione',
   teamCalendarTitle: 'Calendario squadra',
+  // Elenco partite (pagina calendario, scheda "Calendario partite")
+  listConfirmedHeading: 'Partite confermate',
+  listProposedHeading: 'Proposte in sospeso',
+  listEmpty: 'Nessuna partita ancora pianificata.',
+  colDate: 'Data',
+  colVenue: 'Luogo',
+  statusProposed: 'Proposta',
+  proposedDatesLabel: 'Date proposte',
+  homeGameLabel: 'Partita in casa',
+  awayGameLabel: 'Partita in trasferta',
+  vsOpponent: 'vs {{opponent}}',
+  atOpponent: '@ {{opponent}}',
   legendHomeConfirmed: 'Casa (confermata)',
   legendAwayConfirmed: 'Trasferta (confermata)',
   legendHomeProposed: 'Casa (proposta)',

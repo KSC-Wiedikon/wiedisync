@@ -2,6 +2,18 @@ export default {
   // Saison-Übersicht (Kalender)
   overviewTitle: 'Saison-Übersicht',
   teamCalendarTitle: 'Team-Kaländer',
+  // Spielplan-Lischte (Kaländerssite, Tab "Spielplan")
+  listConfirmedHeading: 'Bestätigti Spiel',
+  listProposedHeading: 'Offni Vorschläg',
+  listEmpty: 'No kei Spiel plant.',
+  colDate: 'Datum',
+  colVenue: 'Ort',
+  statusProposed: 'Vorgschlage',
+  proposedDatesLabel: 'Vorgschlageni Termin',
+  homeGameLabel: 'Heimspiel',
+  awayGameLabel: 'Uswärtsspiel',
+  vsOpponent: 'vs {{opponent}}',
+  atOpponent: '@ {{opponent}}',
   legendHomeConfirmed: 'Heim (bestätigt)',
   legendAwayConfirmed: 'Uswärts (bestätigt)',
   legendHomeProposed: 'Heim (vorgschlage)',
