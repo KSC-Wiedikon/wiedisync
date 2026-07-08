@@ -84,9 +84,8 @@ const HEADER_TO_COL = {
   'Jg.': 'jg',                                          '[Id]': 'clubdesk_id',
   'Wiedisync ID': 'wiedisync_id',                       // custom field: wiedisync's own member id (push round-trip key)
   // J+S Personennummer (SALTO). Down-sync only (fill-only into members.js_id).
-  // ⚠ Confirm this matches the EXACT header of the J+S column in ClubDesk — an
-  //   unmapped header is silently ignored, so js_id just won't sync until it matches.
-  'J+S Nummer': 'js_id',
+  // Column header in ClubDesk is "JS ID" (created 2026-07-08).
+  'JS ID': 'js_id',
   '[Zuletzt geändert am]': 'zuletzt_geaendert_am',      '[Zuletzt geändert von]': 'zuletzt_geaendert_von',
   // Bracketed system variants (full-club export only — migration 065)
   '[Gruppen]': 'gruppen_bracketed',                     '[Rolle]': 'rolle_bracketed',

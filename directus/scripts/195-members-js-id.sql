@@ -1,4 +1,4 @@
--- Migration 194: J+S (Jugend+Sport) export support.
+-- Migration 195: J+S (Jugend+Sport) export support.
 --
 -- Adds members.js_id (J+S Personennummer / BASPO "SALTO" number) plus a ClubDesk
 -- staging column for a fill-only down-sync, and two events columns (js_relevant +
