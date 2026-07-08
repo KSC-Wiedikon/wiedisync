@@ -8,7 +8,7 @@ export default {
   downloadXlsx: 'Scarica Excel',
   rollOut: 'Distribuisci',
   rollingOut: 'Distribuzione...',
-  rollOutHint: 'Scrivi questi servizi nelle partite (ufficializza)',
+  rollOutHint: 'Inserisci i compiti nelle partite (ufficializza)',
   draftSaved: 'Bozza salvata',
   saving: 'Salvataggio...',
   running: 'Calcolo...',
