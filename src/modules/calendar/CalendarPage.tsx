@@ -258,7 +258,7 @@ export default function CalendarPage() {
       {viewMode === 'schedule' && (
         <div className="flex flex-1 flex-col gap-6">
           {scheduleTeams.map((team) => (
-            <TeamScheduleCalendar key={team.id} team={team} hideWhenEmpty={false} />
+            <TeamScheduleCalendar key={team.id} team={team} hideWhenEmpty={false} variant="list" />
           ))}
         </div>
       )}

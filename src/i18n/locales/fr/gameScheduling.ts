@@ -2,6 +2,18 @@ export default {
   // Vue de la saison (calendrier)
   overviewTitle: 'Vue de la saison',
   teamCalendarTitle: "Calendrier de l'équipe",
+  // Liste des matchs (page calendrier, onglet « Calendrier des matchs »)
+  listConfirmedHeading: 'Matchs confirmés',
+  listProposedHeading: 'Propositions en attente',
+  listEmpty: 'Aucun match planifié pour le moment.',
+  colDate: 'Date',
+  colVenue: 'Lieu',
+  statusProposed: 'Proposé',
+  proposedDatesLabel: 'Dates proposées',
+  homeGameLabel: 'Match à domicile',
+  awayGameLabel: "Match à l'extérieur",
+  vsOpponent: 'vs {{opponent}}',
+  atOpponent: '@ {{opponent}}',
   legendHomeConfirmed: 'Domicile (confirmé)',
   legendAwayConfirmed: 'Extérieur (confirmé)',
   legendHomeProposed: 'Domicile (proposé)',

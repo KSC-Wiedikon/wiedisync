@@ -5,6 +5,7 @@ import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import { kscwApi } from '../../../lib/api'
 import { isSchedulableTeam } from '../utils/schedulableTeams'
 import SchedulingCalendar from './SchedulingCalendar'
+import TeamScheduleList from './TeamScheduleList'
 
 interface TeamCalendarResponse {
   season: GameSchedulingSeason | null
@@ -19,8 +20,11 @@ interface TeamCalendarResponse {
 // broad reads on the scheduling collections. Renders nothing for non-schedulable
 // teams (non-volleyball, MiniVB/DU20) or until the season has at least one entry.
 // Pass hideWhenEmpty={false} (e.g. the calendar page's Schedule view) to render
-// the empty month grid even when the team has no slots/bookings yet.
-export default function TeamScheduleCalendar({ team, hideWhenEmpty = true }: { team: Team; hideWhenEmpty?: boolean }) {
+// even when the team has no slots/bookings yet. variant='list' renders the
+// chronological TeamScheduleList instead of the month grid (calendar page's
+// "Schedule" tab); 'calendar' (default) keeps the SchedulingCalendar month grid
+// used on the team detail page.
+export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, variant = 'calendar' }: { team: Team; hideWhenEmpty?: boolean; variant?: 'calendar' | 'list' }) {
   const { t } = useTranslation('gameScheduling')
   const [data, setData] = useState<TeamCalendarResponse | null>(null)
 
@@ -43,13 +47,17 @@ export default function TeamScheduleCalendar({ team, hideWhenEmpty = true }: { t
 
   return (
     <div className="mt-8">
-      <SchedulingCalendar
-        slots={data.slots}
-        bookings={data.bookings}
-        teams={[team]}
-        season={data.season}
-        title={t('teamCalendarTitle')}
-      />
+      {variant === 'list' ? (
+        <TeamScheduleList slots={data.slots} bookings={data.bookings} team={team} season={data.season} />
+      ) : (
+        <SchedulingCalendar
+          slots={data.slots}
+          bookings={data.bookings}
+          teams={[team]}
+          season={data.season}
+          title={t('teamCalendarTitle')}
+        />
+      )}
     </div>
   )
 }

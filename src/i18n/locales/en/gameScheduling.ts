@@ -2,6 +2,18 @@ export default {
   // Season overview calendar
   overviewTitle: 'Season overview',
   teamCalendarTitle: 'Team calendar',
+  // Schedule list (calendar page "Schedule" tab)
+  listConfirmedHeading: 'Confirmed games',
+  listProposedHeading: 'Pending proposals',
+  listEmpty: 'No games scheduled yet.',
+  colDate: 'Date',
+  colVenue: 'Venue',
+  statusProposed: 'Proposed',
+  proposedDatesLabel: 'Proposed dates',
+  homeGameLabel: 'Home game',
+  awayGameLabel: 'Away game',
+  vsOpponent: 'vs {{opponent}}',
+  atOpponent: '@ {{opponent}}',
   legendHomeConfirmed: 'Home (confirmed)',
   legendAwayConfirmed: 'Away (confirmed)',
   legendHomeProposed: 'Home (proposed)',

@@ -2,6 +2,18 @@ export default {
   // Saison-Übersicht (Kalender)
   overviewTitle: 'Saison-Übersicht',
   teamCalendarTitle: 'Team-Kalender',
+  // Spielplan-Liste (Kalenderseite, Tab "Spielplan")
+  listConfirmedHeading: 'Bestätigte Spiele',
+  listProposedHeading: 'Offene Vorschläge',
+  listEmpty: 'Noch keine Spiele geplant.',
+  colDate: 'Datum',
+  colVenue: 'Ort',
+  statusProposed: 'Vorgeschlagen',
+  proposedDatesLabel: 'Vorgeschlagene Daten',
+  homeGameLabel: 'Heimspiel',
+  awayGameLabel: 'Auswärtsspiel',
+  vsOpponent: 'vs {{opponent}}',
+  atOpponent: '@ {{opponent}}',
   legendHomeConfirmed: 'Heim (bestätigt)',
   legendAwayConfirmed: 'Auswärts (bestätigt)',
   legendHomeProposed: 'Heim (vorgeschlagen)',
