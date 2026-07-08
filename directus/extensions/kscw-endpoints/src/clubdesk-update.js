@@ -1150,7 +1150,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const regId = Number(String(req.query.registration_id || '').trim())
       if (!Number.isInteger(regId)) return res.status(400).json({ error: 'registration_id required' })
       const reg = await database('registrations').where('id', regId)
-        .first('id', 'email', 'vorname', 'status')
+        .first('id', 'email', 'vorname', 'nachname', 'status')
       if (!reg) return res.status(404).json({ error: 'Registration not found' })
       return res.json(await cdStatusForRegistration(reg))
     } catch (err) {
@@ -1170,7 +1170,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         : []
       if (!ids.length) return res.status(400).json({ error: 'registration_ids required' })
       const regs = await database('registrations').whereIn('id', ids)
-        .select('id', 'email', 'vorname', 'status')
+        .select('id', 'email', 'vorname', 'nachname', 'status')
       const statuses = {}
       for (const reg of regs) {
         statuses[reg.id] = await cdStatusForRegistration(reg)
