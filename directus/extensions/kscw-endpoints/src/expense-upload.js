@@ -588,6 +588,8 @@ export function registerExpenseUpload(router, { database, logger, services, getS
         patch.pay_to_iban = iban || null
       }
       if (b.finance_note !== undefined) patch.finance_note = String(b.finance_note || '').slice(0, 1000) || null
+      // Shared back-office note (finance / TK / admin) — never shown to the member.
+      if (b.internal_note !== undefined) patch.internal_note = String(b.internal_note || '').replace(/\r/g, '').slice(0, 1000) || null
       if (b.status !== undefined && !['pending', 'paid', 'rejected'].includes(String(b.status))) {
         return res.status(400).json({ error: 'Invalid status' })
       }
@@ -834,6 +836,11 @@ export function registerExpenseUpload(router, { database, logger, services, getS
       const patch = {
         tk_already_paid: b.already_paid === true || b.already_paid === 'true',
         tk_note: String(b.note || '').replace(/\r/g, '').slice(0, 1000) || null,
+      }
+      // Shared back-office note (finance / TK / admin). Only touch it when the
+      // caller sent it, so a TK confirm without the field never blanks finance's.
+      if (b.internal_note !== undefined) {
+        patch.internal_note = String(b.internal_note || '').replace(/\r/g, '').slice(0, 1000) || null
       }
       if (confirmed && !expense.tk_confirmed_at) {
         // Stamp the confirmation once (keep the original actor/time on later edits).

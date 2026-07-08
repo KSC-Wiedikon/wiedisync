@@ -47,6 +47,11 @@ function TkConfirmCell({ e }: { e: FinanceExpense }) {
       {e.tk_note && (
         <span className="whitespace-normal break-words text-[11px] italic text-gray-500 dark:text-gray-400">«{e.tk_note}»</span>
       )}
+      {e.internal_note && (
+        <span className="mt-0.5 block whitespace-normal break-words rounded-md bg-amber-50 px-1.5 py-1 text-[11px] text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
+          <span className="font-medium">{t('expenseInternalNote')}: </span>{e.internal_note}
+        </span>
+      )}
     </div>
   )
 }
@@ -72,6 +77,7 @@ interface EditState {
   reference: string
   pay_to_iban: string
   finance_note: string
+  internal_note: string
 }
 
 export default function ExpensesTab() {
@@ -131,6 +137,7 @@ export default function ExpensesTab() {
       reference: e.reference || '',
       pay_to_iban: e.pay_to_iban || '',
       finance_note: e.finance_note || '',
+      internal_note: e.internal_note || '',
     })
   }
 
@@ -150,6 +157,7 @@ export default function ExpensesTab() {
       reference: edit.reference,
       pay_to_iban: edit.pay_to_iban.replace(/\s+/g, ''),
       finance_note: edit.finance_note,
+      internal_note: edit.internal_note,
     }, t('expenseSaved'))
     // Keep the editor open with the typed values on failure so the user can fix
     // the flagged field instead of retyping everything.
@@ -268,6 +276,12 @@ export default function ExpensesTab() {
                             <FormTextarea label={t('expenseFinanceNote')} value={edit.finance_note} rows={2}
                               onChange={(ev) => setEdit({ ...edit, finance_note: ev.target.value })} />
                             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('expenseFinanceNoteHint')}</p>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <FormTextarea label={t('expenseInternalNote')} value={edit.internal_note} rows={2}
+                              placeholder={t('expenseInternalNotePlaceholder')}
+                              onChange={(ev) => setEdit({ ...edit, internal_note: ev.target.value })} />
+                            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('expenseInternalNoteHint')}</p>
                           </div>
                         </div>
                         <div className="flex justify-end gap-2 pb-2">

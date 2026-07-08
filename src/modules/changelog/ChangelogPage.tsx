@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.27.0'
+const APP_VERSION = '1.28.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.28.0',
+    date: '08.07.2026',
+    sections: [
+      {
+        title: 'Shared internal note on expenses',
+        items: [
+          'Expense reimbursements now have a shared internal note that finance, the section TK and admins can all read and edit — a place to leave each other notes while a reimbursement is being processed. It is never shown to the member.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.27.0',
     date: '07.07.2026',

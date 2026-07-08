@@ -31,13 +31,14 @@ function TkRow({ e, onDone }: { e: FinanceExpense; onDone: () => void }) {
   const { t } = useTranslation('finance')
   const [alreadyPaid, setAlreadyPaid] = useState(!!e.tk_already_paid)
   const [note, setNote] = useState(e.tk_note ?? '')
+  const [internal, setInternal] = useState(e.internal_note ?? '')
   const [busy, setBusy] = useState(false)
   const confirmed = !!e.tk_confirmed_at
 
   async function send(nextConfirmed: boolean) {
     setBusy(true)
     try {
-      await tkConfirmExpense(e.id, { confirmed: nextConfirmed, already_paid: alreadyPaid, note })
+      await tkConfirmExpense(e.id, { confirmed: nextConfirmed, already_paid: alreadyPaid, note, internal_note: internal })
       toast.success(nextConfirmed ? t('expenseTkConfirmedToast') : t('expenseTkUnconfirmedToast'))
       onDone()
     } catch (err) {
@@ -99,6 +100,18 @@ function TkRow({ e, onDone }: { e: FinanceExpense; onDone: () => void }) {
             placeholder={t('expenseTkNotePlaceholder')}
             className="w-full rounded-md border border-gray-300 bg-transparent px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           />
+          <div>
+            <label className="mb-0.5 block text-[11px] font-medium text-gray-500 dark:text-gray-400">{t('expenseInternalNote')}</label>
+            <textarea
+              value={internal}
+              onChange={(ev) => setInternal(ev.target.value)}
+              rows={2}
+              disabled={busy}
+              placeholder={t('expenseInternalNotePlaceholder')}
+              className="w-full rounded-md border border-amber-300 bg-amber-50/40 px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 dark:border-amber-700/60 dark:bg-amber-900/10 dark:text-gray-200"
+            />
+            <p className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">{t('expenseInternalNoteHint')}</p>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" disabled={busy} onClick={() => void send(true)}>
               {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
