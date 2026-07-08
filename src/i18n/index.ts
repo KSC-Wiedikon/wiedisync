@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next'
 
 import common from './locales/en/common'
 import nav from './locales/en/nav'
+import jsExport from './locales/en/jsExport'
 import calendar from './locales/en/calendar'
 import games from './locales/en/games'
 import trainings from './locales/en/trainings'
@@ -38,6 +39,7 @@ import finance from './locales/en/finance'
 
 import deCommon from './locales/de/common'
 import deNav from './locales/de/nav'
+import deJsExport from './locales/de/jsExport'
 import deCalendar from './locales/de/calendar'
 import deGames from './locales/de/games'
 import deTrainings from './locales/de/trainings'
@@ -226,6 +228,7 @@ i18n.use(initReactI18next).init({
     'pwa',
     'forms',
     'finance',
+    'jsExport',
   ],
   defaultNS: 'common',
   resources: {
@@ -264,10 +267,12 @@ i18n.use(initReactI18next).init({
       pwa,
       forms,
       finance,
+      jsExport,
     },
     de: {
       common: deCommon,
       nav: deNav,
+      jsExport: deJsExport,
       calendar: deCalendar,
       games: deGames,
       trainings: deTrainings,

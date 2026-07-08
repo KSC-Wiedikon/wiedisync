@@ -83,6 +83,10 @@ const HEADER_TO_COL = {
   'Passivmitglied': 'passivmitglied',                   'Offiziellen 100er': 'offiziellen_100er',
   'Jg.': 'jg',                                          '[Id]': 'clubdesk_id',
   'Wiedisync ID': 'wiedisync_id',                       // custom field: wiedisync's own member id (push round-trip key)
+  // J+S Personennummer (SALTO). Down-sync only (fill-only into members.js_id).
+  // ⚠ Confirm this matches the EXACT header of the J+S column in ClubDesk — an
+  //   unmapped header is silently ignored, so js_id just won't sync until it matches.
+  'J+S Nummer': 'js_id',
   '[Zuletzt geändert am]': 'zuletzt_geaendert_am',      '[Zuletzt geändert von]': 'zuletzt_geaendert_von',
   // Bracketed system variants (full-club export only — migration 065)
   '[Gruppen]': 'gruppen_bracketed',                     '[Rolle]': 'rolle_bracketed',
@@ -105,7 +109,7 @@ const TARGET_COLS = [
   'betrag_bezahlt','clubnummer','mittelschule_zh','offiziellen_lizenz','mitgliederbeitrag',
   'ahv_nummer','passivmitglied','offiziellen_100er','gruppe_2','funktion_2',
   'gruppen_2','jg','clubdesk_id','zuletzt_geaendert_am','zuletzt_geaendert_von',
-  'gruppen_bracketed','rolle_bracketed','wiedisync_id',
+  'gruppen_bracketed','rolle_bracketed','wiedisync_id','js_id',
 ]
 
 // ── 1. Decode CSV (CP1252 → UTF-8) ──────────────────────────────────
@@ -612,7 +616,9 @@ const psqlInput =
   // Phone fill ONLY when canonical (same skip-garbage rule as the passes above
   // and the AHV intake — migration 189 policy).
   "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) AS phone,\n" +
-  "         left(NULLIF(btrim(beitragskategorie),''),100) AS categ, left(NULLIF(btrim(sektion),''),32) AS sektion\n" +
+  "         left(NULLIF(btrim(beitragskategorie),''),100) AS categ, left(NULLIF(btrim(sektion),''),32) AS sektion,\n" +
+  // J+S Personennummer — ClubDesk-owned, fill-only into members.js_id (like AHV).
+  "         left(NULLIF(btrim(js_id),''),32) AS js_id\n" +
   '  FROM clubdesk_export\n' +
   "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
   '  ORDER BY btrim(clubdesk_id), row_id DESC)\n' +
@@ -622,6 +628,7 @@ const psqlInput =
   "  plz       = COALESCE(NULLIF(btrim(m.plz),''), cd.plz),\n" +
   "  ort       = COALESCE(NULLIF(btrim(m.ort),''), cd.ort),\n" +
   "  phone     = COALESCE(NULLIF(btrim(m.phone),''), cd.phone),\n" +
+  "  js_id     = COALESCE(NULLIF(btrim(m.js_id),''), cd.js_id),\n" +
   "  beitragskategorie = COALESCE(cd.categ, NULLIF(btrim(m.beitragskategorie),'')),\n" +
   "  sektion   = COALESCE(cd.sektion, NULLIF(btrim(m.sektion),''))\n" +
   'FROM cd WHERE btrim(m.clubdesk_id) = cd.cdid AND (\n' +
@@ -630,6 +637,7 @@ const psqlInput =
   "  OR (NULLIF(btrim(m.plz),'') IS NULL AND cd.plz IS NOT NULL)\n" +
   "  OR (NULLIF(btrim(m.ort),'') IS NULL AND cd.ort IS NOT NULL)\n" +
   "  OR (NULLIF(btrim(m.phone),'') IS NULL AND cd.phone IS NOT NULL)\n" +
+  "  OR (NULLIF(btrim(m.js_id),'') IS NULL AND cd.js_id IS NOT NULL)\n" +
   "  OR (cd.categ IS NOT NULL AND cd.categ IS DISTINCT FROM NULLIF(btrim(m.beitragskategorie),''))\n" +
   "  OR (cd.sektion IS NOT NULL AND cd.sektion IS DISTINCT FROM NULLIF(btrim(m.sektion),'')));\n" +
   'COMMIT;\n' +

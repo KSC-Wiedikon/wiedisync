@@ -22,6 +22,7 @@ import { registerSchulferienSync } from './schulferien-sync.js'
 import { registerScorerReminders } from './scorer-reminders.js'
 import { registerScorerContacts } from './scorer-contacts.js'
 import { registerScorerRoster } from './scorer-roster.js'
+import { registerJsExport } from './js-export.js'
 import { registerGameScheduling } from './game-scheduling.js'
 import { registerSchedulingMailbox } from './scheduling-mailbox.js'
 import { registerContactForm } from './contact-form.js'
@@ -2354,6 +2355,7 @@ export default {
     registerScorerReminders(router, ctx)
     registerScorerContacts(router, ctx)
     registerScorerRoster(router, ctx)
+    registerJsExport(router, ctx)
     registerGameScheduling(router, ctx)
     registerSchedulingMailbox(router, ctx)
     registerContactForm(router, ctx)
