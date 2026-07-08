@@ -14,7 +14,7 @@ export interface BudgetRow { id: string | number; number: string; name: string; 
 export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
   rows: BudgetRow[]; fiscalYearId: string; fiscalYearLabel: string
 }) {
-  const { t } = useTranslation('finance')
+  const { t, i18n } = useTranslation('finance')
   const { data: budgetRaw, refetch } = useFinanceBudget(fiscalYearId, !!fiscalYearId)
   const [edit, setEdit] = useState<Record<string, string>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
@@ -41,8 +41,10 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
   }
 
   function exportCsv() {
+    // Export headers always English regardless of UI locale (export convention).
+    const tEn = i18n.getFixedT('en', 'finance')
     const line = (r: BudgetRow) => [r.number, r.name, toNum(budgetOf(r.id)).toFixed(2), r.bal.toFixed(2), variance(r).toFixed(2)]
-    downloadCsv(`budget-${fiscalYearLabel || fiscalYearId}`, [t('colAccount'), t('budgetColName'), t('budgetColBudget'), t('budgetColActual'), t('budgetColVariance')],
+    downloadCsv(`budget-${fiscalYearLabel || fiscalYearId}`, [tEn('colAccount'), tEn('budgetColName'), tEn('budgetColBudget'), tEn('budgetColActual'), tEn('budgetColVariance')],
       [...income.map(line), ...expense.map(line)])
   }
   const budgetReport = (): FinanceReport => {

@@ -1011,6 +1011,12 @@ export default function ParticipationRosterModal({
       statusFilter === null ? t('all')
       : statusFilter === 'no_response' ? t('notResponded')
       : t(statusFilter)
+    // Filename must be English regardless of UI locale (exports-always-English).
+    const tEn = i18n.getFixedT('en', 'participation')
+    const filterLabelEn =
+      statusFilter === null ? tEn('all')
+      : statusFilter === 'no_response' ? tEn('notResponded')
+      : tEn(statusFilter)
     const positionsSummaryText = positionSummary.length > 0
       ? positionSummary.map((p) => `${p.count} ${p.label}`).join(', ')
       : ''
@@ -1023,11 +1029,12 @@ export default function ParticipationRosterModal({
       activityTitle: title,
       activityDate: formatDate(activityDate.split(' ')[0]),
       filterLabel,
+      filterLabelEn,
       exportedAt: formatDateTimeCompact(new Date().toISOString()),
       totalCount: exportRows.length,
       positionsSummary: positionsSummaryText,
     }
-  }, [activityKind, activityType, title, activityDate, statusFilter, exportRows.length, positionSummary, t])
+  }, [activityKind, activityType, title, activityDate, statusFilter, exportRows.length, positionSummary, t, i18n])
 
   const handleExport = useCallback(async (format: 'csv' | 'png' | 'pdf') => {
     if (exporting) return

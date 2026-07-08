@@ -156,7 +156,7 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
         return !teamId || selectedTeamIds.includes(teamId)
       })
     }
-    downloadICal(filtered, 'wiedisync-kalender.ics')
+    downloadICal(filtered, 'wiedisync-calendar.ics')
     onClose()
   }
 
