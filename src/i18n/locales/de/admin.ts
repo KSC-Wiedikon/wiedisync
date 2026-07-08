@@ -390,6 +390,8 @@ export default {
   clubdeskUpNonMember: 'Evtl. kein Mitglied',
   clubdeskUpMute: 'Dieses Mitglied nie synchronisieren (stummschalten)',
   clubdeskUpMuted: 'Vom ClubDesk-Sync stummgeschaltet',
+  clubdeskUpStale: 'Kontakt in ClubDesk gelöscht',
+  clubdeskUpSkipped: '{{count}} Mitglied(er) übersprungen (Kontakt in ClubDesk gelöscht oder Blank-Risiko) — nicht gepusht',
   clubdeskSyncTitle: 'ClubDesk-Sync',
   clubdeskSyncDescription: 'Hält wiedisync und ClubDesk (das Vereinsregister) abgeglichen.',
   clubdeskSyncDownTitle: 'Herunterladen',

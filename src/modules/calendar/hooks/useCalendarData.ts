@@ -12,6 +12,7 @@ import {
 import { format, isBefore, isAfter, isSameDay, max as maxDate, min as minDate } from 'date-fns'
 import { formatTime, getDayOfWeek, toZurichDateString } from '../../../utils/dateHelpers'
 import { asObj, relId, memberName, disambiguateFirstNames } from '../../../utils/relations'
+import { trimBBTeamName } from '../../../utils/teamColors'
 import { isAuthenticated } from '../../../lib/api'
 import { useAuth } from '../../../hooks/useAuth'
 
@@ -131,7 +132,7 @@ function trainingToEntry(training: Training & { team?: Team | string; hall?: { n
   return {
     id: training.id,
     type: 'training',
-    title: `Training ${expandedTeam?.name ?? ''}`,
+    title: `Training ${expandedTeam?.name ? trimBBTeamName(expandedTeam.name) : ''}`,
     date: parseDate(training.date),
     startTime: training.start_time ? formatTime(training.start_time) : null,
     endTime: training.end_time ? formatTime(training.end_time) : null,

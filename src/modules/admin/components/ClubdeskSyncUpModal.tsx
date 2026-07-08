@@ -10,7 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { kscwApi } from '../../../lib/api'
 
 interface FieldChange { field: string; old_value?: string | null; new_value?: string | null }
-interface ChangedMember { id: number; first_name: string; last_name: string; email: string; clubdesk_id: string; changes: FieldChange[] }
+// stale = the linked ClubDesk contact no longer exists (deleted CD-side): /up's
+// stale-link guard would skip the member anyway, so the modal shows why and
+// offers mute instead of silently re-listing the member on every open.
+interface ChangedMember { id: number; first_name: string; last_name: string; email: string; clubdesk_id: string; changes: FieldChange[]; stale?: boolean }
 interface UnlinkedMember { id: number; first_name: string; last_name: string; email: string; likely_non_member: boolean; beitragskategorie?: string | null; offiziellen_lizenz?: string | null; mitgliederbeitrag?: string | null }
 interface Preview { changed: ChangedMember[]; unlinked: UnlinkedMember[] }
 interface UpResult { total?: number | null; neu?: number | null; veraendert?: number | null; committed?: boolean }
@@ -52,7 +55,7 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
         if (!alive) return
         setPreview(p)
         const sel = new Set<number>()
-        p.changed.forEach((m) => sel.add(m.id))
+        p.changed.forEach((m) => { if (!m.stale) sel.add(m.id) })
         p.unlinked.forEach((m) => { if (!m.likely_non_member) sel.add(m.id) })
         setSelected(sel)
         setPhase('review')
@@ -89,7 +92,14 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
     if (!ids.length) return
     setPhase('pushing'); setError('')
     try {
-      await kscwApi('/clubdesk-member-sync/up', { method: 'POST', body: { member_ids: ids } })
+      // Surface server-side skips (stale link / blank risk): the push proceeds
+      // for the rest, but the operator must know these members were NOT pushed
+      // — otherwise a partial skip looks like a full success and the member
+      // silently resurfaces on every preview (review finding 2026-07-08).
+      const q = await kscwApi<{ skipped_stale_link?: number[]; skipped_blank_risk?: number[] }>(
+        '/clubdesk-member-sync/up', { method: 'POST', body: { member_ids: ids } })
+      const nSkipped = (q.skipped_stale_link?.length ?? 0) + (q.skipped_blank_risk?.length ?? 0)
+      if (nSkipped > 0) toast.warning(t('clubdeskUpSkipped', { count: nSkipped }))
       // Scale with batch size: bulk drift-fills can push 100+ rows through the
       // per-minute dispatcher + Playwright import — a fixed 240 s would show a
       // false timeout while the push keeps running.
@@ -149,15 +159,21 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
                       <TableHead className="w-8" />
                       <TableHead>{t('clubdeskUpColName')}</TableHead>
                       <TableHead>{t('clubdeskUpColChanges')}</TableHead>
+                      <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {preview.changed.map((m) => (
-                      <TableRow key={m.id}>
-                        <TableCell><Checkbox checked={selected.has(m.id)} onCheckedChange={() => toggle(m.id)} /></TableCell>
+                      <TableRow key={m.id} className={m.stale ? 'opacity-70' : undefined}>
+                        <TableCell><Checkbox checked={selected.has(m.id)} disabled={m.stale} onCheckedChange={() => toggle(m.id)} /></TableCell>
                         <TableCell className="whitespace-normal break-words">
                           <div className="font-medium">{m.last_name} {m.first_name}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">{m.email}</div>
+                          {m.stale && (
+                            <Badge variant="outline" className="mt-0.5 border-amber-300 text-[10px] text-amber-700 dark:text-amber-300">
+                              {t('clubdeskUpStale')}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="whitespace-normal break-words">
                           <div className="flex flex-wrap gap-1">
@@ -167,6 +183,18 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
                               </span>
                             )) : <span className="text-xs text-gray-400">{t('clubdeskUpContactSync')}</span>}
                           </div>
+                        </TableCell>
+                        <TableCell className="w-10 text-right">
+                          {m.stale && (
+                            <Button
+                              type="button" variant="ghost" size="icon"
+                              className="h-8 w-8 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                              title={t('clubdeskUpMute')}
+                              onClick={() => mute(m.id)}
+                            >
+                              <EyeOff className="h-4 w-4" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

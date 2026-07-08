@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { HallSlot, HallClosure, Hall, Team } from '../../../types'
 import { toISODate } from '../../../utils/dateHelpers'
 import { timeToMinutes } from '../../../utils/dateHelpers'
+import { trimBBTeamName } from '../../../utils/teamColors'
 import { START_HOUR, END_HOUR } from '../utils/timeGrid'
 
 const SUMMARY_ROW_HEIGHT = 20 // px per 30-min row
@@ -109,7 +110,7 @@ export default function SummaryView({ slots, closures, weekDays, halls, teams }:
         const found = teamMap.get(String(tid))
         if (found) { resolved = found; break }
       }
-      const teamName = resolved?.name ?? ''
+      const teamName = resolved?.name ? trimBBTeamName(resolved.name) : ''
       const teamSport = resolved?.sport
 
       for (let m = startMin; m < endMin; m += SUMMARY_INTERVAL) {

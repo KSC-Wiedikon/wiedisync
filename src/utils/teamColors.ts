@@ -138,14 +138,23 @@ export function getTeamColor(teamName: string) {
   return matched ? teamColors[matched] : fallbackColor
 }
 
-/** Trim redundant Basketplan league suffix from BB men team display names.
- *  "Herren 1 H1" → "Herren 1", "Herren 3 (Unicorns) H4" → "Herren 3 (Unicorns)",
- *  "Damen D-Classics 1LR" → "Damen D-Classics", "H-Classics 1LR" → "H-Classics".
- *  Short names like "DU12", "Lions D1" are returned unchanged. */
+/** Compact BB team display names to the club-internal short form (ordinal,
+ *  NOT the trailing Basketplan league code — "Herren 2 H3" is H2, not H3).
+ *  "Herren 1 H1" → "H1", "Herren 2 H3" → "H2",
+ *  "Herren 3 (Unicorns) H4" → "H3 (Unicorns)",
+ *  "Damen D-Classics 1LR" → "D-Classics", "H-Classics 1LR" → "H-Classics".
+ *  Short names like "DU12", "Lions D1" are returned unchanged; names not
+ *  starting with Herren/Damen (e.g. full_name "KSC Wiedikon Herren 1 H1")
+ *  only lose the league suffix. */
 export function trimBBTeamName(name: string): string {
   // Remove "BB-" prefix (sport already indicated by basketball icon)
   // Remove trailing league codes like "H1", "H3", "H4", "1LR", "1LRA"
-  return name.replace(/^BB-/, '').replace(/\s+(?:H\d+|\dLR[A-Z]?)$/, '')
+  return name
+    .replace(/^BB-/, '')
+    .replace(/\s+(?:H\d+|\dLR[A-Z]?)$/, '')
+    .replace(/^Herren\s+(?=\d)/, 'H')
+    .replace(/^Damen\s+(?=\d)/, 'D')
+    .replace(/^(?:Herren|Damen)\s+(?=[HD]-)/, '')
 }
 
 /**

@@ -1,10 +1,19 @@
 /**
  * Unit tests for the sync-up push CSV builder (clubdesk-update.js) — the two-set
  * split introduced with migration 173: UPDATE rows carry contact fields only,
- * CREATE rows additionally carry Beitragskategorie + Eintritt + Gruppen. The
- * invariants here guard the legal-register safety rule: an UPDATE CSV must
- * NEVER contain a category/groups column (ClubDesk-authoritative on existing
- * contacts; empty-cell import semantics unvalidated).
+ * CREATE rows additionally carry Beitragskategorie + Eintritt + Gruppen.
+ *
+ * Primary invariants (legal-register safety):
+ *   • UPDATE rows are [Id]-KEYED and NAME-LESS (2026-07-08, spike-proven:
+ *     ClubDesk's import consumes a `[Id]` column as the record identity and
+ *     touches only the columns present). Vorname/Nachname must NEVER appear in
+ *     the update set — they would overwrite the register's legal names.
+ *   • An UPDATE CSV must NEVER contain a category/groups column
+ *     (ClubDesk-authoritative on existing contacts). The same spike proved an
+ *     empty mapped cell is a no-op on import — the echo-back/blank-risk guards
+ *     stay as defense-in-depth regardless.
+ *   • CREATE rows carry the real wiedisync name and never an [Id] (an unknown
+ *     [Id] hard-aborts ClubDesk's whole import).
  *
  * Hermetic — pure functions, no DB or network.
  */
@@ -14,36 +23,49 @@ import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, d
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
   phone: '+41 79 000 00 00', adresse: 'Weg 1', plz: '8003', ort: 'Zürich',
-  birthdate: '1999-03-15', sex: 'm',
+  birthdate: '1999-03-15', sex: 'm', clubdesk_id: '1001283',
   beitragskategorie: 'VB Erwerbstätige', eintritt: '2026-06-27T18:22:00.000Z',
   gruppen: 'VB H1 (Spieler*in)', cd_status: 'Aktivmitglied',
 }
 
 describe('buildPushCsv (update set)', () => {
-  it('emits exactly the 14 contact columns — no category, no Eintritt', () => {
+  it('is [Id]-keyed and name-less — exactly the 13 contact columns, no category', () => {
     const csv = buildPushCsv([kacper])
     const [header, row] = csv.trim().split('\n')
-    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;AHV Nummer;Wiedisync ID')
+    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;AHV Nummer;Wiedisync ID')
+    // Names must NEVER ride on an update row: [Id] is the upsert key (spike-proven
+    // 2026-07-08) and a name column would overwrite the register's legal name.
+    expect(header).not.toContain('Vorname')
+    expect(header).not.toContain('Nachname')
     expect(header).not.toContain('Beitragskategorie')
-    expect(row.split(';')).toHaveLength(14)
+    const cells = row.split(';')
+    expect(cells).toHaveLength(13)
+    expect(cells[0]).toBe('1001283')  // ClubDesk's own [Id] = members.clubdesk_id
+    expect(row).not.toContain('Kacper')
+    expect(row).not.toContain('Krawczyński')
     expect(row).not.toContain('VB Erwerbstätige')
+  })
+
+  it('emits an empty [Id] cell when clubdesk_id is missing (guarded upstream by /up)', () => {
+    const cells = buildPushCsv([{ ...kacper, clubdesk_id: null }]).trim().split('\n')[1].split(';')
+    expect(cells[0]).toBe('')
   })
 
   it('carries the echo-protected fields + the Wiedisync ID (uuid, id fallback) after IBAN', () => {
     const row = buildPushCsv([{ ...kacper, id: 531, iban: 'CH93', anrede: 'Herr', nationalitaet: 'Schweiz', ahv_nummer: '756.1.2.3' }])
       .trim().split('\n')[1].split(';')
-    expect(row[9]).toBe('CH93')      // IBAN — invalid (mod-97 fail) passes through raw, never blanked
-    expect(row[10]).toBe('Herr')     // Anrede
-    expect(row[11]).toBe('Schweiz')  // Nationalität
-    expect(row[12]).toBe('756.1.2.3') // AHV Nummer — unrewritable passes through raw
-    expect(row[13]).toBe('531')      // Wiedisync ID: numeric id fallback (pre-184 rows)
+    expect(row[8]).toBe('CH93')      // IBAN — invalid (mod-97 fail) passes through raw, never blanked
+    expect(row[9]).toBe('Herr')      // Anrede
+    expect(row[10]).toBe('Schweiz')  // Nationalität
+    expect(row[11]).toBe('756.1.2.3') // AHV Nummer — unrewritable passes through raw
+    expect(row[12]).toBe('531')      // Wiedisync ID: numeric id fallback (pre-184 rows)
     // members.uuid (migration 184) wins over the numeric id
     const uuid = 'a3e1f0b2-4c5d-4e6f-8a9b-0c1d2e3f4a5b'
     const withUuid = buildPushCsv([{ ...kacper, id: 531, uuid }]).trim().split('\n')[1].split(';')
-    expect(withUuid[13]).toBe(uuid)
+    expect(withUuid[12]).toBe(uuid)
     const empty = buildPushCsv([kacper]).trim().split('\n')[1].split(';')
-    expect([empty[10], empty[11], empty[12]]).toEqual(['', '', '']) // /up echo-fills these
-    expect(empty[13]).toBe('') // no uuid/id on the fixture → empty
+    expect([empty[9], empty[10], empty[11]]).toEqual(['', '', '']) // /up echo-fills these
+    expect(empty[12]).toBe('') // no uuid/id on the fixture → empty
   })
 
   it('repairs outgoing contact cells to the canonical formats (normalize.js)', () => {
@@ -54,44 +76,33 @@ describe('buildPushCsv (update set)', () => {
       iban: 'ch93 0076 2011 6238 5295 7',
       ahv_nummer: '7561234567897',
     }]).trim().split('\n')[1].split(';')
-    expect(row[2]).toBe('k@example.com')
-    expect(row[3]).toBe('+41 79 123 45 67')
-    expect(row[9]).toBe('CH9300762011623852957')
-    expect(row[12]).toBe('756.1234.5678.97')
+    expect(row[1]).toBe('k@example.com')
+    expect(row[2]).toBe('+41 79 123 45 67')
+    expect(row[8]).toBe('CH9300762011623852957')
+    expect(row[11]).toBe('756.1234.5678.97')
     // unrewritable values pass through raw — the push never blanks what it can't parse
     const raw = buildPushCsv([{ ...kacper, phone: '01 451 60 38' }]).trim().split('\n')[1].split(';')
-    expect(raw[3]).toBe('01 451 60 38')
+    expect(raw[2]).toBe('01 451 60 38')
   })
 
   it('formats birthdate dd.mm.yyyy and maps sex to ClubDesk wording', () => {
     const row = buildPushCsv([kacper]).trim().split('\n')[1]
     expect(row).toContain('15.03.1999')
-    expect(row.split(';')[8]).toBe('männlich')
+    expect(row.split(';')[7]).toBe('männlich')
   })
 
-  it('carries the member IBAN (or the /up-resolved ClubDesk echo) at index 9', () => {
+  it('carries the member IBAN (or the /up-resolved ClubDesk echo) at index 8', () => {
     const withIban = buildPushCsv([{ ...kacper, iban: 'CH9300762011623852957' }]).trim().split('\n')[1]
-    expect(withIban.split(';')[9]).toBe('CH9300762011623852957')
+    expect(withIban.split(';')[8]).toBe('CH9300762011623852957')
     const withoutIban = buildPushCsv([kacper]).trim().split('\n')[1]
-    expect(withoutIban.split(';')[9]).toBe('')
+    expect(withoutIban.split(';')[8]).toBe('')
   })
 
-  it('matches on ClubDesk\'s stored name (cd_match_*) so drifted names still update, not duplicate', () => {
-    // Member renamed to a short first name / lost the register\'s double surname in
-    // wiedisync; /up resolves ClubDesk\'s own stored name into cd_match_* so the
-    // import matches by name and UPDATES instead of creating a "Neue" dup.
-    const row = buildPushCsv([{
-      ...kacper, first_name: 'Alex', last_name: 'Neumann',
-      cd_match_first: 'Alexander', cd_match_last: 'Neumann Jurca',
-    }]).trim().split('\n')[1].split(';')
-    expect(row[0]).toBe('Alexander')       // ClubDesk\'s stored Vorname wins for the match
-    expect(row[1]).toBe('Neumann Jurca')   // ClubDesk\'s stored Nachname wins
-  })
-
-  it('falls back to the wiedisync name when ClubDesk has no stored name (cd_match_* unset)', () => {
-    const row = buildPushCsv([kacper]).trim().split('\n')[1].split(';')
-    expect(row[0]).toBe('Kacper')
-    expect(row[1]).toBe('Krawczyński')
+  it('leaves phone-style leading + unguarded but escapes +formula (2026-07-06 apostrophe bug)', () => {
+    const cells = buildPushCsv([{ ...kacper, phone: '+41 79 000 00 00', adresse: '+HYPERLINK(1)' }])
+      .trim().split('\n')[1].split(';')
+    expect(cells[2]).toBe('+41 79 000 00 00') // Telefon Privat
+    expect(cells[3]).toBe("'+HYPERLINK(1)")   // Adresse
   })
 })
 
@@ -99,8 +110,16 @@ describe('buildPushCsv (create set)', () => {
   it('appends the create-set columns (Telefon Mobil … Schiedsrichter) in order', () => {
     const csv = buildPushCsv([{ ...kacper, scorer_vb: true, referee_vb: true, iban: 'CH9300762011623852957', cd_passiv: 'Nein', cd_sektion: 'Volleyball' }], { create: true })
     const [header, row] = csv.trim().split('\n')
+    // FULL literal pin — `toBe(CD_PUSH_CREATE_HEADERS.join(';'))` alone is
+    // self-referential (a header deleted from the array would still pass while
+    // the cells shift against ClubDesk's mapper). CREATE rows carry the real
+    // wiedisync name (a new contact needs one) and never an [Id] (an unknown
+    // [Id] hard-aborts ClubDesk's whole import).
+    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;AHV Nummer;Wiedisync ID;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Passivmitglied;Sektion;Schiedsrichter')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
-    expect(header.endsWith('Mitgliederbeitrag;Passivmitglied;Sektion;Schiedsrichter')).toBe(true)
+    expect(header).not.toContain('[Id]')
+    // header/cell count equality — catches a header/cells drift in either direction
+    expect(row.split(';')).toHaveLength(header.split(';').length)
     const cells = row.split(';')
     expect(cells).toHaveLength(24)
     expect(cells[9]).toBe('CH9300762011623852957') // IBAN
@@ -134,13 +153,6 @@ describe('buildPushCsv (create set)', () => {
     const row = buildPushCsv([{ ...kacper, beitragskategorie: '=SUM(A1)' }], { create: true })
       .trim().split('\n')[1]
     expect(row.split(';')[15]).toBe("'=SUM(A1)")
-  })
-
-  it('leaves phone-style leading + unguarded but escapes +formula (2026-07-06 apostrophe bug)', () => {
-    const cells = buildPushCsv([{ ...kacper, phone: '+41 79 000 00 00', adresse: '+HYPERLINK(1)' }])
-      .trim().split('\n')[1].split(';')
-    expect(cells[3]).toBe('+41 79 000 00 00')
-    expect(cells[4]).toBe("'+HYPERLINK(1)")
   })
 
   it('multi-team Gruppen stays one cell (comma is safe in semicolon CSV)', () => {

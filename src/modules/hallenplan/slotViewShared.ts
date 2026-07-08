@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { HallSlot, Team } from '../../types'
 import { timeToMinutes } from '../../utils/dateHelpers'
+import { trimBBTeamName } from '../../utils/teamColors'
 import type { PositionedSlot } from './utils/timeGrid'
 
 /**
@@ -38,7 +39,10 @@ export function useTeamResolver(teams: Team[]) {
     return undefined
   }
 
-  const getTeamName = (slot: HallSlot): string => resolveTeam(slot)?.name ?? ''
+  const getTeamName = (slot: HallSlot): string => {
+    const name = resolveTeam(slot)?.name
+    return name ? trimBBTeamName(name) : ''
+  }
 
   const getTeamSport = (slot: HallSlot): 'volleyball' | 'basketball' | undefined =>
     resolveTeam(slot)?.sport as 'volleyball' | 'basketball' | undefined

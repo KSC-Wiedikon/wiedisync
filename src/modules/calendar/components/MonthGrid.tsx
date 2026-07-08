@@ -6,6 +6,7 @@ import { CalendarOff, TrafficCone, CircleX, Star, ClipboardList, Cake } from 'lu
 import BasketballIcon from '../../../components/BasketballIcon'
 import VolleyballIcon from '../../../components/VolleyballIcon'
 import { barColors, dotColors, colorKey, paintKey } from '../entryStyle'
+import { trimBBTeamName } from '../../../utils/teamColors'
 import {
   startOfMonth,
   endOfMonth,
@@ -380,7 +381,7 @@ export default function MonthGrid({
                                   </span>
                                   {(entry.teamNames[0] || entry.opponent) ? (
                                     <span className="hidden lg:inline truncate">
-                                      {entry.teamNames[0]}{entry.opponent ? ` vs ${entry.opponent}` : ''}
+                                      {entry.teamNames[0] ? trimBBTeamName(entry.teamNames[0]) : ''}{entry.opponent ? ` vs ${entry.opponent}` : ''}
                                     </span>
                                   ) : null}
                                 </>
