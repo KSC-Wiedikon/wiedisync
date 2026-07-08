@@ -43,7 +43,9 @@ const BB_HARD_RULES = ['ruleBbHardGame', 'ruleBbHardDuty', 'ruleBbHardOtr1']
 const BB_SOFT_RULES = ['ruleBbSoftFullCrew', 'ruleBbSoftSequence', 'ruleBbSoftTraining', 'ruleBbSoftRotation', 'ruleBbSoftWeekend']
 
 export default function ScorerAssignPage() {
-  const { t } = useTranslation('scorerAssign')
+  const { t, i18n } = useTranslation('scorerAssign')
+  // Exports are ALWAYS English, whatever the UI language (app-wide convention).
+  const tEn = useMemo(() => i18n.getFixedT('en', 'scorerAssign'), [i18n])
   const { user, hasAdminAccessToSport } = useAuth()
 
   const season = getCurrentSeason()
@@ -168,23 +170,23 @@ export default function ScorerAssignPage() {
   // items — misses training, duty next to own game, missing slot — plus a
   // safety check that no assigned team actually plays at that time).
   type Note = { text: string; tone: 'danger' | 'warn' | 'ok' | 'muted' }
-  const notesFor = (conflicts: GameAssignment['conflicts'], assigned: Array<[string | null, string | null]>, game: Game): Note[] => {
+  const notesFor = (tr: typeof t, conflicts: GameAssignment['conflicts'], assigned: Array<[string | null, string | null]>, game: Game): Note[] => {
     const out: Note[] = []
     const seen = new Set<string>()
     const add = (text: string, tone: Note['tone']) => { if (text && !seen.has(text)) { seen.add(text); out.push({ text, tone }) } }
     for (const c of conflicts) {
       const team = (c.params?.team as string) ?? ''
-      if (c.key === 'reason_training') add(t('noteTraining', { team }), 'warn')
-      else if (c.key === 'reason_sequenceBonus') add(t('noteAdjacent', { team }), 'ok')
-      else if (c.key === 'existingKept') add(t('existingKept'), 'muted')
-      else if (c.key === 'noScorerAvailable' || c.key === 'noTaefelerAvailable' || c.key === 'noRefereeAvailable' || c.key === 'noTeamAvailable') add(t(c.key), 'warn')
+      if (c.key === 'reason_training') add(tr('noteTraining', { team }), 'warn')
+      else if (c.key === 'reason_sequenceBonus') add(tr('noteAdjacent', { team }), 'ok')
+      else if (c.key === 'existingKept') add(tr('existingKept'), 'muted')
+      else if (c.key === 'noScorerAvailable' || c.key === 'noTaefelerAvailable' || c.key === 'noRefereeAvailable' || c.key === 'noTeamAvailable') add(tr(c.key), 'warn')
     }
     const dutyMin = timeToMin(game.time)
     if (dutyMin != null) {
       for (const [tid, tname] of assigned) {
         if (!tid) continue
         const mins = teamGameTimes.get(`${tid}|${game.date}`) ?? []
-        if (mins.some((m) => Math.abs(m - dutyMin) < 120)) add(t('noteMatchConflict', { team: tname ?? '' }), 'danger')
+        if (mins.some((m) => Math.abs(m - dutyMin) < 120)) add(tr('noteMatchConflict', { team: tname ?? '' }), 'danger')
       }
     }
     return out
@@ -259,8 +261,6 @@ export default function ScorerAssignPage() {
   async function handleDownloadXlsx() {
     const isVb = sportTab === 'volleyball'
     const teamColors = buildTeamColors((isVb ? vbTeams : bbTeams).map((tm) => tm.name))
-    const conflictText = (cs: { key: string; params?: Record<string, string | number> }[]) =>
-      cs.filter((c) => c.key !== 'existingKept').map((c) => t(c.key, c.params ?? {})).join('; ')
     const blank = { scorer: '', scoreboard: '', combined: '', referee: '', dutyTeam: '' }
     const meta = (gameId: string) => {
       const g = homeGames.find((x) => x.id === gameId)
@@ -270,18 +270,23 @@ export default function ScorerAssignPage() {
         home: g?.home_team ?? '', away: g?.away_team ?? '', league: g?.league ?? '',
       }
     }
+    // Same curated notes as the table, but ALWAYS in English (export convention).
+    const noteText = (conflicts: GameAssignment['conflicts'], assigned: Array<[string | null, string | null]>, gameId: string) => {
+      const g = homeGames.find((x) => x.id === gameId)
+      return g ? notesFor(tEn, conflicts, assigned, g).map((n) => n.text).join('; ') : ''
+    }
     const gameRows: XlsxGameRow[] = isVb
       ? vbAssignments.map((a) => ({
           ...meta(a.gameId), ...blank,
           scorer: a.scorerTeamName ?? '', scoreboard: a.scoreboardTeamName ?? '',
           combined: a.combinedTeamName ?? '', referee: a.refereeTeamName ?? '',
-          conflicts: conflictText(a.conflicts),
+          conflicts: noteText(a.conflicts, [[a.scorerTeamId, a.scorerTeamName], [a.scoreboardTeamId, a.scoreboardTeamName], [a.combinedTeamId, a.combinedTeamName], [a.refereeTeamId, a.refereeTeamName]], a.gameId),
           status: a.conflicts.some((c) => c.key === 'existingKept') ? 'existing'
             : (!a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId) ? 'unassigned' : 'ok',
         }))
       : bbAssignments.map((a) => ({
           ...meta(a.gameId), ...blank, dutyTeam: a.dutyTeamName ?? '',
-          conflicts: conflictText(a.conflicts),
+          conflicts: noteText(a.conflicts, [[a.dutyTeamId, a.dutyTeamName]], a.gameId),
           status: a.conflicts.some((c) => c.key === 'existingKept') ? 'existing' : !a.dutyTeamId ? 'unassigned' : 'ok',
         }))
     const summaryRows: XlsxSummaryRow[] = isVb
@@ -290,14 +295,14 @@ export default function ScorerAssignPage() {
       : Array.from(bbTeamCounts.entries()).sort(([x], [y]) => x.localeCompare(y)).map(([team, c]) => ({
           team, games: c.ownGames, scorer: 0, scoreboard: 0, combined: 0, referee: 0, duties: c.duties, total: c.duties }))
     const L: XlsxLabels = {
-      sheetGames: t('title'), sheetSummary: t('teamSummary'),
-      date: t('date'), time: t('time'), hall: t('hall'), home: t('home'), away: t('away'), league: t('league'),
-      scorer: t('autoScorer'), scoreboard: t('autoTaefeler'), combined: t('combinedCount'),
-      referee: t('refereeCount'), dutyTeam: t('autoDutyTeam'), conflicts: t('conflicts'),
-      team: t('teamName'), games: t('ownGames'), total: t('totalCount'),
+      sheetGames: tEn('title'), sheetSummary: tEn('teamSummary'),
+      date: tEn('date'), time: tEn('time'), hall: tEn('hall'), home: tEn('home'), away: tEn('away'), league: tEn('league'),
+      scorer: tEn('autoScorer'), scoreboard: tEn('autoTaefeler'), combined: tEn('combinedCount'),
+      referee: tEn('refereeCount'), dutyTeam: tEn('autoDutyTeam'), conflicts: tEn('notes'),
+      team: tEn('teamName'), games: tEn('ownGames'), total: tEn('totalCount'),
     }
     const bytes = await buildAssignmentXlsx(sportTab, gameRows, summaryRows, teamColors, L)
-    downloadBytes(bytes, XLSX_MIME, `kscw_schreiber_zuteilung_${isVb ? 'vb' : 'bb'}_${season.replace('/', '-')}.xlsx`)
+    downloadBytes(bytes, XLSX_MIME, `kscw_scorer_assignment_${isVb ? 'vb' : 'bb'}_${season.replace('/', '-')}.xlsx`)
   }
 
   function handleVbOverride(gameId: string, role: 'scorer' | 'scoreboard' | 'combined' | 'referee', teamId: string) {
@@ -574,7 +579,7 @@ export default function ScorerAssignPage() {
                         )}
                         <TableCell className="max-w-[240px] px-2 py-2">
                           <div className="space-y-0.5 text-xs">
-                            {notesFor(a.conflicts, assignedTeams, game).map((n, i) => (
+                            {notesFor(t, a.conflicts, assignedTeams, game).map((n, i) => (
                               <div key={i} className={`truncate ${noteToneClass(n.tone)}`} title={n.text}>{n.text}</div>
                             ))}
                           </div>
@@ -616,7 +621,7 @@ export default function ScorerAssignPage() {
                         </TableCell>
                         <TableCell className="max-w-[240px] px-2 py-2">
                           <div className="space-y-0.5 text-xs">
-                            {notesFor(a.conflicts, assignedTeams, game).map((n, i) => (
+                            {notesFor(t, a.conflicts, assignedTeams, game).map((n, i) => (
                               <div key={i} className={`truncate ${noteToneClass(n.tone)}`} title={n.text}>{n.text}</div>
                             ))}
                           </div>
