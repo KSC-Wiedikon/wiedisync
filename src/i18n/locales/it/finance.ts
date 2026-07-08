@@ -149,6 +149,37 @@ export default {
   expensesTabHint: 'Spese inviate dai membri. Un cambio di stato avvisa il membro; «Pagata» crea anche il rimborso collegato.',
   tabExpenses: 'Spese',
 
+  // ── Modulo membro: IBAN di rimborso + già pagato (migrazione 192) ──
+  expenseReimburseIban: 'Rimborsa su questo conto',
+  expenseReimburseIbanHint: 'Il tuo rimborso viene inviato qui – precompilato dal tuo profilo. Puoi modificarlo per questa spesa.',
+  expenseReimburseIbanHintEmpty: 'Nessun IBAN salvato – inserisci il conto da rimborsare. Richiesto per inviare.',
+  expenseIbanRequired: 'Inserisci l’IBAN per il rimborso.',
+  expenseAlreadyPaid: 'Già pagato?',
+  expenseAlreadyPaidHint: 'Spunta se hai già pagato tu stesso questa fattura.',
+
+  // ── Conferma TK (Sport Admin) – vista finanze ──
+  expenseTkCol: 'Conferma TK',
+  expenseTkConfirmed: 'Confermato dalla TK',
+  expenseTkConfirmedBy: 'Confermato da {{name}}',
+  expenseTkAwaiting: 'In attesa della TK',
+  expenseTkAwaitingSection: 'In attesa della TK {{section}}',
+  expenseTkAlreadyPaid: 'Pagato dalla sezione',
+  expenseMemberAlreadyPaid: 'Il membro ha già pagato',
+
+  // ── Pagina di conferma TK (Sport Admin) ──
+  tkExpensesTitle: 'Conferma spese',
+  tkExpensesSubtitle: 'Conferma che questi rimborsi sono a budget e possono essere pagati, e indica alle finanze se la tua sezione ha già rimborsato il membro.',
+  tkExpensesEmpty: 'Nessuna spesa da confermare.',
+  tkExpensesNav: 'Conferma spese',
+  expenseTkActionCol: 'Conferma',
+  expenseTkAlreadyPaidLabel: 'La sezione ha già rimborsato il membro',
+  expenseTkNotePlaceholder: 'Nota per le finanze (facoltativo)',
+  expenseTkConfirmBtn: 'Conferma',
+  expenseTkSave: 'Salva',
+  expenseTkUnconfirm: 'Annulla conferma',
+  expenseTkConfirmedToast: 'Confermato.',
+  expenseTkUnconfirmedToast: 'Conferma rimossa.',
+
   // ── Fatture native (migrazioni 128/129) ──
   tabInvoices: 'Fatture',
   cancel: 'Annulla',

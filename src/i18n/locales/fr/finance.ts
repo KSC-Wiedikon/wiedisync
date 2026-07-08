@@ -149,6 +149,37 @@ export default {
   expensesTabHint: 'Notes de frais soumises par les membres. Un changement de statut notifie le membre ; « Payée » crée aussi le versement lié.',
   tabExpenses: 'Notes de frais',
 
+  // ── Formulaire membre : IBAN de remboursement + déjà payé (migration 192) ──
+  expenseReimburseIban: 'Rembourser sur ce compte',
+  expenseReimburseIbanHint: 'Ton remboursement est envoyé ici – prérempli depuis ton profil. Tu peux le modifier pour cette dépense.',
+  expenseReimburseIbanHintEmpty: 'Aucun IBAN enregistré – saisis le compte à rembourser. Requis pour envoyer.',
+  expenseIbanRequired: 'Merci de saisir l’IBAN pour le remboursement.',
+  expenseAlreadyPaid: 'Déjà payé ?',
+  expenseAlreadyPaidHint: 'Coche si tu as déjà payé cette facture toi-même.',
+
+  // ── Confirmation TK (Sport Admin) – vue des finances ──
+  expenseTkCol: 'Confirmation TK',
+  expenseTkConfirmed: 'Confirmé par la TK',
+  expenseTkConfirmedBy: 'Confirmé par {{name}}',
+  expenseTkAwaiting: 'En attente de la TK',
+  expenseTkAwaitingSection: 'En attente de la TK {{section}}',
+  expenseTkAlreadyPaid: 'Payé par la section',
+  expenseMemberAlreadyPaid: 'Le membre a déjà payé',
+
+  // ── Page de confirmation TK (Sport Admin) ──
+  tkExpensesTitle: 'Confirmer les dépenses',
+  tkExpensesSubtitle: 'Confirme que ces remboursements sont budgétés et peuvent être payés, et indique aux finances si ta section a déjà remboursé le membre.',
+  tkExpensesEmpty: 'Aucune dépense à confirmer.',
+  tkExpensesNav: 'Confirmer les dépenses',
+  expenseTkActionCol: 'Confirmation',
+  expenseTkAlreadyPaidLabel: 'La section a déjà remboursé le membre',
+  expenseTkNotePlaceholder: 'Note pour les finances (facultatif)',
+  expenseTkConfirmBtn: 'Confirmer',
+  expenseTkSave: 'Enregistrer',
+  expenseTkUnconfirm: 'Annuler la confirmation',
+  expenseTkConfirmedToast: 'Confirmé.',
+  expenseTkUnconfirmedToast: 'Confirmation supprimée.',
+
   // ── Factures natives (migrations 128/129) ──
   tabInvoices: 'Factures',
   cancel: 'Annuler',

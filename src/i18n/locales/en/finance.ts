@@ -159,6 +159,37 @@ export default {
   expensesTabHint: 'Expense reimbursements submitted by members. Changing the status notifies the member; marking as paid also creates the linked payout record.',
   tabExpenses: 'Expenses',
 
+  // ── Member form: reimbursement IBAN + already-paid (migration 192) ──
+  expenseReimburseIban: 'Reimburse on this account',
+  expenseReimburseIbanHint: 'Your reimbursement goes here — pre-filled from your profile. You can change it for this expense.',
+  expenseReimburseIbanHintEmpty: 'No IBAN on file yet — enter the account to reimburse. Required to send.',
+  expenseIbanRequired: 'Please enter the IBAN to reimburse.',
+  expenseAlreadyPaid: 'Already paid?',
+  expenseAlreadyPaidHint: 'Tick if you already paid this bill yourself, out of pocket.',
+
+  // ── TK (Sport Admin) confirmation — treasurer view ──
+  expenseTkCol: 'TK confirmation',
+  expenseTkConfirmed: 'TK-confirmed',
+  expenseTkConfirmedBy: 'Confirmed by {{name}}',
+  expenseTkAwaiting: 'Awaiting TK',
+  expenseTkAwaitingSection: 'Awaiting {{section}} TK',
+  expenseTkAlreadyPaid: 'Paid by section',
+  expenseMemberAlreadyPaid: 'Member already paid themselves',
+
+  // ── TK confirmation page (Sport Admin) ──
+  tkExpensesTitle: 'Confirm expenses',
+  tkExpensesSubtitle: 'Confirm that these reimbursements are budgeted and can be paid, and tell finance if your section already reimbursed the member.',
+  tkExpensesEmpty: 'No expenses to confirm.',
+  tkExpensesNav: 'Confirm expenses',
+  expenseTkActionCol: 'Confirmation',
+  expenseTkAlreadyPaidLabel: 'Section already reimbursed the member',
+  expenseTkNotePlaceholder: 'Note for finance (optional)',
+  expenseTkConfirmBtn: 'Confirm',
+  expenseTkSave: 'Save',
+  expenseTkUnconfirm: 'Un-confirm',
+  expenseTkConfirmedToast: 'Confirmed.',
+  expenseTkUnconfirmedToast: 'Confirmation removed.',
+
   // ── Native invoices (migrations 128/129) ──
   tabInvoices: 'Invoices',
   cancel: 'Cancel',
