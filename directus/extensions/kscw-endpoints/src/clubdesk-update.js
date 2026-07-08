@@ -166,24 +166,37 @@ export function toCp1252Buffer(str) {
 // contacts); CREATE rows additionally carry Beitragskategorie + Eintritt +
 // Gruppen + Status (see CD_PUSH_CREATE_HEADERS below).
 //
-// wiedisync is NOT the source of truth for Anrede, Nationalität or AHV Nummer:
-// the down-sync (import-clubdesk-csv.mjs) never populates members.anrede/
-// nationalitaet/ahv_nummer, so they are always NULL here. Pushing them would send
-// BLANK cells and — if ClubDesk overwrites on import — wipe the authoritative
-// Anrede/Nationalität/AHV in the legal register. They are therefore DELIBERATELY
-// omitted from the push; do NOT re-add without a matching down-sync that fills them.
-// ⚠ VALIDATION: the remaining columns still push the full wiedisync value — how
-// ClubDesk's import wizard treats an empty cell (skip vs. blank the field) must be
-// validated against a live import before enabling commit on prod (see up-dispatch).
-// IBAN joined the push scope 2026-07-06 (user: members enter it in their
-// profile via PayoutIbanCard, finance edits it too — wiedisync owns it once
-// set). The down-sync deliberately does NOT fill members.iban (deleted-IBAN
-// resurrection, see import-clubdesk-csv.mjs), so most members are empty here
-// while ClubDesk holds a value → /up ECHOES ClubDesk's own IBAN back into the
-// cell when wiedisync's is empty (no-op on import, nothing blanked, no member
-// dropped). A member-entered IBAN always wins.
-const CD_PUSH_HEADERS = [
-  'Vorname', 'Nachname', 'E-Mail', 'Telefon Privat', 'Adresse',
+// UPDATE rows are keyed on ClubDesk's own [Id] (= members.clubdesk_id) since
+// 2026-07-08. A `[Id]` CSV column is consumed by the import wizard as the RECORD
+// IDENTITY — it never appears in the field-mapping list, and the row upserts the
+// matched contact regardless of name/email. Spike-proven live (2026-07-08,
+// throwaway contact, created→updated→deleted):
+//   • [Id]-matched commit updates ONLY the columns present in the CSV — every
+//     absent column stays byte-identical (incl. Vorname/Nachname/E-Mail).
+//   • An EMPTY mapped cell does NOT blank the stored value (full no-op) — the
+//     echo-back + blank-risk guards below stay as defense-in-depth anyway.
+//   • An UNKNOWN [Id] hard-aborts the ENTIRE import (wizard closes, no summary,
+//     nothing written) → /up's stale-link guard must skip members whose contact
+//     vanished from ClubDesk before the CSV is stashed.
+// Vorname/Nachname are deliberately ABSENT from UPDATE rows: the push carries
+// contact data, never a rename, and ClubDesk's name-matching (its only other
+// update path) breaks on any name drift — short↔full first names, nicknames,
+// married/double surnames, accents, CD-side typos, non-CP1252 chars (ć→?).
+// Without [Id] those rows previewed as "Neue" and the up-dispatcher's dup guard
+// refused the whole set (17 refused on 2026-07-07). CREATE rows keep the real
+// wiedisync name — a brand-new contact needs one, and it has no [Id] yet.
+//
+// wiedisync is NOT the source of truth for every pushed column. IBAN joined the
+// push scope 2026-07-06 (member-entered via PayoutIbanCard / finance edits —
+// wiedisync owns it once set), but the down-sync deliberately does NOT fill
+// members.iban (deleted-IBAN resurrection, see import-clubdesk-csv.mjs), so most
+// members are empty here while ClubDesk holds a value → /up ECHOES ClubDesk's
+// own IBAN back into the cell when wiedisync's is empty. A member-entered IBAN
+// always wins.
+//
+// Shared contact columns (both sets, order fixed — buildPushCsv mirrors it):
+const CD_PUSH_CONTACT_HEADERS = [
+  'E-Mail', 'Telefon Privat', 'Adresse',
   'PLZ', 'Ort', 'Geburtsdatum', 'Geschlecht', 'IBAN',
   // Anrede/Nationalität/AHV Nummer joined the push scope 2026-07-07: the
   // down-sync now fills members.anrede/nationalitaet/ahv_nummer, so wiedisync
@@ -201,10 +214,13 @@ const CD_PUSH_HEADERS = [
   // link contact↔member by this exact key — immune to the name/email/accent
   // drift that email+name matching suffers. This closes the create round-trip
   // (up → new [Id] → down-link) with zero ambiguity. ClubDesk's import can't
-  // MATCH on it (no ID upsert), but the down-sync linker reads it back as the
-  // authoritative key.
+  // MATCH on it (spike-proven 2026-07-08: a Wiedisync-ID-only row previews as
+  // "Neue" — only ClubDesk's own [Id] is an upsert key), but the down-sync
+  // linker reads it back as the authoritative key.
   'Wiedisync ID',
 ]
+// UPDATE set: [Id]-keyed, name-less (see block comment above).
+const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS]
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
 // A brand-new contact has no ClubDesk-owned category, entry date, groups or
@@ -218,9 +234,11 @@ const CD_PUSH_HEADERS = [
 // snapshot 2026-07-05), Status (Aktiv-/Passivmitglied — see deriveStatus) and
 // Offiziellen Lizenz (scorer/officials licence — see deriveOffiziellenLizenz).
 // UPDATE pushes NEVER send these columns — ClubDesk stays authoritative on
-// existing contacts, and its empty-cell import behavior is unvalidated (a blank
-// cell could wipe the value in the legal register). That is why /up stashes TWO
-// CSVs (up_csv + up_csv_create) instead of one.
+// existing contacts. (Spike 2026-07-08: an empty mapped cell is provably a
+// no-op on import, but keeping these columns out of the update set remains
+// the structural guarantee — one probe on one field type is no licence to
+// send category/status cells at existing contacts.) That is why /up stashes
+// TWO CSVs (up_csv + up_csv_create) instead of one.
 // ⚠ Gruppen maps in the import wizard as free TEXT and a commit does NOT
 // create the group membership (PROVEN 2026-07-06: Månsson/Clüver creates
 // carried Gruppen, landed with empty groups). The column stays as harmless
@@ -231,7 +249,9 @@ const CD_PUSH_HEADERS = [
 // Passivmitglied Ja/Nein checkbox + Sektion (Volleyball/Basketball/KSCW). These
 // are CREATE-only — an UPDATE never overwrites a distinct Mobil / ClubDesk-owned
 // Sektion on an existing contact.
-export const CD_PUSH_CREATE_HEADERS = [...CD_PUSH_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Passivmitglied', 'Sektion', 'Schiedsrichter']
+// CREATE set: real wiedisync name (a brand-new contact has no [Id] to key on),
+// the shared contact columns, then the create-only extras.
+export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Passivmitglied', 'Sektion', 'Schiedsrichter']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -477,19 +497,15 @@ export function buildPushCsv(members, { create = false } = {}) {
     const ibanOut = normVal(normalizeIban, m.iban)
     const ahvOut = normVal(normalizeAhv, m.ahv_nummer)
     const emailOut = normVal(normalizeEmail, m.email)
-    const cells = [
-      // UPDATE rows match on ClubDesk's own stored name (cd_match_*, resolved by
-      // /up's echo block) so a name that drifted from the register still updates
-      // instead of spawning a "Neue" dup; CREATE rows have no cd_match_* and carry
-      // the real wiedisync name for the brand-new contact.
-      m.cd_match_first ?? m.first_name, m.cd_match_last ?? m.last_name,
+    // Shared contact cells — order mirrors CD_PUSH_CONTACT_HEADERS exactly.
+    const contactCells = [
       emailOut, phoneOut, m.adresse, m.plz, m.ort,
       fmtBirthdateDDMMYYYY(m.birthdate),
       m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
       // /up pre-resolves m.iban / m.anrede / m.nationalitaet / m.ahv_nummer to
       // ClubDesk's own value when wiedisync's is empty (UPDATE rows only — see
-      // CD_PUSH_HEADERS). Creates push their own values (a new contact has no
-      // ClubDesk value to blank).
+      // CD_PUSH_CONTACT_HEADERS). Creates push their own values (a new contact
+      // has no ClubDesk value to blank).
       ibanOut,
       m.anrede || '', m.nationalitaet || '', ahvOut,
       // Wiedisync ID — the member UUID (migration 184), wiedisync-owned: never
@@ -497,6 +513,14 @@ export function buildPushCsv(members, { create = false } = {}) {
       // down-sync linker accepts both.
       m.uuid ? String(m.uuid) : (m.id != null ? String(m.id) : ''),
     ]
+    // UPDATE rows are [Id]-keyed and name-less (spike-proven 2026-07-08: the
+    // wizard consumes [Id] as the record identity and touches only the columns
+    // present — see CD_PUSH_HEADERS). CREATE rows carry the wiedisync name for
+    // the brand-new contact. /up guarantees every update member has a
+    // clubdesk_id (eligibility filter + stale-link guard).
+    const cells = create
+      ? [m.first_name, m.last_name, ...contactCells]
+      : [String(m.clubdesk_id ?? '').trim(), ...contactCells]
     if (create) {
       cells.push(
         phoneOut, // Telefon Mobil = same as Privat (user: one number → both)
@@ -669,10 +693,22 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         .where('clubdesk_sync_exclude', false)
         .select('id', 'first_name', 'last_name', 'email', 'clubdesk_id', 'clubdesk_push_changes')
         .orderBy('last_name')
+      // Stale-link flag (2026-07-08): a changed member whose clubdesk_id has no
+      // clubdesk_export row anymore (contact deleted CD-side) will be SKIPPED by
+      // /up's stale-link guard — surface that here so the modal can show why and
+      // offer mute instead of silently re-listing the member forever.
+      const changedCdids = [...new Set(changedRows.map((m) => String(m.clubdesk_id).trim()).filter(Boolean))]
+      const liveCdids = new Set()
+      if (changedCdids.length) {
+        const rows = await database('clubdesk_export')
+          .whereRaw('BTRIM(clubdesk_id) = ANY(?)', [changedCdids])
+          .distinct(database.raw('BTRIM(clubdesk_id) AS cdid'))
+        for (const r of rows) liveCdids.add(r.cdid)
+      }
       const changed = changedRows.map((m) => {
         let changes = []
         try { changes = Array.isArray(m.clubdesk_push_changes) ? m.clubdesk_push_changes : (m.clubdesk_push_changes ? JSON.parse(m.clubdesk_push_changes) : []) } catch { changes = [] }
-        return { id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email, clubdesk_id: m.clubdesk_id, changes }
+        return { id: m.id, first_name: m.first_name, last_name: m.last_name, email: m.email, clubdesk_id: m.clubdesk_id, changes, stale: !liveCdids.has(String(m.clubdesk_id).trim()) }
       })
       // Exclude members already pushed as "new" but not yet linked back: the
       // up-dispatcher stamps clubdesk_pushed_at on every pushed row, so an unlinked
@@ -776,49 +812,63 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           updates = updates0.filter((m) => !riskyIds.has(m.id))
         }
       }
-      const pushMembers = [...updates, ...creates]
-      if (!pushMembers.length) {
-        return res.status(409).json({
-          error: 'Every eligible member would blank ClubDesk data (empty fields ClubDesk still owns) — run "Sync down" first',
-          code: 'blank_risk', skipped_blank_risk: blankRiskSkipped,
-        })
-      }
-      // Echo-back (see CD_PUSH_HEADERS): an UPDATE row whose wiedisync value is
-      // empty gets ClubDesk's own current value so the import can never blank
-      // the register. Covers iban + anrede + nationalitaet + ahv_nummer — the
-      // fields wiedisync does not exclusively own (blank cell could otherwise
-      // wipe an authoritative value). Member-set values pass unchanged. The
-      // drift blank-risk guard deliberately skips these four — this makes them
+      // Stale-link guard + echo-back — both need the member's clubdesk_export
+      // row, so they share one query. MUST run before pushMembers is fixed:
+      // a skipped member must not land in up_member_ids (the dispatcher clears
+      // clubdesk_push_pending for every id in there after a commit).
+      //
+      // Stale-link guard (2026-07-08, spike-proven): UPDATE rows are [Id]-keyed,
+      // and an [Id] that no longer exists in ClubDesk (contact deleted CD-side —
+      // the Grie Chaisena case) makes the import wizard hard-abort the ENTIRE
+      // upload: the dialog closes silently, no summary, NOTHING of the batch is
+      // written. One stale link would brick the whole push, so skip those
+      // members here and report them; the operator mutes (clubdesk_sync_exclude)
+      // or relinks. clubdesk_export mirrors "Alle Kontakte" (every contact incl.
+      // exited), so a missing row genuinely means the contact is gone — the only
+      // false positive is a hand-typed clubdesk_id newer than the last sync-down,
+      // which self-heals after the next "Sync down".
+      //
+      // Echo-back: an UPDATE row whose wiedisync value is empty gets ClubDesk's
+      // own current value so the import can never blank the register. Covers
+      // iban + anrede + nationalitaet + ahv_nummer — the fields wiedisync does
+      // not exclusively own. Member-set values pass unchanged. The drift
+      // blank-risk guard deliberately skips these four — this makes them
       // structurally safe instead of dropping the member from the push.
+      // (Spike 2026-07-08 additionally proved ClubDesk IGNORES empty cells on
+      // import — the echo + blank-risk guards stay as defense-in-depth on the
+      // legal register; one probe on one field type is no licence to relax.)
+      let staleLinkSkipped = []
       if (updates.length) {
-        const cdids = updates.map((m) => String(m.clubdesk_id)).filter(Boolean)
+        // .trim() to match the BTRIM'd export side + the trimmed lookups below —
+        // an untrimmed param here turns a hand-linked padded clubdesk_id into a
+        // permanent false "stale link" skip (review finding 2026-07-08).
+        const cdids = updates.map((m) => String(m.clubdesk_id).trim()).filter(Boolean)
         const echoRows = cdids.length ? await database.raw(`
           SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
-                 vorname, nachname, iban, anrede, nationalitaet, ahv_nummer
+                 iban, anrede, nationalitaet, ahv_nummer
           FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
         `, [cdids]) : { rows: [] }
         const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
+        staleLinkSkipped = updates.filter((m) => !cdEcho.has(String(m.clubdesk_id).trim())).map((m) => m.id)
+        if (staleLinkSkipped.length) updates = updates.filter((m) => cdEcho.has(String(m.clubdesk_id).trim()))
         for (const m of updates) {
-          const cd = cdEcho.get(String(m.clubdesk_id)) || {}
-          // Match on ClubDesk's OWN stored name (2026-07-08). ClubDesk's import
-          // keys contacts BY NAME, so a linked member whose wiedisync name drifted
-          // from the register — short↔full first name (Alex/Alexander), added
-          // nickname, married/double surname, accent, a CD-side typo, or a
-          // non-CP1252 char the CSV transcode mangles (ć→?, ł→l) — previews as
-          // "Neue" and is refused by the up-dispatcher's duplicate guard. An UPDATE
-          // push carries contact data, never a rename, so emitting ClubDesk's own
-          // stored name is a NO-OP on the register yet guarantees the match. It
-          // never corrupts the member's chosen wiedisync name (only the CSV cell).
-          // Empty CD name (contact gone from ClubDesk, e.g. a leaver whose
-          // clubdesk_id is stale) → keep wiedisync's; that member is a real "Neue"
-          // and must be muted/relinked, not silently duplicated.
-          if (String(cd.vorname || '').trim()) m.cd_match_first = String(cd.vorname).trim()
-          if (String(cd.nachname || '').trim()) m.cd_match_last = String(cd.nachname).trim()
+          const cd = cdEcho.get(String(m.clubdesk_id).trim()) || {}
           if (!String(m.iban || '').trim()) m.iban = String(cd.iban || '').trim()
           if (!String(m.anrede || '').trim()) m.anrede = String(cd.anrede || '').trim()
           if (!String(m.nationalitaet || '').trim()) m.nationalitaet = String(cd.nationalitaet || '').trim()
           if (!String(m.ahv_nummer || '').trim()) m.ahv_nummer = String(cd.ahv_nummer || '').trim()
         }
+      }
+      const pushMembers = [...updates, ...creates]
+      if (!pushMembers.length) {
+        const staleOnly = staleLinkSkipped.length && !blankRiskSkipped.length
+        return res.status(409).json({
+          error: staleOnly
+            ? 'Every eligible member has a stale ClubDesk link (contact no longer exists in ClubDesk) — mute or relink them'
+            : 'Every eligible member would blank ClubDesk data (empty fields ClubDesk still owns) — run "Sync down" first',
+          code: staleOnly ? 'stale_link' : 'blank_risk',
+          skipped_blank_risk: blankRiskSkipped, skipped_stale_link: staleLinkSkipped,
+        })
       }
       // Eintritt = the registration SUBMISSION date — user rule 2026-07-06:
       // "the date the registration is sent" (approved_at was dropped; it is
@@ -859,9 +909,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       await writeUserLog(database, log, {
         accountability: req.accountability, action: 'update',
         collection: 'clubdesk_member_sync', recordId: 1,
-        data: { kind: 'clubdesk_member_sync_request', direction: 'up', member_count: pushMembers.length, create_count: creates.length, skipped_blank_risk: blankRiskSkipped.length },
+        data: { kind: 'clubdesk_member_sync_request', direction: 'up', member_count: pushMembers.length, create_count: creates.length, skipped_blank_risk: blankRiskSkipped.length, skipped_stale_link: staleLinkSkipped.length },
       })
-      return res.json({ state: 'queued', count: pushMembers.length, skipped_blank_risk: blankRiskSkipped })
+      return res.json({ state: 'queued', count: pushMembers.length, skipped_blank_risk: blankRiskSkipped, skipped_stale_link: staleLinkSkipped })
     } catch (err) {
       log.error({ msg: `up-commit: ${err.message}`, endpoint: 'clubdesk-member-sync/up', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
@@ -1119,13 +1169,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // ClubDesk snapshot. Catches every edit path that does NOT set the dirty flag
   // (Data Explorer, finance/billing edits, approval backfills, raw items-API) —
   // the /clubdesk-update profile path already flags itself. Compared fields =
-  // exactly the sync-up push scope (CD_PUSH_HEADERS): names, email, phone,
-  // address, birthdate, sex. A field counts as drift only when the WIEDISYNC
-  // side is non-empty (wiedisync is authoritative once filled — the sync-down
-  // fill-only COALESCE in import-clubdesk-csv.mjs encodes the same rule);
-  // wiedisync-empty + ClubDesk-non-empty is reported as blank_risk instead,
-  // because pushing that member would send an empty cell and could blank the
-  // authoritative ClubDesk value (empty-cell import behavior unvalidated).
+  // the sync-up contact scope plus names (names are compared for VISIBILITY
+  // only — since 2026-07-08 update rows are [Id]-keyed and name-less, so a name
+  // conflict shown here is informational and reconciles only via a manual edit
+  // or the sync-down, never via a push). A field counts as drift only when the
+  // WIEDISYNC side is non-empty (wiedisync is authoritative once filled — the
+  // sync-down fill-only COALESCE in import-clubdesk-csv.mjs encodes the same
+  // rule); wiedisync-empty + ClubDesk-non-empty is reported as blank_risk
+  // instead, because pushing that member would send an empty cell. (Spike
+  // 2026-07-08: ClubDesk provably IGNORES empty cells on import — blank_risk
+  // stays as defense-in-depth on the legal register.)
   // Snapshot-based: "ClubDesk says" = as of the last sync-down.
   const driftNorm = (v) => String(v ?? '').trim()
   const driftLower = (v) => driftNorm(v).toLowerCase()
@@ -1281,8 +1334,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const active = all.filter((c) => !c.pending)
       const candidates = active.filter((c) => c.conflicts.length)
       // blank_risk members are EXCLUDED from the bulk member_ids: their push
-      // would send empty cells for fields ClubDesk still owns (unvalidated
-      // import semantics — could blank the legal register). They self-heal:
+      // would send empty cells for fields ClubDesk still owns (spike 2026-07-08:
+      // empty cells are provably no-ops on import; the exclusion stays as
+      // defense-in-depth on the legal register). They self-heal:
       // the next sync-down fills the empty wiedisync fields from ClubDesk,
       // the risk disappears, and they join the bulk. at_risk = how many are
       // currently held back per field.
@@ -1320,7 +1374,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!computed.length) return res.status(409).json({ error: 'No drift found for these members — refresh Data health', code: 'no_drift' })
       // Refuse members whose push would blank ClubDesk-owned data (empty
       // wiedisync field + non-empty ClubDesk value): buildPushCsv always sends
-      // the full row, and ClubDesk's empty-cell import behavior is unvalidated.
+      // the full row. (Spike 2026-07-08: ClubDesk provably ignores empty cells
+      // on import, but this refusal stays as defense-in-depth on the register.)
       // These heal via sync-down (fills the empty wiedisync fields), so the
       // admin's fix is "run sync down first", not an override.
       const candidates = computed.filter((c) => !c.blank_risk.length)
@@ -1452,7 +1507,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // otherwise forge an AHV / Beitragskategorie / Anrede into an
       // official-looking "apply this in ClubDesk" email + CSV. ClubDesk-owned
       // fields (anrede / nationalitaet / ahv_nummer / beitragskategorie) are never
-      // sent from here — mirrors CD_PUSH_HEADERS dropping them from the push.
+      // sent from here — the member self-service path stays contact-basics only
+      // (the sync-up push carries anrede/nationalitaet/ahv since 2026-07-07, but
+      // echo-protected and superadmin-gated, not member-editable).
       const member = await database('members').where('user', userId)
         .first('id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz', 'ort', 'birthdate', 'sex')
       if (!member || String(member.id) !== String(member_id)) {

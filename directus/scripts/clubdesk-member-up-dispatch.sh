@@ -7,10 +7,12 @@
 # Twin of the down dispatcher.
 #
 # Since migration 173 the push is TWO sets: up_csv (UPDATE set — linked members,
-# contact fields only) and up_csv_create (CREATE set — new contacts, contact fields
-# + Beitragskategorie + Eintritt). Either may be empty. They are separate CSVs so
-# the category column can never blank a ClubDesk-owned category on an UPDATE import
-# (empty-cell semantics unvalidated). Commit order is CREATE first, and the creates
+# [Id]-keyed name-less contact rows since 2026-07-08) and up_csv_create (CREATE
+# set — new contacts, named, + Beitragskategorie + Eintritt). Either may be empty.
+# They are separate CSVs so the category column can never reach a ClubDesk-owned
+# category on an UPDATE import (spike 2026-07-08: empty cells are no-ops, absent
+# columns untouched — the split stays as the structural guarantee). Commit order
+# is CREATE first, and the creates
 # get clubdesk_pushed_at stamped IMMEDIATELY after their commit: if the update-set
 # commit then fails, the created contacts are already marked and can't be offered
 # for a second (duplicating) push. Pre-173 DBs (no up_csv_create column) degrade
@@ -148,22 +150,32 @@ if [ -s "$CSVUTF_U" ]; then
   PREVIEW_U=$(scrape "$CSV_U" preview)
   echo "preview (update set): $PREVIEW_U"
   if ! scrape_ok "$PREVIEW_U"; then
-    fail_run 'Dry-run preview failed (update set) — see up-run.log' "$PREVIEW_U"
+    # Most likely cause since the [Id]-keyed switch (2026-07-08): a contact was
+    # deleted in ClubDesk AFTER the last sync-down — its snapshot row still
+    # passes /up's stale-link guard, and the unknown [Id] hard-aborts the whole
+    # import wizard (no summary). Sync-down refreshes the snapshot, the guard
+    # then skips that member, and the push goes through.
+    fail_run 'Dry-run preview failed (update set) — if a contact was deleted in ClubDesk since the last sync-down, run "Sync down" and retry. Details: up-run.log' "$PREVIEW_U"
     echo "=== up-dispatch: FAILED (preview, update set) ==="; exit 0
   fi
-  # ── Duplicate guard (2026-07-07) ────────────────────────────────────────────
+  # ── Duplicate guard (2026-07-07; fail-closed rewrite 2026-07-08) ────────────
   # The UPDATE set is, by definition, linked members whose ClubDesk contacts
-  # already exist — it must NEVER create a contact. If the preview reports any
-  # "Neue" rows, a name did NOT match its stored contact (a name-drift or CSV
-  # encoding hiccup — e.g. an accented char ClubDesk decodes to "?"), and
-  # committing would DUPLICATE that contact with a mangled name. Refuse the
-  # whole commit and report the count so the operator fixes the mismatched rows
-  # instead of silently spawning garbage dups. This is the guard whose absence
-  # created 19 mangled "?" duplicate contacts on 2026-07-07.
-  NEU_U=$(printf '%s' "$PREVIEW_U" | grep -oE '"neu":[0-9]+' | grep -oE '[0-9]+' || true)
-  if [ -n "$NEU_U" ] && [ "$NEU_U" -gt 0 ]; then
-    fail_run "Update-set push REFUSED: preview would create ${NEU_U} contact(s). An update push must only match existing contacts — a 'Neue' row means a name/encoding mismatch that would duplicate. Fix the mismatched rows and retry." "$PREVIEW_U"
-    echo "=== up-dispatch: FAILED (update set would create ${NEU_U} — dup guard) ==="; exit 0
+  # already exist — every preview row MUST be "Veränderte". Since 2026-07-08
+  # update rows are keyed on ClubDesk's own [Id] (name-less CSV): a known [Id]
+  # upserts, an unknown [Id] hard-aborts the whole import before the summary
+  # (spike-proven), so a "Neue" row is structurally impossible unless the [Id]
+  # column regressed out of the CSV — committing then would DUPLICATE contacts
+  # with EMPTY names. Invariant enforced FAIL-CLOSED: veraendert == total > 0.
+  # This subsumes the old neu>0 check AND refuses when the summary counts are
+  # unparseable (ClubDesk omits the "Neue Kontakte" line when 0 and its label
+  # wording has drifted before — Veränderte/Geänderte — so a parse miss must
+  # block the commit, not silently disarm the guard; review finding 2026-07-08).
+  # Ancestry: this is the guard whose absence created 19 mangled "?" duplicate
+  # contacts on 2026-07-07 (name-matched era).
+  NEU_U=$(num_field "$PREVIEW_U" neu); VER_U=$(num_field "$PREVIEW_U" veraendert); TOT_U=$(num_field "$PREVIEW_U" total)
+  if [ "$TOT_U" -eq 0 ] || [ "$VER_U" -ne "$TOT_U" ] || [ "$NEU_U" -gt 0 ]; then
+    fail_run "Update-set push REFUSED: every update row must preview as 'Veränderte' (total=${TOT_U}, veraendert=${VER_U}, neu=${NEU_U}). A mismatch means rows would be created (missing [Id] column?) or the summary was unparseable — refusing to commit blind. See up-run.log." "$PREVIEW_U"
+    echo "=== up-dispatch: FAILED (update-set invariant veraendert==total: ${VER_U}!=${TOT_U}, neu=${NEU_U}) ==="; exit 0
   fi
 fi
 if [ -s "$CSVUTF_C" ]; then

@@ -390,6 +390,8 @@ export default {
   clubdeskUpNonMember: 'Possibly not a member',
   clubdeskUpMute: 'Never sync this member (mute)',
   clubdeskUpMuted: 'Muted from ClubDesk sync',
+  clubdeskUpStale: 'Contact deleted in ClubDesk',
+  clubdeskUpSkipped: '{{count}} member(s) skipped (contact deleted in ClubDesk or blank risk) — not pushed',
   clubdeskSyncTitle: 'ClubDesk sync',
   clubdeskSyncDescription: 'Keep wiedisync and ClubDesk (the club register) matched.',
   clubdeskSyncDownTitle: 'Sync down',
