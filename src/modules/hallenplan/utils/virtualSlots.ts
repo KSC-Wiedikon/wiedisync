@@ -12,6 +12,15 @@ export const BB_GAME_PATTERN = /^BB\s/i
 const GAME_WARMUP_MINUTES = 45
 const GAME_TOTAL_DURATION = 165
 
+/** A recurring training template is only presented as "available/frei" within
+ *  this many weeks of today — matching the backend training-generation horizon
+ *  (INDEFINITE_HORIZON_WEEKS in kscw-hooks/src/slot-cascade.js). Beyond it, a
+ *  surviving template means "the concrete training just hasn't been generated
+ *  yet", NOT "the slot is free", so it must render as an occupied (planned)
+ *  training rather than a grabbable green slot — otherwise coaches could claim
+ *  a slot that will become a real training. */
+export const FREED_HORIZON_WEEKS = 12
+
 /**
  * Converts a home/away game into virtual HallSlot(s) for the Hallenplan.
  * Home games → placed on game.hall (BB games span both KWI A+B)
@@ -84,6 +93,10 @@ export function trainingToVirtualSlot(
   const trainingDate = training.date.slice(0, 10)
   const dayIndex = weekDays.findIndex((d) => toISODate(d) === trainingDate)
   if (dayIndex === -1) return null
+  // A hall-less training can't be placed on the Hallenplan (it has no column).
+  // Emitting it anyway produced an invisible ghost slot that still counted as
+  // "content" on its day and defeated the all-halls-closed collapse.
+  if (!training.hall) return null
   if (!training.start_time || !training.end_time) return null
 
   return {
@@ -713,6 +726,7 @@ function buildFreedRecurringSlots(
   weekDays: Date[],
   closures: HallClosure[],
   claimsByKey: Map<string, SlotClaim>,
+  freedHorizonDate?: string,
 ): { freedRecurringSlots: HallSlot[]; recurringFreedKeys: Set<string> } {
   const freedRecurringSlots: HallSlot[] = []
   const recurringFreedKeys = new Set<string>()
@@ -723,6 +737,10 @@ function buildFreedRecurringSlots(
     const dayIdx = slot.day_of_week
     const dateStr = weekDays[dayIdx] ? toISODate(weekDays[dayIdx]) : ''
     if (!dateStr) continue
+    // Beyond the training-generation horizon a surviving template means the
+    // concrete training simply hasn't been generated yet — leave it as an
+    // occupied (planned) training instead of a claimable "Frei" slot.
+    if (freedHorizonDate && dateStr > freedHorizonDate) continue
     if (isClosedOnDate(slot.hall, dateStr, closures)) continue
     const claim = claimsByKey.get(`${slot.id}-${dateStr}`)
     recurringFreedKeys.add(`${slot.id}-${dayIdx}`)
@@ -759,6 +777,7 @@ export function mergeVirtualSlots(
   weekDays: Date[],
   halls: Hall[],
   teams: Team[],
+  freedHorizonDate?: string,
 ): HallSlot[] {
   // Phase 1 — collect which recurring templates to suppress or shorten this week.
   const suppressedSlotDays = new Set<string>()
@@ -780,7 +799,7 @@ export function mergeVirtualSlots(
   const closureRanges = buildClosureRanges(virtualSlots)
   const filteredAnnotated = filterAnnotatedSlots(annotated, weekDays, closures, homeGameRanges, closureRanges)
 
-  const { freedRecurringSlots, recurringFreedKeys } = buildFreedRecurringSlots(filteredReal, weekDays, closures, claimsByKey)
+  const { freedRecurringSlots, recurringFreedKeys } = buildFreedRecurringSlots(filteredReal, weekDays, closures, claimsByKey, freedHorizonDate)
   const filteredRealWithoutFreed = filteredReal.filter((slot) => !recurringFreedKeys.has(`${slot.id}-${slot.day_of_week}`))
 
   return [...filteredRealWithoutFreed, ...filteredAnnotated, ...freedFromAway, ...freedRecurringSlots]

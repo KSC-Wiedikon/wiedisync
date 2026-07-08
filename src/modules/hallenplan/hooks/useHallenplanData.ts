@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useCollection } from '../../../lib/query'
 import { flattenM2MTeams } from '../../../lib/api'
+import { toISODate } from '../../../utils/dateHelpers'
 import type { Hall, HallSlot, HallClosure, Team, Game, Training, HallEvent, SlotClaim } from '../../../types'
 import {
   gameToVirtualSlots,
@@ -11,6 +12,7 @@ import {
   BB_GAME_PATTERN,
   resolveHallEventHalls,
   dedupeClosuresByPriority,
+  FREED_HORIZON_WEEKS,
 } from '../utils/virtualSlots'
 
 export function useHallenplanData(
@@ -142,6 +144,15 @@ export function useHallenplanData(
     return dedupeClosuresByPriority([...closures, ...syntheticClosures])
   }, [closures, hallEvents, halls])
 
+  // Recurring training templates only render as claimable "Frei" within the
+  // backend generation horizon; past it they show as occupied (planned)
+  // trainings. Computed once per mount — the exact day boundary is not critical.
+  const freedHorizonDate = useMemo(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + FREED_HORIZON_WEEKS * 7)
+    return toISODate(d)
+  }, [])
+
   // Convert and merge virtual slots
   const slots = useMemo(() => {
     const virtualSlots: HallSlot[] = []
@@ -182,8 +193,8 @@ export function useHallenplanData(
       ? virtualSlots.filter((vs) => hallSet.has(vs.hall))
       : virtualSlots
 
-    return mergeVirtualSlots(rawSlots, filteredVirtual, slotClaims, mergedClosures, games, weekDays, halls, teams)
-  }, [rawSlots, games, trainings, hallEvents, weekDays, halls, teams, selectedHallIds, slotClaims, mergedClosures])
+    return mergeVirtualSlots(rawSlots, filteredVirtual, slotClaims, mergedClosures, games, weekDays, halls, teams, freedHorizonDate)
+  }, [rawSlots, games, trainings, hallEvents, weekDays, halls, teams, selectedHallIds, slotClaims, mergedClosures, freedHorizonDate])
 
   const refetch = () => {
     refetchSlots()

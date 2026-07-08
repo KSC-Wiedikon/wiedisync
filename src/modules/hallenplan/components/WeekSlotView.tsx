@@ -192,8 +192,10 @@ export default function WeekSlotView({
     if (!multiHall) return new Map<number, HallClosure>()
     const map = new Map<number, HallClosure>()
     for (const dayIndex of visibleDays) {
-      // Check if there are any slots on this day
-      const hasSlots = positioned.some((ps) => ps.dayIndex === dayIndex)
+      // Check if there are any slots on this day. Hall-less slots don't belong
+      // to any column, so they must not count as content (they'd otherwise
+      // block the all-halls-closed collapse while rendering nowhere).
+      const hasSlots = positioned.some((ps) => ps.dayIndex === dayIndex && ps.slot.hall)
       if (hasSlots) continue
       // Check if every visible hall is closed on this day
       const dayClosures: HallClosure[] = []
