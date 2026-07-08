@@ -11,10 +11,15 @@ const SV_API_BASE = 'https://api.volleyball.ch'
 const SV_API_KEY = process.env.SV_API_KEY
 if (!SV_API_KEY) throw new Error('SV_API_KEY environment variable is required')
 
+// KSCW Swiss Volley team ids → label (label is documentation only; ONLY the keys
+// are used, via isKscwTeamId, to include a fixture/ranking in the sync). Keep in
+// sync with teams.team_id (`vb_<id>`) as new teams join Swiss Volley — a missing
+// id silently drops that team's whole feed (games + rankings). HU20 (15103) was
+// added for the 2026/27 season.
 const SV_TEAM_IDS = {
   '12747': 'H3', '2743': 'H1', '541': 'H2',
-  '1395': 'D1', '1393': 'D2', '4689': 'D3', '1394': 'D4',
-  '7563': 'HU23-1', '2301': 'DU23-1', '14040': 'DU23-2',
+  '1393': 'D1', '1395': 'D2', '4689': 'D3', '1394': 'D4',
+  '7563': 'HU23-1', '15103': 'HU20', '2301': 'DU23-1', '14040': 'DU23-2',
   '6023': 'Legends',
 }
 

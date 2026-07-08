@@ -272,7 +272,7 @@ export default function ScorerAssignPage() {
   }
 
   const assignedCount = sportTab === 'volleyball'
-    ? vbAssignments.filter((a) => a.scorerTeamId || a.scoreboardTeamId || a.combinedTeamId).length
+    ? vbAssignments.filter((a) => a.scorerTeamId || a.scoreboardTeamId || a.combinedTeamId || a.refereeTeamId).length
     : bbAssignments.filter((a) => a.dutyTeamId).length
 
   if (!canVb && !canBb) {
@@ -449,7 +449,6 @@ export default function ScorerAssignPage() {
             <TableHeader>
               <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
                 <TableHead className="px-2 py-2">{t('date')}</TableHead>
-                <TableHead className="px-2 py-2">{t('time')}</TableHead>
                 <TableHead className="px-2 py-2">{t('hall')}</TableHead>
                 <TableHead className="px-2 py-2">{t('home')}</TableHead>
                 <TableHead className="px-2 py-2">{t('away')}</TableHead>
@@ -458,11 +457,11 @@ export default function ScorerAssignPage() {
                   <>
                     <TableHead className="px-2 py-2">{t('autoScorer')}</TableHead>
                     <TableHead className="px-2 py-2">{t('autoTaefeler')}</TableHead>
+                    <TableHead className="px-2 py-2">{t('refereeCount')}</TableHead>
                   </>
                 ) : (
                   <TableHead className="px-2 py-2">{t('autoDutyTeam')}</TableHead>
                 )}
-                <TableHead className="px-2 py-2">{t('score')}</TableHead>
                 <TableHead className="px-2 py-2">{t('conflicts')}</TableHead>
               </TableRow>
             </TableHeader>
@@ -483,8 +482,10 @@ export default function ScorerAssignPage() {
                           isExisting ? 'bg-gray-50 dark:bg-gray-800/50' : ''
                         }`}
                       >
-                        <TableCell className="whitespace-nowrap px-2 py-2 text-gray-700 dark:text-gray-300">{formatDateCompact(game.date)}</TableCell>
-                        <TableCell className="px-2 py-2 text-gray-600 dark:text-gray-400">{game.time ? formatTime(game.time) : '–'}</TableCell>
+                        <TableCell className="whitespace-nowrap px-2 py-2 text-gray-700 dark:text-gray-300">
+                          <div>{formatDateCompact(game.date)}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{game.time ? formatTime(game.time) : ''}</div>
+                        </TableCell>
                         <TableCell className="px-2 py-2 text-gray-600 dark:text-gray-400">{hallName}</TableCell>
                         <TableCell className="px-2 py-2 font-medium text-gray-900 dark:text-gray-100">{game.home_team}</TableCell>
                         <TableCell className="px-2 py-2 text-gray-700 dark:text-gray-300">{game.away_team}</TableCell>
@@ -492,19 +493,20 @@ export default function ScorerAssignPage() {
                           <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700">{game.league}</span>
                         </TableCell>
                         {a.mode === 'combined' ? (
-                          <TableCell className="px-2 py-2" colSpan={2}>
-                            <div className="flex items-center gap-1">
-                              <span className="rounded bg-purple-100 px-1 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">S/T</span>
+                          <>
+                            <TableCell className="px-2 py-2" colSpan={2}>
                               <TeamSelect value={a.combinedTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'combined', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
-                            </div>
-                          </TableCell>
+                            </TableCell>
+                            <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
+                          </>
                         ) : a.mode === 'referee' ? (
-                          <TableCell className="px-2 py-2" colSpan={2}>
-                            <div className="flex items-center gap-1">
-                              <span className="rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" title={t('refereeCount')}>{t('refereeTag')}</span>
+                          <>
+                            <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
+                            <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
+                            <TableCell className="px-2 py-2">
                               <TeamSelect value={a.refereeTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'referee', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
-                            </div>
-                          </TableCell>
+                            </TableCell>
+                          </>
                         ) : (
                           <>
                             <TableCell className="px-2 py-2">
@@ -513,11 +515,9 @@ export default function ScorerAssignPage() {
                             <TableCell className="px-2 py-2">
                               <TeamSelect value={a.scoreboardTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'scoreboard', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
                             </TableCell>
+                            <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
                           </>
                         )}
-                        <TableCell className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">
-                          {a.scorerScore !== 0 || a.scoreboardScore !== 0 ? <span>{a.scorerScore}</span> : '—'}
-                        </TableCell>
                         <TableCell className="max-w-[200px] px-2 py-2">
                           {a.conflicts.length > 0 && (
                             <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -546,8 +546,10 @@ export default function ScorerAssignPage() {
                           isExisting ? 'bg-gray-50 dark:bg-gray-800/50' : ''
                         }`}
                       >
-                        <TableCell className="whitespace-nowrap px-2 py-2 text-gray-700 dark:text-gray-300">{formatDateCompact(game.date)}</TableCell>
-                        <TableCell className="px-2 py-2 text-gray-600 dark:text-gray-400">{game.time ? formatTime(game.time) : '–'}</TableCell>
+                        <TableCell className="whitespace-nowrap px-2 py-2 text-gray-700 dark:text-gray-300">
+                          <div>{formatDateCompact(game.date)}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{game.time ? formatTime(game.time) : ''}</div>
+                        </TableCell>
                         <TableCell className="px-2 py-2 text-gray-600 dark:text-gray-400">{hallName}</TableCell>
                         <TableCell className="px-2 py-2 font-medium text-gray-900 dark:text-gray-100">{game.home_team}</TableCell>
                         <TableCell className="px-2 py-2 text-gray-700 dark:text-gray-300">{game.away_team}</TableCell>
@@ -560,7 +562,6 @@ export default function ScorerAssignPage() {
                             <TeamSelect value={a.dutyTeamId ?? ''} onChange={(v) => handleBbOverride(a.gameId, v)} teams={bbTeams} placeholder={t('selectTeam')} compact />
                           </div>
                         </TableCell>
-                        <TableCell className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">{a.score !== 0 ? <span>{a.score}</span> : '—'}</TableCell>
                         <TableCell className="max-w-[200px] px-2 py-2">
                           {a.conflicts.length > 0 && (
                             <div className="text-xs text-gray-500 dark:text-gray-400">
