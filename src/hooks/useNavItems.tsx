@@ -6,7 +6,7 @@ import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users,
   Building2, CalendarClock, Activity, ClipboardList, ClipboardCheck,
-  HeartPulse, MessageSquare, Inbox, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, FolderSync,
+  HeartPulse, MessageSquare, Inbox, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, FolderSync, GraduationCap,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
 
@@ -67,13 +67,16 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
       ? [{ to: '/inbox', label: t('inbox'), icon: <Inbox className={iconClass} /> }]
       : []),
     ...(canManageForms ? [{ to: '/forms', label: t('forms'), icon: <ScrollText className={iconClass} /> }] : []),
+    // J+S export — coaches and above (same audience as Forms authoring).
+    ...(canManageForms ? [{ to: '/js-export', label: t('jsExport'), icon: <GraduationCap className={iconClass} /> }] : []),
     { to: '/news', label: t('news'), icon: <Newspaper className={iconClass} /> },
   ]
   // Finance — own section: personal dues, fines, expense-reimbursement upload (all
   // members), and the board club-finances dashboard (Vorstand only).
-  // The section TK (vb_admin / bb_admin) — and finance/board — get the expense
-  // confirmation queue for their section.
-  const isTk = isVbAdmin || isBbAdmin
+  // The section TK (vb_admin / bb_admin) — and finance/board/superadmins
+  // (canAccessFinance) — get the expense confirmation queue. Matches TkRoute and
+  // the endpoint's canManageFinance, which give finance/board every section.
+  const isTk = isVbAdmin || isBbAdmin || canAccessFinance
   const financeItems: NavItem[] = [
     { to: '/finance/dues', label: t('finance:myDuesTitle'), icon: <Wallet className={iconClass} /> },
     { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
