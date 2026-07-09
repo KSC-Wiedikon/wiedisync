@@ -757,7 +757,18 @@ async function main() {
   // `is_spielplaner` is read-only here (NOT in MEMBER_EDITABLE_FIELDS) so members
   // can see their own scheduling flag — the frontend nav gates the Spielplanung /
   // Terminplanung links on it (useAuth) — but cannot self-grant it.
-  const MEMBER_OWN_READABLE = [...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, 'is_spielplaner'])]
+  // Messaging consent + enablement state: own-row READ only. Written solely by
+  // the /messaging/settings/* endpoints (admin ItemsService), so NOT member-
+  // editable; and private, so NOT in MEMBER_VISIBLE_FIELDS (other members must
+  // not see them). Without these on own-read, useAuth's `*` fetch got them
+  // stripped → the ConsentModal ("Enable messaging?") read undefined and never
+  // dismissed, and MessagingSettings / team-chat + DM gates read as disabled
+  // even after opt-in (prod hotfix 2026-07-09).
+  const MEMBER_OWN_MESSAGING_FIELDS = [
+    'consent_decision', 'consent_prompted_at',
+    'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
+  ]
+  const MEMBER_OWN_READABLE = [...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, 'is_spielplaner', ...MEMBER_OWN_MESSAGING_FIELDS])]
   await setPermRead(MEMBER_POLICY, 'members', OWN_USER, MEMBER_OWN_READABLE)
 
   // Members — update own profile (limited fields)
