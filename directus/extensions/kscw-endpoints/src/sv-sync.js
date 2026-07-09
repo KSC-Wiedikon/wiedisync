@@ -140,6 +140,16 @@ export async function syncSvGames(db, log) {
   }
   const todayStr = new Date().toISOString().slice(0, 10)
 
+  // TEMPORARY hall freeze (2026-07-09). The SV feed's hall names are ambiguous
+  // and have been overwriting hand-corrected home halls (e.g. D4's KWI A slot →
+  // feed's KWI C) and rotting A+B combos (feed rewrites the primary `hall`,
+  // leaving `additional_halls` stale). Swiss Volley is renaming the halls to be
+  // unambiguous; until then we NEVER let the feed change an existing game's
+  // `hall`. Flip to false (or delete the guard) once the rename lands, so the
+  // feed owns `hall` again. Creates still take the feed hall — only updates are
+  // frozen. `additional_halls` is never written by this sync, so it's unaffected.
+  const FREEZE_HALLS = true
+
   // Fields to compare — if all match, skip the update
   const COMPARE_FIELDS = [
     'date', 'time', 'status', 'home_score', 'away_score',
@@ -248,6 +258,9 @@ export async function syncSvGames(db, log) {
         }
 
         if (existing) {
+          // Hall freeze: never let the feed change an existing game's hall while
+          // the SV hall names are ambiguous (see FREEZE_HALLS above).
+          if (FREEZE_HALLS) data.hall = existing.hall
           // Tool-scheduled & not yet played → keep the agreed date/time/venue; don't
           // let a feed placeholder overwrite it (a real reschedule reaches these via
           // the tool). Scores/status/teams/etc. below still sync.
