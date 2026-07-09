@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.34.1 — 2026-07-09
+
+### Participation export polish
+- **Multi-day events now export per-day participation.** The PNG / PDF / CSV roster export of a per-day / per-session event used to collapse each person to one status; it now shows their answer for **each day** (matching the modal's day tabs). Exporting a single day's tab labels the day in the header.
+- **Position summary no longer warps.** Multi-word position labels ("Outside hitter", "Middle blocker") stopped wrapping mid-word in the export's summary pills.
+- **No more duplicate coach in the staff list.** A playing coach who already appears in the roster with a "(Coach)" badge is no longer also listed as a "(Staff) — No response" row in the export (and the modal's staff section).
+
 ## v1.34.0 — 2026-07-09
 
 ### ClubDesk group checks in Data Health

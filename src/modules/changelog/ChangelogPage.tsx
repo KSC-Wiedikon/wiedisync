@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.34.0'
+const APP_VERSION = '1.34.1'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.34.1',
+    date: '09.07.2026',
+    sections: [
+      {
+        title: 'Participation export polish',
+        items: [
+          'Exporting a multi-day event roster (PNG / PDF / CSV) now shows each person’s answer per day instead of collapsing it to a single status. A single-day export is also labelled with the day.',
+          'Fixed the position summary (“Outside hitter”, “Middle blocker”) wrapping mid-word in the export.',
+          'A playing coach no longer appears a second time in the export’s staff list — they already show in the roster with a “(Coach)” badge.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.34.0',
     date: '09.07.2026',
