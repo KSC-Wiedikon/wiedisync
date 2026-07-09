@@ -22,6 +22,9 @@ export type IssueKey =
   | 'clubdeskDrift'
   | 'clubdeskDriftBlocked'
   | 'clubdeskFill'
+  | 'clubdeskGroupMissing'
+  | 'clubdeskGroupStray'
+  | 'clubdeskGroupNoTeam'
 
 export interface DataIssue {
   id: string
@@ -85,6 +88,29 @@ interface ClubdeskDeparted {
   status: string
   austritt: string | null
   current_teams: string[]
+}
+
+interface ClubdeskGroupMissing {
+  member_id: number
+  member_name: string
+  clubdesk_id: string
+  groups: string[]
+}
+
+interface ClubdeskGroupStray {
+  member_id: number
+  member_name: string
+  clubdesk_id: string
+  group: string
+  active: boolean
+  is_official: boolean
+  coach_of: string
+  tr_of: string
+}
+
+interface ClubdeskGroupNoTeam {
+  group: string
+  count: number
 }
 
 // ── Helpers ──
@@ -385,6 +411,60 @@ async function checkMembers(): Promise<CollectionHealth> {
         detail: `${field} — ${agg.count}${atRisk}`,
         autoFixable: false,
         ...(agg.count ? { manualKind: 'clubdeskDriftFlag' as const, bulkMemberIds: agg.member_ids } : {}),
+      })
+    }
+  } catch {
+    // Best-effort — see above.
+  }
+
+  // ClubDesk GROUP drift (read-only — group membership is manual in ClubDesk, the
+  // CSV import can't set it). Players missing their team's ClubDesk group, strays
+  // sitting in a ClubDesk group with no current-season Wiedisync roster (annotated
+  // active/official/coach so the "remove from ClubDesk vs add to Wiedisync" call
+  // is visible inline), and ClubDesk groups with no Wiedisync team. Best-effort.
+  try {
+    const { missing, strays, no_team_groups } = await kscwApi<{
+      missing: ClubdeskGroupMissing[]
+      strays: ClubdeskGroupStray[]
+      no_team_groups: ClubdeskGroupNoTeam[]
+    }>('/clubdesk-group-sync')
+    for (const m of missing || []) {
+      issues.push({
+        id: `cd-grp-missing-${m.member_id}`,
+        collection: 'members',
+        field: 'clubdesk_id',
+        severity: 'warning',
+        issueKey: 'clubdeskGroupMissing',
+        detail: `${m.member_name} → ${m.groups.join(', ')}`,
+        autoFixable: false,
+      })
+    }
+    for (const s of strays || []) {
+      const tags = [
+        s.active ? 'active' : 'inactive',
+        ...(s.is_official ? ['official'] : []),
+        ...(s.coach_of ? [`coach: ${s.coach_of}`] : []),
+        ...(s.tr_of ? [`TR: ${s.tr_of}`] : []),
+      ].join(' · ')
+      issues.push({
+        id: `cd-grp-stray-${s.member_id}-${s.group}`,
+        collection: 'members',
+        field: 'clubdesk_id',
+        severity: 'warning',
+        issueKey: 'clubdeskGroupStray',
+        detail: `${s.member_name} — ${s.group} · ${tags}`,
+        autoFixable: false,
+      })
+    }
+    for (const g of no_team_groups || []) {
+      issues.push({
+        id: `cd-grp-noteam-${g.group}`,
+        collection: 'members',
+        field: 'clubdesk_id',
+        severity: 'warning',
+        issueKey: 'clubdeskGroupNoTeam',
+        detail: `${g.group} — ${g.count}`,
+        autoFixable: false,
       })
     }
   } catch {

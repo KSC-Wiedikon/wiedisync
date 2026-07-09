@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.33.0'
+const APP_VERSION = '1.34.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.34.0',
+    date: '09.07.2026',
+    sections: [
+      {
+        title: 'ClubDesk group checks in Data Health',
+        items: [
+          'Data Health now flags when Wiedisync team rosters and ClubDesk groups disagree: players missing their team’s ClubDesk group, people sitting in a ClubDesk group without being a current player, and ClubDesk groups with no matching team. ClubDesk groups can only be changed by hand, so these are surfaced for review — not auto-fixed.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.33.0',
     date: '09.07.2026',

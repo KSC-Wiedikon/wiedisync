@@ -380,6 +380,9 @@ export default {
   dhDriftGone: 'Plus rien à synchroniser pour cette entrée — liste actualisée.',
   dhDriftBlankRisk: 'Non marqué : l\'envoi effacerait des données ClubDesk. Lancer d\'abord « Sync down », puis relancer le scan.',
   dhIssueClubdeskFill: 'Données manquantes dans ClubDesk (remplissage groupé)',
+  dhIssueClubdeskGroupMissing: 'Groupe ClubDesk manquant',
+  dhIssueClubdeskGroupStray: 'Dans un groupe ClubDesk mais pas joueur Wiedisync',
+  dhIssueClubdeskGroupNoTeam: 'Groupe ClubDesk sans équipe Wiedisync',
   dhMarkSync: 'Marquer pour la synchro',
   dhMarkedForSync: 'Marqué pour la synchro — envoi via Anmeldungen → « Sync up to ClubDesk »',
 

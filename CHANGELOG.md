@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.34.0 — 2026-07-09
+
+### ClubDesk group checks in Data Health
+- **Data Health now cross-checks Wiedisync team rosters against ClubDesk groups** and flags three kinds of drift: players who are missing their team’s ClubDesk group, people sitting in a ClubDesk group without being a current player of that team (annotated active / official / coach so “remove vs add” is obvious), and ClubDesk groups with no matching Wiedisync team. ClubDesk group membership can only be set by hand in ClubDesk, so these are surfaced for manual review — never auto-fixed.
+
 ## v1.33.0 — 2026-07-09
 
 ### “Staff only” position

@@ -30,6 +30,9 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   clubdeskDrift: 'dhIssueClubdeskDrift',
   clubdeskDriftBlocked: 'dhIssueClubdeskDriftBlocked',
   clubdeskFill: 'dhIssueClubdeskFill',
+  clubdeskGroupMissing: 'dhIssueClubdeskGroupMissing',
+  clubdeskGroupStray: 'dhIssueClubdeskGroupStray',
+  clubdeskGroupNoTeam: 'dhIssueClubdeskGroupNoTeam',
 }
 
 function severityIcon(severity: DataIssue['severity']) {

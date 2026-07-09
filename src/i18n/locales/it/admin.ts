@@ -380,6 +380,9 @@ export default {
   dhDriftGone: 'Niente più da sincronizzare per questa voce — elenco aggiornato.',
   dhDriftBlankRisk: 'Non segnato: il push cancellerebbe dati in ClubDesk. Eseguire prima «Sync down», poi ripetere la scansione.',
   dhIssueClubdeskFill: 'Dati mancanti in ClubDesk (riempimento in blocco)',
+  dhIssueClubdeskGroupMissing: 'Gruppo ClubDesk mancante',
+  dhIssueClubdeskGroupStray: 'In un gruppo ClubDesk ma non giocatore Wiedisync',
+  dhIssueClubdeskGroupNoTeam: 'Gruppo ClubDesk senza squadra Wiedisync',
   dhMarkSync: 'Segna per la sincronizzazione',
   dhMarkedForSync: 'Segnato per la sincronizzazione — invio via Anmeldungen → «Sync up to ClubDesk»',
 
