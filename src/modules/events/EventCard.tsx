@@ -1,20 +1,23 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, MessageSquare } from 'lucide-react'
 import StatusBadge from '../../components/StatusBadge'
 import TeamChip from '../../components/TeamChip'
 import RichText from '../../components/RichText'
 import ParticipationSummary from '../../components/ParticipationSummary'
+import SessionParticipationSheet from '../../components/SessionParticipationSheet'
 import { rsvpButtonClass } from '../../utils/participationColors'
 import ParticipationWarningBadge from '../../components/ParticipationWarningBadge'
 import { getEventWarnings } from '../../utils/participationWarnings'
 import { useAuth } from '../../hooks/useAuth'
+import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
+import { useRealtime } from '../../hooks/useRealtime'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
 import { formatDate, formatTime, getDeadlineDate } from '../../utils/dateHelpers'
 import { asTeams, teamId, isHtml, isSameDay } from './eventHelpers'
-import type { Event, Participation } from '../../types'
+import type { Event, EventSession, Participation } from '../../types'
 import CancelActivityButton from '../../components/CancelActivityButton'
 
 interface EventCardProps {
@@ -170,11 +173,18 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
       {canRSVP && !event.cancelled && (
         <div data-tour="event-rsvp" className="mt-2.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
           <div className="flex flex-wrap items-end justify-between gap-2">
-            <EventCardParticipation
-              event={event}
-              existingParticipation={myParticipation}
-              onSaved={onParticipationSaved}
-            />
+            {event.participation_mode && event.participation_mode !== 'whole' ? (
+              <EventCardSessionParticipation
+                event={event}
+                onSaved={onParticipationSaved}
+              />
+            ) : (
+              <EventCardParticipation
+                event={event}
+                existingParticipation={myParticipation}
+                onSaved={onParticipationSaved}
+              />
+            )}
             <div className="flex items-center gap-2">
               {warnings.length > 0 && (
                 <ParticipationWarningBadge warnings={warnings} namespace="participation" />
@@ -341,6 +351,153 @@ function EventCardParticipation({ event, existingParticipation, onSaved }: { eve
       )}
       {noteError && (
         <p className="text-[10px] text-red-500 dark:text-red-400">{t('noteRequiredError')}</p>
+      )}
+    </div>
+  )
+}
+
+/** RSVP control for per-day / per-session events on the card.
+ *  Two ways to answer, per product decision:
+ *   - Quick Yes/Maybe/No writes that status to EVERY session at once (one
+ *     participation row per session_id) — the "confirm all days" shortcut.
+ *   - "Per day" opens the granular per-leg sheet.
+ *  A per-day event must NEVER get a session-less whole-event row (the old card
+ *  did that, which is why the roster's day tabs showed 0 while Overall showed
+ *  N/2). Aggregate status: all-same → that button is active; mixed → no button
+ *  active, and an "X/Y confirmed" hint shows. */
+function EventCardSessionParticipation({ event, onSaved }: { event: Event; onSaved?: () => void }) {
+  const { t } = useTranslation('participation')
+  const { t: te } = useTranslation('events')
+  const { user, isStaffOnly } = useAuth()
+  const isStaff = !!event.teams?.[0] && isStaffOnly(teamId(event.teams[0]))
+  const { create, update } = useMutation<Participation>('participations')
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [savingAll, setSavingAll] = useState(false)
+  const [optimisticAll, setOptimisticAll] = useState<Participation['status'] | null>(null)
+
+  const { data: sessionsRaw } = useCollection<EventSession>('event_sessions', {
+    filter: { event: { _eq: event.id } },
+    sort: ['sort_order', 'date', 'start_time'],
+    limit: 100,
+    enabled: !!user,
+  })
+  const sessions = useMemo(() => sessionsRaw ?? [], [sessionsRaw])
+
+  const { data: myRowsRaw, refetch } = useCollection<Participation>('participations', {
+    filter: user
+      ? { _and: [
+          { member: { _eq: user.id } },
+          { activity_type: { _eq: 'event' } },
+          { activity_id: { _eq: event.id } },
+        ] }
+      : { id: { _eq: -1 } },
+    all: true,
+    enabled: !!user,
+  })
+  const myRows = useMemo(() => myRowsRaw ?? [], [myRowsRaw])
+  useRealtime<Participation>('participations', (e) => {
+    if (e.record.activity_id === event.id && e.record.member === user?.id) refetch()
+  })
+
+  const myBySession = useMemo(() => {
+    const m = new Map<string, Participation>()
+    for (const p of myRows) if (p.session_id) m.set(String(p.session_id), p)
+    return m
+  }, [myRows])
+
+  const total = sessions.length
+  const statuses = sessions.map((s) => myBySession.get(String(s.id))?.status ?? null)
+  const confirmedCount = statuses.filter((s) => s === 'confirmed').length
+  const answeredCount = statuses.filter((s) => s != null).length
+  const uniform = (val: Participation['status']) => total > 0 && statuses.every((s) => s === val)
+  const aggregate: Participation['status'] | null =
+    optimisticAll ?? (uniform('confirmed') ? 'confirmed' : uniform('declined') ? 'declined' : uniform('tentative') ? 'tentative' : null)
+  const mixed = !aggregate && answeredCount > 0
+
+  const deadlinePassed = event.respond_by
+    ? getDeadlineDate(event.respond_by, event.start_date ? formatTime(event.start_date) : undefined) < new Date()
+    : false
+  const isLocked = deadlinePassed
+
+  const setAll = useCallback(async (status: Participation['status']) => {
+    if (!user || savingAll || total === 0) return
+    setOptimisticAll(status)
+    setSavingAll(true)
+    try {
+      await Promise.all(sessions.map((s) => {
+        const existing = myBySession.get(String(s.id))
+        return existing
+          ? update(existing.id, { status })
+          : create({
+              member: user.id,
+              activity_type: 'event' as const,
+              activity_id: event.id,
+              status,
+              note: '',
+              guest_count: 0,
+              is_staff: isStaff,
+              session_id: s.id,
+            })
+      }))
+      onSaved?.()
+    } catch {
+      setOptimisticAll(null)
+    } finally {
+      setSavingAll(false)
+    }
+  }, [user, savingAll, total, sessions, myBySession, update, create, event.id, isStaff, onSaved])
+
+  if (total === 0) return null
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {(['confirmed', 'tentative', 'declined'] as const)
+          .filter((s) => s !== 'tentative' || event.allow_maybe !== false)
+          .filter((s) => !isLocked || aggregate === s)
+          .map((status) => {
+            const active = aggregate === status
+            const label = { confirmed: t('yes'), tentative: t('maybe'), declined: t('no') }
+            return (
+              <button
+                key={status}
+                onClick={() => !isLocked && setAll(status)}
+                disabled={isLocked || savingAll}
+                className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition ${isLocked ? 'cursor-not-allowed' : ''} ${rsvpButtonClass(status, active)}`}
+              >
+                {label[status]}
+              </button>
+            )
+          })}
+        {!isLocked && (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-medium text-brand-700 transition hover:bg-brand-200 dark:bg-brand-900/30 dark:text-brand-400 dark:hover:bg-brand-900/50"
+          >
+            {te('perDay', { defaultValue: 'Per day' })}
+          </button>
+        )}
+      </div>
+      {mixed && (
+        <p className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
+          {te('sessionsConfirmed', { confirmed: confirmedCount, total })}
+        </p>
+      )}
+      {isLocked && (
+        <p className="text-[10px] leading-tight text-red-500 dark:text-red-400">{t('deadlinePassed')}</p>
+      )}
+      {event.respond_by && !deadlinePassed && (
+        <p className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
+          {te('respondBy')}: {formatDate(event.respond_by)}, {formatTime(event.respond_by) || (event.start_date ? formatTime(event.start_date) : '')}
+        </p>
+      )}
+      {sheetOpen && (
+        <SessionParticipationSheet
+          activityId={event.id}
+          sessions={sessions}
+          onClose={() => { setSheetOpen(false); onSaved?.() }}
+        />
       )}
     </div>
   )

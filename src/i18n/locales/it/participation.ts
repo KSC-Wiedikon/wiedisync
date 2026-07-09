@@ -29,6 +29,8 @@ export default {
   summaryOf: 'di {{total}}',
   guests: 'Ospiti',
   guestBadge: 'Ospite',
+  guestsFilterLabel: 'Ospiti',
+  guestLevel: 'Livello ospite {{level}}',
   guestsCount_one: '{{count}} ospite',
   guestsCount_other: '{{count}} ospiti',
   staffPresent: 'Staff presente',

@@ -48,6 +48,7 @@ export default {
   sessionsConfirmed: '{{confirmed}}/{{total}} zuegseit',
   overallView: 'Gsamt',
   sessionParticipation: 'Teilnahm pro Zitblock',
+  perDay: 'Pro Tag',
   allowMaybe: '«Vilicht»-Antworte erlaube',
   allowMaybeHint: 'Wenn us, chönd Teilnehmer nur mit Ja oder Nei antworte.',
   enablePositions: 'Positionswünsch',

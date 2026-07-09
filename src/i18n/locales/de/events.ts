@@ -48,6 +48,7 @@ export default {
   sessionsConfirmed: '{{confirmed}}/{{total}} zugesagt',
   overallView: 'Gesamt',
   sessionParticipation: 'Teilnahme pro Zeitblock',
+  perDay: 'Pro Tag',
   allowMaybe: '„Vielleicht"-Antworten erlauben',
   allowMaybeHint: 'Wenn deaktiviert, können Teilnehmer nur mit Ja oder Nein antworten.',
   enablePositions: 'Positionswünsche',
