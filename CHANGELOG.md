@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.32.0 — 2026-07-09
+
+### Volley referees admin page
+- **New `/admin/vb-referees` page** (admin + VB admin): a standing referee → team duty map. Assign each `referee_vb` member to the team(s) whose referee obligation they cover (many-to-many), or flag “External” (+ optional club/pool) for duty outside Wiedikon. Doubles as a coverage check (teams with no referee / referees with no duty). New `vb_referee_duty` collection (migration 200). Not yet wired into scorer assignment (phase 2).
+
 ## v1.31.0 — 2026-07-09
 
 ### Multi-day events: respond per day (+ per-day fixes, guest filter)

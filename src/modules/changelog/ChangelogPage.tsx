@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.31.0'
+const APP_VERSION = '1.32.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.32.0',
+    date: '09.07.2026',
+    sections: [
+      {
+        title: 'Volley referees admin page',
+        items: [
+          'Admins can now assign each volleyball referee to the team(s) they cover — or mark them “External” — from a new “Volley referees” page, with a coverage check that flags any team or referee still unassigned.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.31.0',
     date: '09.07.2026',
