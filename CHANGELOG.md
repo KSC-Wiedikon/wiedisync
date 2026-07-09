@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.30.0 — 2026-07-09
+
+### Filter a multi-team event roster by team
+- **Team filter on the participation modal**: for events with 2+ invited teams, a new multi-select team dropdown sits alongside the status filter. Selecting one or more teams (default "All teams") narrows the **entire** modal — summary counts, member list, waitlist, coaching-staff section and all three exports (CSV / PNG / PDF) — to just those teams. Shared players (on two invited teams) show under either. Hidden for single-team activities (games/trainings) and club-wide events. Counts recompute from already-loaded data (no refetch). Frontend-only; extended `useMultiTeamMembers` with a member→teams map so the dedupe doesn't drop the team association.
+
 ## v1.29.0 — 2026-07-08
 
 ### Issue a fine directly + branded confirmation dialogs

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.29.0'
+const APP_VERSION = '1.30.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.30.0',
+    date: '09.07.2026',
+    sections: [
+      {
+        title: 'Filter a multi-team event roster by team',
+        items: [
+          'When an event involves more than one team, the participation list now has a team filter. Pick one or more teams (or leave it on “All teams”) and the whole view narrows to just those teams — the Confirmed / Maybe / Declined / No response counts, the member list, the coaching staff and the CSV / PDF / image exports all update together. Games and trainings, which only ever involve one team, are unchanged.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.29.0',
     date: '08.07.2026',
