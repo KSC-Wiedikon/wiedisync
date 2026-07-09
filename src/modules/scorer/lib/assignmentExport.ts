@@ -8,6 +8,7 @@ export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsh
 const HEADER_FILL = 'FF1E3A8A'  // brand blue
 const RED_FILL = 'FFFECACA'     // light red — a game with no assignment
 const EXISTING_FILL = 'FFF3F4F6' // light grey — kept existing assignment
+const CUP_FILL = 'FFDBEAFE'      // light blue — cup game, playing team's own duty
 
 // Distinct pastels so each team's cells are scannable at a glance.
 const TEAM_PALETTE = [
@@ -27,7 +28,7 @@ export interface XlsxGameRow {
   date: string; time: string; hall: string; home: string; away: string; league: string
   scorer: string; scoreboard: string; combined: string; referee: string; dutyTeam: string
   conflicts: string
-  status: 'ok' | 'unassigned' | 'existing'
+  status: 'ok' | 'unassigned' | 'existing' | 'cup'
 }
 
 export interface XlsxSummaryRow {
@@ -79,6 +80,8 @@ export async function buildAssignmentXlsx(
       row.eachCell((c) => tint(c, RED_FILL))
     } else if (r.status === 'existing') {
       row.eachCell((c) => tint(c, EXISTING_FILL))
+    } else if (r.status === 'cup') {
+      row.eachCell((c) => tint(c, CUP_FILL))
     }
     for (const k of teamKeys) {
       const name = (r as unknown as Record<string, string>)[k]

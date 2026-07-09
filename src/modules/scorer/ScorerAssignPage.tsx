@@ -214,6 +214,8 @@ export default function ScorerAssignPage() {
   // Recomputed from the current assignment so filling/clearing a slot toggles them.
   const vbStatusNotes = (tr: typeof t, a: GameAssignment): Note[] => {
     const s: Note[] = []
+    // Cup games are the playing team's own duty — a free slot, not a gap to fill.
+    if (a.mode === 'cup') return [{ text: tr('cupOwnDuty'), tone: 'muted' }]
     if (a.conflicts.some((c) => c.key === 'existingKept')) s.push({ text: tr('existingKept'), tone: 'muted' })
     if (a.mode === 'combined') { if (!a.combinedTeamId) s.push({ text: tr('noTeamAvailable'), tone: 'warn' }) }
     else if (a.mode === 'referee') { if (!a.refereeTeamId) s.push({ text: tr('noRefereeAvailable'), tone: 'warn' }) }
@@ -341,7 +343,8 @@ export default function ScorerAssignPage() {
           scorer: a.scorerTeamName ?? '', scoreboard: a.scoreboardTeamName ?? '',
           combined: a.combinedTeamName ?? '', referee: a.refereeTeamName ?? '',
           conflicts: noteText([[a.scorerTeamId, a.scorerTeamName], [a.scoreboardTeamId, a.scoreboardTeamName], [a.combinedTeamId, a.combinedTeamName], [a.refereeTeamId, a.refereeTeamName]], a.gameId, vbStatusNotes(tEn, a)),
-          status: a.conflicts.some((c) => c.key === 'existingKept') ? 'existing'
+          status: a.mode === 'cup' ? 'cup'
+            : a.conflicts.some((c) => c.key === 'existingKept') ? 'existing'
             : (!a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId) ? 'unassigned' : 'ok',
         }))
       : bbAssignments.map((a) => ({
@@ -450,6 +453,7 @@ export default function ScorerAssignPage() {
       if (isVb) {
         setVbAssignments((prev) => prev.map((a) => {
           const u = vbUpdates.get(a.gameId); if (!u) return a
+          if (a.mode === 'cup') return a // cup = free slot, never assigned from an upload
           // Clamp to the game's mode so a stray value in an irrelevant column
           // (e.g. Scorer filled on a combined game) can't pollute roll-out.
           const b = { ...stripExisting(a), scorerTeamId: null, scorerTeamName: null, scoreboardTeamId: null, scoreboardTeamName: null, combinedTeamId: null, combinedTeamName: null, refereeTeamId: null, refereeTeamName: null }
@@ -717,8 +721,10 @@ export default function ScorerAssignPage() {
                     const game = homeGames.find((g) => g.id === a.gameId)
                     if (!game) return null
                     const hallName = hallNameById.get(String(game.hall)) ?? ''
+                    const isCup = a.mode === 'cup'
                     const isExisting = a.conflicts.some((c) => c.key === 'existingKept')
-                    const hasNoAssignment = !a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId
+                    // Cup games are intentionally unassigned (free slot) → not a red gap.
+                    const hasNoAssignment = !isCup && !a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId
                     const assignedTeams: Array<[string | null, string | null]> = [[a.scorerTeamId, a.scorerTeamName], [a.scoreboardTeamId, a.scoreboardTeamName], [a.combinedTeamId, a.combinedTeamName], [a.refereeTeamId, a.refereeTeamName]]
 
                     return (
@@ -726,6 +732,7 @@ export default function ScorerAssignPage() {
                         key={a.gameId}
                         className={`border-b border-gray-100 dark:border-gray-700/50 ${
                           hasNoAssignment ? 'bg-red-50 dark:bg-red-900/10' :
+                          isCup ? 'bg-blue-50/50 dark:bg-blue-900/10' :
                           isExisting ? 'bg-gray-50 dark:bg-gray-800/50' : ''
                         }`}
                       >
@@ -739,7 +746,11 @@ export default function ScorerAssignPage() {
                         <TableCell className="px-2 py-2 text-gray-500 dark:text-gray-400">
                           <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700">{game.league}</span>
                         </TableCell>
-                        {a.mode === 'combined' ? (
+                        {a.mode === 'cup' ? (
+                          <TableCell className="px-2 py-2 text-center" colSpan={3}>
+                            <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{t('cupOwnDuty')}</span>
+                          </TableCell>
+                        ) : a.mode === 'combined' ? (
                           <>
                             <TableCell className="px-2 py-2" colSpan={2}>
                               <TeamSelect value={a.combinedTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'combined', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />

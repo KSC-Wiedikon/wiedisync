@@ -67,6 +67,7 @@ export default {
 
   // Existing
   existingKept: 'Attribution existante conservee',
+  cupOwnDuty: 'Coupe — a la charge de l\'equipe qui joue',
   noTeamAvailable: 'Aucune equipe disponible',
   noScorerAvailable: 'Aucun marqueur disponible',
   noTaefelerAvailable: 'Aucun operateur de tableau disponible',
