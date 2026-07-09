@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { logActivity } from '../../utils/logActivity'
@@ -55,6 +56,8 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
   const [editingField, setEditingField] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  const positionBtnRef = useRef<HTMLButtonElement>(null)
+  const roleBtnRef = useRef<HTMLButtonElement>(null)
 
   if (!member) return null
 
@@ -246,15 +249,14 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
         {canEdit ? (
           <div className="relative">
             <button
+              ref={positionBtnRef}
               onClick={() => setEditingField(editingField === 'position' ? null : 'position')}
               className="cursor-pointer rounded px-1.5 py-0.5 text-left transition-colors hover:text-brand-600"
             >
               {getPositionLabelList(memberPositions)}
             </button>
             {editingField === 'position' && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setEditingField(null)} />
-                <div className="absolute left-0 z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800">
+              <AnchoredMenu anchorRef={positionBtnRef} onClose={() => setEditingField(null)} width={192}>
                   {selectablePositions.map((p) => {
                     const active = memberPositions.includes(p)
                     return (
@@ -279,8 +281,7 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
                       </button>
                     )
                   })}
-                </div>
-              </>
+              </AnchoredMenu>
             )}
           </div>
         ) : (
@@ -309,6 +310,7 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
         {isAdmin && canEditRole ? (
           <div className="relative">
             <button
+              ref={roleBtnRef}
               onClick={() => setEditingField(editingField === 'role' ? null : 'role')}
               className="flex items-center gap-1 text-xs"
             >
@@ -319,9 +321,7 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
               )}
             </button>
             {editingField === 'role' && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setEditingField(null)} />
-                <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800">
+              <AnchoredMenu anchorRef={roleBtnRef} onClose={() => setEditingField(null)} width={176} align="right">
                   {LEADERSHIP_ROLES.map((r) => {
                     const active = flattenMemberIds(team?.[r]).includes(String(member.id))
                     return (
@@ -341,8 +341,7 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
                       </button>
                     )
                   })}
-                </div>
-              </>
+              </AnchoredMenu>
             )}
           </div>
         ) : (
@@ -350,5 +349,69 @@ export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team,
         )}
       </td>
     </tr>
+  )
+}
+
+/**
+ * Dropdown menu anchored to a trigger button but rendered in a portal on
+ * document.body, so it escapes the table's `overflow-x-auto` container (which
+ * clips both axes) instead of being cut off by it. Positioned `fixed` from the
+ * anchor's bounding rect, clamped to the viewport, and flips above when there
+ * isn't enough room below.
+ */
+function AnchoredMenu({
+  anchorRef,
+  onClose,
+  width,
+  align = 'left',
+  children,
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>
+  onClose: () => void
+  width: number
+  align?: 'left' | 'right'
+  children: React.ReactNode
+}) {
+  const [style, setStyle] = useState<React.CSSProperties | null>(null)
+
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current
+    if (!anchor) return
+    const place = () => {
+      const r = anchor.getBoundingClientRect()
+      const rawLeft = align === 'right' ? r.right - width : r.left
+      const left = Math.max(8, Math.min(rawLeft, window.innerWidth - width - 8))
+      const spaceBelow = window.innerHeight - r.bottom
+      const openUp = spaceBelow < 240 && r.top > spaceBelow
+      setStyle({
+        position: 'fixed',
+        left,
+        width,
+        maxHeight: (openUp ? r.top : spaceBelow) - 16,
+        ...(openUp ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
+      })
+    }
+    place()
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [anchorRef, width, align])
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      {style && (
+        <div
+          style={style}
+          className="z-50 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+        >
+          {children}
+        </div>
+      )}
+    </>,
+    document.body,
   )
 }
