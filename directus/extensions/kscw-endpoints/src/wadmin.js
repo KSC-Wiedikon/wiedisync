@@ -24,7 +24,13 @@ export const SECTION_COLLECTIONS = {
   events: ['events'],
   registrations: ['registrations'],
   sponsors: ['sponsors'],
-  scorer_courses: ['scorer_courses'],
+  // scorer_course_attendance holds admin-owned per-signup tracking (attendance,
+  // exam, SV licence, notes) that OpnForm cannot store. All-scalar, so the
+  // section-scoped-admin scalar guards apply. Not slug-bound like the OpnForm
+  // routes: a scorer-scoped admin can read/write any attendance row, but those
+  // rows carry only submission ids + booleans + a licence number they can
+  // already see via the signups — acceptable for this low-sensitivity data.
+  scorer_courses: ['scorer_courses', 'scorer_course_attendance'],
   // Only the signups collection itself. members/participations were removed:
   // the generic admin-accountability CRUD routes bypass RLS, so exposing them
   // here let a mixed_turnier-only Website Admin read/modify/delete any member
