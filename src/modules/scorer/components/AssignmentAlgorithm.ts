@@ -190,18 +190,27 @@ export function buildHomeGameDates(games: Game[]): Set<string> {
 // (teams.duty_credit) stacks on top for fine-tuning.
 export const MAX_REFEREE_CREDIT = 2
 
-// Legends leans toward the easier scoreboard duty rather than scorer — roughly
-// 3:1 scoreboard:scorer, soft ("not a hard requirement" — Thamy, 2026-07-09). A
-// see-saw on Legends' own running scorer/scoreboard tallies steers each pick to
-// the role that keeps that ratio: while Legends still owes scoreboard duties
-// toward 3× its scorer count it is pushed to scoreboard and away from scorer;
-// once caught up it is nudged back toward scorer so it still picks up its ~1/4
-// share. The magnitude only breaks ties between otherwise-comparable candidates
-// (rotation/on-site dominate), so Legends' total load stays rotation-fair — only
-// the role mix shifts. Combined/referee roles are untouched.
-export const LEGENDS_TEAM_NAME = 'Legends'
-export const LEGENDS_SCOREBOARD_RATIO = 3
-const LEGENDS_LEAN_POINTS = 12
+// Per-team role nudges to rebalance duty (Thamy, 2026-07-09): move scorer duties
+// OFF Legends — which backfills with the no-licence täfeler/combined duties —
+// onto D1 and HU23. The points bias WHICH duty a team is picked for, not how many
+// it does (rotation still governs total load), so only the role mix shifts.
+//
+// Tuned by simulation against the 2025/26 fixtures (85 home games). The result:
+// Legends 3→1 scorer (+3 combined "scorer without licence"), and the freed scorer
+// slots redistribute NATURALLY — D1 5→6 and HU23 3→4 — landing on Thamy's targets
+// (Legends −3/−4 from his baseline, D1 +≈2, HU23 +1/+2) with only the Legends
+// nudge. An explicit D1/HU23 scorer bias was tested and DELIBERATELY OMITTED: it
+// overshoots (D1 → 8 while starving HU23 → 3, re-concentrating load — the very
+// Nadine/Livi overload this rebalance is meant to relieve). For a precise per-team
+// count, override the one stray game in the dropdown.
+interface RoleBias { scorer?: number; scoreboard?: number; combined?: number }
+const TEAM_ROLE_BIAS: Record<string, RoleBias> = {
+  Legends: { scorer: -6, scoreboard: 4, combined: 4 },
+}
+/** Bias lookup key for a team: HU23-1/-2 would collapse to a shared 'HU23' entry. */
+function biasKey(teamName: string): string {
+  return teamName.startsWith('HU23') ? 'HU23' : teamName
+}
 
 /** Score a candidate team for a specific game and role */
 function scoreTeam(
@@ -218,7 +227,6 @@ function scoreTeam(
   dutyCredits: Map<string, number>,
   assignmentCounts: Map<string, number>,
   dayAssignments: Map<string, Set<string>>,
-  roleCounts: Map<string, { scorer: number; scoreboard: number }>,
 ): TeamScore {
   const reasons: ConflictEntry[] = []
   let score = 100
@@ -307,22 +315,14 @@ function scoreTeam(
     reasons.push({ key: 'reason_hu20Taefeler', params: { points: 15 } })
   }
 
-  // Legends role-lean: keep its scoreboard:scorer mix near 3:1 (soft). While it
-  // still owes scoreboard toward that ratio, favour scoreboard and penalise
-  // scorer by the same amount; once caught up, flip so it takes its ~1/4 share of
-  // scorer. Only the scorer/scoreboard roles are steered (combined/referee are
-  // left alone). The symmetric ±points keeps Legends' overall load unchanged.
-  if (teamName === LEGENDS_TEAM_NAME && (role === 'scorer' || role === 'scoreboard')) {
-    const rc = roleCounts.get(teamId) ?? { scorer: 0, scoreboard: 0 }
-    const owesScoreboard = rc.scoreboard < LEGENDS_SCOREBOARD_RATIO * (rc.scorer + 1)
-    if (role === 'scoreboard') {
-      const pts = owesScoreboard ? LEGENDS_LEAN_POINTS : -LEGENDS_LEAN_POINTS
-      score += pts
-      reasons.push({ key: 'reason_legendsScoreboard', params: { points: pts } })
-    } else {
-      const pts = owesScoreboard ? -LEGENDS_LEAN_POINTS : LEGENDS_LEAN_POINTS
-      score += pts
-      reasons.push({ key: 'reason_legendsScorer', params: { points: pts } })
+  // Team role nudges (Thamy rebalance): steer WHICH duty a team gets. Legends is
+  // pushed off scorer toward täfeler/combined; D1 and HU23 are pulled toward
+  // scorer to absorb the freed slots. Referee role is never nudged.
+  if (role === 'scorer' || role === 'scoreboard' || role === 'combined') {
+    const bias = TEAM_ROLE_BIAS[biasKey(teamName)]?.[role] ?? 0
+    if (bias) {
+      score += bias
+      reasons.push({ key: 'reason_teamRoleBias', params: { team: teamName, points: bias } })
     }
   }
 
@@ -363,15 +363,6 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
 
   const assignmentCounts = new Map<string, number>()
   const dayAssignments = new Map<string, Set<string>>()
-  // Per-team running scorer/scoreboard split, for the Legends 3:1 role-lean.
-  // Only these two roles feed it — combined/referee don't shift the ratio.
-  const roleCounts = new Map<string, { scorer: number; scoreboard: number }>()
-  const bumpRole = (teamId: string | null | undefined, role: 'scorer' | 'scoreboard') => {
-    if (!teamId) return
-    const rc = roleCounts.get(teamId) ?? { scorer: 0, scoreboard: 0 }
-    rc[role]++
-    roleCounts.set(teamId, rc)
-  }
   const results: GameAssignment[] = []
 
   const blank = (gameId: string, mode: GameAssignment['mode']): GameAssignment => ({
@@ -390,7 +381,7 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
         t.id, t.name, game, role,
         teamGameTimes, trainingDates, adjacentTeams, homeGameDates,
         scorerTeams, refereeContribution, dutyCredits,
-        assignmentCounts, dayAssignments, roleCounts,
+        assignmentCounts, dayAssignments,
       ))
       .filter((s) => !s.disqualified)
       .sort((a, b) => b.score - a.score)
@@ -422,9 +413,6 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
       for (const id of [game.scorer_duty_team, game.scoreboard_duty_team, game.scorer_scoreboard_duty_team, game.referee_duty_team]) {
         if (id) trackAssignment(id, game.date, assignmentCounts, dayAssignments)
       }
-      // Feed the Legends role-lean from any pre-existing scorer/scoreboard duties.
-      bumpRole(game.scorer_duty_team, 'scorer')
-      bumpRole(game.scoreboard_duty_team, 'scoreboard')
       const existingMode: GameAssignment['mode'] = alreadyHasReferee ? 'referee' : alreadyHasCombined ? 'combined' : 'separate'
       const a = blank(game.id, existingMode)
       a.scorerTeamId = game.scorer_duty_team || null
@@ -468,7 +456,6 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
         a.scorerTeamId = scorer.teamId; a.scorerTeamName = scorer.teamName; a.scorerScore = scorer.score
         for (const r of scorer.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: scorer.teamName, role: 'scorer' } })
         trackAssignment(scorer.teamId, game.date, assignmentCounts, dayAssignments)
-        bumpRole(scorer.teamId, 'scorer')
       } else a.conflicts.push({ key: 'noScorerAvailable' })
 
       const scoreboard = pickBest(game, 'scoreboard', adjacentTeams, [playingTeamId, a.scorerTeamId])
@@ -476,7 +463,6 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
         a.scoreboardTeamId = scoreboard.teamId; a.scoreboardTeamName = scoreboard.teamName; a.scoreboardScore = scoreboard.score
         for (const r of scoreboard.reasons) a.conflicts.push({ ...r, params: { ...r.params, team: scoreboard.teamName, role: 'scoreboard' } })
         trackAssignment(scoreboard.teamId, game.date, assignmentCounts, dayAssignments)
-        bumpRole(scoreboard.teamId, 'scoreboard')
       } else a.conflicts.push({ key: 'noTaefelerAvailable' })
 
       results.push(a)

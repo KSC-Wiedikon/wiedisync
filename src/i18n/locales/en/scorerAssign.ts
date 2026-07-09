@@ -87,8 +87,7 @@ export default {
   reason_rotation: 'Rotation: {{count}}x ({{points}})',
   reason_hu20Taefeler: 'HU20 scoreboard (+{{points}})',
   reason_underDoltschi: 'Under team Döltschi (+{{points}})',
-  reason_legendsScorer: 'Legends scorer ({{points}})',
-  reason_legendsScoreboard: 'Legends scoreboard ({{points}})',
+  reason_teamRoleBias: '{{team}} duty balance ({{points}})',
   reason_weekendFree: 'Weekend free (+{{points}})',
 
   // Basketball
@@ -120,7 +119,7 @@ export default {
   ruleVbSoftOnSite: 'Already plays a home game the same day (on-site): +20',
   ruleVbSoftHu20: 'HU20 as scoreboard: +15',
   ruleVbSoftDoltschi: 'Under team combined at Döltschi: +10',
-  ruleVbSoftLegends: 'Legends leans scoreboard (~3:1 vs scorer): ±12',
+  ruleVbSoftLegends: 'Legends off scorer, onto täfeler/combined (freed slots go to D1/HU23): ±6',
   ruleVbSoftWeekend: 'Weekend without training: +5',
   ruleVbSoftTraining: 'Training the same day: -20',
   ruleVbSoftRotation: 'Fair rotation: -10 per duty already assigned',
