@@ -131,7 +131,12 @@ export default {
   infoTitle: 'Infos zum Schriiberdienst',
   infoArrivalTitle: 'Aachunftszite',
   infoArrivalScorer: 'De Schriiber muäss spötischtens <strong>30 Minute</strong> vor Spielbeginn i de Halle sii.',
-  infoArrivalTaefeler: 'De Täfeler muäss spötischtens <strong>10 Minute</strong> vor Spielbeginn i de Halle sii.',
+  infoArrivalTaefeler: 'De Täfeler muäss spötischtens <strong>15 Minute</strong> vor Spielbeginn i de Halle sii.',
+  infoArrivalReferee: 'De Schiedsrichter muäss spötischtens <strong>30 Minute</strong> vor Spielbeginn i de Halle sii.',
+  // Akunfts-Hiiwiis pro Charte (/scorer)
+  arrivalHintSingle: '{{min}} Min. vor Spielbeginn i de Halle.',
+  arrivalHintReferee: 'Schiedsrichter: {{min}} Min. vor Spielbeginn i de Halle.',
+  arrivalHintSplit: 'Schriiber {{scorer}} Min. · Täfeler {{board}} Min. vor Spielbeginn.',
   infoWarningTitle: 'Achtung!',
   infoWarningFine: 'Verspötig oder Nöd-Erschiine wird mit ere Buess (50.– CHF) bestroft.',
   infoRequirementsTitle: 'Spielaaforderige',

@@ -132,6 +132,11 @@ export default {
   infoArrivalTitle: 'Arrival times',
   infoArrivalScorer: 'The Scorer must be in the hall at least <strong>30 minutes</strong> before the start of play.',
   infoArrivalTaefeler: 'The Scoreboard operator must be in the hall at least <strong>15 minutes</strong> before the start of play.',
+  infoArrivalReferee: 'The Referee must be in the hall at least <strong>30 minutes</strong> before the start of play.',
+  // Per-card arrival hints (/scorer)
+  arrivalHintSingle: 'In the hall {{min}} min before the start.',
+  arrivalHintReferee: 'Referee: in the hall {{min}} min before the start.',
+  arrivalHintSplit: 'Scorer {{scorer}} min · Scoreboard {{board}} min before the start.',
   infoWarningTitle: 'Warning!',
   infoWarningFine: 'Late arrival or failure to appear will result in a fine (CHF 50.–).',
   infoRequirementsTitle: 'Game requirements',

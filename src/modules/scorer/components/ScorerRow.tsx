@@ -8,7 +8,7 @@ import AssignmentEditor from './AssignmentEditor'
 import DelegationModal from './DelegationModal'
 import { downloadICal } from '../../../utils/icalGenerator'
 import type { CalendarEntry } from '../../../types/calendar'
-import { currentLocale, formatTime, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow } from '../../../utils/dateHelpers'
+import { currentLocale, formatTime, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow, DUTY_ARRIVAL_MIN } from '../../../utils/dateHelpers'
 import { Calendar, MapPin, Clock, AlertTriangle, Users } from 'lucide-react'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import RosterModal from './RosterModal'
@@ -431,6 +431,18 @@ export default function ScorerRow({
             {t('viewRoster')}
           </button>
         )}
+      </div>
+
+      {/* Arrival reminder — how early each duty must be in the hall */}
+      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+        <Clock className="h-3.5 w-3.5 shrink-0" />
+        {sport === 'basketball'
+          ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.bb_scorer })
+          : vbCombined
+            ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.scorer_scoreboard })
+            : vbReferee
+              ? t('arrivalHintReferee', { min: DUTY_ARRIVAL_MIN.referee })
+              : t('arrivalHintSplit', { scorer: DUTY_ARRIVAL_MIN.scorer, board: DUTY_ARRIVAL_MIN.scoreboard })}
       </div>
 
       {/* Assignment editors */}

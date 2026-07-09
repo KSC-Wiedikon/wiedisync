@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, X, Check } from 'lucide-react'
+import { MessageSquare, X, Check, AlertTriangle } from 'lucide-react'
+import { toast } from 'sonner'
 import type { Game, Team, Hall, Member, BaseRecord } from '../../../types'
 import { Button } from '@/components/ui/button'
 import TeamChip from '../../../components/TeamChip'
@@ -13,10 +14,11 @@ import { useParticipation } from '../../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../../hooks/useAbsenceNoteText'
 import { useMutation } from '../../../hooks/useMutation'
-import { fetchItem } from '../../../lib/api'
+import { fetchItem, kscwApi } from '../../../lib/api'
+import { useConfirm } from '../../../components/ConfirmProvider'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
-import { currentLocale, formatDate, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow } from '../../../utils/dateHelpers'
+import { currentLocale, formatDate, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow } from '../../../utils/dateHelpers'
 import RefereeExpenseSection from './RefereeExpenseSection'
 import TasksSection from '../../tasks/TasksSection'
 import CarpoolSection from '../../carpool/CarpoolSection'
@@ -25,7 +27,12 @@ import { isFeatureEnabled } from '../../../utils/featureToggles'
 import { asObj, relId, teamCoachIds } from '../../../utils/relations'
 import CancelActivityButton from '../../../components/CancelActivityButton'
 
-const GAME_EXPAND = 'kscw_team,hall,scorer_member,scoreboard_member,scorer_scoreboard_member,scorer_duty_team,scoreboard_duty_team,scorer_scoreboard_duty_team,bb_scorer_member,bb_timekeeper_member,bb_24s_official,bb_duty_team,bb_scorer_duty_team,bb_timekeeper_duty_team,bb_24s_duty_team'
+const GAME_EXPAND = 'kscw_team,hall,scorer_member,scoreboard_member,scorer_scoreboard_member,referee_member,scorer_duty_team,scoreboard_duty_team,scorer_scoreboard_duty_team,referee_duty_team,bb_scorer_member,bb_timekeeper_member,bb_24s_official,bb_duty_team,bb_scorer_duty_team,bb_timekeeper_duty_team,bb_24s_duty_team'
+
+/** Late-report state for a game's duties, from GET /kscw/games/:id/duty-late. */
+type DutyLateReport = { at: string; by_name: string }
+type DutyLateContact = { phone: string | null; email: string | null; hide_phone: boolean; hide_email: boolean }
+type DutyLateData = { reports: Record<string, DutyLateReport>; contacts: Record<string, DutyLateContact> }
 
 interface GameDetailModalProps {
   game: Game | null
@@ -39,9 +46,11 @@ type ExpandedGame = Game & {
   scorer_member: (Member & BaseRecord) | string
   scoreboard_member: (Member & BaseRecord) | string
   scorer_scoreboard_member: (Member & BaseRecord) | string
+  referee_member: (Member & BaseRecord) | string
   scorer_duty_team: (Team & BaseRecord) | string
   scoreboard_duty_team: (Team & BaseRecord) | string
   scorer_scoreboard_duty_team: (Team & BaseRecord) | string
+  referee_duty_team: (Team & BaseRecord) | string
   bb_scorer_member: (Member & BaseRecord) | string
   bb_timekeeper_member: (Member & BaseRecord) | string
   bb_24s_official: (Member & BaseRecord) | string
@@ -69,6 +78,7 @@ const dateFormatOptions: Intl.DateTimeFormatOptions = {
 export default function GameDetailModal({ game, onClose, readOnly }: GameDetailModalProps) {
   const { t } = useTranslation('games')
   const { user, isCoachOf, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds, hasAdminAccessToTeam } = useAuth()
+  const confirm = useConfirm()
   const [rosterOpen, setRosterOpen] = useState(false)
   const [editingDeadline, setEditingDeadline] = useState(false)
   const [deadlineValue, setDeadlineValue] = useState(() => {
@@ -80,6 +90,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
     return parsed?.time ?? ''
   })
   const [fullGame, setFullGame] = useState<Game | null>(null)
+  const [lateData, setLateData] = useState<DutyLateData | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const { update: updateGame } = useMutation<Game>('games')
   const canParticipate = !!user && !!game?.kscw_team && canParticipateIn(relId(game.kscw_team))
@@ -149,6 +160,22 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
     }
   }, [game])
 
+  // Late-report state — only for coaches/TRs/admins of the PLAYING team, on home
+  // games. Lets the "duty is late" reveal survive a reload without re-emailing.
+  useEffect(() => {
+    setLateData(null)
+    if (!game?.id || game.type !== 'home') return
+    const teamId = relId(game.kscw_team)
+    const canSee = hasAdminAccessToTeam(teamId) || coachTeamIds.includes(teamId) || teamResponsibleIds.includes(teamId)
+    if (!canSee) return
+    let cancelled = false
+    kscwApi<DutyLateData>(`/games/${game.id}/duty-late`)
+      .then((r) => { if (!cancelled) setLateData(r) })
+      .catch(() => { /* non-fatal — alarm still works, reveal just won't pre-populate */ })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot per game open; auth read via closure
+  }, [game?.id, game?.type])
+
   useEffect(() => {
     if (!game) return
     const dialog = dialogRef.current
@@ -216,12 +243,50 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   // Long date with weekday/month NAMES — follow the active UI language. The
   // strict de-CH rule (CLAUDE.md) applies to numeric dd.mm.yyyy dates only.
   const dateStr = game.date ? new Intl.DateTimeFormat(currentLocale(), dateFormatOptions).format(new Date(game.date)) : ''
-  // Scorer contact: admins (sport/global) anytime; coaches/TR of the team only
-  // within ±1h of kickoff — same rule as the scorer page (not the admin-mode
-  // toggle). isCoachOf alone leaked it to coaches at any time.
-  const showScorerContact = hasAdminAccessToTeam(kscwTeamId)
-    || ((coachTeamIds.includes(kscwTeamId) || teamResponsibleIds.includes(kscwTeamId))
-      && isWithinGameContactWindow(game.date, game.time))
+  // Contact reveal: admins (sport/global) still see it anytime via the items
+  // API. Coaches/TRs no longer see it automatically — it's kept out of sight and
+  // revealed only behind the per-role "duty is late" alarm (handled per row).
+  const adminSeesContact = hasAdminAccessToTeam(kscwTeamId)
+  const canReportLate = !!user && game.status === 'scheduled' && game.type === 'home'
+    && (adminSeesContact || coachTeamIds.includes(kscwTeamId) || teamResponsibleIds.includes(kscwTeamId))
+  const sportWord = kscwSport === 'basketball' ? t('scoreboardBasketball') : t('scoreboardVolleyball')
+
+  // Flag a duty official as late: confirm → email (official + sport TK + admin)
+  // via the endpoint → reveal their contact until kickoff (+ grace). Idempotent
+  // server-side, so a second press won't re-email.
+  const gameId = game.id
+  async function reportLate(role: string, roleLabel: string, personName: string) {
+    const ok = await confirm({
+      title: t('dutyLateConfirmTitle', { role: roleLabel }),
+      message: t('dutyLateConfirmMessage', { name: personName || roleLabel, sport: sportWord }),
+      confirmLabel: t('dutyLateConfirmCta'),
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      const res = await kscwApi<{ report: DutyLateReport; contact: DutyLateContact }>(
+        `/games/${gameId}/duty-late`, { method: 'POST', body: { role } },
+      )
+      setLateData((prev) => ({
+        reports: { ...(prev?.reports ?? {}), [role]: res.report },
+        contacts: { ...(prev?.contacts ?? {}), [role]: res.contact },
+      }))
+      toast.success(t('dutyLateReported', { name: personName || roleLabel }))
+    } catch {
+      toast.error(t('common:error'))
+    }
+  }
+
+  const lateProps = (role: string) => ({
+    role,
+    gameDate: game.date,
+    gameTime: game.time,
+    adminSeesContact,
+    canReportLate,
+    reported: lateData?.reports?.[role] ?? null,
+    revealedContact: lateData?.contacts?.[role] ?? null,
+    onReport: reportLate,
+  })
   const homeWon = Number(game.home_score) > Number(game.away_score)
   const awayWon = Number(game.away_score) > Number(game.home_score)
   const kscwWon = game.type === 'home' ? homeWon : awayWon
@@ -534,7 +599,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
 
         {/* Scorer duties — Volleyball */}
         {kscwSport !== 'basketball' &&
-        (game.scorer_member || game.scoreboard_member || game.scorer_scoreboard_member) && (
+        (game.scorer_member || game.scoreboard_member || game.scorer_scoreboard_member || game.referee_member) && (
           <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
               {t('scorerDuties')}
@@ -544,7 +609,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                 label={t('scorerTaefeler')}
                 member={asObj<Member & BaseRecord>(expanded.scorer_scoreboard_member)}
                 dutyTeam={asObj<Team & BaseRecord>(expanded.scorer_scoreboard_duty_team)}
-                showContact={showScorerContact}
+                {...lateProps('scorer_scoreboard')}
               />
             ) : (
               <>
@@ -553,7 +618,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                     label={t('scorer')}
                     member={asObj<Member & BaseRecord>(expanded.scorer_member)}
                     dutyTeam={asObj<Team & BaseRecord>(expanded.scorer_duty_team)}
-                    showContact={showScorerContact}
+                    {...lateProps('scorer')}
                   />
                 )}
                 {asObj<Member & BaseRecord>(expanded.scoreboard_member) && (
@@ -561,10 +626,18 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                     label={t('scoreboard')}
                     member={asObj<Member & BaseRecord>(expanded.scoreboard_member)}
                     dutyTeam={asObj<Team & BaseRecord>(expanded.scoreboard_duty_team)}
-                    showContact={showScorerContact}
+                    {...lateProps('scoreboard')}
                   />
                 )}
               </>
+            )}
+            {asObj<Member & BaseRecord>(expanded.referee_member) && (
+              <DutyPersonRow
+                label={t('referee')}
+                member={asObj<Member & BaseRecord>(expanded.referee_member)}
+                dutyTeam={asObj<Team & BaseRecord>(expanded.referee_duty_team)}
+                {...lateProps('referee')}
+              />
             )}
           </div>
         )}
@@ -581,7 +654,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                 label={t('bbScorer', { ns: 'scorer' })}
                 member={asObj<Member & BaseRecord>(expanded.bb_scorer_member)}
                 dutyTeam={asObj<Team & BaseRecord>(expanded.bb_scorer_duty_team) ?? asObj<Team & BaseRecord>(expanded.bb_duty_team)}
-                showContact={showScorerContact}
+                {...lateProps('bb_scorer')}
               />
             )}
             {(asObj<Member & BaseRecord>(expanded.bb_timekeeper_member) || game.bb_timekeeper_member) && (
@@ -589,7 +662,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                 label={t('bbTimekeeper', { ns: 'scorer' })}
                 member={asObj<Member & BaseRecord>(expanded.bb_timekeeper_member)}
                 dutyTeam={asObj<Team & BaseRecord>(expanded.bb_timekeeper_duty_team) ?? asObj<Team & BaseRecord>(expanded.bb_duty_team)}
-                showContact={showScorerContact}
+                {...lateProps('bb_timekeeper')}
               />
             )}
             {(asObj<Member & BaseRecord>(expanded.bb_24s_official) || game.bb_24s_official) && (
@@ -597,7 +670,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                 label={t('bb24sOfficial')}
                 member={asObj<Member & BaseRecord>(expanded.bb_24s_official)}
                 dutyTeam={asObj<Team & BaseRecord>(expanded.bb_24s_duty_team) ?? asObj<Team & BaseRecord>(expanded.bb_duty_team)}
-                showContact={showScorerContact}
+                {...lateProps('bb_24s_official')}
               />
             )}
           </div>
@@ -705,32 +778,76 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function DutyPersonRow({ label, member, dutyTeam, showContact }: {
+function DutyPersonRow({
+  label, member, dutyTeam, role, gameDate, gameTime,
+  adminSeesContact, canReportLate, reported, revealedContact, onReport,
+}: {
   label: string
   member?: (Member & BaseRecord) | null
   dutyTeam?: (Team & BaseRecord) | null
-  showContact: boolean
+  role: string
+  gameDate?: string
+  gameTime?: string
+  adminSeesContact: boolean
+  canReportLate: boolean
+  reported: DutyLateReport | null
+  revealedContact: DutyLateContact | null
+  onReport: (role: string, roleLabel: string, personName: string) => void
 }) {
-  const name = member
-    ? `${member.first_name} ${member.last_name}`
-    : ''
+  const { t } = useTranslation('games')
+  const name = member ? `${member.first_name} ${member.last_name}` : ''
   const teamName = dutyTeam?.name
+  const inWindow = isWithinDutyLateWindow(gameDate, gameTime, role)
+
+  // Contact source: admins read it straight off the expanded member (items API);
+  // coaches/TRs only after they've flagged the official late (endpoint payload).
+  const contact: DutyLateContact | null = adminSeesContact
+    ? (member ? { phone: member.phone ?? null, email: member.email ?? null, hide_phone: !!member.hide_phone, hide_email: !!member.hide_email } : null)
+    : (reported ? revealedContact : null)
+  const showPhone = !!(contact && !contact.hide_phone && contact.phone)
+  const showEmail = !!(contact && !contact.hide_email && contact.email)
+
+  // Coaches/TRs (not admins, who already see contact) get the alarm while inside
+  // the role window and it hasn't been flagged yet.
+  const showAlarm = canReportLate && !adminSeesContact && !reported && inWindow && !!member
+
+  const reportedTime = reported?.at
+    ? new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(reported.at))
+    : ''
 
   return (
     <div className="flex items-start gap-3 text-sm">
       <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{label}</span>
-      <div>
+      <div className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-gray-900 dark:text-gray-100">
           {name}
           {teamName && <TeamChip team={teamName} size="xs" />}
         </span>
-        {showContact && member && ((!member.hide_phone && member.phone) || (!member.hide_email && member.email)) && (
-          <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-gray-500 dark:text-gray-400">
-            {!member.hide_phone && member.phone && (
-              <a href={`tel:${member.phone}`} className="hover:text-brand-600 dark:hover:text-brand-400">{member.phone}</a>
+
+        {showAlarm && (
+          <button
+            type="button"
+            onClick={() => onReport(role, label, name)}
+            className="mt-1.5 flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 dark:bg-red-600 dark:hover:bg-red-500"
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {t('dutyLateButton', { role: label })}
+          </button>
+        )}
+
+        {!adminSeesContact && reported && (
+          <div className="mt-1.5 rounded-lg border border-red-300 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+            {t('dutyLateBanner', { time: reportedTime, name: reported.by_name })}
+          </div>
+        )}
+
+        {(showPhone || showEmail) && (
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {showPhone && (
+              <a href={`tel:${contact!.phone}`} className="font-medium hover:text-brand-600 dark:hover:text-brand-400">{contact!.phone}</a>
             )}
-            {!member.hide_email && member.email && (
-              <a href={`mailto:${member.email}`} className="hover:text-brand-600 dark:hover:text-brand-400">{member.email}</a>
+            {showEmail && (
+              <a href={`mailto:${contact!.email}`} className="font-medium hover:text-brand-600 dark:hover:text-brand-400">{contact!.email}</a>
             )}
           </div>
         )}

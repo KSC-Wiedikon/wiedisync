@@ -109,6 +109,13 @@ export default {
   gameInfo: 'Game info',
   venue: 'Venue',
   officialsDuties: 'Officials',
+  // "Duty is late" alarm (coach/TR only, near kickoff)
+  dutyLateButton: '{{role}} is late — contact them',
+  dutyLateConfirmTitle: 'Report {{role}} as late?',
+  dutyLateConfirmMessage: 'This emails {{name}}, the {{sport}} TK and the admin that they haven\'t arrived. Their contact details will stay visible here until the game starts.',
+  dutyLateConfirmCta: 'Report late & notify',
+  dutyLateReported: 'Reported. {{name}} and the TK have been notified.',
+  dutyLateBanner: 'Flagged late at {{time}} by {{name}}',
   dutyTeam: 'Duty team',
   bbAnschreiber: 'Scorekeeper',
   bbZeitnehmer: 'Timekeeper',

@@ -106,6 +106,13 @@ export default {
   gameInfo: 'Info partita',
   venue: 'Sede',
   officialsDuties: 'Ufficiali',
+  // Allarme «in ritardo» (allenatore/responsabile, vicino al fischio d\'inizio)
+  dutyLateButton: '{{role}} e in ritardo — contatta',
+  dutyLateConfirmTitle: 'Segnalare {{role}} in ritardo?',
+  dutyLateConfirmMessage: 'Verra inviata un\'e-mail a {{name}}, al TK {{sport}} e all\'admin per segnalare l\'assenza. I suoi contatti resteranno visibili qui fino all\'inizio della partita.',
+  dutyLateConfirmCta: 'Segnala e notifica',
+  dutyLateReported: 'Segnalato. {{name}} e il TK sono stati avvisati.',
+  dutyLateBanner: 'Segnalato in ritardo alle {{time}} da {{name}}',
   dutyTeam: 'Squadra di turno',
   bbAnschreiber: 'Segnapunti',
   bbZeitnehmer: 'Cronometrista',

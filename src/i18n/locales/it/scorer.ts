@@ -131,7 +131,12 @@ export default {
   infoTitle: 'Info servizio segnapunti',
   infoArrivalTitle: 'Orari di arrivo',
   infoArrivalScorer: 'Il segnapunti deve essere in palestra almeno <strong>30 minuti</strong> prima dell\'inizio del gioco.',
-  infoArrivalTaefeler: 'L\'addetto al tabellone deve essere in palestra almeno <strong>10 minuti</strong> prima dell\'inizio del gioco.',
+  infoArrivalTaefeler: 'L\'addetto al tabellone deve essere in palestra almeno <strong>15 minuti</strong> prima dell\'inizio del gioco.',
+  infoArrivalReferee: 'L\'arbitro deve essere in palestra almeno <strong>30 minuti</strong> prima dell\'inizio del gioco.',
+  // Promemoria di arrivo per scheda (/scorer)
+  arrivalHintSingle: 'In palestra {{min}} min prima dell\'inizio.',
+  arrivalHintReferee: 'Arbitro: in palestra {{min}} min prima dell\'inizio.',
+  arrivalHintSplit: 'Segnapunti {{scorer}} min · Tabellone {{board}} min prima dell\'inizio.',
   infoWarningTitle: 'Attenzione!',
   infoWarningFine: 'L\'arrivo in ritardo o la mancata comparsa comporteranno una multa (CHF 50.–).',
   infoRequirementsTitle: 'Requisiti per le partite',
