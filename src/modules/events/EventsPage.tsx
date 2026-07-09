@@ -19,7 +19,7 @@ import EventForm from './EventForm'
 import { Button } from '@/components/ui/button'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { asTeams, teamId } from './eventHelpers'
-import type { Event, Participation } from '../../types'
+import type { Event, EventSession, Participation } from '../../types'
 import { TourPageButton } from '../guide/TourPageButton'
 
 export default function EventsPage() {
@@ -37,6 +37,19 @@ export default function EventsPage() {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
 
   const today = useMemo(() => todayLocal(), [])
+
+  // Per-day / per-session events: the roster modal needs the session list to
+  // render its per-leg tabs (mirrors EventDetailModal). Fetched lazily for the
+  // event whose roster is currently open; without it `hasSessionMode` is false
+  // inside the modal and the per-day view never appears.
+  const rosterHasSessionMode = !!rosterEvent?.participation_mode && rosterEvent.participation_mode !== 'whole'
+  const { data: rosterSessionsRaw } = useCollection<EventSession>('event_sessions', {
+    filter: rosterEvent ? { event: { _eq: rosterEvent.id } } : undefined,
+    sort: ['sort_order', 'date', 'start_time'],
+    limit: 100,
+    enabled: !!rosterEvent && rosterHasSessionMode,
+  })
+  const rosterSessions = rosterSessionsRaw ?? []
 
   // Resolve event IDs via junctions (single-level filter) rather than walking
   // `events.teams.teams_id` / `events.invited_members.members_id` — those paths
@@ -280,6 +293,8 @@ export default function EventsPage() {
         title={t('participation')}
         respondBy={rosterEvent?.respond_by}
         maxPlayers={rosterEvent?.max_players}
+        participationMode={rosterEvent?.participation_mode}
+        eventSessions={rosterHasSessionMode ? rosterSessions : undefined}
         showRsvpTime={asTeams(rosterEvent?.teams).some(t => isFeatureEnabled(t.features_enabled, 'show_rsvp_time'))}
         allowMaybe={rosterEvent?.allow_maybe !== false}
       />

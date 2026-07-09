@@ -357,9 +357,15 @@ export default function ParticipationRosterModal({
   // filter is active (single-team, club-wide, or "All").
   const memberList: Member[] = (teamFilterActive || guestsOnly)
     ? rosterMembers.filter((m) => {
-        if (teamFilterActive && !memberInSelectedTeams(teamsByMember.get(String(m.id)))) return false
-        if (guestsOnly && !guestLevels.has(String(m.id))) return false
-        return true
+        const isGuest = guestLevels.has(String(m.id))
+        // "Guests" bucket: every guest player (guest_level > 0), team-independent.
+        if (guestsOnly && isGuest) return true
+        // Team bucket: CORE (non-guest) members of a selected team. Guests
+        // borrowed onto a team are deliberately excluded here — they live in
+        // the separate "Guests" bucket — so filtering "H3" shows H3's own
+        // roster rather than H3 + everyone borrowed onto it.
+        if (teamFilterActive && !isGuest && memberInSelectedTeams(teamsByMember.get(String(m.id)))) return true
+        return false
       })
     : rosterMembers
 
@@ -1216,6 +1222,10 @@ export default function ParticipationRosterModal({
         // counts under each of their teams).
         const teamMemberCounts = new Map<string, number>()
         for (const mem of rosterMembers) {
+          // Guests are tallied under the "Guests" bucket, not their host team,
+          // so a team's count matches what selecting that team now shows (core
+          // roster only).
+          if (guestMemberIds.has(String(mem.id))) continue
           for (const tid of teamsByMember.get(String(mem.id)) ?? []) {
             teamMemberCounts.set(tid, (teamMemberCounts.get(tid) ?? 0) + 1)
           }
