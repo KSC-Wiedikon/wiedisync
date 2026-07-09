@@ -86,7 +86,8 @@ export default {
   reason_rotation: 'Rotation: {{count}}x ({{points}})',
   reason_hu20Taefeler: 'HU20 Täfeler (+{{points}})',
   reason_underDoltschi: 'U-Team Döltschi (+{{points}})',
-  reason_legendsScorer: 'Legends Schreiber (+{{points}})',
+  reason_legendsScorer: 'Legends Schreiber ({{points}})',
+  reason_legendsScoreboard: 'Legends Täfeler ({{points}})',
   reason_weekendFree: 'Wochenende frei (+{{points}})',
 
   // Basketball
@@ -118,7 +119,7 @@ export default {
   ruleVbSoftOnSite: 'Spielt am selben Tag schon ein Heimspiel (vor Ort): +20',
   ruleVbSoftHu20: 'HU20 als Täfeler: +15',
   ruleVbSoftDoltschi: 'U-Team kombiniert in Döltschi: +10',
-  ruleVbSoftLegends: 'Legends als Schreiber: +8',
+  ruleVbSoftLegends: 'Legends tendiert zu Täfeler (~3:1 vs Schreiber): ±12',
   ruleVbSoftWeekend: 'Wochenende ohne Training: +5',
   ruleVbSoftTraining: 'Training am selben Tag: -20',
   ruleVbSoftRotation: 'Faire Rotation: -10 pro bereits erhaltenem Dienst',
