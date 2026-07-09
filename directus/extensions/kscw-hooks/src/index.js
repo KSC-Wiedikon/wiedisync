@@ -425,6 +425,33 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   }
 
+  // ── Whitespace trim on member text fields ──────────────────────────────
+  // Leading/trailing whitespace is never meaningful on a member record: it
+  // silently corrupts names ("Irini " vs "Irini"), breaks exact-name linking
+  // against ClubDesk, and produces spurious audit-log diffs. Trim the ends of
+  // every top-level string in the payload on both create and update, for every
+  // write that reaches the items API (Directus admin UI + the member app).
+  // `String.prototype.trim()` also strips non-breaking ( ), zero-width
+  // (﻿) and other Unicode whitespace, not just ASCII spaces/tabs. Internal
+  // whitespace is preserved (addresses, notes). Registered FIRST so downstream
+  // member filters (priv-strip, duplicate-email) see the cleaned values. Empty
+  // strings are left as-is here — this is a normalizer, not a required-field
+  // guard. Raw-knex paths (signup invites, registration approval, ClubDesk
+  // sync) bypass items filters and carry their own normalization.
+  function trimMemberStrings(payload) {
+    if (!payload || typeof payload !== 'object') return payload
+    for (const key of Object.keys(payload)) {
+      const v = payload[key]
+      if (typeof v === 'string') {
+        const trimmed = v.trim()
+        if (trimmed !== v) payload[key] = trimmed
+      }
+    }
+    return payload
+  }
+  filter('members.items.create', async (payload) => trimMemberStrings(payload))
+  filter('members.items.update', async (payload) => trimMemberStrings(payload))
+
   // Defense-in-depth: strip privilege-bearing flags from the payload unless the
   // caller is admin / superuser. The Directus field-level permissions SHOULD be
   // admin-only — but the action hooks below escalate each of these into a real
