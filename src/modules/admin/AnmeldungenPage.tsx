@@ -52,9 +52,13 @@ interface Registration extends BaseRecord {
   kantonsschule: string | null
   locale: string | null
   rejection_reason: string | null
+  bb_situation: string | null
   bb_doc_lizenz: string | null
+  bb_doc_freibrief: string | null
   bb_doc_selfdecl: string | null
   bb_doc_natdecl: string | null
+  bb_doc_u18parents: string | null
+  bb_doc_schoolcert: string | null
   id_upload_front: string | null
   id_upload_back: string | null
   sektion_choice: string | null
@@ -63,11 +67,57 @@ interface Registration extends BaseRecord {
 // All document fields a registration can carry (BB docs + ID front/back)
 const DOC_FIELDS: (keyof Registration)[] = [
   'bb_doc_lizenz',
+  'bb_doc_freibrief',
   'bb_doc_selfdecl',
   'bb_doc_natdecl',
+  'bb_doc_u18parents',
+  'bb_doc_schoolcert',
   'id_upload_front',
   'id_upload_back',
 ]
+
+// Required basketball documents for a licensing situation. Mirrors bbRequiredDocs
+// in the Directus extension (wiedisync bb-docs.js) and the kscw-website client —
+// keep the four in sync. School certificate stays optional (never required).
+const BB_SITUATIONS = ['neu', 'transfer_ch', 'transfer_intl', 'rueckkehr']
+const bbIsMinor = (dob: string | null): boolean => {
+  if (!dob) return false
+  const m = dob.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return false
+  const now = new Date()
+  const seasonStartYear = now.getUTCMonth() + 1 >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
+  let age = seasonStartYear - Number(m[1])
+  if (9 < Number(m[2]) || (9 === Number(m[2]) && 1 < Number(m[3]))) age--
+  return age < 18
+}
+const bbRequiredDocs = (
+  situation: string | null,
+  natCode: string,
+  dob: string | null,
+): (keyof Registration)[] => {
+  const base: (keyof Registration)[] = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
+  const foreign = !!natCode && natCode !== 'CH'
+  const minor = bbIsMinor(dob)
+  if (!BB_SITUATIONS.includes(situation || '')) {
+    if (foreign) base.push('bb_doc_selfdecl', 'bb_doc_natdecl')
+    return base
+  }
+  switch (situation) {
+    case 'transfer_ch':
+      base.push('bb_doc_freibrief')
+      break
+    case 'transfer_intl':
+    case 'rueckkehr':
+      base.push('bb_doc_selfdecl')
+      if (minor) base.push('bb_doc_natdecl', 'bb_doc_u18parents')
+      break
+    default:
+      if (foreign) base.push('bb_doc_selfdecl')
+      if (foreign && minor) base.push('bb_doc_natdecl')
+      break
+  }
+  return base
+}
 const countDocs = (reg: Registration): number => DOC_FIELDS.filter((k) => reg[k]).length
 
 
@@ -268,16 +318,14 @@ export default function AnmeldungenPage() {
     onError: () => toast.error(t('anmeldungenUpdateError')),
   })
 
-  // Required docs for a basketball registration: ID front/back + licence
-  // application; non-Swiss additionally self declaration + national team
-  // declaration. Mirrors the server-side approval gate (kscw-hooks) — this
-  // check just gives a clear toast instead of a failed request.
+  // Required docs for a basketball registration, driven by the applicant's
+  // licensing situation + nationality + age. Mirrors the server-side approval
+  // gate (kscw-hooks) — this check just gives a clear toast instead of a failed
+  // request.
   const missingRequiredDocs = (reg: Registration): (keyof Registration)[] => {
     if (reg.membership_type !== 'basketball') return []
-    const required: (keyof Registration)[] = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
     const nat = (reg.nationalitaet_code || '').toUpperCase()
-    if (nat && nat !== 'CH') required.push('bb_doc_selfdecl', 'bb_doc_natdecl')
-    return required.filter((k) => !reg[k])
+    return bbRequiredDocs(reg.bb_situation, nat, reg.geburtsdatum).filter((k) => !reg[k])
   }
 
   const handleApprove = (reg: Registration) => {
@@ -758,8 +806,11 @@ function ExpandedDetails({
 
   const bbDocs: { key: keyof Registration; label: string }[] = [
     { key: 'bb_doc_lizenz', label: t('anmeldungenDocLizenz') },
+    { key: 'bb_doc_freibrief', label: t('anmeldungenDocFreibrief') },
     { key: 'bb_doc_selfdecl', label: t('anmeldungenDocSelfDecl') },
     { key: 'bb_doc_natdecl', label: t('anmeldungenDocNatDecl') },
+    { key: 'bb_doc_u18parents', label: t('anmeldungenDocU18Parents') },
+    { key: 'bb_doc_schoolcert', label: t('anmeldungenDocSchoolCert') },
   ]
   const idDocs: { key: keyof Registration; label: string }[] = [
     { key: 'id_upload_front', label: t('anmeldungenDocIdFront') },
@@ -819,6 +870,21 @@ function ExpandedDetails({
         {/* Passive members have no sport → the approver picks the ClubDesk Sektion */}
         {reg.membership_type === 'passive' && selectField('sektion_choice', t('anmeldungenSektion'), ['Volleyball', 'Basketball', 'KSCW'])}
         {field('bemerkungen', t('anmeldungenNotes'), { full: true })}
+        {reg.membership_type === 'basketball' && (
+          <div>
+            <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('anmeldungenSituation')}</label>
+            <div className="px-2.5 py-1.5 text-sm text-gray-900 dark:text-gray-100">
+              {(
+                {
+                  neu: t('anmeldungenSituationNew'),
+                  transfer_ch: t('anmeldungenSituationTransferCH'),
+                  transfer_intl: t('anmeldungenSituationTransferIntl'),
+                  rueckkehr: t('anmeldungenSituationReturner'),
+                } as Record<string, string>
+              )[reg.bb_situation || ''] || '—'}
+            </div>
+          </div>
+        )}
         <div>
           <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('anmeldungenRef')}</label>
           <div className="px-2.5 py-1.5 text-sm text-gray-500 dark:text-gray-400">{reg.reference_number}</div>

@@ -6,6 +6,7 @@
 
 import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, escHtml } from './email-template.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
+import { BB_SITUATIONS, bbRequiredDocs } from './bb-docs.js'
 import crypto from 'crypto'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
@@ -439,58 +440,6 @@ function buildAdminNotificationEmail(reg, locale = 'de') {
 // string value.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-// ── Basketball required-document set ───────────────────────────────────────
-// Mirrors Swiss Basketball's "Liste der Dokumente für jeden Fall" and the client
-// gate in kscw-website registration-form.js (bbDocSet). The applicant's licensing
-// SITUATION plus nationality and whether they are a minor (U18, FIBA minor rules)
-// decide which documents are mandatory beyond ID front/back + signed Lizenzantrag.
-const BB_SITUATIONS = ['neu', 'transfer_ch', 'transfer_intl', 'rueckkehr']
-
-// Minor = under 18 at the start of the current season (Sept 1). Derived from the
-// date of birth string (YYYY-MM-DD) so it matches the client's derivation.
-function bbIsMinor(dob) {
-  if (!dob) return false
-  const m = String(dob).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!m) return false
-  const by = +m[1], bm = +m[2], bd = +m[3]
-  const now = new Date()
-  const seasonStartYear = (now.getUTCMonth() + 1) >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
-  const refMonth = 9, refDay = 1 // Sept 1
-  let age = seasonStartYear - by
-  if (refMonth < bm || (refMonth === bm && refDay < bd)) age--
-  return age < 18
-}
-
-// Required document COLUMNS (registrations table) for a basketball registration.
-// A falsy/unknown situation falls back to the legacy nationality-only rule so
-// pre-situation rows (created before this field existed) keep a sane required set.
-function bbRequiredDocs(situation, natCode, dob) {
-  const base = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
-  const foreign = natCode && natCode !== 'CH'
-  const minor = bbIsMinor(dob)
-  if (!BB_SITUATIONS.includes(situation)) {
-    // Legacy fallback (matches the pre-2026-07 natCode-only gate).
-    if (foreign) base.push('bb_doc_selfdecl', 'bb_doc_natdecl')
-    return base
-  }
-  switch (situation) {
-    case 'transfer_ch':
-      base.push('bb_doc_freibrief')
-      break
-    case 'transfer_intl':
-    case 'rueckkehr':
-      base.push('bb_doc_selfdecl')
-      if (minor) base.push('bb_doc_natdecl', 'bb_doc_u18parents')
-      break
-    case 'neu':
-    default:
-      if (foreign) base.push('bb_doc_selfdecl')
-      if (foreign && minor) base.push('bb_doc_natdecl')
-      break
-  }
-  return base
-}
-
 // Private quarantine folder for registration documents (migration 169; same
 // UUID on every environment). Files uploaded via /registration/upload are born
 // in here — never folder-less, never anonymous-readable via /assets.
@@ -650,11 +599,18 @@ export function registerRegistration(router, { database, logger, services, getSc
           return res.status(400).json({ error: msg, code: 'docs_required', missing })
         }
       }
-      // Provided doc ids must be REAL files — a fabricated UUID would produce a
-      // "documents complete" row that sails through every downstream gate.
+      // Provided doc ids must be REAL files that already live in the PRIVATE
+      // registration folder — i.e. produced by /registration/upload. Without the
+      // folder scope a caller could pass the UUID of any PUBLIC asset (team photo,
+      // sponsor logo, harvested from /assets), and the quarantine hook would then
+      // move that public file into the private folder (breaking the public read)
+      // and the orphan sweep would eventually delete it. Anonymous data loss.
       const providedDocIds = [...new Set(Object.values(docs).filter(Boolean))]
       if (providedDocIds.length) {
-        const found = await database('directus_files').whereIn('id', providedDocIds).count('id as n').first()
+        const found = await database('directus_files')
+          .whereIn('id', providedDocIds)
+          .where('folder', REGISTRATION_FILES_FOLDER)
+          .count('id as n').first()
         if (Number(found?.n) !== providedDocIds.length) {
           return res.status(400).json({ error: 'Invalid document reference', code: 'docs_invalid' })
         }
@@ -693,6 +649,9 @@ export function registerRegistration(router, { database, logger, services, getSc
         locale: body.locale === 'en' ? 'en' : 'de',
         reference_number,
         submitted_at: new Date().toISOString(),
+        // Licensing situation (new / Swiss-club transfer / from abroad / returner)
+        // — drives the required document set on re-upload + admin review.
+        bb_situation: bbSituation,
         // Document file ids arrive with the create since the eager-upload form
         // (v3.3.0); the quarantine hook moves them to the private folder.
         ...docs,
@@ -810,7 +769,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       const itemsService = new ItemsService('registrations', { schema, knex: database })
 
       // Verify registration exists, is pending, and caller knows the reference number
-      const { reference_number, id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_selfdecl, bb_doc_natdecl } = req.body
+      const { reference_number, id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_freibrief, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert } = req.body
       if (!reference_number) {
         return res.status(400).json({ error: 'reference_number required' })
       }
@@ -847,16 +806,21 @@ export function registerRegistration(router, { database, logger, services, getSc
         if (e) e.mismatches = (e.mismatches || 0) + 1
         return res.status(403).json({ error: 'Invalid reference number' })
       }
-      // Only accept well-formed directus_files UUIDs that ACTUALLY EXIST — mirrors
-      // the create route's docs-exist check so a brute-forcer can't point a
-      // victim's doc columns at fabricated UUIDs. On APPROVED rows the attach is
-      // fill-only: a ref+email holder may complete missing documents but never
-      // silently REPLACE ones an admin already reviewed at approval time.
+      // Only accept well-formed directus_files UUIDs that ACTUALLY EXIST and live
+      // in the PRIVATE registration folder — mirrors the create route's docs-exist
+      // check so a brute-forcer can't point a victim's doc columns at fabricated
+      // UUIDs OR at a public asset (which the quarantine hook would then privatise
+      // and the sweep delete). On APPROVED rows the attach is fill-only: a ref+email
+      // holder may complete missing documents but never silently REPLACE ones an
+      // admin already reviewed at approval time.
       const fileId = (v) => (typeof v === 'string' && UUID_RE.test(v)) ? v : null
-      const providedIds = [id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_selfdecl, bb_doc_natdecl]
+      const providedIds = [id_upload_front, id_upload_back, bb_doc_lizenz, bb_doc_freibrief, bb_doc_selfdecl, bb_doc_natdecl, bb_doc_u18parents, bb_doc_schoolcert]
         .map(fileId).filter(Boolean)
       if (providedIds.length) {
-        const found = await database('directus_files').whereIn('id', providedIds).count('id as n').first()
+        const found = await database('directus_files')
+          .whereIn('id', providedIds)
+          .where('folder', REGISTRATION_FILES_FOLDER)
+          .count('id as n').first()
         if (Number(found?.n || 0) !== providedIds.length) {
           return res.status(400).json({ error: 'One or more uploaded files not found' })
         }
@@ -869,8 +833,11 @@ export function registerRegistration(router, { database, logger, services, getSc
       setDoc('id_upload_front', id_upload_front)
       setDoc('id_upload_back', id_upload_back)
       setDoc('bb_doc_lizenz', bb_doc_lizenz)
+      setDoc('bb_doc_freibrief', bb_doc_freibrief)
       setDoc('bb_doc_selfdecl', bb_doc_selfdecl)
       setDoc('bb_doc_natdecl', bb_doc_natdecl)
+      setDoc('bb_doc_u18parents', bb_doc_u18parents)
+      setDoc('bb_doc_schoolcert', bb_doc_schoolcert)
 
       if (Object.keys(update).length) {
         await itemsService.updateOne(id, update)
@@ -918,8 +885,8 @@ export function registerRegistration(router, { database, logger, services, getSc
 
       const reg = await database('registrations')
         .whereRaw('LOWER(reference_number) = ?', [reference.toLowerCase()])
-        .first('id', 'status', 'email', 'membership_type', 'nationalitaet_code', 'reference_number',
-          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl')
+        .first('id', 'status', 'email', 'membership_type', 'nationalitaet_code', 'geburtsdatum', 'bb_situation', 'reference_number',
+          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
       const emailOk = reg && String(reg.email || '').toLowerCase() === email
       if (!reg || !emailOk || !['pending', 'approved'].includes(reg.status)) {
         const e = fileAttachIp.get(ip)
@@ -929,8 +896,7 @@ export function registerRegistration(router, { database, logger, services, getSc
 
       const natCode = (reg.nationalitaet_code || '').trim().toUpperCase()
       const required = reg.membership_type === 'basketball'
-        ? ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz',
-          ...(natCode && natCode !== 'CH' ? ['bb_doc_selfdecl', 'bb_doc_natdecl'] : [])]
+        ? bbRequiredDocs(reg.bb_situation, natCode, reg.geburtsdatum)
         : []
       return res.json({
         id: reg.id,
@@ -942,8 +908,11 @@ export function registerRegistration(router, { database, logger, services, getSc
           id_upload_front: !!reg.id_upload_front,
           id_upload_back: !!reg.id_upload_back,
           bb_doc_lizenz: !!reg.bb_doc_lizenz,
+          bb_doc_freibrief: !!reg.bb_doc_freibrief,
           bb_doc_selfdecl: !!reg.bb_doc_selfdecl,
           bb_doc_natdecl: !!reg.bb_doc_natdecl,
+          bb_doc_u18parents: !!reg.bb_doc_u18parents,
+          bb_doc_schoolcert: !!reg.bb_doc_schoolcert,
         },
       })
     } catch (err) {
