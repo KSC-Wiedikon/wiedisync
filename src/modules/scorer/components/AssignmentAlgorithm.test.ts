@@ -138,6 +138,24 @@ describe('runAssignment', () => {
     expect(runAssignment({ ...input, teams: [P, A0, B] })[0].combinedTeamName).toBe('AAA')
   })
 
+  it('cup games are free slots — playing team\'s own duty, no team assigned', () => {
+    // Both Züri Cup and Swiss/Mobiliar Volley Cup home games are the playing
+    // team's own responsibility → surfaced as mode 'cup', assigned to nobody.
+    const zuri = game('c1', '2', '2026-09-15', { league: 'Züri Cup — 1/8-Final, Spiel 4' })
+    const swiss = game('c2', '4', '2026-09-22', { league: 'Mobiliar Volley Cup — Runde 1, Spiel 37' })
+    const res = runAssignment(base([zuri, swiss], LIC_MEMBERS, LIC_TEAMS))
+    for (const a of res) {
+      expect(a.mode).toBe('cup')
+      expect(a.scorerTeamId).toBeNull()
+      expect(a.scoreboardTeamId).toBeNull()
+      expect(a.combinedTeamId).toBeNull()
+      expect(a.conflicts.some((c) => c.key === 'cupOwnDuty')).toBe(true)
+    }
+    // Cup duties never count toward any team's totals.
+    const counts = getTeamCounts(res, TEAMS, [zuri, swiss])
+    for (const c of counts.values()) expect(c.totalDuties).toBe(0)
+  })
+
   it('Legends leans toward scoreboard over scorer (soft 3:1)', () => {
     const P = team('p', 'P1', '2L')      // playing → separate (scorer + Täfeler)
     const X = team('x', 'X1', '2L')      // holds the scorer licence

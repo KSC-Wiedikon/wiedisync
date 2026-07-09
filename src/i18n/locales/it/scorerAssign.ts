@@ -67,6 +67,7 @@ export default {
 
   // Existing
   existingKept: 'Assegnazione esistente mantenuta',
+  cupOwnDuty: 'Coppa — a carico della squadra che gioca',
   noTeamAvailable: 'Nessuna squadra disponibile',
   noScorerAvailable: 'Nessun segnapunti disponibile',
   noTaefelerAvailable: 'Nessun addetto al tabellone disponibile',

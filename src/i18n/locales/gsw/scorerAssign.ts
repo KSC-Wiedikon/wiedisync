@@ -67,6 +67,7 @@ export default {
 
   // Existing
   existingKept: 'Bestehendi Zueteilig biibehalte',
+  cupOwnDuty: 'Cup — Sach vom spilende Team sälber',
   noTeamAvailable: 'Käs Team verfüegbar',
   noScorerAvailable: 'Käs Schriiber verfüegbar',
   noTaefelerAvailable: 'Käs Täfeler verfüegbar',
