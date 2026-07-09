@@ -20,6 +20,7 @@ export default {
   positionPowerForward: 'Ailier fort',
   positionCenter: 'Pivot',
   positionGuest: 'Invite',
+  positionStaffOnly: 'Staff uniquement',
   positionOther: 'Autre',
 
   // Roles

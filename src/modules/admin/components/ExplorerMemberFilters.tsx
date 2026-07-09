@@ -477,6 +477,7 @@ function positionKey(p: MemberPosition): string {
     power_forward: 'positionPowerForward',
     center: 'positionCenter',
     guest: 'positionGuest',
+    staff_only: 'positionStaffOnly',
     other: 'positionOther',
   }
   return map[p]

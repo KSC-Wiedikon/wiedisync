@@ -1,8 +1,11 @@
 import type { MemberPosition, Team } from '../types'
 import { flattenMemberIds } from './relations'
 
-const VB_POSITIONS: MemberPosition[] = ['setter', 'outside', 'middle', 'opposite', 'libero', 'guest', 'other']
-const BB_POSITIONS: MemberPosition[] = ['point_guard', 'shooting_guard', 'small_forward', 'power_forward', 'center', 'guest', 'other']
+// `staff_only` replaces `other` in the pickers — a member with no player
+// position is non-playing staff, not "other". `other` is kept below as a valid
+// legacy/default value (renders + round-trips) but is no longer offered.
+const VB_POSITIONS: MemberPosition[] = ['setter', 'outside', 'middle', 'opposite', 'libero', 'guest', 'staff_only']
+const BB_POSITIONS: MemberPosition[] = ['point_guard', 'shooting_guard', 'small_forward', 'power_forward', 'center', 'guest', 'staff_only']
 
 const POSITION_I18N_KEYS: Record<MemberPosition, string> = {
   setter: 'positionSetter',
@@ -16,6 +19,7 @@ const POSITION_I18N_KEYS: Record<MemberPosition, string> = {
   power_forward: 'positionPowerForward',
   center: 'positionCenter',
   guest: 'positionGuest',
+  staff_only: 'positionStaffOnly',
   other: 'positionOther',
 }
 
@@ -31,6 +35,7 @@ const POSITION_INITIALS: Record<MemberPosition, string> = {
   power_forward: 'PF',
   center: 'C',
   guest: 'G',
+  staff_only: 'St',
   other: '·',
 }
 
@@ -72,7 +77,7 @@ export function getSelectablePositions(sport?: Team['sport'], current?: unknown)
 
 /**
  * A member is "non-playing staff" if they are in team.coach or team.team_responsible
- * AND have no player positions (only 'other' or empty).
+ * AND have no player positions (only 'staff_only' / 'other' / empty).
  */
 export function isNonPlayingStaff(
   memberId: string,
@@ -82,7 +87,7 @@ export function isNonPlayingStaff(
   if (!team) return false
   const isStaff = flattenMemberIds(team.coach).includes(memberId) || flattenMemberIds(team.team_responsible).includes(memberId)
   if (!isStaff) return false
-  const playerPositions = positions.filter((p) => p !== 'other')
+  const playerPositions = positions.filter((p) => p !== 'other' && p !== 'staff_only')
   return playerPositions.length === 0
 }
 

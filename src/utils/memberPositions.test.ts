@@ -17,7 +17,7 @@ describe('memberPositions', () => {
       'opposite',
       'libero',
       'guest',
-      'other',
+      'staff_only',
     ])
   })
 
@@ -29,7 +29,7 @@ describe('memberPositions', () => {
       'power_forward',
       'center',
       'guest',
-      'other',
+      'staff_only',
     ])
   })
 
@@ -46,10 +46,14 @@ describe('memberPositions', () => {
   })
 
   it('keeps legacy value visible in selectable list', () => {
-    const selectable = getSelectablePositions('volleyball', ['center'])
+    // 'center' (out-of-sport) and 'other' (now legacy — no longer in the base
+    // list) are current values, so both stay visible, prepended before the base.
+    const selectable = getSelectablePositions('volleyball', ['center', 'other'])
     expect(selectable[0]).toBe('center')
-    expect(selectable).toContain('setter')
     expect(selectable).toContain('other')
+    expect(selectable).toContain('setter')
+    // The base list now offers 'staff_only' in place of 'other'.
+    expect(selectable).toContain('staff_only')
   })
 
   it('maps known i18n keys and validates sport compatibility', () => {

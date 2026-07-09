@@ -20,6 +20,7 @@ export default {
   positionPowerForward: 'Ala grande',
   positionCenter: 'Centro',
   positionGuest: 'Ospite',
+  positionStaffOnly: 'Solo staff',
   positionOther: 'Altro',
 
   // Roles
