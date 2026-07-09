@@ -40,6 +40,13 @@ export default {
   combinedCount: 'Marqueur/Tableau',
   ownGames: 'Matchs',
   totalCount: 'Total',
+  refereesCount: 'Arbitres',
+  refereesHint: 'Licences d\'arbitre dans l\'équipe. Chacune compte comme un service déjà effectué (max. 2), donc les équipes riches en arbitres font moins de services de marquage.',
+  refereesCapped: '{{count}} licences d\'arbitre → créditées comme {{credit}} (plafonné)',
+  creditCount: 'Crédit',
+  creditHint: 'Crédit de service manuel : services dont l\'équipe est dispensée (plus élevé = moins de services).',
+  creditFootnote: 'Arbitres et Crédit réduisent tous deux la fréquence de sélection d\'une équipe (−10 points chacun). Le crédit d\'arbitre est automatique (plafonné à 2) ; le Crédit est votre ajustement manuel. Après une modification, relancez l\'algorithme.',
+  creditSaveError: 'Impossible d\'enregistrer le crédit.',
 
   // Status
   noGames: 'Aucun match charge.',
@@ -63,6 +70,9 @@ export default {
   // Reasons (soft rules)
   reason_training: 'Entrainement ({{points}})',
   reason_sequenceBonus: 'Bonus de sequence (+{{points}})',
+  reason_onSite: 'Sur place le même jour (+{{points}})',
+  reason_refereeCredit: 'Crédit arbitrage : {{count}}× ({{points}})',
+  reason_manualCredit: 'Crédit manuel : {{count}}× ({{points}})',
   reason_rotation: 'Rotation : {{count}}x ({{points}})',
   reason_hu20Taefeler: 'HU20 tableau (+{{points}})',
   reason_underDoltschi: 'Equipe Under Doltschi (+{{points}})',
@@ -101,6 +111,9 @@ export default {
   ruleVbSoftWeekend: 'Week-end sans entraînement : +5',
   ruleVbSoftTraining: 'Entraînement le même jour : -20',
   ruleVbSoftRotation: 'Rotation équitable : -10 par service déjà attribué',
+  ruleVbSoftOnSite: 'Joue déjà un match à domicile le même jour (sur place) : +20',
+  ruleVbSoftRefereeCredit: 'L\'équipe fournit des arbitres : -10 par licence d\'arbitre (max. 2)',
+  ruleVbSoftManualCredit: 'Crédit de service manuel : -10 par crédit',
   ruleBbHardGame: 'L\'équipe a son propre match le même jour',
   ruleBbHardDuty: 'L\'équipe a déjà un service le même jour',
   ruleBbHardOtr1: 'L\'équipe a besoin d\'un membre avec licence OTR1 (marqueur/chronométreur)',

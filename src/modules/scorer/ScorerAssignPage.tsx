@@ -38,7 +38,7 @@ function saveDraft(sport: SportTab, season: string, data: unknown[]) {
 // point values mirror AssignmentAlgorithm.ts (VB) / AssignmentAlgorithmBb.ts
 // (BB) — keep them in sync if the engines change.
 const VB_HARD_RULES = ['ruleVbHardGame', 'ruleVbHardDuty', 'ruleVbHardLicence']
-const VB_SOFT_RULES = ['ruleVbSoftSequence', 'ruleVbSoftHu20', 'ruleVbSoftLegends', 'ruleVbSoftWeekend', 'ruleVbSoftTraining', 'ruleVbSoftRotation']
+const VB_SOFT_RULES = ['ruleVbSoftSequence', 'ruleVbSoftOnSite', 'ruleVbSoftHu20', 'ruleVbSoftLegends', 'ruleVbSoftTraining', 'ruleVbSoftRotation', 'ruleVbSoftRefereeCredit', 'ruleVbSoftManualCredit']
 const BB_HARD_RULES = ['ruleBbHardGame', 'ruleBbHardDuty', 'ruleBbHardOtr1']
 const BB_SOFT_RULES = ['ruleBbSoftFullCrew', 'ruleBbSoftSequence', 'ruleBbSoftTraining', 'ruleBbSoftRotation', 'ruleBbSoftWeekend']
 
@@ -81,16 +81,16 @@ export default function ScorerAssignPage() {
   // `licences` JSON array is no longer the source of truth.
   const { data: membersRaw, isLoading: membersLoading } = useCollection<Member>('members', {
     filter: { kscw_membership_active: { _eq: true } },
-    fields: ['id', 'first_name', 'last_name', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb'],
+    fields: ['id', 'first_name', 'last_name', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb'],
     all: true,
   })
-  const members = membersRaw ?? []
+  const members = useMemo(() => membersRaw ?? [], [membersRaw])
 
   const { data: memberTeamsRaw, isLoading: memberTeamsLoading } = useCollection<MemberTeam>('member_teams', {
     all: true,
     enabled: !!user,
   })
-  const memberTeams = memberTeamsRaw ?? []
+  const memberTeams = useMemo(() => memberTeamsRaw ?? [], [memberTeamsRaw])
 
   // Hall names (the Döltschi rule needs them; games carry only the hall id).
   const { data: hallsRaw, isLoading: hallsLoading } = useCollection<Hall>('halls', {
@@ -117,6 +117,11 @@ export default function ScorerAssignPage() {
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ text: string; error: boolean } | null>(null)
   const [running, setRunning] = useState(false)
+  // Manual per-team duty credits, edited inline in the team summary. Applied to
+  // the next run immediately (local override) and persisted to teams.duty_credit
+  // in the background. Keyed by team id.
+  const [creditOverrides, setCreditOverrides] = useState<Record<string, number>>({})
+  const [savingCredit, setSavingCredit] = useState<string | null>(null)
 
   // Lookups
   const teamSportById = useMemo(() => {
@@ -197,7 +202,28 @@ export default function ScorerAssignPage() {
         : tone === 'ok' ? 'text-green-600 dark:text-green-400'
           : 'text-gray-400 dark:text-gray-500'
 
-  const vbTeamCounts = useMemo(() => getTeamCounts(vbAssignments, teams, sportGames), [vbAssignments, teams, sportGames])
+  // Teams with any pending manual-credit edits merged in, so the next run and the
+  // summary reflect the change instantly (the DB write happens in the background).
+  const teamsWithCredit = useMemo(
+    () => teams.map((tm) => (tm.id in creditOverrides ? { ...tm, duty_credit: creditOverrides[tm.id] } : tm)),
+    [teams, creditOverrides],
+  )
+
+  // Commit a manual credit edit: apply locally + persist to teams.duty_credit.
+  async function commitCredit(teamId: string, raw: number) {
+    const value = Number.isFinite(raw) ? Math.max(0, Math.round(raw)) : 0
+    setCreditOverrides((prev) => ({ ...prev, [teamId]: value }))
+    setSavingCredit(teamId)
+    try {
+      await updateRecord('teams', teamId, { duty_credit: value })
+    } catch {
+      setSaveMsg({ text: t('creditSaveError'), error: true })
+    } finally {
+      setSavingCredit(null)
+    }
+  }
+
+  const vbTeamCounts = useMemo(() => getTeamCounts(vbAssignments, teamsWithCredit, sportGames, members, memberTeams), [vbAssignments, teamsWithCredit, sportGames, members, memberTeams])
   const bbTeamCounts = useMemo(() => getBbTeamCounts(bbAssignments, teams, sportGames), [bbAssignments, teams, sportGames])
 
   const assignments = sportTab === 'volleyball' ? vbAssignments : bbAssignments
@@ -208,7 +234,7 @@ export default function ScorerAssignPage() {
     setSaveMsg(null)
     setTimeout(() => {
       if (sportTab === 'volleyball') {
-        setVbAssignments(runAssignment({ games: sportGames, teams, trainings, members, memberTeams, halls }))
+        setVbAssignments(runAssignment({ games: sportGames, teams: teamsWithCredit, trainings, members, memberTeams, halls }))
       } else {
         setBbAssignments(runBbAssignment({ games: sportGames, teams, trainings, members, memberTeams }))
       }
@@ -449,6 +475,8 @@ export default function ScorerAssignPage() {
                   <TableHead className="px-3 py-2 text-center">{t('scoreboardCount')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('combinedCount')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('refereeCount')}</TableHead>
+                  <TableHead className="px-3 py-2 text-center" title={t('refereesHint')}>{t('refereesCount')}</TableHead>
+                  <TableHead className="px-3 py-2 text-center" title={t('creditHint')}>{t('creditCount')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('totalCount')}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -463,12 +491,35 @@ export default function ScorerAssignPage() {
                       <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.scoreboard || '—'}</TableCell>
                       <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.combined || '—'}</TableCell>
                       <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.referee || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400"
+                        title={counts.referees > counts.refereeCredit ? t('refereesCapped', { count: counts.referees, credit: counts.refereeCredit }) : undefined}>
+                        {counts.referees
+                          ? <span>{counts.referees}<span className="text-gray-400 dark:text-gray-500"> (−{counts.refereeCredit})</span></span>
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="px-3 py-2 text-center">
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          defaultValue={counts.dutyCredit || 0}
+                          key={`${counts.teamId}:${counts.dutyCredit}`}
+                          disabled={savingCredit === counts.teamId}
+                          onBlur={(e) => {
+                            const v = Math.max(0, Math.round(Number(e.target.value) || 0))
+                            if (v !== (counts.dutyCredit || 0)) commitCredit(counts.teamId, v)
+                          }}
+                          className="w-14 rounded border border-gray-300 bg-white px-2 py-1 text-center text-sm text-gray-900 focus:border-primary focus:outline-none disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                          aria-label={t('creditCount')}
+                        />
+                      </TableCell>
                       <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{counts.totalDuties || '—'}</TableCell>
                     </TableRow>
                   ))}
               </TableBody>
             </Table>
           </div>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t('creditFootnote')}</p>
         </div>
       )}
 

@@ -140,6 +140,44 @@ function buildScorerTeams(members: Member[], memberTeams: MemberTeam[]): Set<str
   return teams
 }
 
+/**
+ * Team IDs → number of non-guest referee-licenced (referee_vb) members.
+ * Teams that supply referees to the club already serve it, so they carry fewer
+ * scorer duties (each referee licence counts like a duty already done — see the
+ * referee-credit penalty in scoreTeam). Requested by Thamy, 2026-07-08.
+ */
+export function buildRefereeContribution(members: Member[], memberTeams: MemberTeam[]): Map<string, number> {
+  const licenced = new Set<string>()
+  for (const m of members) if (m.referee_vb) licenced.add(m.id)
+  const counts = new Map<string, number>()
+  for (const mt of memberTeams) {
+    if (licenced.has(mt.member) && (mt.guest_level ?? 0) === 0) {
+      counts.set(mt.team, (counts.get(mt.team) ?? 0) + 1)
+    }
+  }
+  return counts
+}
+
+/**
+ * Build set of "teamId|date" for teams that play a HOME game that day — i.e.
+ * they're already on-site at a KSCW hall and coming anyway. Duty should prefer
+ * these over teams with a free Saturday ("don't summon a team that isn't
+ * playing"). Requested by Thamy, 2026-07-08.
+ */
+export function buildHomeGameDates(games: Game[]): Set<string> {
+  const set = new Set<string>()
+  for (const g of games) {
+    if (g.type === 'home' && g.date && g.kscw_team) set.add(`${g.kscw_team}|${g.date}`)
+  }
+  return set
+}
+
+// Auto referee credit is capped at this many duties. Thamy asked for ~2 off the
+// most referee-heavy team (H3, which has 5 licence holders); an uncapped -10 per
+// licence would remove it from duty entirely. The manual per-team credit
+// (teams.duty_credit) stacks on top for fine-tuning.
+export const MAX_REFEREE_CREDIT = 2
+
 /** Score a candidate team for a specific game and role */
 function scoreTeam(
   teamId: string,
@@ -149,7 +187,10 @@ function scoreTeam(
   teamGameTimes: Map<string, number[]>,
   trainingDates: Set<string>,
   adjacentTeams: Set<string>,
+  homeGameDates: Set<string>,
   scorerTeams: Set<string>,
+  refereeContribution: Map<string, number>,
+  dutyCredits: Map<string, number>,
   assignmentCounts: Map<string, number>,
   dayAssignments: Map<string, Set<string>>,
 ): TeamScore {
@@ -195,11 +236,16 @@ function scoreTeam(
     reasons.push({ key: 'reason_training', params: { points: -20 } })
   }
 
-  // Adjacent-game preference: plays right before/after at this hall → strongly
-  // preferred (already on-site). +50.
+  // On-site preference: a team that's already at the hall that day is preferred
+  // over one with a free Saturday ("don't summon a team that isn't playing" —
+  // Thamy). Plays right before/after at this hall → strongest (+50); otherwise
+  // has any home game the same day → still on-site (+20).
   if (adjacentTeams.has(teamId)) {
     score += 50
     reasons.push({ key: 'reason_sequenceBonus', params: { points: 50 } })
+  } else if (homeGameDates.has(`${teamId}|${game.date}`)) {
+    score += 20
+    reasons.push({ key: 'reason_onSite', params: { points: 20 } })
   }
 
   // Fair rotation: -10 per existing assignment
@@ -208,6 +254,25 @@ function scoreTeam(
     const penalty = 10 * count
     score -= penalty
     reasons.push({ key: 'reason_rotation', params: { count, points: -penalty } })
+  }
+
+  // Referee credit: teams that supply referees to the club already serve it, so
+  // they carry fewer scorer duties (each referee licence counts like a duty
+  // already done, capped). -10 per credited referee.
+  const refCredit = Math.min(refereeContribution.get(teamId) ?? 0, MAX_REFEREE_CREDIT)
+  if (refCredit > 0) {
+    const penalty = 10 * refCredit
+    score -= penalty
+    reasons.push({ key: 'reason_refereeCredit', params: { count: refCredit, points: -penalty } })
+  }
+
+  // Manual credit (teams.duty_credit): admin-set duties this team is excused
+  // from. Stacks on top of the referee credit. -10 per credit.
+  const manualCredit = dutyCredits.get(teamId) ?? 0
+  if (manualCredit !== 0) {
+    const penalty = 10 * manualCredit
+    score -= penalty
+    reasons.push({ key: 'reason_manualCredit', params: { count: manualCredit, points: -penalty } })
   }
 
   // HU20 scoreboard preference: +15
@@ -220,13 +285,6 @@ function scoreTeam(
   if (role === 'scorer' && teamName === 'Legends') {
     score += 8
     reasons.push({ key: 'reason_legendsScorer', params: { points: 8 } })
-  }
-
-  // Weekend no-training bonus: +5
-  const gameDay = new Date(game.date + 'T00:00:00').getDay()
-  if ((gameDay === 0 || gameDay === 6) && !trainingDates.has(`${teamId}|${game.date}`)) {
-    score += 5
-    reasons.push({ key: 'reason_weekendFree', params: { points: 5 } })
   }
 
   return { teamId, teamName, score, disqualified, reasons }
@@ -252,8 +310,12 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
   const candidateTeams = vbTeams.filter((t) => !EXCLUDED_DUTY_TEAM_NAMES.includes(t.name))
 
   const scorerTeams = buildScorerTeams(members, memberTeams)
+  const refereeContribution = buildRefereeContribution(members, memberTeams)
+  const dutyCredits = new Map<string, number>()
+  for (const t of vbTeams) if (t.duty_credit) dutyCredits.set(t.id, t.duty_credit)
   const teamGameTimes = buildTeamGameTimes(games)
   const trainingDates = buildTrainingDates(trainings)
+  const homeGameDates = buildHomeGameDates(games)
   const gamesByDateHall = buildGamesByDateHall(games)
 
   const homeGames = games
@@ -278,8 +340,9 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
       .filter((t) => !excludeIds.includes(t.id))
       .map((t) => scoreTeam(
         t.id, t.name, game, role,
-        teamGameTimes, trainingDates, adjacentTeams,
-        scorerTeams, assignmentCounts, dayAssignments,
+        teamGameTimes, trainingDates, adjacentTeams, homeGameDates,
+        scorerTeams, refereeContribution, dutyCredits,
+        assignmentCounts, dayAssignments,
       ))
       .filter((s) => !s.disqualified)
       .sort((a, b) => b.score - a.score)
@@ -362,26 +425,37 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
 }
 
 export interface TeamCountRow {
+  teamId: string
   scorer: number
   scoreboard: number
   combined: number
   referee: number
   totalDuties: number
   ownGames: number
+  referees: number      // raw referee_vb licence holders on the team
+  refereeCredit: number // capped auto credit actually applied (duties)
+  dutyCredit: number    // manual admin credit (teams.duty_credit)
 }
 
-/** Get per-team summary: assignment counts + own game count */
+/** Get per-team summary: assignment counts + own game count + credit breakdown */
 export function getTeamCounts(
   results: GameAssignment[],
   allTeams: Team[],
   allGames: Game[],
+  members: Member[] = [],
+  memberTeams: MemberTeam[] = [],
 ): Map<string, TeamCountRow> {
   const counts = new Map<string, TeamCountRow>()
+  const refereeContribution = buildRefereeContribution(members, memberTeams)
 
   for (const t of allTeams) {
     if (t.sport === 'volleyball' && t.active && !EXCLUDED_DUTY_TEAM_NAMES.includes(t.name)) {
       const ownGames = allGames.filter((g) => String(g.kscw_team) === t.id).length
-      counts.set(t.name, { scorer: 0, scoreboard: 0, combined: 0, referee: 0, totalDuties: 0, ownGames })
+      const referees = refereeContribution.get(t.id) ?? 0
+      counts.set(t.name, {
+        teamId: t.id, scorer: 0, scoreboard: 0, combined: 0, referee: 0, totalDuties: 0, ownGames,
+        referees, refereeCredit: Math.min(referees, MAX_REFEREE_CREDIT), dutyCredit: t.duty_credit ?? 0,
+      })
     }
   }
 

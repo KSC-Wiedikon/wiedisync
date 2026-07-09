@@ -40,6 +40,13 @@ export default {
   combinedCount: 'Schriiber/Täfeler',
   ownGames: 'Spiel',
   totalCount: 'Total',
+  refereesCount: 'Schiris',
+  refereesHint: 'Schiri-Lizänze im Team. Jedi zellt als scho gleischtete Dienscht (max. 2), drum mached schiri-starchi Teams weniger Schriiber-Dienscht.',
+  refereesCapped: '{{count}} Schiri-Lizänze → als {{credit}} agrechnet (begränzt)',
+  creditCount: 'Guetschrift',
+  creditHint: 'Manuelli Dienscht-Guetschrift: Dienscht, vo dene s Team befreit isch (höcher = weniger Dienscht).',
+  creditFootnote: 'Schiris und Guetschrift verchleinered beidi, wie oft es Team gwählt wird (je −10 Pünkt). D Schiri-Guetschrift isch automatisch (max. 2); d Guetschrift isch dini manuelli Ergänzig. Nach ere Änderig de Algorithmus nomol starte.',
+  creditSaveError: 'Guetschrift het nöd chöne gspeicheret werde.',
 
   // Status
   noGames: 'Käni Spiel glade.',
@@ -63,6 +70,9 @@ export default {
   // Reasons (soft rules)
   reason_training: 'Training ({{points}})',
   reason_sequenceBonus: 'Sequänz-Bonus (+{{points}})',
+  reason_onSite: 'Am gliiche Tag vor Ort (+{{points}})',
+  reason_refereeCredit: 'Schiri-Guetschrift: {{count}}× ({{points}})',
+  reason_manualCredit: 'Manuelli Guetschrift: {{count}}× ({{points}})',
   reason_rotation: 'Rotation: {{count}}x ({{points}})',
   reason_hu20Taefeler: 'HU20 Täfeler (+{{points}})',
   reason_underDoltschi: 'U-Team Döltschi (+{{points}})',
@@ -101,6 +111,9 @@ export default {
   ruleVbSoftWeekend: 'Wochenänd ohni Training: +5',
   ruleVbSoftTraining: 'Training am gliiche Tag: -20',
   ruleVbSoftRotation: 'Fairi Rotation: -10 pro scho überchoge Dienscht',
+  ruleVbSoftOnSite: 'Spilt am gliiche Tag scho es Heimspil (vor Ort): +20',
+  ruleVbSoftRefereeCredit: 'Team stellt Schiedsrichter: -10 pro Schiri-Lizänz (max. 2)',
+  ruleVbSoftManualCredit: 'Manuelli Dienscht-Guetschrift: -10 pro Guetschrift',
   ruleBbHardGame: 'S Team het am gliiche Tag es eiges Spiel',
   ruleBbHardDuty: 'S Team het am gliiche Tag scho en Dienscht',
   ruleBbHardOtr1: 'S Team bruucht es Mitglied mit OTR1-Lizänz (Aaschriiber/Ziitnämmer)',
