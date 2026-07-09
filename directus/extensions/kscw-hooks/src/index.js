@@ -24,6 +24,7 @@ import { initSentry } from '../../kscw-endpoints/src/sentry.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, bucketEmailsByLocale } from '../../kscw-endpoints/src/email-template.js'
 import { sendLocalizedPush, bucketMembersByLocale, tPush } from '../../kscw-endpoints/src/push-i18n.js'
 import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-endpoints/src/signup-invites.js'
+import { bbRequiredDocs } from '../../kscw-endpoints/src/bb-docs.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
@@ -280,7 +281,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // with this fixed UUID on every environment and moves the EXISTING files;
   // this hook covers FUTURE uploads. Best-effort (try/catch + log).
   const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
-  const REGISTRATION_FILE_COLS = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl']
+  const REGISTRATION_FILE_COLS = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert']
   async function quarantineRegistrationDocs(registrationId) {
     try {
       if (!registrationId) return
@@ -3789,12 +3790,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const keys = (meta.keys || []).map(Number).filter(Number.isInteger)
     for (const key of keys) {
       const reg = await database('registrations').where('id', key)
-        .first('id', 'membership_type', 'nationalitaet_code', 'reference_number',
-          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl')
+        .first('id', 'membership_type', 'nationalitaet_code', 'geburtsdatum', 'bb_situation', 'reference_number',
+          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
       if (!reg || reg.membership_type !== 'basketball') continue
-      const natCode = (reg.nationalitaet_code || '').trim().toUpperCase()
-      const required = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
-      if (natCode && natCode !== 'CH') required.push('bb_doc_selfdecl', 'bb_doc_natdecl')
+      // The same PATCH may edit situation/nationality/DOB *and* approve — evaluate
+      // the required set against the post-update values (payload wins), so a
+      // single Data-Studio save that turns the row into a Swiss-club transfer
+      // can't approve it before the Freibrief lands.
+      const situation = payload.bb_situation !== undefined ? payload.bb_situation : reg.bb_situation
+      const natCode = ((payload.nationalitaet_code !== undefined ? payload.nationalitaet_code : reg.nationalitaet_code) || '').trim().toUpperCase()
+      const dob = payload.geburtsdatum !== undefined ? payload.geburtsdatum : reg.geburtsdatum
+      // Situation + nationality + age driven (mirrors registration.js bbRequiredDocs;
+      // school certificate stays optional). Rows without a situation fall back to the
+      // legacy natCode-only rule inside the helper.
+      const required = bbRequiredDocs(situation, natCode, dob)
       // The same update may attach a doc and approve in one call — payload wins.
       const missing = required.filter((k) => (payload[k] === undefined ? !reg[k] : !payload[k]))
       if (missing.length) {
@@ -3825,8 +3834,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             `registrations.id_upload_front = directus_files.id
              OR registrations.id_upload_back = directus_files.id
              OR registrations.bb_doc_lizenz = directus_files.id
+             OR registrations.bb_doc_freibrief = directus_files.id
              OR registrations.bb_doc_selfdecl = directus_files.id
-             OR registrations.bb_doc_natdecl = directus_files.id`,
+             OR registrations.bb_doc_natdecl = directus_files.id
+             OR registrations.bb_doc_u18parents = directus_files.id
+             OR registrations.bb_doc_schoolcert = directus_files.id`,
           )
         })
         .select('id')
