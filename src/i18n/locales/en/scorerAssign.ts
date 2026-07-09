@@ -67,7 +67,7 @@ export default {
 
   // Existing
   existingKept: 'Existing assignment kept',
-  cupOwnDuty: 'Cup — playing team\'s own duty',
+  cupOnCall: 'On call',
   noTeamAvailable: 'No team available',
   noScorerAvailable: 'No scorer available',
   noTaefelerAvailable: 'No scoreboard operator available',
