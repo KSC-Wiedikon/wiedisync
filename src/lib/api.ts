@@ -555,6 +555,21 @@ export function assetUrl(fileId: string | null | undefined, transforms?: string)
   return transforms ? `${API_URL}/assets/${fileId}?${transforms}` : `${API_URL}/assets/${fileId}`
 }
 
+// Auth-flow endpoints whose 4xx responses are ALWAYS user-input validation
+// failures (wrong/expired OTP, weak password, unknown email, already-registered)
+// that the calling UI already surfaces inline. Their sub-500 responses are pure
+// noise in Sentry + the JSONL error log — every fat-fingered OTP code or
+// unregistered-email attempt otherwise reads as an `api_error`. kscwApi still
+// THROWS them (so the caller's catch drives the UX), just without capture. Any
+// 5xx from these endpoints is a real bug and still reports. Mirrors the
+// network-failure / unauthenticated / token-expired carve-outs in sentry.ts.
+const EXPECTED_VALIDATION_ENDPOINTS = new Set([
+  '/verify-email',
+  '/verify-email/confirm',
+  '/set-password',
+  '/register',
+])
+
 /**
  * Call a custom KSCW endpoint.
  *
@@ -625,6 +640,11 @@ export async function kscwApi<T = unknown>(
     // no-token auth-error suppression in sentry.ts. Real auth bugs (401/403 while
     // authenticated, refresh failed) still fall through to captureApiError below.
     if (res.status === 401 && !isAuthenticated()) throw err
+    // Expected, caller-handled validation failures on the auth flows (wrong or
+    // expired OTP, weak password, unknown email). The UI shows each inline, so
+    // reporting the sub-500 to Sentry/JSONL is just noise. `err.code`/`err.body`
+    // were already parsed above, so the caller's catch keeps its control flow.
+    if (res.status < 500 && EXPECTED_VALIDATION_ENDPOINTS.has(path.split('?')[0])) throw err
     captureApiError(err, {
       operation: 'kscwApi',
       endpoint: path,
