@@ -87,8 +87,7 @@ export default {
   reason_rotation: 'Rotazione: {{count}}x ({{points}})',
   reason_hu20Taefeler: 'HU20 tabellone (+{{points}})',
   reason_underDoltschi: 'Squadra Under Döltschi (+{{points}})',
-  reason_legendsScorer: 'Legends segnapunti ({{points}})',
-  reason_legendsScoreboard: 'Legends tabellone ({{points}})',
+  reason_teamRoleBias: 'Bilanciamento {{team}} ({{points}})',
   reason_weekendFree: 'Fine settimana libero (+{{points}})',
 
   // Basketball
@@ -119,7 +118,7 @@ export default {
   ruleVbSoftSequence: 'Gioca subito prima/dopo nella stessa palestra: +50',
   ruleVbSoftHu20: 'HU20 al tabellone: +15',
   ruleVbSoftDoltschi: 'Squadra U in combinato a Döltschi: +10',
-  ruleVbSoftLegends: 'Legends tende al tabellone (~3:1 vs segnapunti): ±12',
+  ruleVbSoftLegends: 'Legends fuori da refertista, verso tabellone/combinato (liberati per D1/HU23): ±6',
   ruleVbSoftWeekend: 'Weekend senza allenamento: +5',
   ruleVbSoftTraining: 'Allenamento lo stesso giorno: -20',
   ruleVbSoftRotation: 'Rotazione equa: -10 per ogni servizio già assegnato',

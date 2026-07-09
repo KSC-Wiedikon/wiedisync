@@ -156,52 +156,40 @@ describe('runAssignment', () => {
     for (const c of counts.values()) expect(c.totalDuties).toBe(0)
   })
 
-  it('Legends leans toward scoreboard over scorer (soft 3:1)', () => {
+  it('Legends is steered off scorer onto scoreboard, even when it is licenced', () => {
+    // Rebalance (Thamy): Legends offloads scorer onto other teams and backfills
+    // with the easier täfeler/combined duty. Here Legends HOLDS a scorer licence
+    // but still yields the scorer slot to X and takes the scoreboard instead.
     const P = team('p', 'P1', '2L')      // playing → separate (scorer + Täfeler)
     const X = team('x', 'X1', '2L')      // holds the scorer licence
-    const L = team('7', 'Legends', '4L') // scoreboard candidate
+    const L = team('7', 'Legends', '4L') // ALSO licenced, but biased off scorer
     const Y = team('y', 'Y1', '4L')      // rival scoreboard candidate
-    const members = [{ id: 'mx', scorer_vb: true } as unknown as Member]
-    const memberTeams = [{ member: 'mx', team: 'x', guest_level: 0 } as unknown as MemberTeam]
+    const members = [
+      { id: 'mx', scorer_vb: true } as unknown as Member,
+      { id: 'ml', scorer_vb: true } as unknown as Member,
+    ]
+    const memberTeams = [
+      { member: 'mx', team: 'x', guest_level: 0 } as unknown as MemberTeam,
+      { member: 'ml', team: '7', guest_level: 0 } as unknown as MemberTeam,
+    ]
     const input: AssignmentInput = {
       games: [game('g1', 'p', '2026-09-15')], teams: [P, X, L, Y],
       trainings: [], members, memberTeams, halls: [],
     }
     const [a] = runAssignment(input)
     expect(a.mode).toBe('separate')
-    expect(a.scorerTeamName).toBe('X1')        // the licenced team scores
-    expect(a.scoreboardTeamName).toBe('Legends') // Legends prefers the scoreboard
+    expect(a.scorerTeamName).toBe('X1')          // Legends yields scorer despite its licence
+    expect(a.scoreboardTeamName).toBe('Legends')  // and takes the easier täfeler
   })
 
-  it('Legends still takes a scorer slot once its scoreboard tally is ahead (3:1)', () => {
-    const P = team('p', 'P1', '2L')
-    const Q = team('q', 'Q1', '2L')
-    const L = team('7', 'Legends', '4L')
-    const X = team('x', 'X1', '2L')
-    const Y = team('y', 'Y1', '4L')
-    // Legends + X both hold a scorer licence.
-    const members = [
-      { id: 'ml', scorer_vb: true } as unknown as Member,
-      { id: 'mx', scorer_vb: true } as unknown as Member,
-    ]
-    const memberTeams = [
-      { member: 'ml', team: '7', guest_level: 0 } as unknown as MemberTeam,
-      { member: 'mx', team: 'x', guest_level: 0 } as unknown as MemberTeam,
-    ]
-    // Pre-existing scoreboard duties: 3 for Legends, 3 for X → equal rotation
-    // load, so only the Legends 3:1 see-saw separates them on the fresh game.
-    const preload = (id: string, date: string, sb: string): Game =>
-      game(id, 'p', date, { scoreboard_duty_team: sb } as Partial<Game>)
-    const games = [
-      preload('p1', '2026-09-01', '7'), preload('p2', '2026-09-02', '7'), preload('p3', '2026-09-03', '7'),
-      preload('p4', '2026-09-04', 'x'), preload('p5', '2026-09-05', 'x'), preload('p6', '2026-09-06', 'x'),
-      game('g', 'q', '2026-10-01'), // fresh separate game
-    ]
-    const input: AssignmentInput = { games, teams: [P, Q, L, X, Y], trainings: [], members, memberTeams, halls: [] }
-    const res = runAssignment(input).find((r) => r.gameId === 'g')!
-    expect(res.mode).toBe('separate')
-    // Legends has done 3 scoreboards + 0 scorer → owesScoreboard is false → it now
-    // wins the scorer slot over the equally-rested X.
-    expect(res.scorerTeamName).toBe('Legends')
+  it('Legends is preferred for the combined "scorer without licence" duty', () => {
+    // The other half of the backfill: Legends leans into combined duty.
+    const P = team('p', 'P1', '4L')      // playing → combined mode (no licence needed)
+    const L = team('7', 'Legends', '4L') // +combined bias
+    const Z = team('z', 'Z1', '4L')      // rival combined candidate
+    const input: AssignmentInput = { games: [game('g1', 'p', '2026-09-15')], teams: [P, L, Z], trainings: [], members: [], memberTeams: [], halls: [] }
+    const [a] = runAssignment(input)
+    expect(a.mode).toBe('combined')
+    expect(a.combinedTeamName).toBe('Legends') // Legends preferred over Z
   })
 })
