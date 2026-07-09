@@ -22,6 +22,8 @@ export function buildTeamColors(teamNames: string[]): Map<string, string> {
 }
 
 export interface XlsxGameRow {
+  gameNo: string // Swiss Volley / Basketplan game number (games.game_id) — the match key for the "upload corrected" round-trip
+  weekday: string
   date: string; time: string; hall: string; home: string; away: string; league: string
   scorer: string; scoreboard: string; combined: string; referee: string; dutyTeam: string
   conflicts: string
@@ -35,6 +37,7 @@ export interface XlsxSummaryRow {
 
 export interface XlsxLabels {
   sheetGames: string; sheetSummary: string
+  gameNo: string; weekday: string
   date: string; time: string; hall: string; home: string; away: string; league: string
   scorer: string; scoreboard: string; combined: string; referee: string; dutyTeam: string; conflicts: string
   team: string; games: string; total: string
@@ -63,8 +66,8 @@ export async function buildAssignmentXlsx(
   // ── Sheet 1: games ──
   const ws = wb.addWorksheet(L.sheetGames.slice(0, 31))
   const gameCols = isVb
-    ? [['date', L.date, 12], ['time', L.time, 8], ['hall', L.hall, 12], ['home', L.home, 26], ['away', L.away, 26], ['league', L.league, 22], ['scorer', L.scorer, 12], ['scoreboard', L.scoreboard, 12], ['combined', L.combined, 14], ['referee', L.referee, 14], ['conflicts', L.conflicts, 44]] as const
-    : [['date', L.date, 12], ['time', L.time, 8], ['hall', L.hall, 12], ['home', L.home, 26], ['away', L.away, 26], ['league', L.league, 22], ['dutyTeam', L.dutyTeam, 14], ['conflicts', L.conflicts, 44]] as const
+    ? [['gameNo', L.gameNo, 12], ['weekday', L.weekday, 6], ['date', L.date, 12], ['time', L.time, 8], ['hall', L.hall, 12], ['home', L.home, 26], ['away', L.away, 26], ['league', L.league, 22], ['scorer', L.scorer, 12], ['scoreboard', L.scoreboard, 12], ['combined', L.combined, 14], ['referee', L.referee, 14], ['conflicts', L.conflicts, 44]] as const
+    : [['gameNo', L.gameNo, 12], ['weekday', L.weekday, 6], ['date', L.date, 12], ['time', L.time, 8], ['hall', L.hall, 12], ['home', L.home, 26], ['away', L.away, 26], ['league', L.league, 22], ['dutyTeam', L.dutyTeam, 14], ['conflicts', L.conflicts, 44]] as const
   ws.columns = gameCols.map(([key, header, width]) => ({ key, header, width }))
   headerRow(ws.getRow(1))
   ws.views = [{ state: 'frozen', ySplit: 1 }]

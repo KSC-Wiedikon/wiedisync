@@ -6,6 +6,14 @@ export default {
   runAlgorithm: 'Algorithmus starte',
   saveAll: 'Alli speichere',
   downloadXlsx: 'Excel abelade',
+  uploadCorrected: 'Korrigierti uelade',
+  uploadHint: 'E korrigierti Excel zrugg in Entwurf übernäh — Ziile wärded über d Spielnummere zuegordnet.',
+  uploadApplied: '{{count}} Zuteilige us de Datei übernoh.',
+  uploadUnmatched: '{{count}} Ziile ohni passendi Spielnummere.',
+  uploadUnknownTeams: 'Unbekannti Team(s): {{names}}.',
+  uploadNoIdColumn: 'Kei Spalte „Spielnr." gfunde — zerscht e nöii Excel abelade.',
+  uploadNoMatches: 'Kei Ziile emne Spiel zuegordnet (Spalte Spielnr. prüefe).',
+  uploadError: 'Datei het nöd chöne gläse werde.',
   rollOut: 'Usrolle',
   rollingOut: 'Wird usgrollt...',
   rollOutHint: 'Die Dienscht definitiv i d Spiel schriibe',
@@ -17,6 +25,8 @@ export default {
   season: 'Saison',
 
   // Table headers
+  gameNo: 'Spielnr.',
+  weekday: 'Tag',
   date: 'Datum',
   time: 'Zit',
   hall: 'Halle',

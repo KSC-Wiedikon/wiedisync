@@ -6,6 +6,14 @@ export default {
   runAlgorithm: 'Lancer l\'algorithme',
   saveAll: 'Tout enregistrer',
   downloadXlsx: 'Télécharger Excel',
+  uploadCorrected: 'Importer corrigé',
+  uploadHint: 'Réappliquer un Excel corrigé au brouillon — les lignes sont associées par numéro de match.',
+  uploadApplied: '{{count}} attributions mises à jour depuis le fichier.',
+  uploadUnmatched: '{{count}} ligne(s) sans numéro de match correspondant.',
+  uploadUnknownTeams: 'Équipe(s) inconnue(s) : {{names}}.',
+  uploadNoIdColumn: 'Aucune colonne « N° match » trouvée — téléchargez d\'abord un nouvel Excel.',
+  uploadNoMatches: 'Aucune ligne associée à un match (vérifiez la colonne N° match).',
+  uploadError: 'Impossible de lire le fichier.',
   rollOut: 'Déployer',
   rollingOut: 'Déploiement...',
   rollOutHint: 'Écrire ces services dans les matchs (officialiser)',
@@ -17,6 +25,8 @@ export default {
   season: 'Saison',
 
   // Table headers
+  gameNo: 'N° match',
+  weekday: 'Jour',
   date: 'Date',
   time: 'Heure',
   hall: 'Salle',

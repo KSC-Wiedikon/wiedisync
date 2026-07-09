@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import type { Game, Team, Training, Member, MemberTeam, Hall } from '../../types'
@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import TeamSelect from '../../components/TeamSelect'
 import TeamChip from '../../components/TeamChip'
 import SportToggle from '../../components/SportToggle'
-import { runAssignment, getTeamCounts, buildTeamGameTimes, timeToMin, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
+import { runAssignment, getTeamCounts, buildTeamGameTimes, buildTrainingDates, buildGamesByDateHall, getAdjacentTeams, timeToMin, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
 import { buildAssignmentXlsx, buildTeamColors, downloadBytes, XLSX_MIME, type XlsxGameRow, type XlsxSummaryRow, type XlsxLabels } from './lib/assignmentExport'
 import { updateRecord } from '../../lib/api'
@@ -41,6 +41,14 @@ const VB_HARD_RULES = ['ruleVbHardGame', 'ruleVbHardDuty', 'ruleVbHardLicence']
 const VB_SOFT_RULES = ['ruleVbSoftSequence', 'ruleVbSoftOnSite', 'ruleVbSoftHu20', 'ruleVbSoftLegends', 'ruleVbSoftTraining', 'ruleVbSoftRotation', 'ruleVbSoftRefereeCredit', 'ruleVbSoftManualCredit']
 const BB_HARD_RULES = ['ruleBbHardGame', 'ruleBbHardDuty', 'ruleBbHardOtr1']
 const BB_SOFT_RULES = ['ruleBbSoftFullCrew', 'ruleBbSoftSequence', 'ruleBbSoftTraining', 'ruleBbSoftRotation', 'ruleBbSoftWeekend']
+
+// Fixed English 3-letter weekday (exports + table are always English). Index by
+// getDay() on a date parsed as local midnight.
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
+function weekdayShort(date: string): string {
+  const d = new Date(date + 'T00:00:00')
+  return Number.isNaN(d.getTime()) ? '' : WEEKDAYS[d.getDay()]
+}
 
 export default function ScorerAssignPage() {
   const { t, i18n } = useTranslation('scorerAssign')
@@ -75,7 +83,7 @@ export default function ScorerAssignPage() {
     fields: ['id', 'team', 'date', 'start_time', 'end_time'],
     all: true,
   })
-  const trainings = trainingsRaw ?? []
+  const trainings = useMemo(() => trainingsRaw ?? [], [trainingsRaw])
 
   // Fetch the per-flag licence booleans (migration 067) — the legacy
   // `licences` JSON array is no longer the source of truth.
@@ -122,6 +130,7 @@ export default function ScorerAssignPage() {
   // in the background. Keyed by team id.
   const [creditOverrides, setCreditOverrides] = useState<Record<string, number>>({})
   const [savingCredit, setSavingCredit] = useState<string | null>(null)
+  const uploadInputRef = useRef<HTMLInputElement | null>(null)
 
   // Lookups
   const teamSportById = useMemo(() => {
@@ -170,31 +179,55 @@ export default function ScorerAssignPage() {
 
   // Game start-times per team/day — for the render-time "plays a match then" note.
   const teamGameTimes = useMemo(() => buildTeamGameTimes(sportGames), [sportGames])
+  // Training days + hall schedule — recomputed notes read these so a manual
+  // dropdown change re-derives the notes for the NEWLY picked team.
+  const trainingDateSet = useMemo(() => buildTrainingDates(trainings), [trainings])
+  const gamesByDateHall = useMemo(() => buildGamesByDateHall(sportGames), [sportGames])
 
-  // Curated, human-readable notes for a game's assignment (only the meaningful
-  // items — misses training, duty next to own game, missing slot — plus a
-  // safety check that no assigned team actually plays at that time).
   type Note = { text: string; tone: 'danger' | 'warn' | 'ok' | 'muted' }
-  const notesFor = (tr: typeof t, conflicts: GameAssignment['conflicts'], assigned: Array<[string | null, string | null]>, game: Game): Note[] => {
+
+  // Curated, human-readable notes for a game's assignment. Derived entirely from
+  // the CURRENT assigned teams (not the frozen algorithm conflicts), so editing a
+  // dropdown immediately refreshes them: training clash, on-site (before/after own
+  // game), and the safety check that no assigned team actually plays at that time.
+  // Row-level status notes (existing kept / unfilled slot) are passed in.
+  const notesFor = (tr: typeof t, assigned: Array<[string | null, string | null]>, game: Game, statusNotes: Note[] = []): Note[] => {
     const out: Note[] = []
     const seen = new Set<string>()
     const add = (text: string, tone: Note['tone']) => { if (text && !seen.has(text)) { seen.add(text); out.push({ text, tone }) } }
-    for (const c of conflicts) {
-      const team = (c.params?.team as string) ?? ''
-      if (c.key === 'reason_training') add(tr('noteTraining', { team }), 'warn')
-      else if (c.key === 'reason_sequenceBonus') add(tr('noteAdjacent', { team }), 'ok')
-      else if (c.key === 'existingKept') add(tr('existingKept'), 'muted')
-      else if (c.key === 'noScorerAvailable' || c.key === 'noTaefelerAvailable' || c.key === 'noRefereeAvailable' || c.key === 'noTeamAvailable') add(tr(c.key), 'warn')
-    }
+    const adjacent = getAdjacentTeams(game, gamesByDateHall)
     const dutyMin = timeToMin(game.time)
-    if (dutyMin != null) {
-      for (const [tid, tname] of assigned) {
-        if (!tid) continue
-        const mins = teamGameTimes.get(`${tid}|${game.date}`) ?? []
-        if (mins.some((m) => Math.abs(m - dutyMin) < 120)) add(tr('noteMatchConflict', { team: tname ?? '' }), 'danger')
+    for (const [tid, tname] of assigned) {
+      if (!tid) continue
+      const team = tname ?? ''
+      if (trainingDateSet.has(`${tid}|${game.date}`)) add(tr('noteTraining', { team }), 'warn')
+      if (adjacent.has(tid)) add(tr('noteAdjacent', { team }), 'ok')
+      if (dutyMin != null && (teamGameTimes.get(`${tid}|${game.date}`) ?? []).some((m) => Math.abs(m - dutyMin) < 120)) {
+        add(tr('noteMatchConflict', { team }), 'danger')
       }
     }
+    for (const n of statusNotes) add(n.text, n.tone)
     return out
+  }
+
+  // Row-level status notes (existing-kept banner + unfilled required slots).
+  // Recomputed from the current assignment so filling/clearing a slot toggles them.
+  const vbStatusNotes = (tr: typeof t, a: GameAssignment): Note[] => {
+    const s: Note[] = []
+    if (a.conflicts.some((c) => c.key === 'existingKept')) s.push({ text: tr('existingKept'), tone: 'muted' })
+    if (a.mode === 'combined') { if (!a.combinedTeamId) s.push({ text: tr('noTeamAvailable'), tone: 'warn' }) }
+    else if (a.mode === 'referee') { if (!a.refereeTeamId) s.push({ text: tr('noRefereeAvailable'), tone: 'warn' }) }
+    else {
+      if (!a.scorerTeamId) s.push({ text: tr('noScorerAvailable'), tone: 'warn' })
+      if (!a.scoreboardTeamId) s.push({ text: tr('noTaefelerAvailable'), tone: 'warn' })
+    }
+    return s
+  }
+  const bbStatusNotes = (tr: typeof t, a: BbGameAssignment): Note[] => {
+    const s: Note[] = []
+    if (a.conflicts.some((c) => c.key === 'existingKept')) s.push({ text: tr('existingKept'), tone: 'muted' })
+    if (!a.dutyTeamId) s.push({ text: tr('noTeamAvailable'), tone: 'warn' })
+    return s
   }
   const noteToneClass = (tone: Note['tone']) =>
     tone === 'danger' ? 'text-red-600 dark:text-red-400 font-medium'
@@ -291,28 +324,29 @@ export default function ScorerAssignPage() {
     const meta = (gameId: string) => {
       const g = homeGames.find((x) => x.id === gameId)
       return {
+        gameNo: g?.game_id ?? '', weekday: g ? weekdayShort(g.date) : '',
         date: g ? formatDateCompact(g.date) : '', time: g?.time ? formatTime(g.time) : '',
         hall: g ? (hallNameById.get(String(g.hall)) ?? '') : '',
         home: g?.home_team ?? '', away: g?.away_team ?? '', league: g?.league ?? '',
       }
     }
     // Same curated notes as the table, but ALWAYS in English (export convention).
-    const noteText = (conflicts: GameAssignment['conflicts'], assigned: Array<[string | null, string | null]>, gameId: string) => {
+    const noteText = (assigned: Array<[string | null, string | null]>, gameId: string, statusNotes: Note[]) => {
       const g = homeGames.find((x) => x.id === gameId)
-      return g ? notesFor(tEn, conflicts, assigned, g).map((n) => n.text).join('; ') : ''
+      return g ? notesFor(tEn, assigned, g, statusNotes).map((n) => n.text).join('; ') : ''
     }
     const gameRows: XlsxGameRow[] = isVb
       ? vbAssignments.map((a) => ({
           ...meta(a.gameId), ...blank,
           scorer: a.scorerTeamName ?? '', scoreboard: a.scoreboardTeamName ?? '',
           combined: a.combinedTeamName ?? '', referee: a.refereeTeamName ?? '',
-          conflicts: noteText(a.conflicts, [[a.scorerTeamId, a.scorerTeamName], [a.scoreboardTeamId, a.scoreboardTeamName], [a.combinedTeamId, a.combinedTeamName], [a.refereeTeamId, a.refereeTeamName]], a.gameId),
+          conflicts: noteText([[a.scorerTeamId, a.scorerTeamName], [a.scoreboardTeamId, a.scoreboardTeamName], [a.combinedTeamId, a.combinedTeamName], [a.refereeTeamId, a.refereeTeamName]], a.gameId, vbStatusNotes(tEn, a)),
           status: a.conflicts.some((c) => c.key === 'existingKept') ? 'existing'
             : (!a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId) ? 'unassigned' : 'ok',
         }))
       : bbAssignments.map((a) => ({
           ...meta(a.gameId), ...blank, dutyTeam: a.dutyTeamName ?? '',
-          conflicts: noteText(a.conflicts, [[a.dutyTeamId, a.dutyTeamName]], a.gameId),
+          conflicts: noteText([[a.dutyTeamId, a.dutyTeamName]], a.gameId, bbStatusNotes(tEn, a)),
           status: a.conflicts.some((c) => c.key === 'existingKept') ? 'existing' : !a.dutyTeamId ? 'unassigned' : 'ok',
         }))
     const summaryRows: XlsxSummaryRow[] = isVb
@@ -322,6 +356,7 @@ export default function ScorerAssignPage() {
           team, games: c.ownGames, scorer: 0, scoreboard: 0, combined: 0, referee: 0, duties: c.duties, total: c.duties }))
     const L: XlsxLabels = {
       sheetGames: tEn('title'), sheetSummary: tEn('teamSummary'),
+      gameNo: tEn('gameNo'), weekday: tEn('weekday'),
       date: tEn('date'), time: tEn('time'), hall: tEn('hall'), home: tEn('home'), away: tEn('away'), league: tEn('league'),
       scorer: tEn('autoScorer'), scoreboard: tEn('autoTaefeler'), combined: tEn('combinedCount'),
       referee: tEn('refereeCount'), dutyTeam: tEn('autoDutyTeam'), conflicts: tEn('notes'),
@@ -331,15 +366,22 @@ export default function ScorerAssignPage() {
     downloadBytes(bytes, XLSX_MIME, `kscw_scorer_assignment_${isVb ? 'vb' : 'bb'}_${season.replace('/', '-')}.xlsx`)
   }
 
+  // A manually edited row is no longer an untouched "existing" assignment — drop
+  // the existingKept flag so it (a) loses the "kept" note/greyout and (b) is
+  // actually written by Roll out (which skips existingKept rows).
+  const stripExisting = <T extends { conflicts: GameAssignment['conflicts'] }>(a: T): T =>
+    a.conflicts.some((c) => c.key === 'existingKept') ? { ...a, conflicts: a.conflicts.filter((c) => c.key !== 'existingKept') } : a
+
   function handleVbOverride(gameId: string, role: 'scorer' | 'scoreboard' | 'combined' | 'referee', teamId: string) {
     setVbAssignments((prev) =>
       prev.map((a) => {
         if (a.gameId !== gameId) return a
         const teamName = teamNameById.get(teamId) ?? null
-        if (role === 'combined') return { ...a, combinedTeamId: teamId || null, combinedTeamName: teamName }
-        if (role === 'scorer') return { ...a, scorerTeamId: teamId || null, scorerTeamName: teamName }
-        if (role === 'referee') return { ...a, refereeTeamId: teamId || null, refereeTeamName: teamName }
-        return { ...a, scoreboardTeamId: teamId || null, scoreboardTeamName: teamName }
+        const b = stripExisting(a)
+        if (role === 'combined') return { ...b, combinedTeamId: teamId || null, combinedTeamName: teamName }
+        if (role === 'scorer') return { ...b, scorerTeamId: teamId || null, scorerTeamName: teamName }
+        if (role === 'referee') return { ...b, refereeTeamId: teamId || null, refereeTeamName: teamName }
+        return { ...b, scoreboardTeamId: teamId || null, scoreboardTeamName: teamName }
       }),
     )
   }
@@ -347,9 +389,89 @@ export default function ScorerAssignPage() {
   function handleBbOverride(gameId: string, teamId: string) {
     setBbAssignments((prev) =>
       prev.map((a) =>
-        a.gameId === gameId ? { ...a, dutyTeamId: teamId || null, dutyTeamName: teamNameById.get(teamId) ?? null } : a,
+        a.gameId === gameId ? { ...stripExisting(a), dutyTeamId: teamId || null, dutyTeamName: teamNameById.get(teamId) ?? null } : a,
       ),
     )
+  }
+
+  // Upload a corrected export (.xlsx): match each row to a game by its Swiss
+  // Volley / Basketplan number (games.game_id, the "Game no." column) and apply
+  // the team columns to the draft. Team names map back to ids; unknown names and
+  // unmatched rows are reported. The draft can then be rolled out as usual.
+  async function handleUploadXlsx(file: File) {
+    const isVb = sportTab === 'volleyball'
+    try {
+      const ExcelJS = await import('exceljs')
+      const wb = new ExcelJS.Workbook()
+      await wb.xlsx.load(await file.arrayBuffer())
+      const ws = wb.worksheets[0]
+      if (!ws) { setSaveMsg({ text: t('uploadError'), error: true }); return }
+
+      // Header labels are the English export headers.
+      const headerIdx = new Map<string, number>()
+      ws.getRow(1).eachCell((cell, c) => { const k = String(cell.value ?? '').trim(); if (k) headerIdx.set(k, c) })
+      const col = (label: string) => headerIdx.get(label) ?? -1
+      const gameNoCol = col(tEn('gameNo'))
+      if (gameNoCol < 0) { setSaveMsg({ text: t('uploadNoIdColumn'), error: true }); return }
+      const scorerCol = col(tEn('autoScorer')), scoreboardCol = col(tEn('autoTaefeler')),
+        combinedCol = col(tEn('combinedCount')), refereeCol = col(tEn('refereeCount')), dutyCol = col(tEn('autoDutyTeam'))
+
+      const internalIdByGameNo = new Map<string, string>()
+      for (const g of homeGames) if (g.game_id) internalIdByGameNo.set(String(g.game_id).trim(), g.id)
+      const teamIdByName = new Map<string, string>()
+      for (const tm of teams) teamIdByName.set(tm.name.trim(), tm.id)
+
+      const unknownTeams = new Set<string>()
+      const cellStr = (row: import('exceljs').Row, c: number) => (c > 0 ? String(row.getCell(c).value ?? '').trim() : '')
+      const nameToId = (name: string) => {
+        if (!name) return null
+        const id = teamIdByName.get(name)
+        if (!id) { unknownTeams.add(name); return null }
+        return id
+      }
+
+      const vbUpdates = new Map<string, { scorer: string | null; scoreboard: string | null; combined: string | null; referee: string | null }>()
+      const bbUpdates = new Map<string, string | null>()
+      let unmatched = 0
+      ws.eachRow((row, rn) => {
+        if (rn === 1) return
+        const gameNo = cellStr(row, gameNoCol)
+        if (!gameNo) return
+        const internalId = internalIdByGameNo.get(gameNo)
+        if (!internalId) { unmatched++; return }
+        if (isVb) vbUpdates.set(internalId, { scorer: nameToId(cellStr(row, scorerCol)), scoreboard: nameToId(cellStr(row, scoreboardCol)), combined: nameToId(cellStr(row, combinedCol)), referee: nameToId(cellStr(row, refereeCol)) })
+        else bbUpdates.set(internalId, nameToId(cellStr(row, dutyCol)))
+      })
+
+      const applied = isVb ? vbUpdates.size : bbUpdates.size
+      if (applied === 0) { setSaveMsg({ text: t('uploadNoMatches'), error: true }); return }
+
+      const nameOf = (id: string | null) => (id ? (teamNameById.get(id) ?? null) : null)
+      if (isVb) {
+        setVbAssignments((prev) => prev.map((a) => {
+          const u = vbUpdates.get(a.gameId); if (!u) return a
+          // Clamp to the game's mode so a stray value in an irrelevant column
+          // (e.g. Scorer filled on a combined game) can't pollute roll-out.
+          const b = { ...stripExisting(a), scorerTeamId: null, scorerTeamName: null, scoreboardTeamId: null, scoreboardTeamName: null, combinedTeamId: null, combinedTeamName: null, refereeTeamId: null, refereeTeamName: null }
+          if (a.mode === 'combined') return { ...b, combinedTeamId: u.combined, combinedTeamName: nameOf(u.combined) }
+          if (a.mode === 'referee') return { ...b, refereeTeamId: u.referee, refereeTeamName: nameOf(u.referee) }
+          return { ...b, scorerTeamId: u.scorer, scorerTeamName: nameOf(u.scorer), scoreboardTeamId: u.scoreboard, scoreboardTeamName: nameOf(u.scoreboard) }
+        }))
+      } else {
+        setBbAssignments((prev) => prev.map((a) => {
+          if (!bbUpdates.has(a.gameId)) return a
+          const duty = bbUpdates.get(a.gameId) ?? null
+          return { ...stripExisting(a), dutyTeamId: duty, dutyTeamName: nameOf(duty) }
+        }))
+      }
+
+      const parts = [t('uploadApplied', { count: applied })]
+      if (unmatched) parts.push(t('uploadUnmatched', { count: unmatched }))
+      if (unknownTeams.size) parts.push(t('uploadUnknownTeams', { names: [...unknownTeams].join(', ') }))
+      setSaveMsg({ text: parts.join(' '), error: unmatched > 0 || unknownTeams.size > 0 })
+    } catch {
+      setSaveMsg({ text: t('uploadError'), error: true })
+    }
   }
 
   const assignedCount = sportTab === 'volleyball'
@@ -404,6 +526,21 @@ export default function ScorerAssignPage() {
           <Button size="sm" variant="outline" onClick={handleDownloadXlsx}>
             {t('downloadXlsx')}
           </Button>
+        )}
+
+        {assignments.length > 0 && (
+          <>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadXlsx(f); e.target.value = '' }}
+            />
+            <Button size="sm" variant="outline" onClick={() => uploadInputRef.current?.click()} title={t('uploadHint')}>
+              {t('uploadCorrected')}
+            </Button>
+          </>
         )}
       </div>
 
@@ -593,7 +730,7 @@ export default function ScorerAssignPage() {
                         }`}
                       >
                         <TableCell className="whitespace-nowrap px-2 py-2 text-gray-700 dark:text-gray-300">
-                          <div>{formatDateCompact(game.date)}</div>
+                          <div><span className="text-gray-400 dark:text-gray-500">{weekdayShort(game.date)}</span> {formatDateCompact(game.date)}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">{game.time ? formatTime(game.time) : ''}</div>
                         </TableCell>
                         <TableCell className="px-2 py-2 text-gray-600 dark:text-gray-400">{hallName}</TableCell>
@@ -630,7 +767,7 @@ export default function ScorerAssignPage() {
                         )}
                         <TableCell className="max-w-[240px] px-2 py-2">
                           <div className="space-y-0.5 text-xs">
-                            {notesFor(t, a.conflicts, assignedTeams, game).map((n, i) => (
+                            {notesFor(t, assignedTeams, game, vbStatusNotes(t, a)).map((n, i) => (
                               <div key={i} className={`truncate ${noteToneClass(n.tone)}`} title={n.text}>{n.text}</div>
                             ))}
                           </div>
@@ -655,7 +792,7 @@ export default function ScorerAssignPage() {
                         }`}
                       >
                         <TableCell className="whitespace-nowrap px-2 py-2 text-gray-700 dark:text-gray-300">
-                          <div>{formatDateCompact(game.date)}</div>
+                          <div><span className="text-gray-400 dark:text-gray-500">{weekdayShort(game.date)}</span> {formatDateCompact(game.date)}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">{game.time ? formatTime(game.time) : ''}</div>
                         </TableCell>
                         <TableCell className="px-2 py-2 text-gray-600 dark:text-gray-400">{hallName}</TableCell>
@@ -672,7 +809,7 @@ export default function ScorerAssignPage() {
                         </TableCell>
                         <TableCell className="max-w-[240px] px-2 py-2">
                           <div className="space-y-0.5 text-xs">
-                            {notesFor(t, a.conflicts, assignedTeams, game).map((n, i) => (
+                            {notesFor(t, assignedTeams, game, bbStatusNotes(t, a)).map((n, i) => (
                               <div key={i} className={`truncate ${noteToneClass(n.tone)}`} title={n.text}>{n.text}</div>
                             ))}
                           </div>
