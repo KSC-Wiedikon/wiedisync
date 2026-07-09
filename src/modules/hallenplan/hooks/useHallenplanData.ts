@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useCollection } from '../../../lib/query'
 import { flattenM2MTeams } from '../../../lib/api'
 import { toISODate } from '../../../utils/dateHelpers'
@@ -46,6 +46,7 @@ export function useHallenplanData(
   const {
     data: rawSlotsData,
     isLoading: slotsLoading,
+    isPlaceholderData: slotsStale,
     refetch: refetchSlots,
   } = useCollection<HallSlot>('hall_slots', {
     filter: { _and: slotFilterConditions },
@@ -64,6 +65,7 @@ export function useHallenplanData(
   const {
     data: closuresData,
     isLoading: closuresLoading,
+    isPlaceholderData: closuresStale,
     refetch: refetchClosures,
   } = useCollection<HallClosure>('hall_closures', {
     filter: { _and: closureFilterConditions },
@@ -72,7 +74,7 @@ export function useHallenplanData(
   const closures = closuresData ?? []
 
   // Games for this week (exclude postponed)
-  const { data: gamesRaw, isLoading: gamesLoading, refetch: refetchGames } = useCollection<Game>('games', {
+  const { data: gamesRaw, isLoading: gamesLoading, isPlaceholderData: gamesStale, refetch: refetchGames } = useCollection<Game>('games', {
     filter: { _and: [{ date: { _gte: mondayStr } }, { date: { _lte: sundayStr } }, { away_team: { _nnull: true } }, { time: { _nnull: true } }, { _or: [{ status: { _neq: 'postponed' } }, { status: { _null: true } }] }] },
     limit: 100,
     sort: ['date', 'time'],
@@ -83,6 +85,7 @@ export function useHallenplanData(
   const {
     data: trainingsRaw,
     isLoading: trainingsLoading,
+    isPlaceholderData: trainingsStale,
     refetch: refetchTrainings,
   } = useCollection<Training>('trainings', {
     filter: { _and: [{ date: { _gte: mondayStr } }, { date: { _lte: sundayStr } }] },
@@ -92,7 +95,7 @@ export function useHallenplanData(
   const trainings = trainingsRaw ?? []
 
   // Hall events (GCal) for this week
-  const { data: hallEventsRaw, isLoading: hallEventsLoading, refetch: refetchHallEvents } = useCollection<HallEvent>('hall_events', {
+  const { data: hallEventsRaw, isLoading: hallEventsLoading, isPlaceholderData: hallEventsStale, refetch: refetchHallEvents } = useCollection<HallEvent>('hall_events', {
     filter: { _and: [{ date: { _gte: mondayStr } }, { date: { _lte: sundayStr } }] },
     limit: 100,
     sort: ['date', 'start_time'],
@@ -103,6 +106,7 @@ export function useHallenplanData(
   const {
     data: slotClaimsRaw,
     isLoading: claimsLoading,
+    isPlaceholderData: claimsStale,
     refetch: refetchClaims,
   } = useCollection<SlotClaim>('slot_claims', {
     filter: { _and: [{ date: { _gte: mondayStr } }, { date: { _lte: sundayStr } }, { status: { _eq: 'active' } }] },
@@ -153,8 +157,24 @@ export function useHallenplanData(
     return toISODate(d)
   }, [])
 
-  // Convert and merge virtual slots
-  const slots = useMemo(() => {
+  // On a week switch, every date-scoped query briefly serves the PREVIOUS
+  // week's rows as placeholder data (keepPreviousData in the global query
+  // client). The recurring hall_slot templates are week-agnostic (keyed by
+  // day_of_week), so they render for the new week immediately — but the
+  // placeholder trainings/games still carry last week's dates, which map to no
+  // cell in the new week, so nothing suppresses the templates and the grid
+  // flashes all-green ("Frei") until the real occupancy resolves. Freeze on the
+  // last fully-consistent slot set while ANY date-scoped query is still showing
+  // placeholder data, then swap atomically once every query has resolved for
+  // the current week. (isPlaceholderData is false during same-week background
+  // refetches, so realtime refreshes still update in place.)
+  const showingStale =
+    slotsStale || trainingsStale || gamesStale || hallEventsStale || closuresStale || claimsStale
+
+  // Convert and merge virtual slots. Computed from whatever data is currently
+  // in cache — during a week transition this may be inconsistent (see below),
+  // so the exposed `slots` routes around it via `stableSlots`.
+  const computedSlots = useMemo(() => {
     const virtualSlots: HallSlot[] = []
 
     for (const game of games) {
@@ -195,6 +215,22 @@ export function useHallenplanData(
 
     return mergeVirtualSlots(rawSlots, filteredVirtual, slotClaims, mergedClosures, games, weekDays, halls, teams, freedHorizonDate)
   }, [rawSlots, games, trainings, hallEvents, weekDays, halls, teams, selectedHallIds, slotClaims, mergedClosures, freedHorizonDate])
+
+  // Hold the last fully-consistent merge so a week switch swaps atomically
+  // instead of flashing the recurring templates as all-green ("Frei") while the
+  // new week's trainings/games are still loading (they briefly serve the prior
+  // week's placeholder rows, which map to no cell in the new week). While any
+  // date-scoped query is showing placeholder data we keep the previous grid;
+  // once they all resolve, `computedSlots` is consistent again and we swap it in
+  // by adjusting state during render (React's endorsed "store info from previous
+  // renders" pattern — https://react.dev/reference/react/useState). The equality
+  // guard prevents a render loop. isPlaceholderData is false during same-week
+  // background refetches, so realtime refreshes still update in place.
+  const [stableSlots, setStableSlots] = useState<HallSlot[]>(computedSlots)
+  if (!showingStale && stableSlots !== computedSlots) {
+    setStableSlots(computedSlots)
+  }
+  const slots = showingStale ? stableSlots : computedSlots
 
   const refetch = () => {
     refetchSlots()
