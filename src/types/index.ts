@@ -566,6 +566,16 @@ export interface EventSession extends BaseRecord {
 
 }
 
+/** Standing VB referee → team duty (migration 200). Set on /admin/vb-referees.
+ *  Many-to-many; `external` (team null) = duty outside Wiedikon. */
+export interface VbRefereeDuty extends BaseRecord {
+  referee: string | Member
+  team: string | Team | null
+  external: boolean
+  external_label: string | null
+  note: string | null
+}
+
 export interface HallEvent extends BaseRecord {
   uid: string
   title: string

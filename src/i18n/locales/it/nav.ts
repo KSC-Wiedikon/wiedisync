@@ -55,6 +55,7 @@ export default {
   whatsNew: 'Novità',
   refereeExpenses: 'Spese arbitrali',
   scorerAssign: 'Assegnazione refertisti',
+  vbReferees: 'Arbitri pallavolo',
   clubStats: 'Statistiche',
   anmeldungen: 'Iscrizioni',
   guide: 'Guida',

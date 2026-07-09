@@ -1571,6 +1571,9 @@ async function main() {
     // scoping is enforced in the FormsPage UI (consistent with every other Sport
     // Admin collection, which are likewise club-wide CRUD + UI-scoped).
     'forms', 'form_submissions', 'forms_teams',
+    // VB referee → team duty map (migration 200) — club-wide CRUD; the
+    // /admin/vb-referees page is UI-scoped to VB admins (full admins bypass).
+    'vb_referee_duty',
     'directus_files',
   ]
   for (const col of SPORT_ADMIN_FULL_CRUD) {

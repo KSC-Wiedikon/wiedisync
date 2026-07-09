@@ -118,6 +118,7 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
       { to: '/admin/hallenplan', label: t('hallenplan'), icon: <Building2 className={iconClass} /> },
       { to: '/admin/referee-expenses', label: t('refereeExpenses'), icon: <Banknote className={iconClass} /> },
       { to: '/admin/scorer-assign', label: t('scorerAssign'), icon: <ClipboardList className={iconClass} /> },
+      { to: '/admin/vb-referees', label: t('vbReferees'), icon: <Gavel className={iconClass} /> },
       { to: '/admin/anmeldungen', label: t('anmeldungen'), icon: <UserPlus className={iconClass} /> },
       { to: '/admin/club-stats', label: t('clubStats'), icon: <BarChart3 className={iconClass} /> },
       { to: '/admin/volley-feedback', label: t('volleyFeedback'), icon: <MessageSquare className={iconClass} /> },

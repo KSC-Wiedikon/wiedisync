@@ -55,6 +55,7 @@ export default {
   whatsNew: 'Nouveautes',
   refereeExpenses: 'Frais d\'arbitrage',
   scorerAssign: 'Attribution des marqueurs',
+  vbReferees: 'Arbitres volley',
   clubStats: 'Statistiques',
   anmeldungen: 'Inscriptions',
   guide: 'Guide',

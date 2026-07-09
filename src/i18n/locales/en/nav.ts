@@ -56,6 +56,7 @@ export default {
   whatsNew: "What's new",
   refereeExpenses: 'Referee expenses',
   scorerAssign: 'Scorer assignment',
+  vbReferees: 'Volley referees',
   clubStats: 'Club stats',
   volleyFeedback: 'Volley feedback',
   anmeldungen: 'Registrations',

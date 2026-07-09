@@ -55,6 +55,7 @@ export default {
   whatsNew: 'Was isch neu',
   refereeExpenses: 'Schiedsrichterchöschte',
   scorerAssign: 'Schriiber-Zuteilig',
+  vbReferees: 'Volley-Schiedsrichter',
   clubStats: 'Vereinsstatistik',
   anmeldungen: 'Amäldigä',
   guide: 'Aleitig',
