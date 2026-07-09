@@ -32,6 +32,7 @@ export type MemberPosition =
   | 'power_forward'
   | 'center'
   | 'guest'
+  | 'staff_only'
   | 'other'
 
 export interface Team extends BaseRecord {

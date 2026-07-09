@@ -20,6 +20,7 @@ export default {
   positionPowerForward: 'Power Forward',
   positionCenter: 'Center',
   positionGuest: 'Gast',
+  positionStaffOnly: 'Nur Staff',
   positionOther: 'Andere',
 
   // Roles
