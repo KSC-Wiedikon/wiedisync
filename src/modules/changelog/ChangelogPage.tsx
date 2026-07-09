@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.32.0'
+const APP_VERSION = '1.33.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.33.0',
+    date: '09.07.2026',
+    sections: [
+      {
+        title: '“Staff only” position',
+        items: [
+          'Members who are staff and don’t play can now be marked “Staff only” instead of “Other” when choosing positions. Existing non-playing coaches and team responsibles were updated automatically.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.32.0',
     date: '09.07.2026',

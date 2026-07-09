@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.33.0 — 2026-07-09
+
+### “Staff only” position
+- **New “Staff only” position** replaces “Other” in the volleyball and basketball position pickers — a clearer way to mark a non-playing coach / team responsible. “Other” stays valid for legacy / position-less members but is no longer offered. Existing non-playing staff (coach/TR whose only position was “Other” or empty) were converted to “Staff only”.
+
 ## v1.32.0 — 2026-07-09
 
 ### Volley referees admin page
