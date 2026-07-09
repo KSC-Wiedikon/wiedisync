@@ -89,6 +89,7 @@ const adminItems: NavItem[] = [
   { to: '/admin/hallenplan', labelKey: 'hallenplan', icon: <Building2 className={iconClass} /> },
   { to: '/admin/referee-expenses', labelKey: 'refereeExpenses', icon: <Banknote className={iconClass} /> },
   { to: '/admin/scorer-assign', labelKey: 'scorerAssign', icon: <ClipboardList className={iconClass} /> },
+  { to: '/admin/vb-referees', labelKey: 'vbReferees', icon: <Gavel className={iconClass} /> },
   { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: <UserPlus className={iconClass} /> },
   { to: '/admin/club-stats', labelKey: 'clubStats', icon: <BarChart3 className={iconClass} /> },
   { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: <MessageSquare className={iconClass} /> },
