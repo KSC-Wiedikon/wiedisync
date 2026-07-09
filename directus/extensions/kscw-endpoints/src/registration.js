@@ -439,6 +439,58 @@ function buildAdminNotificationEmail(reg, locale = 'de') {
 // string value.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// ── Basketball required-document set ───────────────────────────────────────
+// Mirrors Swiss Basketball's "Liste der Dokumente für jeden Fall" and the client
+// gate in kscw-website registration-form.js (bbDocSet). The applicant's licensing
+// SITUATION plus nationality and whether they are a minor (U18, FIBA minor rules)
+// decide which documents are mandatory beyond ID front/back + signed Lizenzantrag.
+const BB_SITUATIONS = ['neu', 'transfer_ch', 'transfer_intl', 'rueckkehr']
+
+// Minor = under 18 at the start of the current season (Sept 1). Derived from the
+// date of birth string (YYYY-MM-DD) so it matches the client's derivation.
+function bbIsMinor(dob) {
+  if (!dob) return false
+  const m = String(dob).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return false
+  const by = +m[1], bm = +m[2], bd = +m[3]
+  const now = new Date()
+  const seasonStartYear = (now.getUTCMonth() + 1) >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
+  const refMonth = 9, refDay = 1 // Sept 1
+  let age = seasonStartYear - by
+  if (refMonth < bm || (refMonth === bm && refDay < bd)) age--
+  return age < 18
+}
+
+// Required document COLUMNS (registrations table) for a basketball registration.
+// A falsy/unknown situation falls back to the legacy nationality-only rule so
+// pre-situation rows (created before this field existed) keep a sane required set.
+function bbRequiredDocs(situation, natCode, dob) {
+  const base = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
+  const foreign = natCode && natCode !== 'CH'
+  const minor = bbIsMinor(dob)
+  if (!BB_SITUATIONS.includes(situation)) {
+    // Legacy fallback (matches the pre-2026-07 natCode-only gate).
+    if (foreign) base.push('bb_doc_selfdecl', 'bb_doc_natdecl')
+    return base
+  }
+  switch (situation) {
+    case 'transfer_ch':
+      base.push('bb_doc_freibrief')
+      break
+    case 'transfer_intl':
+    case 'rueckkehr':
+      base.push('bb_doc_selfdecl')
+      if (minor) base.push('bb_doc_natdecl', 'bb_doc_u18parents')
+      break
+    case 'neu':
+    default:
+      if (foreign) base.push('bb_doc_selfdecl')
+      if (foreign && minor) base.push('bb_doc_natdecl')
+      break
+  }
+  return base
+}
+
 // Private quarantine folder for registration documents (migration 169; same
 // UUID on every environment). Files uploaded via /registration/upload are born
 // in here — never folder-less, never anonymous-readable via /assets.
@@ -575,13 +627,18 @@ export function registerRegistration(router, { database, logger, services, getSc
         id_upload_front: docId(body.id_upload_front),
         id_upload_back: docId(body.id_upload_back),
         bb_doc_lizenz: docId(body.bb_doc_lizenz),
+        bb_doc_freibrief: docId(body.bb_doc_freibrief),
         bb_doc_selfdecl: docId(body.bb_doc_selfdecl),
         bb_doc_natdecl: docId(body.bb_doc_natdecl),
+        bb_doc_u18parents: docId(body.bb_doc_u18parents),
+        bb_doc_schoolcert: docId(body.bb_doc_schoolcert),
       }
+      const bbSituation = BB_SITUATIONS.includes(body.bb_situation) ? body.bb_situation : null
       if (body.membership_type === 'basketball') {
         const natCode = (body.nationalitaet_code || '').trim().toUpperCase().slice(0, 2)
-        const required = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
-        if (natCode !== 'CH') required.push('bb_doc_selfdecl', 'bb_doc_natdecl')
+        // Situation + nationality + age drive the required set (school certificate
+        // is optional → never required). Mirrors the client gate.
+        const required = bbRequiredDocs(bbSituation, natCode, body.geburtsdatum)
         const missing = required.filter((k) => !docs[k])
         if (missing.length) {
           // Localized: this message reaches users on a STALE cached form JS

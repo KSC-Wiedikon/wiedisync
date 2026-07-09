@@ -40,6 +40,13 @@ export default {
   combinedCount: 'Segnapunti/Tabellone',
   ownGames: 'Partite',
   totalCount: 'Totale',
+  refereesCount: 'Arbitri',
+  refereesHint: 'Licenze da arbitro nella squadra. Ognuna conta come un servizio già svolto (max. 2), quindi le squadre con molti arbitri fanno meno servizi di refertazione.',
+  refereesCapped: '{{count}} licenze da arbitro → accreditate come {{credit}} (limitato)',
+  creditCount: 'Credito',
+  creditHint: 'Credito servizi manuale: servizi da cui la squadra è esonerata (più alto = meno servizi).',
+  creditFootnote: 'Arbitri e Credito riducono entrambi la frequenza di selezione di una squadra (−10 punti ciascuno). Il credito arbitri è automatico (max. 2); il Credito è la tua regolazione manuale. Dopo una modifica, riavvia l\'algoritmo.',
+  creditSaveError: 'Impossibile salvare il credito.',
 
   // Status
   noGames: 'Nessuna partita caricata.',
@@ -63,6 +70,9 @@ export default {
   // Reasons (soft rules)
   reason_training: 'Allenamento ({{points}})',
   reason_sequenceBonus: 'Bonus sequenza (+{{points}})',
+  reason_onSite: 'Sul posto lo stesso giorno (+{{points}})',
+  reason_refereeCredit: 'Credito arbitraggio: {{count}}× ({{points}})',
+  reason_manualCredit: 'Credito manuale: {{count}}× ({{points}})',
   reason_rotation: 'Rotazione: {{count}}x ({{points}})',
   reason_hu20Taefeler: 'HU20 tabellone (+{{points}})',
   reason_underDoltschi: 'Squadra Under Döltschi (+{{points}})',
@@ -101,6 +111,9 @@ export default {
   ruleVbSoftWeekend: 'Weekend senza allenamento: +5',
   ruleVbSoftTraining: 'Allenamento lo stesso giorno: -20',
   ruleVbSoftRotation: 'Rotazione equa: -10 per ogni servizio già assegnato',
+  ruleVbSoftOnSite: 'Gioca già una partita in casa lo stesso giorno (sul posto): +20',
+  ruleVbSoftRefereeCredit: 'La squadra fornisce arbitri: -10 per licenza da arbitro (max. 2)',
+  ruleVbSoftManualCredit: 'Credito servizi manuale: -10 per credito',
   ruleBbHardGame: 'La squadra ha una propria partita lo stesso giorno',
   ruleBbHardDuty: 'La squadra ha già un servizio lo stesso giorno',
   ruleBbHardOtr1: 'La squadra necessita di un membro con licenza OTR1 (refertista/cronometrista)',

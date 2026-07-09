@@ -67,6 +67,10 @@ export interface Team extends BaseRecord {
   dashboard_range_to?: string | null
   /** Coach Dashboard: exclude cup games from games-attendance count. */
   dashboard_league_only?: boolean
+  /** Scorer-duty manual credit (migration 196): duties this team is excused from
+   *  (higher = fewer scorer/scoreboard assignments). Stacks on top of the
+   *  automatic referee credit. Editable on the scorer-assignment page. */
+  duty_credit?: number
 
 }
 

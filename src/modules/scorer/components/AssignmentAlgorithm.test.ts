@@ -102,4 +102,39 @@ describe('runAssignment', () => {
     expect(counts.has('MiniVB')).toBe(false)
     expect(counts.has('DU20')).toBe(false)
   })
+
+  it('prefers an on-site team (plays a home game that day) over a free team', () => {
+    // Two combined (4L) games the same day at DIFFERENT halls, so neither team is
+    // "adjacent" — only the on-site bonus separates a playing team from a free one.
+    const g1 = game('g1', '3', '2026-09-15', { time: '12:00', hall: 'h1' }) // H2 plays h1 12:00
+    const g2 = game('g2', '7', '2026-09-15', { time: '09:00', hall: 'h2' }) // Legends plays h2 09:00
+    const res = runAssignment(base([g1, g2]))
+    // g1's duty goes to Legends (on-site: has a home game that day), not a team
+    // with no game that day.
+    expect(res.find((r) => r.gameId === 'g1')!.combinedTeamName).toBe('Legends')
+  })
+
+  it('referee credit caps at 2 duties and deprioritises referee-heavy teams', () => {
+    const P = team('p', 'H9', '4L') // playing team → combined
+    const A = team('a', 'AAA', '4L') // 5 referee_vb → credit capped at 2 (-20)
+    const B = team('b', 'BBB', '4L') // no referees
+    const members = Array.from({ length: 5 }, (_, i) => ({ id: `r${i}`, referee_vb: true } as unknown as Member))
+    const memberTeams = members.map((m) => ({ member: m.id, team: 'a', guest_level: 0 } as unknown as MemberTeam))
+    const input: AssignmentInput = { games: [game('g1', 'p', '2026-09-15')], teams: [P, A, B], trainings: [], members, memberTeams, halls: [] }
+    expect(runAssignment(input)[0].combinedTeamName).toBe('BBB')
+    const counts = getTeamCounts([], [P, A, B], [], members, memberTeams)
+    expect(counts.get('AAA')!.referees).toBe(5)
+    expect(counts.get('AAA')!.refereeCredit).toBe(2) // capped, not 5
+  })
+
+  it('manual duty credit lowers a team\'s duty priority', () => {
+    const P = team('p', 'H9', '4L')
+    const A = { ...team('a', 'AAA', '4L'), duty_credit: 3 } as Team // -30
+    const B = team('b', 'BBB', '4L')
+    const input: AssignmentInput = { games: [game('g1', 'p', '2026-09-15')], teams: [P, A, B], trainings: [], members: [], memberTeams: [], halls: [] }
+    expect(runAssignment(input)[0].combinedTeamName).toBe('BBB')
+    // Without the credit, AAA (first in order, equal score) would be chosen.
+    const A0 = team('a', 'AAA', '4L')
+    expect(runAssignment({ ...input, teams: [P, A0, B] })[0].combinedTeamName).toBe('AAA')
+  })
 })
