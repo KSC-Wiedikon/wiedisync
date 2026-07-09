@@ -106,6 +106,13 @@ export default {
   gameInfo: 'Infos du match',
   venue: 'Lieu',
   officialsDuties: 'Officiels',
+  // Alarme « en retard » (entraineur/responsable, proche du coup d\'envoi)
+  dutyLateButton: '{{role}} est en retard — contacter',
+  dutyLateConfirmTitle: 'Signaler {{role}} en retard ?',
+  dutyLateConfirmMessage: 'Cela envoie un e-mail a {{name}}, au TK {{sport}} et a l\'admin pour signaler son absence. Ses coordonnees resteront visibles ici jusqu\'au debut du match.',
+  dutyLateConfirmCta: 'Signaler et notifier',
+  dutyLateReported: 'Signale. {{name}} et le TK ont ete notifies.',
+  dutyLateBanner: 'Signale en retard a {{time}} par {{name}}',
   dutyTeam: 'Equipe de service',
   bbAnschreiber: 'Marqueur',
   bbZeitnehmer: 'Chronometreur',

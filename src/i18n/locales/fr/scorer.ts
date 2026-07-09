@@ -131,7 +131,12 @@ export default {
   infoTitle: 'Infos sur le service de marqueur',
   infoArrivalTitle: 'Heures d\'arrivee',
   infoArrivalScorer: 'Le marqueur doit etre dans la salle au moins <strong>30 minutes</strong> avant le debut du match.',
-  infoArrivalTaefeler: 'L\'operateur du tableau d\'affichage doit etre dans la salle au moins <strong>10 minutes</strong> avant le debut du match.',
+  infoArrivalTaefeler: 'L\'operateur du tableau d\'affichage doit etre dans la salle au moins <strong>15 minutes</strong> avant le debut du match.',
+  infoArrivalReferee: 'L\'arbitre doit etre dans la salle au moins <strong>30 minutes</strong> avant le debut du match.',
+  // Rappels d\'arrivee par carte (/scorer)
+  arrivalHintSingle: 'Dans la salle {{min}} min avant le debut.',
+  arrivalHintReferee: 'Arbitre : dans la salle {{min}} min avant le debut.',
+  arrivalHintSplit: 'Marqueur {{scorer}} min · Tableau {{board}} min avant le debut.',
   infoWarningTitle: 'Attention !',
   infoWarningFine: 'Un retard ou une absence entrainera une amende (CHF 50.–).',
   infoRequirementsTitle: 'Exigences pour les matchs',

@@ -109,6 +109,13 @@ export default {
   gameInfo: 'Spielinfo',
   venue: 'Spielort',
   officialsDuties: 'Offizielle',
+  // «Einsatz verspätet»-Alarm (nur Coach/TV, kurz vor Anpfiff)
+  dutyLateButton: '{{role}} ist verspätet — kontaktieren',
+  dutyLateConfirmTitle: '{{role}} als verspätet melden?',
+  dutyLateConfirmMessage: 'Damit werden {{name}}, das {{sport}}-TK und der Admin per E-Mail informiert, dass die Person nicht erschienen ist. Die Kontaktdaten bleiben hier bis zum Spielbeginn sichtbar.',
+  dutyLateConfirmCta: 'Verspätung melden & benachrichtigen',
+  dutyLateReported: 'Gemeldet. {{name}} und das TK wurden benachrichtigt.',
+  dutyLateBanner: 'Um {{time}} von {{name}} als verspätet gemeldet',
   dutyTeam: 'Dienstteam',
   bbAnschreiber: 'Anschreiber',
   bbZeitnehmer: 'Zeitnehmer',

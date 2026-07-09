@@ -378,6 +378,10 @@ export interface Game extends BaseRecord {
   bb_timekeeper_confirmed_at: string | null
   bb_24s_confirmed_by_name: string | null
   bb_24s_confirmed_at: string | null
+  /** Per-role late-arrival reports (migration 202): { role: { at, by_name } }.
+   *  Written/read only by the duty-late endpoint (GET/POST /kscw/games/:id/duty-late);
+   *  no contact info is stored here. */
+  duty_late_json?: Record<string, { at: string; by_name: string }> | null
   referees_json: Array<{ name: string; id?: number }>
   source: 'swiss_volley' | 'manual' | 'basketplan'
   svrz_push_status: 'pending' | 'pushed' | 'failed' | null

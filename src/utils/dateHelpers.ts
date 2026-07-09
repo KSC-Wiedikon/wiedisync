@@ -178,6 +178,46 @@ export function isWithinGameContactWindow(
   } catch { return false; }
 }
 
+/**
+ * Minutes before kickoff each duty role must be in the hall. Single source of
+ * truth for both the displayed arrival times (/scorer) and the "duty is late"
+ * alarm window (game detail modal). MUST match ROLE_DEFS[*].arrival in the
+ * kscw-endpoints duty-late endpoint.
+ */
+export const DUTY_ARRIVAL_MIN: Record<string, number> = {
+  scorer: 30,
+  scoreboard: 15,
+  scorer_scoreboard: 30,
+  referee: 30,
+  bb_scorer: 15,
+  bb_timekeeper: 15,
+  bb_24s_official: 15,
+};
+
+/** The alarm + contact reveal stay available for this long AFTER kickoff. */
+export const DUTY_LATE_GRACE_MS = 30 * 60 * 1000;
+
+/**
+ * True when "now" is inside a duty role's late-report window:
+ * [kickoff − arrival(role), kickoff + grace]. Coaches/TRs can flag the role's
+ * official as late and see their contact only within this window. Server-side
+ * enforced identically by the duty-late endpoint.
+ */
+export function isWithinDutyLateWindow(
+  date: string | null | undefined,
+  time: string | null | undefined,
+  role: string,
+): boolean {
+  if (!date || !time) return false;
+  const arrivalMs = (DUTY_ARRIVAL_MIN[role] ?? 30) * 60 * 1000;
+  try {
+    const startMs = new Date(toUtcIsoFromDatetimeLocal(`${String(date).slice(0, 10)}T${String(time).slice(0, 5)}`)).getTime();
+    if (Number.isNaN(startMs)) return false;
+    const now = Date.now();
+    return now >= startMs - arrivalMs && now <= startMs + DUTY_LATE_GRACE_MS;
+  } catch { return false; }
+}
+
 /** Inverse: UTC ISO -> "YYYY-MM-DDTHH:MM" for datetime-local input, in Europe/Zurich. */
 export function toDatetimeLocalFromUtcIso(iso: string): string {
   const d = new Date(iso);

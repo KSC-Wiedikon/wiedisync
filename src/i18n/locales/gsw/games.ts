@@ -109,6 +109,13 @@ export default {
   gameInfo: 'Spielinfo',
   venue: 'Spielort',
   officialsDuties: 'Offizielli',
+  // «Iisatz verspötet»-Alarm (nur Coach/TV, churz vor Aapfiff)
+  dutyLateButton: '{{role}} isch verspötet — kontaktiere',
+  dutyLateConfirmTitle: '{{role}} als verspötet mälde?',
+  dutyLateConfirmMessage: 'Damit wärded {{name}}, s {{sport}}-TK und de Admin per E-Mail informiert, dass d Person nöd cho isch. D Kontaktdate blibed do bis zum Spielbeginn sichtbar.',
+  dutyLateConfirmCta: 'Verspötig mälde & benachrichtige',
+  dutyLateReported: 'Gmäldet. {{name}} und s TK sind benachrichtigt.',
+  dutyLateBanner: 'Am {{time}} vo {{name}} als verspötet gmäldet',
   dutyTeam: 'Diensteam',
   bbAnschreiber: 'Aaschriiber',
   bbZeitnehmer: 'Zitnehmer',

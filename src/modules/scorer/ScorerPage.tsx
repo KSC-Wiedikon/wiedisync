@@ -516,6 +516,8 @@ export default function ScorerPage() {
               <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoArrivalScorer')) }} />
               {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
               <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoArrivalTaefeler')) }} />
+              {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
+              <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoArrivalReferee')) }} />
             </div>
           </div>
           <div className="flex gap-3 rounded-lg bg-red-50/80 px-3 py-2.5 dark:bg-red-900/10">

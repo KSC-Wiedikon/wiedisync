@@ -132,6 +132,11 @@ export default {
   infoArrivalTitle: 'Ankunftszeiten',
   infoArrivalScorer: 'Der Schreiber muss spätestens <strong>30 Minuten</strong> vor Spielbeginn in der Halle sein.',
   infoArrivalTaefeler: 'Der Täfeler muss spätestens <strong>15 Minuten</strong> vor Spielbeginn in der Halle sein.',
+  infoArrivalReferee: 'Der Schiedsrichter muss spätestens <strong>30 Minuten</strong> vor Spielbeginn in der Halle sein.',
+  // Ankunfts-Hinweise pro Karte (/scorer)
+  arrivalHintSingle: '{{min}} Min. vor Spielbeginn in der Halle.',
+  arrivalHintReferee: 'Schiedsrichter: {{min}} Min. vor Spielbeginn in der Halle.',
+  arrivalHintSplit: 'Schreiber {{scorer}} Min. · Täfeler {{board}} Min. vor Spielbeginn.',
   infoWarningTitle: 'Achtung!',
   infoWarningFine: 'Verspätung oder Nichterscheinen wird mit einer Busse (50.– CHF) bestraft.',
   infoRequirementsTitle: 'Spielanforderungen',
