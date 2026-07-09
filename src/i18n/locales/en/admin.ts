@@ -146,6 +146,9 @@ export default {
   dhDriftGone: 'Nothing left to sync for this entry — list refreshed.',
   dhDriftBlankRisk: 'Not marked: the push would blank ClubDesk data. Run \'Sync down\' first, then rescan.',
   dhIssueClubdeskFill: 'ClubDesk missing data (bulk fill)',
+  dhIssueClubdeskGroupMissing: 'Missing ClubDesk group',
+  dhIssueClubdeskGroupStray: 'In a ClubDesk group but not a Wiedisync player',
+  dhIssueClubdeskGroupNoTeam: 'ClubDesk group with no Wiedisync team',
   dhMarkSync: 'Mark for sync-up',
   dhMarkedForSync: 'Marked for sync-up — push via Anmeldungen → \'Sync up to ClubDesk\'',
 

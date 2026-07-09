@@ -1506,6 +1506,133 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
+  // ── ClubDesk GROUP diff (Data Health) ───────────────────────────────────────
+  // ClubDesk group membership can only be set by hand in ClubDesk (the CSV import
+  // treats Gruppen as a no-op), so it silently drifts from the Wiedisync team
+  // rosters. Three read-only checks, keyed on teams.clubdesk_group (migration 201
+  // — the exact CD group token per team; NULL = umbrella/no CD group, excluded):
+  //   • missing — a current-season REAL player (guest_level 0) whose team's CD
+  //     group is not in their gruppen_bracketed → assign it in ClubDesk.
+  //   • strays — someone in a CD player-group with ZERO current-season Wiedisync
+  //     presence (that filter drops umbrella-BB + guests, who do have a row)
+  //     whose group maps to a real team → left the team (remove) or missing from
+  //     the roster (add). Annotated with active / official-licence / coach-of so
+  //     an admin can tell the two apart without leaving the page.
+  //   • no_team_groups — CD player-groups with no matching Wiedisync team at all
+  //     (e.g. a renamed/merged team like VB DU19) → structural, one row each.
+  // Superadmin-gated, read-only — group changes stay manual in ClubDesk.
+  router.get('/clubdesk-group-sync', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const season = getCurrentSeason()
+
+      // team → ClubDesk group token. member_teams already carries the roster; the
+      // ONLY thing it can't tell us is a team's ClubDesk group NAME, and that is
+      // just 7 special-cases: the adult-BB verbose names map to short tokens and
+      // the two league-umbrella teams have NO ClubDesk group (NULL → excluded).
+      // Everything else is identity ('<VB|BB> <name>'). Kept inline (no schema
+      // column) — the mapping is tiny + stable, and the checks self-report a bad
+      // mapping (a mismapped team surfaces under "no Wiedisync team").
+      const teamGroupCte = `
+        tg AS (
+          SELECT t.id, CASE
+            WHEN t.name IN ('H-Classics 1LR','Damen D-Classics 1LR') THEN NULL
+            WHEN t.sport='basketball' AND t.name='Herren 1 H1' THEN 'BB H1'
+            WHEN t.sport='basketball' AND t.name='Herren 2 H3' THEN 'BB H2'
+            WHEN t.sport='basketball' AND t.name='Herren 3 (Unicorns) H4' THEN 'BB H3'
+            WHEN t.sport='basketball' AND t.name='Lions D1' THEN 'BB Lions'
+            WHEN t.sport='basketball' AND t.name='Rhinos D3' THEN 'BB Rhinos'
+            WHEN t.sport='volleyball' THEN 'VB ' || t.name
+            WHEN t.sport='basketball' THEN 'BB ' || t.name
+            ELSE NULL END AS clubdesk_group
+          FROM teams t
+        )`
+
+      const missingSql = `
+        WITH ${teamGroupCte}, expected AS (
+          SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
+                 (tg.clubdesk_group || ' (Spieler*in)') AS grp
+          FROM member_teams mt
+          JOIN tg ON tg.id = mt.team
+          JOIN members m ON m.id = mt.member
+          WHERE mt.season = :season AND COALESCE(mt.guest_level, 0) = 0
+            AND tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
+        )
+        SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.grp
+        FROM expected e
+        LEFT JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
+        WHERE NOT (e.grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')))
+        ORDER BY e.last_name, e.first_name, e.grp`
+
+      const straySql = `
+        WITH ${teamGroupCte}, cd_groups AS (
+          SELECT BTRIM(ce.clubdesk_id) AS clubdesk_id, BTRIM(g) AS grp
+          FROM clubdesk_export ce, LATERAL unnest(string_to_array(ce.gruppen_bracketed, ', ')) AS g
+          WHERE g LIKE '%(Spieler*in)%'
+        ),
+        team_groups AS (
+          SELECT DISTINCT (clubdesk_group || ' (Spieler*in)') AS grp FROM tg WHERE clubdesk_group IS NOT NULL
+        )
+        SELECT cg.grp, m.id AS member_id, m.first_name, m.last_name, cg.clubdesk_id,
+               COALESCE(m.wiedisync_active, false) AS active,
+               (COALESCE(m.referee_vb,false) OR COALESCE(m.scorer_vb,false) OR COALESCE(m.referee_bb,false)
+                OR COALESCE(m.otr1_bb,false) OR COALESCE(m.otr2_bb,false) OR COALESCE(m.otn_bb,false)) AS is_official,
+               COALESCE((SELECT string_agg(DISTINCT t2.name, ', ') FROM teams_coaches tc JOIN teams t2 ON t2.id = tc.teams_id WHERE tc.members_id = m.id), '') AS coach_of,
+               COALESCE((SELECT string_agg(DISTINCT t3.name, ', ') FROM teams_responsibles tr JOIN teams t3 ON t3.id = tr.teams_id WHERE tr.members_id = m.id), '') AS tr_of
+        FROM cd_groups cg
+        JOIN members m ON m.clubdesk_id = cg.clubdesk_id
+        WHERE cg.grp IN (SELECT grp FROM team_groups)
+          AND NOT EXISTS (SELECT 1 FROM member_teams mt WHERE mt.member = m.id AND mt.season = :season)
+        ORDER BY cg.grp, m.last_name, m.first_name`
+
+      const noTeamSql = `
+        WITH ${teamGroupCte}
+        SELECT BTRIM(g) AS grp, COUNT(DISTINCT BTRIM(ce.clubdesk_id))::int AS cnt
+        FROM clubdesk_export ce, LATERAL unnest(string_to_array(ce.gruppen_bracketed, ', ')) AS g
+        WHERE g LIKE '%(Spieler*in)%'
+          AND BTRIM(g) NOT IN (SELECT DISTINCT (clubdesk_group || ' (Spieler*in)') FROM tg WHERE clubdesk_group IS NOT NULL)
+        GROUP BY BTRIM(g)
+        ORDER BY cnt DESC, grp`
+
+      const [missingRes, strayRes, noTeamRes] = await Promise.all([
+        database.raw(missingSql, { season }),
+        database.raw(straySql, { season }),
+        database.raw(noTeamSql),
+      ])
+
+      const missingByMember = new Map()
+      for (const r of missingRes.rows) {
+        if (!missingByMember.has(r.member_id)) {
+          missingByMember.set(r.member_id, {
+            member_id: r.member_id,
+            member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+            clubdesk_id: r.clubdesk_id,
+            groups: [],
+          })
+        }
+        missingByMember.get(r.member_id).groups.push(r.grp)
+      }
+
+      const strays = strayRes.rows.map((r) => ({
+        member_id: r.member_id,
+        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+        clubdesk_id: r.clubdesk_id,
+        group: r.grp,
+        active: r.active === true,
+        is_official: r.is_official === true,
+        coach_of: r.coach_of || '',
+        tr_of: r.tr_of || '',
+      }))
+
+      const no_team_groups = noTeamRes.rows.map((r) => ({ group: r.grp, count: r.cnt }))
+
+      return res.json({ missing: [...missingByMember.values()], strays, no_team_groups, season })
+    } catch (err) {
+      log.error({ msg: `clubdesk-group-sync: ${err.message}`, endpoint: 'clubdesk-group-sync', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // Deactivate a departed member: not-a-member + inactive, and drop their
   // current-season team assignments (keep prior-season history). Superadmin.
   router.post('/clubdesk-deactivate', async (req, res) => {

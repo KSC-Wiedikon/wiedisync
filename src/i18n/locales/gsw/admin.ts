@@ -141,6 +141,9 @@ export default {
   dhDriftGone: 'Für dä Iitrag git s nüt me z synchronisiere — Liste aktualisiert.',
   dhDriftBlankRisk: 'Nöd vorgmerkt: de Push würd ClubDesk-Date lääre. Zerst «Sync down» laufe lah, denn neu scanne.',
   dhIssueClubdeskFill: 'Date fähled i ClubDesk (Sammel-Fill)',
+  dhIssueClubdeskGroupMissing: 'Fählendi ClubDesk-Gruppe',
+  dhIssueClubdeskGroupStray: 'I ere ClubDesk-Gruppe, aber kä Wiedisync-Spiler',
+  dhIssueClubdeskGroupNoTeam: 'ClubDesk-Gruppe ohni Wiedisync-Team',
   dhMarkSync: 'Für Sync-up vormerke',
   dhMarkedForSync: 'Für Sync-up vorgmerkt — Push via Anmeldunge → «Sync up to ClubDesk»',
 
