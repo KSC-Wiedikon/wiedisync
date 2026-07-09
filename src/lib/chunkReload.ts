@@ -28,6 +28,43 @@ export function isChunkLoadError(error: unknown): boolean {
 const RELOAD_COOLDOWN_KEY = 'wiedisync-chunk-reload-ts'
 const COOLDOWN_MS = 10_000
 
+// Query param appended by hardReload() to force a genuine cache-miss on the
+// document navigation. The HTML is served `no-store`, but a privacy extension
+// or corporate proxy can still hand back a stale index.html (or a negatively
+// cached SPA-fallback asset), leaving a user stuck on the stale-version screen
+// no matter how often they hit reload — a plain location.reload() keeps
+// returning the same broken document. A unique URL cannot be served from any
+// HTTP cache, so the fresh index.html (which only references chunks that exist)
+// is guaranteed to load. stripCacheBustParam() removes it again on the next
+// successful boot so it never enters the router or accumulates in the URL bar.
+const CACHE_BUST_PARAM = '_v'
+
+// Hard-reload with a cache-busting param so no HTTP/proxy cache can serve a
+// stale document. location.replace() (vs assign) keeps the broken state out of
+// back-history. Falls back to a plain reload if URL construction ever throws.
+function hardReload(): void {
+  if (typeof window === 'undefined') return
+  try {
+    const url = new URL(window.location.href)
+    url.searchParams.set(CACHE_BUST_PARAM, Date.now().toString(36))
+    window.location.replace(url.toString())
+  } catch {
+    window.location.reload()
+  }
+}
+
+// Remove the cache-bust param on a successful boot. Call once, synchronously,
+// before React (and the router) mount so it never sees the param.
+export function stripCacheBustParam(): void {
+  if (typeof window === 'undefined') return
+  try {
+    const url = new URL(window.location.href)
+    if (!url.searchParams.has(CACHE_BUST_PARAM)) return
+    url.searchParams.delete(CACHE_BUST_PARAM)
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+  } catch { /* noop — cosmetic cleanup only */ }
+}
+
 // Reload once within the cooldown window. Returns true if a reload was just
 // triggered; false if we're still inside the cooldown (already reloaded once —
 // the caller should stop and show a fallback rather than loop). The 10s window
@@ -38,7 +75,7 @@ function reloadOnce(): boolean {
   const last = Number(sessionStorage.getItem(RELOAD_COOLDOWN_KEY) || 0)
   if (now - last < COOLDOWN_MS) return false // reload-loop guard
   sessionStorage.setItem(RELOAD_COOLDOWN_KEY, String(now))
-  window.location.reload()
+  hardReload()
   return true
 }
 
@@ -57,9 +94,10 @@ export function forceReloadOnStaleChunk(): boolean {
 }
 
 // User clicked "Reload" on the inline fallback — bypass the cooldown so an
-// explicit request is never swallowed by the loop guard.
+// explicit request is never swallowed by the loop guard, and cache-bust so a
+// stale document held by a proxy/extension can't survive the reload.
 export function reloadNow(): void {
   if (typeof window === 'undefined') return
   sessionStorage.removeItem(RELOAD_COOLDOWN_KEY)
-  window.location.reload()
+  hardReload()
 }
