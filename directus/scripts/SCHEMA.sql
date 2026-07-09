@@ -1377,6 +1377,11 @@ BEGIN
         'date', COALESCE(to_char(NEW.date, 'DD.MM.YY'), '')
       )::text;
     ELSE
+      -- Mute cosmetic updates: only notify when the game was actually rescheduled
+      -- (date or time changed). See migration 199.
+      IF NEW.date IS NOT DISTINCT FROM OLD.date AND NEW.time IS NOT DISTINCT FROM OLD.time THEN
+        RETURN NEW;
+      END IF;
       v_type := 'activity_change'; v_title := 'game_updated';
       v_body := json_build_object(
         'home_team', COALESCE(NEW.home_team, ''), 'away_team', COALESCE(NEW.away_team, ''),
