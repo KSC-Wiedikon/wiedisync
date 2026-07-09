@@ -6,6 +6,14 @@ export default {
   runAlgorithm: 'Algorithmus starten',
   saveAll: 'Alle speichern',
   downloadXlsx: 'Excel herunterladen',
+  uploadCorrected: 'Korrigierte hochladen',
+  uploadHint: 'Eine korrigierte Excel zurück in den Entwurf übernehmen — Zeilen werden über die Spielnummer zugeordnet.',
+  uploadApplied: '{{count}} Zuteilungen aus der Datei übernommen.',
+  uploadUnmatched: '{{count}} Zeile(n) ohne passende Spielnummer.',
+  uploadUnknownTeams: 'Unbekannte(s) Team(s): {{names}}.',
+  uploadNoIdColumn: 'Keine Spalte „Spielnr." gefunden — zuerst eine neue Excel herunterladen.',
+  uploadNoMatches: 'Keine Zeile einem Spiel zugeordnet (Spalte Spielnr. prüfen).',
+  uploadError: 'Datei konnte nicht gelesen werden.',
   rollOut: 'Ausrollen',
   rollingOut: 'Wird ausgerollt...',
   rollOutHint: 'Diese Dienste definitiv in die Spiele schreiben',
@@ -17,6 +25,8 @@ export default {
   season: 'Saison',
 
   // Table headers
+  gameNo: 'Spielnr.',
+  weekday: 'Tag',
   date: 'Datum',
   time: 'Zeit',
   hall: 'Halle',

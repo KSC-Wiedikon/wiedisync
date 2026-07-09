@@ -6,6 +6,14 @@ export default {
   runAlgorithm: 'Run algorithm',
   saveAll: 'Save all',
   downloadXlsx: 'Download Excel',
+  uploadCorrected: 'Upload corrected',
+  uploadHint: 'Apply a corrected Excel back to the draft — rows are matched by game number.',
+  uploadApplied: '{{count}} assignments updated from the file.',
+  uploadUnmatched: '{{count}} row(s) had no matching game number.',
+  uploadUnknownTeams: 'Unknown team(s): {{names}}.',
+  uploadNoIdColumn: 'No "Game no." column found — download a fresh Excel first.',
+  uploadNoMatches: 'No rows matched a game (check the Game no. column).',
+  uploadError: 'Could not read the file.',
   rollOut: 'Roll out',
   rollingOut: 'Rolling out...',
   rollOutHint: 'Write these duties to the games (makes them official)',
@@ -17,6 +25,8 @@ export default {
   season: 'Season',
 
   // Table headers
+  gameNo: 'Game no.',
+  weekday: 'Day',
   date: 'Date',
   time: 'Time',
   hall: 'Hall',

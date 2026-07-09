@@ -6,6 +6,14 @@ export default {
   runAlgorithm: 'Esegui algoritmo',
   saveAll: 'Salva tutto',
   downloadXlsx: 'Scarica Excel',
+  uploadCorrected: 'Carica corretto',
+  uploadHint: 'Riapplica un Excel corretto alla bozza — le righe sono abbinate tramite il numero partita.',
+  uploadApplied: '{{count}} assegnazioni aggiornate dal file.',
+  uploadUnmatched: '{{count}} riga/righe senza numero partita corrispondente.',
+  uploadUnknownTeams: 'Squadra/e sconosciuta/e: {{names}}.',
+  uploadNoIdColumn: 'Nessuna colonna "N. partita" trovata — scarica prima un nuovo Excel.',
+  uploadNoMatches: 'Nessuna riga abbinata a una partita (controlla la colonna N. partita).',
+  uploadError: 'Impossibile leggere il file.',
   rollOut: 'Distribuisci',
   rollingOut: 'Distribuzione...',
   rollOutHint: 'Inserisci i compiti nelle partite (ufficializza)',
@@ -17,6 +25,8 @@ export default {
   season: 'Stagione',
 
   // Table headers
+  gameNo: 'N. partita',
+  weekday: 'Giorno',
   date: 'Data',
   time: 'Ora',
   hall: 'Palestra',
