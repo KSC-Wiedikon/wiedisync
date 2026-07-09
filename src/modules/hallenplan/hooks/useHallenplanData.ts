@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useCollection } from '../../../lib/query'
 import { flattenM2MTeams } from '../../../lib/api'
+
+// Shared stable empty fallback. Using a module-level constant (not a fresh `[]`
+// literal per render) keeps `?? EMPTY` referentially stable while a query is
+// still loading, so the `computedSlots` memo below doesn't recompute to a new
+// reference every render — which would make the stableSlots setState guard
+// never settle ("Too many re-renders", fixed 2026-07-09).
+const EMPTY: never[] = []
 import { toISODate } from '../../../utils/dateHelpers'
 import type { Hall, HallSlot, HallClosure, Team, Game, Training, HallEvent, SlotClaim } from '../../../types'
 import {
@@ -25,14 +32,14 @@ export function useHallenplanData(
     sort: ['name'],
     limit: 50,
   })
-  const halls = hallsRaw ?? []
+  const halls = hallsRaw ?? EMPTY
 
   const { data: teamsRaw, isLoading: teamsLoading } = useCollection<Team>('teams', {
     filter: { active: { _eq: true } },
     sort: ['name'],
     limit: 50,
   })
-  const teams = teamsRaw ?? []
+  const teams = teamsRaw ?? EMPTY
 
   const hallCondition = selectedHallIds.length > 0
     ? { hall: { _in: selectedHallIds } }
@@ -54,7 +61,10 @@ export function useHallenplanData(
     sort: ['day_of_week', 'start_time'],
     fields: ['*', 'teams.teams_id'],
   })
-  const rawSlots = flattenM2MTeams(rawSlotsData ?? [])
+  // Memoized — flattenM2MTeams builds a fresh array + fresh objects on every
+  // call, so without this rawSlots (and thus computedSlots) would be a new
+  // reference every render.
+  const rawSlots = useMemo(() => flattenM2MTeams(rawSlotsData ?? EMPTY), [rawSlotsData])
 
   const closureDateConditions: Record<string, unknown>[] = [
     { start_date: { _lte: sundayStr } },
@@ -71,7 +81,7 @@ export function useHallenplanData(
     filter: { _and: closureFilterConditions },
     limit: 100,
   })
-  const closures = closuresData ?? []
+  const closures = closuresData ?? EMPTY
 
   // Games for this week (exclude postponed)
   const { data: gamesRaw, isLoading: gamesLoading, isPlaceholderData: gamesStale, refetch: refetchGames } = useCollection<Game>('games', {
@@ -79,7 +89,7 @@ export function useHallenplanData(
     limit: 100,
     sort: ['date', 'time'],
   })
-  const games = gamesRaw ?? []
+  const games = gamesRaw ?? EMPTY
 
   // Trainings for this week
   const {
@@ -92,7 +102,7 @@ export function useHallenplanData(
     all: true,
     sort: ['date', 'start_time'],
   })
-  const trainings = trainingsRaw ?? []
+  const trainings = trainingsRaw ?? EMPTY
 
   // Hall events (GCal) for this week
   const { data: hallEventsRaw, isLoading: hallEventsLoading, isPlaceholderData: hallEventsStale, refetch: refetchHallEvents } = useCollection<HallEvent>('hall_events', {
@@ -100,7 +110,7 @@ export function useHallenplanData(
     limit: 100,
     sort: ['date', 'start_time'],
   })
-  const hallEvents = hallEventsRaw ?? []
+  const hallEvents = hallEventsRaw ?? EMPTY
 
   // Slot claims for this week
   const {
@@ -112,7 +122,7 @@ export function useHallenplanData(
     filter: { _and: [{ date: { _gte: mondayStr } }, { date: { _lte: sundayStr } }, { status: { _eq: 'active' } }] },
     limit: 100,
   })
-  const slotClaims = slotClaimsRaw ?? []
+  const slotClaims = slotClaimsRaw ?? EMPTY
 
   // Convert GCal closure events ("Halle geschlossen") into synthetic HallClosure records
   // and merge with real closures (deduplicating where a hall_closures record already exists)
@@ -223,9 +233,14 @@ export function useHallenplanData(
   // date-scoped query is showing placeholder data we keep the previous grid;
   // once they all resolve, `computedSlots` is consistent again and we swap it in
   // by adjusting state during render (React's endorsed "store info from previous
-  // renders" pattern — https://react.dev/reference/react/useState). The equality
-  // guard prevents a render loop. isPlaceholderData is false during same-week
-  // background refetches, so realtime refreshes still update in place.
+  // renders" pattern — https://react.dev/reference/react/useState).
+  //
+  // The equality guard only settles because `computedSlots` is now referentially
+  // STABLE when the underlying data is unchanged — all of its memo inputs
+  // (rawSlots + the `?? EMPTY` query arrays) are stable references. Before that
+  // fix (rawSlots was a fresh array every render) the guard never settled and
+  // this looped → "Too many re-renders". isPlaceholderData is false during
+  // same-week background refetches, so realtime refreshes still update in place.
   const [stableSlots, setStableSlots] = useState<HallSlot[]>(computedSlots)
   if (!showingStale && stableSlots !== computedSlots) {
     setStableSlots(computedSlots)
