@@ -1480,7 +1480,7 @@ export default function ParticipationRosterModal({
         <div
           ref={printRef}
           style={{
-            width: '800px',
+            width: '960px',
             backgroundColor: '#ffffff',
             color: '#111827',
             padding: '24px',
@@ -1521,12 +1521,17 @@ export default function ParticipationRosterModal({
                     color: '#374151',
                     border: '1px solid #e5e7eb',
                     // Keep multi-word labels ("Outside hitter", "Middle blocker")
-                    // on one line — without this the pill wraps mid-label.
+                    // on one line — nowrap on the pill AND the label span (the
+                    // label is a flex item, so it needs its own nowrap), plus
+                    // flexShrink:0 so a tight chip row can't squeeze it into a
+                    // wrap. html-to-image inlines computed styles per element,
+                    // so belt-and-braces here survives the snapshot clone.
                     whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
                   <strong style={{ fontVariantNumeric: 'tabular-nums', color: '#111827' }}>{p.count}</strong>
-                  <span>{p.label}</span>
+                  <span style={{ whiteSpace: 'nowrap' }}>{p.label}</span>
                 </span>
               ))}
             </div>
