@@ -10,6 +10,7 @@ import { PageReadyProvider } from './hooks/usePageReady'
 import BootOverlay from './components/BootOverlay'
 import { TourProvider } from './modules/guide/TourProvider'
 import { SentryErrorBoundary } from './lib/sentry'
+import { reloadNow } from './lib/chunkReload'
 import SchedulingLayout from './components/SchedulingLayout'
 import AdminOrSpielplanerRoute from './components/AdminOrSpielplanerRoute'
 import MailboxRoute from './components/MailboxRoute'
@@ -36,7 +37,7 @@ function SchedulingFallback() {
         <p className="text-muted-foreground">An unexpected error occurred. Etwas ist schiefgelaufen.</p>
         <button
           className="rounded-md bg-brand-600 px-4 py-2 text-white hover:bg-brand-700"
-          onClick={() => window.location.reload()}
+          onClick={() => reloadNow()}
         >
           Reload page
         </button>

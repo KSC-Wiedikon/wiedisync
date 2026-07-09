@@ -1,9 +1,14 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { initSentry } from './lib/sentry'
-import { forceReloadOnStaleChunk, isChunkLoadError, maybeReloadOnStaleChunk, reloadNow } from './lib/chunkReload'
+import { forceReloadOnStaleChunk, isChunkLoadError, maybeReloadOnStaleChunk, reloadNow, stripCacheBustParam } from './lib/chunkReload'
 import './i18n'
 import './index.css'
+
+// A recovery reload (see chunkReload.ts) appends a cache-bust param to defeat
+// stale-document caches. We got here, so the current bundle loaded fine — strip
+// the param before React/the router mount so it never sees it or lets it pile up.
+stripCacheBustParam()
 
 // A deploy rotates the hashed lazy-chunk filenames; a tab still running an older
 // bundle then fails to import a now-missing chunk (CF Pages serves index.html for

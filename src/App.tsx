@@ -66,7 +66,7 @@ import SetPasswordPage from './modules/auth/SetPasswordPage'
 import FeedbackPage from './modules/feedback/FeedbackPage'
 import ChangelogPage from './modules/changelog/ChangelogPage'
 import { SentryErrorBoundary } from './lib/sentry'
-import { maybeReloadOnStaleChunk } from './lib/chunkReload'
+import { maybeReloadOnStaleChunk, reloadNow } from './lib/chunkReload'
 
 const GuidePage = lazy(() => import('./modules/guide/GuidePage'))
 const JsExportPage = lazy(() => import('./modules/jsexport/JsExportPage'))
@@ -101,7 +101,7 @@ function SentryFallback({ error }: { error?: unknown } = {}) {
         <p className="text-muted-foreground">An unexpected error occurred. Etwas ist schiefgelaufen.</p>
         <button
           className="rounded-md bg-brand-600 px-4 py-2 text-white hover:bg-brand-700"
-          onClick={() => window.location.reload()}
+          onClick={() => reloadNow()}
         >
           Reload page
         </button>
