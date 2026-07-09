@@ -29,6 +29,8 @@ export default {
   summaryOf: 'sur {{total}}',
   guests: 'Invites',
   guestBadge: 'Invite',
+  guestsFilterLabel: 'Invites',
+  guestLevel: 'Niveau invite {{level}}',
   guestsCount_one: '{{count}} invite',
   guestsCount_other: '{{count}} invites',
   staffPresent: 'Staff present',

@@ -29,6 +29,8 @@ export default {
   summaryOf: 'vo {{total}}',
   guests: 'Gäst',
   guestBadge: 'Gascht',
+  guestsFilterLabel: 'Gäscht',
+  guestLevel: 'Gascht-Level {{level}}',
   guestsCount_one: '{{count}} Gascht',
   guestsCount_other: '{{count}} Gäst',
   staffPresent: 'Staff debii',

@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.31.0 — 2026-07-09
+
+### Multi-day events: respond per day (+ per-day fixes, guest filter)
+- **Per-day RSVP on the card**: for events in per-day / per-time-slot mode, the card no longer writes a single session-less whole-event row (which left the roster's day tabs empty while the overall view showed N/2). It now shows quick Yes / Maybe / No that apply to **every** day at once, plus a **Per day** button opening the day-by-day responder.
+- **Editing keeps sessions in step**: changing a per-day event's start/end dates now regenerates its day rows to match — they used to stay stranded on the original days (e.g. a Sat–Sun weekend whose sessions still read Fri–Sat) — and saving no longer 500s on empty session times.
+- **Guest filter**: the multi-team participation modal can be narrowed to just guest players, with each guest's level shown next to their name.
+- One-time data repair of the existing Trainingsweekend: whole-event answers mapped onto both days, stale session dates corrected, orphaned rows removed.
+
 ## v1.30.0 — 2026-07-09
 
 ### Filter a multi-team event roster by team

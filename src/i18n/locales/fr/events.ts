@@ -47,6 +47,7 @@ export default {
   sessionsConfirmed: '{{confirmed}}/{{total}} confirmes',
   overallView: 'Vue d\'ensemble',
   sessionParticipation: 'Participation par creneau',
+  perDay: 'Par jour',
   allowMaybe: 'Autoriser les reponses « Peut-etre »',
   allowMaybeHint: 'Si desactive, les participants ne peuvent repondre que Oui ou Non.',
   enablePositions: 'Preferences de poste',

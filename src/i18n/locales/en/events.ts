@@ -48,6 +48,7 @@ export default {
   sessionsConfirmed: '{{confirmed}}/{{total}} confirmed',
   overallView: 'Overall',
   sessionParticipation: 'Participation per time slot',
+  perDay: 'Per day',
   allowMaybe: 'Allow "Maybe" replies',
   allowMaybeHint: 'When off, participants can only reply Yes or No.',
   enablePositions: 'Position preferences',

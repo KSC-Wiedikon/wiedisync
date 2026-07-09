@@ -239,6 +239,34 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
     }
   }
 
+  // Keep session rows in step with the event's date range when the user edits
+  // the start/end dates. Without this, sessions were only ever (re)generated on
+  // a mode switch, so moving an existing per-day event's dates left its sessions
+  // stranded on the old days (e.g. event moved to Sat–Sun but sessions still on
+  // Fri–Sat). Per-day: one row per day, preserving each row's id + label BY INDEX
+  // so existing session_id RSVP references survive the date shift. Per-session:
+  // just drop rows whose day fell out of the new range (surviving days keep their
+  // time blocks; new days get an empty bucket the user fills in).
+  function reconcileSessionDates(newStart: string, newEnd: string) {
+    if (!newStart) return
+    const s = newStart.split('T')[0]
+    const e = (newEnd || newStart).split('T')[0]
+    if (participationMode === 'per_day') {
+      const dates = getDateRange(s, e)
+      setSessions((prev) => dates.map((d, i) => ({
+        id: prev[i]?.id,
+        date: d,
+        start_time: '',
+        end_time: '',
+        label: prev[i]?.label ?? '',
+        sort_order: i,
+      })))
+    } else if (participationMode === 'per_session') {
+      const dateSet = new Set(getDateRange(s, e))
+      setSessions((prev) => prev.filter((sess) => dateSet.has(sess.date)))
+    }
+  }
+
   function addSessionForDate(date: string) {
     const maxOrder = sessions.reduce((m, s) => Math.max(m, s.sort_order), 0)
     setSessions((prev) => [...prev, {
@@ -395,8 +423,11 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
               type={allDay ? 'date' : 'datetime-local'}
               value={startDate}
               onChange={(e) => {
-                setStartDate(e.target.value)
-                if (!endDate || endDate < e.target.value) setEndDate(e.target.value)
+                const v = e.target.value
+                setStartDate(v)
+                const newEnd = (!endDate || endDate < v) ? v : endDate
+                if (!endDate || endDate < v) setEndDate(v)
+                reconcileSessionDates(v, newEnd)
               }}
               required
             />
@@ -411,7 +442,11 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
               label={t('endDate')}
               type={allDay ? 'date' : 'datetime-local'}
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value
+                setEndDate(v)
+                reconcileSessionDates(startDate, v)
+              }}
               min={startDate}
             />
             {endDate && (
@@ -755,8 +790,12 @@ async function syncSessions(
       const payload = {
         event: eventId,
         date: d.date,
-        start_time: d.start_time,
-        end_time: d.end_time,
+        // Empty time → null, never '' — a `per_day` session has no clock time,
+        // and Postgres's `time` column rejects '' ("invalid input syntax for
+        // type time"). Directus coerced '' → null on INSERT but passed it raw on
+        // UPDATE, 500-ing every edit of a per-day event.
+        start_time: d.start_time || null,
+        end_time: d.end_time || null,
         label: d.label,
         sort_order: d.sort_order,
       }

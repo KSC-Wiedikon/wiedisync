@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.30.0'
+const APP_VERSION = '1.31.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.31.0',
+    date: '09.07.2026',
+    sections: [
+      {
+        title: 'Multi-day events: respond per day',
+        items: [
+          'Per-day events (like a training weekend) now let you answer each day separately, or use the quick Yes / No on the card to accept or decline every day at once. The “Per day” button opens a day-by-day view. Before, the card only offered a single Yes/No that didn’t belong to any day, so the per-day breakdown always showed nobody attending.',
+          'Editing a per-day event now works: changing the event’s dates moves its days to match, and saving no longer fails.',
+        ],
+      },
+      {
+        title: 'Filter a roster by guests',
+        items: [
+          'The multi-team participation list can now be narrowed to just guest players, and each guest shows their level.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.30.0',
     date: '09.07.2026',

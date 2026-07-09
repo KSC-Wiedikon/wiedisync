@@ -47,6 +47,7 @@ export default {
   sessionsConfirmed: '{{confirmed}}/{{total}} confermati',
   overallView: 'Panoramica',
   sessionParticipation: 'Partecipazione per fascia oraria',
+  perDay: 'Per giorno',
   allowMaybe: 'Consenti risposte "Forse"',
   allowMaybeHint: 'Se disattivato, i partecipanti possono rispondere solo Sì o No.',
   enablePositions: 'Preferenze di ruolo',

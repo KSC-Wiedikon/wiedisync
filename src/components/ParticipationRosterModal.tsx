@@ -188,12 +188,16 @@ export default function ParticipationRosterModal({
   // narrows the ENTIRE modal (counts, list, staff, export) to members belonging
   // to at least one selected team.
   const [selectedTeams, setSelectedTeams] = useState<Set<string> | null>(null)
+  // Guest filter (multi-team events with guests). Narrows the whole modal to
+  // guest players (member_teams.guest_level > 0), combinable with the team filter.
+  const [guestsOnly, setGuestsOnly] = useState(false)
 
   // Reset filter and editing state when modal opens
   useEffect(() => {
     if (open) {
       setStatusFilter(null)
       setSelectedTeams(null)
+      setGuestsOnly(false)
       setEditingMemberId(null)
     }
   }, [open])
@@ -331,26 +335,33 @@ export default function ParticipationRosterModal({
 
   const rosterMemberIds = rosterMembers.map((m) => m.id)
 
-  // Team-filtered view — narrows the summary counts, the visible list, the
-  // waitlist and the export to the selected team(s). Passthrough when no team
-  // filter is active (single-team, club-wide, or "All").
-  const memberList: Member[] = teamFilterActive
-    ? rosterMembers.filter((m) => memberInSelectedTeams(teamsByMember.get(String(m.id))))
-    : rosterMembers
-
-  // Guest players (member_teams.guest_level > 0) — surfaced with a "Guest" badge
-  // in each row so a coach scanning the roster can tell core players from guests
-  // borrowed off another team. Empty when club-wide (no team junction context).
-  const guestMemberIds = useMemo(() => {
-    const ids = new Set<string>()
-    if (isClubWide) return ids
+  // Guest players (member_teams.guest_level > 0) → memberId → level. Surfaced
+  // with a "Guest <level>" badge in each row so a coach can tell core players
+  // from guests borrowed off another team, and used by the guest filter. Empty
+  // when club-wide (no team junction context). `guestMemberIds` aliases the
+  // Map's key set (Map.has === Set.has for membership checks).
+  const guestLevels = useMemo(() => {
+    const m = new Map<string, number>()
+    if (isClubWide) return m
     for (const mt of members) {
       const lvl = Number((mt as { guest_level?: number }).guest_level ?? 0)
       const mid = String(asObj<Member>(mt.member)?.id ?? '')
-      if (mid && lvl > 0) ids.add(mid)
+      if (mid && lvl > 0) m.set(mid, lvl)
     }
-    return ids
+    return m
   }, [members, isClubWide])
+  const guestMemberIds = guestLevels
+
+  // Filtered view — narrows the summary counts, the visible list, the waitlist
+  // and the export to the selected team(s) and/or guests. Passthrough when no
+  // filter is active (single-team, club-wide, or "All").
+  const memberList: Member[] = (teamFilterActive || guestsOnly)
+    ? rosterMembers.filter((m) => {
+        if (teamFilterActive && !memberInSelectedTeams(teamsByMember.get(String(m.id)))) return false
+        if (guestsOnly && !guestLevels.has(String(m.id))) return false
+        return true
+      })
+    : rosterMembers
 
   // For regular (non-session) mode, filter by session tab if active
   const { participations: regularParticipations, isLoading: regularLoading } = useTeamParticipations(
@@ -1210,11 +1221,16 @@ export default function ParticipationRosterModal({
           }
         }
         const showTeamFilter = !isClubWide && teamIds.length > 1
-        const teamTriggerLabel = !teamFilterActive
-          ? t('allTeams', { defaultValue: 'All teams' })
-          : selectedTeams!.size === 1
+        const labelParts: string[] = []
+        if (teamFilterActive) {
+          labelParts.push(selectedTeams!.size === 1
             ? (teamNameById.get(String([...selectedTeams!][0])) ?? t('allTeams', { defaultValue: 'All teams' }))
-            : t('teamsCount', { count: selectedTeams!.size, defaultValue: '{{count}} teams' })
+            : t('teamsCount', { count: selectedTeams!.size, defaultValue: '{{count}} teams' }))
+        }
+        if (guestsOnly) labelParts.push(t('guestsFilterLabel', { defaultValue: 'Guests' }))
+        const teamTriggerLabel = labelParts.length > 0
+          ? labelParts.join(' · ')
+          : t('allTeams', { defaultValue: 'All teams' })
         const toggleTeam = (teamId: string) => {
           setSelectedTeams((prev) => {
             const next = new Set(prev ?? [])
@@ -1264,6 +1280,19 @@ export default function ParticipationRosterModal({
                       </DropdownMenuCheckboxItem>
                     )
                   })}
+                  {guestMemberIds.size > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuCheckboxItem
+                        checked={guestsOnly}
+                        onSelect={(e) => { e.preventDefault(); setGuestsOnly((v) => !v) }}
+                        className="cursor-pointer"
+                      >
+                        <span className="flex-1">{t('guestsFilterLabel', { defaultValue: 'Guests' })}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">{guestMemberIds.size}</span>
+                      </DropdownMenuCheckboxItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -1547,11 +1576,17 @@ export default function ParticipationRosterModal({
                       {leadershipRoles.get(member.id) === 'coach' ? t('roleCoach') : leadershipRoles.get(member.id) === 'captain' ? t('roleCaptainAbbr') : t('roleTeamRespAbbr')}
                     </span>
                   )}
-                  {guestMemberIds.has(member.id) && (
-                    <span className="inline-block rounded bg-amber-100 px-1 py-px text-[10px] font-medium leading-tight text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                      {t('guestBadge')}
-                    </span>
-                  )}
+                  {guestLevels.has(member.id) && (() => {
+                    const lvl = guestLevels.get(member.id) ?? 0
+                    return (
+                      <span
+                        title={lvl > 0 ? t('guestLevel', { level: lvl, defaultValue: 'Guest level {{level}}' }) : t('guestBadge')}
+                        className="inline-block rounded bg-amber-100 px-1 py-px text-[10px] font-medium leading-tight text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                      >
+                        {t('guestBadge')}{lvl > 0 ? ` ${lvl}` : ''}
+                      </span>
+                    )
+                  })()}
                 </div>
 
                 {/* Status badge + edit controls */}
