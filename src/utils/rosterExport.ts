@@ -23,6 +23,12 @@ export type RosterExportRow = {
    *  when self-edit or system-set. Rendered as a small italic line under
    *  the table row in PNG/PDF and as a separate column in CSV. */
   editedBy: string
+  /** Per-session status breakdown, present ONLY when exporting the Overall tab
+   *  of a per-day / per-session event; undefined for single-session tabs and
+   *  non-session activities. The PNG/PDF snapshot renders these as colored
+   *  per-day lines in the Status cell so a coach can see who's coming which day;
+   *  CSV carries the same breakdown folded into the `status` string. */
+  sessionStatuses?: { label: string; statusLabel: string; status: string | null }[]
 }
 
 export type RosterExportMeta = {
@@ -45,6 +51,11 @@ export type RosterExportMeta = {
    *  population (e.g. "3 Setter, 5 Outside hitter"). Empty string when no
    *  positions are recorded. */
   positionsSummary: string
+  /** Localized label of the single session being exported (e.g. "Sat, 3 Oct")
+   *  when the modal's active tab is a specific session; empty for the Overall
+   *  tab and non-session activities. Rendered in the PNG/PDF + CSV header so a
+   *  single-day export is unambiguous. */
+  sessionLabel?: string
 }
 
 const COLUMNS = ['Name', 'Number', 'Positions', 'Status', 'Guest', 'Plus-ones', 'Note', 'RSVP time', 'Edited by']
@@ -94,6 +105,7 @@ export function exportRosterCsv(rows: RosterExportRow[], meta: RosterExportMeta)
   // date row — duplicated the title and showed up as "11/05/2026" floating
   // alone on row 2 of the file.
   const metaLines: string[] = [meta.activityKind, meta.activityTitle, `Filter: ${meta.filterLabel} (${meta.totalCount})`]
+  if (meta.sessionLabel) metaLines.push(`Session: ${meta.sessionLabel}`)
   if (meta.positionsSummary) metaLines.push(`Positions: ${meta.positionsSummary}`)
   metaLines.push(`Exported: ${meta.exportedAt}`, '')
   const metaBlock = metaLines.join('\n')

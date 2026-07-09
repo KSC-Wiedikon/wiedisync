@@ -151,6 +151,20 @@ function statusBarClass(status: Participation['status'] | null): string {
   }
 }
 
+/** Status → hex color for the PNG/PDF snapshot's per-session breakdown cells,
+ *  mirroring the on-screen summary counters (green ✓ / amber ? / red ✗ /
+ *  orange ⧗ / gray – for no response). Plain function because the snapshot is
+ *  inlined DOM with no Tailwind class resolution. */
+function exportStatusColor(status: string | null): string {
+  switch (status) {
+    case 'confirmed': return '#16a34a'
+    case 'tentative': return '#ca8a04'
+    case 'declined': return '#dc2626'
+    case 'waitlisted': return '#ea580c'
+    default: return '#6b7280'
+  }
+}
+
 export default function ParticipationRosterModal({
   open,
   onClose,
@@ -736,9 +750,18 @@ export default function ParticipationRosterModal({
   // attributed to the selected team(s).
   const staffMemberInSelectedTeams = (id: string): boolean =>
     memberInSelectedTeams([...(leadershipTeamsByMember.get(String(id)) ?? [])])
-  const visibleStaffMembers = teamFilterActive
+  // Never list a player-coach in the staff section: they already appear in the
+  // player list with a "(Coach)" badge (and their confirmed player row feeds
+  // "Staff present"). `staffMembers` is seeded async from the coach/TR
+  // junctions and can momentarily carry a leader before the roster loads;
+  // without this render-time exclusion that leader lingers as a duplicate
+  // "(Staff) — No response" row (surfaced for member 8 on the Trainingsweekend
+  // export). `visibleStaffParticipations` already excludes roster members via
+  // `staffParticipations`; this brings the member-object list in line.
+  const visibleStaffMembers = (teamFilterActive
     ? staffMembers.filter((sm) => staffMemberInSelectedTeams(sm.id))
     : staffMembers
+  ).filter((sm) => !memberIdSet.has(String(sm.id)))
   const visibleStaffParticipations = teamFilterActive
     ? staffParticipations.filter((p) => staffMemberInSelectedTeams(p.member))
     : staffParticipations
@@ -954,6 +977,35 @@ export default function ParticipationRosterModal({
     }).join(', ')
   }, [tt])
 
+  // Ordered session list for the export's per-day breakdown — only populated on
+  // the Overall tab of a per-day / per-session event. `eventSessions` already
+  // arrives sorted (parent sorts by sort_order/date/start_time); re-sorted
+  // defensively so the export columns are stable regardless of caller.
+  const exportSessions = useMemo(() => {
+    if (!hasSessionMode || activeSessionTab !== null) return null
+    return [...(eventSessions ?? [])].sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+        || (a.date ?? '').localeCompare(b.date ?? '')
+        || (a.start_time ?? '').localeCompare(b.start_time ?? ''),
+    )
+  }, [hasSessionMode, activeSessionTab, eventSessions])
+
+  // memberId → sessionId → non-staff participation, for the per-day export cells.
+  // Sourced from `participations` (which on the Overall tab holds every session's
+  // rows, whether team-scoped or club-wide) so each member's per-day status is
+  // resolvable without an extra fetch.
+  const sessionParticipationByMember = useMemo(() => {
+    const map = new Map<string, Map<string, Participation>>()
+    if (!exportSessions) return map
+    for (const p of participations) {
+      if (p.is_staff || !p.session_id) continue
+      let inner = map.get(String(p.member))
+      if (!inner) { inner = new Map(); map.set(String(p.member), inner) }
+      inner.set(String(p.session_id), p)
+    }
+    return map
+  }, [exportSessions, participations])
+
   const exportRows = useMemo<RosterExportRow[]>(() => {
     const formatAttribution = (member: Member, p: Participation | null): string => {
       const { status: statusAttr, note: noteAttr } = getEditAttribution(member, p)
@@ -980,6 +1032,17 @@ export default function ParticipationRosterModal({
       if (cmp !== 0) return cmp
       return (a.first_name ?? '').localeCompare(b.first_name ?? '', undefined, { sensitivity: 'base' })
     }
+    // Per-day status list for a member on the Overall tab of a session event.
+    // Undefined when not a session-overall export → callers fall back to the
+    // single-status column.
+    const buildSessionStatuses = (memberId: string): RosterExportRow['sessionStatuses'] => {
+      if (!exportSessions) return undefined
+      const inner = sessionParticipationByMember.get(String(memberId))
+      return exportSessions.map((s) => {
+        const st = inner?.get(String(s.id))?.status ?? null
+        return { label: formatSessionLabel(s), status: st, statusLabel: st ? t(st) : t('notResponded') }
+      })
+    }
     const sortedMembers = [...filteredMemberList].sort(byLastName)
     const rows: RosterExportRow[] = sortedMembers.map((m) => {
       const p = participationByMember.preferred.get(m.id) ?? null
@@ -987,11 +1050,18 @@ export default function ParticipationRosterModal({
       const absenceReason = getMemberAbsenceReason(m.id)
       const role = leadershipRoles.get(m.id)
       const ts = p?.date_updated ?? p?.date_created ?? ''
+      const sessionStatuses = buildSessionStatuses(m.id)
       return {
         name: fullName(m, role),
         jerseyNumber: m.number && m.number > 0 ? m.number : null,
         positions: translatePositions(m.position),
-        status: statusLabelText(m.id, status),
+        // Session-overall: fold the per-day breakdown into `status` so the CSV
+        // (which only reads `status`) still carries it; the PNG/PDF snapshot
+        // renders the richer colored `sessionStatuses` lines instead.
+        status: sessionStatuses
+          ? sessionStatuses.map((s) => `${s.label}: ${s.statusLabel}`).join(' / ')
+          : statusLabelText(m.id, status),
+        sessionStatuses,
         guests: p?.guest_count ?? 0,
         isGuest: isGuestMember(m),
         // Custom note wins over absence-reason fallback even when cleared
@@ -1045,7 +1115,7 @@ export default function ParticipationRosterModal({
     }
     return rows
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredMemberList, participations, absences, leadershipRoles, statusFilter, waitlistedParts, visibleStaffMembers, visibleStaffParticipations, memberList, t, translatePositions])
+  }, [filteredMemberList, participations, absences, leadershipRoles, statusFilter, waitlistedParts, visibleStaffMembers, visibleStaffParticipations, memberList, t, translatePositions, exportSessions, sessionParticipationByMember])
 
   // Position breakdown of the same population that exportRows covers — counts
   // each member once per declared position (a setter/outside hybrid contributes
@@ -1098,6 +1168,12 @@ export default function ParticipationRosterModal({
       activityType === 'training' ? t('kindTraining', { defaultValue: 'Training' })
       : activityType === 'game' ? t('kindGame', { defaultValue: 'Game' })
       : t('kindEvent', { defaultValue: 'Event' })
+    // A specific session tab exports just that day; label it in the header so
+    // the sheet isn't mistaken for the whole event. The Overall tab shows the
+    // per-day breakdown in the table instead, so no single label there.
+    const activeSession = hasSessionMode && activeSessionTab
+      ? (eventSessions ?? []).find((s) => s.id === activeSessionTab)
+      : undefined
     return {
       activityKind: activityKind || fallbackKind,
       activityTitle: title,
@@ -1107,8 +1183,9 @@ export default function ParticipationRosterModal({
       exportedAt: formatDateTimeCompact(new Date().toISOString()),
       totalCount: exportRows.length,
       positionsSummary: positionsSummaryText,
+      sessionLabel: activeSession ? formatSessionLabel(activeSession) : '',
     }
-  }, [activityKind, activityType, title, activityDate, statusFilter, exportRows.length, positionSummary, t, i18n])
+  }, [activityKind, activityType, title, activityDate, statusFilter, exportRows.length, positionSummary, t, i18n, hasSessionMode, activeSessionTab, eventSessions])
 
   const handleExport = useCallback(async (format: 'csv' | 'png' | 'pdf') => {
     if (exporting) return
@@ -1416,7 +1493,7 @@ export default function ParticipationRosterModal({
             </p>
             <h1 style={{ fontSize: '20px', fontWeight: 600, margin: 0 }}>{exportMeta.activityTitle}</h1>
             <p style={{ fontSize: '13px', color: '#6b7280', margin: '6px 0 0' }}>
-              {exportMeta.activityDate} &middot; {t('filter', { defaultValue: 'Filter' })}: {exportMeta.filterLabel} ({exportMeta.totalCount})
+              {exportMeta.activityDate} &middot; {exportMeta.sessionLabel ? `${exportMeta.sessionLabel} · ` : ''}{t('filter', { defaultValue: 'Filter' })}: {exportMeta.filterLabel} ({exportMeta.totalCount})
             </p>
           </div>
 
@@ -1443,6 +1520,9 @@ export default function ParticipationRosterModal({
                     backgroundColor: '#f3f4f6',
                     color: '#374151',
                     border: '1px solid #e5e7eb',
+                    // Keep multi-word labels ("Outside hitter", "Middle blocker")
+                    // on one line — without this the pill wraps mid-label.
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   <strong style={{ fontVariantNumeric: 'tabular-nums', color: '#111827' }}>{p.count}</strong>
@@ -1480,7 +1560,16 @@ export default function ParticipationRosterModal({
                     )}
                   </td>
                   <td style={{ padding: '6px 8px', color: '#6b7280', verticalAlign: 'top' }}>{r.positions}</td>
-                  <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>{r.status}</td>
+                  <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                    {r.sessionStatuses
+                      ? r.sessionStatuses.map((s, k) => (
+                          <div key={k} style={{ whiteSpace: 'nowrap', lineHeight: 1.5 }}>
+                            <span style={{ color: '#6b7280' }}>{s.label}: </span>
+                            <span style={{ color: exportStatusColor(s.status), fontWeight: 500 }}>{s.statusLabel}</span>
+                          </div>
+                        ))
+                      : r.status}
+                  </td>
                   <td style={{ padding: '6px 8px', textAlign: 'center', verticalAlign: 'top' }}>{r.isGuest ? '✓' : ''}</td>
                   <td style={{ padding: '6px 8px', color: '#6b7280', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top' }}>{r.guests > 0 ? `+${r.guests}` : ''}</td>
                   <td style={{ padding: '6px 8px', color: '#6b7280', verticalAlign: 'top' }}>{r.note}</td>
