@@ -98,9 +98,16 @@ export function useTeamMembers(
   return { members, isLoading, error, refetch: fetch }
 }
 
-/** Fetch members from multiple teams, deduplicating by member ID. */
+/** Fetch members from multiple teams, deduplicating by member ID.
+ *  `teamsByMember` maps each memberId → the list of the requested teamIds they
+ *  belong to (built from the RAW junction rows, before the dedupe below drops
+ *  the extra team associations). Callers rendering a multi-team roster use it to
+ *  filter by team — the deduped `members` array keeps only the first junction
+ *  row per member, so `mt.team` alone can't tell you every team a shared player
+ *  is on. */
 export function useMultiTeamMembers(teamIds: string[]) {
   const [members, setMembers] = useState<ExpandedMemberTeam[]>([])
+  const [teamsByMember, setTeamsByMember] = useState<Map<string, string[]>>(new Map())
   const [loadedKey, setLoadedKey] = useState<string | null | undefined>(undefined)
   const [error, setError] = useState<Error | null>(null)
   // Discards out-of-order responses: a slow stale fetch resolving after a newer
@@ -116,6 +123,7 @@ export function useMultiTeamMembers(teamIds: string[]) {
     if (safeIds.length === 0) {
       latestKeyRef.current = null
       setMembers([])
+      setTeamsByMember(new Map())
       setLoadedKey(null)
       return
     }
@@ -133,7 +141,18 @@ export function useMultiTeamMembers(teamIds: string[]) {
         fields: ['*', 'member.*'],
         sort: ['member'],
       })
-      // Deduplicate by member ID — keep the first occurrence
+      // Deduplicate by member ID — keep the first occurrence. Build the
+      // member→teams map from the RAW rows first so a player on two invited
+      // teams keeps both associations even though only one row survives dedupe.
+      const byMember = new Map<string, string[]>()
+      for (const mt of result) {
+        const memberId = String(asObj<Member>(mt.member)?.id ?? mt.member)
+        const teamId = String(relId((mt as { team?: unknown }).team))
+        if (!teamId) continue
+        const arr = byMember.get(memberId)
+        if (arr) { if (!arr.includes(teamId)) arr.push(teamId) }
+        else byMember.set(memberId, [teamId])
+      }
       const seen = new Set<string>()
       const deduped = result.filter(mt => {
         const memberId = String(asObj<Member>(mt.member)?.id ?? mt.member)
@@ -143,6 +162,7 @@ export function useMultiTeamMembers(teamIds: string[]) {
       })
       if (latestKeyRef.current !== key) return
       setMembers(deduped)
+      setTeamsByMember(byMember)
     } catch (err) {
       if (latestKeyRef.current === key) {
         setError(err instanceof Error ? err : new Error(String(err)))
@@ -157,5 +177,5 @@ export function useMultiTeamMembers(teamIds: string[]) {
     fetch()
   }, [fetch])
 
-  return { members, isLoading, error, refetch: fetch }
+  return { members, teamsByMember, isLoading, error, refetch: fetch }
 }

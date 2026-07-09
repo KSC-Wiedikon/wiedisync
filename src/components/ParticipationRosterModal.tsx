@@ -2,12 +2,15 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Pencil, ChevronDown, Check, Download, FileText, Image as ImageIcon, FileType, X, HelpCircle, Hourglass, Minus } from 'lucide-react'
+import { Pencil, ChevronDown, Check, Download, FileText, Image as ImageIcon, FileType, X, HelpCircle, Hourglass, Minus, Users } from 'lucide-react'
 import Modal from '@/components/Modal'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useMultiTeamMembers } from '../hooks/useTeamMembers'
@@ -170,7 +173,7 @@ export default function ParticipationRosterModal({
   const { t: te } = useTranslation('events')
   const { t: ta } = useTranslation('absences')
   const { t: tt } = useTranslation('teams')
-  const { members, isLoading: membersLoading } = useMultiTeamMembers(teamIds)
+  const { members, teamsByMember, isLoading: membersLoading } = useMultiTeamMembers(teamIds)
   const [absences, setAbsences] = useState<Absence[]>([])
   const [staffMembers, setStaffMembers] = useState<Member[]>([])
   // Staff participation rows (is_staff=true) for this activity. Tracked
@@ -181,11 +184,16 @@ export default function ParticipationRosterModal({
   const [staffParticipationRows, setStaffParticipationRows] = useState<Participation[]>([])
   const [activeSessionTab, setActiveSessionTab] = useState<string | null>(null) // null = overall
   const [statusFilter, setStatusFilter] = useState<string | null>(null) // null = "All"
+  // Team filter (multi-team events only). `null` = all teams; a non-empty Set
+  // narrows the ENTIRE modal (counts, list, staff, export) to members belonging
+  // to at least one selected team.
+  const [selectedTeams, setSelectedTeams] = useState<Set<string> | null>(null)
 
   // Reset filter and editing state when modal opens
   useEffect(() => {
     if (open) {
       setStatusFilter(null)
+      setSelectedTeams(null)
       setEditingMemberId(null)
     }
   }, [open])
@@ -196,18 +204,33 @@ export default function ParticipationRosterModal({
     // M2M fields MUST be expanded via `<rel>.members_id`. Bare `coach`/
     // `team_responsible` return junction row IDs that look like member
     // IDs but aren't → ghost-staff bug.
-    fields: ['id', 'captain', 'coach.members_id', 'team_responsible.members_id'],
+    fields: ['id', 'name', 'captain', 'coach.members_id', 'team_responsible.members_id'],
     enabled: teamIds.length > 0 && open,
   })
-  const teams = teamsRaw ?? []
-  const leadershipRoles = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const team of teams) {
-      for (const id of flattenMemberIds(team.coach)) if (!map.has(id)) map.set(id, 'coach')
-      for (const id of flattenMemberIds(team.captain)) if (!map.has(id)) map.set(id, 'captain')
-      for (const id of flattenMemberIds(team.team_responsible)) if (!map.has(id)) map.set(id, 'tr')
+  const teams = useMemo(() => teamsRaw ?? [], [teamsRaw])
+  // `leadershipRoles`: memberId → role (first-wins). `leadershipTeamsByMember`:
+  // memberId → the set of invited teams they coach / are TR for, so the team
+  // filter can narrow the staff section too.
+  const { leadershipRoles, leadershipTeamsByMember } = useMemo(() => {
+    const roleMap = new Map<string, string>()
+    const teamMap = new Map<string, Set<string>>()
+    const addTeam = (id: string, teamId: string) => {
+      const s = teamMap.get(id)
+      if (s) s.add(teamId)
+      else teamMap.set(id, new Set([teamId]))
     }
-    return map
+    for (const team of teams) {
+      const tid = String(team.id)
+      for (const id of flattenMemberIds(team.coach)) { if (!roleMap.has(id)) roleMap.set(id, 'coach'); addTeam(id, tid) }
+      for (const id of flattenMemberIds(team.captain)) { if (!roleMap.has(id)) roleMap.set(id, 'captain'); addTeam(id, tid) }
+      for (const id of flattenMemberIds(team.team_responsible)) { if (!roleMap.has(id)) roleMap.set(id, 'tr'); addTeam(id, tid) }
+    }
+    return { leadershipRoles: roleMap, leadershipTeamsByMember: teamMap }
+  }, [teams])
+  const teamNameById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const team of teams) m.set(String(team.id), team.name ?? String(team.id))
+    return m
   }, [teams])
 
   const { user, isCoachOf, teamResponsibleIds } = useAuth()
@@ -279,7 +302,20 @@ export default function ParticipationRosterModal({
     return new Set(excludedGuestLevels.map((n) => Number(n)))
   }, [excludedGuestLevels])
 
-  const memberList: Member[] = isClubWide
+  // Team filter is only meaningful for a multi-team, non-club-wide event.
+  // `null`/empty Set = all teams (no narrowing).
+  const teamFilterActive = !isClubWide && teamIds.length > 1 && selectedTeams != null && selectedTeams.size > 0
+  const memberInSelectedTeams = useCallback((memberTeamIds: string[] | undefined): boolean => {
+    if (!teamFilterActive) return true
+    if (!memberTeamIds || memberTeamIds.length === 0) return false
+    return memberTeamIds.some((tid) => selectedTeams!.has(String(tid)))
+  }, [teamFilterActive, selectedTeams])
+
+  // Full roster (guest-excluded, NOT team-filtered). Drives the participation /
+  // absence FETCHES and the staff-vs-player split — those must stay stable when
+  // the team filter changes so counts recompute from already-loaded data
+  // instead of triggering a refetch flash.
+  const rosterMembers: Member[] = isClubWide
     ? clubWideMembers
     : members
         .filter((mt) => {
@@ -293,7 +329,14 @@ export default function ParticipationRosterModal({
         .map(m => ({ ...m, id: String(m.id) }))
         .sort(byFirstThenLastName)
 
-  const memberIds = memberList.map((m) => m.id)
+  const rosterMemberIds = rosterMembers.map((m) => m.id)
+
+  // Team-filtered view — narrows the summary counts, the visible list, the
+  // waitlist and the export to the selected team(s). Passthrough when no team
+  // filter is active (single-team, club-wide, or "All").
+  const memberList: Member[] = teamFilterActive
+    ? rosterMembers.filter((m) => memberInSelectedTeams(teamsByMember.get(String(m.id))))
+    : rosterMembers
 
   // Guest players (member_teams.guest_level > 0) — surfaced with a "Guest" badge
   // in each row so a coach scanning the roster can tell core players from guests
@@ -313,14 +356,14 @@ export default function ParticipationRosterModal({
   const { participations: regularParticipations, isLoading: regularLoading } = useTeamParticipations(
     activityType,
     activityId ?? '',
-    isClubWide ? [] : memberIds, // skip for club-wide (we use clubWideParticipations)
+    isClubWide ? [] : rosterMemberIds, // skip for club-wide (we use clubWideParticipations)
     hasSessionMode ? (activeSessionTab ?? undefined) : undefined,
   )
 
   // For session mode overall tab: fetch ALL participations across sessions
   const { participations: allParticipations, isLoading: allLoading } = useAllEventParticipations(
     hasSessionMode && activeSessionTab === null && !isClubWide ? (activityId ?? '') : '',
-    isClubWide ? [] : memberIds,
+    isClubWide ? [] : rosterMemberIds,
   )
 
   const participations = isClubWide
@@ -505,7 +548,7 @@ export default function ParticipationRosterModal({
   useEffect(() => {
     if (!user || !open || !activityId || isClubWide) return
     const staffParts = staffPartsRaw ?? []
-    const memberIdSet = new Set(memberIds.map(String))
+    const memberIdSet = new Set(rosterMemberIds.map(String))
     const staffOnlyParts = staffParts.filter((p) => !memberIdSet.has(String(p.member)))
     setStaffParticipationRows(staffOnlyParts)
 
@@ -543,7 +586,7 @@ export default function ParticipationRosterModal({
   // unstable and re-fires this effect on every render → mobile Vaul Drawer
   // setState → render → setState loop (WIEDISYNC-3Y).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activityId, activityType, isClubWide, memberIds.join(','), staffPartsRaw, teamsRaw])
+  }, [open, activityId, activityType, isClubWide, rosterMemberIds.join(','), staffPartsRaw, teamsRaw])
 
   // For the overall tab, compute per-member session counts
   const memberSessionCounts = useMemo(() => {
@@ -558,16 +601,18 @@ export default function ParticipationRosterModal({
     return map
   }, [hasSessionMode, activeSessionTab, eventSessions, memberList, allParticipations])
 
-  // Fetch absences overlapping activity date (same pattern as AttendanceSheet)
-  const memberIdsKey = memberIds.join(',')
+  // Fetch absences overlapping activity date (same pattern as AttendanceSheet).
+  // Keyed on the full roster (not the team-filtered list) so switching teams
+  // reuses the already-loaded absences instead of refetching.
+  const memberIdsKey = rosterMemberIds.join(',')
   const fetchAbsences = useCallback(async () => {
-    if (!user || !activityDate || memberIds.length === 0) return
+    if (!user || !activityDate || rosterMemberIds.length === 0) return
     try {
       const dateStr = activityDate.split(' ')[0]
       const result = await fetchAllItems<Absence>('absences', {
         filter: {
           _and: [
-            { member: { _in: memberIds } },
+            { member: { _in: rosterMemberIds } },
             { start_date: { _lte: dateStr } },
             { end_date: { _gte: dateStr } },
           ],
@@ -668,12 +713,24 @@ export default function ParticipationRosterModal({
   // time (see `useTeamParticipations`), so a coach not in member_teams
   // won't appear there even if they have an `is_staff=true` row.
   const staffParticipations = staffParticipationRows.filter(p => !memberIdSet.has(p.member))
+  // When a team filter is active, narrow the staff section to coaches / TR of a
+  // selected team. Staff with no resolvable team (e.g. a manually-added
+  // is_staff RSVP by a non-leader) are hidden while filtering — they can't be
+  // attributed to the selected team(s).
+  const staffMemberInSelectedTeams = (id: string): boolean =>
+    memberInSelectedTeams([...(leadershipTeamsByMember.get(String(id)) ?? [])])
+  const visibleStaffMembers = teamFilterActive
+    ? staffMembers.filter((sm) => staffMemberInSelectedTeams(sm.id))
+    : staffMembers
+  const visibleStaffParticipations = teamFilterActive
+    ? staffParticipations.filter((p) => staffMemberInSelectedTeams(p.member))
+    : staffParticipations
   // "Coach present" = staff-only confirmed + player-coaches confirmed (coach only — captain/TR don't count).
   // Player-coach lookup walks the FULL participations list (not `summaryParticipations`,
   // which now excludes `is_staff` rows): a coach who has only an `is_staff` confirmed
   // marker would otherwise lose their badge after the v4.6.7 dedupe tightening.
   // Set-based dedupe so a coach with both player + staff confirmed rows counts once.
-  const staffOnlyConfirmed = staffParticipations.filter(p => p.status === 'confirmed').length
+  const staffOnlyConfirmed = visibleStaffParticipations.filter(p => p.status === 'confirmed').length
   const playerCoachConfirmedIds = new Set<string>()
   for (const p of participations) {
     if (p.status === 'confirmed' && memberIdSet.has(p.member) && leadershipRoles.get(p.member) === 'coach') {
@@ -952,9 +1009,9 @@ export default function ParticipationRosterModal({
           editedBy: formatAttribution(m, wp),
         })
       }
-      const sortedStaff = [...staffMembers].sort(byLastName)
+      const sortedStaff = [...visibleStaffMembers].sort(byLastName)
       for (const sm of sortedStaff) {
-        const sp = staffParticipations.find((p) => p.member === sm.id) ?? null
+        const sp = visibleStaffParticipations.find((p) => p.member === sm.id) ?? null
         const ts = sp?.date_updated ?? sp?.date_created ?? ''
         rows.push({
           name: `${(sm.first_name ?? '').trim()} ${(sm.last_name ?? '').trim()}`.trim() + ` (${t('staff')})`,
@@ -971,7 +1028,7 @@ export default function ParticipationRosterModal({
     }
     return rows
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredMemberList, participations, absences, leadershipRoles, statusFilter, waitlistedParts, staffMembers, staffParticipations, memberList, t, translatePositions])
+  }, [filteredMemberList, participations, absences, leadershipRoles, statusFilter, waitlistedParts, visibleStaffMembers, visibleStaffParticipations, memberList, t, translatePositions])
 
   // Position breakdown of the same population that exportRows covers — counts
   // each member once per declared position (a setter/outside hybrid contributes
@@ -983,7 +1040,7 @@ export default function ParticipationRosterModal({
         const m = memberList.find((mm) => mm.id === wp.member)
         if (m) membersForExport.push(m)
       }
-      for (const sm of staffMembers) membersForExport.push(sm)
+      for (const sm of visibleStaffMembers) membersForExport.push(sm)
     }
     const counts = new Map<string, number>()
     for (const m of membersForExport) {
@@ -1004,7 +1061,7 @@ export default function ParticipationRosterModal({
           count: counts.get(pos) ?? 0,
         }
       })
-  }, [filteredMemberList, statusFilter, waitlistedParts, staffMembers, memberList, tt])
+  }, [filteredMemberList, statusFilter, waitlistedParts, visibleStaffMembers, memberList, tt])
 
   const exportMeta = useMemo<RosterExportMeta>(() => {
     const filterLabel =
@@ -1132,8 +1189,10 @@ export default function ParticipationRosterModal({
         )}
       </div>
 
-      {/* Status filter + export — dropdown menus */}
-      {memberList.length > 0 && (() => {
+      {/* Team + status filter + export — dropdown menus. Gated on the FULL
+          roster (not the team-filtered list) so the team dropdown stays
+          reachable even when a selected team happens to have zero members. */}
+      {rosterMembers.length > 0 && (() => {
         const filterOptions = [
           { key: null, label: t('all'), count: memberList.length, dotClass: 'bg-gray-400 dark:bg-gray-500' },
           { key: 'confirmed', label: t('confirmed'), count: confirmed, dotClass: 'bg-green-500' },
@@ -1142,8 +1201,72 @@ export default function ParticipationRosterModal({
           { key: 'no_response', label: t('notResponded'), count: notResponded, dotClass: 'bg-gray-400 dark:bg-gray-500' },
         ] as const
         const active = filterOptions.find((o) => o.key === statusFilter) ?? filterOptions[0]
+        // Per-team roster counts for the team-filter dropdown (a shared player
+        // counts under each of their teams).
+        const teamMemberCounts = new Map<string, number>()
+        for (const mem of rosterMembers) {
+          for (const tid of teamsByMember.get(String(mem.id)) ?? []) {
+            teamMemberCounts.set(tid, (teamMemberCounts.get(tid) ?? 0) + 1)
+          }
+        }
+        const showTeamFilter = !isClubWide && teamIds.length > 1
+        const teamTriggerLabel = !teamFilterActive
+          ? t('allTeams', { defaultValue: 'All teams' })
+          : selectedTeams!.size === 1
+            ? (teamNameById.get(String([...selectedTeams!][0])) ?? t('allTeams', { defaultValue: 'All teams' }))
+            : t('teamsCount', { count: selectedTeams!.size, defaultValue: '{{count}} teams' })
+        const toggleTeam = (teamId: string) => {
+          setSelectedTeams((prev) => {
+            const next = new Set(prev ?? [])
+            if (next.has(teamId)) next.delete(teamId)
+            else next.add(teamId)
+            // Empty or every-team-selected both collapse to "all" (null).
+            if (next.size === 0 || next.size === teamIds.length) return null
+            return next
+          })
+        }
         return (
           <div className="mb-4 flex flex-wrap items-center gap-2">
+            {showTeamFilter && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex min-h-[36px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  >
+                    <Users className="h-4 w-4 text-gray-400" />
+                    <span>{teamTriggerLabel}</span>
+                    <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[220px]">
+                  <DropdownMenuLabel>{t('filterByTeam', { defaultValue: 'Filter by team' })}</DropdownMenuLabel>
+                  <DropdownMenuCheckboxItem
+                    checked={!teamFilterActive}
+                    onSelect={(e) => { e.preventDefault(); setSelectedTeams(null) }}
+                    className="cursor-pointer"
+                  >
+                    <span className="flex-1">{t('allTeams', { defaultValue: 'All teams' })}</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{rosterMembers.length}</span>
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  {teamIds.map((tid) => {
+                    const id = String(tid)
+                    return (
+                      <DropdownMenuCheckboxItem
+                        key={id}
+                        checked={selectedTeams?.has(id) ?? false}
+                        onSelect={(e) => { e.preventDefault(); toggleTeam(id) }}
+                        className="cursor-pointer"
+                      >
+                        <span className="flex-1 break-words">{teamNameById.get(id) ?? id}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">{teamMemberCounts.get(id) ?? 0}</span>
+                      </DropdownMenuCheckboxItem>
+                    )
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -1631,12 +1754,12 @@ export default function ParticipationRosterModal({
           )}
 
           {/* Staff section — coaches/team_responsible not in roster */}
-          {staffMembers.length > 0 && (
+          {visibleStaffMembers.length > 0 && (
             <>
               <div className="border-b bg-gray-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                 {t('staff')}
               </div>
-              {staffMembers.map((member) => {
+              {visibleStaffMembers.map((member) => {
                 const status = getStaffMemberStatus(member.id)
                 return (
                   <div
