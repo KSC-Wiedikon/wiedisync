@@ -214,8 +214,8 @@ export default function ScorerAssignPage() {
   // Recomputed from the current assignment so filling/clearing a slot toggles them.
   const vbStatusNotes = (tr: typeof t, a: GameAssignment): Note[] => {
     const s: Note[] = []
-    // Cup games are the playing team's own duty — a free slot, not a gap to fill.
-    if (a.mode === 'cup') return [{ text: tr('cupOwnDuty'), tone: 'muted' }]
+    // Cup games are on-call/Pikett slots — a free slot, not a gap to fill.
+    if (a.mode === 'cup') return [{ text: tr('cupOnCall'), tone: 'muted' }]
     if (a.conflicts.some((c) => c.key === 'existingKept')) s.push({ text: tr('existingKept'), tone: 'muted' })
     if (a.mode === 'combined') { if (!a.combinedTeamId) s.push({ text: tr('noTeamAvailable'), tone: 'warn' }) }
     else if (a.mode === 'referee') { if (!a.refereeTeamId) s.push({ text: tr('noRefereeAvailable'), tone: 'warn' }) }
@@ -748,7 +748,7 @@ export default function ScorerAssignPage() {
                         </TableCell>
                         {a.mode === 'cup' ? (
                           <TableCell className="px-2 py-2 text-center" colSpan={3}>
-                            <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{t('cupOwnDuty')}</span>
+                            <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{t('cupOnCall')}</span>
                           </TableCell>
                         ) : a.mode === 'combined' ? (
                           <>

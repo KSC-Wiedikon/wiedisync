@@ -8,7 +8,7 @@ export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsh
 const HEADER_FILL = 'FF1E3A8A'  // brand blue
 const RED_FILL = 'FFFECACA'     // light red — a game with no assignment
 const EXISTING_FILL = 'FFF3F4F6' // light grey — kept existing assignment
-const CUP_FILL = 'FFDBEAFE'      // light blue — cup game, playing team's own duty
+const CUP_FILL = 'FFDBEAFE'      // light blue — cup game, on-call/Pikett slot
 
 // Distinct pastels so each team's cells are scannable at a glance.
 const TEAM_PALETTE = [

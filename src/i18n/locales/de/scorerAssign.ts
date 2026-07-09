@@ -67,7 +67,7 @@ export default {
 
   // Existing
   existingKept: 'Bestehende Zuteilung beibehalten',
-  cupOwnDuty: 'Cup — Aufgabe des spielenden Teams',
+  cupOnCall: 'Pikett',
   noTeamAvailable: 'Kein Team verfügbar',
   noScorerAvailable: 'Kein Schreiber verfügbar',
   noTaefelerAvailable: 'Kein Täfeler verfügbar',

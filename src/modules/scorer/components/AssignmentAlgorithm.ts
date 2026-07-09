@@ -4,13 +4,13 @@ import type { Game, Team, Training, Member, MemberTeam } from '../../../types'
 // duty, and hidden from the assign page's team summary + manual dropdowns.
 export const EXCLUDED_DUTY_TEAM_NAMES = ['MiniVB', 'DU20']
 
-// Cup games (Züri Cup + Swiss/Mobiliar Volley Cup) are the PLAYING team's own
-// responsibility — the club never summons another team for cup duty. They show
-// up as free slots in the plan, assigned to nobody. A bare /cup/ match catches
-// every variant ("Züri Cup", "Mobiliar Volley Cup", "Swiss Volley Cup",
-// "Schweizer Cup", "Zürcher …-Cup"); no regular league string contains "cup".
-// (Note: detectCupMatch() only knows the two canonical names for chip colour —
-// this is the wider net used to gate duty.)
+// Cup games (Züri Cup + Swiss/Mobiliar Volley Cup) are NOT assigned to a duty
+// team — they surface as read-only "on call" (Pikett) slots: nobody is summoned,
+// officials are on standby. They show up as free slots in the plan, assigned to
+// nobody. A bare /cup/ match catches every variant ("Züri Cup", "Mobiliar Volley
+// Cup", "Swiss Volley Cup", "Schweizer Cup", "Zürcher …-Cup"); no regular league
+// string contains "cup". (Note: detectCupMatch() only knows the two canonical
+// names for chip colour — this is the wider net used to gate duty.)
 export function isCupGame(league: string | null | undefined): boolean {
   return /\bcup\b|pokal|coupe|coppa/i.test(league ?? '')
 }
@@ -45,7 +45,7 @@ export interface ConflictEntry {
 export interface GameAssignment {
   gameId: string
   // 'separate' = scorer(licence) + Täfeler; 'combined' = one team does both;
-  // 'referee' = referee only (HU20); 'cup' = playing team's own duty (free slot,
+  // 'referee' = referee only (HU20); 'cup' = on-call/Pikett slot (free slot,
   // no team assigned).
   mode: 'separate' | 'combined' | 'referee' | 'cup'
   scorerTeamId: string | null
@@ -389,11 +389,11 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
   }
 
   for (const game of homeGames) {
-    // Cup game → free slot: the playing team covers its own duty, never another
-    // team. Surface it (so it's visible in the plan) but assign nobody.
+    // Cup game → on-call/Pikett free slot: no team is summoned for cup duty.
+    // Surface it (so it's visible in the plan) but assign nobody.
     if (isCupGame(game.league)) {
       const a = blank(game.id, 'cup')
-      a.conflicts.push({ key: 'cupOwnDuty' })
+      a.conflicts.push({ key: 'cupOnCall' })
       results.push(a)
       continue
     }
