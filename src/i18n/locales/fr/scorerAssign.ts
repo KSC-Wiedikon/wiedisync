@@ -86,7 +86,8 @@ export default {
   reason_rotation: 'Rotation : {{count}}x ({{points}})',
   reason_hu20Taefeler: 'HU20 tableau (+{{points}})',
   reason_underDoltschi: 'Equipe Under Doltschi (+{{points}})',
-  reason_legendsScorer: 'Legends marqueur (+{{points}})',
+  reason_legendsScorer: 'Legends marqueur ({{points}})',
+  reason_legendsScoreboard: 'Legends tableau ({{points}})',
   reason_weekendFree: 'Weekend libre (+{{points}})',
 
   // Basketball
@@ -117,7 +118,7 @@ export default {
   ruleVbSoftSequence: 'Joue juste avant/après dans la même salle : +50',
   ruleVbSoftHu20: 'HU20 au tableau : +15',
   ruleVbSoftDoltschi: 'Équipe U en combiné à Döltschi : +10',
-  ruleVbSoftLegends: 'Legends comme marqueur : +8',
+  ruleVbSoftLegends: 'Legends tend vers le tableau (~3:1 vs marqueur) : ±12',
   ruleVbSoftWeekend: 'Week-end sans entraînement : +5',
   ruleVbSoftTraining: 'Entraînement le même jour : -20',
   ruleVbSoftRotation: 'Rotation équitable : -10 par service déjà attribué',
