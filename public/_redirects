@@ -1,0 +1,10 @@
+# --- Cloudflare Pages routing ---
+#
+# SPA fallback: real client-side routes (/calendar, /login, …) that don't map to a
+# static file are served the app shell. Real static files are always served first, so
+# this only catches navigation routes.
+#
+# NOTE: missing hashed assets under /assets/* are handled by functions/assets/[[path]].js
+# (they must return a real 404, not this immutable-cached HTML fallback — see that file).
+# `_redirects` cannot do that itself: CF Pages does not support a 404 status here.
+/*  /index.html  200
