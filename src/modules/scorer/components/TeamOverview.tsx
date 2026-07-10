@@ -221,19 +221,21 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
                     <TableCell colSpan={3} className="bg-gray-50/60 px-3 py-2 dark:bg-gray-800/40">
                       <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
                         {r.list.map((entry, i) => (
-                          <div key={`${entry.game.id}-${entry.dutyType}-${i}`} className="flex items-center gap-2 py-1.5">
-                            <span className="w-24 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                              {formatDateZurich(entry.game.date)}
-                            </span>
-                            <span className="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-300" title={`${entry.game.home_team} – ${entry.game.away_team}`}>
-                              {entry.game.home_team} – {entry.game.away_team}
-                            </span>
-                            <span className="w-20 shrink-0 truncate text-xs text-gray-500 dark:text-gray-400" title={dutyLabel[entry.dutyType]}>
-                              {dutyLabel[entry.dutyType]}
-                            </span>
-                            <span className={`w-28 shrink-0 truncate text-right text-xs ${entry.memberName ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-red-500'}`}>
-                              {entry.memberName ?? t('unassigned')}
-                            </span>
+                          <div key={`${entry.game.id}-${entry.dutyType}-${i}`} className="py-1.5">
+                            {/* Two lines so it never overflows a narrow phone: the
+                                game on top, duty + assignee below. */}
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="shrink-0 text-gray-500 dark:text-gray-400">{formatDateZurich(entry.game.date)}</span>
+                              <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300" title={`${entry.game.home_team} – ${entry.game.away_team}`}>
+                                {entry.game.home_team} – {entry.game.away_team}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 flex items-center gap-2 text-xs">
+                              <span className="shrink-0 text-gray-400 dark:text-gray-500">{dutyLabel[entry.dutyType]}:</span>
+                              <span className={`min-w-0 truncate ${entry.memberName ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-red-500'}`}>
+                                {entry.memberName ?? t('unassigned')}
+                              </span>
+                            </div>
                           </div>
                         ))}
                       </div>
