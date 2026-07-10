@@ -14,6 +14,8 @@ export default {
   uploadNoIdColumn: 'Nessuna colonna "N. partita" trovata — scarica prima un nuovo Excel.',
   uploadNoMatches: 'Nessuna riga abbinata a una partita (controlla la colonna N. partita).',
   uploadError: 'Impossibile leggere il file.',
+  uploadNotReady: 'Le partite si stanno ancora caricando — riprova tra un momento.',
+  uploadStale: 'L\'app è stata aggiornata — aggiorna la pagina e riprova.',
   rollOut: 'Distribuisci',
   rollingOut: 'Distribuzione...',
   rollOutHint: 'Inserisci i compiti nelle partite (ufficializza)',

@@ -14,6 +14,8 @@ export default {
   uploadNoIdColumn: 'Kei Spalte „Spielnr." gfunde — zerscht e nöii Excel abelade.',
   uploadNoMatches: 'Kei Ziile emne Spiel zuegordnet (Spalte Spielnr. prüefe).',
   uploadError: 'Datei het nöd chöne gläse werde.',
+  uploadNotReady: 'Spiil werded no glade — bitte gli nomal probiere.',
+  uploadStale: 'D App isch aktualisiert worde — bitte d Siite neu lade und nomal probiere.',
   rollOut: 'Usrolle',
   rollingOut: 'Wird usgrollt...',
   rollOutHint: 'Die Dienscht definitiv i d Spiel schriibe',

@@ -14,6 +14,8 @@ export default {
   uploadNoIdColumn: 'No "Game no." column found — download a fresh Excel first.',
   uploadNoMatches: 'No rows matched a game (check the Game no. column).',
   uploadError: 'Could not read the file.',
+  uploadNotReady: 'Games are still loading — try again in a moment.',
+  uploadStale: 'The app was updated — please refresh the page and try again.',
   rollOut: 'Roll out',
   rollingOut: 'Rolling out...',
   rollOutHint: 'Write these duties to the games (makes them official)',
