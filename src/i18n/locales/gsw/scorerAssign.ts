@@ -4,6 +4,10 @@ export default {
 
   // Actions
   runAlgorithm: 'Algorithmus starte',
+  rerun: 'Neu rächne',
+  rerunHint: 'D Zuteilig vo Grund uf neu rächne. Scho usgrollti Spiil blibed; nöd gspeicherti manuelli Änderige da gönd verlore.',
+  rerunConfirm: 'Di ganz Zuteilig neu rächne? Scho usgrollti Spiil blibed, nöd gspeicherti manuelli Änderige da gönd verlore.',
+  runLockedHint: 'Es isch scho e Zuteilig glade — mit «Neu rächne» nomal laufe la.',
   saveAll: 'Alli speichere',
   downloadXlsx: 'Excel abelade',
   uploadCorrected: 'Korrigierti uelade',

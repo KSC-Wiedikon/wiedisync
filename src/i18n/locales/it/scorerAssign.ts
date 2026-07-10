@@ -4,6 +4,10 @@ export default {
 
   // Actions
   runAlgorithm: 'Esegui algoritmo',
+  rerun: 'Ricalcola',
+  rerunHint: 'Ricalcola l\'assegnazione da zero. Le partite già distribuite restano; le modifiche manuali non salvate qui vengono perse.',
+  rerunConfirm: 'Ricalcolare tutta l\'assegnazione? Le partite già distribuite restano, ma le modifiche manuali non salvate qui andranno perse.',
+  runLockedHint: 'È già caricata un\'assegnazione — usa «Ricalcola» per rieseguirla.',
   saveAll: 'Salva tutto',
   downloadXlsx: 'Scarica Excel',
   uploadCorrected: 'Carica corretto',

@@ -4,6 +4,10 @@ export default {
 
   // Actions
   runAlgorithm: 'Run algorithm',
+  rerun: 'Recompute',
+  rerunHint: 'Recompute the assignment from scratch. Games already rolled out are kept; any unsaved manual changes here are discarded.',
+  rerunConfirm: 'Recompute the whole assignment? Games you already rolled out stay, but unsaved manual changes here will be lost.',
+  runLockedHint: 'An assignment is already loaded — use Recompute to run it again.',
   saveAll: 'Save all',
   downloadXlsx: 'Download Excel',
   uploadCorrected: 'Upload corrected',

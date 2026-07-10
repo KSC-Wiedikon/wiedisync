@@ -4,6 +4,10 @@ export default {
 
   // Actions
   runAlgorithm: 'Algorithmus starten',
+  rerun: 'Neu berechnen',
+  rerunHint: 'Die Zuteilung von Grund auf neu berechnen. Bereits ausgerollte Spiele bleiben; nicht gespeicherte manuelle Änderungen hier gehen verloren.',
+  rerunConfirm: 'Die ganze Zuteilung neu berechnen? Bereits ausgerollte Spiele bleiben, nicht gespeicherte manuelle Änderungen hier gehen verloren.',
+  runLockedHint: 'Es ist bereits eine Zuteilung geladen — mit «Neu berechnen» erneut ausführen.',
   saveAll: 'Alle speichern',
   downloadXlsx: 'Excel herunterladen',
   uploadCorrected: 'Korrigierte hochladen',
