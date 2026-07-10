@@ -58,6 +58,13 @@ export interface GameAssignment {
   refereeTeamName: string | null
   scorerScore: number
   scoreboardScore: number
+  // Optional per-role assignee (member id) — set by the admin in scorer-assign's
+  // person editor and written on roll-out. `undefined` = untouched (fall back to
+  // the game's current member); a string / null = explicitly set / cleared.
+  scorerMemberId?: string | null
+  scoreboardMemberId?: string | null
+  combinedMemberId?: string | null
+  refereeMemberId?: string | null
   conflicts: ConflictEntry[]
 }
 

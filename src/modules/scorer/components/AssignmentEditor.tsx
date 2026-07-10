@@ -150,6 +150,7 @@ export default function AssignmentEditor({
 
   return (
     <div className="space-y-1.5">
+      {(label || onHide) && (
       <div className="flex items-center gap-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">{label}</span>
         {onHide && (
@@ -165,6 +166,7 @@ export default function AssignmentEditor({
           </button>
         )}
       </div>
+      )}
 
       {/* Admin view: full dropdowns */}
       {canEdit ? (

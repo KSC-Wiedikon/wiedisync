@@ -31,6 +31,12 @@ export interface BbGameAssignment {
   dutyTeamId: string | null
   dutyTeamName: string | null
   score: number
+  // Optional per-role assignee (member id) — set in scorer-assign's person editor
+  // and written on roll-out. `undefined` = untouched (fall back to the game's
+  // current member); string / null = explicitly set / cleared.
+  bbScorerMemberId?: string | null
+  bbTimekeeperMemberId?: string | null
+  bb24sMemberId?: string | null
   conflicts: ConflictEntry[]
 }
 
