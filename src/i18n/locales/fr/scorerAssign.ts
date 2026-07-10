@@ -14,6 +14,8 @@ export default {
   uploadNoIdColumn: 'Aucune colonne « N° match » trouvée — téléchargez d\'abord un nouvel Excel.',
   uploadNoMatches: 'Aucune ligne associée à un match (vérifiez la colonne N° match).',
   uploadError: 'Impossible de lire le fichier.',
+  uploadNotReady: 'Les matchs sont encore en cours de chargement — réessayez dans un instant.',
+  uploadStale: 'L\'application a été mise à jour — veuillez actualiser la page et réessayer.',
   rollOut: 'Déployer',
   rollingOut: 'Déploiement...',
   rollOutHint: 'Écrire ces services dans les matchs (officialiser)',

@@ -14,6 +14,8 @@ export default {
   uploadNoIdColumn: 'Keine Spalte „Spielnr." gefunden — zuerst eine neue Excel herunterladen.',
   uploadNoMatches: 'Keine Zeile einem Spiel zugeordnet (Spalte Spielnr. prüfen).',
   uploadError: 'Datei konnte nicht gelesen werden.',
+  uploadNotReady: 'Spiele werden noch geladen — bitte gleich nochmals versuchen.',
+  uploadStale: 'Die App wurde aktualisiert — bitte Seite neu laden und erneut versuchen.',
   rollOut: 'Ausrollen',
   rollingOut: 'Wird ausgerollt...',
   rollOutHint: 'Diese Dienste definitiv in die Spiele schreiben',

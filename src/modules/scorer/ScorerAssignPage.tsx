@@ -16,6 +16,8 @@ import { runAssignment, getTeamCounts, buildTeamGameTimes, buildTrainingDates, b
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
 import { buildAssignmentXlsx, buildTeamColors, downloadBytes, XLSX_MIME, type XlsxGameRow, type XlsxSummaryRow, type XlsxLabels } from './lib/assignmentExport'
 import { updateRecord } from '../../lib/api'
+import { maybeReloadOnStaleChunk } from '../../lib/chunkReload'
+import { captureApiError } from '../../lib/sentry'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { TourPageButton } from '../guide/TourPageButton'
 
@@ -403,8 +405,28 @@ export default function ScorerAssignPage() {
   // unmatched rows are reported. The draft can then be rolled out as usual.
   async function handleUploadXlsx(file: File) {
     const isVb = sportTab === 'volleyball'
+    // The Upload button renders as soon as a draft exists (restored from
+    // localStorage), which can be BEFORE the season's games finish loading. With
+    // no games loaded, every row matches nothing → a misleading "no matches".
+    // Guard with a clear "still loading" message instead.
+    if (dataLoading || homeGames.length === 0) {
+      setSaveMsg({ text: t('uploadNotReady'), error: true })
+      return
+    }
+    // exceljs is a large lazy chunk. After a deploy its hash rotates; a tab still
+    // on the old bundle then imports a now-missing chunk (CF Pages serves the SPA
+    // fallback) → hard-reload to pick up the current bundle, the same recovery
+    // every other lazy export uses. Swallowing this into "could not read the
+    // file" (the old bare catch) both hid the cause and skipped the reload.
+    let ExcelJS: typeof import('exceljs')
     try {
-      const ExcelJS = await import('exceljs')
+      ExcelJS = await import('exceljs')
+    } catch (err) {
+      if (maybeReloadOnStaleChunk(err)) return // stale chunk → reloading now
+      setSaveMsg({ text: t('uploadStale'), error: true }) // reload on cooldown
+      return
+    }
+    try {
       const wb = new ExcelJS.Workbook()
       await wb.xlsx.load(await file.arrayBuffer())
       const ws = wb.worksheets[0]
@@ -473,7 +495,11 @@ export default function ScorerAssignPage() {
       if (unmatched) parts.push(t('uploadUnmatched', { count: unmatched }))
       if (unknownTeams.size) parts.push(t('uploadUnknownTeams', { names: [...unknownTeams].join(', ') }))
       setSaveMsg({ text: parts.join(' '), error: unmatched > 0 || unknownTeams.size > 0 })
-    } catch {
+    } catch (err) {
+      // A genuine parse failure (corrupt/renamed file) — log it so it's ever
+      // diagnosable, then show the generic "could not read" message. The old
+      // bare catch discarded the error, which is why this was invisible.
+      captureApiError(err, { operation: 'scorerUploadXlsx', collection: 'games' })
       setSaveMsg({ text: t('uploadError'), error: true })
     }
   }
