@@ -100,6 +100,9 @@ export default {
   // Basketball
   subtitleBb: 'Assegna automaticamente una squadra di servizio a ogni partita di basket in casa.',
   autoDutyTeam: 'Squadra di servizio',
+  bbScorer: 'Segnapunti (OTR1)',
+  bbTimekeeper: 'Cronometrista (OTR1)',
+  bb24sOfficial: 'Ufficiale 24" (OTR2)',
   dutyTeamTag: 'Servizio',
   dutyCount: 'Servizi',
   reason_noOtr1: 'Nessun ufficiale OTR1',

@@ -41,6 +41,10 @@ interface AssignmentEditorProps {
   showConfirmedBy?: boolean
   /** Callback to hide/collapse this assignment row */
   onHide?: () => void
+  /** Hide the team dropdown (person-only) — for extra roles that share a duty
+   *  team already chosen by another role (e.g. BB timekeeper/24s under the same
+   *  duty team as the scorer). Person-first still works (derives + sets the team). */
+  hideTeam?: boolean
 }
 
 export default function AssignmentEditor({
@@ -68,6 +72,7 @@ export default function AssignmentEditor({
   confirmedAt,
   showConfirmedBy,
   onHide,
+  hideTeam,
 }: AssignmentEditorProps) {
   const { t, i18n } = useTranslation('scorer')
 
@@ -171,7 +176,12 @@ export default function AssignmentEditor({
       {/* Admin view: full dropdowns */}
       {canEdit ? (
         <>
-          <div className={`grid gap-2 ${personValue && onDelegate && !disabled ? 'grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto]' : 'grid-cols-[minmax(0,2fr)_minmax(0,3fr)]'}`}>
+          <div className={`grid gap-2 ${
+            hideTeam
+              ? (personValue && onDelegate && !disabled ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-1')
+              : (personValue && onDelegate && !disabled ? 'grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto]' : 'grid-cols-[minmax(0,2fr)_minmax(0,3fr)]')
+          }`}>
+            {!hideTeam && (
             <TeamSelect
               value={teamValue}
               onChange={(v) => {
@@ -188,6 +198,7 @@ export default function AssignmentEditor({
               aria-label={`${label} – ${t('selectTeam')}`}
               placeholder={t('selectTeam')}
             />
+            )}
             {/* Person is always pickable: with a team it lists that team's members;
                 without one, any licence-eligible member of this sport — picking
                 then auto-fills their duty team (asking if they're in several). */}
