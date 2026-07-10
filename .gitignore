@@ -18,7 +18,7 @@ dist-ssr
 !.env.example
 
 # Infrastructure docs (contains credentials)
-INFRA.md
+INFRA*.md
 CONTINGENCY.md
 
 # Playwright
