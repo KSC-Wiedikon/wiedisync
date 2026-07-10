@@ -363,6 +363,7 @@ export default function ScorerRow({
       members={members}
       teams={teams}
       teamMemberIds={teamMemberIds}
+      sport={sport}
       onTeamChange={(v) => handleAdminUpdate(game.id, { [teamField]: v })}
       onPersonChange={(v) => handleAdminUpdate(game.id, { [personField]: v })}
       disabled={!effectiveCanEdit}
@@ -468,6 +469,7 @@ export default function ScorerRow({
               members={members}
               teams={teams}
               teamMemberIds={teamMemberIds}
+              sport={sport}
               onTeamChange={(v) => handleAdminUpdate(game.id, { bb_scorer_duty_team: v })}
               onPersonChange={(v) => handleAdminUpdate(game.id, { bb_scorer_member: v })}
               disabled={!effectiveCanEdit}
@@ -492,6 +494,7 @@ export default function ScorerRow({
               members={members}
               teams={teams}
               teamMemberIds={teamMemberIds}
+              sport={sport}
               onTeamChange={(v) => handleAdminUpdate(game.id, { bb_timekeeper_duty_team: v })}
               onPersonChange={(v) => handleAdminUpdate(game.id, { bb_timekeeper_member: v })}
               disabled={!effectiveCanEdit}
@@ -517,6 +520,7 @@ export default function ScorerRow({
                 members={members}
                 teams={teams}
                 teamMemberIds={teamMemberIds}
+                sport={sport}
                 onTeamChange={(v) => handleAdminUpdate(game.id, { bb_24s_duty_team: v })}
                 onPersonChange={(v) => handleAdminUpdate(game.id, { bb_24s_official: v })}
                 disabled={!effectiveCanEdit}
