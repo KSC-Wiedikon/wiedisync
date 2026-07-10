@@ -4,6 +4,7 @@ import { Plus, Search, Check, X, Link2, Loader2, Upload, Coins } from 'lucide-re
 import Modal from '../../components/Modal'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import DatePicker from '@/components/ui/DatePicker'
 import { useCollection } from '../../lib/query'
 import { useTeams } from '../../hooks/useTeams'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
@@ -188,8 +189,7 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
             <input id="inv-amount" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
           </div>
           <div>
-            <label htmlFor="inv-duedate" className={labelCls}>{t('invoiceDueDate')}</label>
-            <input id="inv-duedate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
+            <DatePicker id="inv-duedate" label={t('invoiceDueDate')} value={dueDate} onChange={setDueDate} />
           </div>
         </div>
         <div>

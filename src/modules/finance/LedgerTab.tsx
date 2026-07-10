@@ -6,6 +6,7 @@ import { Loader2, Plus, Undo2, Trash2, BookOpen, ListTree, Scale, Lock, Settings
 import Modal from '../../components/Modal'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import DatePicker from '@/components/ui/DatePicker'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import ReportExportMenu from './ReportExportMenu'
 import type { FinanceReport } from './reportExport'
@@ -155,7 +156,7 @@ function PostEntryModal({ open, onClose, fyId, onDone }: { open: boolean; onClos
           <select id="le-credit" value={credit} onChange={(e) => setCredit(e.target.value)} className={selectCls}><option value="">{t('ledSelectAccount')}</option>{opts}</select></div>
         <div className="grid grid-cols-2 gap-3">
           <div><label htmlFor="le-amt" className={labelCls}>{t('invoiceAmount')}</label><input id="le-amt" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} /></div>
-          <div><label htmlFor="le-date" className={labelCls}>{t('payDate')}</label><input id="le-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={selectCls} /></div>
+          <div><DatePicker id="le-date" label={t('payDate')} value={date} onChange={setDate} /></div>
         </div>
         <div><label htmlFor="le-text" className={labelCls}>{t('ledColText')}</label><input id="le-text" value={text} onChange={(e) => setText(e.target.value)} className={inputCls} /></div>
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

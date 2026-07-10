@@ -52,6 +52,8 @@ export default {
   allDay: 'Tutto il giorno',
   date: 'Data',
   selectDate: 'Seleziona data',
+  time: 'Ora',
+  clear: 'Cancella',
 
   // Validation
   required: 'Obbligatorio',

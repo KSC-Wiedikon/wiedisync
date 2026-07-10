@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, Clock, Loader2, Pencil, Receipt, Save, Wallet, X } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import DatePicker from '@/components/ui/DatePicker'
 import { FormInput, FormTextarea } from '../../components/FormField'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { Button } from '../../components/ui/button'
@@ -267,8 +268,8 @@ export default function ExpensesTab() {
                             onChange={(ev) => setEdit({ ...edit, amount: ev.target.value })} />
                           <FormInput label={t('expenseCurrency')} value={edit.currency}
                             onChange={(ev) => setEdit({ ...edit, currency: ev.target.value })} />
-                          <FormInput label={t('expenseDate')} type="date" value={edit.expense_date}
-                            onChange={(ev) => setEdit({ ...edit, expense_date: ev.target.value })} />
+                          <DatePicker label={t('expenseDate')} value={edit.expense_date}
+                            onChange={(v) => setEdit({ ...edit, expense_date: v })} />
                           <FormInput label={t('expenseVendor')} value={edit.vendor}
                             onChange={(ev) => setEdit({ ...edit, vendor: ev.target.value })} />
                           <FormInput label={t('expenseDescription')} value={edit.description}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import WeekdayHint from './WeekdayHint'
+import DatePicker from '@/components/ui/DatePicker'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { kscwApi } from '../../../lib/api'
 import type { GameSchedulingSeason } from '../../../types'
@@ -381,28 +382,24 @@ export default function SeasonConfig({
         <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-700">
           <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{t('seasonWindowLabel')}</span>
           <div className="mt-2 flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
-              {t('seasonOpens')}
-              <input
-                type="date"
+            <div className="flex flex-col gap-1">
+              <DatePicker
+                label={t('seasonOpens')}
                 value={season.season_opens ? String(season.season_opens).slice(0, 10) : ''}
                 disabled={savingWindow}
-                onChange={(e) => handleWindowSave('season_opens', e.target.value)}
-                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                onChange={(v) => handleWindowSave('season_opens', v)}
               />
               <WeekdayHint date={season.season_opens ? String(season.season_opens).slice(0, 10) : ''} />
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
-              {t('seasonCloses')}
-              <input
-                type="date"
+            </div>
+            <div className="flex flex-col gap-1">
+              <DatePicker
+                label={t('seasonCloses')}
                 value={season.season_closes ? String(season.season_closes).slice(0, 10) : ''}
                 disabled={savingWindow}
-                onChange={(e) => handleWindowSave('season_closes', e.target.value)}
-                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                onChange={(v) => handleWindowSave('season_closes', v)}
               />
               <WeekdayHint date={season.season_closes ? String(season.season_closes).slice(0, 10) : ''} />
-            </label>
+            </div>
             {savingWindow && <span className="pb-1 text-xs text-gray-500">…</span>}
           </div>
           <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{t('seasonWindowHelp')}</p>
@@ -415,17 +412,15 @@ export default function SeasonConfig({
         <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-700">
           <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{t('vmAuthorityLabel')}</span>
           <div className="mt-2 flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
-              {t('vmAuthorityDate')}
-              <input
-                type="date"
+            <div className="flex flex-col gap-1">
+              <DatePicker
+                label={t('vmAuthorityDate')}
                 value={season.vm_authority_date ? String(season.vm_authority_date).slice(0, 10) : ''}
                 disabled={savingAuthority}
-                onChange={(e) => handleAuthoritySave(e.target.value)}
-                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                onChange={(v) => handleAuthoritySave(v)}
               />
               <WeekdayHint date={season.vm_authority_date ? String(season.vm_authority_date).slice(0, 10) : ''} />
-            </label>
+            </div>
             {savingAuthority && <span className="pb-1 text-xs text-gray-500">…</span>}
           </div>
           <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{t('vmAuthorityHelp')}</p>

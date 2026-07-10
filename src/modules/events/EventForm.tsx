@@ -89,8 +89,14 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
 
   const [title, setTitle] = useState('')
   const [eventType, setEventType] = useState<Event['event_type']>(effectiveIsAdmin ? 'verein' : 'social')
+  // Dates are always kept date-only (YYYY-MM-DD); the clock time lives in
+  // startTime/endTime and is only used when the event is not all-day. This lets
+  // Start/End render the same branded DatePicker as Respond-by (plus a time
+  // field when timed) instead of the native <input type="date"> the browser drew.
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [allDay, setAllDay] = useState(true)
   const [location, setLocation] = useState('')
   const [description, setDescription] = useState('')
@@ -125,12 +131,19 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
     if (event) {
       setTitle(event.title)
       setEventType(event.event_type)
-      setStartDate(event.all_day
-        ? toZurichDateString(event.start_date)
-        : (event.start_date ? toDatetimeLocalFromUtcIso(event.start_date) : ''))
-      setEndDate(event.all_day
-        ? toZurichDateString(event.end_date)
-        : (event.end_date ? toDatetimeLocalFromUtcIso(event.end_date) : ''))
+      if (event.all_day) {
+        setStartDate(toZurichDateString(event.start_date))
+        setEndDate(toZurichDateString(event.end_date))
+        setStartTime('')
+        setEndTime('')
+      } else {
+        const s = event.start_date ? toDatetimeLocalFromUtcIso(event.start_date) : ''
+        const e = event.end_date ? toDatetimeLocalFromUtcIso(event.end_date) : ''
+        setStartDate(s.split('T')[0] ?? '')
+        setEndDate(e.split('T')[0] ?? '')
+        setStartTime(s.split('T')[1] ?? '')
+        setEndTime(e.split('T')[1] ?? '')
+      }
       setAllDay(event.all_day)
       setLocation(event.location ?? '')
       setDescription(event.description ?? '')
@@ -162,6 +175,8 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setEventType(effectiveIsAdmin ? 'verein' : 'social')
       setStartDate('')
       setEndDate('')
+      setStartTime('')
+      setEndTime('')
       setAllDay(true)
       setLocation('')
       setDescription('')
@@ -307,8 +322,12 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
     const data = {
       title,
       event_type: eventType,
-      start_date: allDay ? startDate : toUtcIsoFromDatetimeLocal(startDate),
-      end_date: allDay ? (endDate || startDate) : toUtcIsoFromDatetimeLocal(endDate || startDate),
+      start_date: allDay
+        ? startDate
+        : toUtcIsoFromDatetimeLocal(`${startDate}T${startTime || '00:00'}`),
+      end_date: allDay
+        ? (endDate || startDate)
+        : toUtcIsoFromDatetimeLocal(`${endDate || startDate}T${endTime || startTime || '00:00'}`),
       all_day: allDay,
       location,
       description,
@@ -417,41 +436,52 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
         </FormField>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <FormInput
+          <div className="space-y-2">
+            <DatePicker
               label={t('startDate')}
-              type={allDay ? 'date' : 'datetime-local'}
               value={startDate}
-              onChange={(e) => {
-                const v = e.target.value
+              onChange={(v) => {
                 setStartDate(v)
                 const newEnd = (!endDate || endDate < v) ? v : endDate
                 if (!endDate || endDate < v) setEndDate(v)
                 reconcileSessionDates(v, newEnd)
               }}
-              required
             />
+            {!allDay && (
+              <FormInput
+                label={t('startTime')}
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+              />
+            )}
             {startDate && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {formatDateLocale(new Date(startDate.split('T')[0] + 'T00:00:00'), 'EEEE', i18n.language)}
+              <p className="text-xs text-muted-foreground">
+                {formatDateLocale(new Date(startDate + 'T00:00:00'), 'EEEE', i18n.language)}
               </p>
             )}
           </div>
-          <div>
-            <FormInput
+          <div className="space-y-2">
+            <DatePicker
               label={t('endDate')}
-              type={allDay ? 'date' : 'datetime-local'}
               value={endDate}
-              onChange={(e) => {
-                const v = e.target.value
+              onChange={(v) => {
                 setEndDate(v)
                 reconcileSessionDates(startDate, v)
               }}
               min={startDate}
             />
+            {!allDay && (
+              <FormInput
+                label={t('endTime')}
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+              />
+            )}
             {endDate && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {formatDateLocale(new Date(endDate.split('T')[0] + 'T00:00:00'), 'EEEE', i18n.language)}
+              <p className="text-xs text-muted-foreground">
+                {formatDateLocale(new Date(endDate + 'T00:00:00'), 'EEEE', i18n.language)}
               </p>
             )}
           </div>
@@ -462,14 +492,11 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
             checked={allDay}
             onCheckedChange={(checked) => {
               setAllDay(checked)
+              // Dates stay date-only; only seed default clock times when the
+              // event becomes timed so the time fields aren't blank.
               if (!checked) {
-                // Switching to datetime-local: convert date-only to Zurich-local datetime-local string
-                if (startDate && !startDate.includes('T')) setStartDate(`${startDate}T00:00`)
-                if (endDate && !endDate.includes('T')) setEndDate(`${endDate}T00:00`)
-              } else {
-                // Switching to date: strip time component
-                if (startDate.includes('T')) setStartDate(startDate.split('T')[0])
-                if (endDate.includes('T')) setEndDate(endDate.split('T')[0])
+                if (!startTime) setStartTime('00:00')
+                if (!endTime) setEndTime(startTime || '00:00')
               }
             }}
           />

@@ -34,7 +34,7 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        "bg-background group/calendar p-3 [--cell-size:2.75rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        "bg-background group/calendar p-3 [--cell-size:2.5rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className
@@ -91,10 +91,12 @@ function Calendar({
             : "[&>svg]:text-muted-foreground flex h-8 items-center gap-1 rounded-md pl-2 pr-1 text-sm [&>svg]:size-3.5",
           defaultClassNames.caption_label
         ),
-        month_grid: cn(
-          "w-full min-h-[calc(6*(var(--cell-size)+0.5rem)+0.5rem)]",
-          defaultClassNames.month_grid
-        ),
+        // Explicit width (7 columns × cell size) so the flex rows below have a
+        // definite box to distribute into. Without it the calendar sits inside a
+        // `w-auto` popover whose shrink-to-fit collapsed the columns (jammed days,
+        // uneven weekday headers). No min-height — the old `min-h` left a large
+        // dead gap under short months.
+        month_grid: cn("w-[calc(7*var(--cell-size))]", defaultClassNames.month_grid),
         weekdays: cn("flex", defaultClassNames.weekdays),
         weekday: cn(
           "text-muted-foreground flex-1 select-none rounded-md text-[0.8rem] font-normal",

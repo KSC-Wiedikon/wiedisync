@@ -9,6 +9,7 @@ import {
   AlertCircle, Info, AlertTriangle,
 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import DatePicker from '@/components/ui/DatePicker'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
 interface AuditEntry {
@@ -388,18 +389,14 @@ export default function AuditLogPage() {
             className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           />
 
-          <input
-            type="date"
+          <DatePicker
             value={from}
-            onChange={(ev) => setFrom(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            onChange={setFrom}
           />
 
-          <input
-            type="date"
+          <DatePicker
             value={to}
-            onChange={(ev) => setTo(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            onChange={setTo}
           />
         </div>
 

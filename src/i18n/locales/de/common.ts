@@ -52,6 +52,8 @@ export default {
   allDay: 'Ganzer Tag',
   date: 'Datum',
   selectDate: 'Datum auswählen',
+  time: 'Uhrzeit',
+  clear: 'Löschen',
 
   // Validation
   required: 'Pflichtfeld',

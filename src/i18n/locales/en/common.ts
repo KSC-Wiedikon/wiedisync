@@ -52,6 +52,8 @@ export default {
   allDay: 'All day',
   date: 'Date',
   selectDate: 'Select date',
+  time: 'Time',
+  clear: 'Clear',
 
   // Validation
   required: 'Required',

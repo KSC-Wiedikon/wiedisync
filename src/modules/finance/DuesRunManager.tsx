@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Loader2, PlayCircle, ListChecks, Download, Mail } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import DatePicker from '@/components/ui/DatePicker'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
   useDuesRates, useDuesRuns, saveDuesRate, deleteDuesRate,
@@ -250,8 +251,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
               {t('duesOnlyActive')}
             </label>
             <div>
-              <label htmlFor="dues-run-due-date" className={labelCls}>{t('duesRunDueDate')}</label>
-              <input id="dues-run-due-date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
+              <DatePicker id="dues-run-due-date" label={t('duesRunDueDate')} value={dueDate} onChange={setDueDate} />
             </div>
             <button type="button" disabled={!selected.length || pvBusy} onClick={runPreview}
               className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">

@@ -4,6 +4,7 @@ import { Plus, Trash2, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
 import Modal from '../../components/Modal'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import DatePicker from '@/components/ui/DatePicker'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { useTeams } from '../../hooks/useTeams'
 import {
@@ -127,8 +128,7 @@ function AddTeamEntryModal({ open, onClose, fiscalYearId, presetTeam, onDone }: 
             <input id="tf-entry-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('teamEntryLabelPlaceholder')} className={inputCls} />
           </div>
           <div>
-            <label htmlFor="tf-date" className={labelCls}>{t('payDate')}</label>
-            <input id="tf-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${inputCls} dark:bg-gray-800`} />
+            <DatePicker id="tf-date" label={t('payDate')} value={date} onChange={setDate} />
           </div>
         </div>
         {kind !== 'expense' && (

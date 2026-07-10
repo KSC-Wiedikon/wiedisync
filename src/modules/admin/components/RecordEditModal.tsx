@@ -7,6 +7,7 @@ import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import LocationCombobox from '@/components/LocationCombobox'
+import DateTimePicker from '@/components/ui/DateTimePicker'
 import { Switch } from '@/components/ui/switch'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { LocationResult } from '@/types'
@@ -222,8 +223,7 @@ export default function RecordEditModal({
       case 'date':
       case 'autodate':
         return (
-          <input
-            type="datetime-local"
+          <DateTimePicker
             value={
               (() => {
                 const v = String(value ?? '')
@@ -233,8 +233,7 @@ export default function RecordEditModal({
                 return toDatetimeLocalFromUtcIso(v)
               })()
             }
-            onChange={(e) => setField(field.name, e.target.value ? toUtcIsoFromDatetimeLocal(e.target.value) : '')}
-            className={inputClass}
+            onChange={(v) => setField(field.name, v ? toUtcIsoFromDatetimeLocal(v) : '')}
           />
         )
       case 'select': {

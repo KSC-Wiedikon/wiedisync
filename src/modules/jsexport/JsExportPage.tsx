@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { fetchAllItems } from '../../lib/api'
 import { Button } from '@/components/ui/button'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import DatePicker from '@/components/ui/DatePicker'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import {
   fetchJsExport, downloadJsCsv, jsExportFilename, activityCsvRows, attendanceCsvRows,
@@ -141,19 +142,21 @@ export default function JsExportPage() {
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label htmlFor="js-from" className="text-sm font-medium text-foreground">{t('from')}</label>
-          <input
-            id="js-from" type="date" value={from} max={to}
-            onChange={(e) => setFrom(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm dark:bg-gray-800"
+          <DatePicker
+            id="js-from"
+            label={t('from')}
+            value={from}
+            max={to}
+            onChange={setFrom}
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label htmlFor="js-to" className="text-sm font-medium text-foreground">{t('to')}</label>
-          <input
-            id="js-to" type="date" value={to} min={from}
-            onChange={(e) => setTo(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm dark:bg-gray-800"
+          <DatePicker
+            id="js-to"
+            label={t('to')}
+            value={to}
+            min={from}
+            onChange={setTo}
           />
         </div>
         <p className="w-full text-xs text-muted-foreground">{t('dateRangeHint')}</p>

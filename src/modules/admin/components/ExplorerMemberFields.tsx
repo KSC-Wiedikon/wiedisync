@@ -15,6 +15,8 @@ import { logActivity } from '../../../utils/logActivity'
 import { localizeCountryName } from '../../../utils/countryName'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import DatePicker from '@/components/ui/DatePicker'
+import DateTimePicker from '@/components/ui/DateTimePicker'
 
 interface Props {
   memberId: string
@@ -534,11 +536,9 @@ function FieldEditor({
 
   if (kind === 'date') {
     return (
-      <input
-        type="date"
+      <DatePicker
         value={typeof value === 'string' ? value.slice(0, 10) : ''}
-        onChange={(e) => onChange(e.target.value || null)}
-        className={inputCls}
+        onChange={(v) => onChange(v || null)}
       />
     )
   }
@@ -546,11 +546,9 @@ function FieldEditor({
   if (kind === 'datetime') {
     const v = typeof value === 'string' ? value.slice(0, 16) : ''
     return (
-      <input
-        type="datetime-local"
+      <DateTimePicker
         value={v}
-        onChange={(e) => onChange(e.target.value ? new Date(e.target.value).toISOString() : null)}
-        className={inputCls}
+        onChange={(dt) => onChange(dt ? new Date(dt).toISOString() : null)}
       />
     )
   }
