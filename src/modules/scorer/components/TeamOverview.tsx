@@ -5,6 +5,7 @@ import type { ExpandedGame } from './ScorerRow'
 import { asObj } from '../../../utils/relations'
 import { DutyStatus } from './ScorerRow'
 import TeamChip from '../../../components/TeamChip'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import { formatTime, formatDateZurich } from '../../../utils/dateHelpers'
 
 interface TeamOverviewProps {
@@ -16,7 +17,7 @@ interface TeamOverviewProps {
   groupBy?: 'team' | 'game'
 }
 
-type DutyType = 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official'
+type DutyType = 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'referee' | 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official'
 
 interface DutyEntry {
   game: ExpandedGame
@@ -58,6 +59,10 @@ export default function TeamOverview({ games, members, sport, groupBy = 'team' }
         if (game.scoreboard_duty_team) {
           const teamName = asObj<Team>(game.scoreboard_duty_team)?.name ?? '?'
           out.push({ game: eg, dutyType: 'scoreboard', teamName, memberName: getMemberName(game.scoreboard_member) })
+        }
+        if (game.referee_duty_team) {
+          const teamName = asObj<Team>(game.referee_duty_team)?.name ?? '?'
+          out.push({ game: eg, dutyType: 'referee', teamName, memberName: getMemberName(game.referee_member) })
         }
       } else {
         const scorerTeam = game.bb_scorer_duty_team || game.bb_duty_team
@@ -118,6 +123,7 @@ export default function TeamOverview({ games, members, sport, groupBy = 'team' }
     scorer: t('scorer'),
     scoreboard: t('scoreboard'),
     scorer_scoreboard: t('scorerTaefeler'),
+    referee: t('referee'),
     bb_scorer: t('bbScorer'),
     bb_timekeeper: t('bbTimekeeper'),
     bb_24s_official: t('bb24sOfficial'),
@@ -156,39 +162,35 @@ export default function TeamOverview({ games, members, sport, groupBy = 'team' }
     )
   }
 
+  // "By duty team" is a summary: one row per team with its total duties and how
+  // many still need a person (open). The per-game detail lives in the "By game"
+  // view. Open (unfilled) duties dominate the sort so gaps float to the top.
+  const summaryRows = teamGroups
+    .map(([teamName, list]) => ({ teamName, total: list.length, open: list.filter((e) => !e.memberName).length }))
+    .sort((a, b) => b.open - a.open || b.total - a.total || a.teamName.localeCompare(b.teamName, i18n.language))
+
   return (
-    <div className="mt-6 grid gap-6 md:grid-cols-2">
-      {teamGroups.map(([teamName, list]) => (
-        <div key={teamName} className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-          <div className="flex items-center gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-            <TeamChip team={teamName} />
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {t('dutyCount', { count: list.length })}
-            </span>
-          </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {list.map((entry, i) => (
-              <div key={`${entry.game.id}-${entry.dutyType}-${i}`} className="flex items-center gap-3 px-4 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatDateZurich(entry.game.date)} · {entry.game.time ? formatTime(entry.game.time) : ''}
-                  </div>
-                  <div className="truncate text-sm font-medium dark:text-gray-200">
-                    {entry.game.home_team} – {entry.game.away_team}
-                  </div>
-                </div>
-                <div className="shrink-0 text-right">
-                  <span className="block text-xs text-gray-500 dark:text-gray-400">{dutyLabel[entry.dutyType]}</span>
-                  <span className={`text-sm ${entry.memberName ? 'font-medium dark:text-gray-200' : 'text-red-500'}`}>
-                    {entry.memberName ?? t('unassigned')}
-                  </span>
-                </div>
-                <DutyStatus game={entry.game} sport={sport} />
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+    <div className="mt-6 overflow-x-auto">
+      <Table className="w-full text-left text-sm">
+        <TableHeader>
+          <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            <TableHead className="px-3 py-2">{t('overviewColTeam')}</TableHead>
+            <TableHead className="px-3 py-2 text-center">{t('overviewColDuties')}</TableHead>
+            <TableHead className="px-3 py-2 text-center">{t('overviewColOpen')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {summaryRows.map((r) => (
+            <TableRow key={r.teamName} className="border-b border-gray-100 dark:border-gray-700/50">
+              <TableCell className="px-3 py-2"><TeamChip team={r.teamName} size="sm" /></TableCell>
+              <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{r.total}</TableCell>
+              <TableCell className={`px-3 py-2 text-center ${r.open ? 'font-semibold text-red-500' : 'text-gray-400 dark:text-gray-500'}`}>
+                {r.open || '—'}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   )
 }

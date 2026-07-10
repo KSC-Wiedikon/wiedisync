@@ -278,6 +278,16 @@ export default function ScorerPage() {
     return sportTeams.filter((tm) => open.has(tm.id))
   }, [upcomingGames, sportTab, sportTeams])
 
+  // Duty-team filter options: club-wide for admins/Vorstand (who see every
+  // game); for a regular member, only their own team(s) — they can only cover
+  // their own team's duties and their game list is already scoped to those.
+  // The filter is hidden entirely below when this leaves ≤1 option (a member in
+  // a single team has nothing to filter).
+  const dutyTeamOptions = useMemo(() => {
+    if (effectiveIsAdmin || effectiveIsVorstand) return sportTeams
+    return sportTeams.filter((tm) => myDutyTeamIds.includes(tm.id))
+  }, [effectiveIsAdmin, effectiveIsVorstand, sportTeams, myDutyTeamIds])
+
   const filteredGames = useMemo(() => {
     return upcomingGames.filter((g) => {
       if (getGameSport(g) !== sportTab) return false
@@ -317,7 +327,8 @@ export default function ScorerPage() {
           const matchesTeam =
             g.scorer_duty_team === dutyTeamFilter ||
             g.scoreboard_duty_team === dutyTeamFilter ||
-            g.scorer_scoreboard_duty_team === dutyTeamFilter
+            g.scorer_scoreboard_duty_team === dutyTeamFilter ||
+            g.referee_duty_team === dutyTeamFilter
           if (!matchesTeam) return false
         } else {
           const matchesTeam =
@@ -698,10 +709,12 @@ export default function ScorerPage() {
                     <label htmlFor="scorer-playing-team" className={filterLabelClass}>{t('filterPlayingTeam')}</label>
                     <TeamSelect value={playingTeamFilter} onChange={setPlayingTeamFilter} teams={playingTeamOptions} placeholder={t('filterAllTeams')} aria-label={t('filterPlayingTeam')} />
                   </div>
-                  <div>
-                    <label htmlFor="scorer-duty-team" className={filterLabelClass}>{t('filterDutyTeam')}</label>
-                    <TeamSelect value={dutyTeamFilter} onChange={setDutyTeamFilter} teams={sportTeams} placeholder={t('filterAllTeams')} aria-label={t('filterDutyTeam')} />
-                  </div>
+                  {dutyTeamOptions.length > 1 && (
+                    <div>
+                      <label htmlFor="scorer-duty-team" className={filterLabelClass}>{t('filterDutyTeam')}</label>
+                      <TeamSelect value={dutyTeamFilter} onChange={setDutyTeamFilter} teams={dutyTeamOptions} placeholder={t('filterAllTeams')} aria-label={t('filterDutyTeam')} />
+                    </div>
+                  )}
                   {sportTab === 'volleyball' && (
                     <div>
                       <label htmlFor="scorer-duty-type" className={filterLabelClass}>{t('filterDutyType')}</label>
