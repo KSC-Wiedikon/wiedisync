@@ -38,6 +38,26 @@ type BbUnassignedFilter = 'all' | 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_offici
 
 const PAST_PAGE_SIZE = 5
 
+// A duty is "open" (signable) when a duty slot exists — a team is assigned (or a
+// person already is) — but no member has taken it yet. Mirrors the "any
+// unassigned" filter branch. Used to keep the Playing-team dropdown to teams
+// whose games still need someone.
+function hasOpenDuty(g: Game, sport: SportTab): boolean {
+  if (sport === 'volleyball') {
+    return (
+      ((!!g.scorer_duty_team || !!g.scorer_member) && !g.scorer_member) ||
+      ((!!g.scoreboard_duty_team || !!g.scoreboard_member) && !g.scoreboard_member) ||
+      ((!!g.scorer_scoreboard_duty_team || !!g.scorer_scoreboard_member) && !g.scorer_scoreboard_member) ||
+      ((!!g.referee_duty_team || !!g.referee_member) && !g.referee_member)
+    )
+  }
+  return (
+    ((!!(g.bb_scorer_duty_team || g.bb_duty_team) || !!g.bb_scorer_member) && !g.bb_scorer_member) ||
+    ((!!(g.bb_timekeeper_duty_team || g.bb_duty_team) || !!g.bb_timekeeper_member) && !g.bb_timekeeper_member) ||
+    ((!!(g.bb_24s_duty_team || g.bb_duty_team) || !!g.bb_24s_official) && !g.bb_24s_official)
+  )
+}
+
 export default function ScorerPage() {
   const { t } = useTranslation('scorer')
   const { user, isSuperAdmin, hasAdminAccessToSport, coachTeamIds, teamResponsibleIds } = useAuth()
@@ -237,6 +257,26 @@ export default function ScorerPage() {
   }
 
   useRealtime<Game>('games', () => { refetch() }, ['update'])
+
+  // Teams of the current sport — the team filters must never offer the other
+  // sport (a VB view listing BB teams like 1xDU18 is just noise).
+  const sportTeams = useMemo(() => teams.filter((tm) => tm.sport === sportTab), [teams, sportTab])
+
+  // Playing-team options: only teams that play in an upcoming game of this sport
+  // that still has an open (signable) duty — no point offering a team whose
+  // games are already fully staffed.
+  const playingTeamOptions = useMemo(() => {
+    const open = new Set<string>()
+    for (const g of upcomingGames) {
+      if (getGameSport(g) !== sportTab) continue
+      if (!hasOpenDuty(g, sportTab)) continue
+      const pid = g.kscw_team != null && typeof g.kscw_team === 'object'
+        ? String((g.kscw_team as unknown as Team).id)
+        : String(g.kscw_team ?? '')
+      if (pid) open.add(pid)
+    }
+    return sportTeams.filter((tm) => open.has(tm.id))
+  }, [upcomingGames, sportTab, sportTeams])
 
   const filteredGames = useMemo(() => {
     return upcomingGames.filter((g) => {
@@ -656,11 +696,11 @@ export default function ScorerPage() {
                   </div>
                   <div>
                     <label htmlFor="scorer-playing-team" className={filterLabelClass}>{t('filterPlayingTeam')}</label>
-                    <TeamSelect value={playingTeamFilter} onChange={setPlayingTeamFilter} teams={teams} placeholder={t('filterAllTeams')} aria-label={t('filterPlayingTeam')} />
+                    <TeamSelect value={playingTeamFilter} onChange={setPlayingTeamFilter} teams={playingTeamOptions} placeholder={t('filterAllTeams')} aria-label={t('filterPlayingTeam')} />
                   </div>
                   <div>
                     <label htmlFor="scorer-duty-team" className={filterLabelClass}>{t('filterDutyTeam')}</label>
-                    <TeamSelect value={dutyTeamFilter} onChange={setDutyTeamFilter} teams={teams} placeholder={t('filterAllTeams')} aria-label={t('filterDutyTeam')} />
+                    <TeamSelect value={dutyTeamFilter} onChange={setDutyTeamFilter} teams={sportTeams} placeholder={t('filterAllTeams')} aria-label={t('filterDutyTeam')} />
                   </div>
                   {sportTab === 'volleyball' && (
                     <div>
