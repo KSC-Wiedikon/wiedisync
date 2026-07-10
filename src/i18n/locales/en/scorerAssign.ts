@@ -73,6 +73,7 @@ export default {
 
   // Existing
   existingKept: 'Existing assignment kept',
+  signedUp: 'Signed up: {{names}}',
   cupOnCall: 'On call',
   noTeamAvailable: 'No team available',
   noScorerAvailable: 'No scorer available',

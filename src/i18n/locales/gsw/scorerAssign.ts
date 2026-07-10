@@ -73,6 +73,7 @@ export default {
 
   // Existing
   existingKept: 'Bestehendi Zueteilig biibehalte',
+  signedUp: 'Aagmäldet: {{names}}',
   cupOnCall: 'Pikett',
   noTeamAvailable: 'Käs Team verfüegbar',
   noScorerAvailable: 'Käs Schriiber verfüegbar',
