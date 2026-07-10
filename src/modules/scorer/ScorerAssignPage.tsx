@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
-import type { Game, Team, Training, Member, MemberTeam, Hall } from '../../types'
+import type { Game, Team, Training, Member, MemberTeam, Hall, LicenceType } from '../../types'
 import { useCollection } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { getCurrentSeason, getSeasonDateRange, formatDateCompact, formatTime } from '../../utils/dateHelpers'
@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import TeamSelect from '../../components/TeamSelect'
 import TeamChip from '../../components/TeamChip'
 import { useConfirm } from '../../components/ConfirmProvider'
+import AssignmentEditor from './components/AssignmentEditor'
 import SportToggle from '../../components/SportToggle'
 import { runAssignment, getTeamCounts, buildTeamGameTimes, buildTrainingDates, buildGamesByDateHall, getAdjacentTeams, timeToMin, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
@@ -93,7 +94,9 @@ export default function ScorerAssignPage() {
   // `licences` JSON array is no longer the source of truth.
   const { data: membersRaw, isLoading: membersLoading } = useCollection<Member>('members', {
     filter: { kscw_membership_active: { _eq: true } },
-    fields: ['id', 'first_name', 'last_name', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb'],
+    // kscw_membership_active is selected (not just filtered) because the person
+    // editor (AssignmentEditor) filters members on that field.
+    fields: ['id', 'first_name', 'last_name', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'kscw_membership_active'],
     all: true,
   })
   const members = useMemo(() => membersRaw ?? [], [membersRaw])
@@ -103,6 +106,23 @@ export default function ScorerAssignPage() {
     enabled: !!user,
   })
   const memberTeams = useMemo(() => memberTeamsRaw ?? [], [memberTeamsRaw])
+
+  // Team → member ids, and guest member ids — for the per-duty person editor.
+  const teamMemberIds = useMemo(() => {
+    const m = new Map<string, Set<string>>()
+    for (const mt of memberTeams) {
+      const tid = String(mt.team)
+      let set = m.get(tid)
+      if (!set) { set = new Set(); m.set(tid, set) }
+      set.add(String(mt.member))
+    }
+    return m
+  }, [memberTeams])
+  const guestMemberIds = useMemo(() => {
+    const s = new Set<string>()
+    for (const mt of memberTeams) if ((mt.guest_level ?? 0) > 0) s.add(String(mt.member))
+    return s
+  }, [memberTeams])
 
   // Hall names (the Döltschi rule needs them; games carry only the hall id).
   const { data: hallsRaw, isLoading: hallsLoading } = useCollection<Hall>('halls', {
@@ -243,16 +263,6 @@ export default function ScorerAssignPage() {
     for (const mb of members) m.set(String(mb.id), `${mb.first_name} ${mb.last_name}`)
     return m
   }, [members])
-  const teamMembersById = useMemo(() => {
-    const m = new Map<string, Set<string>>()
-    for (const mt of memberTeams) {
-      const tid = String(mt.team)
-      let set = m.get(tid)
-      if (!set) { set = new Set(); m.set(tid, set) }
-      set.add(String(mt.member))
-    }
-    return m
-  }, [memberTeams])
   // A game that already has a person signed up — highlighted so the admin knows
   // that changing this game's duty team on roll-out resets a person who isn't in
   // the new team (the integrity rule enforced in handleSaveAll).
@@ -329,7 +339,7 @@ export default function ScorerAssignPage() {
       // doesn't belong to the duty team (the integrity check we audit for).
       const clearOrphan = (fields: Record<string, unknown>, g: Game | undefined, teamId: string, memberField: keyof Game) => {
         const mem = g && g[memberField] ? String(g[memberField]) : null
-        if (mem && !teamMembersById.get(teamId)?.has(mem)) fields[memberField] = null
+        if (mem && !teamMemberIds.get(teamId)?.has(mem)) fields[memberField] = null
       }
       if (sportTab === 'volleyball') {
         for (const a of vbAssignments) {
@@ -337,10 +347,17 @@ export default function ScorerAssignPage() {
           if (!a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId) continue
           const g = homeGames.find((x) => x.id === a.gameId)
           const fields: Record<string, unknown> = {}
-          if (a.scorerTeamId) { fields.scorer_duty_team = a.scorerTeamId; clearOrphan(fields, g, a.scorerTeamId, 'scorer_member') }
-          if (a.scoreboardTeamId) { fields.scoreboard_duty_team = a.scoreboardTeamId; clearOrphan(fields, g, a.scoreboardTeamId, 'scoreboard_member') }
-          if (a.combinedTeamId) { fields.scorer_scoreboard_duty_team = a.combinedTeamId; clearOrphan(fields, g, a.combinedTeamId, 'scorer_scoreboard_member') }
-          if (a.refereeTeamId) { fields.referee_duty_team = a.refereeTeamId; clearOrphan(fields, g, a.refereeTeamId, 'referee_member') }
+          // Each role: write the duty team; write the assignee if the person
+          // editor set one (undefined = untouched → just reset an orphan).
+          const roleOut = (teamId: string, draftMember: string | null | undefined, teamField: string, memberField: keyof Game) => {
+            fields[teamField] = teamId
+            if (draftMember !== undefined) fields[memberField] = draftMember
+            else clearOrphan(fields, g, teamId, memberField)
+          }
+          if (a.scorerTeamId) roleOut(a.scorerTeamId, a.scorerMemberId, 'scorer_duty_team', 'scorer_member')
+          if (a.scoreboardTeamId) roleOut(a.scoreboardTeamId, a.scoreboardMemberId, 'scoreboard_duty_team', 'scoreboard_member')
+          if (a.combinedTeamId) roleOut(a.combinedTeamId, a.combinedMemberId, 'scorer_scoreboard_duty_team', 'scorer_scoreboard_member')
+          if (a.refereeTeamId) roleOut(a.refereeTeamId, a.refereeMemberId, 'referee_duty_team', 'referee_member')
           tasks.push({ gameId: a.gameId, fields })
         }
       } else {
@@ -349,9 +366,13 @@ export default function ScorerAssignPage() {
           if (!a.dutyTeamId) continue
           const g = homeGames.find((x) => x.id === a.gameId)
           const fields: Record<string, unknown> = { bb_duty_team: a.dutyTeamId }
-          clearOrphan(fields, g, a.dutyTeamId, 'bb_scorer_member')
-          clearOrphan(fields, g, a.dutyTeamId, 'bb_timekeeper_member')
-          clearOrphan(fields, g, a.dutyTeamId, 'bb_24s_official')
+          const bbRoleOut = (draftMember: string | null | undefined, memberField: keyof Game) => {
+            if (draftMember !== undefined) fields[memberField] = draftMember
+            else clearOrphan(fields, g, a.dutyTeamId as string, memberField)
+          }
+          bbRoleOut(a.bbScorerMemberId, 'bb_scorer_member')
+          bbRoleOut(a.bbTimekeeperMemberId, 'bb_timekeeper_member')
+          bbRoleOut(a.bb24sMemberId, 'bb_24s_official')
           tasks.push({ gameId: a.gameId, fields })
         }
       }
@@ -451,6 +472,50 @@ export default function ScorerAssignPage() {
       ),
     )
   }
+
+  // Per-duty assignee edits (Phase 2 person editor). memberId '' clears it.
+  function handleVbPerson(gameId: string, role: 'scorer' | 'scoreboard' | 'combined' | 'referee', memberId: string) {
+    setVbAssignments((prev) => prev.map((a) => {
+      if (a.gameId !== gameId) return a
+      const b = stripExisting(a)
+      const v = memberId || null
+      if (role === 'combined') return { ...b, combinedMemberId: v }
+      if (role === 'scorer') return { ...b, scorerMemberId: v }
+      if (role === 'referee') return { ...b, refereeMemberId: v }
+      return { ...b, scoreboardMemberId: v }
+    }))
+  }
+  // The draft assignee for a role, falling back to the game's current member when
+  // the draft hasn't touched it (undefined). '' when there's no assignee.
+  const personValueOf = (draft: string | null | undefined, current: unknown): string =>
+    draft !== undefined ? (draft ?? '') : (current ? String(current) : '')
+
+  // One duty's team+person editor in the results table (reuses the /scorer editor
+  // so the person-first linking, team→member filtering and orphan-reset match).
+  const renderVbDuty = (
+    gameId: string,
+    role: 'scorer' | 'scoreboard' | 'combined' | 'referee',
+    teamId: string | null,
+    draftMember: string | null | undefined,
+    currentMember: unknown,
+    licence?: LicenceType,
+  ) => (
+    <AssignmentEditor
+      label=""
+      requiredLicence={licence}
+      teamValue={teamId ?? ''}
+      personValue={personValueOf(draftMember, currentMember)}
+      members={members}
+      teams={vbTeams}
+      teamMemberIds={teamMemberIds}
+      sport="volleyball"
+      onTeamChange={(v) => handleVbOverride(gameId, role, v)}
+      onPersonChange={(v) => handleVbPerson(gameId, role, v)}
+      disabled={false}
+      canEdit
+      guestMemberIds={guestMemberIds}
+    />
+  )
 
   // Upload a corrected export (.xlsx): match each row to a game by its Swiss
   // Volley / Basketplan number (games.game_id, the "Game no." column) and apply
@@ -840,8 +905,8 @@ export default function ScorerAssignPage() {
                           </TableCell>
                         ) : a.mode === 'combined' ? (
                           <>
-                            <TableCell className="px-2 py-2" colSpan={2}>
-                              <TeamSelect value={a.combinedTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'combined', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
+                            <TableCell className="px-2 py-2 align-top" colSpan={2}>
+                              {renderVbDuty(a.gameId, 'combined', a.combinedTeamId, a.combinedMemberId, game.scorer_scoreboard_member)}
                             </TableCell>
                             <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
                           </>
@@ -849,17 +914,17 @@ export default function ScorerAssignPage() {
                           <>
                             <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
                             <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
-                            <TableCell className="px-2 py-2">
-                              <TeamSelect value={a.refereeTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'referee', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
+                            <TableCell className="px-2 py-2 align-top">
+                              {renderVbDuty(a.gameId, 'referee', a.refereeTeamId, a.refereeMemberId, game.referee_member)}
                             </TableCell>
                           </>
                         ) : (
                           <>
-                            <TableCell className="px-2 py-2">
-                              <TeamSelect value={a.scorerTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'scorer', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
+                            <TableCell className="px-2 py-2 align-top">
+                              {renderVbDuty(a.gameId, 'scorer', a.scorerTeamId, a.scorerMemberId, game.scorer_member, 'scorer_vb')}
                             </TableCell>
-                            <TableCell className="px-2 py-2">
-                              <TeamSelect value={a.scoreboardTeamId ?? ''} onChange={(v) => handleVbOverride(a.gameId, 'scoreboard', v)} teams={vbTeams} placeholder={t('selectTeam')} compact />
+                            <TableCell className="px-2 py-2 align-top">
+                              {renderVbDuty(a.gameId, 'scoreboard', a.scoreboardTeamId, a.scoreboardMemberId, game.scoreboard_member)}
                             </TableCell>
                             <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
                           </>
