@@ -92,6 +92,8 @@ export default {
   // Placeholders
   selectTeam: '— Team wählen —',
   selectPerson: '— Person wählen —',
+  pickDutyTeamTitle: 'Welches Dienst-Team?',
+  pickDutyTeamBody: '{{name}} ist in mehreren Teams — wähle das für diesen Dienst zuständige.',
 
   // Overview
   overviewEmpty: 'Keine Zuteilungen gefunden.',

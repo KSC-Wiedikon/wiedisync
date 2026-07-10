@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Member, Team, LicenceType } from '../../../types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -14,6 +14,8 @@ interface AssignmentEditorProps {
   members: Member[]
   teams: Team[]
   teamMemberIds: Map<string, Set<string>>
+  /** Sport of this duty — scopes person-first team derivation to this sport. */
+  sport: 'volleyball' | 'basketball'
   onTeamChange: (teamId: string) => void
   onPersonChange: (memberId: string) => void
   disabled: boolean
@@ -49,6 +51,7 @@ export default function AssignmentEditor({
   members,
   teams,
   teamMemberIds,
+  sport,
   onTeamChange,
   onPersonChange,
   disabled,
@@ -68,6 +71,25 @@ export default function AssignmentEditor({
 }: AssignmentEditorProps) {
   const { t, i18n } = useTranslation('scorer')
 
+  // Person-first support: teams of THIS sport, and each member's sport teams —
+  // so picking a person can auto-derive their duty team (ask if in several).
+  const sportTeamIds = useMemo(
+    () => new Set(teams.filter((tm) => tm.sport === sport).map((tm) => tm.id)),
+    [teams, sport],
+  )
+  const memberSportTeams = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const [teamId, set] of teamMemberIds) {
+      if (!sportTeamIds.has(teamId)) continue
+      for (const mid of set) {
+        const arr = m.get(mid)
+        if (arr) arr.push(teamId)
+        else m.set(mid, [teamId])
+      }
+    }
+    return m
+  }, [teamMemberIds, sportTeamIds])
+
   const filteredMembers = useMemo(() => {
     let list = members.filter((m) => m.kscw_membership_active && !guestMemberIds?.has(m.id))
     if (requiredLicence) {
@@ -75,10 +97,15 @@ export default function AssignmentEditor({
       list = list.filter((m) => licences.some((l) => m[l]))
     }
     if (teamValue) {
+      // Team chosen → only that team's members.
       const teamMembers = teamMemberIds.get(teamValue)
       if (teamMembers) {
         list = list.filter((m) => teamMembers.has(m.id))
       }
+    } else {
+      // Person-first → any licence-eligible member who is in a team of this sport
+      // (so their duty team can be derived on pick).
+      list = list.filter((m) => memberSportTeams.has(m.id))
     }
     // Ensure the currently assigned person is always in the list
     if (personValue && !list.some((m) => m.id === personValue)) {
@@ -88,7 +115,27 @@ export default function AssignmentEditor({
     return list.sort((a, b) =>
       `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`, i18n.language),
     )
-  }, [members, requiredLicence, teamValue, teamMemberIds, personValue, guestMemberIds, i18n.language])
+  }, [members, requiredLicence, teamValue, teamMemberIds, memberSportTeams, personValue, guestMemberIds, i18n.language])
+
+  // Picking a person with no duty team yet auto-fills their team; if they're in
+  // more than one team of this sport, ask which one covers this duty.
+  const [teamPrompt, setTeamPrompt] = useState<{ memberId: string; teamIds: string[] } | null>(null)
+  function handlePersonPick(memberId: string) {
+    if (teamValue || !memberId) { onPersonChange(memberId); return }
+    const tids = memberSportTeams.get(memberId) ?? []
+    if (tids.length === 1) { onTeamChange(tids[0]); onPersonChange(memberId) }
+    else if (tids.length > 1) { setTeamPrompt({ memberId, teamIds: tids }) }
+    else { onPersonChange(memberId) }
+  }
+  function resolveTeamPrompt(teamId: string) {
+    if (!teamPrompt) return
+    onTeamChange(teamId)
+    onPersonChange(teamPrompt.memberId)
+    setTeamPrompt(null)
+  }
+  const promptName = teamPrompt
+    ? (() => { const m = members.find((x) => x.id === teamPrompt.memberId); return m ? `${m.first_name} ${m.last_name}` : '' })()
+    : ''
 
   const assignedPerson = useMemo(() => {
     if (!personValue) return null
@@ -122,32 +169,38 @@ export default function AssignmentEditor({
       {/* Admin view: full dropdowns */}
       {canEdit ? (
         <>
-          <div className={`grid gap-2 ${teamValue ? (personValue && onDelegate && !disabled ? 'grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto]' : 'grid-cols-[minmax(0,2fr)_minmax(0,3fr)]') : ''}`}>
+          <div className={`grid gap-2 ${personValue && onDelegate && !disabled ? 'grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto]' : 'grid-cols-[minmax(0,2fr)_minmax(0,3fr)]'}`}>
             <TeamSelect
               value={teamValue}
               onChange={(v) => {
                 onTeamChange(v)
-                if (personValue) onPersonChange('')
+                // Keep the assigned person only if they're also in the new team;
+                // switching to a team that doesn't include them resets the person.
+                if (personValue) {
+                  const newMembers = v ? teamMemberIds.get(v) : undefined
+                  if (!newMembers || !newMembers.has(personValue)) onPersonChange('')
+                }
               }}
               teams={teams}
               disabled={disabled}
               aria-label={`${label} – ${t('selectTeam')}`}
               placeholder={t('selectTeam')}
             />
-            {teamValue && (
-              <Select value={personValue} onValueChange={onPersonChange} disabled={disabled}>
-                <SelectTrigger className="min-h-[44px]" aria-label={`${label} – ${t('selectPerson')}`}>
-                  <SelectValue placeholder={t('selectPerson')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredMembers.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.first_name} {m.last_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            {/* Person is always pickable: with a team it lists that team's members;
+                without one, any licence-eligible member of this sport — picking
+                then auto-fills their duty team (asking if they're in several). */}
+            <Select value={personValue} onValueChange={handlePersonPick} disabled={disabled}>
+              <SelectTrigger className="min-h-[44px]" aria-label={`${label} – ${t('selectPerson')}`}>
+                <SelectValue placeholder={t('selectPerson')} />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredMembers.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.first_name} {m.last_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {personValue && onDelegate && !disabled && (
               <button
                 data-tour="delegation"
@@ -241,6 +294,33 @@ export default function AssignmentEditor({
         <p className="text-xs text-gray-400 dark:text-gray-500">
           {t('confirmedBy')}: {[confirmedByName, confirmedAt ? formatDateTimeCompact(confirmedAt) : null].filter(Boolean).join(' · ')}
         </p>
+      )}
+
+      {/* Multi-team picker: the chosen person is in >1 team of this sport — ask
+          which one is the duty team for this game. */}
+      {teamPrompt && (
+        <div role="dialog" aria-modal="true" aria-label={t('pickDutyTeamTitle')} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setTeamPrompt(null)}>
+          <div className="mx-4 w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl dark:bg-gray-800" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('pickDutyTeamTitle')}</h3>
+            <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">{t('pickDutyTeamBody', { name: promptName })}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {teamPrompt.teamIds.map((tid) => (
+                <button
+                  key={tid}
+                  onClick={() => resolveTeamPrompt(tid)}
+                  className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:border-brand-500 hover:bg-brand-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-brand-900/20"
+                >
+                  {teams.find((tm) => tm.id === tid)?.name ?? tid}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button onClick={() => setTeamPrompt(null)} className="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
+                {t('cancelAction')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -92,6 +92,8 @@ export default {
   // Placeholders
   selectTeam: '— Seleziona squadra —',
   selectPerson: '— Seleziona persona —',
+  pickDutyTeamTitle: 'Quale squadra di turno?',
+  pickDutyTeamBody: '{{name}} fa parte di più squadre — scegli quella che copre questo turno.',
 
   // Overview
   overviewEmpty: 'Nessuna assegnazione trovata.',

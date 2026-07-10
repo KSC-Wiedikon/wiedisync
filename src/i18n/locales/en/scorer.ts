@@ -92,6 +92,8 @@ export default {
   // Placeholders
   selectTeam: '— Select team —',
   selectPerson: '— Select person —',
+  pickDutyTeamTitle: 'Which duty team?',
+  pickDutyTeamBody: '{{name}} is in more than one team — pick the one covering this duty.',
 
   // Overview
   overviewEmpty: 'No assignments found.',
