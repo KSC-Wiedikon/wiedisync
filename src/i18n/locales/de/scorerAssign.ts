@@ -100,6 +100,9 @@ export default {
   // Basketball
   subtitleBb: 'Automatische Zuteilung eines Einsatzteams zu jedem Basketball-Heimspiel.',
   autoDutyTeam: 'Einsatzteam',
+  bbScorer: 'Anschreiber/in (OTR1)',
+  bbTimekeeper: 'Zeitnehmer/in (OTR1)',
+  bb24sOfficial: '24"-Offizielle/r (OTR2)',
   dutyTeamTag: 'Einsatz',
   dutyCount: 'Einsätze',
   reason_noOtr1: 'Kein OTR1-Offizieller',

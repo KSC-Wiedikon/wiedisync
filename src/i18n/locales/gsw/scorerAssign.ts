@@ -100,6 +100,9 @@ export default {
   // Basketball
   subtitleBb: 'Automatischi Zueteilig vom Iisatz-Team zu jedem Basketball-Heimspiel.',
   autoDutyTeam: 'Iisatz-Team',
+  bbScorer: 'Aaschriiber/in (OTR1)',
+  bbTimekeeper: 'Zitnehmer/in (OTR1)',
+  bb24sOfficial: '24"-Offizielli/r (OTR2)',
   dutyTeamTag: 'Iisatz',
   dutyCount: 'Iisätz',
   reason_noOtr1: 'Kä OTR1-Offizielle',

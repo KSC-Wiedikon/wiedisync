@@ -100,6 +100,9 @@ export default {
   // Basketball
   subtitleBb: 'Automatically assign a duty team to each basketball home game.',
   autoDutyTeam: 'Duty team',
+  bbScorer: 'Scorer (OTR1)',
+  bbTimekeeper: 'Timekeeper (OTR1)',
+  bb24sOfficial: '24" official (OTR2)',
   dutyTeamTag: 'Duty',
   dutyCount: 'Duties',
   reason_noOtr1: 'No OTR1 official',

@@ -9,7 +9,6 @@ import { logActivity } from '../../utils/logActivity'
 import { Button } from '@/components/ui/button'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
-import TeamSelect from '../../components/TeamSelect'
 import TeamChip from '../../components/TeamChip'
 import { useConfirm } from '../../components/ConfirmProvider'
 import AssignmentEditor from './components/AssignmentEditor'
@@ -485,6 +484,16 @@ export default function ScorerAssignPage() {
       return { ...b, scoreboardMemberId: v }
     }))
   }
+  function handleBbPerson(gameId: string, role: 'scorer' | 'timekeeper' | '24s', memberId: string) {
+    setBbAssignments((prev) => prev.map((a) => {
+      if (a.gameId !== gameId) return a
+      const b = stripExisting(a)
+      const v = memberId || null
+      if (role === 'scorer') return { ...b, bbScorerMemberId: v }
+      if (role === 'timekeeper') return { ...b, bbTimekeeperMemberId: v }
+      return { ...b, bb24sMemberId: v }
+    }))
+  }
   // The draft assignee for a role, falling back to the game's current member when
   // the draft hasn't touched it (undefined). '' when there's no assignee.
   const personValueOf = (draft: string | null | undefined, current: unknown): string =>
@@ -515,6 +524,40 @@ export default function ScorerAssignPage() {
       canEdit
       guestMemberIds={guestMemberIds}
     />
+  )
+
+  // BB duty cell: one shared duty team + up to 3 officials (scorer + timekeeper,
+  // plus 24s when the game needs it). The scorer editor carries the team; the
+  // other two hide the team dropdown and share it (person-first still derives it).
+  const renderBbPerson = (
+    a: BbGameAssignment,
+    role: 'scorer' | 'timekeeper' | '24s', label: string,
+    draftMember: string | null | undefined, currentMember: unknown,
+    licence: LicenceType | LicenceType[], hideTeam: boolean,
+  ) => (
+    <AssignmentEditor
+      label={label}
+      requiredLicence={licence}
+      hideTeam={hideTeam}
+      teamValue={a.dutyTeamId ?? ''}
+      personValue={personValueOf(draftMember, currentMember)}
+      members={members}
+      teams={bbTeams}
+      teamMemberIds={teamMemberIds}
+      sport="basketball"
+      onTeamChange={(v) => handleBbOverride(a.gameId, v)}
+      onPersonChange={(v) => handleBbPerson(a.gameId, role, v)}
+      disabled={false}
+      canEdit
+      guestMemberIds={guestMemberIds}
+    />
+  )
+  const renderBbDuty = (a: BbGameAssignment, game: Game) => (
+    <div className="space-y-2 min-w-[220px]">
+      {renderBbPerson(a, 'scorer', t('bbScorer'), a.bbScorerMemberId, game.bb_scorer_member, 'otr1_bb', false)}
+      {renderBbPerson(a, 'timekeeper', t('bbTimekeeper'), a.bbTimekeeperMemberId, game.bb_timekeeper_member, 'otr1_bb', true)}
+      {renderBbPerson(a, '24s', t('bb24sOfficial'), a.bb24sMemberId, game.bb_24s_official, ['otr2_bb', 'otn_bb'], true)}
+    </div>
   )
 
   // Upload a corrected export (.xlsx): match each row to a game by its Swiss
@@ -965,11 +1008,8 @@ export default function ScorerAssignPage() {
                         <TableCell className="px-2 py-2 text-gray-500 dark:text-gray-400">
                           <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700">{game.league}</span>
                         </TableCell>
-                        <TableCell className="px-2 py-2">
-                          <div className="flex items-center gap-1">
-                            <span className="rounded bg-orange-100 px-1 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">{t('dutyTeamTag')}</span>
-                            <TeamSelect value={a.dutyTeamId ?? ''} onChange={(v) => handleBbOverride(a.gameId, v)} teams={bbTeams} placeholder={t('selectTeam')} compact />
-                          </div>
+                        <TableCell className="px-2 py-2 align-top">
+                          {renderBbDuty(a, game)}
                         </TableCell>
                         <TableCell className="max-w-[240px] px-2 py-2">
                           <div className="space-y-0.5 text-xs">
