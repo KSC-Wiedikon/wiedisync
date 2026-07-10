@@ -45,6 +45,7 @@ export default function ScorerPage() {
 
   const [tab, setTab] = useState<Tab>('games')
   const [sportTab, setSportTab] = useState<SportTab>('volleyball')
+  const [overviewGroup, setOverviewGroup] = useState<'team' | 'game'>('team')
 
   // Deep-link from a calendar duty event: /scorer?roster=<gameId> opens the
   // home-team roster directly (the endpoint still enforces scorer + time window).
@@ -63,6 +64,9 @@ export default function ScorerPage() {
   // Filters
   const [dateFilter, setDateFilter] = useState('')
   const [dutyTeamFilter, setDutyTeamFilter] = useState('')
+  // Filter by the team PLAYING the game (e.g. "I want a duty when team X plays"),
+  // distinct from dutyTeamFilter (the team assigned the scoring duty).
+  const [playingTeamFilter, setPlayingTeamFilter] = useState('')
   const [dutyTypeFilter, setDutyTypeFilter] = useState<VbDutyTypeFilter>('all')
   const [unassignedFilter, setUnassignedFilter] = useState<VbUnassignedFilter | BbUnassignedFilter>('all')
   const [searchAssignee, setSearchAssignee] = useState('')
@@ -259,6 +263,15 @@ export default function ScorerPage() {
 
       if (dateFilter && g.date !== dateFilter) return false
 
+      if (playingTeamFilter) {
+        // kscw_team is the home (playing) team; it may arrive as an id or an
+        // expanded object depending on the fetch (mirror getGameSport above).
+        const playingId = g.kscw_team != null && typeof g.kscw_team === 'object'
+          ? String((g.kscw_team as unknown as Team).id)
+          : String(g.kscw_team ?? '')
+        if (playingId !== playingTeamFilter) return false
+      }
+
       if (dutyTeamFilter) {
         if (sportTab === 'volleyball') {
           const matchesTeam =
@@ -359,7 +372,7 @@ export default function ScorerPage() {
       if (a.time !== b.time) return (a.time || '') < (b.time || '') ? -1 : 1
       return 0
     })
-  }, [upcomingGames, sportTab, dutyScope, effectiveIsAdmin, effectiveIsVorstand, user, myDutyTeamIds, dateFilter, dutyTeamFilter, dutyTypeFilter, unassignedFilter, searchAssignee, memberMap])
+  }, [upcomingGames, sportTab, dutyScope, effectiveIsAdmin, effectiveIsVorstand, user, myDutyTeamIds, dateFilter, dutyTeamFilter, playingTeamFilter, dutyTypeFilter, unassignedFilter, searchAssignee, memberMap])
 
   const filteredPastGames = useMemo(() => allPastGames.filter((g) => {
     if (getGameSport(g) !== sportTab) return false
@@ -376,11 +389,12 @@ export default function ScorerPage() {
   }), [allPastGames, sportTab, effectiveIsAdmin, effectiveIsVorstand, user, myDutyTeamIds])
   const visiblePastGames = useMemo(() => filteredPastGames.slice(0, pastVisible), [filteredPastGames, pastVisible])
 
-  const hasActiveFilters = !!(dateFilter || dutyTeamFilter || dutyTypeFilter !== 'all' || unassignedFilter !== 'all' || searchAssignee)
+  const hasActiveFilters = !!(dateFilter || dutyTeamFilter || playingTeamFilter || dutyTypeFilter !== 'all' || unassignedFilter !== 'all' || searchAssignee)
 
   function clearFilters() {
     setDateFilter('')
     setDutyTeamFilter('')
+    setPlayingTeamFilter('')
     setDutyTypeFilter('all')
     setUnassignedFilter('all')
     setSearchAssignee('')
@@ -641,6 +655,10 @@ export default function ScorerPage() {
                     <DatePicker id="scorer-date" value={dateFilter} onChange={setDateFilter} />
                   </div>
                   <div>
+                    <label htmlFor="scorer-playing-team" className={filterLabelClass}>{t('filterPlayingTeam')}</label>
+                    <TeamSelect value={playingTeamFilter} onChange={setPlayingTeamFilter} teams={teams} placeholder={t('filterAllTeams')} aria-label={t('filterPlayingTeam')} />
+                  </div>
+                  <div>
                     <label htmlFor="scorer-duty-team" className={filterLabelClass}>{t('filterDutyTeam')}</label>
                     <TeamSelect value={dutyTeamFilter} onChange={setDutyTeamFilter} teams={teams} placeholder={t('filterAllTeams')} aria-label={t('filterDutyTeam')} />
                   </div>
@@ -745,7 +763,16 @@ export default function ScorerPage() {
       )}
 
       {tab === 'overview' && (
-        <div data-tour="open-slots"><TeamOverview games={upcomingGames} members={members} sport={sportTab} /></div>
+        <div data-tour="open-slots">
+          <div className="mt-4">
+            <TabBar<'team' | 'game'>
+              tabs={[{ key: 'team', label: t('overviewByTeam') }, { key: 'game', label: t('overviewByGame') }]}
+              active={overviewGroup}
+              onChange={setOverviewGroup}
+            />
+          </div>
+          <TeamOverview games={upcomingGames} members={members} sport={sportTab} groupBy={overviewGroup} />
+        </div>
       )}
 
       {rosterGameId && <RosterModal gameId={rosterGameId} onClose={closeRoster} />}
