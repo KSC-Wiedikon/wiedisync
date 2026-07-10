@@ -52,6 +52,8 @@ export default {
   allDay: 'De ganz Tag',
   date: 'Datum',
   selectDate: 'Datum uswähle',
+  time: 'Uhrzit',
+  clear: 'Lösche',
 
   // Validation
   required: 'Muäsch usfülle',

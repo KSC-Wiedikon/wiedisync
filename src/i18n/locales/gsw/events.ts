@@ -14,6 +14,8 @@ export default {
   eventType: 'Typ',
   startDate: 'Start',
   endDate: 'Ändi',
+  startTime: 'Startziit',
+  endTime: 'Ändziit',
   allDay: 'De ganz Tag',
   location: 'Ort',
   description: 'Beschriibig',

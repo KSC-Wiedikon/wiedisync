@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { FormInput, FormTextarea, FormField } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import DateTimePicker from '@/components/ui/DateTimePicker'
 import { Switch } from '@/components/ui/switch'
 import TeamMultiSelect from '@/components/TeamMultiSelect'
 import { ChevronUp, ChevronDown, Trash2, Plus, Languages } from 'lucide-react'
@@ -258,11 +259,10 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
           </FormField>
         )}
 
-        <FormInput
+        <DateTimePicker
           label={t('closesAt')}
-          type="datetime-local"
           value={closesAt}
-          onChange={(e) => setClosesAt(e.target.value)}
+          onChange={setClosesAt}
           helperText={t('closesAtHint')}
         />
 

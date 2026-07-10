@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import WeekdayHint from './WeekdayHint'
 import ProposalContextHints from './ProposalContextHints'
+import DatePicker from '@/components/ui/DatePicker'
 import type { ProposalHealthProposal } from '../../../types'
 
 interface HallOption {
@@ -232,11 +233,17 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
         )}
         {homeOn && (
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <label htmlFor="mbf-home-date" className="col-span-2 sm:col-span-1">
-              <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualDate')}</span>
-              <input id="mbf-home-date" type="date" value={homeDate} min={minDate} max={maxDate} onChange={(e) => { setHomeDate(e.target.value); refreshCtx('home', e.target.value) }} className={inputCls} />
+            <div className="col-span-2 sm:col-span-1">
+              <DatePicker
+                id="mbf-home-date"
+                label={t('manualDate')}
+                value={homeDate}
+                min={minDate}
+                max={maxDate}
+                onChange={(v) => { setHomeDate(v); refreshCtx('home', v) }}
+              />
               <WeekdayHint date={homeDate} className="mt-0.5 block" />
-            </label>
+            </div>
             <label htmlFor="mbf-home-start">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualStart')}</span>
               <input id="mbf-home-start" type="time" value={homeStart} onChange={(e) => setHomeStart(e.target.value)} className={inputCls} />
@@ -292,11 +299,17 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
         )}
         {awayOn && (
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <label htmlFor="mbf-away-date" className="col-span-2 sm:col-span-1">
-              <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualDate')}</span>
-              <input id="mbf-away-date" type="date" value={awayDate} min={minDate} max={maxDate} onChange={(e) => { setAwayDate(e.target.value); refreshCtx('away', e.target.value) }} className={inputCls} />
+            <div className="col-span-2 sm:col-span-1">
+              <DatePicker
+                id="mbf-away-date"
+                label={t('manualDate')}
+                value={awayDate}
+                min={minDate}
+                max={maxDate}
+                onChange={(v) => { setAwayDate(v); refreshCtx('away', v) }}
+              />
               <WeekdayHint date={awayDate} className="mt-0.5 block" />
-            </label>
+            </div>
             <label htmlFor="mbf-away-start">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualStart')}</span>
               <input id="mbf-away-start" type="time" value={awayStart} onChange={(e) => setAwayStart(e.target.value)} className={inputCls} />

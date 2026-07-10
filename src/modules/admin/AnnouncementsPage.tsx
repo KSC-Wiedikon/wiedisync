@@ -11,6 +11,7 @@ import { isSafeAppLink } from '../../utils/sanitizeUrl'
 import { useConfirm } from '../../components/ConfirmProvider'
 import Modal from '../../components/Modal'
 import RichTextEditor from '../../components/RichTextEditor'
+import DateTimePicker from '../../components/ui/DateTimePicker'
 import { stripHtml } from '../../components/RichText'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { formatDate, toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso } from '../../utils/dateHelpers'
@@ -509,17 +510,11 @@ export default function AnnouncementsPage() {
               <Pin className="h-3.5 w-3.5" />
               {t('pin')}
             </label>
-            <div>
-              <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300">
-                {t('expires')}
-              </label>
-              <input
-                type="datetime-local"
-                value={form.expires_at ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, expires_at: e.target.value || null }))}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-              />
-            </div>
+            <DateTimePicker
+              label={t('expires')}
+              value={form.expires_at ?? ''}
+              onChange={(v) => setForm((f) => ({ ...f, expires_at: v || null }))}
+            />
           </div>
 
           {/* Publish + Notification toggles */}

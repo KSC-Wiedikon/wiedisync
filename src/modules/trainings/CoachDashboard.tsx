@@ -9,6 +9,7 @@ import { todayLocal, mostRecent01June } from '../../utils/dateHelpers'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import DatePicker from '@/components/ui/DatePicker'
 import type { Team } from '../../types'
 
 interface CoachDashboardProps {
@@ -82,30 +83,16 @@ export default function CoachDashboard({ teamId }: CoachDashboardProps) {
   return (
     <div data-tour="attendance-stats">
       <div className="mb-6 flex flex-wrap items-end gap-4">
-        <label className="flex flex-col text-xs font-medium text-gray-700 dark:text-gray-300">
-          {t('rangeFromLabel')}
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            onBlur={(e) => persistFrom(e.target.value)}
-            className={`mt-1 rounded-lg border px-3 py-1.5 text-sm dark:bg-gray-700 dark:text-gray-100 ${
-              rangeError ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'
-            }`}
-          />
-        </label>
-        <label className="flex flex-col text-xs font-medium text-gray-700 dark:text-gray-300">
-          {t('rangeToLabel')}
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            onBlur={(e) => persistTo(e.target.value)}
-            className={`mt-1 rounded-lg border px-3 py-1.5 text-sm dark:bg-gray-700 dark:text-gray-100 ${
-              rangeError ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'
-            }`}
-          />
-        </label>
+        <DatePicker
+          label={t('rangeFromLabel')}
+          value={from}
+          onChange={(v) => { setFrom(v); persistFrom(v) }}
+        />
+        <DatePicker
+          label={t('rangeToLabel')}
+          value={to}
+          onChange={(v) => { setTo(v); persistTo(v) }}
+        />
         <button
           type="button"
           onClick={handleReset}

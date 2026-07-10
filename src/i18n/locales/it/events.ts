@@ -14,6 +14,8 @@ export default {
   eventType: 'Tipo',
   startDate: 'Inizio',
   endDate: 'Fine',
+  startTime: 'Ora di inizio',
+  endTime: 'Ora di fine',
   allDay: 'Tutto il giorno',
   location: 'Luogo',
   description: 'Descrizione',

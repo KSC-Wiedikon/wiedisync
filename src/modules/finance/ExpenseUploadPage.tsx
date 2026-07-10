@@ -7,6 +7,7 @@ import { Upload, Loader2, FileText, X, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import DatePicker from '@/components/ui/DatePicker'
 import { FormInput, FormTextarea } from '@/components/FormField'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '../../hooks/useAuth'
@@ -349,7 +350,7 @@ export default function ExpenseUploadPage() {
                   />
                 </div>
               </div>
-              <FormInput label={t('expenseDate')} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <DatePicker label={t('expenseDate')} value={date} onChange={setDate} />
               <FormInput label={t('expenseVendor')} value={vendor} onChange={(e) => setVendor(e.target.value)} />
               <FormInput label={t('expenseDescription')} value={description} onChange={(e) => setDescription(e.target.value)} />
               <FormInput label={t('expenseReference')} value={reference} onChange={(e) => setReference(e.target.value)} />

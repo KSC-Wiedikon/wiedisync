@@ -87,6 +87,11 @@ export default function DatePicker({
     setOpen(false)
   }
 
+  function handleClear() {
+    onChange('')
+    setOpen(false)
+  }
+
   return (
     <div>
       {label && (
@@ -134,7 +139,17 @@ export default function DatePicker({
               return false
             }}
           />
-          <div className="border-t p-2 flex justify-end">
+          <div className={cn('border-t p-2 flex', selectedDate ? 'justify-between' : 'justify-end')}>
+            {selectedDate && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClear}
+                type="button"
+              >
+                {t('clear')}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"

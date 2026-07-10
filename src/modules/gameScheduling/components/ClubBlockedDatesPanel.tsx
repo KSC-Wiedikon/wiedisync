@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { CalendarOff, Plus, Trash2, Loader2 } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
+import DatePicker from '@/components/ui/DatePicker'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import { kscwApi } from '../../../lib/api'
 import { formatDateZurich } from '../../../utils/dateHelpers'
@@ -91,16 +92,12 @@ export default function ClubBlockedDatesPanel() {
       {/* Add form — dates on one row, reason + button below (fits a half-width card) */}
       <div className="mb-4 space-y-2">
         <div className="flex gap-2">
-          <label className="flex min-w-0 flex-1 flex-col text-xs text-gray-500 dark:text-gray-400 sm:max-w-[10rem]">
-            {t('clubBlockFrom')}
-            <input type="date" value={start} onChange={(e) => setStart(e.target.value)}
-              className="mt-0.5 w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
-          </label>
-          <label className="flex min-w-0 flex-1 flex-col text-xs text-gray-500 dark:text-gray-400 sm:max-w-[10rem]">
-            {t('clubBlockTo')}
-            <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)}
-              className="mt-0.5 w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
-          </label>
+          <div className="flex min-w-0 flex-1 flex-col sm:max-w-[10rem]">
+            <DatePicker label={t('clubBlockFrom')} value={start} onChange={setStart} />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col sm:max-w-[10rem]">
+            <DatePicker label={t('clubBlockTo')} value={end} min={start} onChange={setEnd} />
+          </div>
         </div>
         <div className="flex gap-2">
           <input type="text" value={reason} maxLength={120} placeholder={t('clubBlockReasonPlaceholder')}
