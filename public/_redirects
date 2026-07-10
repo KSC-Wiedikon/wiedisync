@@ -1,0 +1,15 @@
+# --- Cloudflare Pages routing ---
+#
+# 1) Missing hashed assets MUST return a real 404 — never fall through to the
+#    SPA index.html fallback. The `/assets/*` rule in `_headers` stamps
+#    `Cache-Control: immutable, max-age=1y` by URL, so a fallback served for a
+#    not-yet-propagated asset hash gets cached at the CF edge as
+#    `200 text/html immutable` and is then served to EVERY client until a manual
+#    "Purge Everything". That is what breaks the CSS on deploy ("Refused to apply
+#    style ... MIME type text/html"). A 404 status is not cached/applied the same
+#    way, so the edge self-heals once the real asset lands.
+/assets/*  /404.html  404
+
+# 2) SPA fallback for real navigation routes (real static files are served first,
+#    before these rules, so this only catches client-side routes like /calendar).
+/*  /index.html  200
