@@ -90,8 +90,8 @@ export default {
   confirmAction: 'Bestätige',
 
   // Placeholders
-  selectTeam: '— Team wähle —',
-  selectPerson: '— Person wähle —',
+  selectTeam: 'Team wähle',
+  selectPerson: 'Person wähle',
   pickDutyTeamTitle: 'Weles Dienst-Team?',
   pickDutyTeamBody: '{{name}} isch i mehrere Teams — wähl das wo für dä Dienst zueständig isch.',
 

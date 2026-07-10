@@ -20,6 +20,8 @@ interface SearchableSelectProps {
   onChange: (value: string) => void
   error?: string
   disabled?: boolean
+  /** Extra classes for the trigger container (e.g. a filled/valid tint). */
+  triggerClassName?: string
 }
 
 export default function SearchableSelect({
@@ -31,6 +33,7 @@ export default function SearchableSelect({
   onChange,
   error,
   disabled,
+  triggerClassName,
 }: SearchableSelectProps) {
   const { t } = useTranslation('common')
   const isDesktop = useMediaQuery('(min-width: 640px)')
@@ -182,6 +185,7 @@ export default function SearchableSelect({
           open && 'ring-1 ring-ring',
           error && 'border-destructive',
           disabled && 'cursor-not-allowed opacity-50',
+          triggerClassName,
         )}
       >
         {open && isDesktop && !disabled ? (

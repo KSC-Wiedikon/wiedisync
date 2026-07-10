@@ -90,8 +90,8 @@ export default {
   confirmAction: 'Confirmer',
 
   // Placeholders
-  selectTeam: '— Selectionner l\'equipe —',
-  selectPerson: '— Selectionner la personne —',
+  selectTeam: 'Selectionner l\'equipe',
+  selectPerson: 'Selectionner la personne',
   pickDutyTeamTitle: 'Quelle équipe de service ?',
   pickDutyTeamBody: '{{name}} fait partie de plusieurs équipes — choisissez celle qui couvre ce service.',
 
