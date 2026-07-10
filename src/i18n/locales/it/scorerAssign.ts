@@ -73,6 +73,7 @@ export default {
 
   // Existing
   existingKept: 'Assegnazione esistente mantenuta',
+  signedUp: 'Iscritto: {{names}}',
   cupOnCall: 'Di picchetto',
   noTeamAvailable: 'Nessuna squadra disponibile',
   noScorerAvailable: 'Nessun segnapunti disponibile',

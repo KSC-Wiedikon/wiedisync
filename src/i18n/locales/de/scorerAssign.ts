@@ -73,6 +73,7 @@ export default {
 
   // Existing
   existingKept: 'Bestehende Zuteilung beibehalten',
+  signedUp: 'Angemeldet: {{names}}',
   cupOnCall: 'Pikett',
   noTeamAvailable: 'Kein Team verfügbar',
   noScorerAvailable: 'Kein Schreiber verfügbar',

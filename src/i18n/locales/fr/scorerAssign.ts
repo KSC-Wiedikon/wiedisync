@@ -73,6 +73,7 @@ export default {
 
   // Existing
   existingKept: 'Attribution existante conservee',
+  signedUp: 'Inscrit : {{names}}',
   cupOnCall: 'De piquet',
   noTeamAvailable: 'Aucune equipe disponible',
   noScorerAvailable: 'Aucun marqueur disponible',

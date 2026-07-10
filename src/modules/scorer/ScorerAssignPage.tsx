@@ -235,6 +235,35 @@ export default function ScorerAssignPage() {
     if (!a.dutyTeamId) s.push({ text: tr('noTeamAvailable'), tone: 'warn' })
     return s
   }
+
+  // member id → display name, and team id → member ids — for the roll-out
+  // integrity clear and the "already signed up" highlight below.
+  const memberNameById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const mb of members) m.set(String(mb.id), `${mb.first_name} ${mb.last_name}`)
+    return m
+  }, [members])
+  const teamMembersById = useMemo(() => {
+    const m = new Map<string, Set<string>>()
+    for (const mt of memberTeams) {
+      const tid = String(mt.team)
+      let set = m.get(tid)
+      if (!set) { set = new Set(); m.set(tid, set) }
+      set.add(String(mt.member))
+    }
+    return m
+  }, [memberTeams])
+  // A game that already has a person signed up — highlighted so the admin knows
+  // that changing this game's duty team on roll-out resets a person who isn't in
+  // the new team (the integrity rule enforced in handleSaveAll).
+  const signedUpNote = (tr: typeof t, game: Game | undefined): Note[] => {
+    if (!game) return []
+    const ids = [game.scorer_member, game.scoreboard_member, game.scorer_scoreboard_member, game.referee_member,
+      game.bb_scorer_member, game.bb_timekeeper_member, game.bb_24s_official].filter(Boolean).map((x) => String(x))
+    if (!ids.length) return []
+    return [{ text: tr('signedUp', { names: ids.map((id) => memberNameById.get(id) ?? '?').join(', ') }), tone: 'ok' }]
+  }
+
   const noteToneClass = (tone: Note['tone']) =>
     tone === 'danger' ? 'text-red-600 dark:text-red-400 font-medium'
       : tone === 'warn' ? 'text-amber-600 dark:text-amber-400'
@@ -294,23 +323,36 @@ export default function ScorerAssignPage() {
     setSaving(true)
     setSaveMsg(null)
     try {
-      const tasks: Array<{ gameId: string; fields: Partial<Game> }> = []
+      const tasks: Array<{ gameId: string; fields: Record<string, unknown> }> = []
+      // When a duty team is (re)assigned, a person previously signed up who is
+      // NOT in the new team is reset — otherwise the game keeps an assignee who
+      // doesn't belong to the duty team (the integrity check we audit for).
+      const clearOrphan = (fields: Record<string, unknown>, g: Game | undefined, teamId: string, memberField: keyof Game) => {
+        const mem = g && g[memberField] ? String(g[memberField]) : null
+        if (mem && !teamMembersById.get(teamId)?.has(mem)) fields[memberField] = null
+      }
       if (sportTab === 'volleyball') {
         for (const a of vbAssignments) {
           if (a.conflicts.some((c) => c.key === 'existingKept')) continue
           if (!a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId) continue
-          const fields: Partial<Game> = {}
-          if (a.scorerTeamId) fields.scorer_duty_team = a.scorerTeamId
-          if (a.scoreboardTeamId) fields.scoreboard_duty_team = a.scoreboardTeamId
-          if (a.combinedTeamId) fields.scorer_scoreboard_duty_team = a.combinedTeamId
-          if (a.refereeTeamId) fields.referee_duty_team = a.refereeTeamId
+          const g = homeGames.find((x) => x.id === a.gameId)
+          const fields: Record<string, unknown> = {}
+          if (a.scorerTeamId) { fields.scorer_duty_team = a.scorerTeamId; clearOrphan(fields, g, a.scorerTeamId, 'scorer_member') }
+          if (a.scoreboardTeamId) { fields.scoreboard_duty_team = a.scoreboardTeamId; clearOrphan(fields, g, a.scoreboardTeamId, 'scoreboard_member') }
+          if (a.combinedTeamId) { fields.scorer_scoreboard_duty_team = a.combinedTeamId; clearOrphan(fields, g, a.combinedTeamId, 'scorer_scoreboard_member') }
+          if (a.refereeTeamId) { fields.referee_duty_team = a.refereeTeamId; clearOrphan(fields, g, a.refereeTeamId, 'referee_member') }
           tasks.push({ gameId: a.gameId, fields })
         }
       } else {
         for (const a of bbAssignments) {
           if (a.conflicts.some((c) => c.key === 'existingKept')) continue
           if (!a.dutyTeamId) continue
-          tasks.push({ gameId: a.gameId, fields: { bb_duty_team: a.dutyTeamId } })
+          const g = homeGames.find((x) => x.id === a.gameId)
+          const fields: Record<string, unknown> = { bb_duty_team: a.dutyTeamId }
+          clearOrphan(fields, g, a.dutyTeamId, 'bb_scorer_member')
+          clearOrphan(fields, g, a.dutyTeamId, 'bb_timekeeper_member')
+          clearOrphan(fields, g, a.dutyTeamId, 'bb_24s_official')
+          tasks.push({ gameId: a.gameId, fields })
         }
       }
       // Save in parallel chunks instead of a serial await loop (a whole season is
@@ -348,7 +390,7 @@ export default function ScorerAssignPage() {
     // Same curated notes as the table, but ALWAYS in English (export convention).
     const noteText = (assigned: Array<[string | null, string | null]>, gameId: string, statusNotes: Note[]) => {
       const g = homeGames.find((x) => x.id === gameId)
-      return g ? notesFor(tEn, assigned, g, statusNotes).map((n) => n.text).join('; ') : ''
+      return g ? notesFor(tEn, assigned, g, [...statusNotes, ...signedUpNote(tEn, g)]).map((n) => n.text).join('; ') : ''
     }
     const gameRows: XlsxGameRow[] = isVb
       ? vbAssignments.map((a) => ({
@@ -824,7 +866,7 @@ export default function ScorerAssignPage() {
                         )}
                         <TableCell className="max-w-[240px] px-2 py-2">
                           <div className="space-y-0.5 text-xs">
-                            {notesFor(t, assignedTeams, game, vbStatusNotes(t, a)).map((n, i) => (
+                            {notesFor(t, assignedTeams, game, [...vbStatusNotes(t, a), ...signedUpNote(t, game)]).map((n, i) => (
                               <div key={i} className={`truncate ${noteToneClass(n.tone)}`} title={n.text}>{n.text}</div>
                             ))}
                           </div>
@@ -866,7 +908,7 @@ export default function ScorerAssignPage() {
                         </TableCell>
                         <TableCell className="max-w-[240px] px-2 py-2">
                           <div className="space-y-0.5 text-xs">
-                            {notesFor(t, assignedTeams, game, bbStatusNotes(t, a)).map((n, i) => (
+                            {notesFor(t, assignedTeams, game, [...bbStatusNotes(t, a), ...signedUpNote(t, game)]).map((n, i) => (
                               <div key={i} className={`truncate ${noteToneClass(n.tone)}`} title={n.text}>{n.text}</div>
                             ))}
                           </div>
