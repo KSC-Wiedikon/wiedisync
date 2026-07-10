@@ -90,8 +90,8 @@ export default {
   confirmAction: 'Conferma',
 
   // Placeholders
-  selectTeam: '— Seleziona squadra —',
-  selectPerson: '— Seleziona persona —',
+  selectTeam: 'Seleziona squadra',
+  selectPerson: 'Seleziona persona',
   pickDutyTeamTitle: 'Quale squadra di turno?',
   pickDutyTeamBody: '{{name}} fa parte di più squadre — scegli quella che copre questo turno.',
 

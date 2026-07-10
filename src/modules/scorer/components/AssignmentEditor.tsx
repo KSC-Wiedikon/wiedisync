@@ -208,6 +208,7 @@ export default function AssignmentEditor({
                   disabled={disabled}
                   options={filteredMembers.map((m) => ({ value: m.id, label: `${m.first_name} ${m.last_name}` }))}
                   placeholder={t('selectPerson')}
+                  triggerClassName={personValue ? 'border-green-400 bg-green-50 dark:border-green-700 dark:bg-green-900/25' : undefined}
                 />
               </div>
               {personValue && onDelegate && !disabled && (
