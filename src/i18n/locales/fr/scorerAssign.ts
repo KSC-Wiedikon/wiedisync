@@ -4,6 +4,10 @@ export default {
 
   // Actions
   runAlgorithm: 'Lancer l\'algorithme',
+  rerun: 'Recalculer',
+  rerunHint: 'Recalculer l\'attribution depuis le début. Les matchs déjà déployés sont conservés ; les modifications manuelles non enregistrées ici sont perdues.',
+  rerunConfirm: 'Recalculer toute l\'attribution ? Les matchs déjà déployés sont conservés, mais les modifications manuelles non enregistrées ici seront perdues.',
+  runLockedHint: 'Une attribution est déjà chargée — utilisez « Recalculer » pour la relancer.',
   saveAll: 'Tout enregistrer',
   downloadXlsx: 'Télécharger Excel',
   uploadCorrected: 'Importer corrigé',

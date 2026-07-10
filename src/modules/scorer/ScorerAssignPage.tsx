@@ -11,6 +11,7 @@ import LoadingSpinner from '../../components/LoadingSpinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import TeamSelect from '../../components/TeamSelect'
 import TeamChip from '../../components/TeamChip'
+import { useConfirm } from '../../components/ConfirmProvider'
 import SportToggle from '../../components/SportToggle'
 import { runAssignment, getTeamCounts, buildTeamGameTimes, buildTrainingDates, buildGamesByDateHall, getAdjacentTeams, timeToMin, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
@@ -57,6 +58,7 @@ export default function ScorerAssignPage() {
   // Exports are ALWAYS English, whatever the UI language (app-wide convention).
   const tEn = useMemo(() => i18n.getFixedT('en', 'scorerAssign'), [i18n])
   const { user, hasAdminAccessToSport } = useAuth()
+  const confirm = useConfirm()
 
   const season = getCurrentSeason()
   const { start: seasonStart, end: seasonEnd } = getSeasonDateRange(season)
@@ -277,6 +279,15 @@ export default function ScorerAssignPage() {
       }
       setRunning(false)
     }, 50)
+  }
+
+  // Re-running recomputes from the games' CURRENT saved state — already-rolled-out
+  // duties are kept (existingKept), but any unsaved manual edits in this view are
+  // discarded. The Run button is locked once a situation is loaded (below), so a
+  // deliberate recompute goes through this confirm instead.
+  async function handleRerun() {
+    if (!(await confirm({ message: t('rerunConfirm'), danger: true }))) return
+    handleRunAlgorithm()
   }
 
   async function handleSaveAll() {
@@ -540,11 +551,20 @@ export default function ScorerAssignPage() {
           data-tour="auto-assign"
           size="sm"
           onClick={handleRunAlgorithm}
-          loading={running}
-          disabled={dataLoading || homeGames.length === 0}
+          loading={running && assignments.length === 0}
+          // Locked once a situation is loaded (draft restored or rolled out) so a
+          // stray click can't recompute over it — deliberate re-runs use Recompute.
+          disabled={dataLoading || homeGames.length === 0 || assignments.length > 0}
+          title={assignments.length > 0 ? t('runLockedHint') : undefined}
         >
-          {running ? t('running') : t('runAlgorithm')}
+          {running && assignments.length === 0 ? t('running') : t('runAlgorithm')}
         </Button>
+
+        {assignments.length > 0 && (
+          <Button size="sm" variant="ghost" onClick={handleRerun} loading={running} title={t('rerunHint')}>
+            {running ? t('running') : t('rerun')}
+          </Button>
+        )}
 
         {assignments.length > 0 && (
           <Button size="sm" onClick={handleSaveAll} loading={saving} title={t('rollOutHint')}>
