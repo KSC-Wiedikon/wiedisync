@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Member, Team, LicenceType } from '../../../types'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 import { Phone, Mail, Hand, ArrowRightLeft, Clock, Check } from 'lucide-react'
 import TeamSelect from '../../../components/TeamSelect'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
@@ -176,11 +176,9 @@ export default function AssignmentEditor({
       {/* Admin view: full dropdowns */}
       {canEdit ? (
         <>
-          <div className={`grid gap-2 ${
-            hideTeam
-              ? (personValue && onDelegate && !disabled ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-1')
-              : (personValue && onDelegate && !disabled ? 'grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto]' : 'grid-cols-[minmax(0,2fr)_minmax(0,3fr)]')
-          }`}>
+          {/* Stacked: duty team on top, person beneath it (two rows) so the two
+              fields never read as one — the person dropdown is searchable. */}
+          <div className="space-y-2">
             {!hideTeam && (
             <TeamSelect
               value={teamValue}
@@ -202,29 +200,28 @@ export default function AssignmentEditor({
             {/* Person is always pickable: with a team it lists that team's members;
                 without one, any licence-eligible member of this sport — picking
                 then auto-fills their duty team (asking if they're in several). */}
-            <Select value={personValue} onValueChange={handlePersonPick} disabled={disabled}>
-              <SelectTrigger className="min-h-[44px]" aria-label={`${label} – ${t('selectPerson')}`}>
-                <SelectValue placeholder={t('selectPerson')} />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredMembers.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.first_name} {m.last_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {personValue && onDelegate && !disabled && (
-              <button
-                data-tour="delegation"
-                onClick={onDelegate}
-                className="flex min-h-[44px] items-center justify-center rounded-lg px-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-                title={t('delegate')}
-                aria-label={t('delegate')}
-              >
-                <ArrowRightLeft className="h-4 w-4" />
-              </button>
-            )}
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <SearchableSelect
+                  value={personValue}
+                  onChange={handlePersonPick}
+                  disabled={disabled}
+                  options={filteredMembers.map((m) => ({ value: m.id, label: `${m.first_name} ${m.last_name}` }))}
+                  placeholder={t('selectPerson')}
+                />
+              </div>
+              {personValue && onDelegate && !disabled && (
+                <button
+                  data-tour="delegation"
+                  onClick={onDelegate}
+                  className="flex min-h-[44px] items-center justify-center rounded-lg px-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                  title={t('delegate')}
+                  aria-label={t('delegate')}
+                >
+                  <ArrowRightLeft className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
         </>
       ) : (

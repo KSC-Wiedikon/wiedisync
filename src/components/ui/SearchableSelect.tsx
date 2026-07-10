@@ -19,6 +19,7 @@ interface SearchableSelectProps {
   value: string
   onChange: (value: string) => void
   error?: string
+  disabled?: boolean
 }
 
 export default function SearchableSelect({
@@ -29,6 +30,7 @@ export default function SearchableSelect({
   value,
   onChange,
   error,
+  disabled,
 }: SearchableSelectProps) {
   const { t } = useTranslation('common')
   const isDesktop = useMediaQuery('(min-width: 640px)')
@@ -179,9 +181,10 @@ export default function SearchableSelect({
           'flex min-h-[44px] w-full items-center rounded-md border border-input bg-transparent text-sm shadow-sm ring-offset-background transition-colors',
           open && 'ring-1 ring-ring',
           error && 'border-destructive',
+          disabled && 'cursor-not-allowed opacity-50',
         )}
       >
-        {open && isDesktop ? (
+        {open && isDesktop && !disabled ? (
           <input
             ref={inputRef}
             type="text"
@@ -206,7 +209,8 @@ export default function SearchableSelect({
             aria-controls={open ? listboxId : undefined}
             aria-activedescendant={activeDescendant}
             aria-labelledby={label ? labelId : undefined}
-            className="flex flex-1 items-center justify-between px-3 py-2 text-left"
+            className="flex flex-1 items-center justify-between px-3 py-2 text-left disabled:cursor-not-allowed"
+            disabled={disabled}
             onClick={() => setOpen((v) => !v)}
           >
             <span className={selectedLabel ? '' : 'text-muted-foreground'}>

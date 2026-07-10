@@ -824,7 +824,14 @@ export default function ScorerPage() {
               onChange={setOverviewGroup}
             />
           </div>
-          <TeamOverview games={upcomingGames} members={members} teams={teams} sport={sportTab} groupBy={overviewGroup} />
+          <TeamOverview
+            games={upcomingGames}
+            members={members}
+            teams={teams}
+            sport={sportTab}
+            groupBy={overviewGroup}
+            scopeTeamIds={effectiveIsAdmin || effectiveIsVorstand ? null : myDutyTeamIds}
+          />
         </div>
       )}
 

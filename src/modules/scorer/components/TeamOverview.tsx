@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { Game, Member, Team } from '../../../types'
 import type { ExpandedGame } from './ScorerRow'
 import { asObj } from '../../../utils/relations'
@@ -16,6 +17,10 @@ interface TeamOverviewProps {
   // 'team' (default): one card per duty team with its list of duties.
   // 'game': one card per game with its list of duties.
   groupBy?: 'team' | 'game'
+  // When set (non-admins), restrict the overview to these team ids: duties owned
+  // by the member's team(s), and games where the member's team plays. null/undefined
+  // (admins) shows everything.
+  scopeTeamIds?: string[] | null
 }
 
 type DutyType = 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'referee' | 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official'
@@ -23,12 +28,16 @@ type DutyType = 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'referee' | 'bb_
 interface DutyEntry {
   game: ExpandedGame
   dutyType: DutyType
+  teamId: string
   teamName: string
   memberName: string | null
 }
 
-export default function TeamOverview({ games, members, teams, sport, groupBy = 'team' }: TeamOverviewProps) {
+export default function TeamOverview({ games, members, teams, sport, groupBy = 'team', scopeTeamIds }: TeamOverviewProps) {
   const { t, i18n } = useTranslation('scorer')
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const toggle = (name: string) =>
+    setExpanded((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n })
 
   const memberMap = useMemo(() => {
     const map = new Map<string, Member>()
@@ -36,65 +45,60 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
     return map
   }, [members])
 
+  const scopeSet = useMemo(() => (scopeTeamIds ? new Set(scopeTeamIds.map(String)) : null), [scopeTeamIds])
+
   // Flat list of every duty across all games — the source for both groupings.
-  // The name lookup is defined INSIDE the memo (not a render-scoped closure) so
-  // the React Compiler can infer its deps as exactly [games, memberMap, sport].
   const entries = useMemo(() => {
     const getMemberName = (id: string | undefined): string | null => {
       if (!id) return null
       const m = memberMap.get(id)
       return m ? `${m.first_name} ${m.last_name}` : null
     }
-    // The games here carry the duty-team fields as BARE IDs (not expanded), so
-    // resolve names from the teams list by id; fall back to an expanded object
-    // (asObj) if a caller ever passes expanded games, then to '?'.
+    // The games carry the duty-team fields as BARE IDs (not expanded), so resolve
+    // names from the teams list by id; fall back to an expanded object then '?'.
     const nameById = new Map<string, string>()
     for (const tm of teams) nameById.set(String(tm.id), tm.name)
-    const teamNameOf = (val: string | number | Team | null | undefined): string => {
+    const idOf = (val: string | number | Team | null | undefined): string =>
+      !val ? '' : typeof val === 'object' ? String(val.id) : String(val)
+    const nameOf = (val: string | number | Team | null | undefined): string => {
       if (!val) return '?'
       const obj = asObj<Team>(val)
-      if (obj?.name) return obj.name
-      const id = typeof val === 'object' ? String(val.id) : String(val)
-      return nameById.get(id) ?? '?'
+      return obj?.name ?? nameById.get(idOf(val)) ?? '?'
+    }
+    const push = (out: DutyEntry[], game: ExpandedGame, dutyType: DutyType, teamVal: string | number | Team | null | undefined, member: string | undefined) => {
+      out.push({ game, dutyType, teamId: idOf(teamVal), teamName: nameOf(teamVal), memberName: getMemberName(member) })
     }
     const out: DutyEntry[] = []
     for (const game of games) {
       const eg = game as ExpandedGame
       if (sport === 'volleyball') {
-        if (game.scorer_scoreboard_duty_team) {
-          out.push({ game: eg, dutyType: 'scorer_scoreboard', teamName: teamNameOf(game.scorer_scoreboard_duty_team), memberName: getMemberName(game.scorer_scoreboard_member) })
-        }
-        if (game.scorer_duty_team) {
-          out.push({ game: eg, dutyType: 'scorer', teamName: teamNameOf(game.scorer_duty_team), memberName: getMemberName(game.scorer_member) })
-        }
-        if (game.scoreboard_duty_team) {
-          out.push({ game: eg, dutyType: 'scoreboard', teamName: teamNameOf(game.scoreboard_duty_team), memberName: getMemberName(game.scoreboard_member) })
-        }
-        if (game.referee_duty_team) {
-          out.push({ game: eg, dutyType: 'referee', teamName: teamNameOf(game.referee_duty_team), memberName: getMemberName(game.referee_member) })
-        }
+        if (game.scorer_scoreboard_duty_team) push(out, eg, 'scorer_scoreboard', game.scorer_scoreboard_duty_team, game.scorer_scoreboard_member)
+        if (game.scorer_duty_team) push(out, eg, 'scorer', game.scorer_duty_team, game.scorer_member)
+        if (game.scoreboard_duty_team) push(out, eg, 'scoreboard', game.scoreboard_duty_team, game.scoreboard_member)
+        if (game.referee_duty_team) push(out, eg, 'referee', game.referee_duty_team, game.referee_member)
       } else {
         const scorerTeam = game.bb_scorer_duty_team || game.bb_duty_team
         const timekeeperTeam = game.bb_timekeeper_duty_team || game.bb_duty_team
         const _24sTeam = game.bb_24s_duty_team || game.bb_duty_team
-        if (scorerTeam) {
-          out.push({ game: eg, dutyType: 'bb_scorer', teamName: teamNameOf(scorerTeam), memberName: getMemberName(game.bb_scorer_member) })
-        }
-        if (timekeeperTeam) {
-          out.push({ game: eg, dutyType: 'bb_timekeeper', teamName: teamNameOf(timekeeperTeam), memberName: getMemberName(game.bb_timekeeper_member) })
-        }
-        if (_24sTeam && game.bb_24s_official) {
-          out.push({ game: eg, dutyType: 'bb_24s_official', teamName: teamNameOf(_24sTeam), memberName: getMemberName(game.bb_24s_official) })
-        }
+        if (scorerTeam) push(out, eg, 'bb_scorer', scorerTeam, game.bb_scorer_member)
+        if (timekeeperTeam) push(out, eg, 'bb_timekeeper', timekeeperTeam, game.bb_timekeeper_member)
+        if (_24sTeam && game.bb_24s_official) push(out, eg, 'bb_24s_official', _24sTeam, game.bb_24s_official)
       }
     }
     return out
   }, [games, memberMap, teams, sport])
 
-  // Grouping A: one card per duty team (default).
+  const playingIdOf = (game: ExpandedGame): string => {
+    const obj = asObj<Team>(game.kscw_team)
+    return obj?.id != null ? String(obj.id) : String(game.kscw_team ?? '')
+  }
+
+  // Grouping A: one card/row per duty team. Scoped (non-admin) to the member's
+  // own team(s) — their duties.
   const teamGroups = useMemo(() => {
     const map = new Map<string, DutyEntry[]>()
     for (const e of entries) {
+      if (scopeSet && !scopeSet.has(e.teamId)) continue
       if (!map.has(e.teamName)) map.set(e.teamName, [])
       map.get(e.teamName)!.push(e)
     }
@@ -102,9 +106,10 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
       list.sort((a, b) => a.game.date.localeCompare(b.game.date) || a.game.time.localeCompare(b.game.time))
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b, i18n.language))
-  }, [entries, i18n])
+  }, [entries, scopeSet, i18n])
 
-  // Grouping B: one card per game, in chronological order.
+  // Grouping B: one card per game, chronological. Scoped (non-admin) to games the
+  // member's team plays OR has a duty at — so they can check their own games.
   const gameGroups = useMemo(() => {
     const map = new Map<string, { game: ExpandedGame; list: DutyEntry[] }>()
     for (const e of entries) {
@@ -112,18 +117,12 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
       if (!map.has(key)) map.set(key, { game: e.game, list: [] })
       map.get(key)!.list.push(e)
     }
-    return Array.from(map.values()).sort(
-      (a, b) => a.game.date.localeCompare(b.game.date) || (a.game.time || '').localeCompare(b.game.time || ''),
-    )
-  }, [entries])
-
-  if (entries.length === 0) {
-    return (
-      <div className="py-12 text-center text-gray-500 dark:text-gray-400">
-        <p>{t('overviewEmpty')}</p>
-      </div>
-    )
-  }
+    let groups = Array.from(map.values())
+    if (scopeSet) {
+      groups = groups.filter(({ game, list }) => scopeSet.has(playingIdOf(game)) || list.some((e) => scopeSet.has(e.teamId)))
+    }
+    return groups.sort((a, b) => a.game.date.localeCompare(b.game.date) || (a.game.time || '').localeCompare(b.game.time || ''))
+  }, [entries, scopeSet])
 
   const dutyLabel: Record<DutyType, string> = {
     scorer: t('scorer'),
@@ -135,9 +134,18 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
     bb_24s_official: t('bb24sOfficial'),
   }
 
+  const isEmpty = groupBy === 'game' ? gameGroups.length === 0 : teamGroups.length === 0
+  if (isEmpty) {
+    return (
+      <div className="py-12 text-center text-gray-500 dark:text-gray-400">
+        <p>{t('overviewEmpty')}</p>
+      </div>
+    )
+  }
+
   if (groupBy === 'game') {
     return (
-      <div className="mt-6 grid gap-6 md:grid-cols-2">
+      <div className="mt-6 grid gap-4 sm:gap-6 md:grid-cols-2">
         {gameGroups.map(({ game, list }) => (
           <div key={game.id} className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
             <div className="flex items-center gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
@@ -153,10 +161,14 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
             </div>
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
               {list.map((entry, i) => (
-                <div key={`${entry.dutyType}-${i}`} className="flex items-center gap-3 px-4 py-2.5">
-                  <span className="w-24 shrink-0 text-xs text-gray-500 dark:text-gray-400">{dutyLabel[entry.dutyType]}</span>
-                  <div className="min-w-0 flex-1"><TeamChip team={entry.teamName} size="sm" /></div>
-                  <span className={`shrink-0 text-right text-sm ${entry.memberName ? 'font-medium dark:text-gray-200' : 'text-red-500'}`}>
+                <div key={`${entry.dutyType}-${i}`} className="flex items-center gap-2 px-4 py-2.5">
+                  {/* Fixed narrow, truncating so a long "Scorer/Scoreboard" can't
+                      overflow into the team chip. */}
+                  <span className="w-20 shrink-0 truncate text-xs text-gray-500 dark:text-gray-400" title={dutyLabel[entry.dutyType]}>
+                    {dutyLabel[entry.dutyType]}
+                  </span>
+                  <div className="shrink-0"><TeamChip team={entry.teamName} size="sm" /></div>
+                  <span className={`ml-auto truncate pl-2 text-right text-sm ${entry.memberName ? 'font-medium dark:text-gray-200' : 'text-red-500'}`}>
                     {entry.memberName ?? t('unassigned')}
                   </span>
                 </div>
@@ -168,11 +180,10 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
     )
   }
 
-  // "By duty team" is a summary: one row per team with its total duties and how
-  // many still need a person (open). The per-game detail lives in the "By game"
-  // view. Open (unfilled) duties dominate the sort so gaps float to the top.
+  // "By duty team" summary: one row per team (team · duties · open). Click a row
+  // to expand its games. Open (unfilled) duties dominate the sort.
   const summaryRows = teamGroups
-    .map(([teamName, list]) => ({ teamName, total: list.length, open: list.filter((e) => !e.memberName).length }))
+    .map(([teamName, list]) => ({ teamName, list, total: list.length, open: list.filter((e) => !e.memberName).length }))
     .sort((a, b) => b.open - a.open || b.total - a.total || a.teamName.localeCompare(b.teamName, i18n.language))
 
   return (
@@ -186,15 +197,52 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
           </TableRow>
         </TableHeader>
         <TableBody>
-          {summaryRows.map((r) => (
-            <TableRow key={r.teamName} className="border-b border-gray-100 dark:border-gray-700/50">
-              <TableCell className="px-3 py-2"><TeamChip team={r.teamName} size="sm" /></TableCell>
-              <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{r.total}</TableCell>
-              <TableCell className={`px-3 py-2 text-center ${r.open ? 'font-semibold text-red-500' : 'text-gray-400 dark:text-gray-500'}`}>
-                {r.open || '—'}
-              </TableCell>
-            </TableRow>
-          ))}
+          {summaryRows.map((r) => {
+            const isOpen = expanded.has(r.teamName)
+            return (
+              <Fragment key={r.teamName}>
+                <TableRow
+                  className="cursor-pointer border-b border-gray-100 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-800/50"
+                  onClick={() => toggle(r.teamName)}
+                >
+                  <TableCell className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
+                      <TeamChip team={r.teamName} size="sm" />
+                    </div>
+                  </TableCell>
+                  <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{r.total}</TableCell>
+                  <TableCell className={`px-3 py-2 text-center ${r.open ? 'font-semibold text-red-500' : 'text-gray-400 dark:text-gray-500'}`}>
+                    {r.open || '—'}
+                  </TableCell>
+                </TableRow>
+                {isOpen && (
+                  <TableRow className="border-b border-gray-100 dark:border-gray-700/50">
+                    <TableCell colSpan={3} className="bg-gray-50/60 px-3 py-2 dark:bg-gray-800/40">
+                      <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                        {r.list.map((entry, i) => (
+                          <div key={`${entry.game.id}-${entry.dutyType}-${i}`} className="flex items-center gap-2 py-1.5">
+                            <span className="w-24 shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                              {formatDateZurich(entry.game.date)}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-300" title={`${entry.game.home_team} – ${entry.game.away_team}`}>
+                              {entry.game.home_team} – {entry.game.away_team}
+                            </span>
+                            <span className="w-20 shrink-0 truncate text-xs text-gray-500 dark:text-gray-400" title={dutyLabel[entry.dutyType]}>
+                              {dutyLabel[entry.dutyType]}
+                            </span>
+                            <span className={`w-28 shrink-0 truncate text-right text-xs ${entry.memberName ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-red-500'}`}>
+                              {entry.memberName ?? t('unassigned')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            )
+          })}
         </TableBody>
       </Table>
     </div>
