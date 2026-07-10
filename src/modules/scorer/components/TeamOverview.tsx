@@ -11,6 +11,7 @@ import { formatTime, formatDateZurich } from '../../../utils/dateHelpers'
 interface TeamOverviewProps {
   games: Game[]
   members: Member[]
+  teams: Team[]
   sport: 'volleyball' | 'basketball'
   // 'team' (default): one card per duty team with its list of duties.
   // 'game': one card per game with its list of duties.
@@ -26,7 +27,7 @@ interface DutyEntry {
   memberName: string | null
 }
 
-export default function TeamOverview({ games, members, sport, groupBy = 'team' }: TeamOverviewProps) {
+export default function TeamOverview({ games, members, teams, sport, groupBy = 'team' }: TeamOverviewProps) {
   const { t, i18n } = useTranslation('scorer')
 
   const memberMap = useMemo(() => {
@@ -44,46 +45,51 @@ export default function TeamOverview({ games, members, sport, groupBy = 'team' }
       const m = memberMap.get(id)
       return m ? `${m.first_name} ${m.last_name}` : null
     }
+    // The games here carry the duty-team fields as BARE IDs (not expanded), so
+    // resolve names from the teams list by id; fall back to an expanded object
+    // (asObj) if a caller ever passes expanded games, then to '?'.
+    const nameById = new Map<string, string>()
+    for (const tm of teams) nameById.set(String(tm.id), tm.name)
+    const teamNameOf = (val: string | number | Team | null | undefined): string => {
+      if (!val) return '?'
+      const obj = asObj<Team>(val)
+      if (obj?.name) return obj.name
+      const id = typeof val === 'object' ? String(val.id) : String(val)
+      return nameById.get(id) ?? '?'
+    }
     const out: DutyEntry[] = []
     for (const game of games) {
       const eg = game as ExpandedGame
       if (sport === 'volleyball') {
         if (game.scorer_scoreboard_duty_team) {
-          const teamName = asObj<Team>(game.scorer_scoreboard_duty_team)?.name ?? '?'
-          out.push({ game: eg, dutyType: 'scorer_scoreboard', teamName, memberName: getMemberName(game.scorer_scoreboard_member) })
+          out.push({ game: eg, dutyType: 'scorer_scoreboard', teamName: teamNameOf(game.scorer_scoreboard_duty_team), memberName: getMemberName(game.scorer_scoreboard_member) })
         }
         if (game.scorer_duty_team) {
-          const teamName = asObj<Team>(game.scorer_duty_team)?.name ?? '?'
-          out.push({ game: eg, dutyType: 'scorer', teamName, memberName: getMemberName(game.scorer_member) })
+          out.push({ game: eg, dutyType: 'scorer', teamName: teamNameOf(game.scorer_duty_team), memberName: getMemberName(game.scorer_member) })
         }
         if (game.scoreboard_duty_team) {
-          const teamName = asObj<Team>(game.scoreboard_duty_team)?.name ?? '?'
-          out.push({ game: eg, dutyType: 'scoreboard', teamName, memberName: getMemberName(game.scoreboard_member) })
+          out.push({ game: eg, dutyType: 'scoreboard', teamName: teamNameOf(game.scoreboard_duty_team), memberName: getMemberName(game.scoreboard_member) })
         }
         if (game.referee_duty_team) {
-          const teamName = asObj<Team>(game.referee_duty_team)?.name ?? '?'
-          out.push({ game: eg, dutyType: 'referee', teamName, memberName: getMemberName(game.referee_member) })
+          out.push({ game: eg, dutyType: 'referee', teamName: teamNameOf(game.referee_duty_team), memberName: getMemberName(game.referee_member) })
         }
       } else {
         const scorerTeam = game.bb_scorer_duty_team || game.bb_duty_team
         const timekeeperTeam = game.bb_timekeeper_duty_team || game.bb_duty_team
         const _24sTeam = game.bb_24s_duty_team || game.bb_duty_team
         if (scorerTeam) {
-          const teamName = asObj<Team>(game.bb_scorer_duty_team)?.name ?? asObj<Team>(game.bb_duty_team)?.name ?? '?'
-          out.push({ game: eg, dutyType: 'bb_scorer', teamName, memberName: getMemberName(game.bb_scorer_member) })
+          out.push({ game: eg, dutyType: 'bb_scorer', teamName: teamNameOf(scorerTeam), memberName: getMemberName(game.bb_scorer_member) })
         }
         if (timekeeperTeam) {
-          const teamName = asObj<Team>(game.bb_timekeeper_duty_team)?.name ?? asObj<Team>(game.bb_duty_team)?.name ?? '?'
-          out.push({ game: eg, dutyType: 'bb_timekeeper', teamName, memberName: getMemberName(game.bb_timekeeper_member) })
+          out.push({ game: eg, dutyType: 'bb_timekeeper', teamName: teamNameOf(timekeeperTeam), memberName: getMemberName(game.bb_timekeeper_member) })
         }
         if (_24sTeam && game.bb_24s_official) {
-          const teamName = asObj<Team>(game.bb_24s_duty_team)?.name ?? asObj<Team>(game.bb_duty_team)?.name ?? '?'
-          out.push({ game: eg, dutyType: 'bb_24s_official', teamName, memberName: getMemberName(game.bb_24s_official) })
+          out.push({ game: eg, dutyType: 'bb_24s_official', teamName: teamNameOf(_24sTeam), memberName: getMemberName(game.bb_24s_official) })
         }
       }
     }
     return out
-  }, [games, memberMap, sport])
+  }, [games, memberMap, teams, sport])
 
   // Grouping A: one card per duty team (default).
   const teamGroups = useMemo(() => {
