@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import TeamMultiSelect from '../../components/TeamMultiSelect'
@@ -67,16 +67,23 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
   const [linkShown, setLinkShown] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  // Personal "my scoring duties" feed — token-scoped to the logged-in member.
+  // Personal iCal token — appended to the subscription URL so the member's own
+  // scorer/täfeler/referee/BB duties are ALWAYS included in the feed, regardless
+  // of the category/team filters (backend auto-includes duties when a valid
+  // token is present). '' = tried and no member/token (feed still works without
+  // duties); null = not fetched yet. Fetched lazily when the modal opens.
   const [personalToken, setPersonalToken] = useState<string | null>(null)
-  const [personalShown, setPersonalShown] = useState(false)
-  const [personalLoading, setPersonalLoading] = useState(false)
-  const [personalCopied, setPersonalCopied] = useState(false)
-  const personalUrl = personalToken ? `${BASE_URL}/kscw/ical?source=duties&token=${personalToken}` : ''
-  const personalWebcal = personalUrl.replace(/^https?:/, 'webcal:')
+  useEffect(() => {
+    if (open && mode === 'subscribe' && personalToken === null) {
+      kscwApi<{ data: { token: string } }>('/me/ical-token')
+        .then((res) => setPersonalToken(res.data?.token || ''))
+        .catch(() => setPersonalToken(''))
+    }
+  }, [open, mode, personalToken])
 
   // iCal subscription URL — recomputed live as categories/teams change so the
-  // revealed link always matches the current selection.
+  // revealed link always matches the current selection. The personal token is
+  // appended (when available) so the feed carries the member's duties too.
   const subscribeUrl = useMemo(() => {
     const params = new URLSearchParams()
     // Clean URL: `source=all` when every category is selected, otherwise one
@@ -91,8 +98,9 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
       }
     }
     for (const id of selectedTeamIds) params.append('team', id)
+    if (personalToken) params.append('token', personalToken)
     return `${BASE_URL}/kscw/ical?${params.toString()}`
-  }, [selectedCategories, selectedTeamIds])
+  }, [selectedCategories, selectedTeamIds, personalToken])
   const webcalUrl = subscribeUrl.replace(/^https?:/, 'webcal:')
 
   const title = mode === 'subscribe' ? t('icalSubscribeTitle') : t('icalDownloadTitle')
@@ -160,47 +168,9 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
     onClose()
   }
 
-  async function revealPersonal() {
-    setPersonalLoading(true)
-    try {
-      let tok = personalToken
-      if (!tok) {
-        const res = await kscwApi<{ data: { token: string } }>('/me/ical-token')
-        tok = res.data.token
-        setPersonalToken(tok)
-      }
-      setPersonalShown(true)
-      try {
-        await navigator.clipboard.writeText(`${BASE_URL}/kscw/ical?source=duties&token=${tok}`)
-        setPersonalCopied(true)
-        toast.success(t('icalLinkCopied'))
-        window.setTimeout(() => setPersonalCopied(false), 2000)
-      } catch {
-        toast.error(t('icalCopyFailed'))
-      }
-    } catch {
-      toast.error(t('icalDutiesError'))
-    } finally {
-      setPersonalLoading(false)
-    }
-  }
-
-  async function copyPersonal() {
-    try {
-      await navigator.clipboard.writeText(personalUrl)
-      setPersonalCopied(true)
-      toast.success(t('icalLinkCopied'))
-      window.setTimeout(() => setPersonalCopied(false), 2000)
-    } catch {
-      toast.error(t('icalCopyFailed'))
-    }
-  }
-
   function handleClose() {
     setLinkShown(false)
     setCopied(false)
-    setPersonalShown(false)
-    setPersonalCopied(false)
     onClose()
   }
 
@@ -265,6 +235,13 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
           </div>
         )}
 
+        {/* Duty note — the feed always carries the member's own duties. */}
+        {mode === 'subscribe' && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200/90">
+            {t('icalDutiesIncludedHint')}
+          </p>
+        )}
+
         {/* Confirm button */}
         <button
           type="button"
@@ -302,51 +279,10 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
             >
               {t('icalOpenInApp')}
             </a>
-            <p className="text-xs text-gray-400 dark:text-gray-500">{t('icalSubscribeHint')}</p>
-          </div>
-        )}
-
-        {/* Personal feed — your own scorer/scoreboard duties (token-scoped) */}
-        {mode === 'subscribe' && (
-          <div className="space-y-3 border-t border-gray-200 pt-4 dark:border-gray-700">
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('icalDutiesTitle')}</p>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t('icalDutiesHint')}</p>
-            </div>
-            {!personalShown ? (
-              <button
-                type="button"
-                onClick={revealPersonal}
-                disabled={personalLoading}
-                className="w-full rounded-lg border border-brand-300 bg-brand-50 px-4 py-2.5 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 disabled:opacity-50 dark:border-brand-700 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/50"
-              >
-                {t('icalDutiesGenerate')}
-              </button>
+            {personalToken ? (
+              <p className="text-xs text-gray-400 dark:text-gray-500">{t('icalDutiesPrivacyHint')}</p>
             ) : (
-              <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
-                <div className="flex items-center gap-2">
-                  <input
-                    readOnly
-                    value={personalUrl}
-                    onFocus={(e) => e.currentTarget.select()}
-                    className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
-                  />
-                  <button
-                    type="button"
-                    onClick={copyPersonal}
-                    className="shrink-0 rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-700 active:bg-brand-800"
-                  >
-                    {personalCopied ? t('icalLinkCopied') : t('icalCopyLink')}
-                  </button>
-                </div>
-                <a
-                  href={personalWebcal}
-                  className="inline-block text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-                >
-                  {t('icalOpenInApp')}
-                </a>
-                <p className="text-xs text-gray-400 dark:text-gray-500">{t('icalDutiesPrivacyHint')}</p>
-              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500">{t('icalSubscribeHint')}</p>
             )}
           </div>
         )}

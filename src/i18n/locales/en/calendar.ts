@@ -83,6 +83,7 @@ export default {
   icalDutiesTitle: 'Your scoring duties',
   icalDutiesHint: 'Subscribe to a personal calendar that auto-fills your scorer and scoreboard duties.',
   icalDutiesGenerate: 'Generate my duties link',
+  icalDutiesIncludedHint: 'Your own scorer / officials duties are always included in this subscription.',
   icalDutiesPrivacyHint: 'Personal link — keep it private. It only shows your duty schedule (no personal data).',
   icalDutiesError: 'Could not create your personal link.',
 

@@ -19,6 +19,7 @@ const DUTY_ROLES = [
   { member: 'scorer_member', label: 'Schreiben', roster: true },
   { member: 'scoreboard_member', label: 'Tafel', roster: false },
   { member: 'scorer_scoreboard_member', label: 'Schreiben/Tafel', roster: true },
+  { member: 'referee_member', label: 'Schiedsrichter', roster: false },
   { member: 'bb_scorer_member', label: 'Anschreiben', roster: true },
   { member: 'bb_timekeeper_member', label: 'Zeitnehmen', roster: false },
   { member: 'bb_24s_official', label: '24-Sekunden', roster: false },
@@ -295,14 +296,18 @@ export function registerICalFeed(router, { database, logger }) {
         }
       }
 
-      // Personal scorer/scoreboard duties — token-scoped to one member. The
-      // token IS the auth (the feed is public); it only exposes a duty schedule,
-      // never PII. Events are marked busy + confirmed so they auto-populate as
-      // accepted entries in a subscribed calendar (a feed has no RSVP step).
-      if (sources['duties']) {
-        const token = String(req.query.token || '').trim()
-        const dutyMember = token
-          ? await database('members').where('ical_token', token).first('id')
+      // Personal duties (scorer / täfeler / referee / BB officials) — AUTO-included
+      // in ANY feed that carries a valid personal token, regardless of the `source`
+      // filter (`source=duties` is no longer required; kept in VALID_SOURCES only
+      // for backward compat). The token is the member's own secret, so their own
+      // duties always belong in their subscription. Token-less public/team feeds
+      // never include duties (dutyMember stays null → nothing leaks).
+      // Events are marked busy + confirmed so they auto-populate as accepted
+      // entries in a subscribed calendar (a feed has no RSVP step).
+      {
+        const dutyToken = String(req.query.token || '').trim()
+        const dutyMember = dutyToken
+          ? await database('members').where('ical_token', dutyToken).first('id')
           : null
         if (dutyMember) {
           const dutyGames = await database('games')
