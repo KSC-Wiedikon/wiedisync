@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.34.1'
+const APP_VERSION = '1.35.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,33 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.35.0',
+    date: '11.07.2026',
+    sections: [
+      {
+        title: 'Your duties, everywhere',
+        items: [
+          'Your assigned scorer / scoreboard / referee duties now appear as a yellow reminder on the home page (from one week before until the game ends), as an entry in “My next appointments”, and on the Events page.',
+          'Your duties are now automatically included in your calendar subscription — whatever you subscribe to, they ride along, no separate link needed.',
+          'Pending duty hand-offs now show on the home page too, so you can accept or decline a delegated duty without opening the scorer page.',
+        ],
+      },
+      {
+        title: 'Emergency help at the hall',
+        items: [
+          'Within an hour of kick-off, an on-duty official can tap “Emergency: contact team leaders” to see the playing team’s coach / responsible phone and email and alert the club at once.',
+          'The coach’s “report late” button now appears once an official is actually late — 29 minutes before the start for the scorer / referee, 14 for the scoreboard.',
+        ],
+      },
+      {
+        title: 'Automatic no-show fines',
+        items: [
+          'When a coach flags a scorer / official as late or absent via the emergency button, the CHF 50 duty fine is now issued to them automatically (using the team’s fine rules when configured).',
+        ],
+      },
+    ],
+  },
   {
     version: '1.34.1',
     date: '09.07.2026',
