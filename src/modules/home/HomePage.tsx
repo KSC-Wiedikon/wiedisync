@@ -39,6 +39,7 @@ import { useFillableForms, type FillableForm } from '../../hooks/useFillableForm
 import YourDuesCard from '../finance/YourDuesCard'
 import HomePollsCard from '../polls/HomePollsCard'
 import UpcomingTicker from './components/UpcomingTicker'
+import HomeDelegationCard from './components/HomeDelegationCard'
 
 type ExpandedGame = Game & {
   kscw_team?: Team & BaseRecord | string
@@ -454,6 +455,10 @@ export default function HomePage() {
       {user && isApproved && tickerTeamIds.length > 0 && (
         <UpcomingTicker teamIds={tickerTeamIds} />
       )}
+
+      {/* Pending duty-delegation requests — accept/decline without leaving home.
+          Renders null when the user has no incoming requests. */}
+      {user && isApproved && <HomeDelegationCard />}
 
       {/* Spielplanung absences reminder — volleyball players, until 2026-06-01 */}
       {user && isApproved && (primarySport === 'volleyball' || primarySport === 'both') && Date.now() < new Date('2026-06-01T23:59:59+02:00').getTime() && (
