@@ -292,8 +292,12 @@ export default function ScorerRow({
 
   function handleAdminUpdate(gameId: string, fields: Partial<Game>) {
     // Assigning/clearing a role's member is the confirm/de-confirm; the hook
-    // stamps (or wipes) that role's actor + time. Nothing else to compute here.
-    onUpdate(gameId, fields)
+    // stamps (or wipes) that role's actor + time. A cleared dropdown emits '' —
+    // coerce to null, since the *_member / *_duty_team columns are integer FKs
+    // that reject "" (Postgres 500: invalid input syntax for type integer).
+    const clean: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(fields)) clean[k] = v === '' ? null : v
+    onUpdate(gameId, clean as Partial<Game>)
   }
 
   const roleLabel = (role: AssignRole) => {
