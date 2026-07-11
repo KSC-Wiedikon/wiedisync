@@ -109,3 +109,73 @@ export function useBulkParticipationStatuses(
 
   return { statusMap, getStatus, isLoading }
 }
+
+const EMPTY_PARTICIPATIONS: Participation[] = []
+
+/**
+ * Bulk-fetch ALL participation rows (every member, not just the current user)
+ * for multiple activities in a single query, so the ParticipationSummary
+ * counter bricks can render with the initial page paint instead of firing one
+ * query per row after reveal.
+ *
+ * Pass the result to `<ParticipationSummary participations={...} />` — the
+ * prefetched prop makes the component skip its own fetch. `getParticipations`
+ * returns a (stable) empty array for activities with no rows so consumers
+ * never fall back to self-fetching.
+ *
+ * Grouped `_or` per activity_type because `(type, id)` is the composite key —
+ * a flat `type IN … AND id IN …` cross-product would over-fetch rows for
+ * unrelated activities that happen to share a numeric id.
+ */
+export function useBulkParticipations(
+  activities: Array<{ id: string; type: Participation['activity_type'] }>,
+) {
+  const { user } = useAuth()
+
+  const filter = useMemo((): Record<string, unknown> | undefined => {
+    if (!user || activities.length === 0) return undefined
+    const idsByType = new Map<string, string[]>()
+    for (const a of activities) {
+      const ids = idsByType.get(a.type) ?? []
+      ids.push(a.id)
+      idsByType.set(a.type, ids)
+    }
+    const groups = Array.from(idsByType.entries()).map(([type, ids]) => ({
+      _and: [{ activity_type: { _eq: type } }, { activity_id: { _in: ids } }],
+    }))
+    return groups.length === 1 ? groups[0] : { _or: groups }
+  }, [user, activities])
+
+  const { data: rowsRaw, isLoading, refetch } = useCollection<Participation>('participations', {
+    filter,
+    all: true,
+    enabled: !!user && activities.length > 0,
+  })
+
+  // Realtime: with prefetched data the bricks skip their own realtime refetch,
+  // so live updates must come from here. Delete payloads may carry only the PK
+  // — refetch on those too rather than going stale.
+  const activityIdSet = useMemo(() => new Set(activities.map((a) => a.id)), [activities])
+  useRealtime<Participation>('participations', (e) => {
+    if (!e.record.activity_id || activityIdSet.has(String(e.record.activity_id))) refetch()
+  })
+
+  const byActivity = useMemo(() => {
+    const map = new Map<string, Participation[]>()
+    for (const p of rowsRaw ?? []) {
+      const key = `${p.activity_type}:${p.activity_id}`
+      const list = map.get(key)
+      if (list) list.push(p)
+      else map.set(key, [p])
+    }
+    return map
+  }, [rowsRaw])
+
+  const getParticipations = useMemo(
+    () => (type: Participation['activity_type'], id: string) =>
+      byActivity.get(`${type}:${id}`) ?? EMPTY_PARTICIPATIONS,
+    [byActivity],
+  )
+
+  return { getParticipations, isLoading }
+}

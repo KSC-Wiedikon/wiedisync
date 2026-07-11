@@ -26,9 +26,9 @@ import AnnouncementDetailModal from './components/AnnouncementDetailModal'
 import { useAnnouncements } from '../../hooks/useAnnouncements'
 import { useUserVisibleEventIds } from '../../hooks/useUserVisibleEventIds'
 import ParticipationSummary from '../../components/ParticipationSummary'
-import { useBulkParticipationStatuses } from '../../hooks/useBulkParticipationStatuses'
+import { useBulkParticipationStatuses, useBulkParticipations } from '../../hooks/useBulkParticipationStatuses'
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
-import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Ranking, BaseRecord } from '../../types'
+import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Participation, Ranking, BaseRecord } from '../../types'
 import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText } from 'lucide-react'
 import WhistleIcon from '../../components/WhistleIcon'
 import { detectCupMatch } from '../spielplanung/gameChipUtils'
@@ -384,10 +384,15 @@ export default function HomePage() {
 
   const { getStatus: getParticipationStatus, isLoading: bulkPartLoading } = useBulkParticipationStatuses(allActivities)
 
-  // Combined loading: wait for all primary data + participation statuses
+  // All members' RSVP rows for the visible activities in one query, so the
+  // counter bricks paint together with the rest of the page instead of
+  // popping in one-by-one after reveal.
+  const { getParticipations, isLoading: bulkRsvpLoading } = useBulkParticipations(allActivities)
+
+  // Combined loading: wait for all primary data + participation statuses + RSVP counters
   // For logged-in users, we need member_teams + all dependent queries + participation statuses
   // For guests, just the public queries (games, results, events)
-  const isInitialLoading = memberTeamsLoading || gamesLoading || resultsLoading || eventsLoading || (hasTeams && trainingsLoading) || bulkPartLoading
+  const isInitialLoading = memberTeamsLoading || gamesLoading || resultsLoading || eventsLoading || (hasTeams && trainingsLoading) || bulkPartLoading || bulkRsvpLoading
 
   // Report loading to the app-level boot gate (Layout) instead of rendering our
   // own spinner. While true, Layout's single fullscreen spinner masks the chrome
@@ -641,6 +646,7 @@ export default function HomePage() {
               onTrainingClick={setSelectedTraining}
               onEventClick={setSelectedEvent}
               getParticipationStatus={getParticipationStatus}
+              getParticipations={getParticipations}
             />
           </div>
           {hasTeams && userSvTeamIds.length > 0 && (userLeagueGroups.size > 0 || homeRankSeason !== null) && (
@@ -699,7 +705,7 @@ export default function HomePage() {
                   <DutyEventCard key={`duty-${d.game.id}-${d.role}`} duty={d} />
                 ))}
                 {events.map((event) => (
-                  <EventRow key={event.id} event={event} onClick={() => setSelectedEvent(event)} participationStatus={getParticipationStatus('event', event.id)} />
+                  <EventRow key={event.id} event={event} onClick={() => setSelectedEvent(event)} participationStatus={getParticipationStatus('event', event.id)} participations={getParticipations('event', event.id)} />
                 ))}
               </div>
             </div>
@@ -1039,10 +1045,11 @@ function gameIcon(game: ExpandedGame, className: string) {
 }
 
 /** Single appointment row with participation banner */
-function AppointmentRow({ appointment, onClick, participationStatus }: {
+function AppointmentRow({ appointment, onClick, participationStatus, participations }: {
   appointment: { type: 'game' | 'training' | 'event' | 'duty'; date: string; data: ExpandedGame | TrainingExpanded | EventExpanded; label?: string }
   onClick?: () => void
   participationStatus?: string
+  participations?: Participation[]
 }) {
   const { user } = useAuth()
 
@@ -1124,7 +1131,7 @@ function AppointmentRow({ appointment, onClick, participationStatus }: {
             </div>
             <div className="pb-2 pr-3">
               {appointment.type !== 'duty' && (
-                <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} />
+                <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} participations={participations} />
               )}
             </div>
           </div>
@@ -1135,10 +1142,11 @@ function AppointmentRow({ appointment, onClick, participationStatus }: {
 }
 
 /** Desktop table row for aligned columns */
-function AppointmentTableRow({ appointment, onClick, participationStatus }: {
+function AppointmentTableRow({ appointment, onClick, participationStatus, participations }: {
   appointment: { type: 'game' | 'training' | 'event' | 'duty'; date: string; data: ExpandedGame | TrainingExpanded | EventExpanded; label?: string }
   onClick?: () => void
   participationStatus?: string
+  participations?: Participation[]
 }) {
   const { user } = useAuth()
   const effectiveStatus = participationStatus
@@ -1209,7 +1217,7 @@ function AppointmentTableRow({ appointment, onClick, participationStatus }: {
       </td>
       <td className="py-3.5 pr-3">
         {appointment.type !== 'duty' && (
-          <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} />
+          <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} participations={participations} />
         )}
       </td>
     </tr>
@@ -1226,6 +1234,7 @@ function NextAppointments({
   onTrainingClick,
   onEventClick,
   getParticipationStatus,
+  getParticipations,
 }: {
   games: ExpandedGame[]
   trainings: TrainingExpanded[]
@@ -1235,6 +1244,7 @@ function NextAppointments({
   onTrainingClick: (t: TrainingExpanded) => void
   onEventClick: (e: EventExpanded) => void
   getParticipationStatus: (type: 'game' | 'training' | 'event', id: string) => string | undefined
+  getParticipations: (type: 'game' | 'training' | 'event', id: string) => Participation[]
 }) {
   const { t } = useTranslation('home')
   const { t: tScorer } = useTranslation('scorer')
@@ -1300,6 +1310,7 @@ function NextAppointments({
                   appointment={apt}
                   onClick={renderOnClick(apt)}
                   participationStatus={apt.type === 'duty' ? undefined : getParticipationStatus(apt.type, apt.data.id)}
+                  participations={apt.type === 'duty' ? undefined : getParticipations(apt.type, apt.data.id)}
                 />
               ))}
             </tbody>
@@ -1315,6 +1326,7 @@ function NextAppointments({
             appointment={apt}
             onClick={renderOnClick(apt)}
             participationStatus={apt.type === 'duty' ? undefined : getParticipationStatus(apt.type, apt.data.id)}
+            participations={apt.type === 'duty' ? undefined : getParticipations(apt.type, apt.data.id)}
           />
         ))}
       </div>
@@ -1385,7 +1397,7 @@ function HomeSections({
   )
 }
 
-function EventRow({ event, onClick, participationStatus }: { event: EventExpanded; onClick: () => void; participationStatus?: string }) {
+function EventRow({ event, onClick, participationStatus, participations }: { event: EventExpanded; onClick: () => void; participationStatus?: string; participations?: Participation[] }) {
   const effectiveStatus = participationStatus
   const teams = asTeams(event.teams)
 
@@ -1408,7 +1420,7 @@ function EventRow({ event, onClick, participationStatus }: { event: EventExpande
         <div className="mb-2 flex items-center justify-between gap-2">
           <StatusBadge status={event.event_type} />
           {effectiveStatus && (
-            <ParticipationSummary activityType="event" activityId={event.id} bars hideExtras />
+            <ParticipationSummary activityType="event" activityId={event.id} bars hideExtras participations={participations} />
           )}
         </div>
 
