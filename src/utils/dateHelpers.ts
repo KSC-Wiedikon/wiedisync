@@ -198,10 +198,15 @@ export const DUTY_ARRIVAL_MIN: Record<string, number> = {
 export const DUTY_LATE_GRACE_MS = 30 * 60 * 1000;
 
 /**
- * True when "now" is inside a duty role's late-report window:
- * [kickoff − arrival(role), kickoff + grace]. Coaches/TRs can flag the role's
- * official as late and see their contact only within this window. Server-side
- * enforced identically by the duty-late endpoint.
+ * True when the duty "emergency" (report-late) button should be shown for a
+ * role: from ONE MINUTE PAST the arrival deadline until kickoff + grace, i.e.
+ * [kickoff − (arrival − 1), kickoff + grace]. The button only surfaces once the
+ * official is actually late — so scorer / referee / scorer+scoreboard (30'
+ * arrival) show it at 29', and täfeler + BB officials (15') at 14'.
+ *
+ * The backend duty-late window opens at the arrival deadline itself (one minute
+ * earlier) and always accepts a click made while the button is visible, so the
+ * two stay compatible without matching to the minute.
  */
 export function isWithinDutyLateWindow(
   date: string | null | undefined,
@@ -209,12 +214,13 @@ export function isWithinDutyLateWindow(
   role: string,
 ): boolean {
   if (!date || !time) return false;
-  const arrivalMs = (DUTY_ARRIVAL_MIN[role] ?? 30) * 60 * 1000;
+  // Appear one minute past the arrival deadline (29' / 14'), never negative.
+  const leadMs = Math.max(0, (DUTY_ARRIVAL_MIN[role] ?? 30) - 1) * 60 * 1000;
   try {
     const startMs = new Date(toUtcIsoFromDatetimeLocal(`${String(date).slice(0, 10)}T${String(time).slice(0, 5)}`)).getTime();
     if (Number.isNaN(startMs)) return false;
     const now = Date.now();
-    return now >= startMs - arrivalMs && now <= startMs + DUTY_LATE_GRACE_MS;
+    return now >= startMs - leadMs && now <= startMs + DUTY_LATE_GRACE_MS;
   } catch { return false; }
 }
 
