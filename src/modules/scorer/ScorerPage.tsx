@@ -63,7 +63,18 @@ export default function ScorerPage() {
   const { user, isSuperAdmin, hasAdminAccessToSport, coachTeamIds, teamResponsibleIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
 
-  const [tab, setTab] = useState<Tab>('games')
+  // Tab is reflected in the URL (?tab=overview) so it's deep-linkable + survives
+  // a refresh; default (games) keeps the URL clean.
+  const [tab, setTabState] = useState<Tab>(
+    () => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'overview' ? 'overview' : 'games'),
+  )
+  const setTab = useCallback((next: Tab) => {
+    setTabState(next)
+    const url = new URL(window.location.href)
+    if (next === 'overview') url.searchParams.set('tab', 'overview')
+    else url.searchParams.delete('tab')
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+  }, [])
   const [sportTab, setSportTab] = useState<SportTab>('volleyball')
   const [overviewGroup, setOverviewGroup] = useState<'team' | 'game'>('team')
 

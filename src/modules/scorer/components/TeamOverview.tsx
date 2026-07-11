@@ -147,7 +147,7 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
     return (
       <div className="mt-6 grid gap-4 sm:gap-6 md:grid-cols-2">
         {gameGroups.map(({ game, list }) => (
-          <div key={game.id} className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div key={game.id} className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
             <div className="flex items-center gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
               <div className="min-w-0 flex-1">
                 <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -224,9 +224,9 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
                           <div key={`${entry.game.id}-${entry.dutyType}-${i}`} className="py-1.5">
                             {/* Two lines so it never overflows a narrow phone: the
                                 game on top, duty + assignee below. */}
-                            <div className="flex items-center gap-2 text-xs">
+                            <div className="flex items-start gap-2 text-xs">
                               <span className="shrink-0 text-gray-500 dark:text-gray-400">{formatDateZurich(entry.game.date)}</span>
-                              <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300" title={`${entry.game.home_team} – ${entry.game.away_team}`}>
+                              <span className="min-w-0 flex-1 break-words text-gray-700 dark:text-gray-300">
                                 {entry.game.home_team} – {entry.game.away_team}
                               </span>
                             </div>
