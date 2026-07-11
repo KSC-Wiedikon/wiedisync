@@ -2334,20 +2334,83 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       }
     }
     const updates = { [cols.member]: d.to_member }
-    if (cols.team && !d.same_team && d.to_team) updates[cols.team] = d.to_team
+    // Set the role's duty team to the recipient's team. Prefer the delegation's
+    // to_team; if it's blank (the modal couldn't resolve it), fall back to the
+    // recipient's own membership — otherwise the game keeps a stale/empty team
+    // and the assignment shows a person with no team (bug 2026-07-11).
+    if (cols.team) {
+      let toTeam = d.to_team || null
+      if (!toTeam) {
+        const mt = await database('member_teams').where('member', d.to_member).first('team')
+        toTeam = mt?.team ?? null
+      }
+      if (toTeam) updates[cols.team] = toTeam
+    }
     const m = await database('members').where('id', d.to_member).first('first_name', 'last_name')
     updates[cols.name] = m ? ([m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null) : null
     updates[cols.at] = new Date().toISOString()
     await database('games').where('id', d.game).update(updates)
   }
+  // Bilingual (DE · EN) role labels for delegation notifications.
+  const DELEG_ROLE_LABEL = {
+    scorer: 'Schreiber · Scorer', scoreboard: 'Täfeler · Scoreboard',
+    scorer_scoreboard: 'Schreiber+Täfeler · Scorer+Scoreboard', referee: 'Schiedsrichter · Referee',
+    bb_scorer: 'Scorer', bb_timekeeper: 'Zeitnehmer · Timekeeper', bb_24s_official: '24s',
+  }
+  // In-app notification + web push for a delegation lifecycle event. Delegations
+  // previously notified NOBODY (bug 2026-07-11): requested → tell the recipient,
+  // accepted/declined → tell the delegator.
+  async function notifyDelegation(delegationId, kind) {
+    const d = await database('scorer_delegations').where('id', delegationId).first()
+    if (!d) return
+    const roleLabel = DELEG_ROLE_LABEL[d.role] || d.role
+    const game = d.game ? await database('games').where('id', d.game).first('home_team', 'away_team') : null
+    const matchup = game ? `${game.home_team || ''} – ${game.away_team || ''}`.trim() : ''
+    const [from, to] = await Promise.all([
+      database('members').where('id', d.from_member).first('first_name', 'last_name'),
+      database('members').where('id', d.to_member).first('first_name', 'last_name'),
+    ])
+    const fromName = from ? `${from.first_name} ${from.last_name}`.trim() : '—'
+    const toName = to ? `${to.first_name} ${to.last_name}`.trim() : '—'
+    const url = `${FRONTEND_URL}/scorer`
+    const tag = `delegation-${d.id}`
+    const activityId = d.game != null ? String(d.game) : null
+    let recipient, title, body, team
+    if (kind === 'requested') {
+      recipient = d.to_member; team = d.to_team || null
+      title = 'Einsatz-Anfrage · Duty request'
+      body = `${fromName} möchte dir den Dienst «${roleLabel}» übergeben (${matchup}) — bitte bestätigen · asked you to take the ${roleLabel} duty — please confirm.`
+    } else if (kind === 'accepted') {
+      recipient = d.from_member; team = d.from_team || null
+      title = 'Angenommen · Accepted'
+      body = `${toName} hat deine Übergabe «${roleLabel}» angenommen (${matchup}) · accepted your ${roleLabel} delegation.`
+    } else { // declined
+      recipient = d.from_member; team = d.from_team || null
+      title = 'Abgelehnt · Declined'
+      body = `${toName} hat deine Übergabe «${roleLabel}» abgelehnt (${matchup}) · declined your ${roleLabel} delegation.`
+    }
+    if (recipient == null) return
+    await database('notifications').insert({ member: recipient, type: 'scorer_delegation', title, body, activity_type: 'game', activity_id: activityId, team, read: false })
+    try { await sendPushToMembers(database, [recipient], title, body, url, tag, log) }
+    catch (e) { log.error({ msg: `[delegation-notify] push failed: ${e.message}`, stack: e.stack }) }
+  }
+
   action('scorer_delegations.items.create', async ({ key }, context) => {
-    try { if (key != null) await transferDelegatedDuty(key, context?.accountability) }
-    catch (err) { log.error({ msg: `[delegation-transfer] create: ${err.message}`, stack: err.stack }) }
+    try {
+      if (key == null) return
+      await transferDelegatedDuty(key, context?.accountability)
+      await notifyDelegation(key, 'requested') // pending → ask the recipient to confirm
+    } catch (err) { log.error({ msg: `[delegation-transfer] create: ${err.message}`, stack: err.stack }) }
   })
   action('scorer_delegations.items.update', async ({ keys, payload }, context) => {
-    if (!payload || payload.status !== 'accepted') return
-    try { for (const k of keys) await transferDelegatedDuty(k, context?.accountability) }
-    catch (err) { log.error({ msg: `[delegation-transfer] update: ${err.message}`, stack: err.stack }) }
+    const status = payload?.status
+    if (status !== 'accepted' && status !== 'declined') return
+    try {
+      for (const k of keys) {
+        if (status === 'accepted') await transferDelegatedDuty(k, context?.accountability)
+        await notifyDelegation(k, status === 'accepted' ? 'accepted' : 'declined')
+      }
+    } catch (err) { log.error({ msg: `[delegation-transfer] update: ${err.message}`, stack: err.stack }) }
   })
 
   action('games.items.update', async ({ keys, payload }) => {
