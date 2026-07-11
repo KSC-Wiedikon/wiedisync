@@ -1279,13 +1279,15 @@ function NextAppointments({
     return items
   }, [games, trainings, events, duties, tScorer])
 
-  // Duties are personal obligations, often months out — pin them to the top and
-  // never let the visible-count cap hide them; the date-sorted games/trainings/
-  // events fill the rest.
-  const dutyItems = allAppointments.filter((a) => a.type === 'duty')
-  const otherItems = allAppointments.filter((a) => a.type !== 'duty')
-  const appointments = [...dutyItems, ...otherItems.slice(0, visibleCount)]
-  const hasMore = otherItems.length > visibleCount
+  // Show the first N date-sorted appointments. A duty is date-sorted inline like
+  // everything else, but if it falls beyond the cap (further out than every
+  // visible game/training/event) it's appended at the bottom so it's never
+  // hidden. "Show more" still reveals the remaining non-duty items.
+  const visible = allAppointments.slice(0, visibleCount)
+  const overflow = allAppointments.slice(visibleCount)
+  const overflowDuties = overflow.filter((a) => a.type === 'duty')
+  const appointments = [...visible, ...overflowDuties]
+  const hasMore = overflow.some((a) => a.type !== 'duty')
 
   if (appointments.length === 0) return null
 
