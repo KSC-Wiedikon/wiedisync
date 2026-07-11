@@ -167,4 +167,14 @@ export default {
   rosterNotHome: 'The roster is only available for home games.',
   rosterNoTime: 'This game has no scheduled time yet.',
   rosterError: 'Could not load the roster.',
+  // Duty banner + emergency (homepage)
+  dutyBadge: 'On duty',
+  dutyBannerTitle: 'You are on {{role}} duty',
+  dutyEmergencyButton: 'Emergency: Contact team leaders',
+  dutyEmergencySent: 'Team leaders shown — the club has been notified.',
+  dutyEmergencyError: 'Could not send the alert. Please call a team leader directly.',
+  dutyEmergencyRevealed: 'Team leaders — contact them now:',
+  dutyEmergencyNoLeaders: 'No team leaders on file. Contact Luca or Thamy.',
+  roleCoach: 'Coach',
+  roleResponsible: 'Team responsible',
 } as const

@@ -2,6 +2,20 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.35.0 — 2026-07-11
+
+### Your duties, everywhere
+- **Your assigned duties now surface across the app.** The games you're the scorer / scoreboard / referee / BB official for show as a yellow reminder on the home page (from a week before until the game ends), as an entry in **My next appointments**, and on the **Events** page — no filter hides them.
+- **Duties are automatically added to your calendar subscription.** Whatever you subscribe to (games, trainings, events, a single team), your own duties now ride along automatically — the separate "duties" link is gone. Also adds referee duties, which the feed was missing.
+- **Pending duty hand-offs show on the home page.** When someone delegates a duty to you, you can accept or decline it right from the home page instead of opening the scorer page.
+
+### Emergency help at the hall
+- **"Emergency: contact team leaders" button.** In the hour before kick-off, an on-duty official can reveal the playing team's coach / team-responsible phone and email and alert the club (admin + sport TK) in one tap.
+- **The coach's "report late" button now appears only once the official is actually late** — 29 minutes before the start for the scorer / referee, 14 for the scoreboard.
+
+### Automatic no-show fines
+- **No-show fines are issued automatically.** When a coach flags a scorer / official as late or absent via the emergency button, the CHF 50 duty fine now lands on that person automatically, using the team's fine rules (tiers) when configured.
+
 ## v1.34.1 — 2026-07-09
 
 ### Participation export polish

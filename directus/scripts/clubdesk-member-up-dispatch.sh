@@ -36,7 +36,7 @@
 #   after a superadmin approved the set in the modal (the endpoint stashed the CSV).
 set -uo pipefail
 DIR=/opt/clubdesk-sync
-PG=supabase-db-vek42jyj0owoutoouq29aisq
+PG=kscw-postgres
 PW_IMG=mcr.microsoft.com/playwright:v1.60.0-jammy
 
 # ── Single env selection (claim/write-back DB must never diverge from the push

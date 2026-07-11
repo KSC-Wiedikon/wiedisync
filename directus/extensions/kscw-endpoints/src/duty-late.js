@@ -25,8 +25,10 @@
  * reading contacts via the items API.
  */
 
-import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH } from './email-template.js'
+import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH, FRONTEND_URL } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
+import { sendPushToMembers } from './web-push.js'
+import { sendLocalizedPush } from './push-i18n.js'
 
 // Club admin who is cc'd on every late alarm (you). Env override, else the
 // same personal inbox the hooks use for owner routing.
@@ -34,7 +36,7 @@ const DUTY_LATE_ADMIN_EMAIL = process.env.DUTY_LATE_ADMIN_EMAIL || process.env.O
 
 // role → { assigned-member column, duty-team column, arrival minutes, sport, label }.
 // arrival minutes MUST match src/utils/dateHelpers.ts DUTY_ARRIVAL_MIN.
-const ROLE_DEFS = {
+export const ROLE_DEFS = {
   scorer:            { member: 'scorer_member',            duty: 'scorer_duty_team',            arrival: 30, sport: 'volleyball', label: 'Schreiber' },
   scoreboard:        { member: 'scoreboard_member',        duty: 'scoreboard_duty_team',        arrival: 15, sport: 'volleyball', label: 'Täfeler' },
   scorer_scoreboard: { member: 'scorer_scoreboard_member', duty: 'scorer_scoreboard_duty_team', arrival: 30, sport: 'volleyball', label: 'Schreiber/Täfeler' },
@@ -48,10 +50,24 @@ const ROLE_DEFS = {
 // is still a live problem once the game should have started).
 const GRACE_MS = 30 * 60 * 1000
 
+// Auto-fine — a flagged late/no-show official is fined automatically. Category
+// 'no_show' (the closest fit; there is no dedicated 'late' category). The amount
+// comes from the fines engine (kscw_compute_fine_amount) when the duty team has a
+// no_show rule, otherwise this flat fallback — the documented CHF 50 duty penalty.
+const NO_SHOW_FALLBACK_CHF = 50
+const NO_SHOW_FINE_REASON = 'Late arrival or no-show for duty'
+
+// Duty-late emails reach real inboxes (the official + sport TK + club admin). On
+// dev (a scrubbed prod clone) suppress them so testing the alarm + auto-fine never
+// spams anyone; set DUTY_LATE_FORCE_EMAIL=1 for a deliberate email test. Push is a
+// natural no-op on dev (push_subscriptions is truncated by the nightly refresh).
+const IS_DEV = (process.env.PUBLIC_URL || '').includes('directus-dev')
+const SEND_DUTY_LATE_EMAILS = !IS_DEV || process.env.DUTY_LATE_FORCE_EMAIL === '1'
+
 // games.date is TZ-naive (knex may hand back a Date at UTC-midnight or a string);
 // games.time is "HH:MM[:SS]". Normalise + convert to an absolute epoch, DST-safe
 // (mirrors scorer-contacts.js / dateHelpers.toUtcIsoFromDatetimeLocal).
-const dateYMD = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
+export const dateYMD = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
 
 function zurichOffsetMs(instantMs) {
   const p = {}
@@ -63,7 +79,7 @@ function zurichOffsetMs(instantMs) {
   return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - instantMs
 }
 
-function gameStartMs(game) {
+export function gameStartMs(game) {
   const ymd = dateYMD(game.date)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null
   const [hh, mm] = String(game.time ?? '').split(':')
@@ -87,7 +103,7 @@ function parseLate(raw) {
 }
 
 // Sport TK = the members holding the sport-admin role, with a login email.
-async function sportTkEmails(database, sport) {
+export async function sportTkEmails(database, sport) {
   const role = sport === 'basketball' ? 'bb_admin' : 'vb_admin'
   const rows = await database('members')
     .join('directus_users', 'members.user', 'directus_users.id')
@@ -188,6 +204,113 @@ export function registerDutyLate(router, ctx) {
     return out
   }
 
+  // Auto-issue a no_show fine for a flagged official. Idempotent per
+  // (member, game). Best-effort: a fine failure must never break the alarm.
+  // Raw-knex insert bypasses the fines.items.create hook (which forces
+  // auto_issued=false and scopes to the caller's own team), so this replicates
+  // its engine snapshot + notification + push directly and sets auto_issued=true.
+  async function issueNoShowFine({ game, role, def, official, reporterMemberId, accountability }) {
+    // Team context — the offense counter is per team. Prefer the official's duty
+    // team for this role; fall back to their first current team.
+    let teamId = game[def.duty] != null ? Number(game[def.duty]) : null
+    if (teamId == null) {
+      const mt = await database('member_teams').where('member', official.id).first('team')
+      teamId = mt?.team != null ? Number(mt.team) : null
+    }
+    if (teamId == null) {
+      log.warn({ msg: 'duty-late: no team to scope the auto-fine — skipped', gameId: game.id, member: official.id, role })
+      return
+    }
+
+    // Never double-fine the same official for the same game.
+    const dup = await database('fines')
+      .where({ member: official.id, category: 'no_show', activity_type: 'game', activity_id: Number(game.id) })
+      .first('id')
+    if (dup) return
+
+    // Amount: engine tier when a no_show rule exists for the team, else flat CHF 50.
+    let amount = NO_SHOW_FALLBACK_CHF
+    let tierOffense = null
+    let resetWindow = null
+    try {
+      const res = await database.raw(
+        'SELECT amount, tier_offense, reset_window_at_issue FROM kscw_compute_fine_amount(?::int, ?::int, ?::text)',
+        [Number(official.id), teamId, 'no_show'],
+      )
+      const row = res?.rows?.[0]
+      if (row && row.amount != null) {
+        amount = row.amount
+        tierOffense = row.tier_offense ?? null
+        resetWindow = row.reset_window_at_issue ?? null
+      }
+    } catch (e) {
+      log.warn({ msg: `duty-late: fine engine query failed: ${e.message}`, gameId: game.id })
+    }
+
+    const ymd = dateYMD(game.date)
+    const matchup = `${game.home_team || ''} vs ${game.away_team || ''}`.trim()
+
+    const inserted = await database('fines')
+      .insert({
+        member: official.id,
+        team: teamId,
+        category: 'no_show',
+        amount,
+        currency: 'CHF',
+        status: 'open',
+        activity_type: 'game',
+        activity_id: Number(game.id),
+        activity_date: /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null,
+        tier_offense: tierOffense,
+        reset_window_at_issue: resetWindow,
+        reason: NO_SHOW_FINE_REASON,
+        issued_by: reporterMemberId ?? null,
+        auto_issued: true,
+        notes: `Auto-issued from the duty-late alarm — ${def.label}${matchup ? ` · ${matchup}` : ''}.`,
+      })
+      .returning('id')
+    const fineId = Array.isArray(inserted)
+      ? (typeof inserted[0] === 'object' ? inserted[0].id : inserted[0])
+      : inserted
+
+    await writeUserLog(database, log, {
+      accountability,
+      action: 'fine-auto-issue',
+      collection: 'fines',
+      recordId: fineId,
+      data: { member: official.id, team: teamId, category: 'no_show', amount, game: game.id, role },
+    })
+
+    // Notify the fined member (in-app + push), mirroring the fines create hook.
+    try {
+      const team = await database('teams').where('id', teamId).first('name')
+      const teamName = team?.name || `Team ${teamId}`
+      const amountStr = `CHF ${Number(amount).toFixed(2)}`
+
+      await database('notifications').insert({
+        member: official.id,
+        type: 'fine_issued',
+        title: 'fine_issued',
+        body: JSON.stringify({ team: teamName, amount: amountStr, reason: NO_SHOW_FINE_REASON, fineId, category: 'no_show' }),
+        activity_type: 'fine',
+        activity_id: String(fineId),
+        team: teamId,
+        read: false,
+      })
+
+      await sendLocalizedPush(
+        database, [official.id],
+        (ids, title, body) => sendPushToMembers(database, ids, title, body, `${FRONTEND_URL}/fines`, `fine-${fineId}`, log),
+        'fineIssued.title', 'fineIssued.body',
+        { team: teamName, amount: amountStr, reason: NO_SHOW_FINE_REASON },
+      )
+    } catch (e) {
+      log.error({ msg: `duty-late: fine notify failed: ${e.message}`, gameId: game.id, stack: e.stack })
+    }
+
+    log.info({ msg: 'duty-late: auto-fine issued', gameId: game.id, member: official.id, team: teamId, amount, role })
+  }
+
   function fail(res, err, req) {
     if (err && err.status) return res.status(err.status).json({ error: err.message })
     log.error({
@@ -260,11 +383,23 @@ export function registerDutyLate(router, ctx) {
           data: { role, official: officialId, official_name: `${official.first_name} ${official.last_name}`.trim() },
         })
 
-        // Email is best-effort — a mail failure must not lose the recorded flag.
+        // Auto-fine the flagged official (best-effort — never break the alarm).
         try {
-          await sendLateEmails(database, MailService, getSchema, { game, def, official, reporterName })
+          await issueNoShowFine({ game, role, def, official, reporterMemberId: memberId, accountability: req.accountability })
         } catch (e) {
-          log.error({ msg: `duty-late email failed: ${e.message}`, gameId: game.id, role, stack: e.stack })
+          log.error({ msg: `duty-late: auto-fine failed: ${e.message}`, gameId: game.id, role, stack: e.stack })
+        }
+
+        // Email is best-effort — a mail failure must not lose the recorded flag.
+        // Suppressed on dev (see SEND_DUTY_LATE_EMAILS) so tests don't spam.
+        if (SEND_DUTY_LATE_EMAILS) {
+          try {
+            await sendLateEmails(database, MailService, getSchema, { game, def, official, reporterName })
+          } catch (e) {
+            log.error({ msg: `duty-late email failed: ${e.message}`, gameId: game.id, role, stack: e.stack })
+          }
+        } else {
+          log.info({ msg: 'duty-late: email suppressed (dev)', gameId: game.id, role })
         }
       }
 

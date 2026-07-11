@@ -6,7 +6,8 @@ import { useAdminMode } from '../../hooks/useAdminMode'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import { useUserVisibleEventIds } from '../../hooks/useUserVisibleEventIds'
-import { todayLocal } from '../../utils/dateHelpers'
+import { todayLocal, toZurichDateString } from '../../utils/dateHelpers'
+import { useMyDuties, type MyDuty } from '../../hooks/useMyDuties'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import EmptyState from '../../components/EmptyState'
@@ -14,6 +15,7 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import TeamFilter from '../../components/TeamFilter'
 import EventCard from './EventCard'
+import DutyEventCard from './DutyEventCard'
 import EventDetailModal from './EventDetailModal'
 import EventForm from './EventForm'
 import { Button } from '@/components/ui/button'
@@ -122,6 +124,24 @@ export default function EventsPage() {
     })
   }, [events, allUserTeamIds, user, matchesRole, effectiveIsAdmin])
 
+  // The member's own duty games, interleaved with real events as read-only
+  // cards. Duties are always upcoming, so they're hidden while viewing past.
+  const { duties: myDuties } = useMyDuties()
+  type EventRow = { kind: 'event'; date: string; event: Event }
+  type DutyRow = { kind: 'duty'; date: string; duty: MyDuty }
+  const rows = useMemo<(EventRow | DutyRow)[]>(() => {
+    const list: (EventRow | DutyRow)[] = visibleEvents.map((e) => ({
+      kind: 'event' as const, date: e.start_date ? toZurichDateString(e.start_date) : '', event: e,
+    }))
+    if (!showPast) {
+      for (const d of myDuties) {
+        if (d.game.date) list.push({ kind: 'duty' as const, date: String(d.game.date).slice(0, 10), duty: d })
+      }
+    }
+    list.sort((a, b) => a.date.localeCompare(b.date))
+    return list
+  }, [visibleEvents, myDuties, showPast])
+
   const { remove } = useMutation<Event>('events')
 
   useRealtime('events', () => refetch())
@@ -228,7 +248,7 @@ export default function EventsPage() {
       )}
 
       <div className="mt-6">
-        {pageLoading ? null : visibleEvents.length === 0 ? (
+        {pageLoading ? null : rows.length === 0 ? (
           <EmptyState
             icon={<PartyPopper className="h-10 w-10" />}
             title={t('noEvents')}
@@ -236,7 +256,11 @@ export default function EventsPage() {
           />
         ) : (
           <div className="space-y-3" data-tour="event-card">
-            {visibleEvents.map((event) => {
+            {rows.map((row) => {
+              if (row.kind === 'duty') {
+                return <DutyEventCard key={`duty-${row.duty.game.id}-${row.duty.role}`} duty={row.duty} />
+              }
+              const event = row.event
               // Coaches can only edit events linked to their teams (or club-wide with no teams)
               // Admins can edit all events
               const canEdit = !teamsLoading && (effectiveIsAdmin || (isCoach && (

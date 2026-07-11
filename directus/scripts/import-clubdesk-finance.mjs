@@ -39,8 +39,8 @@ import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 
 const ENVS = {
-  dev:  { container: 'supabase-db-vek42jyj0owoutoouq29aisq', database: 'directus_kscw_dev', user: 'supabase_admin' },
-  prod: { container: 'supabase-db-vek42jyj0owoutoouq29aisq', database: 'postgres',          user: 'supabase_admin' },
+  dev:  { container: 'kscw-postgres', database: 'directus_kscw_dev', user: 'supabase_admin' },
+  prod: { container: 'kscw-postgres', database: 'postgres',          user: 'supabase_admin' },
 }
 
 const rawArgs = process.argv.slice(2)

@@ -23,7 +23,7 @@ set -euo pipefail
 
 DIR=/opt/clubdesk-sync
 IMG=mcr.microsoft.com/playwright:v1.60.0-jammy
-PG=supabase-db-vek42jyj0owoutoouq29aisq
+PG=kscw-postgres
 ENVNAME="${CLUBDESK_ENV:-prod}"
 case "$ENVNAME" in
   prod) DB=postgres ;;

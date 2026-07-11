@@ -70,6 +70,8 @@ export default {
   icalOpenInApp: 'Oder direkt i dinere Kaländer-App ufmache',
   icalSubscribeHint:
     'Füeg de Link i dini Kaländer-App ii zum abonniere — er bliibt automatisch aktuell. Google Kaländer: Wytteri Kaländer → Per URL. Apple Kaländer: Ablag → Kaländerabo hinzuefüege.',
+  icalDutiesIncludedHint: 'Dini eigene Schriiber-/Offiziellen-Iisätz sind i dem Abo immer debii.',
+  icalDutiesPrivacyHint: 'Persönliche Link — bitte privat halte. Er zeigt nur din Iisatzplan (kei persönliche Date).',
 
   // Detailmodal + Raster
   coach: 'Trainer',

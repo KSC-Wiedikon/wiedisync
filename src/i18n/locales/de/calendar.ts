@@ -83,6 +83,7 @@ export default {
   icalDutiesTitle: 'Deine Schreibereinsätze',
   icalDutiesHint: 'Abonniere einen persönlichen Kalender, der deine Schreiber- und Täfeler-Einsätze automatisch einträgt.',
   icalDutiesGenerate: 'Persönlichen Link erstellen',
+  icalDutiesIncludedHint: 'Deine eigenen Schreiber-/Offiziellen-Einsätze sind in diesem Abo immer enthalten.',
   icalDutiesPrivacyHint: 'Persönlicher Link — bitte privat halten. Er zeigt nur deinen Einsatzplan (keine persönlichen Daten).',
   icalDutiesError: 'Persönlicher Link konnte nicht erstellt werden.',
 

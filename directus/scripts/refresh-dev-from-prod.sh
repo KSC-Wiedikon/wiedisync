@@ -40,7 +40,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 SSH_HOST=hetzner
-PGC=supabase-db-vek42jyj0owoutoouq29aisq
+PGC=kscw-postgres
 PROD_DB=postgres
 DEV_DB=directus_kscw_dev
 DEV_CONTAINER=directus-kscw-dev

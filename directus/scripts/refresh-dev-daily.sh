@@ -31,7 +31,7 @@
 set -uo pipefail
 export PATH=/usr/local/bin:/usr/bin:/bin:${PATH:-}
 
-PGC=supabase-db-vek42jyj0owoutoouq29aisq
+PGC=kscw-postgres
 PROD_DB=postgres
 DEV_DB=directus_kscw_dev
 DEV_CONTAINER=directus-kscw-dev

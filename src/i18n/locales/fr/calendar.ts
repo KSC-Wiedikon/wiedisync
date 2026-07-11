@@ -77,6 +77,7 @@ export default {
   icalDutiesTitle: 'Vos engagements au marquage',
   icalDutiesHint: 'Abonnez-vous a un calendrier personnel qui ajoute automatiquement vos engagements de marqueur et de tableau.',
   icalDutiesGenerate: 'Generer mon lien d\'engagements',
+  icalDutiesIncludedHint: 'Tes propres services de marqueur / officiel sont toujours inclus dans cet abonnement.',
   icalDutiesPrivacyHint: 'Lien personnel — gardez-le prive. Il n\'affiche que votre planning d\'engagements (aucune donnee personnelle).',
   icalDutiesError: 'Impossible de creer votre lien personnel.',
 

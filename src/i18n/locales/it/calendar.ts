@@ -77,6 +77,7 @@ export default {
   icalDutiesTitle: 'I tuoi turni di segnapunti',
   icalDutiesHint: 'Abbonati a un calendario personale che aggiunge automaticamente i tuoi turni da segnapunti e tabellone.',
   icalDutiesGenerate: 'Genera il mio link dei turni',
+  icalDutiesIncludedHint: 'I tuoi turni da segnapunti / ufficiale sono sempre inclusi in questo abbonamento.',
   icalDutiesPrivacyHint: 'Link personale — tienilo privato. Mostra solo il tuo calendario dei turni (nessun dato personale).',
   icalDutiesError: 'Impossibile creare il tuo link personale.',
 
