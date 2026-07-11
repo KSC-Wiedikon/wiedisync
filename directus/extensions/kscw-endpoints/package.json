@@ -6,7 +6,7 @@
     "type": "endpoint",
     "path": "src/index.js",
     "source": "src/index.js",
-    "host": "^11.0.0"
+    "host": "^11.0.0 || ^12.0.0"
   },
   "dependencies": {
     "busboy": "^1.6.0",
