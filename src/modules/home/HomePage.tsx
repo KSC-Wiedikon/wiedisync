@@ -20,6 +20,7 @@ import GameDetailModal from '../games/components/GameDetailModal'
 import TrainingDetailModal from '../trainings/TrainingDetailModal'
 import EventDetailModal from '../events/EventDetailModal'
 import { asTeams, getEventDateBadgeParts } from '../events/eventHelpers'
+import DutyEventCard from '../events/DutyEventCard'
 import AnnouncementRow from './components/AnnouncementRow'
 import AnnouncementDetailModal from './components/AnnouncementDetailModal'
 import { useAnnouncements } from '../../hooks/useAnnouncements'
@@ -312,12 +313,9 @@ export default function HomePage() {
   const events = eventsRaw ?? []
 
   // Duty games the member is assigned to — surfaced as virtual "duty" appointments
-  // (and the yellow banner). Scoped to the active sport toggle for consistency.
-  const { duties: myDutiesRaw } = useMyDuties()
-  const dutyAppointments = useMemo<MyDuty[]>(() => {
-    if (sport === 'all') return myDutiesRaw
-    return myDutiesRaw.filter((d) => (sport === 'bb') === d.role.startsWith('bb_'))
-  }, [myDutiesRaw, sport])
+  // (and the yellow banner). NOT sport-filtered: a duty is a personal obligation,
+  // so it always shows regardless of the sport toggle.
+  const { duties: dutyAppointments } = useMyDuties()
 
   // Rankings for user's teams — fetch team details for SV/BB IDs, then rankings
   const { data: userTeamDetailsRaw } = useCollection<Team>('teams', {
@@ -693,17 +691,20 @@ export default function HomePage() {
             </div>
           ) : null}
           trainingsDate={nextTrainings[0]?.date}
-          eventsSection={events.length > 0 ? (
+          eventsSection={(events.length > 0 || dutyAppointments.length > 0) ? (
             <div className="min-w-0">
               <SectionHeader title={t('events')} linkTo="/events" linkLabel={t('allEvents')} />
               <div className="space-y-3">
+                {dutyAppointments.map((d) => (
+                  <DutyEventCard key={`duty-${d.game.id}-${d.role}`} duty={d} />
+                ))}
                 {events.map((event) => (
                   <EventRow key={event.id} event={event} onClick={() => setSelectedEvent(event)} participationStatus={getParticipationStatus('event', event.id)} />
                 ))}
               </div>
             </div>
           ) : null}
-          eventsDate={events[0]?.start_date?.split(' ')[0]}
+          eventsDate={events[0]?.start_date?.split(' ')[0] ?? dutyAppointments[0]?.game.date}
           gamesSection={
             <div className="min-w-0 space-y-6">
               {latestResults.length > 0 && (
@@ -1268,8 +1269,13 @@ function NextAppointments({
     return items
   }, [games, trainings, events, duties, tScorer])
 
-  const appointments = allAppointments.slice(0, visibleCount)
-  const hasMore = allAppointments.length > visibleCount
+  // Duties are personal obligations, often months out — pin them to the top and
+  // never let the visible-count cap hide them; the date-sorted games/trainings/
+  // events fill the rest.
+  const dutyItems = allAppointments.filter((a) => a.type === 'duty')
+  const otherItems = allAppointments.filter((a) => a.type !== 'duty')
+  const appointments = [...dutyItems, ...otherItems.slice(0, visibleCount)]
+  const hasMore = otherItems.length > visibleCount
 
   if (appointments.length === 0) return null
 
