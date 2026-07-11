@@ -390,7 +390,7 @@ export default function ScorerRow({
           {dateStr} · {game.time ? formatTime(game.time) : ''}
         </div>
         {kscwTeam && <TeamChip team={kscwTeam} size="sm" />}
-        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <div className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-gray-100">
           {gameLabel}
         </div>
         <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">
