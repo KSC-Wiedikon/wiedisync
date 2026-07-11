@@ -23,6 +23,7 @@ import { registerScorerReminders } from './scorer-reminders.js'
 import { registerScorerContacts } from './scorer-contacts.js'
 import { registerScorerClaim } from './scorer-claim.js'
 import { registerDutyLate } from './duty-late.js'
+import { registerDutyLeaderContact } from './duty-leader-contact.js'
 import { registerScorerRoster } from './scorer-roster.js'
 import { registerJsExport } from './js-export.js'
 import { registerGameScheduling } from './game-scheduling.js'
@@ -2358,6 +2359,7 @@ export default {
     registerScorerContacts(router, ctx)
     registerScorerClaim(router, ctx)
     registerDutyLate(router, ctx)
+    registerDutyLeaderContact(router, ctx)
     registerScorerRoster(router, ctx)
     registerJsExport(router, ctx)
     registerGameScheduling(router, ctx)

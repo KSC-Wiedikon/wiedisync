@@ -36,7 +36,7 @@ const DUTY_LATE_ADMIN_EMAIL = process.env.DUTY_LATE_ADMIN_EMAIL || process.env.O
 
 // role → { assigned-member column, duty-team column, arrival minutes, sport, label }.
 // arrival minutes MUST match src/utils/dateHelpers.ts DUTY_ARRIVAL_MIN.
-const ROLE_DEFS = {
+export const ROLE_DEFS = {
   scorer:            { member: 'scorer_member',            duty: 'scorer_duty_team',            arrival: 30, sport: 'volleyball', label: 'Schreiber' },
   scoreboard:        { member: 'scoreboard_member',        duty: 'scoreboard_duty_team',        arrival: 15, sport: 'volleyball', label: 'Täfeler' },
   scorer_scoreboard: { member: 'scorer_scoreboard_member', duty: 'scorer_scoreboard_duty_team', arrival: 30, sport: 'volleyball', label: 'Schreiber/Täfeler' },
@@ -67,7 +67,7 @@ const SEND_DUTY_LATE_EMAILS = !IS_DEV || process.env.DUTY_LATE_FORCE_EMAIL === '
 // games.date is TZ-naive (knex may hand back a Date at UTC-midnight or a string);
 // games.time is "HH:MM[:SS]". Normalise + convert to an absolute epoch, DST-safe
 // (mirrors scorer-contacts.js / dateHelpers.toUtcIsoFromDatetimeLocal).
-const dateYMD = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
+export const dateYMD = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
 
 function zurichOffsetMs(instantMs) {
   const p = {}
@@ -79,7 +79,7 @@ function zurichOffsetMs(instantMs) {
   return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - instantMs
 }
 
-function gameStartMs(game) {
+export function gameStartMs(game) {
   const ymd = dateYMD(game.date)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null
   const [hh, mm] = String(game.time ?? '').split(':')
@@ -103,7 +103,7 @@ function parseLate(raw) {
 }
 
 // Sport TK = the members holding the sport-admin role, with a login email.
-async function sportTkEmails(database, sport) {
+export async function sportTkEmails(database, sport) {
   const role = sport === 'basketball' ? 'bb_admin' : 'vb_admin'
   const rows = await database('members')
     .join('directus_users', 'members.user', 'directus_users.id')
