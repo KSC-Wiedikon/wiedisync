@@ -167,4 +167,14 @@ export default {
   rosterNotHome: 'La composition n\'est disponible que pour les matchs a domicile.',
   rosterNoTime: 'Ce match n\'a pas encore d\'horaire defini.',
   rosterError: 'Impossible de charger la composition.',
+  // Duty banner + emergency (homepage)
+  dutyBadge: 'De service',
+  dutyBannerTitle: 'Tu es de service {{role}}',
+  dutyEmergencyButton: 'Urgence : contacter les responsables',
+  dutyEmergencySent: 'Responsables affichés — le club a été prévenu.',
+  dutyEmergencyError: 'Impossible d\'envoyer l\'alerte. Appelle un responsable directement.',
+  dutyEmergencyRevealed: 'Responsables d\'équipe — contacte-les maintenant :',
+  dutyEmergencyNoLeaders: 'Aucun responsable enregistré. Contacte Luca ou Thamy.',
+  roleCoach: 'Entraîneur',
+  roleResponsible: 'Responsable d\'équipe',
 } as const

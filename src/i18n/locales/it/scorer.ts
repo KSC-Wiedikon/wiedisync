@@ -167,4 +167,14 @@ export default {
   rosterNotHome: 'La formazione è disponibile solo per le partite in casa.',
   rosterNoTime: 'Questa partita non ha ancora un orario stabilito.',
   rosterError: 'Impossibile caricare la formazione.',
+  // Duty banner + emergency (homepage)
+  dutyBadge: 'Di turno',
+  dutyBannerTitle: 'Sei di turno come {{role}}',
+  dutyEmergencyButton: 'Emergenza: contatta i responsabili',
+  dutyEmergencySent: 'Responsabili mostrati — il club è stato avvisato.',
+  dutyEmergencyError: 'Impossibile inviare l\'avviso. Chiama direttamente un responsabile.',
+  dutyEmergencyRevealed: 'Responsabili della squadra — contattali ora:',
+  dutyEmergencyNoLeaders: 'Nessun responsabile registrato. Contatta Luca o Thamy.',
+  roleCoach: 'Allenatore',
+  roleResponsible: 'Responsabile squadra',
 } as const

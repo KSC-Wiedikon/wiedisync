@@ -167,4 +167,14 @@ export default {
   rosterNotHome: 'Die Aufstellung ist nur für Heimspiele verfügbar.',
   rosterNoTime: 'Für dieses Spiel ist noch keine Zeit angesetzt.',
   rosterError: 'Die Aufstellung konnte nicht geladen werden.',
+  // Duty banner + emergency (homepage)
+  dutyBadge: 'Einsatz',
+  dutyBannerTitle: 'Du hast {{role}}-Einsatz',
+  dutyEmergencyButton: 'Notfall: Team-Leiter kontaktieren',
+  dutyEmergencySent: 'Team-Leiter angezeigt — der Verein wurde benachrichtigt.',
+  dutyEmergencyError: 'Alarm konnte nicht gesendet werden. Bitte einen Team-Leiter direkt anrufen.',
+  dutyEmergencyRevealed: 'Team-Leiter — jetzt kontaktieren:',
+  dutyEmergencyNoLeaders: 'Keine Team-Leiter hinterlegt. Luca oder Thamy kontaktieren.',
+  roleCoach: 'Trainer/in',
+  roleResponsible: 'Teamverantwortliche/r',
 } as const

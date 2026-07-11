@@ -40,6 +40,8 @@ import YourDuesCard from '../finance/YourDuesCard'
 import HomePollsCard from '../polls/HomePollsCard'
 import UpcomingTicker from './components/UpcomingTicker'
 import HomeDelegationCard from './components/HomeDelegationCard'
+import MyDutyBanner from './components/MyDutyBanner'
+import { useMyDuties, DUTY_ROLE_LABEL_KEYS, type MyDuty } from '../../hooks/useMyDuties'
 
 type ExpandedGame = Game & {
   kscw_team?: Team & BaseRecord | string
@@ -309,6 +311,14 @@ export default function HomePage() {
   })
   const events = eventsRaw ?? []
 
+  // Duty games the member is assigned to — surfaced as virtual "duty" appointments
+  // (and the yellow banner). Scoped to the active sport toggle for consistency.
+  const { duties: myDutiesRaw } = useMyDuties()
+  const dutyAppointments = useMemo<MyDuty[]>(() => {
+    if (sport === 'all') return myDutiesRaw
+    return myDutiesRaw.filter((d) => (sport === 'bb') === d.role.startsWith('bb_'))
+  }, [myDutiesRaw, sport])
+
   // Rankings for user's teams — fetch team details for SV/BB IDs, then rankings
   const { data: userTeamDetailsRaw } = useCollection<Team>('teams', {
     filter: hasTeams ? { id: { _in: userTeamIds } } : undefined,
@@ -459,6 +469,10 @@ export default function HomePage() {
       {/* Pending duty-delegation requests — accept/decline without leaving home.
           Renders null when the user has no incoming requests. */}
       {user && isApproved && <HomeDelegationCard />}
+
+      {/* Upcoming duty reminder (1 week → game end) + 60' emergency button.
+          Renders null when the member has no upcoming duties. */}
+      {user && isApproved && <MyDutyBanner />}
 
       {/* Spielplanung absences reminder — volleyball players, until 2026-06-01 */}
       {user && isApproved && (primarySport === 'volleyball' || primarySport === 'both') && Date.now() < new Date('2026-06-01T23:59:59+02:00').getTime() && (
@@ -624,6 +638,7 @@ export default function HomePage() {
               games={nextGames}
               trainings={nextTrainings}
               events={events}
+              duties={dutyAppointments}
               onGameClick={setSelectedGame}
               onTrainingClick={setSelectedTraining}
               onEventClick={setSelectedEvent}
@@ -1024,7 +1039,7 @@ function gameIcon(game: ExpandedGame, className: string) {
 
 /** Single appointment row with participation banner */
 function AppointmentRow({ appointment, onClick, participationStatus }: {
-  appointment: { type: 'game' | 'training' | 'event'; date: string; data: ExpandedGame | TrainingExpanded | EventExpanded }
+  appointment: { type: 'game' | 'training' | 'event' | 'duty'; date: string; data: ExpandedGame | TrainingExpanded | EventExpanded; label?: string }
   onClick?: () => void
   participationStatus?: string
 }) {
@@ -1044,6 +1059,7 @@ function AppointmentRow({ appointment, onClick, participationStatus }: {
     game: gameIcon(appointment.data as ExpandedGame, 'h-6 w-6 shrink-0'),
     training: <TrainingConeIcon className="h-6 w-6 shrink-0" />,
     event: <CalendarDays className="h-6 w-6 shrink-0" />,
+    duty: <ClipboardList className="h-6 w-6 shrink-0" />,
   }
 
   const dateStr = formatDateCompact(appointment.date)
@@ -1064,6 +1080,10 @@ function AppointmentRow({ appointment, onClick, participationStatus }: {
     label = [team?.name, hall?.name].filter(Boolean).join(' · ')
     if (tr.start_time) timeStr = formatTime(tr.start_time)
     coachIds = teamCoachIds(team)
+  } else if (appointment.type === 'duty') {
+    const g = appointment.data as ExpandedGame
+    label = appointment.label ?? `${g.home_team} vs ${g.away_team}`
+    if (g.time) timeStr = formatTime(g.time)
   } else {
     const ev = appointment.data as EventExpanded
     label = ev.title
@@ -1102,7 +1122,9 @@ function AppointmentRow({ appointment, onClick, participationStatus }: {
               <span className="text-gray-500 dark:text-gray-400">{bigTypeIcon[appointment.type]}</span>
             </div>
             <div className="pb-2 pr-3">
-              <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} />
+              {appointment.type !== 'duty' && (
+                <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} />
+              )}
             </div>
           </div>
         </div>
@@ -1113,7 +1135,7 @@ function AppointmentRow({ appointment, onClick, participationStatus }: {
 
 /** Desktop table row for aligned columns */
 function AppointmentTableRow({ appointment, onClick, participationStatus }: {
-  appointment: { type: 'game' | 'training' | 'event'; date: string; data: ExpandedGame | TrainingExpanded | EventExpanded }
+  appointment: { type: 'game' | 'training' | 'event' | 'duty'; date: string; data: ExpandedGame | TrainingExpanded | EventExpanded; label?: string }
   onClick?: () => void
   participationStatus?: string
 }) {
@@ -1132,6 +1154,7 @@ function AppointmentTableRow({ appointment, onClick, participationStatus }: {
     game: gameIcon(appointment.data as ExpandedGame, 'h-4 w-4'),
     training: <TrainingConeIcon className="h-4 w-4" />,
     event: <CalendarDays className="h-4 w-4" />,
+    duty: <ClipboardList className="h-4 w-4" />,
   }
 
   const dateStr = formatDateCompact(appointment.date)
@@ -1152,6 +1175,10 @@ function AppointmentTableRow({ appointment, onClick, participationStatus }: {
     label = [team?.name, hall?.name].filter(Boolean).join(' · ')
     if (tr.start_time) timeStr = formatTime(tr.start_time)
     coachIds = teamCoachIds(team)
+  } else if (appointment.type === 'duty') {
+    const g = appointment.data as ExpandedGame
+    label = appointment.label ?? `${g.home_team} vs ${g.away_team}`
+    if (g.time) timeStr = formatTime(g.time)
   } else {
     const ev = appointment.data as EventExpanded
     label = ev.title
@@ -1180,7 +1207,9 @@ function AppointmentTableRow({ appointment, onClick, participationStatus }: {
         {label}
       </td>
       <td className="py-3.5 pr-3">
-        <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} />
+        {appointment.type !== 'duty' && (
+          <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} />
+        )}
       </td>
     </tr>
   )
@@ -1191,6 +1220,7 @@ function NextAppointments({
   games,
   trainings,
   events,
+  duties,
   onGameClick,
   onTrainingClick,
   onEventClick,
@@ -1199,17 +1229,20 @@ function NextAppointments({
   games: ExpandedGame[]
   trainings: TrainingExpanded[]
   events: EventExpanded[]
+  duties: MyDuty[]
   onGameClick: (g: ExpandedGame) => void
   onTrainingClick: (t: TrainingExpanded) => void
   onEventClick: (e: EventExpanded) => void
   getParticipationStatus: (type: 'game' | 'training' | 'event', id: string) => string | undefined
 }) {
   const { t } = useTranslation('home')
+  const { t: tScorer } = useTranslation('scorer')
   const [visibleCount, setVisibleCount] = useState(10)
 
   type Appointment = { type: 'game'; date: string; data: ExpandedGame }
     | { type: 'training'; date: string; data: TrainingExpanded }
     | { type: 'event'; date: string; data: EventExpanded }
+    | { type: 'duty'; date: string; data: ExpandedGame; label: string }
 
   const allAppointments = useMemo(() => {
     const items: Appointment[] = []
@@ -1222,9 +1255,18 @@ function NextAppointments({
     for (const ev of events) {
       if (ev.start_date) items.push({ type: 'event', date: toZurichDateString(ev.start_date), data: ev })
     }
+    for (const d of duties) {
+      const g = d.game as ExpandedGame
+      if (g.date) items.push({
+        type: 'duty',
+        date: g.date,
+        data: g,
+        label: `${tScorer(DUTY_ROLE_LABEL_KEYS[d.role] ?? 'scorer')} · ${g.home_team} – ${g.away_team}`,
+      })
+    }
     items.sort((a, b) => a.date.localeCompare(b.date))
     return items
-  }, [games, trainings, events])
+  }, [games, trainings, events, duties, tScorer])
 
   const appointments = allAppointments.slice(0, visibleCount)
   const hasMore = allAppointments.length > visibleCount
@@ -1232,7 +1274,7 @@ function NextAppointments({
   if (appointments.length === 0) return null
 
   const renderOnClick = (apt: Appointment) => {
-    if (apt.type === 'game') return () => onGameClick(apt.data as ExpandedGame)
+    if (apt.type === 'game' || apt.type === 'duty') return () => onGameClick(apt.data as ExpandedGame)
     if (apt.type === 'training') return () => onTrainingClick(apt.data as TrainingExpanded)
     return () => onEventClick(apt.data as EventExpanded)
   }
@@ -1251,7 +1293,7 @@ function NextAppointments({
                   key={`${apt.type}-${apt.data.id}`}
                   appointment={apt}
                   onClick={renderOnClick(apt)}
-                  participationStatus={getParticipationStatus(apt.type, apt.data.id)}
+                  participationStatus={apt.type === 'duty' ? undefined : getParticipationStatus(apt.type, apt.data.id)}
                 />
               ))}
             </tbody>
@@ -1266,7 +1308,7 @@ function NextAppointments({
             key={`${apt.type}-${apt.data.id}`}
             appointment={apt}
             onClick={renderOnClick(apt)}
-            participationStatus={getParticipationStatus(apt.type, apt.data.id)}
+            participationStatus={apt.type === 'duty' ? undefined : getParticipationStatus(apt.type, apt.data.id)}
           />
         ))}
       </div>

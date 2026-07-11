@@ -154,4 +154,14 @@ export default {
   infoRequirementsArrival: 'I dem Fall muäss de Schriiber/Täfeler spötischtens <strong>30 Minute</strong> vor Spielbeginn i de Halle sii.',
   infoHowToTitle: 'So funktionierts',
   infoHowTo: 'Klick uf s Spiel, wähl dini Rolle us, wähl di im Dropdown us und bestätig. Falls du di nöd findsch, kontaktier de Luca oder d Thamy.',
+  // Duty banner + emergency (homepage)
+  dutyBadge: 'Iisatz',
+  dutyBannerTitle: 'Du häsch {{role}}-Iisatz',
+  dutyEmergencyButton: 'Notfall: Team-Leiter kontaktiere',
+  dutyEmergencySent: 'Team-Leiter azeigt — de Verein isch informiert.',
+  dutyEmergencyError: 'Alarm het nöd chöne gschickt werde. Bitte en Team-Leiter direkt aalüüte.',
+  dutyEmergencyRevealed: 'Team-Leiter — jetz kontaktiere:',
+  dutyEmergencyNoLeaders: 'Kei Team-Leiter hinterleit. Luca oder Thamy kontaktiere.',
+  roleCoach: 'Trainer/in',
+  roleResponsible: 'Teamverantwortliche/r',
 } as const
