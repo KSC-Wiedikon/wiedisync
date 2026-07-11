@@ -228,10 +228,11 @@ export default function InfraHealthPage() {
     const [prodHealth, devHealth, push, hooks, db, errorLog, cfWiedisync] = await Promise.all([
       // API Prod (no-cors fallback — same treatment as Dev; avoids racing the
       // shared hook's useEffect, which populated undefined on first render and
-      // made the Prod card flash "Down" even when reachable)
-      checkEndpoint(`${PROD_URL}/server/health`, true),
+      // made the Prod card flash "Down" even when reachable). /server/ping, not
+      // /server/health — Directus 12.1 made /server/health auth-only.
+      checkEndpoint(`${PROD_URL}/server/ping`, true),
       // API Dev (no-cors fallback — dev server may not whitelist this origin)
-      checkEndpoint(`${DEV_URL}/server/health`, true),
+      checkEndpoint(`${DEV_URL}/server/ping`, true),
       // Push Worker (no CORS headers — no-cors fallback, opaque = reachable)
       checkEndpoint(`${PUSH_WORKER_URL}/health`, true),
       // Directus extensions deployed (check a known KSCW endpoint)
