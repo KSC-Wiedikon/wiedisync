@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, ArrowRight, Clock, X } from 'lucide-react'
+import { Search, ArrowRight, X } from 'lucide-react'
 import type { Member, Team, MemberTeam, LicenceType, ScorerDelegation } from '../../../types'
 
 interface DelegationModalProps {
@@ -145,10 +145,10 @@ export default function DelegationModal({
             <div className="text-xs text-gray-500 dark:text-gray-400">{teamNames.join(', ')}</div>
           )}
         </div>
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-          <Clock className="h-3 w-3" />
-          {t('delegateNeedsConfirm')}
-        </span>
+        {/* No per-row "needs confirmation" pill: every delegation (teammate or
+            external) must be accepted by the recipient (migration 121), so it
+            conveyed nothing. The confirm step states the request is pending. */}
+        <ArrowRight className="h-4 w-4 shrink-0 text-gray-300 dark:text-gray-600" />
       </button>
     )
   }
