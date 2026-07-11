@@ -549,6 +549,7 @@ export default function ScorerPage() {
       memberTeams={allMemberTeams}
       guestMemberIds={guestMemberIds}
       onUpdate={handleUpdate}
+      onRefetch={refetch}
       canEdit={isPast ? false : canEdit}
       isAdmin={isSportAdmin}
       showContact={showContactForGame(g)}

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import DOMPurify from 'dompurify'
+import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
+import { kscwApi } from '../../../lib/api'
 import type { Game, Member, Team, Hall, LicenceType, MemberTeam, ScorerDelegation, Absence } from '../../../types'
 import { absenceCoversActivity } from '../../../utils/absenceHelpers'
 import TeamChip from '../../../components/TeamChip'
@@ -20,6 +22,9 @@ interface ScorerRowProps {
   teamMemberIds: Map<string, Set<string>>
   memberTeams: MemberTeam[]
   onUpdate: (gameId: string, fields: Partial<Game>) => void
+  /** Refetch games after a member self-claims via the duty-claim endpoint (the
+   *  raw-knex write doesn't emit a realtime event, so we refresh explicitly). */
+  onRefetch?: () => void
   canEdit: boolean
   /** Sport/global admin — gates admin-only metadata (who confirmed the duty). */
   isAdmin?: boolean
@@ -155,6 +160,7 @@ export default function ScorerRow({
   teamMemberIds,
   memberTeams,
   onUpdate,
+  onRefetch,
   canEdit,
   isAdmin = false,
   showContact,
@@ -269,25 +275,21 @@ export default function ScorerRow({
     }
   }
 
-  function handleSelfAssign(role: AssignRole) {
+  // Members have no games.update permission, so self-claim goes through the
+  // duty-claim endpoint (validates open + duty-team membership + licence, writes
+  // + stamps confirmed-by server-side). Raw-knex write → refetch explicitly.
+  async function handleSelfAssign(role: AssignRole) {
     if (!userId) return
-    const fields: Partial<Game> = {}
-
-    if (sport === 'volleyball') {
-      const vbRole = role as VbAssignRole
-      if (vbRole === 'scorer') fields.scorer_member = userId
-      else if (vbRole === 'scoreboard') fields.scoreboard_member = userId
-      else if (vbRole === 'referee') fields.referee_member = userId
-      else fields.scorer_scoreboard_member = userId
-    } else {
-      const bbRole = role as BbAssignRole
-      fields[bbRole] = userId
-    }
-
-    // Confirmation is per-duty and derived from member presence; the hook stamps
-    // who/when from this write. No game-level duty_confirmed flag to set.
-    onUpdate(game.id, fields)
     setConfirmRole(null)
+    try {
+      await kscwApi(`/games/${game.id}/duty-claim`, { method: 'POST', body: { role } })
+      toast.success(t('selfAssignSuccess'))
+    } catch {
+      // 409 (someone else just took it), 403 (licence/team), etc.
+      toast.error(t('selfAssignError'))
+    } finally {
+      onRefetch?.()
+    }
   }
 
   function handleAdminUpdate(gameId: string, fields: Partial<Game>) {

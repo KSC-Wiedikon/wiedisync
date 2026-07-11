@@ -77,6 +77,8 @@ export default {
 
   // Self-assign
   selfAssign: 'Sign me up',
+  selfAssignSuccess: 'Signed up — see you there!',
+  selfAssignError: 'Could not sign up — it may have just been taken, or you are not eligible.',
   confirmSelfAssignTitle: 'Confirm assignment',
   confirmSelfAssignMessage: 'You are signing up as <strong>{{role}}</strong> for <strong>{{game}}</strong> on <strong>{{date}}</strong>.',
   confirmSelfAssignArrival_scorer: 'You must be in the hall at least <strong>30 minutes</strong> before the start of play.',

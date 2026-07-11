@@ -21,6 +21,7 @@ import { registerGCalSync } from './gcal-sync.js'
 import { registerSchulferienSync } from './schulferien-sync.js'
 import { registerScorerReminders } from './scorer-reminders.js'
 import { registerScorerContacts } from './scorer-contacts.js'
+import { registerScorerClaim } from './scorer-claim.js'
 import { registerDutyLate } from './duty-late.js'
 import { registerScorerRoster } from './scorer-roster.js'
 import { registerJsExport } from './js-export.js'
@@ -2355,6 +2356,7 @@ export default {
     registerSchulferienSync(router, ctx)
     registerScorerReminders(router, ctx)
     registerScorerContacts(router, ctx)
+    registerScorerClaim(router, ctx)
     registerDutyLate(router, ctx)
     registerScorerRoster(router, ctx)
     registerJsExport(router, ctx)
