@@ -6,7 +6,7 @@ Run against `directus-dev` to verify schema, triggers, and endpoint skeleton acr
 
 - `DIRECTUS_DEV_TOKEN` — a Superuser static token for `directus-dev.kscw.ch`. Find it on your own user row:
   ```bash
-  ssh hetzner "sudo docker exec -i supabase-db-vek42jyj0owoutoouq29aisq psql -U supabase_admin -d directus_kscw_dev -t -c \"SELECT token FROM directus_users WHERE email = 'luca.canepa@gmail.com';\"" | tr -d ' \n'
+  ssh hetzner "sudo docker exec -i kscw-postgres psql -U supabase_admin -d directus_kscw_dev -t -c \"SELECT token FROM directus_users WHERE email = 'luca.canepa@gmail.com';\"" | tr -d ' \n'
   ```
   The `DIRECTUS_ADMIN_TOKEN` in the container `.env` does NOT work for the `/items/*` API — use a real user's token.
 - `DIRECTUS_DEV_DB_URL` — Postgres connection string for the Supabase-hosted dev DB:
@@ -15,7 +15,7 @@ Run against `directus-dev` to verify schema, triggers, and endpoint skeleton acr
   ```
   Reach the DB directly via:
   ```bash
-  ssh hetzner "sudo docker exec -i supabase-db-vek42jyj0owoutoouq29aisq psql -U supabase_admin -d directus_kscw_dev"
+  ssh hetzner "sudo docker exec -i kscw-postgres psql -U supabase_admin -d directus_kscw_dev"
   ```
 - `MESSAGING_SYSTEM_MEMBER_ID` — set once Plan 01 Task 11 (sentinel) completes.
 

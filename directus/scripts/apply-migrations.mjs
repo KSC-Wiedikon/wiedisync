@@ -35,12 +35,12 @@ const SCRIPTS_DIR = __dirname
 // ── Env resolution ────────────────────────────────────────────────
 const ENVS = {
   dev: {
-    container: 'supabase-db-vek42jyj0owoutoouq29aisq',
+    container: 'kscw-postgres',
     database: 'directus_kscw_dev',
     user: 'supabase_admin',
   },
   prod: {
-    container: 'supabase-db-vek42jyj0owoutoouq29aisq',
+    container: 'kscw-postgres',
     database: 'postgres',
     user: 'supabase_admin',
   },

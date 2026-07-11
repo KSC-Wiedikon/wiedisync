@@ -42,8 +42,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const OUT = join(__dirname, 'SCHEMA.sql')
 
 const ENVS = {
-  dev: { container: 'supabase-db-vek42jyj0owoutoouq29aisq', database: 'directus_kscw_dev' },
-  prod: { container: 'supabase-db-vek42jyj0owoutoouq29aisq', database: 'postgres' },
+  dev: { container: 'kscw-postgres', database: 'directus_kscw_dev' },
+  prod: { container: 'kscw-postgres', database: 'postgres' },
 }
 
 const envName = process.argv[2]

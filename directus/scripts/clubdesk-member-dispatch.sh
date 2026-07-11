@@ -11,7 +11,7 @@
 # CLUBDESK_ENV (dev|prod) flows through to clubdesk-sync.sh → picks the target DB.
 set -uo pipefail
 DIR=/opt/clubdesk-sync
-PG=supabase-db-vek42jyj0owoutoouq29aisq
+PG=kscw-postgres
 
 # ── Single env selection (claim/write-back DB must never diverge from the sync
 # TARGET) ────────────────────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@
 # writes back the state the button polls. flock keeps a single dispatcher at a time.
 set -uo pipefail
 DIR=/opt/clubdesk-sync
-PG=supabase-db-vek42jyj0owoutoouq29aisq
+PG=kscw-postgres
 DB="${DB:-postgres}"
 
 exec 9>"$DIR/.dispatch.lock"
