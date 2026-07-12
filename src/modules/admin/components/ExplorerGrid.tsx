@@ -34,6 +34,7 @@ import { createRecord, deleteRecord, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
 import { getCurrentSeason } from '../../../utils/dateHelpers'
 import { localizeCountryName } from '../../../utils/countryName'
+import { LANGUAGES } from '../../../i18n/languageConfig'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -76,7 +77,9 @@ type ColKey =
   | 'sport' | 'scorer_vb' | 'referee' | 'officials'
   | 'wiedisync_active' | 'last_online_at' | 'passive' | 'honorary' | 'former'
 
-type ColKind = 'text' | 'email' | 'date' | 'number' | 'teams' | 'ro' | 'bool'
+type ColKind = 'text' | 'email' | 'date' | 'number' | 'teams' | 'ro' | 'bool' | 'select'
+
+interface SelectOption { value: string; label: string }
 
 interface ColDef<K extends string = ColKey> {
   key: K
@@ -85,7 +88,22 @@ interface ColDef<K extends string = ColKey> {
   minW: string
   /** Whether the group-by select offers this column (members view only). */
   groupable?: boolean
+  /** For kind 'select' — the fixed option list (value → display label). */
+  options?: SelectOption[]
+  /** For kind 'bool' — a directly-writable member field (click to toggle).
+   *  Derived flags (passive / honorary / former, referee, officials) omit this
+   *  and stay read-only. */
+  write?: boolean
 }
+
+// Enum option lists for inline-editable select cells. Sex is stored m/f;
+// language is stored as the backend value (german / english / …) shown by its
+// native name.
+const SEX_OPTIONS: SelectOption[] = [
+  { value: 'm', label: 'm' },
+  { value: 'f', label: 'f' },
+]
+const LANGUAGE_OPTIONS: SelectOption[] = LANGUAGES.map((l) => ({ value: l.backendValue, label: l.nativeName }))
 
 // Full catalog — everything the explorer cache already loads (plus derived
 // columns). Default view shows only the name; the rest is opt-in via the
@@ -102,12 +120,12 @@ const COLUMNS: ColDef[] = [
   { key: 'ort', labelKey: 'explorerGridColCity', kind: 'text', minW: 'min-w-32', groupable: true },
   { key: 'nationalitaet', labelKey: 'explorerGridColNationality', kind: 'text', minW: 'min-w-32', groupable: true },
   { key: 'birthdate', labelKey: 'explorerGridColBirthdate', kind: 'date', minW: 'min-w-28', groupable: true },
-  { key: 'sex', labelKey: 'explorerGridColSex', kind: 'ro', minW: 'min-w-20', groupable: true },
-  { key: 'language', labelKey: 'explorerGridColLanguage', kind: 'ro', minW: 'min-w-28', groupable: true },
+  { key: 'sex', labelKey: 'explorerGridColSex', kind: 'select', minW: 'min-w-20', groupable: true, options: SEX_OPTIONS },
+  { key: 'language', labelKey: 'explorerGridColLanguage', kind: 'select', minW: 'min-w-28', groupable: true, options: LANGUAGE_OPTIONS },
   { key: 'number', labelKey: 'explorerGridColNumber', kind: 'number', minW: 'min-w-20' },
   { key: 'position', labelKey: 'explorerGridColPosition', kind: 'ro', minW: 'min-w-32' },
   { key: 'license_nr', labelKey: 'explorerGridColLicense', kind: 'ro', minW: 'min-w-28' },
-  { key: 'scorer_vb', labelKey: 'explorerGridColScorerVb', kind: 'bool', minW: 'min-w-24' },
+  { key: 'scorer_vb', labelKey: 'explorerGridColScorerVb', kind: 'bool', minW: 'min-w-24', write: true },
   { key: 'referee', labelKey: 'explorerGridColReferee', kind: 'ro', minW: 'min-w-24' },
   { key: 'officials', labelKey: 'explorerGridColOfficials', kind: 'ro', minW: 'min-w-36' },
   { key: 'vm_email', labelKey: 'explorerGridColVmEmail', kind: 'email', minW: 'min-w-52' },
@@ -117,7 +135,7 @@ const COLUMNS: ColDef[] = [
   { key: 'honorary', labelKey: 'explorerGridColHonorary', kind: 'bool', minW: 'min-w-24', groupable: true },
   { key: 'former', labelKey: 'explorerGridColFormer', kind: 'bool', minW: 'min-w-24', groupable: true },
   { key: 'role', labelKey: 'explorerGridColRoles', kind: 'ro', minW: 'min-w-32' },
-  { key: 'wiedisync_active', labelKey: 'explorerGridColWiedisyncActive', kind: 'bool', minW: 'min-w-24' },
+  { key: 'wiedisync_active', labelKey: 'explorerGridColWiedisyncActive', kind: 'bool', minW: 'min-w-24', write: true },
   { key: 'last_online_at', labelKey: 'explorerGridColLastOnline', kind: 'ro', minW: 'min-w-32' },
 ]
 
@@ -555,8 +573,8 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
 
   // ── Write paths ────────────────────────────────────────────────
 
-  const saveCell = async (memberId: string, key: ColKey, value: string | null) => {
-    const payload = key === 'number' ? (value == null ? null : Number(value)) : value
+  const saveCell = async (memberId: string, key: ColKey, value: string | boolean | null) => {
+    const payload = key === 'number' ? (value == null || value === '' ? null : Number(value)) : value
     await updateRecord('members', memberId, { [key]: payload })
     logActivity('update', 'members', memberId, { [key]: payload })
     onMutate((prev) => ({
@@ -792,15 +810,45 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
               </TableCell>
             )
           }
-          if (c.kind === 'ro' || c.kind === 'bool') {
+          if (c.kind === 'bool') {
+            const on = !!cellText(m, c.key)
+            const label = t(`admin:${c.labelKey}`)
+            // Writable flag → click-to-toggle; derived flags → read-only.
+            // Either way, false shows no mark (only ✓ for true) for easy scanning.
+            if (c.write && canEdit) {
+              return (
+                <TableCell key={c.key} className={`${c.minW} ${sticky} py-1 text-sm`}>
+                  <BoolToggleCell on={on} label={label} onSave={(next) => saveCell(memberId, c.key, next)} />
+                </TableCell>
+              )
+            }
+            return (
+              <TableCell key={c.key} className={`${c.minW} ${sticky} py-1 text-sm`} title={t('admin:explorerGridReadOnly')}>
+                {on ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-label={label} /> : null}
+              </TableCell>
+            )
+          }
+          if (c.kind === 'select') {
+            const raw = rawField(m, c.key)
+            const value = raw == null || raw === '' ? null : String(raw)
+            return (
+              <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
+                <EditableSelectCell
+                  value={value}
+                  options={c.options ?? []}
+                  canEdit={canEdit}
+                  onSave={(v) => saveCell(memberId, c.key, v)}
+                />
+              </TableCell>
+            )
+          }
+          if (c.kind === 'ro') {
+            // Derived / system-managed columns (sport, referee, officials, role,
+            // licence nr, last online) — no direct field to edit.
             const text = cellText(m, c.key)
             return (
-              <TableCell key={c.key} className={`${c.minW} ${sticky} py-1 text-sm`}>
-                {c.kind === 'bool'
-                  ? (text
-                    ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-label={text} />
-                    : <span className="text-muted-foreground">—</span>)
-                  : (text || <span className="text-muted-foreground">—</span>)}
+              <TableCell key={c.key} className={`${c.minW} ${sticky} py-1 text-sm`} title={t('admin:explorerGridReadOnly')}>
+                {text || <span className="text-muted-foreground">—</span>}
               </TableCell>
             )
           }
@@ -1092,8 +1140,13 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           </div>
         </div>
 
-        {/* Table — one scroll container for both axes */}
-        <div className="min-h-0 flex-1 overflow-auto">
+        {/* Table — this div is the single scroll container for both axes.
+            shadcn's <Table> wraps the <table> in its own overflow-x-auto div;
+            left as-is that inner wrapper becomes the scroll context and the
+            sticky header (top-0) sticks to it instead of here → header scrolls
+            away. Neutralise it with [&>div]:overflow-visible so sticky top-0 /
+            left-0 anchor to this scroller and the header + first column freeze. */}
+        <div className="min-h-0 flex-1 overflow-auto [&>div]:overflow-visible">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -1480,5 +1533,123 @@ function EditableCell({
       {flash && !saving && <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />}
       {shown ?? <span className="text-muted-foreground">—</span>}
     </div>
+  )
+}
+
+// Inline enum cell (sex / language): click to reveal a native <select>; picking
+// commits immediately. At rest it shows the option's display label. Native
+// <select> needs an explicit dark bg so its dropdown isn't white in dark mode.
+function EditableSelectCell({
+  value, options, canEdit, onSave,
+}: {
+  value: string | null
+  options: SelectOption[]
+  canEdit: boolean
+  onSave: (v: string | null) => Promise<void>
+}) {
+  const { t } = useTranslation('admin')
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [flash, setFlash] = useState(false)
+
+  const label = value != null ? (options.find((o) => o.value === value)?.label ?? value) : null
+
+  const commit = async (next: string | null) => {
+    setEditing(false)
+    if (next === (value ?? null)) return
+    setSaving(true)
+    try {
+      await onSave(next)
+      setFlash(true)
+      window.setTimeout(() => setFlash(false), 1000)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('explorerGridSaveError'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <select
+        autoFocus
+        value={value ?? ''}
+        onChange={(e) => { void commit(e.target.value === '' ? null : e.target.value) }}
+        onBlur={() => setEditing(false)}
+        className="w-full min-w-16 rounded border border-primary bg-background px-1 py-0.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary dark:bg-gray-800"
+      >
+        <option value="">—</option>
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    )
+  }
+
+  return (
+    <div
+      role={canEdit ? 'button' : undefined}
+      tabIndex={canEdit ? 0 : undefined}
+      onClick={() => { if (canEdit && !saving) setEditing(true) }}
+      onKeyDown={(e) => { if (canEdit && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setEditing(true) } }}
+      className={
+        'flex min-h-7 items-center gap-1 rounded px-1 -mx-1 text-sm ' +
+        (canEdit ? 'cursor-pointer hover:bg-muted/80 hover:ring-1 hover:ring-border ' : '') +
+        (flash ? 'ring-1 ring-emerald-500/70 ' : '')
+      }
+    >
+      {saving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+      {flash && !saving && <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />}
+      {label ?? <span className="text-muted-foreground">—</span>}
+    </div>
+  )
+}
+
+// Inline boolean cell for directly-writable member flags (scorer_vb,
+// wiedisync_active). True renders ✓; false renders nothing (only a faint box on
+// hover) so the checked rows stand out at a glance. Click toggles + saves.
+function BoolToggleCell({
+  on, label, onSave,
+}: {
+  on: boolean
+  label: string
+  onSave: (next: boolean) => Promise<void>
+}) {
+  const { t } = useTranslation('admin')
+  const [saving, setSaving] = useState(false)
+  const [flash, setFlash] = useState(false)
+
+  const toggle = async () => {
+    if (saving) return
+    setSaving(true)
+    try {
+      await onSave(!on)
+      setFlash(true)
+      window.setTimeout(() => setFlash(false), 1000)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('explorerGridSaveError'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      title={label}
+      disabled={saving}
+      onClick={() => { void toggle() }}
+      className={
+        'group/bool flex h-6 w-8 items-center justify-center rounded hover:bg-muted/70 disabled:opacity-50 ' +
+        (flash ? 'ring-1 ring-emerald-500/70 ' : '')
+      }
+    >
+      {saving
+        ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+        : on
+          ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          : <span className="h-3.5 w-3.5 rounded-sm border border-muted-foreground/50 opacity-0 transition-opacity group-hover/bool:opacity-100" />}
+    </button>
   )
 }
