@@ -43,12 +43,12 @@ export default function ExplorerDetail({ cache, type, id, onSelect, onBack }: Pr
   const { t } = useTranslation('admin')
   const { t: tCommon } = useTranslation('common')
   const related = useRelatedEntities()
-  const { isGlobalAdmin, isVorstand } = useAuth()
+  const { isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin } = useAuth()
   const showRestrictedSections = isGlobalAdmin || isVorstand
-  // Only Admin + Vorstand get the inline edit affordance; Directus policy
-  // makes the final call (PATCH 403s for everyone else even if the button
-  // were shown).
-  const canEditMember = isGlobalAdmin || isVorstand
+  // Admin + Vorstand + sport admins get the inline edit affordance; Directus
+  // policy makes the final call (PATCH 403s for everyone else even if the
+  // button were shown — note Vorstand is read-only at the policy layer).
+  const canEditMember = isGlobalAdmin || isVorstand || isVbAdmin || isBbAdmin
 
   const entity = useMemo(() => {
     if (!type || !id) return null

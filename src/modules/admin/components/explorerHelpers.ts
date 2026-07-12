@@ -12,6 +12,15 @@ export interface ExplorerEntity {
   sublabel?: string
 }
 
+/** One member_teams junction row — kept with its id so the grid can edit/delete it. */
+export interface MemberTeamRow {
+  id: string
+  member: string
+  team: string
+  guest_level: number
+  season: string | null
+}
+
 export interface CacheShape {
   members: Member[]
   teams: Team[]
@@ -20,11 +29,24 @@ export interface CacheShape {
   games: Game[]
   /** memberId → array of team ids (from member_teams junction — players) */
   memberTeams: Map<string, string[]>
+  /** Raw member_teams junction rows (with ids) — the editable source the grid mutates. */
+  memberTeamRows: MemberTeamRow[]
   /** memberId → array of team ids they coach (from teams_coaches junction) */
   memberCoachTeams: Map<string, string[]>
   /** memberId → array of team ids they are team responsible for (from teams_responsibles junction) */
   memberTrTeams: Map<string, string[]>
   loadedAt: number | null
+}
+
+/** Rebuild the memberId → teamIds map from junction rows (after a grid mutation). */
+export function buildMemberTeamsMap(rows: MemberTeamRow[]): Map<string, string[]> {
+  const map = new Map<string, string[]>()
+  for (const r of rows) {
+    const existing = map.get(r.member)
+    if (existing) existing.push(r.team)
+    else map.set(r.member, [r.team])
+  }
+  return map
 }
 
 /**

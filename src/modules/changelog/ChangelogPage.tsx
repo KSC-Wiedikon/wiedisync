@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.35.0'
+const APP_VERSION = '1.36.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,26 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.36.0',
+    date: '12.07.2026',
+    sections: [
+      {
+        title: 'Data explorer grid view',
+        items: [
+          'The Data explorer now has a spreadsheet mode (toggle in the header): a team rail with member counts next to a dense, sortable member table. Shows first / last name by default — add any of 19 columns via the column chooser.',
+          'Sport admins and above edit cells in place — changes save field-by-field, and the Teams column adds or removes team memberships directly.',
+          'Group rows by team, city, nationality, birth year and more; search across every column; export the current view to Excel or PDF.',
+        ],
+      },
+      {
+        title: 'Tidier admin menu',
+        items: [
+          'The Admin dropdown is organized into sections (Planning & halls, Game operations, Members & communication, Data & insights) on desktop and mobile.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.35.0',
     date: '11.07.2026',

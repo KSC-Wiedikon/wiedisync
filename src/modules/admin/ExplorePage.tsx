@@ -2,7 +2,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { RefreshCw } from 'lucide-react'
+import { LayoutGrid, ListTree, RefreshCw } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { useExplorerCache } from './hooks/useExplorerCache'
@@ -10,6 +10,7 @@ import { getExplorerScope, type BucketKey } from './components/explorerHelpers'
 import ExplorerSearch from './components/ExplorerSearch'
 import ExplorerTree from './components/ExplorerTree'
 import ExplorerDetail from './components/ExplorerDetail'
+import ExplorerGrid from './components/ExplorerGrid'
 import ExplorerMemberFilters, {
   EMPTY_FILTERS,
   applyMemberFilters,
@@ -17,6 +18,13 @@ import ExplorerMemberFilters, {
 } from './components/ExplorerMemberFilters'
 
 const VALID_TYPES: readonly BucketKey[] = ['members', 'teams', 'events', 'trainings', 'games']
+
+type ExplorerView = 'tree' | 'grid'
+const VIEW_LS_KEY = 'kscw-explorer-view'
+
+function storedView(): ExplorerView {
+  try { return localStorage.getItem(VIEW_LS_KEY) === 'grid' ? 'grid' : 'tree' } catch { return 'tree' }
+}
 
 export default function ExplorePage() {
   const { t } = useTranslation('admin')
@@ -30,7 +38,12 @@ export default function ExplorePage() {
     }),
     [auth.isGlobalAdmin, auth.isVorstand, auth.isVbAdmin, auth.isBbAdmin],
   )
-  const { data, isLoading, error, refresh } = useExplorerCache(scope)
+  const { data, isLoading, error, refresh, mutate } = useExplorerCache(scope)
+
+  // Grid editing gate: global admins + sport admins. The Vorstand policy is
+  // read-only on members/member_teams at the Directus layer, so it gets a
+  // read-only grid (writes would 403 anyway).
+  const canEditGrid = auth.isGlobalAdmin || auth.isVbAdmin || auth.isBbAdmin
 
   // Report to the app boot gate — see usePageReady.tsx. Only the initial load
   // (before any cache lands) holds the boot spinner; refreshes keep the page
@@ -44,6 +57,19 @@ export default function ExplorePage() {
     ? (rawType as BucketKey)
     : null
   const selectedId = rawId && /^[\w-]+$/.test(rawId) ? rawId : null
+
+  // View mode: explicit ?v= wins, otherwise the last choice from localStorage.
+  const rawView = params.get('v')
+  const view: ExplorerView = rawView === 'grid' || rawView === 'tree' ? rawView : storedView()
+
+  const setView = useCallback((next: ExplorerView) => {
+    try { localStorage.setItem(VIEW_LS_KEY, next) } catch { /* quota — non-fatal */ }
+    setParams((prev) => {
+      const p = new URLSearchParams(prev)
+      p.set('v', next)
+      return p
+    }, { replace: false })
+  }, [setParams])
 
   const [query, setQuery] = useState('')
   const [memberFilters, setMemberFilters] = useState<MemberFilterState>(EMPTY_FILTERS)
@@ -59,14 +85,22 @@ export default function ExplorePage() {
 
   const handleSelect = useCallback(
     (type: BucketKey, id: string) => {
-      setParams({ t: type, id }, { replace: false })
+      setParams({ t: type, id, v: 'tree' }, { replace: false })
     },
     [setParams],
   )
 
   const handleBackToTree = useCallback(() => {
-    setParams({}, { replace: false })
+    setParams({ v: 'tree' }, { replace: false })
   }, [setParams])
+
+  // Grid row → full detail view (tree mode with the member selected).
+  const handleOpenDetail = useCallback(
+    (memberId: string) => {
+      setParams({ t: 'members', id: memberId, v: 'tree' }, { replace: false })
+    },
+    [setParams],
+  )
 
   const handleRefresh = useCallback(() => {
     void refresh()
@@ -87,6 +121,35 @@ export default function ExplorePage() {
           <ExplorerSearch value={query} onChange={setQuery} />
         </div>
         <ExplorerMemberFilters value={memberFilters} onChange={setMemberFilters} />
+        {/* Tree / grid view toggle */}
+        <div className="flex overflow-hidden rounded-md border border-border" role="group" aria-label={t('explorerViewToggle')}>
+          <button
+            type="button"
+            onClick={() => setView('tree')}
+            className={
+              'inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium ' +
+              (view === 'tree' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground hover:bg-muted')
+            }
+            title={t('explorerViewTree')}
+            aria-pressed={view === 'tree'}
+          >
+            <ListTree className="h-3.5 w-3.5" />
+            <span className="hidden lg:inline">{t('explorerViewTree')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('grid')}
+            className={
+              'inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium ' +
+              (view === 'grid' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground hover:bg-muted')
+            }
+            title={t('explorerViewGrid')}
+            aria-pressed={view === 'grid'}
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            <span className="hidden lg:inline">{t('explorerViewGrid')}</span>
+          </button>
+        </div>
         <button
           type="button"
           onClick={handleRefresh}
@@ -99,7 +162,25 @@ export default function ExplorePage() {
         </button>
       </header>
 
-      {/* Body */}
+      {/* Body — grid view */}
+      {view === 'grid' && (
+        isLoading && !data.loadedAt ? (
+          <div className="p-4 text-sm text-muted-foreground">{t('explorerLoading')}</div>
+        ) : error ? (
+          <div className="p-4 text-sm text-destructive">{t('explorerError')}</div>
+        ) : (
+          <ExplorerGrid
+            cache={treeData}
+            query={query}
+            canEdit={canEditGrid}
+            onOpenDetail={handleOpenDetail}
+            onMutate={mutate}
+          />
+        )
+      )}
+
+      {/* Body — tree + detail view */}
+      {view === 'tree' && (
       <div className="flex min-h-0 flex-1">
         {/* Tree — hidden on mobile when a detail is open */}
         <aside
@@ -139,6 +220,7 @@ export default function ExplorePage() {
           />
         </main>
       </div>
+      )}
     </div>
   )
 }

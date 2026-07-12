@@ -42,10 +42,13 @@ function pathMatches(pathname: string, to: string) {
 
 /** A grouped top-nav category that opens a dropdown of its items. */
 function NavCategory({
-  label, items, leadingItem, extra, extraLabel, messagingOn, unreadMessages,
+  label, items, groups, leadingItem, extra, extraLabel, messagingOn, unreadMessages,
 }: {
   label: string
-  items: NavItem[]
+  /** Flat item list — mutually exclusive with `groups`. */
+  items?: NavItem[]
+  /** Labeled sections rendered with sub-headers (used by the Admin dropdown). */
+  groups?: Array<{ label: string; items: NavItem[] }>
   leadingItem?: NavItem | null
   extra?: NavItem[]
   extraLabel?: string
@@ -54,9 +57,10 @@ function NavCategory({
 }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const all = [...(leadingItem ? [leadingItem] : []), ...items, ...(extra ?? [])]
+  const flat = groups ? groups.flatMap((g) => g.items) : (items ?? [])
+  const all = [...(leadingItem ? [leadingItem] : []), ...flat, ...(extra ?? [])]
   const isActive = all.some((i) => i.to && pathMatches(location.pathname, i.to))
-  const hasInboxBadge = messagingOn && unreadMessages > 0 && items.some((i) => i.to === '/inbox')
+  const hasInboxBadge = messagingOn && unreadMessages > 0 && flat.some((i) => i.to === '/inbox')
 
   const go = (item: NavItem) => {
     // External hops (e.g. the Spielplanung subdomain) break out of an installed
@@ -98,13 +102,29 @@ function NavCategory({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[14rem]">
-        {leadingItem && (
+        {groups ? (
+          groups.map((g, gi) => (
+            <div key={g.label}>
+              {gi > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                {g.label}
+              </DropdownMenuLabel>
+              {/* The dynamic Planning entry (scheduling subdomain) leads the first group. */}
+              {gi === 0 && leadingItem && renderItem(leadingItem)}
+              {g.items.map(renderItem)}
+            </div>
+          ))
+        ) : (
           <>
-            {renderItem(leadingItem)}
-            <DropdownMenuSeparator />
+            {leadingItem && (
+              <>
+                {renderItem(leadingItem)}
+                <DropdownMenuSeparator />
+              </>
+            )}
+            {(items ?? []).map(renderItem)}
           </>
         )}
-        {items.map(renderItem)}
         {extra && extra.length > 0 && (
           <>
             <DropdownMenuSeparator />
@@ -127,7 +147,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
   const messagingOn = messagingFeatureEnabled(user?.id)
   const unreadMessages = useUnreadTotal()
   const [optionsOpen, setOptionsOpen] = useState(false)
-  const { navItems, memberToolsItems, financeItems, schedulingItem, adminItems, superadminItems } =
+  const { navItems, memberToolsItems, financeItems, schedulingItem, adminGroups, superadminItems } =
     useNavItems(!!user, isApproved, user?.id)
 
   // navItems[0] is always Home — it stays a direct link; the rest (Calendar,
@@ -216,7 +236,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
         {isAdmin && (
           <NavCategory
             label={t('admin')}
-            items={adminItems}
+            groups={adminGroups}
             leadingItem={schedulingItem}
             extra={isSuperAdmin ? superadminItems : undefined}
             extraLabel={t('superadmin')}
