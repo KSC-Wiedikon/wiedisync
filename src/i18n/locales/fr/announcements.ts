@@ -27,6 +27,12 @@ export default {
   publish: 'Publier (visible immédiatement)',
   notifyPush: 'Envoyer une notification push',
   notifyEmail: 'Envoyer un email',
+  emailLayout: 'Mise en page de l’e-mail',
+  emailLayoutStandard: 'Standard',
+  emailLayoutNewsletter: 'Newsletter',
+  emailLayoutHint: 'La newsletter utilise une mise en page large et affiche l’image de l’annonce en tête.',
+  emailReplyTo: 'Adresse de réponse',
+  emailReplyToHint: 'Les réponses vont à cette adresse. Laisser vide pour no-reply.',
 
   statusPublished: 'Publié',
   statusDraft: 'Brouillon',

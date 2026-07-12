@@ -27,6 +27,12 @@ export default {
   publish: 'Veröffentliche (gli sichtbar)',
   notifyPush: 'Push-Mitteilig schicke',
   notifyEmail: 'E-Mail schicke',
+  emailLayout: 'E-Mail-Layout',
+  emailLayoutStandard: 'Standard',
+  emailLayoutNewsletter: 'Newsletter',
+  emailLayoutHint: 'De Newsletter bruucht es breits Masthead-Layout und zeigt s Bild vo de Mitteilig als Hero.',
+  emailReplyTo: 'Antwortadrässe',
+  emailReplyToHint: 'Antworte gönd a die Adrässe. Läär laa für No-Reply.',
 
   statusPublished: 'Veröffentlicht',
   statusDraft: 'Entwurf',

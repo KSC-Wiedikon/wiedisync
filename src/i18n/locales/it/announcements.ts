@@ -27,6 +27,12 @@ export default {
   publish: 'Pubblica (visibile subito)',
   notifyPush: 'Invia notifica push',
   notifyEmail: 'Invia email',
+  emailLayout: 'Layout e-mail',
+  emailLayoutStandard: 'Standard',
+  emailLayoutNewsletter: 'Newsletter',
+  emailLayoutHint: 'La newsletter usa un layout ampio e mostra l’immagine dell’annuncio come intestazione.',
+  emailReplyTo: 'Indirizzo di risposta',
+  emailReplyToHint: 'Le risposte vanno a questo indirizzo. Lasciare vuoto per no-reply.',
 
   statusPublished: 'Pubblicato',
   statusDraft: 'Bozza',

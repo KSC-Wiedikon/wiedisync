@@ -37,6 +37,8 @@ interface FormState {
   audience_sport: 'volleyball' | 'basketball' | null
   notify_push: boolean
   notify_email: boolean
+  email_layout: 'standard' | 'newsletter'
+  reply_to: string
   translations: Partial<Record<AnnouncementLocale, AnnouncementTranslation>>
 }
 
@@ -52,6 +54,8 @@ const emptyForm: FormState = {
   audience_sport: null,
   notify_push: false,
   notify_email: false,
+  email_layout: 'standard',
+  reply_to: '',
   translations: { de: { title: '', body: '' } },
 }
 
@@ -105,6 +109,8 @@ export default function AnnouncementsPage() {
       audience_sport: a.audience_sport ?? null,
       notify_push: !!a.notify_push,
       notify_email: !!a.notify_email,
+      email_layout: a.email_layout === 'newsletter' ? 'newsletter' : 'standard',
+      reply_to: a.reply_to ?? '',
       translations: { ...a.translations, de: a.translations?.de ?? { title: '', body: '' } },
     })
     setActiveLocale('de')
@@ -187,6 +193,8 @@ export default function AnnouncementsPage() {
       audience_sport: form.audience_type === 'sport' ? form.audience_sport : null,
       notify_push: form.notify_push,
       notify_email: form.notify_email,
+      email_layout: form.email_layout,
+      reply_to: form.reply_to.trim() || null,
       translations: cleanedTranslations,
     }
     if (!form.id && user?.id) payload.created_by = user.id
@@ -544,7 +552,13 @@ export default function AnnouncementsPage() {
               <input
                 type="checkbox"
                 checked={form.notify_email}
-                onChange={(e) => setForm((f) => ({ ...f, notify_email: e.target.checked }))}
+                onChange={(e) => setForm((f) => ({
+                  ...f,
+                  notify_email: e.target.checked,
+                  // Prefill Reply-to with the composing admin's own email the
+                  // first time email is enabled; clearing it keeps no-reply.
+                  reply_to: e.target.checked && !f.reply_to ? (user?.email ?? '') : f.reply_to,
+                }))}
                 disabled={!form.publishNow}
                 className="h-4 w-4 rounded text-brand-600"
               />
@@ -552,6 +566,39 @@ export default function AnnouncementsPage() {
               {t('notifyEmail')}
             </label>
           </div>
+
+          {/* Email options — layout + reply-to (only when emailing) */}
+          {form.notify_email && (
+            <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                  {t('emailLayout')}
+                </label>
+                <select
+                  value={form.email_layout}
+                  onChange={(e) => setForm((f) => ({ ...f, email_layout: e.target.value as 'standard' | 'newsletter' }))}
+                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                >
+                  <option value="standard">{t('emailLayoutStandard')}</option>
+                  <option value="newsletter">{t('emailLayoutNewsletter')}</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('emailLayoutHint')}</p>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                  {t('emailReplyTo')}
+                </label>
+                <input
+                  type="email"
+                  value={form.reply_to}
+                  onChange={(e) => setForm((f) => ({ ...f, reply_to: e.target.value }))}
+                  placeholder="noreply"
+                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('emailReplyToHint')}</p>
+              </div>
+            </div>
+          )}
 
           {/* Footer */}
           <div className="flex items-center justify-end gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">

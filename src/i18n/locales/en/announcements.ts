@@ -27,6 +27,12 @@ export default {
   publish: 'Publish (visible immediately)',
   notifyPush: 'Send push notification',
   notifyEmail: 'Send email',
+  emailLayout: 'Email layout',
+  emailLayoutStandard: 'Standard',
+  emailLayoutNewsletter: 'Newsletter',
+  emailLayoutHint: 'Newsletter uses a wide masthead layout and shows the announcement image as a hero.',
+  emailReplyTo: 'Reply-to',
+  emailReplyToHint: 'Replies go to this address. Leave empty for no-reply.',
 
   statusPublished: 'Published',
   statusDraft: 'Draft',
