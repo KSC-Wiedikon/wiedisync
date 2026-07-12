@@ -112,8 +112,9 @@ export default function ExplorePage() {
   return (
     // Mobile: natural height — one scroll context (Layout's <main>), no nested
     // scroller to trap touch gestures or hide content behind the bottom tab bar.
-    // md+: fixed workspace height with internally scrolling tree + detail panes.
-    <div className="flex flex-col bg-background text-foreground md:h-[calc(100vh-4rem)]">
+    // md+: Layout renders this route full-bleed (main is overflow-hidden flex),
+    // so h-full + min-h-0 fills the viewport exactly — internal scrolling only.
+    <div className="flex flex-col bg-background text-foreground md:min-h-0 md:flex-1 md:h-full">
       {/* Header */}
       <header className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 md:px-4">
         <h1 className="hidden text-sm font-bold text-primary md:block">{t('explorerTitle')}</h1>
