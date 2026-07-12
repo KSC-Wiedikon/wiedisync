@@ -124,6 +124,29 @@ function sportOf(team: { sport?: string } | undefined): Sport {
   return 'other'
 }
 
+// Rail sections: per sport, teams sub-grouped by gender (women → men → mixed →
+// ungendered) and alphabetically sorted within each sub-group.
+type GenderKey = 'f' | 'm' | 'mixed' | 'other'
+const GENDER_ORDER: GenderKey[] = ['f', 'm', 'mixed', 'other']
+const GENDER_LABEL_KEY: Record<GenderKey, string | null> = {
+  f: 'explorerGridGenderWomen',
+  m: 'explorerGridGenderMen',
+  mixed: 'explorerGridGenderMixed',
+  other: null,
+}
+
+interface TeamSection {
+  sport: Sport
+  gender: GenderKey
+  teams: Array<{ id: string; label: string; count: number }>
+}
+
+function genderOf(team: { gender?: string | null } | undefined): GenderKey {
+  const g = team?.gender
+  if (g === 'f' || g === 'm' || g === 'mixed') return g
+  return 'other'
+}
+
 /** Raw field access — the catalog is wider than the Member type guarantees. */
 function rawField(m: Member, key: ColKey): unknown {
   return (m as unknown as Record<string, unknown>)[key]
@@ -159,23 +182,29 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     return map
   }, [cache.memberTeamRows, teamById])
 
-  // Group rail: teams grouped by sport, with member counts within the current
-  // filtered member set.
-  const teamGroups = useMemo(() => {
+  // Group rail: teams sectioned by sport → gender, alphabetical within each
+  // section, with member counts within the current filtered member set.
+  const teamSections = useMemo((): TeamSection[] => {
     const memberIds = new Set(cache.members.map((m) => String(m.id)))
     const counts = new Map<string, number>()
     for (const [mid, rows] of rowsByMember) {
       if (!memberIds.has(mid)) continue
       for (const r of rows) counts.set(r.team, (counts.get(r.team) ?? 0) + 1)
     }
-    const groups: Array<{ sport: Sport; teams: Array<{ id: string; label: string; count: number }> }> = []
+    const sections: TeamSection[] = []
     for (const sport of SPORTS) {
-      const teams = cache.teams
-        .filter((tm) => sportOf(tm as unknown as { sport?: string }) === sport)
-        .map((tm) => ({ id: String(tm.id), label: teamLabel(tm), count: counts.get(String(tm.id)) ?? 0 }))
-      if (teams.length > 0) groups.push({ sport, teams })
+      for (const gender of GENDER_ORDER) {
+        const teams = cache.teams
+          .filter((tm) => {
+            const meta = tm as unknown as { sport?: string; gender?: string | null }
+            return sportOf(meta) === sport && genderOf(meta) === gender
+          })
+          .map((tm) => ({ id: String(tm.id), label: teamLabel(tm), count: counts.get(String(tm.id)) ?? 0 }))
+          .sort((a, b) => a.label.localeCompare(b.label, 'de-CH', { numeric: true, sensitivity: 'base' }))
+        if (teams.length > 0) sections.push({ sport, gender, teams })
+      }
     }
-    return groups
+    return sections
   }, [cache.members, cache.teams, rowsByMember])
 
   const sportLabel = useMemo(() => (sport: Sport): string => {
@@ -231,10 +260,10 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     if (groupBy === 'none') return [{ label: null, rows }]
     if (groupBy === 'teams') {
       const out: Array<{ label: string | null; rows: Member[] }> = []
-      for (const g of teamGroups) {
-        for (const tm of g.teams) {
+      for (const sec of teamSections) {
+        for (const tm of sec.teams) {
           const members = rows.filter((m) => (rowsByMember.get(String(m.id)) ?? []).some((r) => r.team === tm.id))
-          if (members.length > 0) out.push({ label: `${tm.label} · ${sportLabel(g.sport)}`, rows: members })
+          if (members.length > 0) out.push({ label: `${tm.label} · ${sportLabel(sec.sport)}`, rows: members })
         }
       }
       const noTeam = rows.filter((m) => (rowsByMember.get(String(m.id)) ?? []).length === 0)
@@ -254,7 +283,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     return [...byValue.entries()]
       .sort((a, b) => a[0].localeCompare(b[0], 'de-CH', { numeric: true }))
       .map(([label, members]) => ({ label, rows: members }))
-  }, [groupBy, rows, teamGroups, rowsByMember, cellText, t, sportLabel])
+  }, [groupBy, rows, teamSections, rowsByMember, cellText, t, sportLabel])
 
   const visibleCols = visibleKeys
     .map((k) => COL_BY_KEY.get(k))
@@ -433,7 +462,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
                 <TeamsCell
                   member={m}
                   memberRows={memberRows}
-                  teamGroups={teamGroups}
+                  teamSections={teamSections}
                   teamById={teamById}
                   canEdit={canEdit}
                   onAdd={(teamId) => addTeam(m, teamId)}
@@ -485,22 +514,33 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           onClick={() => setSelectedGroup('all')}
           icon={<Users className="h-3.5 w-3.5" />}
         />
-        {teamGroups.map((g) => (
-          <div key={g.sport} className="mt-2">
-            <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {sportLabel(g.sport)}
+        {teamSections.map((sec, i) => {
+          const newSport = i === 0 || teamSections[i - 1].sport !== sec.sport
+          const genderKey = GENDER_LABEL_KEY[sec.gender]
+          return (
+            <div key={`${sec.sport}-${sec.gender}`} className={newSport ? 'mt-2' : 'mt-1'}>
+              {newSport && (
+                <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {sportLabel(sec.sport)}
+                </div>
+              )}
+              {genderKey && (
+                <div className="px-2 pb-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                  {t(`admin:${genderKey}`)}
+                </div>
+              )}
+              {sec.teams.map((tm) => (
+                <GroupButton
+                  key={tm.id}
+                  active={selectedGroup === tm.id}
+                  label={tm.label}
+                  count={tm.count}
+                  onClick={() => setSelectedGroup(tm.id)}
+                />
+              ))}
             </div>
-            {g.teams.map((tm) => (
-              <GroupButton
-                key={tm.id}
-                active={selectedGroup === tm.id}
-                label={tm.label}
-                count={tm.count}
-                onClick={() => setSelectedGroup(tm.id)}
-              />
-            ))}
-          </div>
-        ))}
+          )
+        })}
       </aside>
 
       {/* Grid pane */}
@@ -515,13 +555,17 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
             aria-label={t('admin:explorerGridGroups')}
           >
             <option value="all">{t('admin:explorerGridAllMembers')}</option>
-            {teamGroups.map((g) => (
-              <optgroup key={g.sport} label={sportLabel(g.sport)}>
-                {g.teams.map((tm) => (
-                  <option key={tm.id} value={tm.id}>{tm.label}</option>
-                ))}
-              </optgroup>
-            ))}
+            {teamSections.map((sec) => {
+              const genderKey = GENDER_LABEL_KEY[sec.gender]
+              const label = genderKey ? `${sportLabel(sec.sport)} · ${t(`admin:${genderKey}`)}` : sportLabel(sec.sport)
+              return (
+                <optgroup key={`${sec.sport}-${sec.gender}`} label={label}>
+                  {sec.teams.map((tm) => (
+                    <option key={tm.id} value={tm.id}>{tm.label}</option>
+                  ))}
+                </optgroup>
+              )
+            })}
           </select>
 
           <span className="text-xs text-muted-foreground">
@@ -792,11 +836,11 @@ function EditableCell({
 // Teams column: player-membership chips (guest memberships dashed) with remove,
 // plus a searchable add-popover listing scoped teams grouped by sport.
 function TeamsCell({
-  member, memberRows, teamGroups, teamById, canEdit, onAdd, onRemove,
+  member, memberRows, teamSections, teamById, canEdit, onAdd, onRemove,
 }: {
   member: Member
   memberRows: MemberTeamRow[]
-  teamGroups: Array<{ sport: Sport; teams: Array<{ id: string; label: string; count: number }> }>
+  teamSections: TeamSection[]
   teamById: Map<string, Team>
   canEdit: boolean
   onAdd: (teamId: string) => Promise<void>
@@ -888,15 +932,19 @@ function TeamsCell({
               <CommandInput placeholder={t('admin:explorerGridSearchTeams')} />
               <CommandList>
                 <CommandEmpty>{t('admin:explorerGridNoTeams')}</CommandEmpty>
-                {teamGroups.map((g) => {
-                  const available = g.teams.filter((tm) => !assigned.has(tm.id))
+                {teamSections.map((sec) => {
+                  const available = sec.teams.filter((tm) => !assigned.has(tm.id))
                   if (available.length === 0) return null
+                  const genderKey = GENDER_LABEL_KEY[sec.gender]
+                  const heading = genderKey
+                    ? `${sportLabel(sec.sport)} · ${t(`admin:${genderKey}`)}`
+                    : sportLabel(sec.sport)
                   return (
-                    <CommandGroup key={g.sport} heading={sportLabel(g.sport)}>
+                    <CommandGroup key={`${sec.sport}-${sec.gender}`} heading={heading}>
                       {available.map((tm) => (
                         <CommandItem
                           key={tm.id}
-                          value={`${tm.label} ${sportLabel(g.sport)}`}
+                          value={`${tm.label} ${heading}`}
                           onSelect={() => { void handleAdd(tm.id) }}
                         >
                           {tm.label}

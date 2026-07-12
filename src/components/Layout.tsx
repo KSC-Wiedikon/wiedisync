@@ -67,19 +67,23 @@ export default function Layout() {
         />
       )}
 
-      {/* Main content */}
+      {/* Main content. Full-bleed workspace routes (desktop) manage their own
+          internal scrolling — main stops scrolling and drops its padding so the
+          page fills the viewport exactly (no outer scrollbar). */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <main className={`flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 ${
-          !isDesktop ? 'pb-24' : ''
-        }`}>
+        <main className={
+          isDesktop && location.pathname.startsWith('/admin/explore')
+            ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+            : `flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 ${!isDesktop ? 'pb-24' : ''}`
+        }>
           {isAdminMode && !onScheduling && (
             <div
-              className="
-                -mx-4 -mt-4 mb-4 border-x border-b border-t-2 border-gold-400 bg-gold-50 px-4 py-1 text-center text-xs font-semibold uppercase tracking-wider text-gold-700
-                sm:-mx-6 sm:-mt-6
-                lg:-mx-8 lg:-mt-8
-                dark:bg-brand-900/50 dark:text-gold-300
-              "
+              className={
+                'border-x border-b border-t-2 border-gold-400 bg-gold-50 px-4 py-1 text-center text-xs font-semibold uppercase tracking-wider text-gold-700 dark:bg-brand-900/50 dark:text-gold-300 ' +
+                (isDesktop && location.pathname.startsWith('/admin/explore')
+                  ? 'shrink-0'
+                  : '-mx-4 -mt-4 mb-4 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8')
+              }
             >
               {t('adminMode')}
             </div>

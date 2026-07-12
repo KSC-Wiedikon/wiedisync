@@ -98,8 +98,11 @@ RLOG=/tmp/refresh_restore_${TS}.log
 ALLOW_SQL="'admin@kscw.ch','aniish.k@hotmail.com','anja_jimenez@hotmail.com','cron-service@kscw.ch','luca.canepa@gmail.com','thamayanth.kanagalingam@uzh.ch'"
 
 echo "[1/7] Capturing dev service-account creds (for re-pin after clone)"
+# id is captured FIRST and used as the re-pin key: it survives the PII scrub
+# (which rewrites emails), so both allowlist service accounts AND token-holding
+# members (e.g. the db:smoke test member) get their token restored.
 docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -t -A -F'|' </dev/null \
-  -c "SELECT email, coalesce(password,''), coalesce(token,'') FROM directus_users WHERE token IS NOT NULL OR lower(email) IN ($ALLOW_SQL);" \
+  -c "SELECT id, email, coalesce(password,''), coalesce(token,'') FROM directus_users WHERE token IS NOT NULL OR lower(email) IN ($ALLOW_SQL);" \
   > "$CREDS" 2>/dev/null || true
 
 echo "[2/7] Safety snapshot of dev -> $BACKUP"
@@ -193,20 +196,24 @@ else
   echo "[6/7] Scrub SKIPPED (--no-scrub)"
 fi
 
-echo "[7/7] Re-pinning dev service creds onto cloned allowlist accounts"
+echo "[7/7] Re-pinning dev creds by id (allowlist passwords + all captured tokens)"
 # awk builds the UPDATEs (no shell expansion of the \$-laden password hashes);
 # \047 is a single quote, so the awk program stays single-quote-safe.
+# Fields: $1=id  $2=email  $3=password  $4=token.
+# Key on id (not email) so member tokens survive the email scrub. Passwords are
+# re-pinned for allowlist service accounts only; tokens for every captured row
+# (allowlist service tokens + member smoke tokens alike).
 awk -F'|' '
   BEGIN{
     a["admin@kscw.ch"]=1;a["cron-service@kscw.ch"]=1;a["luca.canepa@gmail.com"]=1;
     a["aniish.k@hotmail.com"]=1;a["anja_jimenez@hotmail.com"]=1;a["thamayanth.kanagalingam@uzh.ch"]=1;
   }
   function q(s){ gsub(/\047/,"\047\047",s); return "\047" s "\047" }
-  (tolower($1) in a){
+  ($1!=""){
     s="";
-    if($2!=""){ s="password=" q($2) }
-    if($3!=""){ if(s!="") s=s", "; s=s "token=" q($3) }
-    if(s!="") printf "UPDATE directus_users SET %s WHERE lower(email)=lower(%s);\n", s, q($1)
+    if((tolower($2) in a) && $3!=""){ s="password=" q($3) }
+    if($4!=""){ if(s!="") s=s", "; s=s "token=" q($4) }
+    if(s!="") printf "UPDATE directus_users SET %s WHERE id=%s;\n", s, q($1)
   }
 ' "$CREDS" > "$REPIN"
 if ! docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 -q < "$REPIN"; then

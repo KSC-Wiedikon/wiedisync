@@ -254,6 +254,9 @@ export default {
   explorerGridExportExcel: 'Excel (.xlsx)',
   explorerGridExportPdf: 'PDF',
   explorerGridExportFailed: 'Esportazione non riuscita',
+  explorerGridGenderWomen: 'Femminile',
+  explorerGridGenderMen: 'Maschile',
+  explorerGridGenderMixed: 'Misto',
 
   // Filtri membri (Explorer)
   memberFilterTitle: 'Filtri membri',

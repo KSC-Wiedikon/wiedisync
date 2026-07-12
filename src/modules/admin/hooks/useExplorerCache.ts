@@ -94,7 +94,7 @@ export function useExplorerCache(scope: ExplorerScope) {
         }),
         fetchAllItems<Team>('teams', {
           filter: f.teams,
-          fields: ['id', 'name', 'full_name', 'sport', 'season', 'active', 'league', 'captain', 'coach', 'team_responsible'],
+          fields: ['id', 'name', 'full_name', 'sport', 'gender', 'season', 'active', 'league', 'captain', 'coach', 'team_responsible'],
           sort: ['sport', 'name'],
         }),
         fetchAllItems<EventRec>('events', {
