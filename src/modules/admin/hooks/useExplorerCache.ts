@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchAllItems } from '../../../lib/api'
 import type { Member, Team, Event as EventRec, Training, Game } from '../../../types'
-import type { ExplorerScope, CacheShape } from '../components/explorerHelpers'
+import type { ExplorerScope, CacheShape, MemberTeamRow } from '../components/explorerHelpers'
+import { buildMemberTeamsMap } from '../components/explorerHelpers'
 
 export interface CacheFilters {
   members: Record<string, unknown> | undefined
@@ -41,7 +42,7 @@ export function buildFilters(scope: ExplorerScope): CacheFilters {
 
 const EMPTY: CacheShape = {
   members: [], teams: [], events: [], trainings: [], games: [],
-  memberTeams: new Map(), memberCoachTeams: new Map(), memberTrTeams: new Map(),
+  memberTeams: new Map(), memberTeamRows: [], memberCoachTeams: new Map(), memberTrTeams: new Map(),
   loadedAt: null,
 }
 
@@ -115,8 +116,8 @@ export function useExplorerCache(scope: ExplorerScope) {
           ],
           sort: ['date'],
         }),
-        fetchAllItems<{ member: string | number; team: string | number }>('member_teams', {
-          fields: ['member', 'team'],
+        fetchAllItems<{ id: string | number; member: string | number; team: string | number; guest_level: number | null; season: string | null }>('member_teams', {
+          fields: ['id', 'member', 'team', 'guest_level', 'season'],
         }),
         fetchAllItems<{ members_id: string | number; teams_id: string | number }>('teams_coaches', {
           fields: ['members_id', 'teams_id'],
@@ -126,15 +127,16 @@ export function useExplorerCache(scope: ExplorerScope) {
         }).catch(() => [] as { members_id: string | number; teams_id: string | number }[]),
       ])
 
-      // Build memberTeams Map: memberId → [teamId, ...]
-      const memberTeams = new Map<string, string[]>()
-      for (const j of junctions) {
-        const mid = String(j.member)
-        const tid = String(j.team)
-        const existing = memberTeams.get(mid)
-        if (existing) existing.push(tid)
-        else memberTeams.set(mid, [tid])
-      }
+      // Keep raw junction rows (with ids) for the grid's team-membership editing,
+      // and derive the memberId → [teamId, ...] map from them.
+      const memberTeamRows: MemberTeamRow[] = junctions.map((j) => ({
+        id: String(j.id),
+        member: String(j.member),
+        team: String(j.team),
+        guest_level: j.guest_level ?? 0,
+        season: j.season ?? null,
+      }))
+      const memberTeams = buildMemberTeamsMap(memberTeamRows)
 
       const memberCoachTeams = new Map<string, string[]>()
       for (const j of coachJunctions) {
@@ -181,6 +183,7 @@ export function useExplorerCache(scope: ExplorerScope) {
         trainings,
         games,
         memberTeams,
+        memberTeamRows,
         memberCoachTeams,
         memberTrTeams,
         loadedAt: Date.now(),
@@ -194,5 +197,11 @@ export function useExplorerCache(scope: ExplorerScope) {
 
   useEffect(() => { void load() }, [load])
 
-  return { data, isLoading, error, refresh: load }
+  // Optimistic in-place cache update — the grid applies successful single-cell /
+  // junction writes here instead of re-running the full 8-query batch per edit.
+  const mutate = useCallback((updater: (prev: CacheShape) => CacheShape) => {
+    setData(updater)
+  }, [])
+
+  return { data, isLoading, error, refresh: load, mutate }
 }
