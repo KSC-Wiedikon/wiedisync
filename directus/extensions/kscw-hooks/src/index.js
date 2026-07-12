@@ -1379,11 +1379,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (ann.fanout_sent_at) return
       // Don't fanout for future-scheduled posts (let an admin trigger again later if needed)
       if (new Date(ann.published_at) > new Date()) return
-      // Nothing requested? Still mark as fanned out so we don't keep checking
-      if (!ann.notify_push && !ann.notify_email) {
-        await database('announcements').where('id', annId).update({ fanout_sent_at: new Date().toISOString() })
-        return
-      }
+      // NB: no "nothing requested" early-exit anymore — the in-app bell fanout
+      // is always on (push/email stay per-announcement toggles), so publishing
+      // always proceeds to audience resolution.
 
       const memberIds = await resolveAnnouncementAudience(ann)
       if (memberIds.length === 0) {
