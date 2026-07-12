@@ -14,6 +14,7 @@ export default {
   dutyDelegation: 'Scorer duty',
   memberJoinRequest: 'Join request',
   expenseStatus: 'Expense',
+  announcement: 'Club news',
   eventInvite: 'Event invitation',
   newReport: 'Report',
   member_join_request: '{{memberName}} wants to join {{teamName}}',

@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.38.0 — 2026-07-12
+
+### Club news in your notifications
+- **Published announcements now appear in the notification bell** for everyone in the announcement's audience, with a megaphone icon — tapping one opens the news page. Works regardless of email/push preferences, like all in-app notifications.
+
 ## v1.37.0 — 2026-07-12
 
 ### Newsletter emails

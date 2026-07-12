@@ -1415,6 +1415,31 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const baseBodyText = stripHtmlPlain(baseTr.body).slice(0, 200)
       const newsUrl = `${FRONTEND_URL}/news`
 
+      // In-app bell fanout — always on (opt-outs suppress email/push only,
+      // never the bell — same rule as migration 156). Per-recipient locale
+      // like push; the panel routes type 'announcement' to /news.
+      try {
+        const CODE_TO_LANG = { de: 'german', gsw: 'swiss_german', en: 'english', fr: 'french', it: 'italian' }
+        const buckets = await bucketMembersByLocale(database, memberIds)
+        const bellRows = []
+        for (const [code, ids] of Object.entries(buckets)) {
+          if (!ids || ids.length === 0) continue
+          const tr = pickAnnouncementTranslation(translations, CODE_TO_LANG[code])
+          const title = tr.title || baseTitle
+          const body = (stripHtmlPlain(tr.body).slice(0, 200)) || baseBodyText
+          for (const rid of ids) {
+            bellRows.push({
+              member: rid, type: 'announcement', title, body,
+              activity_type: 'announcement', activity_id: String(annId), read: false,
+            })
+          }
+        }
+        if (bellRows.length > 0) await database('notifications').insert(bellRows)
+        log.info(`[announcements] Bell notifications: ${bellRows.length} inserted`)
+      } catch (bellErr) {
+        log.warn({ msg: `[announcements] bell fanout failed: ${bellErr.message}` })
+      }
+
       // Push fanout (per-recipient locale via members.language)
       if (ann.notify_push) {
         const CODE_TO_LANG = { de: 'german', gsw: 'swiss_german', en: 'english', fr: 'french', it: 'italian' }

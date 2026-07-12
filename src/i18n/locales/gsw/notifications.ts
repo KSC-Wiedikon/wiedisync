@@ -14,6 +14,7 @@ export default {
   dutyDelegation: 'Schriiberdienst',
   memberJoinRequest: 'Biträttsaafrag',
   expenseStatus: 'Spese',
+  announcement: 'Vereinsnews',
   eventInvite: 'Aalass-Iiladig',
   newReport: 'Meldig',
   member_join_request: '{{memberName}} möcht {{teamName}} biträte',
