@@ -105,13 +105,17 @@ export default function HomePage() {
       pinned: !!a.pinned,
       record: a,
     }))
-    const notifItems: FeedItem[] = allNotifs.map((n) => ({
-      kind: 'notification',
-      id: `n:${n.id}`,
-      ts: new Date(n.date_created ?? n.created ?? 0).getTime(),
-      pinned: false,
-      record: n,
-    }))
+    // Announcement bell notifications are excluded — the announcement itself is
+    // already in the feed via useAnnouncements (they'd show twice otherwise).
+    const notifItems: FeedItem[] = allNotifs
+      .filter((n) => n.type !== 'announcement')
+      .map((n) => ({
+        kind: 'notification' as const,
+        id: `n:${n.id}`,
+        ts: new Date(n.date_created ?? n.created ?? 0).getTime(),
+        pinned: false as const,
+        record: n,
+      }))
     const merged = [...annItems, ...notifItems]
     merged.sort((a, b) => {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1

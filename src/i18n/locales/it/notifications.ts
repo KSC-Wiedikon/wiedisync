@@ -14,6 +14,7 @@ export default {
   dutyDelegation: 'Servizio segnapunti',
   memberJoinRequest: 'Richiesta di adesione',
   expenseStatus: 'Spesa',
+  announcement: 'Notizie del club',
   eventInvite: 'Invito a evento',
   newReport: 'Segnalazione',
   member_join_request: '{{memberName}} vuole unirsi a {{teamName}}',

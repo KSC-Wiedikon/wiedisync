@@ -14,6 +14,7 @@ export default {
   dutyDelegation: 'Service de marqueur',
   memberJoinRequest: 'Demande d\'adhésion',
   expenseStatus: 'Note de frais',
+  announcement: 'Actualités du club',
   eventInvite: 'Invitation à un événement',
   newReport: 'Signalement',
   member_join_request: '{{memberName}} souhaite rejoindre {{teamName}}',

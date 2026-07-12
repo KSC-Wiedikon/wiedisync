@@ -14,6 +14,7 @@ export default {
   dutyDelegation: 'Schreiberdienst',
   memberJoinRequest: 'Beitrittsanfrage',
   expenseStatus: 'Spesen',
+  announcement: 'Vereinsnews',
   eventInvite: 'Anlass-Einladung',
   newReport: 'Meldung',
   member_join_request: '{{memberName}} möchte {{teamName}} beitreten',
