@@ -208,6 +208,8 @@ Inherits Member. Adds read-all on operational collections — board oversight ro
 
 **Plus full CRUD on Forms** — `forms`, `forms_teams`, `form_submissions` (decision 2026-06-05: create/edit/delete any form club-wide + read all submissions, exactly like a global admin). This is the one exception to the otherwise read-only board role.
 
+**Narrow ClubDesk register read (2026-07-12)** — field-scoped `clubdesk_export` read (`id, clubdesk_id, gruppen_bracketed, offiziellen_lizenz`) so the board's read-only Data Explorer grid shows the passive / honorary / former and officials-licence columns. Same scope as Sport Admin; the rest of the register stays full-admin-only.
+
 Read-only on everything else by design (no CRU writes outside the Forms grant above).
 
 ---
@@ -254,6 +256,7 @@ Per-user policy (no migration — permission rows only, `setup-permissions.mjs �
 Inherits Team Responsible (and via that, Member). Adds full CRUD on operational collections except:
 
 - `members` and `teams` — create / read / update only. **No delete** (migration 027 — club-wide blast radius is admin-only).
+- `clubdesk_export` — **field-scoped read only** (`id, clubdesk_id, gruppen_bracketed, offiziellen_lizenz`) for the Data Explorer grid's derived member columns (passive / honorary / former membership from the ClubDesk groups + officials licence). The rest of the register (IBAN, AHV, Bemerkungen, …) stays full-admin-only. Added 2026-07-12.
 
 ---
 

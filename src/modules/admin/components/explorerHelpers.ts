@@ -21,6 +21,21 @@ export interface MemberTeamRow {
   season: string | null
 }
 
+/** One coach / team-responsible junction row (teams_coaches / teams_responsibles). */
+export interface StaffRow {
+  id: string
+  member: string
+  team: string
+}
+
+/** Narrow ClubDesk-register info per member (keyed by members.clubdesk_id). */
+export interface ClubdeskInfo {
+  /** Bracketed group tokens, e.g. "[Ehrenmitglieder][VB Ehemalig]…". */
+  gruppen: string
+  /** ClubDesk "Offiziellen Lizenz" free text (e.g. "Volleyball Lizenz"). */
+  offiziellenLizenz: string
+}
+
 export interface CacheShape {
   members: Member[]
   teams: Team[]
@@ -35,7 +50,25 @@ export interface CacheShape {
   memberCoachTeams: Map<string, string[]>
   /** memberId → array of team ids they are team responsible for (from teams_responsibles junction) */
   memberTrTeams: Map<string, string[]>
+  /** Raw teams_coaches junction rows (with ids) — editable in the grid's team view. */
+  coachRows: StaffRow[]
+  /** Raw teams_responsibles junction rows (with ids) — editable in the grid's team view. */
+  trRows: StaffRow[]
+  /** members.clubdesk_id → narrow ClubDesk register info (groups, officials licence).
+   *  Empty for viewers whose policy can't read clubdesk_export (fetch is caught). */
+  clubdeskInfo: Map<string, ClubdeskInfo>
   loadedAt: number | null
+}
+
+/** Rebuild a memberId → teamIds map from staff junction rows. */
+export function buildStaffMap(rows: StaffRow[]): Map<string, string[]> {
+  const map = new Map<string, string[]>()
+  for (const r of rows) {
+    const existing = map.get(r.member)
+    if (existing) existing.push(r.team)
+    else map.set(r.member, [r.team])
+  }
+  return map
 }
 
 /** Rebuild the memberId → teamIds map from junction rows (after a grid mutation). */

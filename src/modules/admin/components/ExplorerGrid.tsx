@@ -1,20 +1,27 @@
 // src/modules/admin/components/ExplorerGrid.tsx
 //
-// ClubDesk-Kontakte-style spreadsheet view for the Data Explorer: a group rail
-// (all members / per team, grouped by sport) next to a dense, sortable member
-// grid with inline cell editing. Scalar member fields PATCH `members` directly;
-// the Teams column adds/removes `member_teams` junction rows. All writes go
-// through the Directus items API (auto audit-logged) and are applied to the
-// explorer cache optimistically via onMutate — no full cache reload per edit.
+// ClubDesk-Kontakte-style spreadsheet view for the Data Explorer, with two
+// sub-views behind a toggle:
+//   Members — rows = members; inline cell editing of member fields, Teams
+//             chip column edits member_teams junction rows.
+//   Teams   — rows = teams; inline cell editing of team fields, plus editable
+//             Members (member_teams), Coach (teams_coaches) and Team
+//             responsible (teams_responsibles) chip columns.
 //
-// View features: column show/hide (default = name only, persisted), sort by
-// any column, group-by (teams / city / nationality / …) with section header
-// rows, quick-search across ALL catalog columns, and Excel/PDF export of the
-// current view (English headers + filename, per the exports-always-English
-// convention).
+// Shared features: group rail (per sport → gender, alphabetical), column
+// show/hide per view (persisted), sort by any column, quick-search, group-by
+// (members view), and Excel/PDF export of the current view (English headers +
+// filename, per the exports-always-English convention).
 //
-// Editing is gated by canEdit (global admin + sport admins — the Vorstand
-// policy is read-only on members/member_teams, so it gets a read-only grid).
+// Derived member columns (sport, referee, officials licence, passive /
+// honorary / former member) come from the teams cache and the narrow
+// clubdesk_export info map; viewers whose policy can't read clubdesk_export
+// simply see those flags empty (the cache fetch is caught).
+//
+// All writes go through the Directus items API (auto audit-logged) and are
+// applied to the explorer cache optimistically via onMutate. Editing is gated
+// by canEdit (global admin + sport admins — the Vorstand policy is read-only
+// on members/member_teams/teams, so it gets a read-only grid).
 
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,8 +48,8 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { toXlsx, downloadBlob } from '../utils/exportResults'
-import type { CacheShape, MemberTeamRow } from './explorerHelpers'
-import { buildMemberTeamsMap, formatShortDate, teamLabel } from './explorerHelpers'
+import type { CacheShape, MemberTeamRow, StaffRow } from './explorerHelpers'
+import { buildMemberTeamsMap, buildStaffMap, formatShortDate, formatShortDateTime, teamLabel } from './explorerHelpers'
 
 interface Props {
   /** Filtered cache from the page (member filters already applied). */
@@ -57,29 +64,37 @@ interface Props {
   onMutate: (updater: (prev: CacheShape) => CacheShape) => void
 }
 
+type GridView = 'members' | 'teams'
+
+// ── Member-view columns ──────────────────────────────────────────
+
 type ColKey =
   | 'last_name' | 'first_name' | 'teams' | 'email' | 'phone'
   | 'adresse' | 'plz' | 'ort' | 'nationalitaet' | 'birthdate'
   | 'sex' | 'language' | 'number' | 'position' | 'license_nr'
   | 'vm_email' | 'ahv_nummer' | 'beitragskategorie' | 'role'
+  | 'sport' | 'scorer_vb' | 'referee' | 'officials'
+  | 'wiedisync_active' | 'last_online_at' | 'passive' | 'honorary' | 'former'
 
-type ColKind = 'text' | 'email' | 'date' | 'number' | 'teams' | 'ro'
+type ColKind = 'text' | 'email' | 'date' | 'number' | 'teams' | 'ro' | 'bool'
 
-interface ColDef {
-  key: ColKey
+interface ColDef<K extends string = ColKey> {
+  key: K
   labelKey: string
   kind: ColKind
   minW: string
-  /** Whether the group-by select offers this column. */
+  /** Whether the group-by select offers this column (members view only). */
   groupable?: boolean
 }
 
-// Full catalog — every column the explorer cache already loads. Default view
-// shows only the name; everything else is opt-in via the column chooser.
+// Full catalog — everything the explorer cache already loads (plus derived
+// columns). Default view shows only the name; the rest is opt-in via the
+// column chooser.
 const COLUMNS: ColDef[] = [
   { key: 'last_name', labelKey: 'explorerGridColLastName', kind: 'text', minW: 'min-w-32' },
   { key: 'first_name', labelKey: 'explorerGridColFirstName', kind: 'text', minW: 'min-w-32' },
   { key: 'teams', labelKey: 'explorerGridColTeams', kind: 'teams', minW: 'min-w-56', groupable: true },
+  { key: 'sport', labelKey: 'explorerGridColSport', kind: 'ro', minW: 'min-w-28', groupable: true },
   { key: 'email', labelKey: 'explorerGridColEmail', kind: 'email', minW: 'min-w-52' },
   { key: 'phone', labelKey: 'explorerGridColPhone', kind: 'text', minW: 'min-w-36' },
   { key: 'adresse', labelKey: 'explorerGridColAddress', kind: 'text', minW: 'min-w-48' },
@@ -92,26 +107,57 @@ const COLUMNS: ColDef[] = [
   { key: 'number', labelKey: 'explorerGridColNumber', kind: 'number', minW: 'min-w-20' },
   { key: 'position', labelKey: 'explorerGridColPosition', kind: 'ro', minW: 'min-w-32' },
   { key: 'license_nr', labelKey: 'explorerGridColLicense', kind: 'ro', minW: 'min-w-28' },
+  { key: 'scorer_vb', labelKey: 'explorerGridColScorerVb', kind: 'bool', minW: 'min-w-24' },
+  { key: 'referee', labelKey: 'explorerGridColReferee', kind: 'ro', minW: 'min-w-24' },
+  { key: 'officials', labelKey: 'explorerGridColOfficials', kind: 'ro', minW: 'min-w-36' },
   { key: 'vm_email', labelKey: 'explorerGridColVmEmail', kind: 'email', minW: 'min-w-52' },
   { key: 'ahv_nummer', labelKey: 'explorerGridColAhv', kind: 'text', minW: 'min-w-36' },
   { key: 'beitragskategorie', labelKey: 'explorerGridColFeeCategory', kind: 'text', minW: 'min-w-36', groupable: true },
+  { key: 'passive', labelKey: 'explorerGridColPassive', kind: 'bool', minW: 'min-w-24', groupable: true },
+  { key: 'honorary', labelKey: 'explorerGridColHonorary', kind: 'bool', minW: 'min-w-24', groupable: true },
+  { key: 'former', labelKey: 'explorerGridColFormer', kind: 'bool', minW: 'min-w-24', groupable: true },
   { key: 'role', labelKey: 'explorerGridColRoles', kind: 'ro', minW: 'min-w-32' },
+  { key: 'wiedisync_active', labelKey: 'explorerGridColWiedisyncActive', kind: 'bool', minW: 'min-w-24' },
+  { key: 'last_online_at', labelKey: 'explorerGridColLastOnline', kind: 'ro', minW: 'min-w-32' },
 ]
 
 const COL_BY_KEY = new Map(COLUMNS.map((c) => [c.key, c]))
 const DEFAULT_VISIBLE: ColKey[] = ['last_name', 'first_name']
 const VISIBLE_COLS_LS_KEY = 'kscw-explorer-grid-cols-v1'
 
-function loadVisibleCols(): ColKey[] {
+// ── Team-view columns ────────────────────────────────────────────
+
+type TeamColKey =
+  | 'name' | 'full_name' | 'sport' | 'gender' | 'league' | 'season'
+  | 'members' | 'coach' | 'team_responsible'
+
+const TEAM_COLUMNS: ColDef<TeamColKey>[] = [
+  { key: 'name', labelKey: 'explorerGridTeamColName', kind: 'text', minW: 'min-w-28' },
+  { key: 'full_name', labelKey: 'explorerGridTeamColFullName', kind: 'text', minW: 'min-w-40' },
+  { key: 'sport', labelKey: 'explorerGridColSport', kind: 'ro', minW: 'min-w-24' },
+  { key: 'gender', labelKey: 'explorerGridTeamColGender', kind: 'ro', minW: 'min-w-24' },
+  { key: 'league', labelKey: 'explorerGridTeamColLeague', kind: 'text', minW: 'min-w-28' },
+  { key: 'season', labelKey: 'explorerGridTeamColSeason', kind: 'text', minW: 'min-w-24' },
+  { key: 'members', labelKey: 'explorerGridTeamColMembers', kind: 'ro', minW: 'min-w-96' },
+  { key: 'coach', labelKey: 'explorerGridTeamColCoach', kind: 'ro', minW: 'min-w-48' },
+  { key: 'team_responsible', labelKey: 'explorerGridTeamColTr', kind: 'ro', minW: 'min-w-48' },
+]
+
+const TEAM_COL_BY_KEY = new Map(TEAM_COLUMNS.map((c) => [c.key, c]))
+const TEAM_DEFAULT_VISIBLE: TeamColKey[] = ['name', 'league', 'members', 'coach', 'team_responsible']
+const TEAM_VISIBLE_COLS_LS_KEY = 'kscw-explorer-grid-team-cols-v1'
+const VIEW_LS_KEY = 'kscw-explorer-grid-view'
+
+function loadVisible<K extends string>(lsKey: string, all: Map<K, unknown>, fallback: K[]): K[] {
   try {
-    const raw = localStorage.getItem(VISIBLE_COLS_LS_KEY)
-    if (!raw) return DEFAULT_VISIBLE
+    const raw = localStorage.getItem(lsKey)
+    if (!raw) return fallback
     const arr = JSON.parse(raw) as unknown
-    if (!Array.isArray(arr)) return DEFAULT_VISIBLE
-    const valid = (arr as ColKey[]).filter((k) => COL_BY_KEY.has(k))
-    return valid.length > 0 ? valid : DEFAULT_VISIBLE
+    if (!Array.isArray(arr)) return fallback
+    const valid = (arr as K[]).filter((k) => all.has(k))
+    return valid.length > 0 ? valid : fallback
   } catch {
-    return DEFAULT_VISIBLE
+    return fallback
   }
 }
 
@@ -147,20 +193,35 @@ function genderOf(team: { gender?: string | null } | undefined): GenderKey {
   return 'other'
 }
 
-/** Raw field access — the catalog is wider than the Member type guarantees. */
-function rawField(m: Member, key: ColKey): unknown {
-  return (m as unknown as Record<string, unknown>)[key]
+/** Raw field access — the catalogs are wider than the types guarantee. */
+function rawField(rec: Member | Team, key: string): unknown {
+  return (rec as unknown as Record<string, unknown>)[key]
+}
+
+function shortMemberName(m: Member | undefined, fallback: string): string {
+  if (!m) return fallback
+  return `${m.last_name ?? ''} ${m.first_name ?? ''}`.trim() || fallback
 }
 
 export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMutate }: Props) {
   const { t, i18n } = useTranslation(['admin', 'common'])
   const confirm = useConfirm()
 
+  const [view, setView] = useState<GridView>(() => {
+    try { return localStorage.getItem(VIEW_LS_KEY) === 'teams' ? 'teams' : 'members' } catch { return 'members' }
+  })
   const [selectedGroup, setSelectedGroup] = useState<'all' | string>('all')
   const [sort, setSort] = useState<{ key: ColKey; dir: 'asc' | 'desc' } | null>(null)
-  const [visibleKeys, setVisibleKeys] = useState<ColKey[]>(loadVisibleCols)
+  const [teamSort, setTeamSort] = useState<{ key: TeamColKey; dir: 'asc' | 'desc' } | null>(null)
+  const [visibleKeys, setVisibleKeys] = useState<ColKey[]>(() => loadVisible(VISIBLE_COLS_LS_KEY, COL_BY_KEY, DEFAULT_VISIBLE))
+  const [teamVisibleKeys, setTeamVisibleKeys] = useState<TeamColKey[]>(() => loadVisible(TEAM_VISIBLE_COLS_LS_KEY, TEAM_COL_BY_KEY, TEAM_DEFAULT_VISIBLE))
   const [groupBy, setGroupBy] = useState<ColKey | 'none'>('none')
   const [exporting, setExporting] = useState(false)
+
+  const changeView = (next: GridView) => {
+    setView(next)
+    try { localStorage.setItem(VIEW_LS_KEY, next) } catch { /* quota — non-fatal */ }
+  }
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>()
@@ -168,9 +229,14 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     return map
   }, [cache.teams])
 
-  // Junction rows per member, restricted to teams present in the (scoped,
-  // active-only) teams cache — memberships to archived/out-of-scope teams are
-  // neither shown nor editable here.
+  const memberById = useMemo(() => {
+    const map = new Map<string, Member>()
+    cache.members.forEach((m) => map.set(String(m.id), m))
+    return map
+  }, [cache.members])
+
+  // Junction rows per member / per team, restricted to teams present in the
+  // (scoped, active-only) teams cache.
   const rowsByMember = useMemo(() => {
     const map = new Map<string, MemberTeamRow[]>()
     for (const r of cache.memberTeamRows) {
@@ -181,6 +247,39 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     }
     return map
   }, [cache.memberTeamRows, teamById])
+
+  const rosterByTeam = useMemo(() => {
+    const map = new Map<string, MemberTeamRow[]>()
+    for (const r of cache.memberTeamRows) {
+      if (!teamById.has(r.team)) continue
+      const existing = map.get(r.team)
+      if (existing) existing.push(r)
+      else map.set(r.team, [r])
+    }
+    return map
+  }, [cache.memberTeamRows, teamById])
+
+  const coachByTeam = useMemo(() => {
+    const map = new Map<string, StaffRow[]>()
+    for (const r of cache.coachRows) {
+      if (!teamById.has(r.team)) continue
+      const existing = map.get(r.team)
+      if (existing) existing.push(r)
+      else map.set(r.team, [r])
+    }
+    return map
+  }, [cache.coachRows, teamById])
+
+  const trByTeam = useMemo(() => {
+    const map = new Map<string, StaffRow[]>()
+    for (const r of cache.trRows) {
+      if (!teamById.has(r.team)) continue
+      const existing = map.get(r.team)
+      if (existing) existing.push(r)
+      else map.set(r.team, [r])
+    }
+    return map
+  }, [cache.trRows, teamById])
 
   // Group rail: teams sectioned by sport → gender, alphabetical within each
   // section, with member counts within the current filtered member set.
@@ -213,28 +312,120 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     return t('admin:explorerSportOther')
   }, [t])
 
-  // Display text for any catalog column — shared by search / sort / group /
-  // export so all four see the same value the cell renders.
+  const genderLabel = useMemo(() => (g: GenderKey): string => {
+    const key = GENDER_LABEL_KEY[g]
+    return key ? t(`admin:${key}`) : ''
+  }, [t])
+
+  // ── Members view: cell text (search / sort / group / export / display) ──
+
   const cellText = useMemo(() => {
     return (m: Member, key: ColKey): string => {
-      if (key === 'teams') {
-        return (rowsByMember.get(String(m.id)) ?? [])
-          .map((r) => {
-            const label = teamLabel(teamById.get(r.team) ?? ({ id: r.team } as never))
-            return r.guest_level > 0 ? `${label} (G)` : label
-          })
-          .sort()
-          .join(', ')
+      const memberId = String(m.id)
+      switch (key) {
+        case 'teams':
+          return (rowsByMember.get(memberId) ?? [])
+            .map((r) => {
+              const label = teamLabel(teamById.get(r.team) ?? ({ id: r.team } as never))
+              return r.guest_level > 0 ? `${label} (G)` : label
+            })
+            .sort()
+            .join(', ')
+        case 'sport': {
+          // Any relation to a team (player / coach / TR) counts toward the sport.
+          const teamIds = [
+            ...(rowsByMember.get(memberId) ?? []).map((r) => r.team),
+            ...(cache.memberCoachTeams.get(memberId) ?? []),
+            ...(cache.memberTrTeams.get(memberId) ?? []),
+          ]
+          const sports = new Set<Sport>()
+          for (const tid of teamIds) {
+            const tm = teamById.get(tid)
+            if (tm) sports.add(sportOf(tm as unknown as { sport?: string }))
+          }
+          return SPORTS.filter((s) => sports.has(s) && s !== 'other').map(sportLabel).join(', ')
+        }
+        case 'referee': {
+          const tokens: string[] = []
+          if (rawField(m, 'referee_vb')) tokens.push('VB')
+          if (rawField(m, 'referee_bb')) tokens.push('BB')
+          return tokens.join(', ')
+        }
+        case 'officials': {
+          const tokens: string[] = []
+          if (rawField(m, 'otr1_bb')) tokens.push('OTR1')
+          if (rawField(m, 'otr2_bb')) tokens.push('OTR2')
+          if (rawField(m, 'otn_bb')) tokens.push('OTN')
+          const cd = m.clubdesk_id ? cache.clubdeskInfo.get(String(m.clubdesk_id)) : undefined
+          if (cd?.offiziellenLizenz) tokens.push(cd.offiziellenLizenz)
+          return tokens.join(', ')
+        }
+        case 'scorer_vb':
+        case 'wiedisync_active':
+          return rawField(m, key) ? 'Yes' : ''
+        case 'passive': {
+          const cd = m.clubdesk_id ? cache.clubdeskInfo.get(String(m.clubdesk_id)) : undefined
+          const inGroup = /passiv/i.test(cd?.gruppen ?? '')
+          return inGroup || m.beitragskategorie === 'Passivmitglied' ? 'Yes' : ''
+        }
+        case 'honorary': {
+          const cd = m.clubdesk_id ? cache.clubdeskInfo.get(String(m.clubdesk_id)) : undefined
+          return /ehren/i.test(cd?.gruppen ?? '') ? 'Yes' : ''
+        }
+        case 'former': {
+          const cd = m.clubdesk_id ? cache.clubdeskInfo.get(String(m.clubdesk_id)) : undefined
+          return /ehemalig/i.test(cd?.gruppen ?? '') ? 'Yes' : ''
+        }
+        case 'last_online_at': {
+          const raw = rawField(m, key)
+          return raw ? formatShortDateTime(String(raw)) : ''
+        }
+        default: {
+          const raw = rawField(m, key)
+          if (raw == null || raw === '') return ''
+          if (Array.isArray(raw)) return raw.map(String).join(', ')
+          if (key === 'nationalitaet') return localizeCountryName(String(raw))
+          return String(raw)
+        }
       }
-      const raw = rawField(m, key)
-      if (raw == null || raw === '') return ''
-      if (Array.isArray(raw)) return raw.map(String).join(', ')
-      if (key === 'nationalitaet') return localizeCountryName(String(raw))
-      return String(raw)
     }
-  }, [rowsByMember, teamById])
+  }, [rowsByMember, teamById, cache.memberCoachTeams, cache.memberTrTeams, cache.clubdeskInfo, sportLabel])
 
-  // Rows: group-rail filter → quick-search across ALL catalog columns → sort.
+  // ── Teams view: cell text ────────────────────────────────────────
+
+  const teamCellText = useMemo(() => {
+    return (tm: Team, key: TeamColKey): string => {
+      const teamId = String(tm.id)
+      switch (key) {
+        case 'sport':
+          return sportLabel(sportOf(tm as unknown as { sport?: string }))
+        case 'gender':
+          return genderLabel(genderOf(tm as unknown as { gender?: string | null }))
+        case 'members':
+          return (rosterByTeam.get(teamId) ?? [])
+            .map((r) => shortMemberName(memberById.get(r.member), r.member) + (r.guest_level > 0 ? ' (G)' : ''))
+            .sort()
+            .join(', ')
+        case 'coach':
+          return (coachByTeam.get(teamId) ?? [])
+            .map((r) => shortMemberName(memberById.get(r.member), r.member))
+            .sort()
+            .join(', ')
+        case 'team_responsible':
+          return (trByTeam.get(teamId) ?? [])
+            .map((r) => shortMemberName(memberById.get(r.member), r.member))
+            .sort()
+            .join(', ')
+        default: {
+          const raw = rawField(tm, key)
+          return raw == null ? '' : String(raw)
+        }
+      }
+    }
+  }, [rosterByTeam, coachByTeam, trByTeam, memberById, sportLabel, genderLabel])
+
+  // ── Rows (members view) ──────────────────────────────────────────
+
   const rows = useMemo(() => {
     let list = cache.members
     if (selectedGroup !== 'all') {
@@ -254,8 +445,6 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     return list
   }, [cache.members, selectedGroup, query, sort, rowsByMember, cellText])
 
-  // Group-by sections. Teams grouping lists a member once per team (plus a
-  // trailing "No team" section); other columns group by display value.
   const sections = useMemo((): Array<{ label: string | null; rows: Member[] }> => {
     if (groupBy === 'none') return [{ label: null, rows }]
     if (groupBy === 'teams') {
@@ -285,10 +474,44 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
       .map(([label, members]) => ({ label, rows: members }))
   }, [groupBy, rows, teamSections, rowsByMember, cellText, t, sportLabel])
 
-  const visibleCols = visibleKeys
-    .map((k) => COL_BY_KEY.get(k))
-    .filter((c): c is ColDef => !!c)
-  const totalShown = sections.reduce((n, s) => n + s.rows.length, 0)
+  // ── Rows (teams view) — sections by sport → gender ───────────────
+
+  const teamSectionsWithRows = useMemo(() => {
+    const q = query.toLowerCase()
+    const matches = (tm: Team) =>
+      (!q || ['name', 'full_name', 'league', 'season', 'members', 'coach', 'team_responsible'].some(
+        (k) => teamCellText(tm, k as TeamColKey).toLowerCase().includes(q),
+      ))
+    const sortTeams = (list: Team[]) => {
+      if (!teamSort) return list
+      const { key, dir } = teamSort
+      return [...list].sort((a, b) => {
+        const cmp = teamCellText(a, key).localeCompare(teamCellText(b, key), 'de-CH', { numeric: true, sensitivity: 'base' })
+        return dir === 'asc' ? cmp : -cmp
+      })
+    }
+    return teamSections
+      .map((sec) => {
+        const label = sec.gender !== 'other'
+          ? `${sportLabel(sec.sport)} · ${genderLabel(sec.gender)}`
+          : sportLabel(sec.sport)
+        const teams = sortTeams(
+          sec.teams
+            .map((entry) => teamById.get(entry.id))
+            .filter((tm): tm is Team => !!tm)
+            .filter((tm) => (selectedGroup === 'all' || String(tm.id) === selectedGroup))
+            .filter(matches),
+        )
+        return { label, teams }
+      })
+      .filter((sec) => sec.teams.length > 0)
+  }, [teamSections, teamById, selectedGroup, query, teamSort, teamCellText, sportLabel, genderLabel])
+
+  const visibleCols = visibleKeys.map((k) => COL_BY_KEY.get(k)).filter((c): c is ColDef => !!c)
+  const teamVisibleCols = teamVisibleKeys.map((k) => TEAM_COL_BY_KEY.get(k)).filter((c): c is ColDef<TeamColKey> => !!c)
+  const totalShown = view === 'members'
+    ? sections.reduce((n, s) => n + s.rows.length, 0)
+    : teamSectionsWithRows.reduce((n, s) => n + s.teams.length, 0)
 
   const toggleSort = (key: ColKey) => {
     setSort((prev) => {
@@ -298,16 +521,34 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     })
   }
 
+  const toggleTeamSort = (key: TeamColKey) => {
+    setTeamSort((prev) => {
+      if (prev?.key !== key) return { key, dir: 'asc' }
+      if (prev.dir === 'asc') return { key, dir: 'desc' }
+      return null
+    })
+  }
+
   const toggleCol = (key: ColKey) => {
     setVisibleKeys((prev) => {
-      const has = prev.includes(key)
-      if (has && prev.length === 1) return prev // never hide the last column
-      // Keep catalog order regardless of toggle order.
+      if (prev.includes(key) && prev.length === 1) return prev // never hide the last column
       const nextSet = new Set(prev)
-      if (has) nextSet.delete(key)
+      if (nextSet.has(key)) nextSet.delete(key)
       else nextSet.add(key)
       const next = COLUMNS.map((c) => c.key).filter((k) => nextSet.has(k))
       try { localStorage.setItem(VISIBLE_COLS_LS_KEY, JSON.stringify(next)) } catch { /* quota — non-fatal */ }
+      return next
+    })
+  }
+
+  const toggleTeamCol = (key: TeamColKey) => {
+    setTeamVisibleKeys((prev) => {
+      if (prev.includes(key) && prev.length === 1) return prev
+      const nextSet = new Set(prev)
+      if (nextSet.has(key)) nextSet.delete(key)
+      else nextSet.add(key)
+      const next = TEAM_COLUMNS.map((c) => c.key).filter((k) => nextSet.has(k))
+      try { localStorage.setItem(TEAM_VISIBLE_COLS_LS_KEY, JSON.stringify(next)) } catch { /* quota — non-fatal */ }
       return next
     })
   }
@@ -324,8 +565,16 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     }))
   }
 
-  const addTeam = async (member: Member, teamId: string) => {
-    const memberId = String(member.id)
+  const saveTeamCell = async (teamId: string, key: TeamColKey, value: string | null) => {
+    await updateRecord('teams', teamId, { [key]: value })
+    logActivity('update', 'teams', teamId, { [key]: value })
+    onMutate((prev) => ({
+      ...prev,
+      teams: prev.teams.map((tm) => (String(tm.id) === teamId ? { ...tm, [key]: value } : tm)),
+    }))
+  }
+
+  const addRoster = async (memberId: string, teamId: string) => {
     const existing = rowsByMember.get(memberId) ?? []
     if (existing.some((r) => r.team === teamId)) return
     const created = await createRecord<{ id: string | number; guest_level: number | null; season: string | null }>(
@@ -346,11 +595,12 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     })
   }
 
-  const removeTeam = async (member: Member, row: MemberTeamRow) => {
+  const removeRoster = async (row: MemberTeamRow) => {
     const team = teamById.get(row.team)
+    const member = memberById.get(row.member)
     const ok = await confirm({
       message: t('admin:explorerGridRemoveFromTeam', {
-        name: `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim(),
+        name: member ? `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() : row.member,
         team: team ? teamLabel(team) : row.team,
       }),
       danger: true,
@@ -364,10 +614,65 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     })
   }
 
+  // Coach / TR junction writes. M2M junction-object rule: we create directly in
+  // the junction collections (Sport Admin has CRUD on both).
+  const addStaff = async (kind: 'coach' | 'tr', teamId: string, memberId: string) => {
+    const collection = kind === 'coach' ? 'teams_coaches' : 'teams_responsibles'
+    const existing = (kind === 'coach' ? coachByTeam : trByTeam).get(teamId) ?? []
+    if (existing.some((r) => r.member === memberId)) return
+    const created = await createRecord<{ id: string | number }>(collection, {
+      teams_id: teamId, members_id: memberId,
+    })
+    const newRow: StaffRow = { id: String(created.id), member: memberId, team: teamId }
+    logActivity('create', collection, newRow.id, { teams_id: teamId, members_id: memberId })
+    onMutate((prev) => {
+      if (kind === 'coach') {
+        const coachRows = [...prev.coachRows, newRow]
+        return { ...prev, coachRows, memberCoachTeams: buildStaffMap(coachRows) }
+      }
+      const trRows = [...prev.trRows, newRow]
+      return { ...prev, trRows, memberTrTeams: buildStaffMap(trRows) }
+    })
+  }
+
+  const removeStaff = async (kind: 'coach' | 'tr', row: StaffRow) => {
+    const collection = kind === 'coach' ? 'teams_coaches' : 'teams_responsibles'
+    const team = teamById.get(row.team)
+    const member = memberById.get(row.member)
+    const ok = await confirm({
+      message: t(kind === 'coach' ? 'admin:explorerGridRemoveCoach' : 'admin:explorerGridRemoveTr', {
+        name: member ? `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() : row.member,
+        team: team ? teamLabel(team) : row.team,
+      }),
+      danger: true,
+    })
+    if (!ok) return
+    await deleteRecord(collection, row.id)
+    logActivity('delete', collection, row.id, { teams_id: row.team, members_id: row.member })
+    onMutate((prev) => {
+      if (kind === 'coach') {
+        const coachRows = prev.coachRows.filter((r) => r.id !== row.id)
+        return { ...prev, coachRows, memberCoachTeams: buildStaffMap(coachRows) }
+      }
+      const trRows = prev.trRows.filter((r) => r.id !== row.id)
+      return { ...prev, trRows, memberTrTeams: buildStaffMap(trRows) }
+    })
+  }
+
   // ── Export (English headers + filename — exports-always-English) ─
 
   const buildExportData = () => {
     const tEn = i18n.getFixedT('en', 'admin')
+    if (view === 'teams') {
+      const columns = [tEn('explorerGridGroupBy'), ...teamVisibleCols.map((c) => tEn(c.labelKey))]
+      const dataRows: string[][] = []
+      for (const sec of teamSectionsWithRows) {
+        for (const tm of sec.teams) {
+          dataRows.push([sec.label, ...teamVisibleCols.map((c) => teamCellText(tm, c.key))])
+        }
+      }
+      return { columns, dataRows }
+    }
     const grouped = groupBy !== 'none'
     const columns = [
       ...(grouped ? [tEn('explorerGridGroupBy')] : []),
@@ -393,7 +698,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     return { columns, dataRows }
   }
 
-  const exportName = (ext: string) => `members_export_${new Date().toISOString().slice(0, 10)}.${ext}`
+  const exportName = (ext: string) => `${view === 'teams' ? 'teams' : 'members'}_export_${new Date().toISOString().slice(0, 10)}.${ext}`
 
   const handleExportExcel = async () => {
     setExporting(true)
@@ -418,7 +723,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
       const now = new Date()
       const stamp = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`
       doc.setFontSize(12)
-      doc.text(`KSCW members export — ${stamp} (${dataRows.length} entries)`, 14, 12)
+      doc.text(`KSCW ${view} export — ${stamp} (${dataRows.length} entries)`, 14, 12)
       autoTable(doc, {
         head: [columns],
         body: dataRows,
@@ -459,23 +764,43 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           if (c.kind === 'teams') {
             return (
               <TableCell key={c.key} className={`${c.minW} ${sticky}`}>
-                <TeamsCell
-                  member={m}
-                  memberRows={memberRows}
-                  teamSections={teamSections}
-                  teamById={teamById}
-                  canEdit={canEdit}
-                  onAdd={(teamId) => addTeam(m, teamId)}
-                  onRemove={(row) => removeTeam(m, row)}
-                />
+                <div className="flex flex-wrap items-center gap-1">
+                  {memberRows.map((row) => {
+                    const team = teamById.get(row.team)
+                    const label = team ? teamLabel(team) : row.team
+                    return (
+                      <Chip
+                        key={row.id}
+                        label={label}
+                        guest={row.guest_level > 0}
+                        guestTitle={t('admin:explorerGridGuest')}
+                        canEdit={canEdit}
+                        onRemove={() => removeRoster(row)}
+                      />
+                    )
+                  })}
+                  {canEdit && (
+                    <TeamPicker
+                      teamSections={teamSections}
+                      excludeIds={new Set(memberRows.map((r) => r.team))}
+                      sportLabel={sportLabel}
+                      genderLabel={genderLabel}
+                      onPick={(teamId) => addRoster(memberId, teamId)}
+                    />
+                  )}
+                </div>
               </TableCell>
             )
           }
-          if (c.kind === 'ro') {
+          if (c.kind === 'ro' || c.kind === 'bool') {
             const text = cellText(m, c.key)
             return (
               <TableCell key={c.key} className={`${c.minW} ${sticky} py-1 text-sm`}>
-                {text || <span className="text-muted-foreground">—</span>}
+                {c.kind === 'bool'
+                  ? (text
+                    ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-label={text} />
+                    : <span className="text-muted-foreground">—</span>)
+                  : (text || <span className="text-muted-foreground">—</span>)}
               </TableCell>
             )
           }
@@ -485,7 +810,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
             <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
               <EditableCell
                 value={value}
-                kind={c.kind}
+                kind={c.kind as 'text' | 'email' | 'date' | 'number'}
                 canEdit={canEdit}
                 display={
                   c.kind === 'date'
@@ -503,14 +828,108 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     )
   }
 
+  const renderTeamRow = (tm: Team) => {
+    const teamId = String(tm.id)
+    const roster = rosterByTeam.get(teamId) ?? []
+    const coaches = coachByTeam.get(teamId) ?? []
+    const trs = trByTeam.get(teamId) ?? []
+    const staffCell = (kind: 'coach' | 'tr', rowsFor: StaffRow[]) => (
+      <div className="flex flex-wrap items-center gap-1">
+        {rowsFor.map((row) => (
+          <Chip
+            key={row.id}
+            label={shortMemberName(memberById.get(row.member), row.member)}
+            canEdit={canEdit}
+            onRemove={() => removeStaff(kind, row)}
+          />
+        ))}
+        {canEdit && (
+          <MemberPicker
+            members={cache.members}
+            excludeIds={new Set(rowsFor.map((r) => r.member))}
+            label={t('admin:explorerGridAddMember')}
+            placeholder={t('admin:explorerGridSearchMembers')}
+            empty={t('admin:explorerGridNoMembers')}
+            onPick={(memberId) => addStaff(kind, teamId, memberId)}
+          />
+        )}
+      </div>
+    )
+    return (
+      <TableRow key={teamId} className="group min-h-11 hover:bg-muted/60">
+        <TableCell className="sticky left-0 z-10 w-9 min-w-9 bg-background px-1 group-hover:bg-muted" />
+        {teamVisibleCols.map((c, i) => {
+          const sticky = i === 0 ? 'sticky left-9 z-10 bg-background group-hover:bg-muted' : ''
+          if (c.key === 'members') {
+            return (
+              <TableCell key={c.key} className={`${c.minW} ${sticky}`}>
+                <div className="flex max-w-2xl flex-wrap items-center gap-1">
+                  {roster
+                    .slice()
+                    .sort((a, b) => shortMemberName(memberById.get(a.member), a.member)
+                      .localeCompare(shortMemberName(memberById.get(b.member), b.member), 'de-CH'))
+                    .map((row) => (
+                      <Chip
+                        key={row.id}
+                        label={shortMemberName(memberById.get(row.member), row.member)}
+                        guest={row.guest_level > 0}
+                        guestTitle={t('admin:explorerGridGuest')}
+                        canEdit={canEdit}
+                        onRemove={() => removeRoster(row)}
+                      />
+                    ))}
+                  {canEdit && (
+                    <MemberPicker
+                      members={cache.members}
+                      excludeIds={new Set(roster.map((r) => r.member))}
+                      label={t('admin:explorerGridAddMember')}
+                      placeholder={t('admin:explorerGridSearchMembers')}
+                      empty={t('admin:explorerGridNoMembers')}
+                      onPick={(memberId) => addRoster(memberId, teamId)}
+                    />
+                  )}
+                </div>
+              </TableCell>
+            )
+          }
+          if (c.key === 'coach') {
+            return <TableCell key={c.key} className={`${c.minW} ${sticky}`}>{staffCell('coach', coaches)}</TableCell>
+          }
+          if (c.key === 'team_responsible') {
+            return <TableCell key={c.key} className={`${c.minW} ${sticky}`}>{staffCell('tr', trs)}</TableCell>
+          }
+          if (c.kind === 'ro') {
+            const text = teamCellText(tm, c.key)
+            return (
+              <TableCell key={c.key} className={`${c.minW} ${sticky} py-1 text-sm`}>
+                {text || <span className="text-muted-foreground">—</span>}
+              </TableCell>
+            )
+          }
+          const raw = rawField(tm, c.key)
+          return (
+            <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
+              <EditableCell
+                value={raw == null ? null : String(raw)}
+                kind="text"
+                canEdit={canEdit}
+                onSave={(v) => saveTeamCell(teamId, c.key, v)}
+              />
+            </TableCell>
+          )
+        })}
+      </TableRow>
+    )
+  }
+
   return (
     <div className="flex min-h-0 flex-1">
       {/* Group rail — md+ */}
       <aside className="hidden w-56 flex-shrink-0 overflow-y-auto border-r border-border bg-card px-2 py-2 md:block">
         <GroupButton
           active={selectedGroup === 'all'}
-          label={t('admin:explorerGridAllMembers')}
-          count={cache.members.length}
+          label={view === 'teams' ? t('admin:explorerGridAllTeams') : t('admin:explorerGridAllMembers')}
+          count={view === 'teams' ? cache.teams.length : cache.members.length}
           onClick={() => setSelectedGroup('all')}
           icon={<Users className="h-3.5 w-3.5" />}
         />
@@ -547,14 +966,40 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-1.5">
+          {/* Member / team view toggle */}
+          <div className="flex overflow-hidden rounded-md border border-border" role="group" aria-label={t('admin:explorerViewToggle')}>
+            <button
+              type="button"
+              onClick={() => changeView('members')}
+              className={
+                'px-2 py-1 text-xs font-medium ' +
+                (view === 'members' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground hover:bg-muted')
+              }
+              aria-pressed={view === 'members'}
+            >
+              {t('admin:explorerGridViewMembers')}
+            </button>
+            <button
+              type="button"
+              onClick={() => changeView('teams')}
+              className={
+                'px-2 py-1 text-xs font-medium ' +
+                (view === 'teams' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground hover:bg-muted')
+              }
+              aria-pressed={view === 'teams'}
+            >
+              {t('admin:explorerGridViewTeams')}
+            </button>
+          </div>
+
           {/* Mobile group picker (native select — needs explicit dark bg) */}
           <select
             value={selectedGroup}
             onChange={(e) => setSelectedGroup(e.target.value)}
-            className="max-w-[40%] rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground dark:bg-gray-800 md:hidden"
+            className="max-w-[35%] rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground dark:bg-gray-800 md:hidden"
             aria-label={t('admin:explorerGridGroups')}
           >
-            <option value="all">{t('admin:explorerGridAllMembers')}</option>
+            <option value="all">{view === 'teams' ? t('admin:explorerGridAllTeams') : t('admin:explorerGridAllMembers')}</option>
             {teamSections.map((sec) => {
               const genderKey = GENDER_LABEL_KEY[sec.gender]
               const label = genderKey ? `${sportLabel(sec.sport)} · ${t(`admin:${genderKey}`)}` : sportLabel(sec.sport)
@@ -578,22 +1023,24 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           )}
 
           <div className="ml-auto flex items-center gap-1.5">
-            {/* Group by */}
-            <label className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Layers className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t('admin:explorerGridGroupBy')}</span>
-              <select
-                value={groupBy}
-                onChange={(e) => setGroupBy(e.target.value as ColKey | 'none')}
-                className="rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground dark:bg-gray-800"
-                aria-label={t('admin:explorerGridGroupBy')}
-              >
-                <option value="none">{t('admin:explorerGridGroupNone')}</option>
-                {groupableCols.map((c) => (
-                  <option key={c.key} value={c.key}>{t(`admin:${c.labelKey}`)}</option>
-                ))}
-              </select>
-            </label>
+            {/* Group by — members view only */}
+            {view === 'members' && (
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Layers className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{t('admin:explorerGridGroupBy')}</span>
+                <select
+                  value={groupBy}
+                  onChange={(e) => setGroupBy(e.target.value as ColKey | 'none')}
+                  className="rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground dark:bg-gray-800"
+                  aria-label={t('admin:explorerGridGroupBy')}
+                >
+                  <option value="none">{t('admin:explorerGridGroupNone')}</option>
+                  {groupableCols.map((c) => (
+                    <option key={c.key} value={c.key}>{t(`admin:${c.labelKey}`)}</option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             {/* Export */}
             <DropdownMenu modal={false}>
@@ -619,23 +1066,26 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
                 <Button size="sm" variant="outline" className="h-7 gap-1.5 px-2 text-xs">
                   <Settings2 className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">{t('admin:explorerGridColumns')}</span>
-                  <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">{visibleCols.length}</span>
+                  <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
+                    {view === 'teams' ? teamVisibleCols.length : visibleCols.length}
+                  </span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="max-h-80 w-56 overflow-y-auto p-2">
                 <div className="space-y-1">
-                  {COLUMNS.map((c) => (
-                    <label
-                      key={c.key}
-                      className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-1.5 text-sm hover:bg-muted"
-                    >
-                      <Checkbox
-                        checked={visibleKeys.includes(c.key)}
-                        onCheckedChange={() => toggleCol(c.key)}
-                      />
-                      {t(`admin:${c.labelKey}`)}
-                    </label>
-                  ))}
+                  {view === 'teams'
+                    ? TEAM_COLUMNS.map((c) => (
+                      <label key={c.key} className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-1.5 text-sm hover:bg-muted">
+                        <Checkbox checked={teamVisibleKeys.includes(c.key)} onCheckedChange={() => toggleTeamCol(c.key)} />
+                        {t(`admin:${c.labelKey}`)}
+                      </label>
+                    ))
+                    : COLUMNS.map((c) => (
+                      <label key={c.key} className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-1.5 text-sm hover:bg-muted">
+                        <Checkbox checked={visibleKeys.includes(c.key)} onCheckedChange={() => toggleCol(c.key)} />
+                        {t(`admin:${c.labelKey}`)}
+                      </label>
+                    ))}
                 </div>
               </PopoverContent>
             </Popover>
@@ -647,23 +1097,25 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                {/* Leading actions column (open detail) — sticky with the name.
+                {/* Leading actions column — sticky with the first data column.
                     Sticky lives on the th cells (not thead) for cross-browser
                     reliability. */}
                 <TableHead className="sticky left-0 top-0 z-30 w-9 min-w-9 bg-card px-1" />
-                {visibleCols.map((c, i) => (
+                {(view === 'teams' ? teamVisibleCols : visibleCols).map((c, i) => (
                   <TableHead
                     key={c.key}
                     className={`${c.minW} sticky top-0 whitespace-nowrap bg-card ${i === 0 ? 'left-9 z-30' : 'z-20'}`}
                   >
                     <button
                       type="button"
-                      onClick={() => toggleSort(c.key)}
+                      onClick={() => (view === 'teams' ? toggleTeamSort(c.key as TeamColKey) : toggleSort(c.key as ColKey))}
                       className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-primary"
                     >
                       {t(`admin:${c.labelKey}`)}
-                      {sort?.key === c.key
-                        ? (sort.dir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)
+                      {(view === 'teams' ? teamSort?.key === c.key : sort?.key === c.key)
+                        ? ((view === 'teams' ? teamSort?.dir : sort?.dir) === 'asc'
+                          ? <ArrowUp className="h-3 w-3" />
+                          : <ArrowDown className="h-3 w-3" />)
                         : <ArrowUpDown className="h-3 w-3 opacity-40" />}
                     </button>
                   </TableHead>
@@ -673,21 +1125,35 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
             <TableBody>
               {totalShown === 0 && (
                 <TableRow>
-                  <TableCell colSpan={visibleCols.length + 1} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={(view === 'teams' ? teamVisibleCols.length : visibleCols.length) + 1}
+                    className="py-8 text-center text-sm text-muted-foreground"
+                  >
                     {t('admin:explorerGridEmpty')}
                   </TableCell>
                 </TableRow>
               )}
-              {sections.map((section, si) => (
-                <SectionRows
-                  key={section.label ?? `s${si}`}
-                  label={section.label}
-                  colSpan={visibleCols.length + 1}
-                  count={section.rows.length}
-                >
-                  {section.rows.map(renderMemberRow)}
-                </SectionRows>
-              ))}
+              {view === 'members'
+                ? sections.map((section, si) => (
+                  <SectionRows
+                    key={section.label ?? `s${si}`}
+                    label={section.label}
+                    colSpan={visibleCols.length + 1}
+                    count={section.rows.length}
+                  >
+                    {section.rows.map(renderMemberRow)}
+                  </SectionRows>
+                ))
+                : teamSectionsWithRows.map((section) => (
+                  <SectionRows
+                    key={section.label}
+                    label={section.label}
+                    colSpan={teamVisibleCols.length + 1}
+                    count={section.teams.length}
+                  >
+                    {section.teams.map(renderTeamRow)}
+                  </SectionRows>
+                ))}
             </TableBody>
           </Table>
         </div>
@@ -696,7 +1162,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
   )
 }
 
-/** A group-by section: optional header row + its member rows. */
+/** A group-by / sport section: optional header row + its rows. */
 function SectionRows({ label, colSpan, count, children }: {
   label: string | null
   colSpan: number
@@ -742,6 +1208,190 @@ function GroupButton({
         {count}
       </span>
     </button>
+  )
+}
+
+/** Removable chip used by the Teams / Members / Coach / TR columns. */
+function Chip({
+  label, guest, guestTitle, canEdit, onRemove,
+}: {
+  label: string
+  guest?: boolean
+  guestTitle?: string
+  canEdit: boolean
+  onRemove: () => Promise<void>
+}) {
+  const [busy, setBusy] = useState(false)
+  const handleRemove = async () => {
+    setBusy(true)
+    try {
+      await onRemove()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <span
+      className={
+        'inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs ' +
+        (guest
+          ? 'border-dashed border-muted-foreground/50 text-muted-foreground'
+          : 'border-border bg-muted/60 text-foreground')
+      }
+      title={guest && guestTitle ? `${label} — ${guestTitle}` : label}
+    >
+      {label}
+      {guest && <span className="font-semibold">G</span>}
+      {canEdit && (
+        <button
+          type="button"
+          onClick={() => { void handleRemove() }}
+          disabled={busy}
+          className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive disabled:opacity-50"
+          aria-label={`× ${label}`}
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+        </button>
+      )}
+    </span>
+  )
+}
+
+/** Searchable team-add popover (members view Teams column). */
+function TeamPicker({
+  teamSections, excludeIds, sportLabel, genderLabel, onPick,
+}: {
+  teamSections: TeamSection[]
+  excludeIds: Set<string>
+  sportLabel: (s: Sport) => string
+  genderLabel: (g: GenderKey) => string
+  onPick: (teamId: string) => Promise<void>
+}) {
+  const { t } = useTranslation('admin')
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const handlePick = async (teamId: string) => {
+    setOpen(false)
+    setBusy(true)
+    try {
+      await onPick(teamId)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('explorerGridSaveError'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={busy}
+          className="flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50"
+          title={t('explorerGridAddToTeam')}
+          aria-label={t('explorerGridAddToTeam')}
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-0">
+        <Command>
+          <CommandInput placeholder={t('explorerGridSearchTeams')} />
+          <CommandList>
+            <CommandEmpty>{t('explorerGridNoTeams')}</CommandEmpty>
+            {teamSections.map((sec) => {
+              const available = sec.teams.filter((tm) => !excludeIds.has(tm.id))
+              if (available.length === 0) return null
+              const heading = sec.gender !== 'other'
+                ? `${sportLabel(sec.sport)} · ${genderLabel(sec.gender)}`
+                : sportLabel(sec.sport)
+              return (
+                <CommandGroup key={`${sec.sport}-${sec.gender}`} heading={heading}>
+                  {available.map((tm) => (
+                    <CommandItem
+                      key={tm.id}
+                      value={`${tm.label} ${heading}`}
+                      onSelect={() => { void handlePick(tm.id) }}
+                    >
+                      {tm.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )
+            })}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/** Searchable member-add popover (team view Members / Coach / TR columns). */
+function MemberPicker({
+  members, excludeIds, label, placeholder, empty, onPick,
+}: {
+  members: Member[]
+  excludeIds: Set<string>
+  label: string
+  placeholder: string
+  empty: string
+  onPick: (memberId: string) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const handlePick = async (memberId: string) => {
+    setOpen(false)
+    setBusy(true)
+    try {
+      await onPick(memberId)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const available = members.filter((m) => !excludeIds.has(String(m.id)))
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={busy}
+          className="flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50"
+          title={label}
+          aria-label={label}
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-0">
+        <Command>
+          <CommandInput placeholder={placeholder} />
+          <CommandList>
+            <CommandEmpty>{empty}</CommandEmpty>
+            {available.map((m) => {
+              const name = `${m.last_name ?? ''} ${m.first_name ?? ''}`.trim() || `#${m.id}`
+              return (
+                <CommandItem
+                  key={String(m.id)}
+                  value={`${name} ${m.email ?? ''}`}
+                  onSelect={() => { void handlePick(String(m.id)) }}
+                >
+                  {name}
+                </CommandItem>
+              )
+            })}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -829,135 +1479,6 @@ function EditableCell({
       {saving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
       {flash && !saving && <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />}
       {shown ?? <span className="text-muted-foreground">—</span>}
-    </div>
-  )
-}
-
-// Teams column: player-membership chips (guest memberships dashed) with remove,
-// plus a searchable add-popover listing scoped teams grouped by sport.
-function TeamsCell({
-  member, memberRows, teamSections, teamById, canEdit, onAdd, onRemove,
-}: {
-  member: Member
-  memberRows: MemberTeamRow[]
-  teamSections: TeamSection[]
-  teamById: Map<string, Team>
-  canEdit: boolean
-  onAdd: (teamId: string) => Promise<void>
-  onRemove: (row: MemberTeamRow) => Promise<void>
-}) {
-  const { t } = useTranslation(['admin', 'common'])
-  const [open, setOpen] = useState(false)
-  const [busy, setBusy] = useState(false)
-
-  const assigned = new Set(memberRows.map((r) => r.team))
-
-  const handleAdd = async (teamId: string) => {
-    setOpen(false)
-    setBusy(true)
-    try {
-      await onAdd(teamId)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin:explorerGridSaveError'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const handleRemove = async (row: MemberTeamRow) => {
-    setBusy(true)
-    try {
-      await onRemove(row)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin:explorerGridSaveError'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const sportLabel = (sport: Sport): string => {
-    if (sport === 'volleyball') return t('common:volleyball')
-    if (sport === 'basketball') return t('common:basketball')
-    return t('admin:explorerSportOther')
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-1">
-      {memberRows.map((row) => {
-        const team = teamById.get(row.team)
-        const label = team ? teamLabel(team) : row.team
-        const isGuest = row.guest_level > 0
-        return (
-          <span
-            key={row.id}
-            className={
-              'inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs ' +
-              (isGuest
-                ? 'border-dashed border-muted-foreground/50 text-muted-foreground'
-                : 'border-border bg-muted/60 text-foreground')
-            }
-            title={isGuest ? `${label} — ${t('admin:explorerGridGuest')} (${row.guest_level})` : label}
-          >
-            {label}
-            {isGuest && <span className="font-semibold">G</span>}
-            {canEdit && (
-              <button
-                type="button"
-                onClick={() => { void handleRemove(row) }}
-                disabled={busy}
-                className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive disabled:opacity-50"
-                aria-label={`${t('admin:explorerGridRemoveFromTeam', { name: `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim(), team: label })}`}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </span>
-        )
-      })}
-      {canEdit && (
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              disabled={busy}
-              className="flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50"
-              title={t('admin:explorerGridAddToTeam')}
-              aria-label={t('admin:explorerGridAddToTeam')}
-            >
-              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-64 p-0">
-            <Command>
-              <CommandInput placeholder={t('admin:explorerGridSearchTeams')} />
-              <CommandList>
-                <CommandEmpty>{t('admin:explorerGridNoTeams')}</CommandEmpty>
-                {teamSections.map((sec) => {
-                  const available = sec.teams.filter((tm) => !assigned.has(tm.id))
-                  if (available.length === 0) return null
-                  const genderKey = GENDER_LABEL_KEY[sec.gender]
-                  const heading = genderKey
-                    ? `${sportLabel(sec.sport)} · ${t(`admin:${genderKey}`)}`
-                    : sportLabel(sec.sport)
-                  return (
-                    <CommandGroup key={`${sec.sport}-${sec.gender}`} heading={heading}>
-                      {available.map((tm) => (
-                        <CommandItem
-                          key={tm.id}
-                          value={`${tm.label} ${heading}`}
-                          onSelect={() => { void handleAdd(tm.id) }}
-                        >
-                          {tm.label}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  )
-                })}
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      )}
     </div>
   )
 }
