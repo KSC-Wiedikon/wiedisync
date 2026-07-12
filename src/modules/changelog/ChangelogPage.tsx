@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.38.0'
+const APP_VERSION = '1.39.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.39.0',
+    date: '12.07.2026',
+    sections: [
+      {
+        title: 'Data explorer: team view',
+        items: [
+          'The grid has a Members | Teams toggle — the team view lists every team with its roster, coach and team responsible as editable chips, plus in-place editing of team name, league and season.',
+          'Nine more member columns: sport, scorer (VB), referee (VB/BB), officials licence, Wiedisync active, last online, and passive / honorary / former membership.',
+          'Export, sorting, search and the column chooser work in both views.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.38.0',
     date: '12.07.2026',

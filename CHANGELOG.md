@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.39.0 — 2026-07-12
+
+### Data explorer: team view
+- **The grid now has a Members | Teams toggle.** The team view lists every team with its full roster, coach and team responsible as editable chips — add or remove people with a searchable picker, and edit team name, full name, league and season in place.
+- **Nine more member columns**: sport, scorer (VB), referee (VB/BB), officials licence, Wiedisync active, last online, and passive / honorary / former membership (from the club register).
+- Export, sorting, search and the column chooser work in both views.
+
 ## v1.38.0 — 2026-07-12
 
 ### Club news in your notifications
