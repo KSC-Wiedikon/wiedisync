@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchAllItems } from '../../../lib/api'
+import { fetchAllItems, kscwApi } from '../../../lib/api'
 import type { Member, Team, Event as EventRec, Training, Game } from '../../../types'
-import type { ExplorerScope, CacheShape, MemberTeamRow, StaffRow, ClubdeskInfo } from '../components/explorerHelpers'
+import type {
+  ExplorerScope, CacheShape, MemberTeamRow, StaffRow, ClubdeskInfo,
+  ClubdeskSyncStatus, RegFileInfo, RegFileDoc,
+} from '../components/explorerHelpers'
 import { buildMemberTeamsMap, buildStaffMap } from '../components/explorerHelpers'
+
+// Registration document columns retained after approval (mirrors the backend
+// SELF_DOC_FIELDS / REGISTRATION_FILE_COLS). Drives the "Reg. files" column.
+const REG_DOC_FIELDS = [
+  'id_upload_front', 'id_upload_back',
+  'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl',
+  'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
+] as const
 
 export interface CacheFilters {
   members: Record<string, unknown> | undefined
@@ -44,6 +55,7 @@ const EMPTY: CacheShape = {
   members: [], teams: [], events: [], trainings: [], games: [],
   memberTeams: new Map(), memberTeamRows: [], memberCoachTeams: new Map(), memberTrTeams: new Map(),
   coachRows: [], trRows: [], clubdeskInfo: new Map(),
+  clubdeskSync: new Map(), regFiles: new Map(),
   loadedAt: null,
 }
 
@@ -70,7 +82,7 @@ export function useExplorerCache(scope: ExplorerScope) {
     try {
       const f = buildFilters(scope)
       const cutoff = ninetyDaysAgoISO()
-      const [members, teams, events, trainings, games, junctions, coachJunctions, trJunctions, clubdeskRows] = await Promise.all([
+      const [members, teams, events, trainings, games, junctions, coachJunctions, trJunctions, clubdeskRows, regRows, syncResp] = await Promise.all([
         fetchAllItems<Member>('members', {
           filter: f.members,
           fields: [
@@ -133,6 +145,17 @@ export function useExplorerCache(scope: ExplorerScope) {
         fetchAllItems<{ clubdesk_id: string | null; gruppen_bracketed: string | null; offiziellen_lizenz: string | null }>('clubdesk_export', {
           fields: ['clubdesk_id', 'gruppen_bracketed', 'offiziellen_lizenz'],
         }).catch(() => [] as { clubdesk_id: string | null; gruppen_bracketed: string | null; offiziellen_lizenz: string | null }[]),
+        // Retained registration documents (post-approval), keyed by member.
+        // Policy-gated (board/admin read registrations) — caught so sport-admin
+        // viewers just get no reg-files column data.
+        fetchAllItems<Record<string, unknown>>('registrations', {
+          filter: { member: { _nnull: true } },
+          fields: ['member', 'reference_number', 'status', ...REG_DOC_FIELDS],
+        }).catch(() => [] as Record<string, unknown>[]),
+        // Per-member ClubDesk sync verdict (status-only, no PII). 403s for
+        // viewers below the sport-admin bar — caught to an empty map.
+        kscwApi<{ statuses: Record<string, ClubdeskSyncStatus> }>('/clubdesk-sync-status')
+          .catch(() => ({ statuses: {} as Record<string, ClubdeskSyncStatus> })),
       ])
 
       // Keep raw junction rows (with ids) for the grid's team-membership editing,
@@ -162,6 +185,36 @@ export function useExplorerCache(scope: ExplorerScope) {
           gruppen: r.gruppen_bracketed ?? '',
           offiziellenLizenz: r.offiziellen_lizenz ?? '',
         })
+      }
+
+      const clubdeskSync = new Map<string, ClubdeskSyncStatus>()
+      for (const [mid, status] of Object.entries(syncResp?.statuses ?? {})) {
+        clubdeskSync.set(String(mid), status)
+      }
+
+      // Registration files → per-member map. A member can have >1 registration;
+      // merge their docs (dedup by file id) and keep the newest reference.
+      const regFiles = new Map<string, RegFileInfo>()
+      for (const reg of regRows) {
+        const mid = reg.member == null ? '' : String(reg.member)
+        if (!mid) continue
+        const docs: RegFileDoc[] = []
+        for (const field of REG_DOC_FIELDS) {
+          const fileId = reg[field]
+          if (fileId) docs.push({ field, fileId: String(fileId) })
+        }
+        if (docs.length === 0) continue
+        const existing = regFiles.get(mid)
+        if (existing) {
+          const seen = new Set(existing.docs.map((d) => d.fileId))
+          for (const d of docs) if (!seen.has(d.fileId)) existing.docs.push(d)
+        } else {
+          regFiles.set(mid, {
+            referenceNumber: (reg.reference_number as string | null) ?? null,
+            status: (reg.status as string | null) ?? null,
+            docs,
+          })
+        }
       }
 
       // Build teamSportMap for sport-scoping
@@ -197,6 +250,8 @@ export function useExplorerCache(scope: ExplorerScope) {
         coachRows,
         trRows,
         clubdeskInfo,
+        clubdeskSync,
+        regFiles,
         loadedAt: Date.now(),
       })
     } catch (err) {

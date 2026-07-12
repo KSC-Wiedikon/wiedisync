@@ -27,10 +27,10 @@ import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
-  ArrowDown, ArrowUp, ArrowUpDown, Check, Download, Eye, Layers, Loader2, Plus, Settings2, Users, X,
+  ArrowDown, ArrowUp, ArrowUpDown, Check, Download, Eye, FileText, Layers, Loader2, Plus, Settings2, Users, X,
 } from 'lucide-react'
 import type { Member, Team } from '../../../types'
-import { createRecord, deleteRecord, updateRecord } from '../../../lib/api'
+import { assetUrl, createRecord, deleteRecord, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
 import { getCurrentSeason } from '../../../utils/dateHelpers'
 import { localizeCountryName } from '../../../utils/countryName'
@@ -49,7 +49,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { toXlsx, downloadBlob } from '../utils/exportResults'
-import type { CacheShape, MemberTeamRow, StaffRow } from './explorerHelpers'
+import type { CacheShape, MemberTeamRow, StaffRow, ClubdeskSyncStatus, RegFileInfo } from './explorerHelpers'
 import { buildMemberTeamsMap, buildStaffMap, formatShortDate, formatShortDateTime, teamLabel } from './explorerHelpers'
 
 interface Props {
@@ -76,8 +76,10 @@ type ColKey =
   | 'vm_email' | 'ahv_nummer' | 'beitragskategorie' | 'role'
   | 'sport' | 'scorer_vb' | 'referee' | 'officials'
   | 'wiedisync_active' | 'last_online_at' | 'passive' | 'honorary' | 'former'
+  | 'clubdesk_sync' | 'reg_files'
 
 type ColKind = 'text' | 'email' | 'date' | 'number' | 'teams' | 'ro' | 'bool' | 'select'
+  | 'clubdesk_sync' | 'reg_files'
 
 interface SelectOption { value: string; label: string }
 
@@ -104,6 +106,54 @@ const SEX_OPTIONS: SelectOption[] = [
   { value: 'f', label: 'f' },
 ]
 const LANGUAGE_OPTIONS: SelectOption[] = LANGUAGES.map((l) => ({ value: l.backendValue, label: l.nativeName }))
+
+// ClubDesk sync status → i18n label + chip colour. Derived read-only column.
+const SYNC_LABEL_KEY: Record<ClubdeskSyncStatus, string> = {
+  in_sync: 'explorerGridSyncInSync',
+  drift: 'explorerGridSyncDrift',
+  pending: 'explorerGridSyncPending',
+  not_linked: 'explorerGridSyncNotLinked',
+  stale: 'explorerGridSyncStale',
+  departed: 'explorerGridSyncDeparted',
+  excluded: 'explorerGridSyncExcluded',
+}
+const SYNC_CHIP_CLASS: Record<ClubdeskSyncStatus, string> = {
+  in_sync: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  drift: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+  pending: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+  not_linked: 'bg-muted text-muted-foreground',
+  stale: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  departed: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+  excluded: 'bg-muted text-muted-foreground',
+}
+
+// Registration document field → existing admin i18n label (reused from
+// AnmeldungenPage — no new strings). Drives the reg-files popover.
+const REG_DOC_LABEL_KEY: Record<string, string> = {
+  id_upload_front: 'anmeldungenDocIdFront',
+  id_upload_back: 'anmeldungenDocIdBack',
+  bb_doc_lizenz: 'anmeldungenDocLizenz',
+  bb_doc_freibrief: 'anmeldungenDocFreibrief',
+  bb_doc_selfdecl: 'anmeldungenDocSelfDecl',
+  bb_doc_natdecl: 'anmeldungenDocNatDecl',
+  bb_doc_u18parents: 'anmeldungenDocU18Parents',
+  bb_doc_schoolcert: 'anmeldungenDocSchoolCert',
+}
+
+// Fetch a private file (cookie auth) and open it in a new tab via a blob URL —
+// avoids relying on cross-site top-level asset navigation.
+async function openPrivateFile(url: string, onError: () => void): Promise<void> {
+  try {
+    const res = await fetch(url, { credentials: 'include' })
+    if (!res.ok) throw new Error(String(res.status))
+    const blob = await res.blob()
+    const obj = URL.createObjectURL(blob)
+    window.open(obj, '_blank', 'noopener')
+    window.setTimeout(() => URL.revokeObjectURL(obj), 60_000)
+  } catch {
+    onError()
+  }
+}
 
 // Full catalog — everything the explorer cache already loads (plus derived
 // columns). Default view shows only the name; the rest is opt-in via the
@@ -134,6 +184,8 @@ const COLUMNS: ColDef[] = [
   { key: 'passive', labelKey: 'explorerGridColPassive', kind: 'bool', minW: 'min-w-24', groupable: true },
   { key: 'honorary', labelKey: 'explorerGridColHonorary', kind: 'bool', minW: 'min-w-24', groupable: true },
   { key: 'former', labelKey: 'explorerGridColFormer', kind: 'bool', minW: 'min-w-24', groupable: true },
+  { key: 'clubdesk_sync', labelKey: 'explorerGridColClubdeskSync', kind: 'clubdesk_sync', minW: 'min-w-32', groupable: true },
+  { key: 'reg_files', labelKey: 'explorerGridColRegFiles', kind: 'reg_files', minW: 'min-w-28' },
   { key: 'role', labelKey: 'explorerGridColRoles', kind: 'ro', minW: 'min-w-32' },
   { key: 'wiedisync_active', labelKey: 'explorerGridColWiedisyncActive', kind: 'bool', minW: 'min-w-24', write: true },
   { key: 'last_online_at', labelKey: 'explorerGridColLastOnline', kind: 'ro', minW: 'min-w-32' },
@@ -335,6 +387,11 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     return key ? t(`admin:${key}`) : ''
   }, [t])
 
+  const syncLabel = useMemo(() => (status: ClubdeskSyncStatus | undefined): string => {
+    if (!status) return ''
+    return t(`admin:${SYNC_LABEL_KEY[status]}`)
+  }, [t])
+
   // ── Members view: cell text (search / sort / group / export / display) ──
 
   const cellText = useMemo(() => {
@@ -398,6 +455,12 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           const raw = rawField(m, key)
           return raw ? formatShortDateTime(String(raw)) : ''
         }
+        case 'clubdesk_sync':
+          return syncLabel(cache.clubdeskSync.get(memberId))
+        case 'reg_files': {
+          const n = cache.regFiles.get(memberId)?.docs.length ?? 0
+          return n > 0 ? String(n) : ''
+        }
         default: {
           const raw = rawField(m, key)
           if (raw == null || raw === '') return ''
@@ -407,7 +470,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
         }
       }
     }
-  }, [rowsByMember, teamById, cache.memberCoachTeams, cache.memberTrTeams, cache.clubdeskInfo, sportLabel])
+  }, [rowsByMember, teamById, cache.memberCoachTeams, cache.memberTrTeams, cache.clubdeskInfo, cache.clubdeskSync, cache.regFiles, sportLabel, syncLabel])
 
   // ── Teams view: cell text ────────────────────────────────────────
 
@@ -807,6 +870,23 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
                     />
                   )}
                 </div>
+              </TableCell>
+            )
+          }
+          if (c.kind === 'clubdesk_sync') {
+            const status = cache.clubdeskSync.get(memberId)
+            return (
+              <TableCell key={c.key} className={`${c.minW} ${sticky} py-1 text-sm`} title={t('admin:explorerGridReadOnly')}>
+                {status
+                  ? <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${SYNC_CHIP_CLASS[status]}`}>{syncLabel(status)}</span>
+                  : <span className="text-muted-foreground">—</span>}
+              </TableCell>
+            )
+          }
+          if (c.kind === 'reg_files') {
+            return (
+              <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
+                <RegFilesCell info={cache.regFiles.get(memberId)} />
               </TableCell>
             )
           }
@@ -1651,5 +1731,48 @@ function BoolToggleCell({
           ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           : <span className="h-3.5 w-3.5 rounded-sm border border-muted-foreground/50 opacity-0 transition-opacity group-hover/bool:opacity-100" />}
     </button>
+  )
+}
+
+// Read-only reg-files cell: a popover of the member's retained registration
+// documents (post-approval). Each opens via the admin asset URL (board/admin
+// folder-scoped read). Blank when the member has none / the viewer can't read
+// registrations.
+function RegFilesCell({ info }: { info: RegFileInfo | undefined }) {
+  const { t } = useTranslation('admin')
+  const [open, setOpen] = useState(false)
+  const docs = info?.docs ?? []
+  if (docs.length === 0) return <span className="text-muted-foreground">—</span>
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs text-foreground hover:bg-muted"
+          title={info?.referenceNumber ? `${t('explorerGridColRegFiles')} · ${info.referenceNumber}` : t('explorerGridColRegFiles')}
+        >
+          <FileText className="h-3.5 w-3.5" />
+          {docs.length}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-60 p-1">
+        <div className="space-y-0.5">
+          {docs.map((d) => {
+            const label = REG_DOC_LABEL_KEY[d.field] ? t(REG_DOC_LABEL_KEY[d.field]) : d.field
+            return (
+              <button
+                key={d.fileId}
+                type="button"
+                onClick={() => { void openPrivateFile(assetUrl(d.fileId), () => toast.error(t('explorerGridFileError'))) }}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{label}</span>
+              </button>
+            )
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

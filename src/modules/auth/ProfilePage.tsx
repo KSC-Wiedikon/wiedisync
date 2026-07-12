@@ -19,6 +19,7 @@ import DeleteAccountModal from './DeleteAccountModal'
 import TeamRequestModal from './TeamRequestModal'
 import Modal from '@/components/Modal'
 import MessagingSettingsCard from '../messaging/pages/MessagingSettingsCard'
+import MyRegistrationDocs from './MyRegistrationDocs'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import type { MemberTeam, Team, Absence, LicenceType, Fine } from '../../types'
 import { formatFineAmount } from '../../hooks/useFines'
@@ -577,6 +578,9 @@ export default function ProfilePage() {
       )}
 
       <MessagingSettingsCard />
+
+      {/* Registration documents the member uploaded (renders nothing if none) */}
+      <MyRegistrationDocs />
 
       {/* Open fines strip */}
       {openFines.length > 0 && (

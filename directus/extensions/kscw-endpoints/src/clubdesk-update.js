@@ -611,6 +611,23 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     return ['superuser', 'admin'].some((r) => roles.includes(r))
   }
 
+  // ── Read-only sync-status gate — wider than superGate ───────────────────────
+  // The per-member ClubDesk sync verdict (/clubdesk-sync-status) is status-only
+  // (no PII), consumed by the Data Explorer grid, so it opens to the same
+  // audience that manages members there: global admins + Vorstand + sport
+  // admins. Sensitive PII/mutating ClubDesk routes stay on superGate.
+  async function syncStatusGate(req) {
+    if (req.accountability?.admin) return true
+    const userId = req.accountability?.user
+    if (!userId) return false
+    const m = await database('members').where('user', userId).first('role')
+    if (!m) return false
+    const roles = Array.isArray(m.role)
+      ? m.role
+      : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
+    return ['superuser', 'admin', 'vorstand', 'vb_admin', 'bb_admin'].some((r) => roles.includes(r))
+  }
+
   // ── On-demand ClubDesk MEMBER sync (superadmin "Sync down" button) ──────────
   // POST sets a request flag on the singleton clubdesk_member_sync row; a host
   // dispatcher cron (clubdesk-member-dispatch.sh) claims it, runs clubdesk-sync.sh,
@@ -1502,6 +1519,62 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       return res.json({ candidates, season })
     } catch (err) {
       log.error({ msg: `clubdesk-departed: ${err.message}`, endpoint: 'clubdesk-departed', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── Per-member ClubDesk sync verdict (Data Explorer "ClubDesk sync" column) ──
+  // Returns { statuses: { [member_id]: status } } with NO PII — one of:
+  //   excluded   — clubdesk_sync_exclude (muted system account, out of scope)
+  //   not_linked — no clubdesk_id (never matched a ClubDesk contact)
+  //   stale      — linked but the clubdesk_id has no live clubdesk_export row
+  //   departed   — linked contact left the club (DEPARTED_STATUSES + Austritt)
+  //   pending    — a sync-up push is queued (clubdesk_push_pending)
+  //   drift      — linked + a field CONFLICT vs ClubDesk (reuses computeClubdeskDrift)
+  //   in_sync    — linked, present, nothing queued, no conflicts
+  // Fill-only members (wiedisync has data ClubDesk lacks) count as in_sync here —
+  // those are benign one-way fills, not a mismatch (same reason Data Health
+  // aggregates them away). Read-only; opened to admins + Vorstand + sport admins.
+  router.get('/clubdesk-sync-status', async (req, res) => {
+    try {
+      if (!(await syncStatusGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const members = await database('members')
+        .where('kscw_membership_active', true)
+        .select('id', 'clubdesk_id', 'clubdesk_push_pending', 'clubdesk_sync_exclude')
+      // ClubDesk ids that actually exist in the register mirror → stale-link check.
+      const exportIds = await database('clubdesk_export')
+        .whereRaw("NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL")
+        .distinct(database.raw('BTRIM(clubdesk_id) AS cdid'))
+      const present = new Set(exportIds.map((r) => r.cdid))
+      // Departed (same query as /clubdesk-departed, ids only).
+      const departedRows = await database
+        .select('m.id AS member_id')
+        .from('members as m')
+        .join('clubdesk_export as cd', database.raw('BTRIM(cd.clubdesk_id) = m.clubdesk_id'))
+        .where('m.kscw_membership_active', true)
+        .whereIn(database.raw('BTRIM(cd.status)'), DEPARTED_STATUSES)
+        .whereRaw("NULLIF(BTRIM(cd.austritt), '') IS NOT NULL")
+      const departed = new Set(departedRows.map((r) => String(r.member_id)))
+      // Real field conflicts (drift). Fill-only members are treated as in_sync.
+      const drift = await computeClubdeskDrift()
+      const drifted = new Set(drift.filter((c) => c.conflicts.length).map((c) => String(c.member_id)))
+
+      const statuses = {}
+      for (const m of members) {
+        const id = String(m.id)
+        let status
+        if (m.clubdesk_sync_exclude === true) status = 'excluded'
+        else if (!m.clubdesk_id) status = 'not_linked'
+        else if (!present.has(String(m.clubdesk_id).trim())) status = 'stale'
+        else if (departed.has(id)) status = 'departed'
+        else if (m.clubdesk_push_pending === true) status = 'pending'
+        else if (drifted.has(id)) status = 'drift'
+        else status = 'in_sync'
+        statuses[id] = status
+      }
+      return res.json({ statuses })
+    } catch (err) {
+      log.error({ msg: `clubdesk-sync-status: ${err.message}`, endpoint: 'clubdesk-sync-status', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
     }
   })
