@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.37.0 — 2026-07-12
+
+### Newsletter emails
+- **Announcements can now go out as a real newsletter.** A new email layout option in the announcements composer sends a wide masthead design — club logo and wordmark, the announcement image as a hero, a large headline and a clear call-to-action button — instead of the compact notification card.
+- **Replies reach a real person.** Each emailed announcement can carry a reply-to address (prefilled with the sending admin's email). Leave it empty to keep no-reply.
+
 ## v1.36.0 — 2026-07-12
 
 ### Data explorer grid view

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.36.0'
+const APP_VERSION = '1.37.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.37.0',
+    date: '12.07.2026',
+    sections: [
+      {
+        title: 'Newsletter emails',
+        items: [
+          'Announcements can now be emailed in a newsletter layout — club masthead, the announcement image as a hero, a large headline and a call-to-action button.',
+          'Emailed announcements can carry a reply-to address, so members’ replies reach a real mailbox instead of no-reply.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.36.0',
     date: '12.07.2026',
