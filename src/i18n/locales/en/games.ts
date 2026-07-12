@@ -83,6 +83,7 @@ export default {
   map: 'Map',
   round: 'Round',
   season: 'Season',
+  league: 'League',
   gameType: 'Type',
   typeHome: 'Home game',
   typeAway: 'Away game',

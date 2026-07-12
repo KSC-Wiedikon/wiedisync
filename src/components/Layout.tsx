@@ -11,6 +11,7 @@ import BottomTabBar from './BottomTabBar'
 import MoreSheet from './MoreSheet'
 import NotificationPanel from './NotificationPanel'
 import TopNav from './TopNav'
+import ImpersonationBanner from './ImpersonationBanner'
 import { useCollection } from '../lib/query'
 import ProfileEditModal from '../modules/auth/ProfileEditModal'
 import { ConversationsProvider } from '../modules/messaging/ConversationsProvider'
@@ -57,6 +58,7 @@ export default function Layout() {
       {/* Chrome + page mount only once auth/team context is ready; while the
           page's own data loads they render underneath <BootOverlay/> (masked). */}
       {!authBooting && (<>
+      <ImpersonationBanner />
       {/* Desktop top navbar (replaces the old side rail). Mobile keeps the
           bottom tab bar + More sheet below. */}
       {isDesktop && (

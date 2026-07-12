@@ -10,6 +10,8 @@ import {
   readItems, readItem, createItem, createItems, updateItem, deleteItem,
   aggregate,
 } from '@directus/sdk'
+import { toast } from 'sonner'
+import i18n from '../i18n'
 import { captureApiError, captureAuthError } from './sentry'
 
 // ── Config ──────────────────────────────────────────────────────────
@@ -180,6 +182,29 @@ let _currentMemberId: string | number | null = null
 
 export function setCurrentMemberId(id: string | number | null): void { _currentMemberId = id }
 export function getCurrentMemberId(): string | number | null { return _currentMemberId }
+
+// ── Read-only impersonation guard ───────────────────────────────────
+// Superadmin "View as member" is READ-ONLY: while active, every write path
+// throws so nothing is mis-attributed to the impersonated member (the API
+// calls still carry the superadmin's own session). AuthProvider flips this.
+let _impersonating = false
+export function setImpersonating(v: boolean): void { _impersonating = v }
+export function isImpersonating(): boolean { return _impersonating }
+
+export class ReadOnlyImpersonationError extends Error {
+  readonly code = 'READ_ONLY_IMPERSONATION'
+  constructor() {
+    super('READ_ONLY_IMPERSONATION')
+    this.name = 'ReadOnlyImpersonationError'
+  }
+}
+
+/** Throw (and toast) if a write is attempted during read-only impersonation. */
+function assertWritable(): void {
+  if (!_impersonating) return
+  try { toast.error(i18n.t('common:readOnlyImpersonation')) } catch { /* toast/i18n not ready — still block */ }
+  throw new ReadOnlyImpersonationError()
+}
 
 /** Detect Directus "no permission" errors (token refresh race). */
 function isPermissionError(err: unknown): boolean {
@@ -428,6 +453,7 @@ export async function createRecord<T = Record<string, unknown>>(
   data: Record<string, unknown>,
   opts: { silentOnUnique?: boolean } = {},
 ): Promise<T> {
+  assertWritable()
   try {
     const item = await client.request<T>(createItem(collection, data as never))
     return stringifyId(item)
@@ -453,6 +479,7 @@ export async function createRecords<T = Record<string, unknown>>(
   collection: string,
   data: Record<string, unknown>[],
 ): Promise<T[]> {
+  assertWritable()
   try {
     const items = await client.request<T[]>(createItems(collection, data as never))
     return stringifyIds(items)
@@ -468,6 +495,7 @@ export async function updateRecord<T = Record<string, unknown>>(
   id: string | number,
   data: Record<string, unknown>,
 ): Promise<T> {
+  assertWritable()
   try {
     const item = await client.request<T>(updateItem(collection, id, data as never))
     return stringifyId(item)
@@ -482,6 +510,7 @@ export async function deleteRecord(
   collection: string,
   id: string | number,
 ): Promise<void> {
+  assertWritable()
   try {
     await client.request(deleteItem(collection, id))
   } catch (err) {
@@ -496,6 +525,7 @@ export async function deleteRecord(
  * already hold `directus_files.create` (profile photos / feedback screenshots).
  */
 export async function uploadFile(file: File, folder?: string): Promise<{ id: string; name: string }> {
+  assertWritable()
   const fd = new FormData()
   // Non-file fields must precede the file part for Directus to apply them as
   // metadata — `folder` drops the upload straight into a (private) folder.
@@ -586,6 +616,9 @@ export async function kscwApi<T = unknown>(
 ): Promise<T> {
   const method = options?.method || 'GET'
   const anonymous = options?.anonymous === true
+
+  // Block state-changing endpoint calls during read-only impersonation.
+  if (method !== 'GET' && !anonymous) assertWritable()
 
   const doFetch = async (): Promise<Response> => {
     return fetch(`${API_URL}/kscw${path}`, {

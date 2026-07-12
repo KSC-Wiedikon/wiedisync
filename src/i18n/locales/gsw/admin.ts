@@ -301,6 +301,7 @@ export default {
   explorerRefreshedAt: 'Zletscht glade {{time}}',
   explorerSearchPlaceholder: 'Alli duresueche…',
   explorerOpenInDirectus: 'In Directus ufmache',
+  explorerViewAsMember: 'Als das Mitglied aaluege',
   explorerBackToTree: 'Zrugg',
   explorerEmptyState: 'En Iitrag im Baum uswähle',
   explorerLazyTag: 'Klicke zum Lade',
