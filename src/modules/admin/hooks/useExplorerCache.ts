@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchAllItems } from '../../../lib/api'
 import type { Member, Team, Event as EventRec, Training, Game } from '../../../types'
-import type { ExplorerScope, CacheShape, MemberTeamRow } from '../components/explorerHelpers'
-import { buildMemberTeamsMap } from '../components/explorerHelpers'
+import type { ExplorerScope, CacheShape, MemberTeamRow, StaffRow, ClubdeskInfo } from '../components/explorerHelpers'
+import { buildMemberTeamsMap, buildStaffMap } from '../components/explorerHelpers'
 
 export interface CacheFilters {
   members: Record<string, unknown> | undefined
@@ -43,6 +43,7 @@ export function buildFilters(scope: ExplorerScope): CacheFilters {
 const EMPTY: CacheShape = {
   members: [], teams: [], events: [], trainings: [], games: [],
   memberTeams: new Map(), memberTeamRows: [], memberCoachTeams: new Map(), memberTrTeams: new Map(),
+  coachRows: [], trRows: [], clubdeskInfo: new Map(),
   loadedAt: null,
 }
 
@@ -69,7 +70,7 @@ export function useExplorerCache(scope: ExplorerScope) {
     try {
       const f = buildFilters(scope)
       const cutoff = ninetyDaysAgoISO()
-      const [members, teams, events, trainings, games, junctions, coachJunctions, trJunctions] = await Promise.all([
+      const [members, teams, events, trainings, games, junctions, coachJunctions, trJunctions, clubdeskRows] = await Promise.all([
         fetchAllItems<Member>('members', {
           filter: f.members,
           fields: [
@@ -89,6 +90,7 @@ export function useExplorerCache(scope: ExplorerScope) {
             'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
             'push_preview_content', 'last_online_at',
             'adresse', 'plz', 'ort', 'nationalitaet', 'vm_email', 'ahv_nummer', 'beitragskategorie',
+            'clubdesk_id',
           ],
           sort: ['last_name', 'first_name'],
         }),
@@ -119,12 +121,18 @@ export function useExplorerCache(scope: ExplorerScope) {
         fetchAllItems<{ id: string | number; member: string | number; team: string | number; guest_level: number | null; season: string | null }>('member_teams', {
           fields: ['id', 'member', 'team', 'guest_level', 'season'],
         }),
-        fetchAllItems<{ members_id: string | number; teams_id: string | number }>('teams_coaches', {
-          fields: ['members_id', 'teams_id'],
-        }).catch(() => [] as { members_id: string | number; teams_id: string | number }[]),
-        fetchAllItems<{ members_id: string | number; teams_id: string | number }>('teams_responsibles', {
-          fields: ['members_id', 'teams_id'],
-        }).catch(() => [] as { members_id: string | number; teams_id: string | number }[]),
+        fetchAllItems<{ id: string | number; members_id: string | number; teams_id: string | number }>('teams_coaches', {
+          fields: ['id', 'members_id', 'teams_id'],
+        }).catch(() => [] as { id: string | number; members_id: string | number; teams_id: string | number }[]),
+        fetchAllItems<{ id: string | number; members_id: string | number; teams_id: string | number }>('teams_responsibles', {
+          fields: ['id', 'members_id', 'teams_id'],
+        }).catch(() => [] as { id: string | number; members_id: string | number; teams_id: string | number }[]),
+        // Narrow ClubDesk register info (groups → passive/honorary/former flags,
+        // officials licence). Policy-gated — caught so viewers without
+        // clubdesk_export read (until the perms run lands) just get no flags.
+        fetchAllItems<{ clubdesk_id: string | null; gruppen_bracketed: string | null; offiziellen_lizenz: string | null }>('clubdesk_export', {
+          fields: ['clubdesk_id', 'gruppen_bracketed', 'offiziellen_lizenz'],
+        }).catch(() => [] as { clubdesk_id: string | null; gruppen_bracketed: string | null; offiziellen_lizenz: string | null }[]),
       ])
 
       // Keep raw junction rows (with ids) for the grid's team-membership editing,
@@ -138,22 +146,22 @@ export function useExplorerCache(scope: ExplorerScope) {
       }))
       const memberTeams = buildMemberTeamsMap(memberTeamRows)
 
-      const memberCoachTeams = new Map<string, string[]>()
-      for (const j of coachJunctions) {
-        const mid = String(j.members_id)
-        const tid = String(j.teams_id)
-        const existing = memberCoachTeams.get(mid)
-        if (existing) existing.push(tid)
-        else memberCoachTeams.set(mid, [tid])
-      }
+      const coachRows: StaffRow[] = coachJunctions.map((j) => ({
+        id: String(j.id), member: String(j.members_id), team: String(j.teams_id),
+      }))
+      const trRows: StaffRow[] = trJunctions.map((j) => ({
+        id: String(j.id), member: String(j.members_id), team: String(j.teams_id),
+      }))
+      const memberCoachTeams = buildStaffMap(coachRows)
+      const memberTrTeams = buildStaffMap(trRows)
 
-      const memberTrTeams = new Map<string, string[]>()
-      for (const j of trJunctions) {
-        const mid = String(j.members_id)
-        const tid = String(j.teams_id)
-        const existing = memberTrTeams.get(mid)
-        if (existing) existing.push(tid)
-        else memberTrTeams.set(mid, [tid])
+      const clubdeskInfo = new Map<string, ClubdeskInfo>()
+      for (const r of clubdeskRows) {
+        if (!r.clubdesk_id) continue
+        clubdeskInfo.set(String(r.clubdesk_id), {
+          gruppen: r.gruppen_bracketed ?? '',
+          offiziellenLizenz: r.offiziellen_lizenz ?? '',
+        })
       }
 
       // Build teamSportMap for sport-scoping
@@ -186,6 +194,9 @@ export function useExplorerCache(scope: ExplorerScope) {
         memberTeamRows,
         memberCoachTeams,
         memberTrTeams,
+        coachRows,
+        trRows,
+        clubdeskInfo,
         loadedAt: Date.now(),
       })
     } catch (err) {

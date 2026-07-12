@@ -1526,6 +1526,10 @@ async function main() {
   // Registration documents (ID scans, licence/declaration docs) — board reviews
   // Anmeldungen, so it needs the private registration folder via /assets too.
   await setPermRead(VORSTAND_POLICY, 'directus_files', { folder: { _eq: REGISTRATION_FILES_FOLDER } })
+  // Narrow ClubDesk register read — same field-scoped grant as Sport Admin, so
+  // the board's read-only explorer grid shows the passive/honorary/former and
+  // officials-licence columns.
+  await setPermRead(VORSTAND_POLICY, 'clubdesk_export', null, ['id', 'clubdesk_id', 'gruppen_bracketed', 'offiziellen_lizenz'])
 
   // Forms (migrations 086/087) — Vorstand has FULL management (decision
   // 2026-06-05): create/edit/delete any form club-wide + read all submissions,
@@ -1593,6 +1597,13 @@ async function main() {
     await setPerm(SPORT_ADMIN_POLICY, col, 'update')
     // No delete — migration 027.
   }
+
+  // Narrow ClubDesk register read for the explorer grid's derived member
+  // columns (passive/honorary/former from gruppen_bracketed + the ClubDesk
+  // officials licence). Field-scoped on purpose — IBAN / AHV / Bemerkungen and
+  // the rest of the register stay full-admin-only.
+  const CLUBDESK_GRID_FIELDS = ['id', 'clubdesk_id', 'gruppen_bracketed', 'offiziellen_lizenz']
+  await setPermRead(SPORT_ADMIN_POLICY, 'clubdesk_export', null, CLUBDESK_GRID_FIELDS)
 
   console.log(`  ✓ Sport Admin permissions set`)
 
