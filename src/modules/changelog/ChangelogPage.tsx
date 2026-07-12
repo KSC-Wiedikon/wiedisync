@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.37.0'
+const APP_VERSION = '1.38.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.38.0',
+    date: '12.07.2026',
+    sections: [
+      {
+        title: 'Club news in your notifications',
+        items: [
+          'Published announcements now appear in the notification bell for everyone in the announcement’s audience — tapping one opens the news page.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.37.0',
     date: '12.07.2026',
