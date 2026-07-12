@@ -116,6 +116,7 @@ export default {
   explorerRefreshedAt: 'Ultimo aggiornamento {{time}}',
   explorerSearchPlaceholder: 'Cerca in tutto…',
   explorerOpenInDirectus: 'Apri in Directus',
+  explorerViewAsMember: 'Visualizza come questo membro',
   explorerBackToTree: 'Indietro',
   explorerEmptyState: 'Seleziona una voce dall\'albero',
   explorerLazyTag: 'Clicca per caricare',

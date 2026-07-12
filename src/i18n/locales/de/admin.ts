@@ -458,6 +458,7 @@ export default {
   explorerRefreshedAt: 'Zuletzt geladen {{time}}',
   explorerSearchPlaceholder: 'Alle durchsuchen…',
   explorerOpenInDirectus: 'In Directus öffnen',
+  explorerViewAsMember: 'Als dieses Mitglied ansehen',
   explorerBackToTree: 'Zurück',
   explorerEmptyState: 'Wähle einen Eintrag aus dem Baum',
   explorerLazyTag: 'Klicken zum Laden',

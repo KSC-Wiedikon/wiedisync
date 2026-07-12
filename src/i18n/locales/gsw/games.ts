@@ -83,6 +83,7 @@ export default {
   map: 'Charte',
   round: 'Rundi',
   season: 'Saison',
+  league: 'Liga',
   gameType: 'Typ',
   typeHome: 'Heimspiel',
   typeAway: 'Uswärtsspiel',

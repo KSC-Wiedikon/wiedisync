@@ -80,6 +80,7 @@ export default {
   map: 'Carte',
   round: 'Journee',
   season: 'Saison',
+  league: 'Ligue',
   gameType: 'Type',
   typeHome: 'Match a domicile',
   typeAway: 'Match a l\'exterieur',

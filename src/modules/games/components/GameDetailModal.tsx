@@ -9,6 +9,7 @@ import { teamNameToColorKey } from '../../../utils/teamColors'
 import ParticipationSummary from '../../../components/ParticipationSummary'
 import { rsvpButtonClass } from '../../../utils/participationColors'
 import ParticipationRosterModal from '../../../components/ParticipationRosterModal'
+import RosterModal from '../../scorer/components/RosterModal'
 import { useAuth } from '../../../hooks/useAuth'
 import { useParticipation } from '../../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../../hooks/useMyCoveringAbsence'
@@ -247,6 +248,16 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   // API. Coaches/TRs no longer see it automatically — it's kept out of sight and
   // revealed only behind the per-role "duty is late" alarm (handled per row).
   const adminSeesContact = hasAdminAccessToTeam(kscwTeamId)
+  // Staff of the playing team — coach, team-responsible, or admin. Gates the
+  // referee-expenses panel (hidden from everyone else).
+  const isTeamStaff = adminSeesContact || isCoachOf(kscwTeamId) || teamResponsibleIds.includes(kscwTeamId)
+  // The assigned Schreiber (scorer roles only — pure Täfeler excluded, mirroring
+  // the roster endpoint). For them "View roster" opens the confirmed match sheet
+  // (jersey #, DoB, coaches, ±window) instead of the RSVP roster. `user.id` is a
+  // member id here (useAuth().user is a Member), so it compares to the duty FKs.
+  const myMemberId = user?.id ? String(user.id) : ''
+  const isAssignedScorer = !!myMemberId && [game.scorer_member, game.scorer_scoreboard_member, game.bb_scorer_member]
+    .some((v) => v != null && String(relId(v)) === myMemberId)
   const canReportLate = !!user && game.status === 'scheduled' && game.type === 'home'
     && (adminSeesContact || coachTeamIds.includes(kscwTeamId) || teamResponsibleIds.includes(kscwTeamId))
   const sportWord = kscwSport === 'basketball' ? t('scoreboardBasketball') : t('scoreboardVolleyball')
@@ -311,9 +322,6 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
         <div className="border-b dark:border-gray-700 px-6 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-400">
-                {game.league}
-              </span>
               {kscwTeam && <TeamChip team={kscwTeam} size="sm" />}
             </div>
             <button
@@ -540,6 +548,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
           <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             {t('gameInfo')}
           </h4>
+          {game.league && <DetailRow label={t('league')} value={game.league} />}
           <DetailRow label={t('date')} value={dateStr} />
           <DetailRow label={t('kickoff')} value={game.time ? formatTime(game.time) : '–'} />
           <DetailRow label={t('gameType')} value={game.type === 'home' ? t('typeHome') : t('typeAway')} />
@@ -586,8 +595,8 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
           </div>
         )}
 
-        {/* Referee expenses — volleyball home games */}
-        {kscwSport === 'volleyball' && game.type === 'home' && (
+        {/* Referee expenses — volleyball home games, staff only (coach/TR/admin) */}
+        {kscwSport === 'volleyball' && game.type === 'home' && isTeamStaff && (
           <div className="border-t dark:border-gray-700 px-6 py-4">
             <RefereeExpenseSection
               gameId={game.id}
@@ -752,19 +761,23 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
         )}
       </div>
     </div>
-    <ParticipationRosterModal
-      open={rosterOpen}
-      onClose={() => setRosterOpen(false)}
-      activityType="game"
-      activityId={game?.id ?? ''}
-      activityDate={game?.date ?? ''}
-      teamIds={kscwTeamId ? [kscwTeamId] : []}
-      title={t('participationRoster')}
-      activityKind={game ? `${homeLabel ?? ''} vs ${awayLabel ?? ''}`.trim() : undefined}
-      respondBy={game?.respond_by}
-      activityStartTime={game?.time}
-      showRsvpTime={isFeatureEnabled(kscwTeamObj?.features_enabled, 'show_rsvp_time')}
-    />
+    {isAssignedScorer ? (
+      rosterOpen && <RosterModal gameId={game.id} onClose={() => setRosterOpen(false)} />
+    ) : (
+      <ParticipationRosterModal
+        open={rosterOpen}
+        onClose={() => setRosterOpen(false)}
+        activityType="game"
+        activityId={game?.id ?? ''}
+        activityDate={game?.date ?? ''}
+        teamIds={kscwTeamId ? [kscwTeamId] : []}
+        title={t('participationRoster')}
+        activityKind={game ? `${homeLabel ?? ''} vs ${awayLabel ?? ''}`.trim() : undefined}
+        respondBy={game?.respond_by}
+        activityStartTime={game?.time}
+        showRsvpTime={isFeatureEnabled(kscwTeamObj?.features_enabled, 'show_rsvp_time')}
+      />
+    )}
     </>
   )
 }

@@ -1104,7 +1104,11 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
 
   return (
     <div
-      className="cursor-pointer border-b border-gray-100 last:border-b-0 hover:bg-gray-50 active:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700/50 dark:active:bg-gray-700"
+      className={`cursor-pointer border-b border-gray-100 last:border-b-0 dark:border-gray-700 ${
+        appointment.type === 'duty'
+          ? 'bg-orange-50 hover:bg-orange-100 dark:bg-orange-500/10 dark:hover:bg-orange-500/20'
+          : 'hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700/50 dark:active:bg-gray-700'
+      }`}
       onClick={onClick}
     >
       <div className="flex items-stretch">
@@ -1200,7 +1204,11 @@ function AppointmentTableRow({ appointment, onClick, participationStatus, partic
 
   return (
     <tr
-      className="cursor-pointer border-b border-gray-100 last:border-b-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
+      className={`cursor-pointer border-b border-gray-100 last:border-b-0 dark:border-gray-700 ${
+        appointment.type === 'duty'
+          ? 'bg-orange-50 hover:bg-orange-100 dark:bg-orange-500/10 dark:hover:bg-orange-500/20'
+          : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+      }`}
       onClick={onClick}
     >
       <td className={`w-1 p-0 ${user && effectiveStatus ? statusBorderBg[effectiveStatus] ?? '' : ''}`} />

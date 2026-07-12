@@ -1,7 +1,7 @@
 // src/modules/admin/components/ExplorerDetail.tsx
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Eye } from 'lucide-react'
 import { API_URL } from '../../../lib/api'
 import type { BucketKey, CacheShape } from './explorerHelpers'
 import {
@@ -43,7 +43,7 @@ export default function ExplorerDetail({ cache, type, id, onSelect, onBack }: Pr
   const { t } = useTranslation('admin')
   const { t: tCommon } = useTranslation('common')
   const related = useRelatedEntities()
-  const { isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin } = useAuth()
+  const { isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin, canImpersonate, isImpersonating, startImpersonation } = useAuth()
   const showRestrictedSections = isGlobalAdmin || isVorstand
   // Admin + Vorstand + sport admins get the inline edit affordance; Directus
   // policy makes the final call (PATCH 403s for everyone else even if the
@@ -105,6 +105,16 @@ export default function ExplorerDetail({ cache, type, id, onSelect, onBack }: Pr
           <ExternalLink className="h-3 w-3" />
           {t('explorerOpenInDirectus')}
         </a>
+        {type === 'members' && canImpersonate && !isImpersonating && (
+          <button
+            type="button"
+            onClick={() => { void startImpersonation(String(id)) }}
+            className="inline-flex items-center gap-1 rounded border border-orange-500 px-2 py-0.5 text-orange-600 hover:bg-orange-500 hover:text-white dark:text-orange-400"
+          >
+            <Eye className="h-3 w-3" />
+            {t('explorerViewAsMember')}
+          </button>
+        )}
       </div>
 
       {/* Fields + sections per type */}

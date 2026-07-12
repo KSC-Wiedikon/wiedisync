@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react'
 import { readMe } from '@directus/sdk'
-import { client, login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, fetchItems, fetchAllItems } from '../lib/api'
+import { toast } from 'sonner'
+import { client, login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, setImpersonating, fetchItems, fetchAllItems, kscwApi } from '../lib/api'
 import { queryClient } from '../lib/query'
 import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb } from '../lib/sentry'
 import i18n from '../i18n'
@@ -22,6 +23,16 @@ const isLicenceFlag = (r: string): r is LicenceType => (LICENCE_TYPES as readonl
 
 export interface AuthContextValue {
   user: MemberUser | null
+  /** A superadmin is currently viewing the app as another member (read-only). */
+  isImpersonating: boolean
+  /** The real logged-in superadmin may start a read-only "View as" session. */
+  canImpersonate: boolean
+  /** The actual logged-in member — unchanged while impersonating. */
+  realUser: MemberUser | null
+  /** Start a read-only "View as <member>" session (superadmin only). */
+  startImpersonation: (memberId: string) => Promise<void>
+  /** Exit the read-only "View as" session and restore the real identity. */
+  stopImpersonation: () => Promise<void>
   isSuperAdmin: boolean
   isAdmin: boolean
   isGlobalAdmin: boolean
@@ -68,10 +79,19 @@ export interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+// Persists a read-only "View as" target across reloads (session-scoped).
+const IMPERSONATE_KEY = 'wiedisync-impersonate'
+
 // ── Provider ────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<MemberUser | null>(null)
+  // `realUser` is the actual logged-in member; `impersonatedMember` is set only
+  // while a superadmin is viewing the app "as" someone else (read-only). The
+  // whole app derives identity from `user` = the effective (impersonated ??
+  // real) member, so every screen renders exactly what that member would see.
+  const [realUser, setRealUser] = useState<MemberUser | null>(null)
+  const [impersonatedMember, setImpersonatedMember] = useState<MemberUser | null>(null)
+  const user = impersonatedMember ?? realUser
   const [isLoading, setIsLoading] = useState(true)
 
   const [coachTeamIds, setCoachTeamIds] = useState<string[]>([])
@@ -218,12 +238,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await refreshAuth()
         const member = await fetchMember()
         if (member) {
-          setUser(member)
+          setRealUser(member)
           setIsSpielplaner(!!member.is_spielplaner)
           setCurrentMemberId(member.id)
           addBreadcrumb('auth.init', { memberId: member.id })
           setSentryUser({ id: member.id, displayName: [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || undefined })
           await loadTeamContext(member.id)
+          // Restore a read-only "View as" session across reloads (superadmin only).
+          const impId = sessionStorage.getItem(IMPERSONATE_KEY)
+          if (impId && Array.isArray(member.role) && member.role.includes('superuser') && String(impId) !== String(member.id)) {
+            try {
+              const [target] = await fetchItems<MemberUser>('members', { filter: { id: { _eq: impId } }, limit: 1 })
+              if (target) {
+                setImpersonating(true)
+                setImpersonatedMember(target)
+                setCurrentMemberId(target.id)
+                setTeamsReady(false)
+                await loadTeamContext(target.id)
+              } else {
+                sessionStorage.removeItem(IMPERSONATE_KEY)
+              }
+            } catch { sessionStorage.removeItem(IMPERSONATE_KEY) }
+          }
         } else {
           // Token refreshed but no linked member — clear auth
           await apiLogout()
@@ -241,13 +277,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })()
   }, [fetchMember, loadTeamContext])
 
-  // Sync i18n
+  // Sync i18n to the REAL operator's language — a superadmin viewing "as" a
+  // member keeps their own UI language rather than being flipped to the
+  // impersonated member's (which could trap them in a language they don't read).
   useEffect(() => {
-    if (user?.language) {
-      const lang = backendLangToI18n(user.language)
+    if (realUser?.language) {
+      const lang = backendLangToI18n(realUser.language)
       if (i18n.language !== lang) { i18n.changeLanguage(lang); localStorage.setItem('wiedisync-lang', lang) }
     }
-  }, [user?.language])
+  }, [realUser?.language])
 
   // Enrich Sentry user context once user + teams are fully loaded
   useEffect(() => {
@@ -273,7 +311,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await apiLogin(email, password)
     const member = await fetchMember()
     if (member) {
-      setUser(member)
+      setRealUser(member)
       setIsSpielplaner(!!member.is_spielplaner)
       setCurrentMemberId(member.id)
       addBreadcrumb('auth.login_success', { memberId: member.id })
@@ -284,9 +322,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     apiLogout()
+    setImpersonating(false)
+    setImpersonatedMember(null)
+    sessionStorage.removeItem(IMPERSONATE_KEY)
     setCurrentMemberId(null)
     setSentryUser(null)
-    setUser(null)
+    setRealUser(null)
     setCoachTeamIds([]); setCoachTeamNames([])
     setTeamResponsibleIds([]); setCaptainTeamIds([])
     setSpielplanerTeamIds([])
@@ -303,12 +344,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     const member = await fetchMember()
-    if (member) setUser(member)
+    if (member) setRealUser(member)
   }, [fetchMember])
+
+  // ── Read-only impersonation ("View as member", superadmin only) ──
+  const startImpersonation = useCallback(async (memberId: string) => {
+    if (!(realUser?.role ?? []).includes('superuser')) return
+    if (String(realUser?.id) === String(memberId)) return // no self-impersonation
+    let target: MemberUser | null
+    try {
+      const rows = await fetchItems<MemberUser>('members', { filter: { id: { _eq: memberId } }, limit: 1 })
+      target = rows[0] ?? null
+    } catch { target = null }
+    if (!target) { toast.error(i18n.t('common:error')); return }
+    // Audit BEFORE flipping the read-only flag (this POST is a legitimate write).
+    try {
+      await kscwApi('/admin/impersonate', {
+        method: 'POST',
+        body: { action: 'start', target: target.id, target_name: [target.first_name, target.last_name].filter(Boolean).join(' ').trim() },
+      })
+    } catch { /* audit is best-effort — never block the view */ }
+    setImpersonating(true)
+    setImpersonatedMember(target)
+    setCurrentMemberId(target.id)
+    sessionStorage.setItem(IMPERSONATE_KEY, String(target.id))
+    addBreadcrumb('auth.impersonate_start', { target: target.id })
+    setTeamsReady(false)
+    await loadTeamContext(target.id)
+  }, [realUser, loadTeamContext])
+
+  const stopImpersonation = useCallback(async () => {
+    const target = impersonatedMember
+    setImpersonating(false)
+    setImpersonatedMember(null)
+    sessionStorage.removeItem(IMPERSONATE_KEY)
+    addBreadcrumb('auth.impersonate_stop', target ? { target: target.id } : {})
+    if (realUser?.id) {
+      setCurrentMemberId(realUser.id)
+      setTeamsReady(false)
+      await loadTeamContext(realUser.id)
+    }
+    if (target) {
+      try { await kscwApi('/admin/impersonate', { method: 'POST', body: { action: 'stop', target: target.id } }) } catch { /* best-effort */ }
+    }
+  }, [impersonatedMember, realUser, loadTeamContext])
 
   // ── Derived ─────────────────────────────────────────────────────
 
   const roles = user?.role ?? []
+  const isImpersonating = !!impersonatedMember
+  // Gate the "View as" trigger on the REAL operator's role, so it stays correct
+  // regardless of who is being impersonated.
+  const canImpersonate = (realUser?.role ?? []).includes('superuser')
   const isSuperAdmin = roles.includes('superuser')
   const isGlobalAdmin = roles.includes('admin') || isSuperAdmin
   const isVbAdmin = roles.includes('vb_admin')
@@ -372,7 +459,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, coachTeamIds, teamResponsibleIds, captainTeamIds, isSpielplaner])
 
   const value = useMemo<AuthContextValue>(() => ({
-    user, isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
+    user, isImpersonating, canImpersonate, realUser, startImpersonation, stopImpersonation,
+    isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
     hasAdminAccessToSport, hasAdminAccessToTeam, isApproved, isProfileComplete,
     isCoach, isCoachOf, canParticipateIn, isStaffOnly, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, is_spielplaner: isSpielplaner, matchesRole,
@@ -380,7 +468,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     canViewTeam, isVorstand, isFinance, canAccessFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
     refreshTeamContext, refreshUser,
   }), [
-    user, isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
+    user, isImpersonating, canImpersonate, realUser, startImpersonation, stopImpersonation,
+    isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
     hasAdminAccessToSport, hasAdminAccessToTeam, isApproved, isProfileComplete,
     isCoach, isCoachOf, canParticipateIn, isStaffOnly, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, isSpielplaner, matchesRole,

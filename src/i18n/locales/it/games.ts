@@ -80,6 +80,7 @@ export default {
   map: 'Mappa',
   round: 'Giornata',
   season: 'Stagione',
+  league: 'Lega',
   gameType: 'Tipo',
   typeHome: 'Partita in casa',
   typeAway: 'Partita in trasferta',
