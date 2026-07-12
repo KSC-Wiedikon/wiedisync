@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.36.0 — 2026-07-12
+
+### Data explorer grid view
+- **A spreadsheet view of all members.** The Data explorer now has a grid mode (toggle in the header, ClubDesk-style): a team rail on the left with member counts, and a dense sortable table on the right. Shows first / last name by default — add any of 19 columns (contact data, birthdate, licence, fee category, teams, …) via the column chooser.
+- **Edit in place.** Sport admins and above click any cell to edit it — changes save field-by-field and are audit-logged. The Teams column adds or removes team memberships directly (guest memberships marked with a dashed "G" chip).
+- **Group, search, export.** Group rows by team, city, nationality, birth year and more; the header search matches every column; export the current view to Excel or PDF.
+
+### Tidier admin menu
+- The Admin dropdown is now organized into sections — Planning & halls, Game operations, Members & communication, Data & insights — on desktop and in the mobile menu.
+
 ## v1.35.0 — 2026-07-11
 
 ### Your duties, everywhere

@@ -7,6 +7,12 @@
 // through the Directus items API (auto audit-logged) and are applied to the
 // explorer cache optimistically via onMutate — no full cache reload per edit.
 //
+// View features: column show/hide (default = name only, persisted), sort by
+// any column, group-by (teams / city / nationality / …) with section header
+// rows, quick-search across ALL catalog columns, and Excel/PDF export of the
+// current view (English headers + filename, per the exports-always-English
+// convention).
+//
 // Editing is gated by canEdit (global admin + sport admins — the Vorstand
 // policy is read-only on members/member_teams, so it gets a read-only grid).
 
@@ -14,7 +20,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
-  ArrowDown, ArrowUp, ArrowUpDown, Check, Eye, Loader2, Plus, Settings2, Users, X,
+  ArrowDown, ArrowUp, ArrowUpDown, Check, Download, Eye, Layers, Loader2, Plus, Settings2, Users, X,
 } from 'lucide-react'
 import type { Member, Team } from '../../../types'
 import { createRecord, deleteRecord, updateRecord } from '../../../lib/api'
@@ -29,8 +35,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from '@/components/ui/command'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
+import { toXlsx, downloadBlob } from '../utils/exportResults'
 import type { CacheShape, MemberTeamRow } from './explorerHelpers'
 import { buildMemberTeamsMap, formatShortDate, teamLabel } from './explorerHelpers'
 
@@ -48,32 +58,60 @@ interface Props {
 }
 
 type ColKey =
-  | 'last_name' | 'first_name' | 'email' | 'phone'
-  | 'adresse' | 'plz' | 'ort' | 'nationalitaet' | 'birthdate' | 'teams'
+  | 'last_name' | 'first_name' | 'teams' | 'email' | 'phone'
+  | 'adresse' | 'plz' | 'ort' | 'nationalitaet' | 'birthdate'
+  | 'sex' | 'language' | 'number' | 'position' | 'license_nr'
+  | 'vm_email' | 'ahv_nummer' | 'beitragskategorie' | 'role'
 
-const COLUMNS: Array<{ key: ColKey; labelKey: string; kind: 'text' | 'email' | 'date' | 'teams'; minW: string }> = [
+type ColKind = 'text' | 'email' | 'date' | 'number' | 'teams' | 'ro'
+
+interface ColDef {
+  key: ColKey
+  labelKey: string
+  kind: ColKind
+  minW: string
+  /** Whether the group-by select offers this column. */
+  groupable?: boolean
+}
+
+// Full catalog — every column the explorer cache already loads. Default view
+// shows only the name; everything else is opt-in via the column chooser.
+const COLUMNS: ColDef[] = [
   { key: 'last_name', labelKey: 'explorerGridColLastName', kind: 'text', minW: 'min-w-32' },
   { key: 'first_name', labelKey: 'explorerGridColFirstName', kind: 'text', minW: 'min-w-32' },
+  { key: 'teams', labelKey: 'explorerGridColTeams', kind: 'teams', minW: 'min-w-56', groupable: true },
   { key: 'email', labelKey: 'explorerGridColEmail', kind: 'email', minW: 'min-w-52' },
   { key: 'phone', labelKey: 'explorerGridColPhone', kind: 'text', minW: 'min-w-36' },
   { key: 'adresse', labelKey: 'explorerGridColAddress', kind: 'text', minW: 'min-w-48' },
-  { key: 'plz', labelKey: 'explorerGridColPlz', kind: 'text', minW: 'min-w-20' },
-  { key: 'ort', labelKey: 'explorerGridColCity', kind: 'text', minW: 'min-w-32' },
-  { key: 'nationalitaet', labelKey: 'explorerGridColNationality', kind: 'text', minW: 'min-w-32' },
-  { key: 'birthdate', labelKey: 'explorerGridColBirthdate', kind: 'date', minW: 'min-w-28' },
-  { key: 'teams', labelKey: 'explorerGridColTeams', kind: 'teams', minW: 'min-w-56' },
+  { key: 'plz', labelKey: 'explorerGridColPlz', kind: 'text', minW: 'min-w-20', groupable: true },
+  { key: 'ort', labelKey: 'explorerGridColCity', kind: 'text', minW: 'min-w-32', groupable: true },
+  { key: 'nationalitaet', labelKey: 'explorerGridColNationality', kind: 'text', minW: 'min-w-32', groupable: true },
+  { key: 'birthdate', labelKey: 'explorerGridColBirthdate', kind: 'date', minW: 'min-w-28', groupable: true },
+  { key: 'sex', labelKey: 'explorerGridColSex', kind: 'ro', minW: 'min-w-20', groupable: true },
+  { key: 'language', labelKey: 'explorerGridColLanguage', kind: 'ro', minW: 'min-w-28', groupable: true },
+  { key: 'number', labelKey: 'explorerGridColNumber', kind: 'number', minW: 'min-w-20' },
+  { key: 'position', labelKey: 'explorerGridColPosition', kind: 'ro', minW: 'min-w-32' },
+  { key: 'license_nr', labelKey: 'explorerGridColLicense', kind: 'ro', minW: 'min-w-28' },
+  { key: 'vm_email', labelKey: 'explorerGridColVmEmail', kind: 'email', minW: 'min-w-52' },
+  { key: 'ahv_nummer', labelKey: 'explorerGridColAhv', kind: 'text', minW: 'min-w-36' },
+  { key: 'beitragskategorie', labelKey: 'explorerGridColFeeCategory', kind: 'text', minW: 'min-w-36', groupable: true },
+  { key: 'role', labelKey: 'explorerGridColRoles', kind: 'ro', minW: 'min-w-32' },
 ]
 
-const HIDDEN_COLS_LS_KEY = 'kscw-explorer-grid-hidden-cols'
+const COL_BY_KEY = new Map(COLUMNS.map((c) => [c.key, c]))
+const DEFAULT_VISIBLE: ColKey[] = ['last_name', 'first_name']
+const VISIBLE_COLS_LS_KEY = 'kscw-explorer-grid-cols-v1'
 
-function loadHiddenCols(): Set<ColKey> {
+function loadVisibleCols(): ColKey[] {
   try {
-    const raw = localStorage.getItem(HIDDEN_COLS_LS_KEY)
-    if (!raw) return new Set()
+    const raw = localStorage.getItem(VISIBLE_COLS_LS_KEY)
+    if (!raw) return DEFAULT_VISIBLE
     const arr = JSON.parse(raw) as unknown
-    return new Set(Array.isArray(arr) ? (arr as ColKey[]) : [])
+    if (!Array.isArray(arr)) return DEFAULT_VISIBLE
+    const valid = (arr as ColKey[]).filter((k) => COL_BY_KEY.has(k))
+    return valid.length > 0 ? valid : DEFAULT_VISIBLE
   } catch {
-    return new Set()
+    return DEFAULT_VISIBLE
   }
 }
 
@@ -86,13 +124,20 @@ function sportOf(team: { sport?: string } | undefined): Sport {
   return 'other'
 }
 
+/** Raw field access — the catalog is wider than the Member type guarantees. */
+function rawField(m: Member, key: ColKey): unknown {
+  return (m as unknown as Record<string, unknown>)[key]
+}
+
 export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMutate }: Props) {
-  const { t } = useTranslation(['admin', 'common'])
+  const { t, i18n } = useTranslation(['admin', 'common'])
   const confirm = useConfirm()
 
   const [selectedGroup, setSelectedGroup] = useState<'all' | string>('all')
   const [sort, setSort] = useState<{ key: ColKey; dir: 'asc' | 'desc' } | null>(null)
-  const [hiddenCols, setHiddenCols] = useState<Set<ColKey>>(loadHiddenCols)
+  const [visibleKeys, setVisibleKeys] = useState<ColKey[]>(loadVisibleCols)
+  const [groupBy, setGroupBy] = useState<ColKey | 'none'>('none')
+  const [exporting, setExporting] = useState(false)
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>()
@@ -133,13 +178,34 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     return groups
   }, [cache.members, cache.teams, rowsByMember])
 
-  const sportLabel = (sport: Sport): string => {
+  const sportLabel = useMemo(() => (sport: Sport): string => {
     if (sport === 'volleyball') return t('common:volleyball')
     if (sport === 'basketball') return t('common:basketball')
     return t('admin:explorerSportOther')
-  }
+  }, [t])
 
-  // Rows: group filter → quick-search filter → sort.
+  // Display text for any catalog column — shared by search / sort / group /
+  // export so all four see the same value the cell renders.
+  const cellText = useMemo(() => {
+    return (m: Member, key: ColKey): string => {
+      if (key === 'teams') {
+        return (rowsByMember.get(String(m.id)) ?? [])
+          .map((r) => {
+            const label = teamLabel(teamById.get(r.team) ?? ({ id: r.team } as never))
+            return r.guest_level > 0 ? `${label} (G)` : label
+          })
+          .sort()
+          .join(', ')
+      }
+      const raw = rawField(m, key)
+      if (raw == null || raw === '') return ''
+      if (Array.isArray(raw)) return raw.map(String).join(', ')
+      if (key === 'nationalitaet') return localizeCountryName(String(raw))
+      return String(raw)
+    }
+  }, [rowsByMember, teamById])
+
+  // Rows: group-rail filter → quick-search across ALL catalog columns → sort.
   const rows = useMemo(() => {
     let list = cache.members
     if (selectedGroup !== 'all') {
@@ -147,31 +213,53 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     }
     if (query) {
       const q = query.toLowerCase()
-      list = list.filter((m) =>
-        [m.last_name, m.first_name, m.email, m.phone, m.adresse, m.plz, m.ort, m.nationalitaet]
-          .some((v) => (v ?? '').toLowerCase().includes(q)),
-      )
+      list = list.filter((m) => COLUMNS.some((c) => cellText(m, c.key).toLowerCase().includes(q)))
     }
     if (sort) {
       const { key, dir } = sort
-      const val = (m: Member): string => {
-        if (key === 'teams') {
-          return (rowsByMember.get(String(m.id)) ?? [])
-            .map((r) => teamLabel(teamById.get(r.team) ?? { id: r.team } as never))
-            .sort()
-            .join(', ')
-        }
-        return String((m as unknown as Record<string, unknown>)[key] ?? '')
-      }
       list = [...list].sort((a, b) => {
-        const cmp = val(a).localeCompare(val(b), 'de-CH', { numeric: true, sensitivity: 'base' })
+        const cmp = cellText(a, key).localeCompare(cellText(b, key), 'de-CH', { numeric: true, sensitivity: 'base' })
         return dir === 'asc' ? cmp : -cmp
       })
     }
     return list
-  }, [cache.members, selectedGroup, query, sort, rowsByMember, teamById])
+  }, [cache.members, selectedGroup, query, sort, rowsByMember, cellText])
 
-  const visibleCols = COLUMNS.filter((c) => !hiddenCols.has(c.key))
+  // Group-by sections. Teams grouping lists a member once per team (plus a
+  // trailing "No team" section); other columns group by display value.
+  const sections = useMemo((): Array<{ label: string | null; rows: Member[] }> => {
+    if (groupBy === 'none') return [{ label: null, rows }]
+    if (groupBy === 'teams') {
+      const out: Array<{ label: string | null; rows: Member[] }> = []
+      for (const g of teamGroups) {
+        for (const tm of g.teams) {
+          const members = rows.filter((m) => (rowsByMember.get(String(m.id)) ?? []).some((r) => r.team === tm.id))
+          if (members.length > 0) out.push({ label: `${tm.label} · ${sportLabel(g.sport)}`, rows: members })
+        }
+      }
+      const noTeam = rows.filter((m) => (rowsByMember.get(String(m.id)) ?? []).length === 0)
+      if (noTeam.length > 0) out.push({ label: t('admin:explorerGridNoTeam'), rows: noTeam })
+      return out
+    }
+    const byValue = new Map<string, Member[]>()
+    for (const m of rows) {
+      // Birthdate groups by birth year — per-day groups would be useless.
+      let v = cellText(m, groupBy)
+      if (groupBy === 'birthdate') v = v ? String(rawField(m, 'birthdate')).slice(0, 4) : ''
+      const label = v || '—'
+      const existing = byValue.get(label)
+      if (existing) existing.push(m)
+      else byValue.set(label, [m])
+    }
+    return [...byValue.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], 'de-CH', { numeric: true }))
+      .map(([label, members]) => ({ label, rows: members }))
+  }, [groupBy, rows, teamGroups, rowsByMember, cellText, t, sportLabel])
+
+  const visibleCols = visibleKeys
+    .map((k) => COL_BY_KEY.get(k))
+    .filter((c): c is ColDef => !!c)
+  const totalShown = sections.reduce((n, s) => n + s.rows.length, 0)
 
   const toggleSort = (key: ColKey) => {
     setSort((prev) => {
@@ -182,11 +270,15 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
   }
 
   const toggleCol = (key: ColKey) => {
-    setHiddenCols((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      try { localStorage.setItem(HIDDEN_COLS_LS_KEY, JSON.stringify([...next])) } catch { /* quota — non-fatal */ }
+    setVisibleKeys((prev) => {
+      const has = prev.includes(key)
+      if (has && prev.length === 1) return prev // never hide the last column
+      // Keep catalog order regardless of toggle order.
+      const nextSet = new Set(prev)
+      if (has) nextSet.delete(key)
+      else nextSet.add(key)
+      const next = COLUMNS.map((c) => c.key).filter((k) => nextSet.has(k))
+      try { localStorage.setItem(VISIBLE_COLS_LS_KEY, JSON.stringify(next)) } catch { /* quota — non-fatal */ }
       return next
     })
   }
@@ -194,11 +286,12 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
   // ── Write paths ────────────────────────────────────────────────
 
   const saveCell = async (memberId: string, key: ColKey, value: string | null) => {
-    await updateRecord('members', memberId, { [key]: value })
-    logActivity('update', 'members', memberId, { [key]: value })
+    const payload = key === 'number' ? (value == null ? null : Number(value)) : value
+    await updateRecord('members', memberId, { [key]: payload })
+    logActivity('update', 'members', memberId, { [key]: payload })
     onMutate((prev) => ({
       ...prev,
-      members: prev.members.map((m) => (String(m.id) === memberId ? { ...m, [key]: value } : m)),
+      members: prev.members.map((m) => (String(m.id) === memberId ? { ...m, [key]: payload } : m)),
     }))
   }
 
@@ -242,7 +335,144 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     })
   }
 
+  // ── Export (English headers + filename — exports-always-English) ─
+
+  const buildExportData = () => {
+    const tEn = i18n.getFixedT('en', 'admin')
+    const grouped = groupBy !== 'none'
+    const columns = [
+      ...(grouped ? [tEn('explorerGridGroupBy')] : []),
+      ...visibleCols.map((c) => tEn(c.labelKey)),
+    ]
+    const dataRows: string[][] = []
+    for (const section of sections) {
+      for (const m of section.rows) {
+        dataRows.push([
+          ...(grouped ? [section.label ?? ''] : []),
+          ...visibleCols.map((c) => {
+            if (c.kind === 'date') {
+              const raw = rawField(m, c.key)
+              if (!raw) return ''
+              const [yyyy, mm, dd] = String(raw).slice(0, 10).split('-')
+              return dd && mm && yyyy ? `${dd}.${mm}.${yyyy}` : String(raw)
+            }
+            return cellText(m, c.key)
+          }),
+        ])
+      }
+    }
+    return { columns, dataRows }
+  }
+
+  const exportName = (ext: string) => `members_export_${new Date().toISOString().slice(0, 10)}.${ext}`
+
+  const handleExportExcel = async () => {
+    setExporting(true)
+    try {
+      const { columns, dataRows } = buildExportData()
+      const blob = await toXlsx(columns, dataRows)
+      downloadBlob(blob, exportName('xlsx'))
+    } catch {
+      toast.error(t('admin:explorerGridExportFailed'))
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleExportPdf = async () => {
+    setExporting(true)
+    try {
+      const { columns, dataRows } = buildExportData()
+      const { jsPDF } = await import('jspdf')
+      const autoTable = (await import('jspdf-autotable')).default
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+      const now = new Date()
+      const stamp = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`
+      doc.setFontSize(12)
+      doc.text(`KSCW members export — ${stamp} (${dataRows.length} entries)`, 14, 12)
+      autoTable(doc, {
+        head: [columns],
+        body: dataRows,
+        startY: 16,
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: [74, 85, 162] }, // KSCW brand blue
+      })
+      doc.save(exportName('pdf'))
+    } catch {
+      toast.error(t('admin:explorerGridExportFailed'))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────
+
+  const groupableCols = COLUMNS.filter((c) => c.groupable)
+
+  const renderMemberRow = (m: Member) => {
+    const memberId = String(m.id)
+    const memberRows = rowsByMember.get(memberId) ?? []
+    return (
+      <TableRow key={memberId} className="group min-h-11 hover:bg-muted/60">
+        <TableCell className="sticky left-0 z-10 w-9 min-w-9 bg-background px-1 group-hover:bg-muted">
+          <button
+            type="button"
+            onClick={() => onOpenDetail(memberId)}
+            className="flex h-8 w-8 min-h-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            title={t('admin:explorerGridOpenDetail')}
+            aria-label={t('admin:explorerGridOpenDetail')}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </button>
+        </TableCell>
+        {visibleCols.map((c, i) => {
+          const sticky = i === 0 ? 'sticky left-9 z-10 bg-background group-hover:bg-muted' : ''
+          if (c.kind === 'teams') {
+            return (
+              <TableCell key={c.key} className={`${c.minW} ${sticky}`}>
+                <TeamsCell
+                  member={m}
+                  memberRows={memberRows}
+                  teamGroups={teamGroups}
+                  teamById={teamById}
+                  canEdit={canEdit}
+                  onAdd={(teamId) => addTeam(m, teamId)}
+                  onRemove={(row) => removeTeam(m, row)}
+                />
+              </TableCell>
+            )
+          }
+          if (c.kind === 'ro') {
+            const text = cellText(m, c.key)
+            return (
+              <TableCell key={c.key} className={`${c.minW} ${sticky} py-1 text-sm`}>
+                {text || <span className="text-muted-foreground">—</span>}
+              </TableCell>
+            )
+          }
+          const raw = rawField(m, c.key)
+          const value = raw == null ? null : String(raw)
+          return (
+            <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
+              <EditableCell
+                value={value}
+                kind={c.kind}
+                canEdit={canEdit}
+                display={
+                  c.kind === 'date'
+                    ? formatShortDate
+                    : c.key === 'nationalitaet'
+                      ? (v) => localizeCountryName(v)
+                      : undefined
+                }
+                onSave={(v) => saveCell(memberId, c.key, v)}
+              />
+            </TableCell>
+          )
+        })}
+      </TableRow>
+    )
+  }
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -276,12 +506,12 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
       {/* Grid pane */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Toolbar */}
-        <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-1.5">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-1.5">
           {/* Mobile group picker (native select — needs explicit dark bg) */}
           <select
             value={selectedGroup}
             onChange={(e) => setSelectedGroup(e.target.value)}
-            className="max-w-[45%] rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground dark:bg-gray-800 md:hidden"
+            className="max-w-[40%] rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground dark:bg-gray-800 md:hidden"
             aria-label={t('admin:explorerGridGroups')}
           >
             <option value="all">{t('admin:explorerGridAllMembers')}</option>
@@ -295,7 +525,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           </select>
 
           <span className="text-xs text-muted-foreground">
-            {t('admin:explorerGridEntries', { count: rows.length })}
+            {t('admin:explorerGridEntries', { count: totalShown })}
           </span>
           {!canEdit && (
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -303,16 +533,52 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
             </span>
           )}
 
-          {/* Column chooser */}
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1.5">
+            {/* Group by */}
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Layers className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t('admin:explorerGridGroupBy')}</span>
+              <select
+                value={groupBy}
+                onChange={(e) => setGroupBy(e.target.value as ColKey | 'none')}
+                className="rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground dark:bg-gray-800"
+                aria-label={t('admin:explorerGridGroupBy')}
+              >
+                <option value="none">{t('admin:explorerGridGroupNone')}</option>
+                {groupableCols.map((c) => (
+                  <option key={c.key} value={c.key}>{t(`admin:${c.labelKey}`)}</option>
+                ))}
+              </select>
+            </label>
+
+            {/* Export */}
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="h-7 gap-1.5 px-2 text-xs" disabled={exporting || totalShown === 0}>
+                  {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                  <span className="hidden sm:inline">{t('admin:explorerGridExport')}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => { void handleExportExcel() }}>
+                  {t('admin:explorerGridExportExcel')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => { void handleExportPdf() }}>
+                  {t('admin:explorerGridExportPdf')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Column chooser */}
             <Popover>
               <PopoverTrigger asChild>
                 <Button size="sm" variant="outline" className="h-7 gap-1.5 px-2 text-xs">
                   <Settings2 className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">{t('admin:explorerGridColumns')}</span>
+                  <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">{visibleCols.length}</span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-52 p-2">
+              <PopoverContent align="end" className="max-h-80 w-56 overflow-y-auto p-2">
                 <div className="space-y-1">
                   {COLUMNS.map((c) => (
                     <label
@@ -320,7 +586,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
                       className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-1.5 text-sm hover:bg-muted"
                     >
                       <Checkbox
-                        checked={!hiddenCols.has(c.key)}
+                        checked={visibleKeys.includes(c.key)}
                         onCheckedChange={() => toggleCol(c.key)}
                       />
                       {t(`admin:${c.labelKey}`)}
@@ -361,74 +627,50 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && (
+              {totalShown === 0 && (
                 <TableRow>
                   <TableCell colSpan={visibleCols.length + 1} className="py-8 text-center text-sm text-muted-foreground">
                     {t('admin:explorerGridEmpty')}
                   </TableCell>
                 </TableRow>
               )}
-              {rows.map((m) => {
-                const memberId = String(m.id)
-                const memberRows = rowsByMember.get(memberId) ?? []
-                return (
-                  <TableRow key={memberId} className="group min-h-11 hover:bg-muted/60">
-                    <TableCell className="sticky left-0 z-10 w-9 min-w-9 bg-background px-1 group-hover:bg-muted">
-                      <button
-                        type="button"
-                        onClick={() => onOpenDetail(memberId)}
-                        className="flex h-8 w-8 min-h-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                        title={t('admin:explorerGridOpenDetail')}
-                        aria-label={t('admin:explorerGridOpenDetail')}
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                      </button>
-                    </TableCell>
-                    {visibleCols.map((c, i) => {
-                      const sticky = i === 0 ? 'sticky left-9 z-10 bg-background group-hover:bg-muted' : ''
-                      if (c.kind === 'teams') {
-                        return (
-                          <TableCell key={c.key} className={`${c.minW} ${sticky}`}>
-                            <TeamsCell
-                              member={m}
-                              memberRows={memberRows}
-                              teamGroups={teamGroups}
-                              teamById={teamById}
-                              canEdit={canEdit}
-                              onAdd={(teamId) => addTeam(m, teamId)}
-                              onRemove={(row) => removeTeam(m, row)}
-                            />
-                          </TableCell>
-                        )
-                      }
-                      const raw = (m as unknown as Record<string, unknown>)[c.key]
-                      const value = raw == null ? null : String(raw)
-                      return (
-                        <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
-                          <EditableCell
-                            value={value}
-                            kind={c.kind}
-                            canEdit={canEdit}
-                            display={
-                              c.kind === 'date'
-                                ? formatShortDate
-                                : c.key === 'nationalitaet'
-                                  ? (v) => localizeCountryName(v)
-                                  : undefined
-                            }
-                            onSave={(v) => saveCell(memberId, c.key, v)}
-                          />
-                        </TableCell>
-                      )
-                    })}
-                  </TableRow>
-                )
-              })}
+              {sections.map((section, si) => (
+                <SectionRows
+                  key={section.label ?? `s${si}`}
+                  label={section.label}
+                  colSpan={visibleCols.length + 1}
+                  count={section.rows.length}
+                >
+                  {section.rows.map(renderMemberRow)}
+                </SectionRows>
+              ))}
             </TableBody>
           </Table>
         </div>
       </div>
     </div>
+  )
+}
+
+/** A group-by section: optional header row + its member rows. */
+function SectionRows({ label, colSpan, count, children }: {
+  label: string | null
+  colSpan: number
+  count: number
+  children: ReactNode
+}) {
+  return (
+    <>
+      {label != null && (
+        <TableRow className="hover:bg-transparent">
+          <TableCell colSpan={colSpan} className="bg-muted/60 py-1.5 text-xs font-semibold text-foreground">
+            {label}
+            <span className="ml-2 font-normal text-muted-foreground">{count}</span>
+          </TableCell>
+        </TableRow>
+      )}
+      {children}
+    </>
   )
 }
 
@@ -466,7 +708,7 @@ function EditableCell({
   value, kind, canEdit, display, onSave,
 }: {
   value: string | null
-  kind: 'text' | 'email' | 'date'
+  kind: 'text' | 'email' | 'date' | 'number'
   canEdit: boolean
   display?: (v: string) => string
   onSave: (v: string | null) => Promise<void>
@@ -508,7 +750,7 @@ function EditableCell({
   if (editing) {
     return (
       <input
-        type={kind === 'date' ? 'date' : kind === 'email' ? 'email' : 'text'}
+        type={kind === 'text' ? 'text' : kind}
         value={draft}
         autoFocus
         onChange={(e) => setDraft(e.target.value)}

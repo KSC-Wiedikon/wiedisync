@@ -85,17 +85,39 @@ function buildSecondaryItems(
 
 interface NavItem { to: string; labelKey: string; icon: ReactNode }
 
-const adminItems: NavItem[] = [
-  { to: '/admin/hallenplan', labelKey: 'hallenplan', icon: <Building2 className={iconClass} /> },
-  { to: '/admin/referee-expenses', labelKey: 'refereeExpenses', icon: <Banknote className={iconClass} /> },
-  { to: '/admin/scorer-assign', labelKey: 'scorerAssign', icon: <ClipboardList className={iconClass} /> },
-  { to: '/admin/vb-referees', labelKey: 'vbReferees', icon: <Gavel className={iconClass} /> },
-  { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: <UserPlus className={iconClass} /> },
-  { to: '/admin/club-stats', labelKey: 'clubStats', icon: <BarChart3 className={iconClass} /> },
-  { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: <MessageSquare className={iconClass} /> },
-  { to: '/admin/explore', labelKey: 'adminExplorer', icon: <Database className={iconClass} /> },
-  { to: '/admin/announcements', labelKey: 'announcements', icon: <Megaphone className={iconClass} /> },
-  { to: '/admin/reports', labelKey: 'moderationReports', icon: <Flag className={iconClass} /> },
+// Admin tools grouped into labeled sections — mirrors useNavItems.adminGroups
+// (desktop dropdown). Keep the two in sync when adding admin pages.
+const adminGroups: Array<{ labelKey: string; items: NavItem[] }> = [
+  {
+    labelKey: 'adminGroupPlanning',
+    items: [
+      { to: '/admin/hallenplan', labelKey: 'hallenplan', icon: <Building2 className={iconClass} /> },
+    ],
+  },
+  {
+    labelKey: 'adminGroupGames',
+    items: [
+      { to: '/admin/scorer-assign', labelKey: 'scorerAssign', icon: <ClipboardList className={iconClass} /> },
+      { to: '/admin/vb-referees', labelKey: 'vbReferees', icon: <Gavel className={iconClass} /> },
+      { to: '/admin/referee-expenses', labelKey: 'refereeExpenses', icon: <Banknote className={iconClass} /> },
+    ],
+  },
+  {
+    labelKey: 'adminGroupMembers',
+    items: [
+      { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: <UserPlus className={iconClass} /> },
+      { to: '/admin/announcements', labelKey: 'announcements', icon: <Megaphone className={iconClass} /> },
+      { to: '/admin/reports', labelKey: 'moderationReports', icon: <Flag className={iconClass} /> },
+      { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: <MessageSquare className={iconClass} /> },
+    ],
+  },
+  {
+    labelKey: 'adminGroupData',
+    items: [
+      { to: '/admin/explore', labelKey: 'adminExplorer', icon: <Database className={iconClass} /> },
+      { to: '/admin/club-stats', labelKey: 'clubStats', icon: <BarChart3 className={iconClass} /> },
+    ],
+  },
 ]
 
 const superAdminItems: NavItem[] = [
@@ -440,7 +462,14 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 {t('admin')}
               </p>
-              {adminItems.map(renderNavItem)}
+              {adminGroups.map((g) => (
+                <div key={g.labelKey}>
+                  <p className="mb-0.5 mt-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-gray-400/80 dark:text-gray-500/80">
+                    {t(g.labelKey)}
+                  </p>
+                  {g.items.map(renderNavItem)}
+                </div>
+              ))}
             </>
           )}
 

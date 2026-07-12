@@ -114,18 +114,40 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
     memberToolsItems: isLoggedIn && isApproved ? memberToolsItems : [],
     financeItems: isLoggedIn && isApproved ? financeItems : [],
     schedulingItem,
-    adminItems: [
-      { to: '/admin/hallenplan', label: t('hallenplan'), icon: <Building2 className={iconClass} /> },
-      { to: '/admin/referee-expenses', label: t('refereeExpenses'), icon: <Banknote className={iconClass} /> },
-      { to: '/admin/scorer-assign', label: t('scorerAssign'), icon: <ClipboardList className={iconClass} /> },
-      { to: '/admin/vb-referees', label: t('vbReferees'), icon: <Gavel className={iconClass} /> },
-      { to: '/admin/anmeldungen', label: t('anmeldungen'), icon: <UserPlus className={iconClass} /> },
-      { to: '/admin/club-stats', label: t('clubStats'), icon: <BarChart3 className={iconClass} /> },
-      { to: '/admin/volley-feedback', label: t('volleyFeedback'), icon: <MessageSquare className={iconClass} /> },
-      { to: '/admin/explore', label: t('adminExplorer'), icon: <Database className={iconClass} /> },
-      { to: '/admin/announcements', label: t('announcements'), icon: <Megaphone className={iconClass} /> },
-      { to: '/admin/reports', label: t('moderationReports'), icon: <Flag className={iconClass} /> },
-    ] as NavItem[],
+    // Admin tools grouped into labeled sections — the flat list outgrew the
+    // dropdown (11+ entries). Same grouping is mirrored in MoreSheet (mobile).
+    adminGroups: [
+      {
+        label: t('adminGroupPlanning'),
+        items: [
+          { to: '/admin/hallenplan', label: t('hallenplan'), icon: <Building2 className={iconClass} /> },
+        ] as NavItem[],
+      },
+      {
+        label: t('adminGroupGames'),
+        items: [
+          { to: '/admin/scorer-assign', label: t('scorerAssign'), icon: <ClipboardList className={iconClass} /> },
+          { to: '/admin/vb-referees', label: t('vbReferees'), icon: <Gavel className={iconClass} /> },
+          { to: '/admin/referee-expenses', label: t('refereeExpenses'), icon: <Banknote className={iconClass} /> },
+        ] as NavItem[],
+      },
+      {
+        label: t('adminGroupMembers'),
+        items: [
+          { to: '/admin/anmeldungen', label: t('anmeldungen'), icon: <UserPlus className={iconClass} /> },
+          { to: '/admin/announcements', label: t('announcements'), icon: <Megaphone className={iconClass} /> },
+          { to: '/admin/reports', label: t('moderationReports'), icon: <Flag className={iconClass} /> },
+          { to: '/admin/volley-feedback', label: t('volleyFeedback'), icon: <MessageSquare className={iconClass} /> },
+        ] as NavItem[],
+      },
+      {
+        label: t('adminGroupData'),
+        items: [
+          { to: '/admin/explore', label: t('adminExplorer'), icon: <Database className={iconClass} /> },
+          { to: '/admin/club-stats', label: t('clubStats'), icon: <BarChart3 className={iconClass} /> },
+        ] as NavItem[],
+      },
+    ],
     superadminItems: [
       { to: '/admin/infra', label: t('infraHealth'), icon: <Activity className={iconClass} /> },
       { to: '/admin/data-health', label: t('dataHealth'), icon: <HeartPulse className={iconClass} /> },
