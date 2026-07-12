@@ -21,7 +21,7 @@
 
 import { logCronError, logCronRun, logWarning, logAuthDenial, cleanOldLogs, writeErrorLog } from '../../kscw-endpoints/src/error-log.js'
 import { initSentry } from '../../kscw-endpoints/src/sentry.js'
-import { buildEmailLayout, buildInfoCard, buildAlertBox, bucketEmailsByLocale } from '../../kscw-endpoints/src/email-template.js'
+import { buildEmailLayout, buildNewsletterEmail, buildInfoCard, buildAlertBox, bucketEmailsByLocale } from '../../kscw-endpoints/src/email-template.js'
 import { sendLocalizedPush, bucketMembersByLocale, tPush } from '../../kscw-endpoints/src/push-i18n.js'
 import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-endpoints/src/signup-invites.js'
 import { bbRequiredDocs } from '../../kscw-endpoints/src/bb-docs.js'
@@ -1474,19 +1474,46 @@ export default ({ action, filter, init, schedule }, { services, database, logger
               const emailBody =
                 `<div style="font-size:14px;color:#e2e8f0;line-height:1.6;text-align:justify">${bodyWithStyledLinks}</div>`
 
-              const html = buildEmailLayout(emailBody, {
-                title: isGerman ? 'Vereinsnews' : 'Club news',
-                subtitle: title,
-                greeting: r.first_name ? (isGerman ? `Hallo ${r.first_name}` : `Hi ${r.first_name}`) : (isGerman ? 'Hallo' : 'Hi'),
-                ctaUrl: newsUrl,
-                ctaLabel,
-              })
+              // Newsletter layout (migration 204): wide masthead template with
+              // the announcement image as hero. Announcement images are
+              // folder-less uploads → the Public policy serves them via
+              // /assets, so email clients can fetch anonymously.
+              const isNewsletter = ann.email_layout === 'newsletter'
+              const greeting = r.first_name ? (isGerman ? `Hallo ${r.first_name}` : `Hi ${r.first_name}`) : (isGerman ? 'Hallo' : 'Hi')
+              let html
+              if (isNewsletter) {
+                const assetsBase = (process.env.PUBLIC_URL || 'https://directus.kscw.ch').replace(/\/$/, '')
+                const newsletterBody =
+                  `<div style="font-size:15px;color:#e2e8f0;line-height:1.7">${bodyWithStyledLinks}</div>`
+                html = buildNewsletterEmail(newsletterBody, {
+                  title,
+                  greeting,
+                  heroImageUrl: ann.image ? `${assetsBase}/assets/${ann.image}` : null,
+                  ctaUrl: newsUrl,
+                  ctaLabel,
+                  footerNote: isGerman
+                    ? 'Du erhältst diese E-Mail als Mitglied des KSC Wiedikon. E-Mail-Einstellungen kannst du in deinem Wiedisync-Profil anpassen.'
+                    : 'You receive this email as a KSC Wiedikon member. Manage your email preferences in your Wiedisync profile.',
+                })
+              } else {
+                html = buildEmailLayout(emailBody, {
+                  title: isGerman ? 'Vereinsnews' : 'Club news',
+                  subtitle: title,
+                  greeting,
+                  ctaUrl: newsUrl,
+                  ctaLabel,
+                })
+              }
 
               await mailService.send({
                 to: r.email,
-                subject: `${isGerman ? 'Vereinsnews' : 'Club news'}: ${title}`,
+                // Newsletter subject is just the headline; standard keeps the
+                // "Vereinsnews:" prefix.
+                subject: isNewsletter ? title : `${isGerman ? 'Vereinsnews' : 'Club news'}: ${title}`,
                 html,
                 text: `${title}\n\n${stripHtmlPlain(bodyHtml).slice(0, 500)}\n\n${newsUrl}`,
+                // Reply-To (migration 204) — empty keeps no-reply.
+                ...(ann.reply_to ? { replyTo: ann.reply_to } : {}),
               })
               sent++
             } catch (perEmailErr) {

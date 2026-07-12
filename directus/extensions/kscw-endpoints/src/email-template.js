@@ -135,6 +135,60 @@ export function buildEmailLayout(bodyHtml, opts = {}) {
 }
 
 /**
+ * Newsletter-style layout — wider (600px) masthead template for club-wide
+ * announcement emails (the "newsletter look", 2026-07-12). Differences from
+ * buildEmailLayout: KSC Wiedikon wordmark masthead with a gold rule, optional
+ * full-width hero image (must be a publicly fetchable URL — email clients load
+ * it anonymously), larger headline typography, and a preferences footer note.
+ *
+ * @param {string} bodyHtml  Pre-sanitized HTML (caller sanitizes!)
+ * @param {object} opts
+ *   title        — headline (escaped here)
+ *   greeting     — e.g. "Hallo Anna," (escaped)
+ *   heroImageUrl — optional absolute image URL
+ *   ctaUrl / ctaLabel — optional button
+ *   footerNote   — small footer sentence (escaped), e.g. the opt-out hint
+ */
+export function buildNewsletterEmail(bodyHtml, opts = {}) {
+  let html = `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"><table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:24px 0"><tr><td align="center"><table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#1e293b;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.3)">`
+
+  // Masthead — logo + wordmark over the brand blue, gold rule underneath.
+  html += `<tr><td style="background:#4A55A2;padding:20px 32px"><table cellpadding="0" cellspacing="0"><tr><td style="vertical-align:middle;padding-right:14px"><img src="${LOGO_URL}" alt="KSC Wiedikon" width="44" height="48" style="width:44px;height:48px"></td><td style="vertical-align:middle"><div style="font-size:20px;font-weight:800;color:#ffffff;letter-spacing:0.5px">KSC Wiedikon</div><div style="font-size:12px;color:#c7cdf0;letter-spacing:2px;text-transform:uppercase">Newsletter</div></td></tr></table></td></tr>`
+  html += `<tr><td style="background:${ACCENT.vb};height:4px;font-size:0;line-height:0">&nbsp;</td></tr>`
+
+  // Hero image (optional)
+  if (opts.heroImageUrl) {
+    html += `<tr><td style="font-size:0;line-height:0"><img src="${escHtml(opts.heroImageUrl)}" alt="" width="600" style="width:100%;max-width:600px;height:auto;display:block"></td></tr>`
+  }
+
+  // Headline + greeting
+  html += `<tr><td style="padding:28px 32px 8px">`
+  if (opts.title) html += `<div style="font-size:26px;font-weight:800;color:#ffffff;line-height:1.25">${escHtml(opts.title)}</div>`
+  if (opts.greeting) html += `<div style="font-size:15px;color:#94a3b8;margin-top:10px">${escHtml(opts.greeting)}</div>`
+  html += `</td></tr>`
+
+  // Body
+  html += `<tr><td style="padding:12px 32px 20px">${bodyHtml}</td></tr>`
+
+  // CTA
+  if (opts.ctaUrl && opts.ctaLabel) {
+    html += `<tr><td style="padding:0 32px 26px"><table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><a href="${escHtml(opts.ctaUrl)}" style="display:inline-block;background:${ACCENT.vb};color:#000000;font-size:14px;font-weight:600;padding:12px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.2px">${escHtml(opts.ctaLabel)}</a></td></tr></table></td></tr>`
+  }
+
+  // Preferences footer note
+  if (opts.footerNote) {
+    html += `<tr><td style="padding:0 32px 20px;border-top:1px solid #334155"><div style="font-size:12px;color:#64748b;padding-top:14px;text-align:center">${escHtml(opts.footerNote)}</div></td></tr>`
+  }
+
+  // Bottom bar
+  const footerHost = FRONTEND_URL.replace('https://', '')
+  html += `<tr><td style="background:#0f172a;border-top:1px solid #334155;padding:14px 32px;text-align:center"><div style="font-size:11px;color:#64748b">KSC Wiedikon &middot; <a href="${FRONTEND_URL}" style="color:#64748b;text-decoration:none">${footerHost}</a></div></td></tr>`
+
+  html += '</table></td></tr></table></body></html>'
+  return html
+}
+
+/**
  * Build an alert box
  * @param {'info'|'warning'|'success'} type
  */

@@ -32,6 +32,12 @@ export default {
   publish: 'Veröffentlichen (sofort sichtbar)',
   notifyPush: 'Push-Benachrichtigung senden',
   notifyEmail: 'E-Mail senden',
+  emailLayout: 'E-Mail-Layout',
+  emailLayoutStandard: 'Standard',
+  emailLayoutNewsletter: 'Newsletter',
+  emailLayoutHint: 'Newsletter nutzt ein breites Masthead-Layout und zeigt das Bild der Mitteilung als Hero.',
+  emailReplyTo: 'Antwortadresse',
+  emailReplyToHint: 'Antworten gehen an diese Adresse. Leer lassen für No-Reply.',
 
   // Status badges
   statusPublished: 'Veröffentlicht',

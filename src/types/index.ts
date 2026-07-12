@@ -909,6 +909,10 @@ export interface Announcement extends BaseRecord {
   notify_push: boolean
   /** Per-post toggle: also send email on publish. */
   notify_email: boolean
+  /** Email template (migration 204): standard branded card or newsletter masthead. */
+  email_layout?: 'standard' | 'newsletter'
+  /** Optional Reply-To for the announcement emails; null/empty = no-reply (migration 204). */
+  reply_to?: string | null
   /** M2O → members.id (autofill). */
   created_by: string | null
   /** Set by backend hook after push/email fanout — prevents re-sending on edit. */
