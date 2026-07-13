@@ -8,6 +8,8 @@ import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, es
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
 import { BB_SITUATIONS, bbRequiredDocs } from './bb-docs.js'
 import crypto from 'crypto'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -446,9 +448,88 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
 const UPLOAD_ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'])
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
+// The registration document columns a member is allowed to view for their own
+// (post-approval) registration. Mirrors REGISTRATION_FILE_COLS in kscw-hooks.
+const SELF_DOC_FIELDS = [
+  'id_upload_front', 'id_upload_back',
+  'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl',
+  'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
+]
+// Local storage root (registration files are stored on the 'local' driver).
+const REG_STORAGE_ROOT = process.env.STORAGE_LOCAL_ROOT || '/directus/uploads'
 
 export function registerRegistration(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'registration' })
+
+  // ── Member self-view of their own registration documents ────────────────────
+  // After approval the registration row is kept and stamped with `member`, so a
+  // logged-in member can see the ID / basketball docs they uploaded. Read-only,
+  // strictly scoped to the caller's own registration (via members.user →
+  // registrations.member); the private folder + file id both come from the
+  // caller's own row, so this never widens access to anyone else's files.
+  const findSelfRegistration = async (userId) => {
+    if (!userId) return null
+    const self = await database('members').where('user', userId).select('id').first()
+    if (!self) return null
+    // Most recent registration linked to this member.
+    return database('registrations').where('member', self.id).orderBy('id', 'desc').first()
+  }
+
+  // GET /kscw/registration/my-docs — list the caller's own uploaded documents.
+  router.get('/registration/my-docs', async (req, res) => {
+    try {
+      const userId = req.accountability?.user
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+      const reg = await findSelfRegistration(userId)
+      if (!reg) return res.json({ reference_number: null, status: null, docs: [] })
+      const ids = SELF_DOC_FIELDS.map((f) => reg[f]).filter(Boolean)
+      const files = ids.length
+        ? await database('directus_files').whereIn('id', ids).select('id', 'filename_download', 'type', 'filesize')
+        : []
+      const byId = new Map(files.map((f) => [String(f.id), f]))
+      const docs = SELF_DOC_FIELDS
+        .filter((f) => reg[f] && byId.has(String(reg[f])))
+        .map((f) => {
+          const file = byId.get(String(reg[f]))
+          return { field: f, filename: file.filename_download || f, type: file.type || null, size: file.filesize ?? null }
+        })
+      return res.json({ reference_number: reg.reference_number || null, status: reg.status || null, docs })
+    } catch (err) {
+      log.error({ msg: `registration/my-docs: ${err.message}`, endpoint: 'registration/my-docs', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // GET /kscw/registration/my-docs/:field — stream one of the caller's own docs.
+  router.get('/registration/my-docs/:field', async (req, res) => {
+    try {
+      const userId = req.accountability?.user
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+      const field = String(req.params.field || '')
+      if (!SELF_DOC_FIELDS.includes(field)) return res.status(400).json({ error: 'Invalid document' })
+      const reg = await findSelfRegistration(userId)
+      const fileId = reg?.[field]
+      if (!fileId) return res.status(404).json({ error: 'Not found' })
+      // The id came from the caller's own registration; also pin the private
+      // folder so a mismatched/repointed id can't reach an unrelated file.
+      const row = await database('directus_files')
+        .where({ id: fileId, folder: REGISTRATION_FILES_FOLDER })
+        .first('id', 'filename_disk', 'filename_download', 'type')
+      if (!row || !row.filename_disk) return res.status(404).json({ error: 'Not found' })
+      const filePath = path.resolve(REG_STORAGE_ROOT, row.filename_disk)
+      if (!filePath.startsWith(path.resolve(REG_STORAGE_ROOT) + path.sep)) {
+        return res.status(400).json({ error: 'Invalid path' })
+      }
+      const bytes = await readFile(filePath)
+      res.setHeader('Content-Type', row.type || 'application/octet-stream')
+      res.setHeader('Content-Disposition', `inline; filename="${(row.filename_download || field).replace(/[^\w.\- ]/g, '_')}"`)
+      return res.send(bytes)
+    } catch (err) {
+      if (err?.code === 'ENOENT') return res.status(404).json({ error: 'Not found' })
+      log.error({ msg: `registration/my-docs/:field: ${err.message}`, endpoint: 'registration/my-docs', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
 
   // Per-IP throttle for the public /registration/:id/files route. The route
   // authorizes writes by matching a short (~4-digit) reference_number, so without

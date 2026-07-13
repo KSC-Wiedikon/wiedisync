@@ -36,6 +36,25 @@ export interface ClubdeskInfo {
   offiziellenLizenz: string
 }
 
+/** Per-member ClubDesk sync verdict from GET /kscw/clubdesk-sync-status. */
+export type ClubdeskSyncStatus =
+  | 'in_sync' | 'drift' | 'pending' | 'not_linked' | 'stale' | 'departed' | 'excluded'
+
+/** One retained registration document (post-approval) for the reg-files column. */
+export interface RegFileDoc {
+  /** Registration column, e.g. 'id_upload_front' / 'bb_doc_lizenz'. */
+  field: string
+  /** directus_files id — opened via the admin asset URL. */
+  fileId: string
+}
+
+/** Registration files retained for a member (keyed by members.id). */
+export interface RegFileInfo {
+  referenceNumber: string | null
+  status: string | null
+  docs: RegFileDoc[]
+}
+
 export interface CacheShape {
   members: Member[]
   teams: Team[]
@@ -57,6 +76,12 @@ export interface CacheShape {
   /** members.clubdesk_id → narrow ClubDesk register info (groups, officials licence).
    *  Empty for viewers whose policy can't read clubdesk_export (fetch is caught). */
   clubdeskInfo: Map<string, ClubdeskInfo>
+  /** members.id → ClubDesk sync verdict (from /kscw/clubdesk-sync-status).
+   *  Empty for viewers the status endpoint 403s (fetch is caught). */
+  clubdeskSync: Map<string, ClubdeskSyncStatus>
+  /** members.id → retained registration files (post-approval).
+   *  Empty for viewers who can't read `registrations` (fetch is caught). */
+  regFiles: Map<string, RegFileInfo>
   loadedAt: number | null
 }
 
