@@ -216,7 +216,7 @@ export default function RecordEditModal({
           <div className="mt-1 flex items-center gap-2">
             <Switch checked={Boolean(value)} onCheckedChange={(checked) => setField(field.name, checked)} />
             <span className="text-sm text-gray-600 dark:text-gray-400">
-              {Boolean(value) ? 'true' : 'false'}
+              {value ? 'true' : 'false'}
             </span>
           </div>
         )

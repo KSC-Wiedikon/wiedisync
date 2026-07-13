@@ -576,7 +576,7 @@ export default function ScorerRow({
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   {t('confirmSelfAssignTitle')}
                 </h3>
-                {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
+                {/* Hardcoded i18n string, DOMPurify-sanitized before injection */}
                 <p
                   className="mt-1.5 text-sm leading-relaxed text-gray-600 dark:text-gray-400 [&_strong]:font-semibold [&_strong]:text-gray-900 dark:[&_strong]:text-gray-100"
                   dangerouslySetInnerHTML={{
@@ -592,8 +592,7 @@ export default function ScorerRow({
 
               {/* Info items */}
               <div className="space-y-0 px-5 py-3">
-                {/* Arrival time */}
-                {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
+                {/* Arrival time — hardcoded i18n string, DOMPurify-sanitized before injection */}
                 <div className="flex gap-3 rounded-lg px-1 py-2.5">
                   <Clock className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
                   <p
@@ -618,7 +617,7 @@ export default function ScorerRow({
                 {/* Warning: final — delegation only */}
                 <div className="flex gap-3 rounded-lg bg-amber-50/80 px-3 py-2.5 dark:bg-amber-900/10">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
-                  {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
+                  {/* Hardcoded i18n string, DOMPurify-sanitized before injection */}
                   <p
                     className="text-sm leading-relaxed text-amber-700 dark:text-amber-400 [&_strong]:font-semibold"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('confirmSelfAssignWarning')) }}

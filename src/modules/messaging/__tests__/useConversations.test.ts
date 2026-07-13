@@ -39,8 +39,12 @@ const mockConvRow = (overrides = {}) => ({
 })
 
 const listMock = vi.fn()
-const markReadMock = vi.fn(async (_id: string) => ({ last_read_at: new Date().toISOString() }))
-const toggleMuteMock = vi.fn(async (_id: string) => ({ muted: true }))
+const markReadMock = vi.fn<(id: string) => Promise<{ last_read_at: string }>>(
+  async () => ({ last_read_at: new Date().toISOString() }),
+)
+const toggleMuteMock = vi.fn<(id: string) => Promise<{ muted: boolean }>>(
+  async () => ({ muted: true }),
+)
 
 vi.mock('../api/messaging', () => ({
   messagingApi: {

@@ -23,7 +23,7 @@ describe('messagingApi', () => {
     ] as const
     for (const k of expected) {
       expect(messagingApi).toHaveProperty(k)
-      expect(typeof (messagingApi as any)[k]).toBe('function')
+      expect(typeof messagingApi[k]).toBe('function')
     }
   })
 

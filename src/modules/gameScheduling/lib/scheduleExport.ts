@@ -307,7 +307,12 @@ function buildRows({ bookings, opponents, slots, teams }: BuildArgs, ctx: Export
     }
   }
 
-  return all.map(({ _sort, ...row }) => row)
+  // Drop the internal `_sort` helper key before handing rows to the exporters.
+  return all.map((row) => {
+    const copy: ExportRow & { _sort?: string } = { ...row }
+    delete copy._sort
+    return copy
+  })
 }
 
 // Build the sections to render: a single team's section for a per-team report,

@@ -636,7 +636,16 @@ export interface UserLog extends BaseRecord {
   data: Record<string, unknown> | null
 }
 
-export type ParticipationWithMember = Participation & {
+// Everything on a participation except the member link. Use it for logic that
+// doesn't care whether `member` came back as a bare id or an expanded object —
+// both Participation and ParticipationWithMember are assignable to it.
+export type ParticipationBase = Omit<Participation, 'member'>
+
+// `Participation.member` is a bare id; this variant is for reads that EXPAND it.
+// It must Omit first — a plain intersection would collapse `member` to
+// `string & Pick<Member, …>`, i.e. make the expanded object unrepresentable,
+// which is what forced the `as any` casts this type exists to avoid.
+export type ParticipationWithMember = ParticipationBase & {
   member: Pick<Member, 'id' | 'position'> | string
 }
 

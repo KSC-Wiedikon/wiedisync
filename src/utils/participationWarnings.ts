@@ -1,4 +1,4 @@
-import type { Participation, ParticipationWithMember, Member } from '../types'
+import type { ParticipationBase, ParticipationWithMember, Member } from '../types'
 import { asObj } from './relations'
 
 export type WarningLevel = 'red' | 'yellow'
@@ -12,7 +12,7 @@ const VB_DEFAULT_MIN = 6
 const BB_DEFAULT_MIN = 5
 
 /** Count confirmed non-staff participations */
-function countConfirmedPlayers(participations: Participation[]): number {
+function countConfirmedPlayers(participations: ParticipationBase[]): number {
   return participations.filter((p) => p.status === 'confirmed' && !p.is_staff).length
 }
 
@@ -26,7 +26,7 @@ function countConfirmedFieldPlayers(participations: ParticipationWithMember[]): 
 }
 
 /** Check if any staff member is confirmed */
-function hasConfirmedCoach(participations: Participation[]): boolean {
+function hasConfirmedCoach(participations: ParticipationBase[]): boolean {
   return participations.some((p) => p.status === 'confirmed' && p.is_staff)
 }
 
@@ -59,7 +59,7 @@ export function getGameWarnings(
 }
 
 export function getTrainingWarnings(
-  participations: Participation[],
+  participations: ParticipationBase[],
   minParticipants: number | null | undefined,
 ): Warning[] {
   if (!minParticipants || minParticipants <= 0) return []
@@ -71,7 +71,7 @@ export function getTrainingWarnings(
 }
 
 export function getEventWarnings(
-  participations: Participation[],
+  participations: ParticipationBase[],
   minParticipants: number | null | undefined,
 ): Warning[] {
   if (!minParticipants || minParticipants <= 0) return []

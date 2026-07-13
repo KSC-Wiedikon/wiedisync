@@ -119,7 +119,6 @@ function splitStatements(sql) {
 function leadingKeyword(stmt) {
   let s = stmt
   // Strip leading block + line comments + whitespace
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     s = s.replace(/^\s+/, '')
     if (s.startsWith('--')) {

@@ -50,7 +50,7 @@ export function getMemberRole(memberId: string | number, team?: Team | null): st
   return null
 }
 
-export default function MemberRow({ memberTeam, teamId: _teamId, teamSlug, team, canEdit, isAdmin, canEditRole = true, showContact = true, showGuestColumn = false, onTeamUpdate, onExtendShell, isEditing }: MemberRowProps) {
+export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin, canEditRole = true, showContact = true, showGuestColumn = false, onTeamUpdate, onExtendShell, isEditing }: MemberRowProps) {
   const { t } = useTranslation('teams')
   const member = asObj<Member>(memberTeam.member)
   const [editingField, setEditingField] = useState<string | null>(null)

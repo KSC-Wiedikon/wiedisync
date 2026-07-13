@@ -170,7 +170,6 @@ export default function ImportPanel({ editableTeamIds, onImported }: ImportPanel
         created++
       } catch (err) {
         failed++
-        // eslint-disable-next-line no-console
         console.error('Import row failed', row.raw, err)
       }
     }

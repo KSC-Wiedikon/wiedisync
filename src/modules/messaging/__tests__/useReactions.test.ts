@@ -5,7 +5,9 @@ vi.mock('../../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'mbr-me
 vi.mock('../../../hooks/useRealtime', () => ({ useRealtime: vi.fn() }))
 vi.mock('../../../lib/api', () => ({ fetchAllItems: vi.fn(async () => []) }))
 
-const reactMock = vi.fn(async (_id: string, _b: { emoji: string }) => ({ added: true, emoji: '👍' }))
+const reactMock = vi.fn<(id: string, b: { emoji: string }) => Promise<{ added: boolean; emoji: string }>>(
+  async () => ({ added: true, emoji: '👍' }),
+)
 vi.mock('../api/messaging', () => ({
   messagingApi: { react: (id: string, b: { emoji: string }) => reactMock(id, b) },
 }))

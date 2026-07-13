@@ -2,7 +2,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Sparkles, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 // ── Magic UI imports ──────────────────────────────────────────────────────────
@@ -18,7 +17,7 @@ import { Ripple } from '@/components/magicui/ripple'
 import { GridPattern } from '@/components/magicui/grid-pattern'
 import { DotPattern } from '@/components/magicui/dot-pattern'
 import { RetroGrid } from '@/components/magicui/retro-grid'
-import { AnimatedList, AnimatedListItem } from '@/components/magicui/animated-list'
+import { AnimatedList } from '@/components/magicui/animated-list'
 import { Dock, DockIcon } from '@/components/magicui/dock'
 import { OrbitingCircles } from '@/components/magicui/orbiting-circles'
 import { BlurFade } from '@/components/magicui/blur-fade'
@@ -44,7 +43,6 @@ import { SpinningText } from '@/components/magicui/spinning-text'
 import { BentoCard, BentoGrid } from '@/components/magicui/bento-grid'
 import { TextAnimate } from '@/components/magicui/text-animate'
 import { ScrollProgress } from '@/components/magicui/scroll-progress'
-import { ShimmerButton as _SB } from '@/components/magicui/shimmer-button'
 
 // ── Aceternity imports ────────────────────────────────────────────────────────
 import { Spotlight } from '@/components/aceternity/spotlight'
@@ -61,7 +59,6 @@ import { FlipWords } from '@/components/aceternity/flip-words'
 import { TypewriterEffect } from '@/components/aceternity/typewriter-effect'
 import { FollowerPointerCard } from '@/components/aceternity/following-pointer'
 import { Boxes } from '@/components/aceternity/background-boxes'
-import { Meteors as AceMeteors } from '@/components/aceternity/meteors'
 import { WavyBackground } from '@/components/aceternity/wavy-background'
 import { ShootingStars } from '@/components/aceternity/shooting-stars'
 import { BackgroundLines } from '@/components/aceternity/background-lines'
@@ -137,8 +134,6 @@ function Demo({ title, lib, importPath, children }: {
 
 export default function AnimatedUIPage() {
   const [query, setQuery] = useState('')
-  const [showAllMagic, setShowAllMagic] = useState(false)
-  const [showAllAce, setShowAllAce] = useState(false)
 
   const q = query.trim().toLowerCase()
 

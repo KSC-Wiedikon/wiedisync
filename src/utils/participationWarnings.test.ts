@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { getGameWarnings, getTrainingWarnings, getEventWarnings } from './participationWarnings'
-import type { Participation, ParticipationWithMember } from '../types'
+import type { MemberPosition, Participation, ParticipationWithMember } from '../types'
 
 function makeParticipation(
-  overrides: Partial<Participation> & { position?: string[] } = {},
+  overrides: Partial<Participation> & { position?: MemberPosition[] } = {},
 ): ParticipationWithMember {
+  const memberId = 'member-' + Math.random().toString(36).slice(2, 6)
   const base: ParticipationWithMember = {
     id: Math.random().toString(36),
-    member: 'member-' + Math.random().toString(36).slice(2, 6),
+    member: memberId,
     activity_type: 'game',
     activity_id: 'game-1',
     status: 'confirmed',
@@ -21,10 +22,10 @@ function makeParticipation(
     created: '',
     updated: '',
   }
-  if (overrides.position) {
-    base.member = { id: base.member, position: overrides.position as any } as any
+  const { position, ...rest } = overrides
+  if (position) {
+    base.member = { id: memberId, position }
   }
-  const { position: _, ...rest } = overrides
   return { ...base, ...rest }
 }
 
