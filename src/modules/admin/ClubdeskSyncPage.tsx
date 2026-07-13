@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
 import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
+import ClubdeskGroupCheck from './components/ClubdeskGroupCheck'
 
 /**
  * Standalone ClubDesk sync page (superadmin) — the same sync-down button +
@@ -18,7 +19,7 @@ export default function ClubdeskSyncPage() {
   const [syncUpOpen, setSyncUpOpen] = useState(false)
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
+    <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold">
           <FolderSync className="h-6 w-6" />{t('clubdeskSyncTitle')}
@@ -53,6 +54,9 @@ export default function ClubdeskSyncPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Group check — ClubDesk groups are manual-only, so they drift silently */}
+      <ClubdeskGroupCheck />
 
       <p className="text-xs text-gray-500 dark:text-gray-400">
         <HeartPulse className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
