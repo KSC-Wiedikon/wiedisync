@@ -1,56 +1,110 @@
 // src/modules/admin/components/ClubdeskGroupCheck.tsx
 //
-// "Group check" card for the ClubDesk sync page (superadmin). ClubDesk group
-// membership is MANUAL-ONLY — the CSV import treats Gruppen as a no-op — so it
-// silently drifts from the Wiedisync rosters. This surfaces two problems from
-// GET /kscw/clubdesk-group-sync:
+// "Consistency check" card for the ClubDesk sync page (superadmin) — the single
+// workbench for everything that can drift between ClubDesk and Wiedisync. Data
+// Health stays the *alarm* (aggregate counts); this is where you actually work
+// the lists. All of it comes from one call to GET /kscw/clubdesk-group-sync.
 //
-//   • No ClubDesk group — the member's ClubDesk contact carries no group token
-//     at all. The urgent subset is those who ARE on a Wiedisync team (they play,
-//     yet the register has them in nothing); the rest (no team) are usually
-//     passive / officials / board and just want a review.
-//   • Missing a group — the member has groups, but not the one for a team they
-//     actually play in.
+// ClubDesk group membership is MANUAL-ONLY (the CSV import treats Gruppen as a
+// no-op), so every group check here is read-only by design: the card's job is to
+// hand you an accurate, exportable worklist, not to fix things automatically.
 //
-// Read-only by design: the fix is made by hand in ClubDesk, so the card's job is
-// to produce an accurate, exportable worklist. Members with no group are shown
-// in their own table and filtered out of "missing" so nobody is listed twice.
+// Sections, roughly by severity:
+//   • No ClubDesk group        — in zero CD groups. Those ON a team are urgent.
+//   • Missing a group          — has groups, but not their team's.
+//   • Coach without coach group— coaches missing '<team> (Trainer*in)'.
+//   • Billed as a player, no roster — pays a playing fee, on no roster. Bucketed
+//     never / lapsed / older so it's triageable rather than a 166-row dump.
+//   • In a CD group, not on the roster (strays)
+//   • CD groups with no Wiedisync team
+//   • Teams with no CD group configured — a config guard: an unmapped team is
+//     invisible to every check above, so it must never be silently skipped.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AlertTriangle, Check, Download, Loader2, RefreshCw, Users } from 'lucide-react'
+import { AlertTriangle, Check, ChevronRight, Download, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
 import { kscwApi } from '../../../lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toXlsx, downloadBlob } from '../utils/exportResults'
 
-interface NoGroupRow {
-  member_id: number
-  member_name: string
-  clubdesk_id: string
-  teams: string
-  kat: string
-  has_team: boolean
+interface NoGroupRow { member_id: number; member_name: string; clubdesk_id: string; teams: string; kat: string; has_team: boolean }
+interface MissingRow { member_id: number; member_name: string; clubdesk_id: string; groups: string[] }
+interface FeeRow {
+  member_id: number; member_name: string; clubdesk_id: string; kat: string
+  last_season: string | null; coach_of: string; tr_of: string
+  severity: 'never' | 'lapsed' | 'older'
 }
-
-interface MissingRow {
-  member_id: number
-  member_name: string
-  clubdesk_id: string
-  groups: string[]
+interface StrayRow {
+  member_id: number; member_name: string; clubdesk_id: string; group: string
+  active: boolean; is_official: boolean; coach_of: string; tr_of: string
 }
+interface NoTeamGroupRow { group: string; count: number }
+interface UnmappedTeamRow { team_id: number; name: string; sport: string }
 
-interface GroupSyncResponse {
+interface Resp {
   no_group?: NoGroupRow[]
   missing?: MissingRow[]
+  coach_no_group?: MissingRow[]
+  fee_no_roster?: FeeRow[]
+  strays?: StrayRow[]
+  no_team_groups?: NoTeamGroupRow[]
+  unmapped_teams?: UnmappedTeamRow[]
+}
+
+const EMPTY: Required<Resp> = {
+  no_group: [], missing: [], coach_no_group: [], fee_no_roster: [],
+  strays: [], no_team_groups: [], unmapped_teams: [],
+}
+
+/** Collapsible section: header always shows the count, body loads on expand. */
+function Section({
+  title, hint, count, tone = 'warn', children,
+}: {
+  title: string
+  hint: string
+  count: number
+  tone?: 'warn' | 'danger'
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  if (count === 0) return null
+  return (
+    <section className="rounded-md border border-border">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/60"
+        aria-expanded={open}
+      >
+        <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-90' : ''}`} />
+        <span className="text-sm font-semibold text-foreground">{title}</span>
+        <span
+          className={
+            'ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ' +
+            (tone === 'danger'
+              ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+              : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300')
+          }
+        >
+          {count}
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-border px-3 py-2">
+          <p className="mb-2 text-xs text-muted-foreground">{hint}</p>
+          <div className="max-h-96 overflow-y-auto">{children}</div>
+        </div>
+      )}
+    </section>
+  )
 }
 
 export default function ClubdeskGroupCheck() {
   const { t, i18n } = useTranslation('admin')
-  const [noGroup, setNoGroup] = useState<NoGroupRow[]>([])
-  const [missing, setMissing] = useState<MissingRow[]>([])
+  const [data, setData] = useState<Required<Resp>>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,13 +112,8 @@ export default function ClubdeskGroupCheck() {
     setLoading(true)
     setError(null)
     try {
-      const res = await kscwApi<GroupSyncResponse>('/clubdesk-group-sync')
-      const ng = res.no_group ?? []
-      // A no-group member is, by definition, also "missing" every expected group —
-      // drop them from the missing table so they aren't listed twice.
-      const ngIds = new Set(ng.map((r) => r.member_id))
-      setNoGroup(ng)
-      setMissing((res.missing ?? []).filter((r) => !ngIds.has(r.member_id)))
+      const res = await kscwApi<Resp>('/clubdesk-group-sync')
+      setData({ ...EMPTY, ...res })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -73,42 +122,72 @@ export default function ClubdeskGroupCheck() {
   }, [])
 
   // Fetch-on-mount: the setState lands in the async callback, not the effect
-  // body, but the rule can't see through `void load()`. Same pattern as
-  // useExplorerCache / ExplorerMemberFields.
+  // body, but the rule can't see through `void load()`.
   /* eslint-disable-next-line react-hooks/set-state-in-effect */
   useEffect(() => { void load() }, [load])
+
+  // A no-group member is by definition ALSO missing every expected group — drop
+  // them from the missing/coach tables so nobody is listed twice.
+  const view = useMemo(() => {
+    const ngIds = new Set(data.no_group.map((r) => r.member_id))
+    return {
+      noGroup: [...data.no_group].sort((a, b) => Number(b.has_team) - Number(a.has_team)),
+      missing: data.missing.filter((r) => !ngIds.has(r.member_id)),
+      coach: data.coach_no_group.filter((r) => !ngIds.has(r.member_id)),
+      // never > lapsed > older
+      fee: [...data.fee_no_roster].sort((a, b) => {
+        const rank = { never: 0, lapsed: 1, older: 2 }
+        return rank[a.severity] - rank[b.severity]
+      }),
+      strays: data.strays,
+      noTeamGroups: data.no_team_groups,
+      unmapped: data.unmapped_teams,
+    }
+  }, [data])
+
+  const onTeamCount = view.noGroup.filter((r) => r.has_team).length
+  const neverCount = view.fee.filter((r) => r.severity === 'never').length
+  const total = view.noGroup.length + view.missing.length + view.coach.length
+    + view.fee.length + view.strays.length + view.noTeamGroups.length + view.unmapped.length
 
   // Export is always English (exports-always-English convention).
   const handleExport = async () => {
     try {
       const tEn = i18n.getFixedT('en', 'admin')
-      const columns = [
-        'Issue',
-        tEn('clubdeskGroupColName'),
-        tEn('clubdeskGroupColClubdeskId'),
-        tEn('clubdeskGroupColTeams'),
-        tEn('clubdeskGroupColCategory'),
-        tEn('clubdeskGroupColMissing'),
-      ]
+      const columns = ['Issue', 'Name', 'ClubDesk ID', 'Detail', 'Fee category', 'Last rostered', 'Coach / TR']
       const rows: string[][] = [
-        ...noGroup.map((r) => [
+        ...view.noGroup.map((r) => [
           r.has_team ? 'No ClubDesk group (on a team)' : 'No ClubDesk group',
-          r.member_name, r.clubdesk_id, r.teams, r.kat, '',
+          r.member_name, r.clubdesk_id, r.teams, r.kat, '', '',
         ]),
-        ...missing.map((r) => [
-          'Missing a group',
-          r.member_name, r.clubdesk_id, '', '', r.groups.join(', '),
+        ...view.missing.map((r) => ['Missing a group', r.member_name, r.clubdesk_id, r.groups.join(', '), '', '', '']),
+        ...view.coach.map((r) => ['Coach missing coach group', r.member_name, r.clubdesk_id, r.groups.join(', '), '', '', '']),
+        ...view.fee.map((r) => [
+          `Billed as player, no roster (${r.severity})`,
+          r.member_name, r.clubdesk_id, '', r.kat, r.last_season ?? '', [r.coach_of, r.tr_of].filter(Boolean).join(' / '),
         ]),
+        ...view.strays.map((r) => [
+          'In ClubDesk group, not on roster',
+          r.member_name, r.clubdesk_id, r.group, '', '', [r.coach_of, r.tr_of].filter(Boolean).join(' / '),
+        ]),
+        ...view.noTeamGroups.map((r) => ['ClubDesk group with no team', '', '', r.group, '', '', String(r.count)]),
+        ...view.unmapped.map((r) => ['Team with no ClubDesk group configured', r.name, '', r.sport, '', '', '']),
       ]
+      void tEn
       const blob = await toXlsx(columns, rows)
-      downloadBlob(blob, `clubdesk_group_check_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      downloadBlob(blob, `clubdesk_consistency_${new Date().toISOString().slice(0, 10)}.xlsx`)
     } catch {
       toast.error(t('clubdeskGroupExportFailed'))
     }
   }
 
-  const onTeamCount = noGroup.filter((r) => r.has_team).length
-  const total = noGroup.length + missing.length
+  const sevBadge = (s: FeeRow['severity']) => {
+    const cls = s === 'never'
+      ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+      : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+    const label = s === 'never' ? t('clubdeskFeeSevNever') : s === 'lapsed' ? t('clubdeskFeeSevLapsed') : t('clubdeskFeeSevOlder')
+    return <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
+  }
 
   return (
     <Card>
@@ -116,7 +195,7 @@ export default function ClubdeskGroupCheck() {
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="h-4 w-4" />{t('clubdeskGroupCheckTitle')}
+              <ShieldCheck className="h-4 w-4" />{t('clubdeskGroupCheckTitle')}
             </CardTitle>
             <CardDescription>{t('clubdeskGroupCheckDescription')}</CardDescription>
           </div>
@@ -125,25 +204,16 @@ export default function ClubdeskGroupCheck() {
               {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               {t('clubdeskGroupRefresh')}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => { void handleExport() }}
-              disabled={loading || total === 0}
-              className="gap-1.5"
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => { void handleExport() }} disabled={loading || total === 0} className="gap-1.5">
               <Download className="h-3.5 w-3.5" />{t('explorerGridExport')}
             </Button>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-2">
         {error && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </div>
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
         )}
 
         {!error && loading && (
@@ -160,104 +230,208 @@ export default function ClubdeskGroupCheck() {
 
         {!error && !loading && total > 0 && (
           <>
-            {/* No ClubDesk group at all */}
-            {noGroup.length > 0 && (
-              <section>
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  {t('clubdeskGroupNoGroupTitle')}
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
-                    {noGroup.length}
-                  </span>
-                  {onTeamCount > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                      <AlertTriangle className="h-3 w-3" />
-                      {t('clubdeskGroupOnTeamCount', { count: onTeamCount })}
-                    </span>
-                  )}
-                </h3>
-                <p className="mt-1 text-xs text-muted-foreground">{t('clubdeskGroupNoGroupHint')}</p>
-                <div className="mt-2 max-h-96 overflow-y-auto rounded-md border border-border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="sticky top-0 bg-card">{t('clubdeskGroupColName')}</TableHead>
-                        <TableHead className="sticky top-0 hidden bg-card sm:table-cell">{t('clubdeskGroupColClubdeskId')}</TableHead>
-                        <TableHead className="sticky top-0 bg-card">{t('clubdeskGroupColTeams')}</TableHead>
-                        <TableHead className="sticky top-0 hidden bg-card md:table-cell">{t('clubdeskGroupColCategory')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {/* Members who play but have no group are the urgent ones — first. */}
-                      {[...noGroup].sort((a, b) => Number(b.has_team) - Number(a.has_team)).map((r) => (
-                        <TableRow key={r.member_id} className="min-h-11">
-                          <TableCell className="whitespace-normal break-words font-medium">{r.member_name}</TableCell>
-                          <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">{r.clubdesk_id}</TableCell>
-                          <TableCell className="whitespace-normal break-words">
-                            {r.has_team
-                              ? (
-                                <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                                  <AlertTriangle className="h-3 w-3" />{r.teams}
-                                </span>
-                              )
-                              : <span className="text-muted-foreground">{t('clubdeskGroupNoTeam')}</span>}
-                          </TableCell>
-                          <TableCell className="hidden whitespace-normal break-words text-muted-foreground md:table-cell">
-                            {r.kat || '—'}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </section>
-            )}
+            {/* Config guard first — an unmapped team makes every check below incomplete */}
+            <Section
+              title={t('clubdeskUnmappedTitle')}
+              hint={t('clubdeskUnmappedHint')}
+              count={view.unmapped.length}
+              tone="danger"
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>{t('clubdeskColTeam')}</TableHead>
+                    <TableHead>{t('clubdeskColSport')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {view.unmapped.map((r) => (
+                    <TableRow key={r.team_id} className="min-h-11">
+                      <TableCell className="whitespace-normal break-words font-medium">{r.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{r.sport}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Section>
 
-            {/* Has groups, but missing the one for a team they play in */}
-            {missing.length > 0 && (
-              <section>
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  {t('clubdeskGroupMissingTitle')}
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
-                    {missing.length}
-                  </span>
-                </h3>
-                <p className="mt-1 text-xs text-muted-foreground">{t('clubdeskGroupMissingHint')}</p>
-                <div className="mt-2 max-h-96 overflow-y-auto rounded-md border border-border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="sticky top-0 bg-card">{t('clubdeskGroupColName')}</TableHead>
-                        <TableHead className="sticky top-0 hidden bg-card sm:table-cell">{t('clubdeskGroupColClubdeskId')}</TableHead>
-                        <TableHead className="sticky top-0 bg-card">{t('clubdeskGroupColMissing')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {missing.map((r) => (
-                        <TableRow key={r.member_id} className="min-h-11">
-                          <TableCell className="whitespace-normal break-words font-medium">{r.member_name}</TableCell>
-                          <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">{r.clubdesk_id}</TableCell>
-                          <TableCell className="whitespace-normal break-words">
-                            {r.groups.map((g) => (
-                              <span
-                                key={g}
-                                className="mr-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                              >
-                                {g}
-                              </span>
-                            ))}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </section>
-            )}
+            {/* No ClubDesk group */}
+            <Section
+              title={`${t('clubdeskGroupNoGroupTitle')}${onTeamCount > 0 ? ` · ${t('clubdeskGroupOnTeamCount', { count: onTeamCount })}` : ''}`}
+              hint={t('clubdeskGroupNoGroupHint')}
+              count={view.noGroup.length}
+              tone={onTeamCount > 0 ? 'danger' : 'warn'}
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>{t('clubdeskGroupColName')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('clubdeskGroupColClubdeskId')}</TableHead>
+                    <TableHead>{t('clubdeskGroupColTeams')}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t('clubdeskGroupColCategory')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {view.noGroup.map((r) => (
+                    <TableRow key={r.member_id} className="min-h-11">
+                      <TableCell className="whitespace-normal break-words font-medium">{r.member_name}</TableCell>
+                      <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">{r.clubdesk_id}</TableCell>
+                      <TableCell className="whitespace-normal break-words">
+                        {r.has_team
+                          ? (
+                            <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                              <AlertTriangle className="h-3 w-3" />{r.teams}
+                            </span>
+                          )
+                          : <span className="text-muted-foreground">{t('clubdeskGroupNoTeam')}</span>}
+                      </TableCell>
+                      <TableCell className="hidden whitespace-normal break-words text-muted-foreground md:table-cell">{r.kat || '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Section>
 
-            <p className="text-xs text-muted-foreground">{t('clubdeskGroupManualHint')}</p>
+            {/* Missing a group */}
+            <Section title={t('clubdeskGroupMissingTitle')} hint={t('clubdeskGroupMissingHint')} count={view.missing.length}>
+              <GroupTable rows={view.missing} t={t} />
+            </Section>
+
+            {/* Coach missing their coach group */}
+            <Section title={t('clubdeskCoachTitle')} hint={t('clubdeskCoachHint')} count={view.coach.length}>
+              <GroupTable rows={view.coach} t={t} />
+            </Section>
+
+            {/* Billed as a player, but on no roster */}
+            <Section
+              title={`${t('clubdeskFeeTitle')}${neverCount > 0 ? ` · ${t('clubdeskFeeNeverCount', { count: neverCount })}` : ''}`}
+              hint={t('clubdeskFeeHint')}
+              count={view.fee.length}
+              tone={neverCount > 0 ? 'danger' : 'warn'}
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>{t('clubdeskGroupColName')}</TableHead>
+                    <TableHead>{t('clubdeskGroupColCategory')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('clubdeskColLastSeason')}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t('clubdeskColRole')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {view.fee.map((r) => {
+                    const role = [r.coach_of && `${t('explorerFieldCoach')}: ${r.coach_of}`, r.tr_of && `TR: ${r.tr_of}`]
+                      .filter(Boolean).join(' · ')
+                    return (
+                      <TableRow key={r.member_id} className="min-h-11">
+                        <TableCell className="whitespace-normal break-words font-medium">
+                          {r.member_name} {sevBadge(r.severity)}
+                        </TableCell>
+                        <TableCell className="whitespace-normal break-words text-muted-foreground">{r.kat}</TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">
+                          {r.last_season ?? '—'}
+                        </TableCell>
+                        <TableCell className="hidden whitespace-normal break-words text-muted-foreground md:table-cell">
+                          {role || '—'}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </Section>
+
+            {/* Strays — in a CD group but not on the roster */}
+            <Section title={t('clubdeskStrayTitle')} hint={t('clubdeskStrayHint')} count={view.strays.length}>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>{t('clubdeskGroupColName')}</TableHead>
+                    <TableHead>{t('clubdeskColGroup')}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t('clubdeskColRole')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {view.strays.map((r) => {
+                    const tags = [
+                      r.active ? null : t('clubdeskStrayInactive'),
+                      r.is_official ? t('clubdeskStrayOfficial') : null,
+                      r.coach_of && `${t('explorerFieldCoach')}: ${r.coach_of}`,
+                      r.tr_of && `TR: ${r.tr_of}`,
+                    ].filter(Boolean).join(' · ')
+                    return (
+                      <TableRow key={`${r.member_id}-${r.group}`} className="min-h-11">
+                        <TableCell className="whitespace-normal break-words font-medium">{r.member_name}</TableCell>
+                        <TableCell className="whitespace-normal break-words">
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{r.group}</span>
+                        </TableCell>
+                        <TableCell className="hidden whitespace-normal break-words text-muted-foreground md:table-cell">
+                          {tags || '—'}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </Section>
+
+            {/* CD groups with no Wiedisync team */}
+            <Section title={t('clubdeskNoTeamGroupTitle')} hint={t('clubdeskNoTeamGroupHint')} count={view.noTeamGroups.length}>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>{t('clubdeskColGroup')}</TableHead>
+                    <TableHead>{t('clubdeskColMembers')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {view.noTeamGroups.map((r) => (
+                    <TableRow key={r.group} className="min-h-11">
+                      <TableCell className="whitespace-normal break-words font-medium">{r.group}</TableCell>
+                      <TableCell className="text-muted-foreground">{r.count}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Section>
+
+            <p className="pt-1 text-xs text-muted-foreground">{t('clubdeskGroupManualHint')}</p>
           </>
         )}
       </CardContent>
     </Card>
+  )
+}
+
+/** Shared table for the two "missing a group token" checks. */
+function GroupTable({ rows, t }: { rows: MissingRow[]; t: (k: string) => string }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow className="hover:bg-transparent">
+          <TableHead>{t('clubdeskGroupColName')}</TableHead>
+          <TableHead className="hidden sm:table-cell">{t('clubdeskGroupColClubdeskId')}</TableHead>
+          <TableHead>{t('clubdeskGroupColMissing')}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((r) => (
+          <TableRow key={r.member_id} className="min-h-11">
+            <TableCell className="whitespace-normal break-words font-medium">{r.member_name}</TableCell>
+            <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">{r.clubdesk_id}</TableCell>
+            <TableCell className="whitespace-normal break-words">
+              {r.groups.map((g) => (
+                <span
+                  key={g}
+                  className="mr-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                >
+                  {g}
+                </span>
+              ))}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }

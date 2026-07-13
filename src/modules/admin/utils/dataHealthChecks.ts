@@ -25,6 +25,10 @@ export type IssueKey =
   | 'clubdeskGroupMissing'
   | 'clubdeskGroupStray'
   | 'clubdeskGroupNoTeam'
+  | 'clubdeskNoGroup'
+  | 'clubdeskCoachGroup'
+  | 'clubdeskFeeNoRoster'
+  | 'clubdeskUnmappedTeam'
 
 export interface DataIssue {
   id: string
@@ -423,11 +427,71 @@ async function checkMembers(): Promise<CollectionHealth> {
   // active/official/coach so the "remove from ClubDesk vs add to Wiedisync" call
   // is visible inline), and ClubDesk groups with no Wiedisync team. Best-effort.
   try {
-    const { missing, strays, no_team_groups } = await kscwApi<{
+    const {
+      missing, strays, no_team_groups,
+      no_group, coach_no_group, fee_no_roster, unmapped_teams,
+    } = await kscwApi<{
       missing: ClubdeskGroupMissing[]
       strays: ClubdeskGroupStray[]
       no_team_groups: ClubdeskGroupNoTeam[]
+      no_group?: { member_id: number; has_team: boolean }[]
+      coach_no_group?: { member_id: number }[]
+      fee_no_roster?: { member_id: number; severity: 'never' | 'lapsed' | 'older' }[]
+      unmapped_teams?: { team_id: number; name: string }[]
     }>('/clubdesk-group-sync')
+
+    // These four are AGGREGATED into a single row each: per-member rows would add
+    // ~250 entries and drown the page (same reason clubdesk drift `fills` are
+    // aggregated). Data Health is the alarm — the full, exportable lists live on
+    // the ClubDesk sync page. Exception: unmapped teams are rare and each one
+    // silently blinds every group check, so they get a row apiece.
+    const noGroupOnTeam = (no_group || []).filter((r) => r.has_team).length
+    if ((no_group || []).length > 0) {
+      issues.push({
+        id: 'cd-no-group',
+        collection: 'members',
+        field: 'clubdesk_id',
+        severity: noGroupOnTeam > 0 ? 'error' : 'warning',
+        issueKey: 'clubdeskNoGroup',
+        detail: `${(no_group || []).length} · ${noGroupOnTeam} on a team`,
+        autoFixable: false,
+      })
+    }
+    if ((coach_no_group || []).length > 0) {
+      issues.push({
+        id: 'cd-coach-group',
+        collection: 'members',
+        field: 'clubdesk_id',
+        severity: 'warning',
+        issueKey: 'clubdeskCoachGroup',
+        detail: `${(coach_no_group || []).length}`,
+        autoFixable: false,
+      })
+    }
+    const neverRostered = (fee_no_roster || []).filter((r) => r.severity === 'never').length
+    if ((fee_no_roster || []).length > 0) {
+      issues.push({
+        id: 'cd-fee-no-roster',
+        collection: 'members',
+        field: 'beitragskategorie',
+        severity: neverRostered > 0 ? 'error' : 'warning',
+        issueKey: 'clubdeskFeeNoRoster',
+        detail: `${(fee_no_roster || []).length} · ${neverRostered} never rostered`,
+        autoFixable: false,
+      })
+    }
+    for (const tm of unmapped_teams || []) {
+      issues.push({
+        id: `cd-unmapped-team-${tm.team_id}`,
+        collection: 'teams',
+        field: 'clubdesk_group',
+        severity: 'error',
+        issueKey: 'clubdeskUnmappedTeam',
+        detail: tm.name,
+        autoFixable: false,
+      })
+    }
+
     for (const m of missing || []) {
       issues.push({
         id: `cd-grp-missing-${m.member_id}`,

@@ -12,6 +12,10 @@ interface RosterRow {
   first_initial: string
   birthdate: string | null
   is_captain?: boolean
+  /** Licence category (RLL / JLL / DLR). Volleymanager source only. */
+  licence?: string | null
+  /** Volleymanager's eligibility verdict; false → flag it at the table. */
+  eligible?: boolean
 }
 
 interface CoachRow {
@@ -23,6 +27,9 @@ interface CoachRow {
 interface RosterResponse {
   data: {
     game: { home_team: string; away_team: string; date: string; time: string | null }
+    /** 'vm' = the Einsatzliste filed in Volleymanager; 'rsvp' = confirmed RSVPs. */
+    source: 'vm' | 'rsvp'
+    closed_at?: string | null
     roster: RosterRow[]
     coaches?: CoachRow[]
   }
@@ -35,11 +42,16 @@ interface RosterModalProps {
 }
 
 /**
- * Home-team match sheet for the assigned scorer (Schreiber): CONFIRMED players
- * only (captain flagged) plus the team's coaches, shown from 40 min before the
- * game until it ends. Data comes from the time-gated /kscw/scorer/game/:id/roster
- * endpoint — the only place full DoB (incl. minors) is exposed, for match-sheet
- * eligibility checks. The component never holds roster data outside this modal.
+ * Home-team match sheet for the assigned scorer (Schreiber), shown from 40 min
+ * before the game until it ends. Data comes from the time-gated
+ * /kscw/scorer/game/:id/roster endpoint — the only place full DoB (incl. minors)
+ * is exposed, for match-sheet eligibility checks.
+ *
+ * The endpoint serves the Einsatzliste the team filed in Volleymanager whenever
+ * it exists (source 'vm' — the document the scorer actually copies, with licence
+ * category and eligibility), and falls back to confirmed RSVPs otherwise
+ * (source 'rsvp'). The caption tells the scorer which one they are looking at.
+ * The component never holds roster data outside this modal.
  */
 export default function RosterModal({ gameId, onClose }: RosterModalProps) {
   const { t } = useTranslation('scorer')
@@ -78,7 +90,9 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
           <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
             {data.game.home_team} – {data.game.away_team}
           </p>
-          <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">{t('rosterConfirmedOnly')}</p>
+          <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {data.source === 'vm' ? t('rosterSourceVm') : t('rosterSourceRsvp')}
+          </p>
         </>
       )}
 
@@ -92,6 +106,7 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
 
       {!loading && data && (() => {
         const coaches = data.coaches ?? []
+        const showLicence = data.roster.some((r) => r.licence)
         if (data.roster.length === 0 && coaches.length === 0) {
           return <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t('rosterEmpty')}</p>
         }
@@ -103,6 +118,7 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
                   <TableRow>
                     <TableHead className="w-12">{t('rosterColNumber')}</TableHead>
                     <TableHead>{t('rosterColName')}</TableHead>
+                    {showLicence && <TableHead className="w-16">{t('rosterColLicence')}</TableHead>}
                     <TableHead className="text-right">{t('rosterColDob')}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -120,7 +136,20 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
                             {t('rosterCaptainShort')}
                           </span>
                         )}
+                        {r.eligible === false && (
+                          <span
+                            title={t('rosterNotEligible')}
+                            className="ml-1.5 align-middle text-amber-600 dark:text-amber-500"
+                          >
+                            ⚠
+                          </span>
+                        )}
                       </TableCell>
+                      {showLicence && (
+                        <TableCell className="text-xs text-gray-500 dark:text-gray-400">
+                          {r.licence ?? '—'}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right tabular-nums">
                         {r.birthdate ? formatDateZurich(r.birthdate) : '—'}
                       </TableCell>

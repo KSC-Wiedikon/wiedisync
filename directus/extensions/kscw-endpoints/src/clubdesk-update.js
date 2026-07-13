@@ -1579,13 +1579,30 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
-  // ── ClubDesk GROUP diff (Data Health) ───────────────────────────────────────
+  /** '2026/27' → '2025/26'. Used to tell a "lapsed" player (rostered last
+   *  season, not this one) apart from one who was never rostered at all. */
+  function prevSeason(s) {
+    const m = String(s || '').match(/^(\d{4})\/(\d{2})$/)
+    if (!m) return null
+    const start = Number(m[1]) - 1
+    return `${start}/${String((start + 1) % 100).padStart(2, '0')}`
+  }
+
+  // ── ClubDesk consistency checks (sync page + Data Health) ───────────────────
   // ClubDesk group membership can only be set by hand in ClubDesk (the CSV import
-  // treats Gruppen as a no-op), so it silently drifts from the Wiedisync team
-  // rosters. Three read-only checks, keyed on teams.clubdesk_group (migration 201
-  // — the exact CD group token per team; NULL = umbrella/no CD group, excluded):
+  // treats Gruppen as a no-op), so it silently drifts from the Wiedisync rosters.
+  // Read-only checks — the fix is always made in ClubDesk / on the roster:
   //   • missing — a current-season REAL player (guest_level 0) whose team's CD
   //     group is not in their gruppen_bracketed → assign it in ClubDesk.
+  //   • no_group — a linked member whose CD contact carries NO group token at all.
+  //     Invisible to `missing`, which only inspects members who are ON a team.
+  //   • coach_no_group — coaches (teams_coaches) missing their team's
+  //     '<group> (Trainer*in)' token. NB there is no ClubDesk role token for
+  //     team-responsible, so TRs are deliberately not checked.
+  //   • fee_no_roster — pays a PLAYING Beitragskategorie but is on no
+  //     current-season roster: billed as a player while on no team. Bucketed by
+  //     severity (never rostered / played last season / older) so the list is
+  //     triageable rather than a 165-row dump.
   //   • strays — someone in a CD player-group with ZERO current-season Wiedisync
   //     presence (that filter drops umbrella-BB + guests, who do have a row)
   //     whose group maps to a real team → left the team (remove) or missing from
@@ -1593,33 +1610,32 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   //     an admin can tell the two apart without leaving the page.
   //   • no_team_groups — CD player-groups with no matching Wiedisync team at all
   //     (e.g. a renamed/merged team like VB DU19) → structural, one row each.
-  // Superadmin-gated, read-only — group changes stay manual in ClubDesk.
+  //   • unmapped_teams — an ACTIVE team whose clubdesk_group is still NULL, i.e.
+  //     nobody has said which CD group it maps to. Such a team is invisible to
+  //     every check above, so it must be flagged rather than silently skipped.
+  // Superadmin-gated, read-only.
   router.get('/clubdesk-group-sync', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
       const season = getCurrentSeason()
 
-      // team → ClubDesk group token. member_teams already carries the roster; the
-      // ONLY thing it can't tell us is a team's ClubDesk group NAME, and that is
-      // just 7 special-cases: the adult-BB verbose names map to short tokens and
-      // the two league-umbrella teams have NO ClubDesk group (NULL → excluded).
-      // Everything else is identity ('<VB|BB> <name>'). Kept inline (no schema
-      // column) — the mapping is tiny + stable, and the checks self-report a bad
-      // mapping (a mismapped team surfaces under "no Wiedisync team").
+      // team → ClubDesk group token, now read from teams.clubdesk_group
+      // (migration 205) instead of a hardcoded CASE. Three-state by design:
+      //   NULL → not configured → surfaced in `unmapped_teams` (never skipped)
+      //   ''   → intentionally no CD group (league umbrellas) → excluded
+      //   else → the exact CD group token.
+      // Only the '' rows are excluded here; NULL rows are excluded from the group
+      // maths too but get reported, which is the whole point of the column.
       const teamGroupCte = `
         tg AS (
-          SELECT t.id, CASE
-            WHEN t.name IN ('H-Classics 1LR','Damen D-Classics 1LR') THEN NULL
-            WHEN t.sport='basketball' AND t.name='Herren 1 H1' THEN 'BB H1'
-            WHEN t.sport='basketball' AND t.name='Herren 2 H3' THEN 'BB H2'
-            WHEN t.sport='basketball' AND t.name='Herren 3 (Unicorns) H4' THEN 'BB H3'
-            WHEN t.sport='basketball' AND t.name='Lions D1' THEN 'BB Lions'
-            WHEN t.sport='basketball' AND t.name='Rhinos D3' THEN 'BB Rhinos'
-            WHEN t.sport='volleyball' THEN 'VB ' || t.name
-            WHEN t.sport='basketball' THEN 'BB ' || t.name
-            ELSE NULL END AS clubdesk_group
+          SELECT t.id, NULLIF(t.clubdesk_group, '') AS clubdesk_group
           FROM teams t
+          WHERE t.clubdesk_group IS NOT NULL
         )`
+
+      // Non-playing fee categories: these legitimately have no roster row.
+      // Anything else is a "playing" fee — being billed to play.
+      const NON_PLAYING_KAT = ['Passivmitglied', 'Gratis']
 
       const missingSql = `
         WITH ${teamGroupCte}, expected AS (
@@ -1694,12 +1710,103 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           AND NULLIF(BTRIM(COALESCE(cd.gruppen_bracketed, '')), '') IS NULL
         ORDER BY m.last_name, m.first_name`
 
-      const [missingRes, strayRes, noTeamRes, noGroupRes] = await Promise.all([
+      // coach_no_group — a coach (teams_coaches) whose CD contact lacks the
+      // '<group> (Trainer*in)' token for a team they actually coach. 'Trainer*in'
+      // is the only coaching role token ClubDesk carries (there is no
+      // team-responsible equivalent), so TRs are out of scope by design.
+      const coachNoGroupSql = `
+        WITH ${teamGroupCte}, expected AS (
+          SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
+                 (tg.clubdesk_group || ' (Trainer*in)') AS grp
+          FROM teams_coaches tc
+          JOIN tg ON tg.id = tc.teams_id
+          JOIN teams t ON t.id = tc.teams_id
+          JOIN members m ON m.id = tc.members_id
+          WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
+            AND t.active AND m.kscw_membership_active
+            AND COALESCE(m.clubdesk_sync_exclude, false) = false
+        )
+        SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.grp
+        FROM expected e
+        LEFT JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
+        WHERE NOT (e.grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')))
+        ORDER BY e.last_name, e.first_name, e.grp`
+
+      // fee_no_roster — pays a PLAYING Beitragskategorie but sits on no
+      // current-season roster (guest rows don't count). Severity is derived from
+      // roster history so the admin can triage instead of facing one flat list:
+      //   never   — never on ANY roster (strongest signal)
+      //   lapsed  — was on last season's roster, not this one (left / not yet assigned)
+      //   older   — only has roster rows from an earlier season
+      // Coach/TR duties are annotated: a non-playing coach on a playing fee is a
+      // judgement call, not automatically an error.
+      const feeNoRosterSql = `
+        SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
+               BTRIM(COALESCE(m.beitragskategorie, '')) AS kat,
+               (SELECT MAX(mt.season) FROM member_teams mt
+                 WHERE mt.member = m.id AND COALESCE(mt.guest_level, 0) = 0) AS last_season,
+               COALESCE((SELECT string_agg(DISTINCT t2.name, ', ') FROM teams_coaches tc
+                          JOIN teams t2 ON t2.id = tc.teams_id WHERE tc.members_id = m.id), '') AS coach_of,
+               COALESCE((SELECT string_agg(DISTINCT t3.name, ', ') FROM teams_responsibles tr
+                          JOIN teams t3 ON t3.id = tr.teams_id WHERE tr.members_id = m.id), '') AS tr_of
+        FROM members m
+        WHERE m.kscw_membership_active
+          AND COALESCE(m.clubdesk_sync_exclude, false) = false
+          AND BTRIM(COALESCE(m.beitragskategorie, '')) <> ''
+          AND BTRIM(COALESCE(m.beitragskategorie, '')) <> ALL (:nonPlaying)
+          AND NOT EXISTS (
+            SELECT 1 FROM member_teams mt
+            WHERE mt.member = m.id AND mt.season = :season AND COALESCE(mt.guest_level, 0) = 0
+          )
+        ORDER BY m.last_name, m.first_name`
+
+      // unmapped_teams — active teams with no ClubDesk group configured at all
+      // (clubdesk_group IS NULL). They are invisible to every group check, so a
+      // new/renamed team can never silently drop out of coverage.
+      const unmappedTeamsSql = `
+        SELECT t.id, t.name, t.sport
+        FROM teams t
+        WHERE t.active AND t.clubdesk_group IS NULL
+        ORDER BY t.sport, t.name`
+
+      const [missingRes, strayRes, noTeamRes, noGroupRes, coachRes, feeRes, unmappedRes] = await Promise.all([
         database.raw(missingSql, { season }),
         database.raw(straySql, { season }),
         database.raw(noTeamSql),
         database.raw(noGroupSql, { season }),
+        database.raw(coachNoGroupSql),
+        database.raw(feeNoRosterSql, { season, nonPlaying: NON_PLAYING_KAT }),
+        database.raw(unmappedTeamsSql),
       ])
+
+      const coachByMember = new Map()
+      for (const r of coachRes.rows) {
+        if (!coachByMember.has(r.member_id)) {
+          coachByMember.set(r.member_id, {
+            member_id: r.member_id,
+            member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+            clubdesk_id: r.clubdesk_id,
+            groups: [],
+          })
+        }
+        coachByMember.get(r.member_id).groups.push(r.grp)
+      }
+
+      const fee_no_roster = feeRes.rows.map((r) => ({
+        member_id: r.member_id,
+        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+        clubdesk_id: r.clubdesk_id,
+        kat: r.kat || '',
+        last_season: r.last_season || null,
+        coach_of: r.coach_of || '',
+        tr_of: r.tr_of || '',
+        // never > lapsed > older — drives the severity badge + sort order.
+        severity: !r.last_season ? 'never' : (r.last_season === prevSeason(season) ? 'lapsed' : 'older'),
+      }))
+
+      const unmapped_teams = unmappedRes.rows.map((r) => ({
+        team_id: r.id, name: r.name, sport: r.sport || '',
+      }))
 
       const no_group = noGroupRes.rows.map((r) => ({
         member_id: r.member_id,
@@ -1736,7 +1843,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
       const no_team_groups = noTeamRes.rows.map((r) => ({ group: r.grp, count: r.cnt }))
 
-      return res.json({ missing: [...missingByMember.values()], strays, no_team_groups, no_group, season })
+      return res.json({
+        missing: [...missingByMember.values()],
+        strays,
+        no_team_groups,
+        no_group,
+        coach_no_group: [...coachByMember.values()],
+        fee_no_roster,
+        unmapped_teams,
+        season,
+      })
     } catch (err) {
       log.error({ msg: `clubdesk-group-sync: ${err.message}`, endpoint: 'clubdesk-group-sync', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })

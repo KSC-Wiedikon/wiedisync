@@ -33,6 +33,10 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   clubdeskGroupMissing: 'dhIssueClubdeskGroupMissing',
   clubdeskGroupStray: 'dhIssueClubdeskGroupStray',
   clubdeskGroupNoTeam: 'dhIssueClubdeskGroupNoTeam',
+  clubdeskNoGroup: 'dhIssueClubdeskNoGroup',
+  clubdeskCoachGroup: 'dhIssueClubdeskCoachGroup',
+  clubdeskFeeNoRoster: 'dhIssueClubdeskFeeNoRoster',
+  clubdeskUnmappedTeam: 'dhIssueClubdeskUnmappedTeam',
 }
 
 function severityIcon(severity: DataIssue['severity']) {
