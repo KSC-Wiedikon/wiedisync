@@ -9,6 +9,7 @@ import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './n
 import { BB_SITUATIONS, bbRequiredDocs } from './bb-docs.js'
 import crypto from 'crypto'
 import { streamManagedFile } from './storage-read.js'
+import { Transform } from 'node:stream'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -1043,17 +1044,41 @@ export function registerRegistration(router, { database, logger, services, getSc
       const filename = rawName.replace(/[\\/\u0000-\u001f]/g, '').slice(0, 200) || 'document'
 
       // Hard cap while streaming — Content-Length alone is client-controlled.
+      //
+      // ⚠ The counter MUST sit INSIDE the pipeline, never in a `req.on('data')` listener.
+      // Attaching a 'data' listener switches the request into flowing mode IMMEDIATELY:
+      // every chunk emitted before FilesService.uploadOne() attaches its own pipe goes to
+      // that listener and is DISCARDED. uploadOne then stores only what arrives after it
+      // starts reading, so the file loses its leading bytes.
+      //
+      // This is not hypothetical. It silently truncated the FRONT of 36 registration
+      // documents (government ID scans + Basketball licence PDFs) between 2026-07-06, when
+      // this endpoint shipped, and 2026-07-13. The stored files kept a valid PDF trailer
+      // (%%EOF) and a plausible filesize but lost the %PDF header, so nothing looked wrong
+      // until a reviewer opened one (REG-2026-4844). The dropped prefix was never written
+      // anywhere — unrecoverable; five registrants had to re-upload.
+      //
+      // A Transform COUNTS AND FORWARDS each chunk, so the bytes reach uploadOne intact
+      // while the cap still fires mid-stream (no need to buffer the whole body first).
       let bytes = 0
-      req.on('data', (chunk) => {
-        bytes += chunk.length
-        if (bytes > UPLOAD_MAX_BYTES) req.destroy()
+      const capped = new Transform({
+        transform(chunk, _enc, cb) {
+          bytes += chunk.length
+          if (bytes > UPLOAD_MAX_BYTES) {
+            cb(Object.assign(new Error('File too large (max 10 MB).'), { status: 413 }))
+            return
+          }
+          cb(null, chunk)
+        },
       })
+      req.on('error', (err) => capped.destroy(err))
+      req.pipe(capped)
 
       const { FilesService } = services
       const schema = await getSchema()
       const filesService = new FilesService({ schema, knex: database })
       const storage = (process.env.STORAGE_LOCATIONS || 'local').split(',')[0].trim()
-      const newFileId = await filesService.uploadOne(req, {
+      const newFileId = await filesService.uploadOne(capped, {
         storage,
         filename_download: filename,
         type,
