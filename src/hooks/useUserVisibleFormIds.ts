@@ -24,12 +24,22 @@ export function useUserVisibleFormIds(teamIds: string[], enabled = true): Result
   const teamKey = teamIds.map(String).filter(Boolean).sort().join(',')
   const key = `${enabled ? '1' : '0'}|${teamKey}`
 
-  useEffect(() => {
+  // Clear the previous team's forms when the key changes to an inactive state.
+  // The effect below used to do this synchronously, which the React Compiler
+  // rejects (react-hooks/set-state-in-effect); adjusting state during render is
+  // the sanctioned equivalent and settles in the same commit. The key changes on
+  // exactly the same renders the effect re-runs on, so the timing is unchanged.
+  const [prevKey, setPrevKey] = useState(key)
+  if (prevKey !== key) {
+    setPrevKey(key)
     if (!enabled || teamIds.length === 0) {
       setTeamFormIds([])
       setIsLoading(false)
-      return
     }
+  }
+
+  useEffect(() => {
+    if (!enabled || teamIds.length === 0) return
     let cancelled = false
     async function load() {
       setIsLoading(true)

@@ -15,16 +15,25 @@ export default function ImageLightbox({ src, alt, open, onClose }: ImageLightbox
   const [visible, setVisible] = useState(false)
   const [closing, setClosing] = useState(false)
 
+  // Reset the closing flag when the lightbox is (re)opened — adjust-state-during-
+  // render rather than an effect, so a reopen mid-fade-out can't paint one frame
+  // with the fade-out class still applied.
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
+    if (open) setClosing(false)
+  }
+
+  // Open the native dialog. Closing is driven by handleClose/handleAnimEnd (which
+  // calls dialog.close() then onClose): by the time `open` flips to false the
+  // dialog is already closed and `closing` is back to false, so this component has
+  // rendered null and the <dialog> ref is detached — there is no close branch to run.
   useEffect(() => {
     const dialog = ref.current
     if (!dialog) return
     if (open) {
       if (!dialog.open) dialog.showModal()
       requestAnimationFrame(() => setVisible(true))
-      setClosing(false)
-    } else if (dialog.open) {
-      setClosing(true)
-      setVisible(false)
     }
   }, [open])
 

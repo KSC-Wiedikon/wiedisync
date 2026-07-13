@@ -21,15 +21,18 @@ export function useGameAttendanceStats(
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  const fetch = useCallback(async () => {
-    if (!teamId) {
-      setStats([])
-      setIsLoading(false)
-      return
-    }
-    setIsLoading(true)
-    setError(null)
-    try {
+  // The async body only. Every setState in here runs after an `await`, so the
+  // mount/refresh effect below can call it without a synchronous state cascade.
+  // The synchronous prologue that used to live at the top of `fetch`
+  // (clear-on-no-team / spinner-on) is reproduced verbatim by the
+  // adjust-state-during-render block further down — it fires on exactly the same
+  // occasions the effect does (first render + every change of the fetch key).
+  // Error/cleanup handling uses .catch()/.finally() rather than try/catch/finally
+  // for the same reason: a `catch` clause is synchronously reachable from the
+  // call site, a rejection handler is not.
+  const load = useCallback(async () => {
+    if (!teamId) return
+    await (async () => {
       // Members
       const memberTeams = await fetchAllItems<MemberTeam & { member: Member | string }>('member_teams', {
         filter: { team: { _eq: teamId } },
@@ -195,14 +198,46 @@ export function useGameAttendanceStats(
       result.sort((a, b) => b.percentage - a.percentage || a.memberName.localeCompare(b.memberName, i18n.language))
 
       setStats(result)
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)))
-    } finally {
-      setIsLoading(false)
-    }
+    })()
+      .catch((err) => {
+        setError(err instanceof Error ? err : new Error(String(err)))
+      })
+      .finally(() => {
+        setIsLoading(false)
+      })
   }, [teamId, range.from, range.to, leagueOnly])
 
-  useEffect(() => { fetch() }, [fetch])
+  // Manual refetch (event-handler path) — keeps the original synchronous
+  // prologue so a caller-triggered refresh still flips the spinner immediately.
+  const fetch = useCallback(async () => {
+    if (!teamId) {
+      setStats([])
+      setIsLoading(false)
+      return
+    }
+    setIsLoading(true)
+    setError(null)
+    await load()
+  }, [teamId, load])
+
+  // Mirrors `fetch`'s synchronous prologue for the automatic (effect-driven)
+  // path, using React's adjust-state-during-render pattern. `prevFetchKey`
+  // starts as null so this also runs on the first render — matching the mount
+  // run of the effect it replaces.
+  const fetchKey = `${teamId ?? ''}|${range.from}|${range.to}|${leagueOnly}`
+  const [prevFetchKey, setPrevFetchKey] = useState<string | null>(null)
+  if (prevFetchKey !== fetchKey) {
+    setPrevFetchKey(fetchKey)
+    if (!teamId) {
+      setStats([])
+      setIsLoading(false)
+    } else {
+      setIsLoading(true)
+      setError(null)
+    }
+  }
+
+  useEffect(() => { load() }, [load])
 
   return { stats, gamesById, isLoading, error, refetch: fetch }
 }

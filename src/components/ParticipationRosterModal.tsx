@@ -206,16 +206,6 @@ export default function ParticipationRosterModal({
   // guest players (member_teams.guest_level > 0), combinable with the team filter.
   const [guestsOnly, setGuestsOnly] = useState(false)
 
-  // Reset filter and editing state when modal opens
-  useEffect(() => {
-    if (open) {
-      setStatusFilter(null)
-      setSelectedTeams(null)
-      setGuestsOnly(false)
-      setEditingMemberId(null)
-    }
-  }, [open])
-
   // Fetch team leadership roles (coach, captain, team_responsible)
   const { data: teamsRaw } = useCollection<Team>('teams', {
     filter: teamIds.length > 0 ? { id: { _in: teamIds } } : undefined,
@@ -253,6 +243,9 @@ export default function ParticipationRosterModal({
 
   const { user, isCoachOf, teamResponsibleIds } = useAuth()
   const { effectiveIsAdmin } = useAdminMode()
+  // Hoisted so the memo below can depend on the id itself rather than on the
+  // whole (identity-unstable) `user` object.
+  const currentUserId = user?.id
 
   const isStaffForActivity = teamIds.some(id => isCoachOf(id) || teamResponsibleIds.includes(id))
   const canEditRoster = isStaffForActivity || effectiveIsAdmin
@@ -260,6 +253,22 @@ export default function ParticipationRosterModal({
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [savingMemberIds, setSavingMemberIds] = useState<Set<string>>(new Set())
   const { create, update, remove } = useMutation<Participation>('participations')
+
+  // Reset filters + editing state when the modal opens. The modal is NOT
+  // remounted between activities (it stays mounted and takes a new activityId),
+  // so this reset is load-bearing — it just runs during render now (React's
+  // "adjust state while rendering" pattern) instead of in an effect. Same
+  // trigger as the old `useEffect(..., [open])`: a false→true transition.
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
+    if (open) {
+      setStatusFilter(null)
+      setSelectedTeams(null)
+      setGuestsOnly(false)
+      setEditingMemberId(null)
+    }
+  }
 
   // Late-signin fine prompt — when a leader confirms a member past respondBy
   // for a single-team activity with a configured late_signin rule, pop
@@ -533,7 +542,7 @@ export default function ParticipationRosterModal({
         && lateSigninRuleEnabled
         && respondBy
         && new Date() > new Date(respondBy)
-        && String(memberId) !== String(user?.id ?? '')
+        && String(memberId) !== String(currentUserId ?? '')
       ) {
         const member = members.find((mm) => mm.id === memberId)
           ?? clubWideMembers.find((mm) => mm.id === memberId)
@@ -552,7 +561,7 @@ export default function ParticipationRosterModal({
         return next
       })
     }
-  }, [activityId, activityType, participations, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, user?.id, members, clubWideMembers, staffMembers])
+  }, [activityId, activityType, participations, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, currentUserId, members, clubWideMembers, staffMembers])
 
   // Staff participations (coaches/team_responsible who aren't in member_teams).
   // Use `useCollection` so the modal auto-refreshes when any staff member
@@ -636,23 +645,23 @@ export default function ParticipationRosterModal({
   // Keyed on the full roster (not the team-filtered list) so switching teams
   // reuses the already-loaded absences instead of refetching.
   const memberIdsKey = rosterMemberIds.join(',')
-  const fetchAbsences = useCallback(async () => {
+  // Promise-chain (not async/await) on purpose: this runs from an effect, and
+  // `setAbsences` must land in a callback rather than in the effect's own
+  // synchronous continuation. Same request, same result.
+  const fetchAbsences = useCallback(() => {
     if (!user || !activityDate || rosterMemberIds.length === 0) return
-    try {
-      const dateStr = activityDate.split(' ')[0]
-      const result = await fetchAllItems<Absence>('absences', {
-        filter: {
-          _and: [
-            { member: { _in: rosterMemberIds } },
-            { start_date: { _lte: dateStr } },
-            { end_date: { _gte: dateStr } },
-          ],
-        },
-      })
-      setAbsences(result)
-    } catch {
-      // ignore
-    }
+    const dateStr = activityDate.split(' ')[0]
+    fetchAllItems<Absence>('absences', {
+      filter: {
+        _and: [
+          { member: { _in: rosterMemberIds } },
+          { start_date: { _lte: dateStr } },
+          { end_date: { _gte: dateStr } },
+        ],
+      },
+    })
+      .then(setAbsences)
+      .catch(() => { /* ignore */ })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, activityDate, memberIdsKey])
 

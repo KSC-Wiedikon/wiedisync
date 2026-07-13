@@ -9,30 +9,54 @@ export function useConversationMembers(conversationId: string | null | undefined
   const [error, setError] = useState<string | null>(null)
   const fetchSeqRef = useRef(0)
 
+  // The request itself. Every state write lives in a promise callback, so this
+  // is safe to call straight from an effect.
+  const load = useCallback((convId: string) => {
+    const mySeq = ++fetchSeqRef.current
+    return messagingApi.listConversationMembers(convId).then(
+      (data) => {
+        // Stale: conversation switched or concurrent refetch — bail.
+        if (fetchSeqRef.current !== mySeq) return
+        setMembers(data.members)
+        setLoading(false)
+      },
+      () => {
+        if (fetchSeqRef.current !== mySeq) return
+        setError('fetch_failed')
+        setMembers([])
+        setLoading(false)
+      },
+    )
+  }, [])
+
+  // Manual refetch — unchanged semantics (reset + loading flag, then load).
   const refetch = useCallback(async () => {
     if (!conversationId) { setMembers([]); setLoading(false); return }
-    const mySeq = ++fetchSeqRef.current
     setLoading(true)
     setError(null)
-    try {
-      const data = await messagingApi.listConversationMembers(conversationId)
-      // Stale: conversation switched or concurrent refetch — bail.
-      if (fetchSeqRef.current !== mySeq) return
-      setMembers(data.members)
-    } catch {
-      if (fetchSeqRef.current !== mySeq) return
-      setError('fetch_failed')
-      setMembers([])
-    } finally {
-      if (fetchSeqRef.current === mySeq) setLoading(false)
-    }
-  }, [conversationId])
+    await load(conversationId)
+  }, [conversationId, load])
 
-  useEffect(() => {
-    // Clear prior members so a switch doesn't flash the old roster.
+  // Conversation-driven load. The reset half of the old effect ("clear prior
+  // members so a switch doesn't flash the old roster", raise loading, clear
+  // error) now runs during render, so the effect body writes no state
+  // synchronously. On mount prev === current, and the initial state already
+  // matches what the old effect wrote, so the mount pass is unchanged.
+  const [prevConvId, setPrevConvId] = useState(conversationId)
+  if (prevConvId !== conversationId) {
+    setPrevConvId(conversationId)
     setMembers([])
-    void refetch()
-  }, [refetch])
+    if (conversationId) {
+      setLoading(true)
+      setError(null)
+    } else {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    if (!conversationId) return
+    void load(conversationId)
+  }, [conversationId, load])
 
   return { members, loading, error, refetch }
 }

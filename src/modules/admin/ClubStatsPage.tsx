@@ -203,17 +203,29 @@ export default function ClubStatsPage() {
   // current season; the rest of the page is current-state / rolling-window.
   const [seasonFilter, setSeasonFilter] = useState<string>(getCurrentSeason())
 
-  async function fetchStats() {
+  async function loadStats() {
     try {
-      setError(null)
       const resp = await kscwApi<{ data: AllStats }>('/stats/all')
       setData(resp.data)
+      setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load stats')
     }
   }
 
-  useEffect(() => { fetchStats() }, [])
+  // Retry button — clears the error straight away (event handler), then reloads.
+  function fetchStats() {
+    setError(null)
+    void loadStats()
+  }
+
+  // Initial load: `error` is already null here, so the old setError(null) at the
+  // top of the fetch was a no-op. Runs from an effect-local async function
+  // (React's documented data-fetching shape).
+  useEffect(() => {
+    async function run() { await loadStats() }
+    void run()
+  }, [])
 
   // Seasons that actually have data (from the two season-scoped views).
   const availableSeasons = useMemo(() => {

@@ -152,8 +152,13 @@ export default function CodeMirrorEditor({
   const completionCompartment = useRef(new Compartment())
   const { theme } = useTheme()
 
-  onExecuteRef.current = onExecute
-  onChangeRef.current = onChange
+  // Latest-callback refs. Written after commit (never during render) — the only
+  // readers are the CodeMirror keymap handler and the updateListener, both of
+  // which fire from editor events, i.e. always after the commit that wrote them.
+  useEffect(() => {
+    onExecuteRef.current = onExecute
+    onChangeRef.current = onChange
+  })
 
   const completionSource = useMemo(() => makeCompletionSource(tables), [tables])
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfraHealth } from '../../hooks/useInfraHealth'
 import { API_URL, fetchItems, countItems } from '../../lib/api'
@@ -135,17 +135,21 @@ function Section({ title, checks }: { title: string; checks: HealthCheck[] }) {
 export default function InfraHealthPage() {
   const { t } = useTranslation('admin')
   const infraHealth = useInfraHealth()
+  // Latest-value ref for the async trigger/poll callbacks below (they only read
+  // it after an await, i.e. long after this effect has flushed).
   const infraRef = useRef(infraHealth)
-  infraRef.current = infraHealth
+  useEffect(() => { infraRef.current = infraHealth })
 
   const [services, setServices] = useState<HealthCheck[]>([])
-  const [syncs, setSyncs] = useState<HealthCheck[]>([])
   const [crons, setCrons] = useState<HealthCheck[]>([])
   const [stats, setStats] = useState<HealthCheck[]>([])
   const [vps, setVps] = useState<HealthCheck[]>([])
   const [slowQueries, setSlowQueries] = useState<{ avg_ms: number; max_ms: number; calls: number; total_ms: number; rows: number; query: string }[]>([])
   const [lastCheck, setLastCheck] = useState<string>('')
-  const [loading, setLoading] = useState(false)
+  // Starts true: runChecks() runs on mount (see the effect below) and used to
+  // flip this itself one render later — which briefly reported the page as ready
+  // to the boot gate.
+  const [loading, setLoading] = useState(true)
   const [triggering, setTriggering] = useState<Record<string, boolean>>({})
 
   // Trigger a scraper, then poll sync_runs until its heartbeat advances past
@@ -192,11 +196,13 @@ export default function InfraHealthPage() {
     setTimeout(poll, 8000)
   }, [])
 
-  // Map sync_runs heartbeats → one triggerable card per scraper.
-  useEffect(() => {
+  // Map sync_runs heartbeats → one triggerable card per scraper. Pure derivation
+  // from the hook's runs + the trigger flags, so it's computed during render
+  // instead of copied into state by an effect.
+  const syncs = useMemo<HealthCheck[]>(() => {
     const byKey = new Map(infraHealth.runs.map(r => [r.source, r]))
     const SYNC_STALE = 48 * 3600000
-    setSyncs(SYNC_SOURCES.map(src => {
+    return SYNC_SOURCES.map(src => {
       const run = byKey.get(src.key)
       const ranAt = run?.last_run_at && new Date(run.last_run_at).getTime() > new Date('2000-01-01').getTime()
         ? run.last_run_at : null
@@ -216,11 +222,13 @@ export default function InfraHealthPage() {
         onRefresh: () => triggerSync(src.key, src.endpoint),
         refreshing: !!triggering[src.key],
       }
-    }))
+    })
   }, [infraHealth.runs, triggering, t, triggerSync])
 
-  const runChecks = useCallback(async () => {
-    setLoading(true)
+  // The check pass itself, without the `loading = true` flip — `loading` already
+  // starts true, so the on-mount run below needs no flip; only the manual
+  // Refresh button (runChecks) does.
+  const runChecksInto = useCallback(async () => {
 
     // ── Services ── The probes are independent, so fire them concurrently
     // instead of an 8-request serial chain that stalls the boot gate. Cards
@@ -475,8 +483,13 @@ export default function InfraHealthPage() {
     setLoading(false)
   }, [t])
 
+  const runChecks = useCallback(async () => {
+    setLoading(true)
+    await runChecksInto()
+  }, [runChecksInto])
+
   // Run once on mount — no deps to avoid re-trigger loop
-  useEffect(() => { runChecks() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void (async () => { await runChecksInto() })() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Report to the app boot gate — see usePageReady.tsx. Gate on the initial
   // check pass: `loading` is true from the on-mount runChecks() until every

@@ -65,7 +65,13 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
       setSvrz(r)
     } catch { /* non-blocking summary */ }
   }, [seasonName])
-  useEffect(() => { fetchSvrz() }, [fetchSvrz])
+  // The summary fetch only setStates after the await; it runs from an effect-local
+  // async function (React's documented data-fetching shape) so the effect body
+  // itself stays free of state updates.
+  useEffect(() => {
+    async function run() { await fetchSvrz() }
+    void run()
+  }, [fetchSvrz])
 
   return (
     <>

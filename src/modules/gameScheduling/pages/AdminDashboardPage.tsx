@@ -226,7 +226,7 @@ export default function AdminDashboardPage() {
   // (otherwise the intra-club games pop into the calendars after the spinner).
   const [derbyLoaded, setDerbyLoaded] = useState(false)
   useEffect(() => {
-    if (!season?.season) { setDerbyGames([]); setDerbyLoaded(true); return }
+    if (!season?.season) return
     let cancelled = false
     fetchAllItems<IntraClubGame>('games', {
       filter: { season: { _eq: season.season }, home_team: { _starts_with: 'KSC Wiedikon' }, away_team: { _starts_with: 'KSC Wiedikon' } },
@@ -243,7 +243,7 @@ export default function AdminDashboardPage() {
   // Away fixtures VolleyManager has scheduled but we hold no confirmed booking.
   const [awayVmUnbooked, setAwayVmUnbooked] = useState<AwayVmUnbooked[]>([])
   useEffect(() => {
-    if (!season?.id) { setAwayVmChecks({}); setAwayVmUnbooked([]); return }
+    if (!season?.id) return
     let cancelled = false
     kscwApi<{ checks: Record<string, AwayVmCheck>; unbooked?: AwayVmUnbooked[] }>(`/admin/terminplanung/away-vm-check?season=${season.id}`)
       .then((r) => { if (!cancelled) { setAwayVmChecks(r.checks || {}); setAwayVmUnbooked(r.unbooked || []) } })
@@ -258,7 +258,7 @@ export default function AdminDashboardPage() {
   type HomeVmCheck = { status: 'not_pushed' | 'mismatch' | 'match' | 'no_vm' | 'feed_authority'; agreed: string; vm: string | null; push: string | null }
   const [homeVmChecks, setHomeVmChecks] = useState<Record<string, HomeVmCheck>>({})
   useEffect(() => {
-    if (!season?.id) { setHomeVmChecks({}); return }
+    if (!season?.id) return
     let cancelled = false
     kscwApi<{ checks: Record<string, HomeVmCheck> }>(`/admin/terminplanung/home-vm-check?season=${season.id}`)
       .then((r) => { if (!cancelled) setHomeVmChecks(r.checks || {}) })
@@ -275,13 +275,38 @@ export default function AdminDashboardPage() {
   type SideTally = { homeConfirmed: number; homeTotal: number; awayConfirmed: number; awayTotal: number }
   const [fixtureSummary, setFixtureSummary] = useState<{ totals: SideTally; byTeam: Record<string, SideTally> } | null>(null)
   useEffect(() => {
-    if (!season?.id) { setFixtureSummary(null); return }
+    if (!season?.id) { return }
     let cancelled = false
     kscwApi<{ totals: SideTally; byTeam: Record<string, SideTally> }>(`/admin/terminplanung/season-summary?season=${season.id}`)
       .then((r) => { if (!cancelled) setFixtureSummary(r) })
       .catch(() => { if (!cancelled) setFixtureSummary(null) })
     return () => { cancelled = true }
   }, [season?.id, bookings])
+
+  // The four fetch effects above each used to clear their own state
+  // synchronously in a `!season` guard (react-hooks/set-state-in-effect). Those
+  // resets now happen here as adjust-state-during-render — one render earlier,
+  // same committed state. `null` seeds a first pass on mount so the mount run of
+  // each guard is preserved (notably `setDerbyLoaded(true)` while the season is
+  // still loading). Both keys derive from the same `season` object, so folding
+  // them into one primed key changes no trigger.
+  const seasonNameKey = season?.season ?? ''
+  const seasonIdKey = season?.id ?? ''
+  const seasonKey = `${seasonIdKey} ${seasonNameKey}`
+  const [primedSeasonKey, setPrimedSeasonKey] = useState<string | null>(null)
+  if (primedSeasonKey !== seasonKey) {
+    setPrimedSeasonKey(seasonKey)
+    if (!seasonNameKey) {
+      setDerbyGames([])
+      setDerbyLoaded(true)
+    }
+    if (!seasonIdKey) {
+      setAwayVmChecks({})
+      setAwayVmUnbooked([])
+      setHomeVmChecks({})
+      setFixtureSummary(null)
+    }
+  }
 
   // Open an opponent's email thread in the Mailbox tab (the mailbox UI moved off
   // the dashboard into its own tab; the per-opponent "N emails" button deep-links).
@@ -421,8 +446,13 @@ export default function AdminDashboardPage() {
       // body already lists every game.
       let attachments: { filename: string; content_base64: string; content_type: string }[] = []
       try {
-        const teamName = volleyballTeams.find((tm) => String(tm.id) === String(teamId))?.name
-        const sections = await buildScheduleSections({ bookings, opponents, slots, teams: volleyballTeams, season, teamId })
+        // Freshly-filtered copy rather than the memoised `volleyballTeams` below:
+        // the compiler treats a locally-created value handed to an opaque function
+        // as possibly-mutated, which forfeits that useMemo and every memo that
+        // depends on it (react-hooks/preserve-manual-memoization). Same contents.
+        const schedulable = (teams || []).filter(isSchedulableTeam)
+        const teamName = schedulable.find((tm) => String(tm.id) === String(teamId))?.name
+        const sections = await buildScheduleSections({ bookings, opponents, slots, teams: schedulable, season, teamId })
         if (sections.some((s) => s.rows.length)) {
           const [xlsx, pdf] = await Promise.all([buildScheduleXlsx(sections), buildSchedulePdf(sections)])
           attachments = [

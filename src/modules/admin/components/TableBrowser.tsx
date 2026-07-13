@@ -23,6 +23,9 @@ export interface SchemaField {
 
 const PER_PAGE = 25
 
+// Stable identity for "no relation columns to resolve".
+const EMPTY_LABELS: Record<number, Record<string, string>> = {}
+
 interface TableBrowserProps {
   collections: CollectionInfo[]
   loadingCollections: boolean
@@ -80,27 +83,30 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
   }, [records, columns])
 
   // ── Resolve relation fields to display labels ──
-  const [relationLabels, setRelationLabels] = useState<Record<number, Record<string, string>>>({})
+  const [resolvedLabels, setResolvedLabels] = useState<Record<number, Record<string, string>>>({})
 
-  useEffect(() => {
-    if (!selectedCol || records.length === 0) {
-      setRelationLabels({})
-      return
-    }
-    // Find relation columns with their index in `columns`
-    const relationCols: { colIdx: number; field: SchemaField; collectionId: string }[] = []
+  // Relation columns with their index in `columns`. Pure derivation — used to be
+  // computed inside the effect below, whose "nothing to resolve" branches then
+  // had to setRelationLabels({}) synchronously.
+  const relationCols = useMemo(() => {
+    const out: { colIdx: number; field: SchemaField; collectionId: string }[] = []
+    if (!selectedCol || records.length === 0) return out
     for (const f of selectedCol.schema) {
       if (f.type === 'relation' && f.options?.collectionId) {
         const idx = columns.indexOf(f.name)
         if (idx >= 0) {
-          relationCols.push({ colIdx: idx, field: f, collectionId: String(f.options.collectionId) })
+          out.push({ colIdx: idx, field: f, collectionId: String(f.options.collectionId) })
         }
       }
     }
-    if (relationCols.length === 0) {
-      setRelationLabels({})
-      return
-    }
+    return out
+  }, [selectedCol, records, columns])
+
+  // Nothing to resolve → `{}`, same as the old effect's two reset branches.
+  const relationLabels = relationCols.length === 0 ? EMPTY_LABELS : resolvedLabels
+
+  useEffect(() => {
+    if (relationCols.length === 0) return
 
     // Group by target collection, collecting all unique IDs
     const byCollection: Record<string, { ids: Set<string>; colIdxs: number[] }> = {}
@@ -129,6 +135,8 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
     let cancelled = false
     const labels: Record<number, Record<string, string>> = {}
 
+    // Returns the resolved labels (or null if the effect was cancelled mid-flight)
+    // instead of calling setState itself — the commit happens in the `.then` below.
     async function resolve() {
       for (const [colId, { ids, colIdxs }] of Object.entries(byCollection)) {
         const colName = colIdToName[colId]
@@ -138,7 +146,7 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
 
         // Fetch in batches of 50
         for (let i = 0; i < idArr.length; i += 50) {
-          if (cancelled) return
+          if (cancelled) return null
           const batch = idArr.slice(i, i + 50)
           try {
             const res = await fetchItems<Record<string, unknown>>(colName, {
@@ -165,12 +173,12 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
           labels[idx] = idMap
         }
       }
-      if (!cancelled) setRelationLabels(labels)
+      return labels
     }
 
-    resolve()
+    resolve().then((result) => { if (!cancelled && result) setResolvedLabels(result) })
     return () => { cancelled = true }
-  }, [selectedCol, records, columns, rows, collections])
+  }, [relationCols, rows, collections])
 
   // Group collections by type
   const grouped = useMemo(() => {

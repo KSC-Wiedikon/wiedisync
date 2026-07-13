@@ -85,10 +85,15 @@ export default function ActivityParticipation({
   const [noteSaved, setNoteSaved] = useState(false)
   const noteInitRef = useRef(existingParticipation?.note ?? '')
 
-  // Sync guest count when participation data changes
-  useEffect(() => {
-    setGuestCount(existingParticipation?.guest_count ?? 0)
-  }, [existingParticipation?.guest_count])
+  // Sync guest count when participation data changes. Adjusting state during
+  // render (React's sanctioned pattern) rather than in an effect — the previous
+  // `useEffect` did exactly this and only ever fired on a `guest_count` change.
+  const serverGuestCount = existingParticipation?.guest_count ?? 0
+  const [prevGuestCount, setPrevGuestCount] = useState(serverGuestCount)
+  if (prevGuestCount !== serverGuestCount) {
+    setPrevGuestCount(serverGuestCount)
+    setGuestCount(serverGuestCount)
+  }
 
   // Sync note when participation data changes. When there is no server-saved
   // note but a covering absence applies, prefill with the absence-derived

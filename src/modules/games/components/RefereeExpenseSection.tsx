@@ -40,13 +40,32 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
   const [amount, setAmount] = useState('')
   const [notes, setNotes] = useState('')
 
+  // `loading` is a pure function of the fetch trigger — true while a fetch is in
+  // flight for the current (gameId, teamId, user, isApproved) tuple, false when
+  // there is nothing to fetch. Primed during render (adjust-state-during-render)
+  // on exactly the effect's dep tuple, so the effect below carries no synchronous
+  // setState (react-hooks/set-state-in-effect). `null` seeds a first pass on
+  // mount, matching the effect's mount run; the fetch itself is unchanged.
+  const [primedFor, setPrimedFor] = useState<
+    { gameId: string; teamId: string; user: typeof user; isApproved: boolean } | null
+  >(null)
+  if (
+    !primedFor ||
+    primedFor.gameId !== gameId ||
+    primedFor.teamId !== teamId ||
+    primedFor.user !== user ||
+    primedFor.isApproved !== isApproved
+  ) {
+    setPrimedFor({ gameId, teamId, user, isApproved })
+    setLoading(!!user && !!isApproved)
+  }
+
   // Fetch existing record + coaches (who may not be team members)
   useEffect(() => {
     // Skip when unauthenticated / role still pending — they have no read permission
     // on referee_expenses and the fetch would just produce Sentry noise.
-    if (!user || !isApproved) { setLoading(false); return }
+    if (!user || !isApproved) return
     let cancelled = false
-    setLoading(true)
 
     const fetchExpense = fetchItems<ExpandedExpense>('referee_expenses', {
         filter: { game: { _eq: gameId } },

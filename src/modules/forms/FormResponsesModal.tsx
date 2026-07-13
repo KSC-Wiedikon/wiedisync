@@ -80,8 +80,19 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
   })
   const submissions = subsRaw ?? []
 
+  // Drop the stats as soon as the modal stops being trackable/open. Done during
+  // render instead of synchronously inside the effect (react-hooks/set-state-in-effect);
+  // the effect only ever cleared `stats` on that transition — while inactive it is
+  // already null, so re-running on a form/submission change was a no-op.
+  const statsActive = open && trackable
+  const [prevStatsActive, setPrevStatsActive] = useState(statsActive)
+  if (prevStatsActive !== statsActive) {
+    setPrevStatsActive(statsActive)
+    if (!statsActive) setStats(null)
+  }
+
   useEffect(() => {
-    if (!open || !trackable) { setStats(null); return }
+    if (!open || !trackable) return
     let cancelled = false
     kscwApi<FormStats>(`/forms/${form.id}/stats`)
       .then((s) => { if (!cancelled) setStats(s) })

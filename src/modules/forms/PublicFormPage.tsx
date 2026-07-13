@@ -55,9 +55,17 @@ export default function PublicFormPage() {
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
 
+  // Flip back to the spinner the moment the slug changes (the fetch effect below
+  // used to do this synchronously — react-hooks/set-state-in-effect). `status`
+  // already starts as 'loading', so mount needs no adjustment.
+  const [loadingSlug, setLoadingSlug] = useState(slug)
+  if (loadingSlug !== slug) {
+    setLoadingSlug(slug)
+    setStatus('loading')
+  }
+
   useEffect(() => {
     let cancelled = false
-    setStatus('loading')
     fetch(`${API_URL}/kscw/public/forms/${encodeURIComponent(slug ?? '')}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('not found'))))
       .then((res) => { if (!cancelled) { setForm(res.data); setStatus('ready') } })

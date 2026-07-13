@@ -35,31 +35,54 @@ export function useTeamMembers(
   const requestedKey = safeTeamId ? `${safeTeamId}:${season ?? ''}` : null
   const isLoading = loadedKey !== requestedKey
 
-  const fetch = useCallback(async () => {
-    if (!safeTeamId) {
-      latestKeyRef.current = null
+  // The reset half of the old fetch() — the "no team selected" empty state and
+  // the error clear — is applied during render (adjust-state-during-render) so
+  // the effect below carries no synchronous setState (react-hooks/set-state-in-
+  // effect). `undefined` seeds a first pass on mount, matching the effect's
+  // mount run; the load path itself is unchanged.
+  const [primedKey, setPrimedKey] = useState<string | null | undefined>(undefined)
+  if (primedKey !== requestedKey) {
+    setPrimedKey(requestedKey)
+    if (requestedKey === null) {
       setMembers([])
       setLoadedKey(null)
+    } else {
+      setError(null)
+    }
+  }
+
+  const load = useCallback(async () => {
+    if (!safeTeamId) {
+      latestKeyRef.current = null
       return
     }
 
-    setError(null)
     const key = `${safeTeamId}:${season ?? ''}`
     latestKeyRef.current = key
-    try {
-      // The member_teams query doesn't depend on the team record (sport is only
-      // used afterwards for normalization), so run both in parallel to halve the
-      // latency on every roster / team-detail open.
-      const filter: Record<string, unknown> = { team: { _eq: safeTeamId } }
-      if (season) filter.season = { _eq: season }
-      const [team, result] = await Promise.all([
-        fetchItem<Team>('teams', safeTeamId, { fields: ['id', 'sport'] }),
-        fetchAllItems<ExpandedMemberTeam>('member_teams', {
-          filter,
-          fields: ['*', 'member.*'],
-          sort: ['member'],
-        }),
-      ])
+
+    // The member_teams query doesn't depend on the team record (sport is only
+    // used afterwards for normalization), so run both in parallel to halve the
+    // latency on every roster / team-detail open.
+    const filter: Record<string, unknown> = { team: { _eq: safeTeamId } }
+    if (season) filter.season = { _eq: season }
+    // Settled through `.then(onOk, onErr)` rather than try/catch/finally so that
+    // every setState below sits strictly *after* an await — a try block wrapping
+    // the await leaves its catch/finally synchronously reachable, which trips
+    // react-hooks/set-state-in-effect at the call site. Same success/error paths.
+    const outcome = await Promise.all([
+      fetchItem<Team>('teams', safeTeamId, { fields: ['id', 'sport'] }),
+      fetchAllItems<ExpandedMemberTeam>('member_teams', {
+        filter,
+        fields: ['*', 'member.*'],
+        sort: ['member'],
+      }),
+    ]).then(
+      ([team, result]) => ({ ok: true, team, result }) as const,
+      (err: unknown) => ({ ok: false, err }) as const,
+    )
+
+    if (outcome.ok) {
+      const { team, result } = outcome
       const updates: Promise<unknown>[] = []
       const normalized = result.map((mt) => {
         const member = asObj<Member>(mt.member)
@@ -82,20 +105,29 @@ export function useTeamMembers(
       if (updates.length > 0) {
         void Promise.allSettled(updates)
       }
-    } catch (err) {
-      if (latestKeyRef.current === key) {
-        setError(err instanceof Error ? err : new Error(String(err)))
-      }
-    } finally {
-      if (latestKeyRef.current === key) setLoadedKey(key)
+    } else if (latestKeyRef.current === key) {
+      setError(outcome.err instanceof Error ? outcome.err : new Error(String(outcome.err)))
     }
+    if (latestKeyRef.current === key) setLoadedKey(key)
   }, [safeTeamId, season, persistNormalization])
 
-  useEffect(() => {
-    fetch()
-  }, [fetch])
+  // Manual refetch keeps fetch()'s original eager resets (callers invoke it from
+  // event handlers / realtime callbacks, never from an effect body).
+  const refetch = useCallback(async () => {
+    if (requestedKey === null) {
+      setMembers([])
+      setLoadedKey(null)
+    } else {
+      setError(null)
+    }
+    await load()
+  }, [requestedKey, load])
 
-  return { members, isLoading, error, refetch: fetch }
+  useEffect(() => {
+    load()
+  }, [load])
+
+  return { members, isLoading, error, refetch }
 }
 
 /** Fetch members from multiple teams, deduplicating by member ID.
@@ -119,12 +151,22 @@ export function useMultiTeamMembers(teamIds: string[]) {
   const requestedKey = safeIds.length === 0 ? null : key
   const isLoading = loadedKey !== requestedKey
 
-  const fetch = useCallback(async () => {
-    if (safeIds.length === 0) {
-      latestKeyRef.current = null
+  // Reset half of the old fetch(), applied during render — see useTeamMembers.
+  const [primedKey, setPrimedKey] = useState<string | null | undefined>(undefined)
+  if (primedKey !== requestedKey) {
+    setPrimedKey(requestedKey)
+    if (requestedKey === null) {
       setMembers([])
       setTeamsByMember(new Map())
       setLoadedKey(null)
+    } else {
+      setError(null)
+    }
+  }
+
+  const load = useCallback(async () => {
+    if (safeIds.length === 0) {
+      latestKeyRef.current = null
       return
     }
 
@@ -134,13 +176,19 @@ export function useMultiTeamMembers(teamIds: string[]) {
     // to sidestep the deep-M2M-filter-vs-policy silent-[] trap. `_in` with one
     // id behaves like `_eq`, and the dedupe below is a no-op for a single team,
     // so both cases share this one path.
-    setError(null)
-    try {
-      const result = await fetchAllItems<ExpandedMemberTeam>('member_teams', {
-        filter: { team: { _in: safeIds } },
-        fields: ['*', 'member.*'],
-        sort: ['member'],
-      })
+    // Settled through `.then(onOk, onErr)` rather than try/catch/finally — see
+    // useTeamMembers above for why (keeps every setState strictly post-await).
+    const outcome = await fetchAllItems<ExpandedMemberTeam>('member_teams', {
+      filter: { team: { _in: safeIds } },
+      fields: ['*', 'member.*'],
+      sort: ['member'],
+    }).then(
+      (result) => ({ ok: true, result }) as const,
+      (err: unknown) => ({ ok: false, err }) as const,
+    )
+
+    if (outcome.ok) {
+      const { result } = outcome
       // Deduplicate by member ID — keep the first occurrence. Build the
       // member→teams map from the RAW rows first so a player on two invited
       // teams keeps both associations even though only one row survives dedupe.
@@ -163,19 +211,28 @@ export function useMultiTeamMembers(teamIds: string[]) {
       if (latestKeyRef.current !== key) return
       setMembers(deduped)
       setTeamsByMember(byMember)
-    } catch (err) {
-      if (latestKeyRef.current === key) {
-        setError(err instanceof Error ? err : new Error(String(err)))
-      }
-    } finally {
-      if (latestKeyRef.current === key) setLoadedKey(key)
+    } else if (latestKeyRef.current === key) {
+      setError(outcome.err instanceof Error ? outcome.err : new Error(String(outcome.err)))
     }
+    if (latestKeyRef.current === key) setLoadedKey(key)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
 
-  useEffect(() => {
-    fetch()
-  }, [fetch])
+  // Manual refetch keeps fetch()'s original eager resets — see useTeamMembers.
+  const refetch = useCallback(async () => {
+    if (requestedKey === null) {
+      setMembers([])
+      setTeamsByMember(new Map())
+      setLoadedKey(null)
+    } else {
+      setError(null)
+    }
+    await load()
+  }, [requestedKey, load])
 
-  return { members, teamsByMember, isLoading, error, refetch: fetch }
+  useEffect(() => {
+    load()
+  }, [load])
+
+  return { members, teamsByMember, isLoading, error, refetch }
 }

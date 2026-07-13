@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import { useAuth } from '../../hooks/useAuth'
@@ -69,33 +69,38 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
   const [blocking, setBlocking] = useState(true)
   const [validationError, setValidationError] = useState('')
 
-  // Initialise form state once per modal-open. Including `user` in deps would
-  // reset the picker every time useAuth refreshes (real-time events, refetch)
-  // — silently clobbering a coach's selection back to themselves.
-  useEffect(() => {
-    if (!open) return
-    if (absence) {
-      setMemberId(relId(absence.member))
-      setStartDate(absence.start_date.split(' ')[0])
-      setEndDate(absence.indefinite ? '' : absence.end_date.split(' ')[0])
-      setReason(absence.reason)
-      setReasonDetail(absence.reason_detail)
-      setAffects(absence.affects ?? ['all'])
-      setIndefinite(absence.indefinite ?? false)
-      setBlocking(absence.blocking ?? true)
-    } else {
-      setMemberId(user?.id ?? '')
-      setStartDate('')
-      setEndDate('')
-      setReason('other')
-      setReasonDetail('')
-      setAffects(['all'])
-      setIndefinite(false)
-      setBlocking(true)
+  // Initialise form state once per modal-open. Adjust-state-during-render keyed
+  // on exactly what the old effect's dep array held (`open` + the `absence`
+  // reference) — `user` is deliberately NOT a trigger: re-initialising every time
+  // useAuth refreshes (real-time events, refetch) would silently clobber a
+  // coach's selection back to themselves. `null` seeds a first pass on mount,
+  // matching the effect's mount run.
+  const [initKey, setInitKey] = useState<{ open: boolean; absence: Absence | null | undefined } | null>(null)
+  if (!initKey || initKey.open !== open || initKey.absence !== absence) {
+    setInitKey({ open, absence })
+    if (open) {
+      if (absence) {
+        setMemberId(relId(absence.member))
+        setStartDate(absence.start_date.split(' ')[0])
+        setEndDate(absence.indefinite ? '' : absence.end_date.split(' ')[0])
+        setReason(absence.reason)
+        setReasonDetail(absence.reason_detail)
+        setAffects(absence.affects ?? ['all'])
+        setIndefinite(absence.indefinite ?? false)
+        setBlocking(absence.blocking ?? true)
+      } else {
+        setMemberId(user?.id ?? '')
+        setStartDate('')
+        setEndDate('')
+        setReason('other')
+        setReasonDetail('')
+        setAffects(['all'])
+        setIndefinite(false)
+        setBlocking(true)
+      }
+      setValidationError('')
     }
-    setValidationError('')
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, absence])
+  }
 
   // Synchronous re-entry lock — React state updates (useMutation.isLoading)
   // are async and don't block rapid double-clicks before the next render.

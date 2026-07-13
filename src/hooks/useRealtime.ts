@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { client as directus, isAuthenticated } from '../lib/api'
 
 type RealtimeAction = 'create' | 'update' | 'delete'
@@ -21,11 +21,18 @@ export function useRealtime<T = Record<string, unknown>>(
   /** Skip subscription (e.g. while auth is still loading) */
   disabled?: boolean,
 ) {
+  // "Latest value" refs: the subscription below is set up once per collection and
+  // reads the current callback/actions when a message arrives. Seeded by useRef on
+  // mount, then refreshed in a layout effect — writing a ref during render is not
+  // allowed (React Compiler: react-hooks/refs), and a layout effect commits the new
+  // value in the same synchronous commit the render belongs to, so no post-commit
+  // code (including the async message loop) can ever observe a stale value.
   const callbackRef = useRef(callback)
-  callbackRef.current = callback
-
   const actionsRef = useRef(actions)
-  actionsRef.current = actions
+  useLayoutEffect(() => {
+    callbackRef.current = callback
+    actionsRef.current = actions
+  })
 
   useEffect(() => {
     // Skip if not authenticated or explicitly disabled (auth still loading)

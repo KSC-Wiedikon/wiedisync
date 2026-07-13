@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import { useAuth } from '../../hooks/useAuth'
@@ -61,30 +61,36 @@ export default function WeeklyUnavailabilityForm({ open, absence, onSave, onCanc
   const [note, setNote] = useState('')
   const [validationError, setValidationError] = useState('')
 
-  // Initialise once per modal-open. `user` in deps would reset the picker on
-  // every useAuth refresh, clobbering a coach's selection back to themselves.
-  useEffect(() => {
-    if (!open) return
-    if (absence) {
-      setMemberId(relId(absence.member))
-      setDaysOfWeek(absence.days_of_week ?? [])
-      setAffects(absence.affects ?? ['all'])
-      setStartDate(absence.start_date.split(' ')[0])
-      setEndDate(absence.indefinite ? '' : absence.end_date.split(' ')[0])
-      setIndefinite(absence.indefinite ?? false)
-      setNote(absence.reason_detail ?? '')
-    } else {
-      setMemberId(user?.id ?? '')
-      setDaysOfWeek([])
-      setAffects(['all'])
-      setStartDate('')
-      setEndDate('')
-      setIndefinite(true)
-      setNote('')
+  // Initialise once per modal-open. `user` is deliberately NOT part of the key:
+  // re-keying on it would reset the picker on every useAuth refresh, clobbering
+  // a coach's selection back to themselves.
+  // Uses React's adjust-state-during-render pattern (same trigger set as the
+  // previous `useEffect(…, [open, absence])`: first render + every open/absence
+  // change), so the fields are already correct on the first paint.
+  const [prevInit, setPrevInit] = useState<{ open: boolean; absence: Absence | null | undefined } | null>(null)
+  if (!prevInit || prevInit.open !== open || prevInit.absence !== absence) {
+    setPrevInit({ open, absence })
+    if (open) {
+      if (absence) {
+        setMemberId(relId(absence.member))
+        setDaysOfWeek(absence.days_of_week ?? [])
+        setAffects(absence.affects ?? ['all'])
+        setStartDate(absence.start_date.split(' ')[0])
+        setEndDate(absence.indefinite ? '' : absence.end_date.split(' ')[0])
+        setIndefinite(absence.indefinite ?? false)
+        setNote(absence.reason_detail ?? '')
+      } else {
+        setMemberId(user?.id ?? '')
+        setDaysOfWeek([])
+        setAffects(['all'])
+        setStartDate('')
+        setEndDate('')
+        setIndefinite(true)
+        setNote('')
+      }
+      setValidationError('')
     }
-    setValidationError('')
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, absence])
+  }
 
   function toggleDay(day: number) {
     setDaysOfWeek((prev) =>

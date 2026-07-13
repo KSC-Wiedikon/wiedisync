@@ -34,9 +34,14 @@ export default function SpielsamstageEditor({ spielsamstage, onUpdate, season }:
   const [pickerOpen, setPickerOpen] = useState(false)
   const [events, setEvents] = useState<{ start_date: string; end_date: string | null }[]>([])
 
-  useEffect(() => {
+  // Re-seed the local selection whenever the parent hands down a new
+  // `spielsamstage` array (same trigger the old effect had — a reference change).
+  // Adjust-state-during-render instead of setState-in-effect.
+  const [seededFrom, setSeededFrom] = useState(spielsamstage)
+  if (seededFrom !== spielsamstage) {
+    setSeededFrom(spielsamstage)
     setDates(spielsamstage.map(s => s.date).filter(Boolean))
-  }, [spielsamstage])
+  }
 
   useEffect(() => {
     fetchAllItems<Hall>('halls', { sort: ['name'] }).then(setHalls).catch(() => {})

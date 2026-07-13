@@ -40,7 +40,13 @@ export function useDerbies(seasonId: string | number | null | undefined) {
     }
   }, [seasonId])
 
-  useEffect(() => { fetchDerbies() }, [fetchDerbies])
+  // Load on mount and whenever the season changes. The call is made from an
+  // effect-local async function (React's documented data-fetching shape) so the
+  // effect body itself stays free of state updates.
+  useEffect(() => {
+    async function run() { await fetchDerbies() }
+    void run()
+  }, [fetchDerbies])
 
   const saveDerby = useCallback(
     async (args: SaveDerbyArgs) => {

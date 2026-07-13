@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
@@ -71,7 +71,16 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
   const [ahvNummer, setAhvNummer] = useState('')
   const [clubdeskOpen, setClubdeskOpen] = useState(false)
 
-  useEffect(() => {
+  // Re-seed every field from `user` whenever the modal opens or the member record
+  // changes identity — exactly the trigger the old `useEffect([user, open])` had.
+  // Done as a render-phase state adjustment (React's sanctioned replacement for a
+  // synchronous setState inside an effect, react-hooks/set-state-in-effect): the
+  // sentinel starts at `{ user: null, open: false }` so a modal that *mounts*
+  // already open (PendingPage / Layout onboarding) still seeds itself, just as the
+  // effect did on its first run.
+  const [seeded, setSeeded] = useState<{ user: typeof user; open: boolean }>({ user: null, open: false })
+  if (seeded.user !== user || seeded.open !== open) {
+    setSeeded({ user, open })
     if (user && open) {
       setFirstName(user.first_name ?? '')
       setLastName(user.last_name ?? '')
@@ -102,7 +111,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       setAhvNummer(user.ahv_nummer ?? '')
       setClubdeskOpen(false)
     }
-  }, [user, open])
+  }
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]

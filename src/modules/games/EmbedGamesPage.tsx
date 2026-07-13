@@ -14,7 +14,7 @@ import LoadingSpinner from '../../components/LoadingSpinner'
 
 function buildTeamFilter(team: string): Record<string, unknown> | null {
   if (!team) return null
-  const sanitized = team.replace(/[^a-zA-Z0-9\s\-]/g, '')
+  const sanitized = team.replace(/[^a-zA-Z0-9\s-]/g, '')
   if (!sanitized) return null
   return { kscw_team: { name: { _contains: sanitized } } }
 }

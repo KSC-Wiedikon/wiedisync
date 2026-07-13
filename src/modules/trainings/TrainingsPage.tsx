@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
@@ -49,13 +49,15 @@ export default function TrainingsPage() {
 
   const today = useMemo(() => todayLocal(), [])
 
-  // Auto-select user's first team on initial load
-  useEffect(() => {
-    if (!autoSelected && allUserTeamIds.length > 0) {
-      setSelectedTeam(allUserTeamIds[0])
-      setAutoSelected(true)
-    }
-  }, [allUserTeamIds, autoSelected])
+  // Auto-select user's first team on initial load. Done during render (React's
+  // sanctioned "adjust state while rendering" pattern) rather than in an effect:
+  // same one-shot semantics, but the auto-selected team is already in place on
+  // the first committed render, so the queries below never fire once with the
+  // un-narrowed filter and then again with the team filter.
+  if (!autoSelected && allUserTeamIds.length > 0) {
+    setAutoSelected(true)
+    setSelectedTeam(allUserTeamIds[0])
+  }
 
   // Non-admins: always scope to own teams + coached teams
   const effectiveFilter = useMemo((): Record<string, unknown> | undefined => {

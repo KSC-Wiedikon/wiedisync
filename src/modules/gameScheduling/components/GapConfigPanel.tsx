@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -16,17 +16,23 @@ interface Props {
 // use a smaller gap. Mirrors the backend DEFAULT_GAPS in game-scheduling.js.
 export default function GapConfigPanel({ gapConfig, onUpdate }: Props) {
   const { t } = useTranslation('gameScheduling')
-  const [home, setHome] = useState(DEFAULTS.home)
-  const [proposal, setProposal] = useState(DEFAULTS.proposal)
-  const [proposal3, setProposal3] = useState(DEFAULTS.proposal3)
+  const [home, setHome] = useState(() => ({ ...DEFAULTS, ...(gapConfig || {}) }).home)
+  const [proposal, setProposal] = useState(() => ({ ...DEFAULTS, ...(gapConfig || {}) }).proposal)
+  const [proposal3, setProposal3] = useState(() => ({ ...DEFAULTS, ...(gapConfig || {}) }).proposal3)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
+  // Re-seed the inputs when the season's saved config changes (identity compare —
+  // same trigger the old `useEffect(..., [gapConfig])` had). Adjusting state
+  // during render instead of in an effect: React re-runs this component before
+  // committing, so the inputs never paint with the previous season's values.
+  const [prevGapConfig, setPrevGapConfig] = useState(gapConfig)
+  if (prevGapConfig !== gapConfig) {
+    setPrevGapConfig(gapConfig)
     const c = { ...DEFAULTS, ...(gapConfig || {}) }
     setHome(c.home)
     setProposal(c.proposal)
     setProposal3(c.proposal3)
-  }, [gapConfig])
+  }
 
   const clamp = (n: number) => Math.max(0, Math.min(30, Math.floor(Number.isFinite(n) ? n : 0)))
 

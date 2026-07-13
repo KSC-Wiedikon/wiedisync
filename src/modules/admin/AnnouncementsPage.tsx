@@ -72,23 +72,28 @@ export default function AnnouncementsPage() {
   const [uploading, setUploading] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
-  const refresh = async () => {
-    setIsLoading(true)
-    try {
-      const result = await fetchItems<Announcement>('announcements', {
-        sort: ['-pinned', '-published_at', '-id'],
-        limit: 100,
+  // The fetch itself — state lands in the promise callbacks, never synchronously.
+  const load = () =>
+    fetchItems<Announcement>('announcements', {
+      sort: ['-pinned', '-published_at', '-id'],
+      limit: 100,
+    })
+      .then(setItems)
+      .catch((err) => {
+        toast.error(t('loadError'))
+        console.error(err)
       })
-      setItems(result)
-    } catch (err) {
-      toast.error(t('loadError'))
-      console.error(err)
-    } finally {
-      setIsLoading(false)
-    }
+      .finally(() => setIsLoading(false))
+
+  // Re-fetch after a mutation: flip back to the spinner first (event-handler path).
+  const refresh = () => {
+    setIsLoading(true)
+    return load()
   }
 
-  useEffect(() => { refresh() }, [])
+  // Initial load. `isLoading` already starts `true`, so the old `refresh()` here
+  // set it to `true` again for nothing — `load()` is the exact same request.
+  useEffect(() => { load() }, [])
 
   const openCreate = () => {
     setForm(emptyForm)

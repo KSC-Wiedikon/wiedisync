@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useMemo } from 'react'
 import type { Hall, LocationResult } from '../types'
 import { useCollection } from '../lib/query'
 
-// Stable empty fallback so the filter effect doesn't re-run every render while
+// Stable empty fallback so the filter memo doesn't recompute every render while
 // the halls query is still loading (`hallsRaw ?? []` would allocate a fresh [] each time).
 const EMPTY_HALLS: Hall[] = []
 
@@ -20,15 +20,13 @@ function hallToLocationResult(hall: Hall): LocationResult {
 export function useHallSearch(query: string) {
   const { data: hallsRaw } = useCollection<Hall>('halls', { all: true, sort: ['name'] })
   const halls = hallsRaw ?? EMPTY_HALLS
-  const [results, setResults] = useState<LocationResult[]>([])
 
-  useEffect(() => {
-    if (!query || query.length < 1) {
-      setResults([])
-      return
-    }
+  // Pure derivation of `query` + `halls` — computed during render instead of
+  // mirrored into state by an effect (react-hooks/set-state-in-effect).
+  const results = useMemo<LocationResult[]>(() => {
+    if (!query || query.length < 1) return []
     const q = query.toLowerCase()
-    const filtered = halls
+    return halls
       .filter(
         (h) =>
           (h.name || '').toLowerCase().includes(q) ||
@@ -37,7 +35,6 @@ export function useHallSearch(query: string) {
       )
       .slice(0, 5)
       .map(hallToLocationResult)
-    setResults(filtered)
   }, [query, halls])
 
   return { results }

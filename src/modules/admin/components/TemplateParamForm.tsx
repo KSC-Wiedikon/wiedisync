@@ -35,10 +35,13 @@ export default function TemplateParamForm({ params, onRun, isRunning }: Template
   )
   const [relationOptions, setRelationOptions] = useState<Record<string, RelationOption[]>>({})
 
-  // Reset values when params change
-  useEffect(() => {
+  // Reset values when params change — adjust-state-during-render rather than an
+  // effect. The old effect keyed off the `params` identity and did nothing else.
+  const [prevParams, setPrevParams] = useState(params)
+  if (prevParams !== params) {
+    setPrevParams(params)
     setValues(Object.fromEntries(params.map((p) => [p.name, ''])))
-  }, [params])
+  }
 
   // Fetch relation options for all relation-type params
   useEffect(() => {

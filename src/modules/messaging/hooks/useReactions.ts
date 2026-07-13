@@ -56,54 +56,75 @@ export function ReactionsProvider({
 
   // Reference-counted registrations: a message id stays in `ids` while ≥1
   // ReactionBar for it is mounted (StrictMode remounts + list churn safe).
-  const refCounts = useRef(new Map<string, number>())
+  // Held in lazily-initialised state that is never re-set — a stable, mutable
+  // container with exactly the identity semantics of the old `useRef(new Map())`,
+  // but not a ref, so `register`/`unregister` stay ref-free and can be handed
+  // through context without tripping the compiler's ref rules.
+  const [refCounts] = useState(() => new Map<string, number>())
 
   const register = useCallback((messageId: string) => {
-    const m = refCounts.current
-    const next = (m.get(messageId) ?? 0) + 1
-    m.set(messageId, next)
+    const next = (refCounts.get(messageId) ?? 0) + 1
+    refCounts.set(messageId, next)
     if (next === 1) setIds(prev => (prev.includes(messageId) ? prev : [...prev, messageId]))
-  }, [])
+  }, [refCounts])
 
   const unregister = useCallback((messageId: string) => {
-    const m = refCounts.current
-    const next = (m.get(messageId) ?? 0) - 1
+    const next = (refCounts.get(messageId) ?? 0) - 1
     if (next <= 0) {
-      m.delete(messageId)
+      refCounts.delete(messageId)
       setIds(prev => prev.filter(x => x !== messageId))
     } else {
-      m.set(messageId, next)
+      refCounts.set(messageId, next)
     }
-  }, [])
+  }, [refCounts])
 
-  // Stable dependency + current-set ref (used by realtime + refetch).
+  // Stable dependency + current-set ref (used by realtime + the batched fetch).
   const idsKey = useMemo(() => [...ids].sort().join('|'), [ids])
   const idsSetRef = useRef<Set<string>>(new Set())
-  idsSetRef.current = new Set(ids)
+  // Written after commit, never during render. Declared BEFORE the fetch effect
+  // below so it is already fresh when that effect runs; the realtime handler
+  // only ever reads it asynchronously, well after the commit.
+  useEffect(() => { idsSetRef.current = new Set(ids) }, [ids])
 
   // Guards against stale responses when the id set changes mid-flight.
   const fetchSeq = useRef(0)
 
+  // The network path only — `.catch()` instead of try/catch so no setState is
+  // synchronously reachable from the effect that calls it.
   const refetch = useCallback(async () => {
-    if (!enabled) { setRows([]); return }
+    if (!enabled) return
     const list = [...idsSetRef.current]
-    if (list.length === 0) { setRows([]); return }
+    if (list.length === 0) return
     const mySeq = ++fetchSeq.current
-    try {
+    await (async () => {
       const data = await fetchAllItems<ReactionRow>('message_reactions', {
         filter: { message: { _in: list } },
         fields: REACTION_FIELDS,
       })
       if (fetchSeq.current === mySeq) setRows(data)
-    } catch { /* ignore */ }
+    })().catch(() => { /* ignore */ })
   }, [enabled])
+
+  // Drop the previous conversation's reactions the moment we switch, and clear
+  // whenever the store goes disabled or no message is registered. Both used to
+  // be synchronous setState inside effects; React's adjust-state-during-render
+  // pattern fires on exactly the same transitions (the null sentinel makes the
+  // second block also run on the first render, like the effect's mount run did).
+  const [prevConversationId, setPrevConversationId] = useState(conversationId)
+  if (prevConversationId !== conversationId) {
+    setPrevConversationId(conversationId)
+    setRows([])
+  }
+  const clearKey = `${enabled}|${idsKey}`
+  const [prevClearKey, setPrevClearKey] = useState<string | null>(null)
+  if (prevClearKey !== clearKey) {
+    setPrevClearKey(clearKey)
+    if (!enabled || idsKey === '') setRows([])
+  }
 
   // One fetch per id-set change (registrations from a message list batch into
   // a single update → a single query).
   useEffect(() => { refetch() }, [refetch, idsKey])
-
-  // Drop the previous conversation's reactions the moment we switch.
-  useEffect(() => { setRows([]) }, [conversationId])
 
   // One subscription for the whole conversation; ignore events for messages
   // that aren't currently rendered.
@@ -185,25 +206,28 @@ export function useMessageReactions(messageId: string) {
   // ---- Fallback (only when NOT under a provider) ----
   const fallbackEnabled = !hasProvider && messagingFeatureEnabled(user?.id) && !!user?.id && !!messageId
   const [localRows, setLocalRows] = useState<ReactionRow[]>([])
-  const msgRef = useRef<string | null>(messageId)
-  msgRef.current = messageId
 
+  // The guard's old `setLocalRows([])` was unreachable — both call sites (the
+  // effect below and `fallbackToggle`) already require `fallbackEnabled`, which
+  // implies `!!messageId` — so dropping it changes nothing. `.catch()` instead
+  // of try/catch keeps setState off the synchronous path from the effect.
   const fallbackRefetch = useCallback(async () => {
-    if (!fallbackEnabled || !messageId) { setLocalRows([]); return }
-    try {
+    if (!fallbackEnabled || !messageId) return
+    await (async () => {
       const data = await fetchAllItems<ReactionRow>('message_reactions', {
         filter: { message: { _eq: messageId } },
         fields: REACTION_FIELDS,
       })
       setLocalRows(data)
-    } catch { /* ignore */ }
+    })().catch(() => { /* ignore */ })
   }, [fallbackEnabled, messageId])
 
   useEffect(() => { if (fallbackEnabled) fallbackRefetch() }, [fallbackEnabled, fallbackRefetch])
 
+  // `messageId` read straight from the closure: useRealtime always invokes the
+  // latest callback, so this is exactly as fresh as the old render-written ref.
   useRealtime<ReactionRow>('message_reactions', (e) => {
-    const mid = msgRef.current
-    if (!mid || String(e.record.message) !== String(mid)) return
+    if (!messageId || String(e.record.message) !== String(messageId)) return
     if (e.action === 'create') {
       setLocalRows(prev => prev.some(r => r.id === e.record.id) ? prev : [...prev, e.record])
     } else if (e.action === 'delete') {

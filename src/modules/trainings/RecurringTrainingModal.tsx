@@ -178,9 +178,19 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
 
   const slot = slots.find((s) => s.id === selectedSlot)
 
+  // No slot selected → no existing dates. React's adjust-state-during-render
+  // pattern, replacing the `setExistingDates(new Set())` that used to run
+  // synchronously inside the effect below.
+  const slotId = slot?.id ?? null
+  const [prevSlotId, setPrevSlotId] = useState<string | null>(slotId)
+  if (prevSlotId !== slotId) {
+    setPrevSlotId(slotId)
+    if (!slot) setExistingDates(new Set())
+  }
+
   // Fetch existing training dates for selected slot's team to prevent duplicates
   useEffect(() => {
-    if (!slot) { setExistingDates(new Set()); return }
+    if (!slot) return
     const teamIds = Array.isArray(slot.team) ? slot.team : [slot.team]
     fetchAllItems<{ date: string }>('trainings', {
       filter: { _and: [{ team: { _in: teamIds } }, { hall_slot: { _eq: slot.id } }] },

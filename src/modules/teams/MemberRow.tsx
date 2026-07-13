@@ -58,6 +58,10 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const positionBtnRef = useRef<HTMLButtonElement>(null)
   const roleBtnRef = useRef<HTMLButtonElement>(null)
+  // Wall clock, read once per mount (lazy initialiser) — reading Date.now() during
+  // render is impure. Only used for the day-granular shell-expiry countdown below,
+  // so a value pinned at mount renders exactly the same number.
+  const [nowMs] = useState(() => Date.now())
 
   if (!member) return null
 
@@ -185,7 +189,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
                   {' · '}
                   {t('expiresIn', {
                     days: Math.max(0, Math.ceil(
-                      (new Date(member.shell_expires).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+                      (new Date(member.shell_expires).getTime() - nowMs) / (1000 * 60 * 60 * 24)
                     ))
                   })}
                 </>

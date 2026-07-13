@@ -103,21 +103,46 @@ export function useAvailableSlots(token: string | undefined) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // The request itself. Every state write lives in a promise callback, so this
+  // is safe to call straight from an effect.
+  const loadSlots = useCallback((tok: string) => {
+    return kscwApi(`/terminplanung/slots/${tok}`, { method: 'GET', anonymous: true }).then(
+      (resp) => {
+        setData(resp as SlotsResponse)
+        setIsLoading(false)
+      },
+      (err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err))
+        setIsLoading(false)
+      },
+    )
+  }, [])
+
+  // Manual refetch (used by the propose/note mutations below): raises the
+  // loading flag first, exactly as before.
   const fetchSlots = useCallback(async () => {
     if (!token) return
     setIsLoading(true)
     setError(null)
-    try {
-      const resp = await kscwApi(`/terminplanung/slots/${token}`, { method: 'GET', anonymous: true })
-      setData(resp as SlotsResponse)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setIsLoading(false)
-    }
-  }, [token])
+    await loadSlots(token)
+  }, [token, loadSlots])
 
-  useEffect(() => { fetchSlots() }, [fetchSlots])
+  // Token-driven load. The "raise loading / clear error" half of the old effect
+  // is applied during render (adjust-state-during-render) so the effect body no
+  // longer writes state synchronously; `isLoading` already starts at `true`, so
+  // the mount pass is unchanged.
+  const [prevToken, setPrevToken] = useState(token)
+  if (prevToken !== token) {
+    setPrevToken(token)
+    if (token) {
+      setIsLoading(true)
+      setError(null)
+    }
+  }
+  useEffect(() => {
+    if (!token) return
+    void loadSlots(token)
+  }, [token, loadSlots])
 
   // The opponent-club person confirming — captured by the modal on the confirm
   // buttons, stored on each booking so we know who to follow up with.

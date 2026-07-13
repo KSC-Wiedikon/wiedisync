@@ -11,10 +11,20 @@ export type MemberProfile = { id: string; name: string; photo: string | null }
  * Inbox list + ThreadView avatars.
  */
 export function useMemberProfiles(memberIds: string[]): Map<string, MemberProfile> {
-  const [map, setMap] = useState<Map<string, MemberProfile>>(new Map())
+  const [map, setMap] = useState<Map<string, MemberProfile>>(() => new Map())
   const key = memberIds.slice().sort().join(',')
+
+  // Clearing on an empty id set is a reset-on-input-change, not a subscription —
+  // done during render (React's sanctioned adjust-state-during-render pattern)
+  // rather than in the effect below. Same trigger (`key` changed), same result.
+  const [prevKey, setPrevKey] = useState(key)
+  if (prevKey !== key) {
+    setPrevKey(key)
+    if (memberIds.length === 0) setMap(new Map())
+  }
+
   useEffect(() => {
-    if (memberIds.length === 0) { setMap(new Map()); return }
+    if (memberIds.length === 0) return
     let alive = true
     ;(async () => {
       try {

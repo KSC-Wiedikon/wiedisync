@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../hooks/useAuth'
@@ -60,19 +60,27 @@ export default function GamesPage() {
   const [showAll, setShowAll] = useState(false)
   const [autoSelected, setAutoSelected] = useState(false)
 
-  // Auto-select user's teams on initial load
-  useEffect(() => {
-    if (!autoSelected && allUserTeamNames.length > 0) {
-      setSelectedTeams(allUserTeamNames)
-      setAutoSelected(true)
-    }
-  }, [allUserTeamNames, autoSelected])
+  // The two blocks below used to be effects; they are now adjust-state-during-
+  // render (react-hooks/set-state-in-effect). They fire on exactly the same
+  // triggers, in the same source order, so on a render where both apply the
+  // sport-reset still wins the last write — same as when they were two effects
+  // flushed in declaration order.
 
-  // Reset team selection when sport changes (old selections may not match new sport)
-  useEffect(() => {
+  // Auto-select user's teams on initial load
+  if (!autoSelected && allUserTeamNames.length > 0) {
+    setSelectedTeams(allUserTeamNames)
+    setAutoSelected(true)
+  }
+
+  // Reset team selection when sport changes (old selections may not match new sport).
+  // `''` is not a valid SportView, so this also runs once on mount — as the old
+  // effect (deps: [sport]) did.
+  const [syncedSport, setSyncedSport] = useState<string>('')
+  if (syncedSport !== sport) {
+    setSyncedSport(sport)
     // Non-admin users: reset to their own teams; admins: show all
     setSelectedTeams((effectiveIsAdmin || effectiveIsVorstand) ? [] : allUserTeamNames)
-  }, [sport]) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   const INITIAL_LIMIT = 20
 
@@ -119,23 +127,28 @@ export default function GamesPage() {
 
   // Preserve the user's multi-select while they're on the dashboard tab,
   // so switching back to upcoming/results restores it. Snapshot when entering
-  // the dashboard tab; restore when leaving.
-  const preservedSelectionRef = useRef<string[] | null>(null)
-  useEffect(() => {
+  // the dashboard tab; restore when leaving. Adjust-state-during-render, keyed on
+  // `activeTab` alone — exactly the old effect's dep array (a selection change
+  // made *while* on the dashboard must not re-snapshot). `null` seeds a first
+  // pass on mount, matching the effect's mount run. The snapshot moved from a ref
+  // to state because refs may not be read or written during render.
+  const [preservedSelection, setPreservedSelection] = useState<string[] | null>(null)
+  const [syncedTab, setSyncedTab] = useState<TabKey | null>(null)
+  if (syncedTab !== activeTab) {
+    setSyncedTab(activeTab)
     if (activeTab === 'dashboard') {
-      if (preservedSelectionRef.current === null) {
-        preservedSelectionRef.current = selectedTeams
+      if (preservedSelection === null) {
+        setPreservedSelection(selectedTeams)
       }
       if (selectedTeams.length > 1) {
         // Collapse to single team on entering dashboard.
         setSelectedTeams(selectedTeams.slice(0, 1))
       }
-    } else if (preservedSelectionRef.current !== null) {
-      setSelectedTeams(preservedSelectionRef.current)
-      preservedSelectionRef.current = null
+    } else if (preservedSelection !== null) {
+      setSelectedTeams(preservedSelection)
+      setPreservedSelection(null)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab])
+  }
 
   // Sport filter clause for Directus queries
   const sportFilter = useMemo((): Record<string, unknown> | null => {

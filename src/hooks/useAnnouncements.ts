@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { fetchItems } from '../lib/api'
 import { useAuth } from './useAuth'
 import { useRealtime } from './useRealtime'
@@ -48,8 +48,6 @@ export function useAnnouncements(opts?: { limit?: number }) {
   const { user, isApproved, primarySport } = useAuth()
   const [items, setItems] = useState<Announcement[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const userIdRef = useRef(user?.id)
-  userIdRef.current = user?.id
   const limit = opts?.limit ?? 30
 
   const fetchAnnouncements = useCallback(async () => {
@@ -93,8 +91,12 @@ export function useAnnouncements(opts?: { limit?: number }) {
     }
   }, [user?.id, isApproved, primarySport, limit])
 
+  // Fetch on mount and whenever the query inputs change. The fetch lives in an
+  // effect-local async function (React's documented data-fetching shape) so the
+  // effect body itself stays free of state updates.
   useEffect(() => {
-    fetchAnnouncements()
+    async function run() { await fetchAnnouncements() }
+    void run()
   }, [fetchAnnouncements])
 
   // Realtime: refetch on any change (audience evaluation is server-side via filter)

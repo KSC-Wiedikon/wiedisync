@@ -72,10 +72,14 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
   // Drafts are team-scoped: the drawer stays mounted while the panel switches
   // teams, so clear any staged contacts when the selected team changes —
   // otherwise D1's imported contacts bleed into D2's drawer until a fresh import.
-  useEffect(() => {
+  // Adjust-state-during-render (the old effect fired only on a team-id change).
+  const selectedTeamId = kscwTeam?.id
+  const [prevSelectedTeamId, setPrevSelectedTeamId] = useState(selectedTeamId)
+  if (prevSelectedTeamId !== selectedTeamId) {
+    setPrevSelectedTeamId(selectedTeamId)
     setDrafts([])
     setCsvText('')
-  }, [kscwTeam?.id])
+  }
 
   const runImport = async () => {
     if (!kscwTeam) return

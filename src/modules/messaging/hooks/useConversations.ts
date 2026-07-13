@@ -32,7 +32,9 @@ export function useConversations({ blockedSenderIds }: UseConversationsOptions =
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const blockedRef = useRef(new Set(effectiveBlocked))
-  blockedRef.current = new Set(effectiveBlocked)
+  // "Latest value" ref — written after commit, never during render. Realtime
+  // callbacks only fire post-commit, so they always see the current set.
+  useEffect(() => { blockedRef.current = new Set(effectiveBlocked) })
   const fetchSeqRef = useRef(0)
 
   const refetch = useCallback(async () => {

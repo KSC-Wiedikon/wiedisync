@@ -37,6 +37,20 @@ import { useReportPageLoading } from '../../hooks/usePageReady'
 type SortKey = 'name' | 'number' | 'position' | 'email' | 'phone' | 'birthdate' | 'role'
 type SortDir = 'asc' | 'desc'
 
+// Stable empty identities — kept module-level so the derived values below don't
+// invalidate the memos that depend on them on every render.
+const EMPTY_IDS: string[] = []
+const EMPTY_EXTRA_COACHES: ExpandedMemberTeam[] = []
+
+// Parse "x% y%" or "x% y% zoom" from team_picture_pos
+function parsePicturePos(pos: string) {
+  const parts = pos.split(' ').map((v) => parseFloat(v))
+  const x = !isNaN(parts[0]) ? parts[0] : 50
+  const y = !isNaN(parts[1]) ? parts[1] : 50
+  const z = parts.length >= 3 && !isNaN(parts[2]) ? parts[2] : 1.0
+  return { x, y, z }
+}
+
 export default function TeamDetail() {
   const { t } = useTranslation('teams')
   const { teamSlug } = useParams<{ teamSlug: string }>()
@@ -44,6 +58,14 @@ export default function TeamDetail() {
   const { effectiveIsAdmin } = useAdminMode()
   const [team, setTeam] = useState<Team | null>(null)
   const [loading, setLoading] = useState(true)
+  // Back into "loading" as soon as the slug changes — the fetch effect below used
+  // to do this with a `setLoading(true)` in its body. Done during render so the
+  // page can't paint the previous team's roster for a frame before the effect runs.
+  const [prevTeamSlug, setPrevTeamSlug] = useState(teamSlug)
+  if (prevTeamSlug !== teamSlug) {
+    setPrevTeamSlug(teamSlug)
+    if (teamSlug) setLoading(true)
+  }
   const teamId = team?.id
   const { members, isLoading: membersLoading } = useTeamMembers(teamId)
   const canManage = isCoachOf(teamId ?? '') || (effectiveIsAdmin && hasAdminAccessToTeam(teamId ?? ''))
@@ -62,7 +84,7 @@ export default function TeamDetail() {
   const [teamSponsors, setTeamSponsors] = useState<Sponsor[]>([])
   // Staff (coaches + team responsibles) attached only via the M2M aliases with no
   // member_teams row — fetched separately so they still appear in the Staff section.
-  const [extraCoaches, setExtraCoaches] = useState<ExpandedMemberTeam[]>([])
+  const [fetchedExtraCoaches, setFetchedExtraCoaches] = useState<ExpandedMemberTeam[]>([])
 
   useEffect(() => {
     if (!team?.id) return
@@ -71,20 +93,26 @@ export default function TeamDetail() {
       .catch(() => {})
   }, [team?.id])
 
+  // Staff member IDs with no member_teams row for this team. Pure derivation —
+  // the old code computed this inside the effect below and setState([])'d for the
+  // "nothing to fetch" cases.
+  const missingStaffIds = useMemo(() => {
+    if (!team) return EMPTY_IDS
+    const presentIds = new Set(members.map((mt) => String(asObj<Member>(mt.member)?.id ?? mt.member)))
+    const staffIds = [...new Set([...flattenMemberIds(team.coach), ...flattenMemberIds(team.team_responsible)])]
+    return staffIds.filter((id) => !presentIds.has(id))
+  }, [team, members])
+
   // Fetch staff member records (coaches + team responsibles) that have no
   // member_teams row for this team, so the Staff section is complete even for
   // non-playing staff who never appear on the roster.
   useEffect(() => {
-    if (!team) { setExtraCoaches([]); return }
-    const presentIds = new Set(members.map((mt) => String(asObj<Member>(mt.member)?.id ?? mt.member)))
-    const staffIds = [...new Set([...flattenMemberIds(team.coach), ...flattenMemberIds(team.team_responsible)])]
-    const missing = staffIds.filter((id) => !presentIds.has(id))
-    if (missing.length === 0) { setExtraCoaches([]); return }
+    if (!team || missingStaffIds.length === 0) return
     let cancelled = false
-    fetchAllItems<Member>('members', { filter: { id: { _in: missing } }, fields: ['*'] })
+    fetchAllItems<Member>('members', { filter: { id: { _in: missingStaffIds } }, fields: ['*'] })
       .then((rows) => {
         if (cancelled) return
-        setExtraCoaches(rows.map((m) => ({
+        setFetchedExtraCoaches(rows.map((m) => ({
           id: `coach-${m.id}`,
           member: m,
           team: String(team.id),
@@ -92,9 +120,13 @@ export default function TeamDetail() {
           guest_level: 0,
         } as unknown as ExpandedMemberTeam)))
       })
-      .catch(() => { if (!cancelled) setExtraCoaches([]) })
+      .catch(() => { if (!cancelled) setFetchedExtraCoaches([]) })
     return () => { cancelled = true }
-  }, [team, members])
+  }, [team, missingStaffIds])
+
+  // Nothing to fetch (no team, or every staff member is already on the roster) →
+  // `[]`, exactly what the old effect's `setExtraCoaches([])` branches produced.
+  const extraCoaches = missingStaffIds.length === 0 ? EMPTY_EXTRA_COACHES : fetchedExtraCoaches
 
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -106,23 +138,27 @@ export default function TeamDetail() {
   const cropContainerRef = useRef<HTMLDivElement>(null)
   const draggingCrop = useRef(false)
 
-  // Parse "x% y%" or "x% y% zoom" from team_picture_pos
-  function parsePicturePos(pos: string) {
-    const parts = pos.split(' ').map((v) => parseFloat(v))
-    const x = !isNaN(parts[0]) ? parts[0] : 50
-    const y = !isNaN(parts[1]) ? parts[1] : 50
-    const z = parts.length >= 3 && !isNaN(parts[2]) ? parts[2] : 1.0
-    return { x, y, z }
-  }
-
-  // Initialize crop position + zoom from team data
-  useEffect(() => {
-    if (team?.team_picture_pos) {
-      const { x, y, z } = parsePicturePos(team.team_picture_pos)
+  // Initialize crop position + zoom from team data. Adjusting state during render
+  // (identity-compared on `team_picture_pos`, the old effect's only dependency)
+  // instead of in an effect — same trigger, one fewer render.
+  const picturePos = team?.team_picture_pos
+  const [prevPicturePos, setPrevPicturePos] = useState(picturePos)
+  if (prevPicturePos !== picturePos) {
+    setPrevPicturePos(picturePos)
+    if (picturePos) {
+      const { x, y, z } = parsePicturePos(picturePos)
       setCropPos({ x, y })
       setZoom(z)
     }
-  }, [team?.team_picture_pos])
+  }
+
+  function updateCropFromPointer(clientX: number, clientY: number) {
+    const rect = cropContainerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const x = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100))
+    const y = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100))
+    setCropPos({ x: Math.round(x), y: Math.round(y) })
+  }
 
   const handleCropPointerDown = useCallback((e: React.PointerEvent) => {
     if (!adjustingCrop) return
@@ -140,14 +176,6 @@ export default function TeamDetail() {
   const handleCropPointerUp = useCallback(() => {
     draggingCrop.current = false
   }, [])
-
-  function updateCropFromPointer(clientX: number, clientY: number) {
-    const rect = cropContainerRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const x = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100))
-    const y = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100))
-    setCropPos({ x: Math.round(x), y: Math.round(y) })
-  }
 
   async function saveCropPosition() {
     if (!team) return
@@ -363,7 +391,6 @@ export default function TeamDetail() {
 
   useEffect(() => {
     if (!teamSlug) return
-    setLoading(true)
     // Scope to the active (current-season) team — after the June-1 season rollover
     // there are two same-name rows (e.g. H3 2025/26 archived + 2026/27 active);
     // without active=true Directus returns the oldest (inactive) row, surfacing

@@ -157,7 +157,10 @@ function ParticipationButtonInner({
   const { isGuestIn } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const [sessionSheetOpen, setSessionSheetOpen] = useState(false)
-  const [guestCount, setGuestCount] = useState(0)
+  // Guest count is seeded from the existing participation and re-synced whenever
+  // the server value changes (see the adjust-during-render block below).
+  const serverGuestCount = participation?.guest_count ?? 0
+  const [guestCount, setGuestCount] = useState(serverGuestCount)
 
   // Note-required flow: pending status waiting for note input
   const [pendingStatus, setPendingStatus] = useState<'declined' | 'tentative' | null>(null)
@@ -169,10 +172,14 @@ function ParticipationButtonInner({
   // not one per tap (which can race).
   const guestWriteTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Sync guest count from existing participation
-  useEffect(() => {
-    setGuestCount(participation?.guest_count ?? 0)
-  }, [participation?.guest_count])
+  // Sync guest count from existing participation — reset-on-value-change, so it
+  // runs during render (React's adjust-state-during-render pattern) on exactly
+  // the trigger the effect used (server guest_count changed).
+  const [prevServerGuestCount, setPrevServerGuestCount] = useState(serverGuestCount)
+  if (prevServerGuestCount !== serverGuestCount) {
+    setPrevServerGuestCount(serverGuestCount)
+    setGuestCount(serverGuestCount)
+  }
 
   // Auto-dismiss save confirmation after 2s
   useEffect(() => {

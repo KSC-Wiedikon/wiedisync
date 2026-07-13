@@ -64,8 +64,12 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
     }
   }, [teamIdsKey, startDate, endDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fetch on mount and whenever the team/date key changes. The call is made from
+  // an effect-local async function (React's documented data-fetching shape) so
+  // the effect body itself stays free of state updates.
   useEffect(() => {
-    fetch()
+    async function run() { await fetch() }
+    void run()
   }, [fetch])
 
   // Member ids currently in scope (players + coaches/TRs) — used to gate the

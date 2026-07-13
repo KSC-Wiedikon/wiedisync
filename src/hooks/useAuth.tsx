@@ -92,7 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [realUser, setRealUser] = useState<MemberUser | null>(null)
   const [impersonatedMember, setImpersonatedMember] = useState<MemberUser | null>(null)
   const user = impersonatedMember ?? realUser
-  const [isLoading, setIsLoading] = useState(true)
+  // True only while a session restore is actually running. With no auth-hint
+  // cookie there is nothing to restore (the init effect below bails out), so it
+  // starts false rather than flipping to false from inside that effect — every
+  // consumer already gates on `isAuthenticated()` / `user`, so the value seen is
+  // the same, just one render earlier.
+  const [isLoading, setIsLoading] = useState(() => isAuthenticated())
 
   const [coachTeamIds, setCoachTeamIds] = useState<string[]>([])
   const [coachTeamNames, setCoachTeamNames] = useState<string[]>([])
@@ -232,7 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Init ────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!isAuthenticated()) { setIsLoading(false); return }
+    if (!isAuthenticated()) return
     ;(async () => {
       try {
         await refreshAuth()

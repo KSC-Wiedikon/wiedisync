@@ -30,9 +30,12 @@ export function useConversation(
   const [sendError, setSendError] = useState<Error | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const convIdRef = useRef(conversationId)
-  convIdRef.current = conversationId
   const blockedRef = useRef(new Set(effectiveBlocked))
-  blockedRef.current = new Set(effectiveBlocked)
+  // "Latest value" refs — written after commit, never during render. Declared
+  // BEFORE the refetch effect below so they are always current by the time it
+  // (or any realtime callback, which can only fire post-commit) reads them.
+  useEffect(() => { convIdRef.current = conversationId })
+  useEffect(() => { blockedRef.current = new Set(effectiveBlocked) })
   // Monotonic fetch counter — any resolver whose seq no longer matches is stale.
   const fetchSeqRef = useRef(0)
 

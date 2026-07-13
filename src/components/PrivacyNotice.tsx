@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -6,18 +6,16 @@ const STORAGE_KEY = 'wiedisync-privacy-noticed'
 
 export default function PrivacyNotice() {
   const { t } = useTranslation('legal')
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
+  // Read localStorage in a lazy initialiser (once, on mount) instead of an effect
+  // that immediately setStates — same result, one render less.
+  const [visible, setVisible] = useState(() => {
     try {
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        setVisible(true)
-      }
+      return !localStorage.getItem(STORAGE_KEY)
     } catch {
       // Storage disabled (e.g. Safari private mode) — show the notice each time.
-      setVisible(true)
+      return true
     }
-  }, [])
+  })
 
   if (!visible) return null
 

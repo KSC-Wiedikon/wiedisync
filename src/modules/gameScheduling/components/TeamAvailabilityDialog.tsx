@@ -143,8 +143,8 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
     rows.push('')
     rows.push(esc(t('availTextAwayBlocked')))
     for (const r of mergeDateRanges(data.blocked_away_strict)) rows.push(esc(r))
-    // ﻿ BOM so Excel opens the umlauts correctly.
-    const blob = new Blob([`﻿${rows.join('\n')}`], { type: 'text/csv;charset=utf-8' })
+    // Leading BOM (\uFEFF) so Excel reads the umlauts correctly.
+    const blob = new Blob([`\uFEFF${rows.join('\n')}`], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

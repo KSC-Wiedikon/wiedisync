@@ -97,13 +97,23 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
   // Track the teamId for which defaults were last applied (new training only)
   const defaultsAppliedForTeam = useRef<string | null>(null)
 
-  // Fetch team's hall_slots and active claims when teamId changes
-  useEffect(() => {
+  // Clearing the team empties the slot/claim lists. This was the synchronous
+  // half of the fetch effect below; adjusting state during render keeps the
+  // effect body free of synchronous setState. It never fires on mount
+  // (`teamId` starts '' and the lists start empty), matching the old effect's
+  // mount run, which was a no-op.
+  const [prevSlotTeamId, setPrevSlotTeamId] = useState(teamId)
+  if (prevSlotTeamId !== teamId) {
+    setPrevSlotTeamId(teamId)
     if (!teamId) {
       setTeamSlots([])
       setTeamClaims([])
-      return
     }
+  }
+
+  // Fetch team's hall_slots and active claims when teamId changes
+  useEffect(() => {
+    if (!teamId) return
     fetchAllItems<HallSlot>('hall_slots', {
       filter: { _and: [{ teams: { teams_id: { _eq: teamId } } }, { slot_type: { _eq: 'training' } }, { recurring: { _eq: true } }] },
       sort: ['day_of_week,start_time'],
@@ -194,21 +204,25 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
     return [...regularOptions, ...claimOptions]
   }, [teamId, date, slotMode, teamSlots, teamClaims, tc])
 
-  // Auto-select slot when options change
-  useEffect(() => {
+  // Auto-select slot when options change. Adjust-state-during-render, keyed on
+  // the `slotOptions` identity exactly like the old effect's single dependency
+  // (`slotMode` / `selectedSlotKey` are still read as latest values, not deps).
+  // `prevSlotOptions` starts as null so this also fires on the first render,
+  // mirroring the old effect's mount run.
+  const [prevSlotOptions, setPrevSlotOptions] = useState<SlotOption[] | null>(null)
+  if (prevSlotOptions !== slotOptions) {
+    setPrevSlotOptions(slotOptions)
     if (slotMode !== 'auto' || slotOptions.length === 0) {
       if (slotMode === 'auto') setSelectedSlotKey('')
-      return
-    }
-    // If current selection is still valid, keep it
-    if (selectedSlotKey && slotOptions.some((o) => o.key === selectedSlotKey)) return
-    // Auto-select if exactly one option
-    if (slotOptions.length === 1) {
+    } else if (selectedSlotKey && slotOptions.some((o) => o.key === selectedSlotKey)) {
+      // Current selection is still valid — keep it
+    } else if (slotOptions.length === 1) {
+      // Auto-select if exactly one option
       applySlot(slotOptions[0])
     } else {
       setSelectedSlotKey('')
     }
-  }, [slotOptions]) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   function applySlot(option: SlotOption) {
     setSelectedSlotKey(option.key)
@@ -227,7 +241,14 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
     // Will re-trigger auto-select via the effect above
   }
 
-  useEffect(() => {
+  // Seed the form from `training` (edit) or the create-mode defaults. This was a
+  // `useEffect` on [training, open]; it is pure prop→state seeding, so it now
+  // runs during render (React's adjust-state-during-render). `prevSeed` starts
+  // as null so it also fires on the first render, mirroring the old effect's
+  // mount run — which is load-bearing (it applies `defaultTeamId` / `defaultIsTrial`).
+  const [prevSeed, setPrevSeed] = useState<{ training: Training | null | undefined; open: boolean } | null>(null)
+  if (prevSeed === null || prevSeed.training !== training || prevSeed.open !== open) {
+    setPrevSeed({ training, open })
     if (training) {
       setTeamId(relId(training.team))
       setDate(training.date.split(' ')[0])
@@ -282,23 +303,44 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
       setAutoConfirmRsvp(null)
       setTeamAutoConfirmDefault(false)
       setIsTrial(defaultIsTrial)
-      defaultsAppliedForTeam.current = null
       setSlotMode('auto')
       setSelectedSlotKey('')
     }
     setError('')
+  }
+
+  // The create-mode half of the seeding above also cleared the "defaults already
+  // applied" guard. That is a ref write, which must not happen during render, so
+  // it stays in an effect — placed exactly where the old seeding effect was, so
+  // it still runs AFTER the team-defaults effect within the same commit (the
+  // original ordering: the guard was only observed as cleared on the next pass).
+  useEffect(() => {
+    if (!training) defaultsAppliedForTeam.current = null
   }, [training, open])
 
-  // When a date is selected on a new training, apply respond_by offset from team defaults
-  useEffect(() => {
-    if (training) return
-    if (!date || respondByDefaultDays === null || respondByDefaultDays <= 0) return
-    // Only set if respondBy hasn't been manually set yet
-    if (respondBy) return
-    const d = new Date(date + 'T00:00:00')
-    d.setDate(d.getDate() - respondByDefaultDays)
-    setRespondBy(d.toISOString().slice(0, 10))
-  }, [date, respondByDefaultDays, respondBy]) // eslint-disable-line react-hooks/exhaustive-deps
+  // When a date is selected on a new training, apply respond_by offset from team
+  // defaults. Adjust-state-during-render on the same three values the old effect
+  // used as deps; its mount run was a no-op (`date` starts empty).
+  const [prevRespondBySeed, setPrevRespondBySeed] = useState({ date, respondByDefaultDays, respondBy })
+  if (
+    prevRespondBySeed.date !== date ||
+    prevRespondBySeed.respondByDefaultDays !== respondByDefaultDays ||
+    prevRespondBySeed.respondBy !== respondBy
+  ) {
+    setPrevRespondBySeed({ date, respondByDefaultDays, respondBy })
+    if (
+      !training &&
+      date &&
+      respondByDefaultDays !== null &&
+      respondByDefaultDays > 0 &&
+      // Only set if respondBy hasn't been manually set yet
+      !respondBy
+    ) {
+      const d = new Date(date + 'T00:00:00')
+      d.setDate(d.getDate() - respondByDefaultDays)
+      setRespondBy(d.toISOString().slice(0, 10))
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

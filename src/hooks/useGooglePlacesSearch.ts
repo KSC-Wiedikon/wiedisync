@@ -35,20 +35,36 @@ interface PlaceDetails {
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
 
 export function useGooglePlacesSearch(query: string, options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true
+  const active = enabled && !!API_KEY && query.length >= 3
+
   const [results, setResults] = useState<LocationResult[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  // Lazy init mirrors what the effect used to do on its first run: an already-active
+  // query is "loading" from the very first render.
+  const [isLoading, setIsLoading] = useState(() => active)
   const abortRef = useRef<AbortController | null>(null)
   const sessionTokenRef = useRef(crypto.randomUUID())
-  const enabled = options?.enabled ?? true
 
-  useEffect(() => {
-    if (!enabled || !API_KEY || query.length < 3) {
+  // Prime the result/loading state when the search key changes — the effect below
+  // now only performs the request. Adjusting state during render is React's
+  // sanctioned alternative to a synchronous setState inside an effect
+  // (react-hooks/set-state-in-effect); it converges in the same commit.
+  const searchKey = `${enabled ? '1' : '0'}|${query}`
+  const [prevSearchKey, setPrevSearchKey] = useState(searchKey)
+  if (prevSearchKey !== searchKey) {
+    setPrevSearchKey(searchKey)
+    if (active) {
+      // Keep the previous results visible while the new query debounces/fetches —
+      // same as before, where the active branch never cleared `results`.
+      setIsLoading(true)
+    } else {
       setResults([])
       setIsLoading(false)
-      return
     }
+  }
 
-    setIsLoading(true)
+  useEffect(() => {
+    if (!enabled || !API_KEY || query.length < 3) return
 
     const timer = setTimeout(async () => {
       abortRef.current?.abort()

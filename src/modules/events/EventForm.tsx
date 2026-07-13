@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import { useAuth } from '../../hooks/useAuth'
@@ -135,7 +135,14 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
   })
   const existingSessions = existingSessionsRaw ?? []
 
-  useEffect(() => {
+  // Seed / reset the form from the `event` prop (and whenever the modal reopens).
+  // Adjust-state-during-render (React's reset-on-prop-change pattern) instead of a
+  // setState-in-effect. The `null` sentinel makes the very first render seed as
+  // well — exactly what the mount run of the former effect did — and it re-seeds
+  // on every `event` / `open` change, as before.
+  const [seededFrom, setSeededFrom] = useState<{ event: typeof event; open: boolean } | null>(null)
+  if (!seededFrom || seededFrom.event !== event || seededFrom.open !== open) {
+    setSeededFrom({ event, open })
     if (event) {
       setTitle(event.title)
       setEventType(event.event_type)
@@ -210,10 +217,15 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setJsActivityType('Training')
     }
     setError('')
-  }, [event, open])
+  }
 
-  // Load existing sessions into drafts
-  useEffect(() => {
+  // Load existing sessions into drafts once the fetch resolves. Same triggers as
+  // the former effect ([event, existingSessions]) — `existingSessions` is
+  // `existingSessionsRaw ?? []`, so keying on the raw value is equivalent (the
+  // fresh `[]` identity it produced every render never passed the length guard).
+  const [seededSessions, setSeededSessions] = useState<{ event: typeof event; src: typeof existingSessionsRaw } | null>(null)
+  if (!seededSessions || seededSessions.event !== event || seededSessions.src !== existingSessionsRaw) {
+    setSeededSessions({ event, src: existingSessionsRaw })
     if (event && existingSessions.length > 0) {
       setSessions(existingSessions.map((s) => ({
         id: s.id,
@@ -224,7 +236,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
         sort_order: s.sort_order ?? 0,
       })))
     }
-  }, [event, existingSessions])
+  }
 
   // Is this a multi-day event?
   const isMultiDay = useMemo(() => {
@@ -313,12 +325,13 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
     setSessions((prev) => prev.map((s, i) => i === index ? { ...s, [field]: value } : s))
   }
 
-  // Auto-select when user manages only one team (pre-fill, user can still remove)
-  useEffect(() => {
-    if (singleTeam && !event && availableTeams.length === 1 && selectedTeams.length === 0) {
-      setSelectedTeams([availableTeams[0].id])
-    }
-  }, [singleTeam, event, availableTeams, selectedTeams.length])
+  // Auto-select when user manages only one team (pre-fill, user can still remove).
+  // Adjust-state-during-render: the guard (`selectedTeams.length === 0`) was itself
+  // a dependency of the former effect, so it fired on exactly the same transitions,
+  // and it converges immediately once the team is selected.
+  if (singleTeam && !event && availableTeams.length === 1 && selectedTeams.length === 0) {
+    setSelectedTeams([availableTeams[0].id])
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
