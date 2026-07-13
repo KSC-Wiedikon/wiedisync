@@ -902,6 +902,54 @@ async function main() {
     ],
   }, ['id', 'conversation', 'sender', 'recipient', 'status', 'created_at', 'resolved_at'])
 
+  // Messages + reactions — READ ONLY, and ONLY to make realtime deliver.
+  //
+  // This is the same bug as `message_requests` above, one collection over. Directus
+  // does not push the raw mutation row to a subscriber: on a change it RE-READS the row
+  // through ItemsService with the SUBSCRIBER's accountability (websocket/utils/items.ts
+  // → getItemsPayload → service.readMany). With no read grant, that read returns nothing
+  // and the socket delivers nothing — the subscription is established and permanently
+  // silent. So live chat cannot work without a read row here, no matter what the
+  // frontend does. Confirmed against the live dev socket 2026-07-13.
+  //
+  // Filters are migration 023's, unchanged: walk the parent conversation's members
+  // junction to $CURRENT_USER. A member sees exactly the messages in conversations they
+  // belong to — the same rows /kscw/messaging/* already returns them, so this grants no
+  // new data, only a new delivery path.
+  //
+  // ⚠ Do NOT add a frontend items-API filter that also walks `conversation.members`.
+  // Directus cannot AND two filter expressions through the same M2M junction and will
+  // silently return [] for non-admins (CLAUDE.md → "M2M deep filter + policy walk").
+  // Today nothing does: every messaging read goes through the /kscw endpoints (raw knex),
+  // and realtime sends no filter of its own. Keep it that way.
+  //
+  // Writes stay endpoint-only (send/edit/delete/report all run through /kscw/messaging/*,
+  // which enforce membership, blocks, and rate limits). Read-only here is sufficient and
+  // is the smallest grant that restores live chat.
+  //
+  // NB: this does NOT grant /items/conversations — SECURITY.md:143 keeps that off
+  // deliberately, and the smoke test probes /kscw/messaging/conversations instead.
+  // Conversation-list updates piggyback on the `messages` subscription.
+  // `archived: false` is NOT cosmetic — it mirrors the endpoint. loadConversationMembership()
+  // (messaging-helpers.js:78) throws 403 messaging/not_a_member when the caller's
+  // conversation_members row is archived, so an archived conversation is fully inaccessible
+  // through /kscw/messaging/*. Without this clause the items API would be MORE permissive
+  // than the endpoint it mirrors, which is how read grants quietly become leaks. And it is
+  // not an edge case: 1336 of 1439 membership rows on prod are archived.
+  const MY_ACTIVE_MEMBERSHIP = {
+    member: { user: { _eq: '$CURRENT_USER' } },
+    archived: { _eq: false },
+  }
+  await setPermRead(MEMBER_POLICY, 'messages', {
+    conversation: { members: MY_ACTIVE_MEMBERSHIP },
+  }, ['id', 'conversation', 'sender', 'type', 'body', 'poll', 'created_at', 'edited_at', 'deleted_at'])
+
+  // original_body is deliberately NOT in the field list above: it is the pre-edit text,
+  // kept for moderation, and no member-facing view renders it.
+  await setPermRead(MEMBER_POLICY, 'message_reactions', {
+    message: { conversation: { members: MY_ACTIVE_MEMBERSHIP } },
+  }, ['id', 'message', 'member', 'emoji', 'created_at'])
+
   // Spielplaner assignments — self-scoped (migrations 034, 042).
   await setPermRead(MEMBER_POLICY, 'spielplaner_assignments', OWN_MEMBER)
 
