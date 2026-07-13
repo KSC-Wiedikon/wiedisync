@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.42.0 — 2026-07-13
+
+### New: the Einsatzliste can file itself
+- **Volleymanager's Einsatzliste can now be filled in automatically from the RSVPs.** About an hour before a game, Wiedisync takes everyone who confirmed, matches them to their Swiss Volley licence, enters them into the Einsatzliste in Volleymanager, and closes it. This works for away games too, not just home games.
+- **It is off by default, and you turn it on per team** (Team settings → Game defaults), or per game if you want to override the team's setting for one match.
+- **It will not close a list that Volleymanager is unhappy with.** If Volleymanager warns that the list is too short or has no coach — the kind of thing the club can be fined for — Wiedisync enters the players but leaves the list open and tells you to check it. It never files a list you could be fined for without a human looking at it.
+- Only players who hold a licence can be nominated, so anyone who confirmed but has no licence number on file is reported rather than quietly dropped.
+
 ## v1.41.0 — 2026-07-13
 
 ### Fixed: the member list was empty when inviting people to an event
