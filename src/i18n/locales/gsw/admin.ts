@@ -605,6 +605,12 @@ export default {
 
   // Registrations — file preview + doc count
   anmeldungenDocsCount: '{{count}} Dok.',
+  anmeldungenDocUpload: 'Ufelade',
+  anmeldungenDocReplace: 'Ersetze',
+  anmeldungenDocUploading: 'Wird ufeglade…',
+  anmeldungenDocUploadFailed: 'Upload het nöd klappt',
+  anmeldungenDocTooLarge: 'Datei z gross (max. 10 MB)',
+  anmeldungenDocBadType: 'Dateityp gaht nöd — bitte JPG, PNG, WebP oder PDF',
   anmeldungenPdfOpenTab: 'PDF — i nöiem Tab uufmache',
   anmeldungenDocAlt: 'Dokumänt',
   // Aamäldige — WiediSync-Yladig nomal schicke (freigäh Zyle)

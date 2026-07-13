@@ -31,6 +31,8 @@
     "db:refresh-dev": "bash directus/scripts/refresh-dev-from-prod.sh",
     "backup:verify-key": "bash directus/scripts/verify-backup-key.sh",
     "backup:deploy-scripts": "rsync -avz directus/scripts/vps/ hetzner:/tmp/kscw-vps-scripts/ && ssh hetzner \"sudo install -m 0755 -o root -g root /tmp/kscw-vps-scripts/*.sh /usr/local/bin/ && rm -rf /tmp/kscw-vps-scripts\"",
+    "files:check:dev": "bash directus/scripts/check-file-integrity.sh dev --refresh",
+    "files:check:prod": "bash directus/scripts/check-file-integrity.sh prod --refresh",
     "r2:cutover:dev": "bash directus/scripts/r2-cutover.sh dev",
     "r2:cutover:prod": "bash directus/scripts/r2-cutover.sh prod",
     "db:snapshot:dev": "ssh hetzner 'sudo /usr/local/bin/predeploy-snapshot.sh dev'",
