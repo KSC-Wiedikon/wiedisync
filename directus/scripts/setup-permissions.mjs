@@ -319,6 +319,16 @@ const MEMBER_VISIBLE_FIELDS = [
   'requested_team', 'birthdate_visibility', 'hide_phone', 'hide_email',
   'license_nr', 'sex', 'licence_category', 'licence_activated', 'licence_validated',
   'kscw_membership_active', 'shell', 'shell_expires',
+  // 2026-07-13: `wiedisync_active` must be READABLE club-wide, not just by
+  // finance. MemberMultiSelect (the event-invite picker in EventForm) queries
+  // members *unfiltered* with `filter: { wiedisync_active: { _eq: true } }`, and
+  // Directus rejects a filter on a field the caller cannot read. Because the
+  // query is club-wide it resolves against MEMBER_POLICY (this list), not the
+  // team-scoped LEADER read — so without it every coach/TR opening the event form
+  // got a 403 and a silently EMPTY invite list. It is a plain activation boolean,
+  // no PII. (Symptom: prod errors-*.jsonl "no permission to access field
+  // wiedisync_active", /events, from 2026-07-12.)
+  'wiedisync_active',
   // 2026-05-12: needed by /teams/* coach-approval queries (sort/filter on
   // date_created) and /absences (member_teams o2m used to scope absences).
   'date_created', 'member_teams',
