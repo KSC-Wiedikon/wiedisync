@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useCollection } from '../../../lib/query'
 import { useUserVisibleEventIds } from '../../../hooks/useUserVisibleEventIds'
-import type { Game, Training, Event, HallClosure, HallEvent, Team, Absence, MemberTeam, Member } from '../../../types'
+import type { Game, Training, Event, Hall, HallClosure, HallEvent, Team, Absence, MemberTeam, Member } from '../../../types'
 import type { CalendarEntry, CalendarFilterState } from '../../../types/calendar'
 import { birthdayOccurrencesInRange } from '../../../utils/birthdays'
 import {
@@ -298,6 +299,7 @@ function entryOverlapsRange(entry: CalendarEntry, rangeStart: Date, rangeEnd: Da
 export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true }: UseCalendarDataOptions) {
   const fetchRange = useFetchRange(rangeStart)
   const { user } = useAuth()
+  const { t } = useTranslation('common')
 
   const authed = isAuthenticated()
   const wantHome = filters.sources.includes('game-home')
@@ -346,6 +348,16 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
     all: true,
   })
   const closuresRaw = closuresRawData ?? []
+
+  // Total hall count, so a closure covering every hall collapses to "All halls"
+  // instead of a 14-name comma list. Only fetched when closures are.
+  const { data: hallsRaw } = useCollection<Hall>('halls', {
+    enabled: fetchClosures,
+    fields: ['id'],
+    all: true,
+    staleTime: 120_000,
+  })
+  const hallCount = hallsRaw?.length ?? 0
 
   const { teamEventIds, isLoading: eventIdsLoading } = useUserVisibleEventIds(
     filters.selectedTeamIds,
@@ -493,7 +505,10 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       }
     }
     for (const [key, entry] of closureGroups) {
-      const halls = compactHallList([...(closureHalls.get(key) ?? [])].sort())
+      const names = [...(closureHalls.get(key) ?? [])].sort()
+      const halls = hallCount > 0 && names.length >= hallCount
+        ? t('allHalls')
+        : compactHallList(names)
       all.push(halls ? { ...entry, location: halls, description: halls } : entry)
     }
     if (fetchHallEvents) {
@@ -591,7 +606,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
     })
 
     return filtered
-  }, [games, trainings, events, closuresRaw, hallEvents, absences, dutyGames, teamMemberLinks, birthdayLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, fetchScorerDuties, fetchBirthdays, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds, filters.showHiddenAbsences])
+  }, [games, trainings, events, closuresRaw, hallCount, hallEvents, absences, dutyGames, teamMemberLinks, birthdayLinks, fetchGames, fetchTrainings, fetchEvents, fetchClosures, fetchHallEvents, fetchAbsences, fetchScorerDuties, fetchBirthdays, wantHome, wantAway, rangeStart, rangeEnd, hasTeamFilter, filters.selectedTeamIds, filters.showHiddenAbsences, t])
 
   const closedDates = useMemo(() => {
     const dates = new Set<string>()

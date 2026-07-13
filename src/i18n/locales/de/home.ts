@@ -32,5 +32,5 @@ export default {
   // Anstehende Termine (Ticker)
   next7Days: 'Nächste 7 Tage',
   today: 'Heute',
-  turnsAge: 'wird {{age}}',
+  turnsAge: 'Wird {{age}}',
 } as const

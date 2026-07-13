@@ -32,5 +32,5 @@ export default {
   // Upcoming ticker
   next7Days: 'Next 7 days',
   today: 'Today',
-  turnsAge: 'turns {{age}}',
+  turnsAge: 'Turns {{age}}',
 } as const

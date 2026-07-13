@@ -7,7 +7,7 @@ import BasketballIcon from '../../../components/BasketballIcon'
 import { useCalendarData } from '../../calendar/hooks/useCalendarData'
 import { entryIconColor } from '../../calendar/entryStyle'
 import type { CalendarEntry, CalendarFilterState, BirthdaySource } from '../../../types/calendar'
-import { addDays, formatWeekdayZurich } from '../../../utils/dateHelpers'
+import { addDays, formatWeekdayZurich, formatDayMonthZurich } from '../../../utils/dateHelpers'
 import { toDateKey } from '../../../utils/dateUtils'
 
 /** Sources surfaced in the homepage ticker — the "what's happening" set. Absences
@@ -37,7 +37,9 @@ function TickerIcon({ entry }: { entry: CalendarEntry }) {
 function TickerPill({ entry, todayKey }: { entry: CalendarEntry; todayKey: string }) {
   const { t } = useTranslation('home')
   const isToday = toDateKey(entry.date) === todayKey
-  const when = isToday ? t('today') : formatWeekdayZurich(entry.date)
+  const when = isToday
+    ? t('today')
+    : `${formatWeekdayZurich(entry.date)} ${formatDayMonthZurich(entry.date)}`
   const time = entry.startTime ? ` ${entry.startTime}` : ''
 
   let main = entry.title

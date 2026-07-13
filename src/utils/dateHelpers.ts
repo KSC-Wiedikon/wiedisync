@@ -97,6 +97,17 @@ export function formatDateShortZurich(input: string | Date | null | undefined): 
   return `${p.month}/${p.day}`;
 }
 
+/** Format dd.mm in Europe/Zurich — year-less short date for dense UI (ticker pills). */
+export function formatDayMonthZurich(input: string | Date | null | undefined): string {
+  if (!input) return '';
+  const d = typeof input === 'string'
+    ? parseFlexible(input)
+    : input;
+  if (Number.isNaN(d.getTime())) return '';
+  const p = formatZurichParts(d);
+  return `${p.day}.${p.month}`;
+}
+
 /** Format short weekday ("Mo", "Di", ...) in Europe/Zurich.
  *  Weekday names follow the active UI language by default (currentLocale). */
 export function formatWeekdayZurich(input: string | Date | null | undefined, locale: string = currentLocale()): string {
