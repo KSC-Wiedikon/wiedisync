@@ -847,7 +847,7 @@ export default function ScorerPage() {
         </div>
       )}
 
-      {rosterGameId && <RosterModal gameId={rosterGameId} onClose={closeRoster} />}
+      {rosterGameId && <RosterModal key={rosterGameId} gameId={rosterGameId} onClose={closeRoster} />}
     </div>
   )
 }

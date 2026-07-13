@@ -664,7 +664,7 @@ export default function ScorerRow({
 
       {/* Home-team roster (Schreiber only, ±1h around kickoff) */}
       {showRoster && (
-        <RosterModal gameId={game.id} onClose={() => setShowRoster(false)} />
+        <RosterModal key={game.id} gameId={game.id} onClose={() => setShowRoster(false)} />
       )}
     </div>
   )
