@@ -8,8 +8,7 @@ import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, es
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
 import { BB_SITUATIONS, bbRequiredDocs } from './bb-docs.js'
 import crypto from 'crypto'
-import { readFile } from 'node:fs/promises'
-import path from 'node:path'
+import { streamManagedFile } from './storage-read.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -455,8 +454,6 @@ const SELF_DOC_FIELDS = [
   'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl',
   'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
 ]
-// Local storage root (registration files are stored on the 'local' driver).
-const REG_STORAGE_ROOT = process.env.STORAGE_LOCAL_ROOT || '/directus/uploads'
 
 export function registerRegistration(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'registration' })
@@ -516,14 +513,15 @@ export function registerRegistration(router, { database, logger, services, getSc
         .where({ id: fileId, folder: REGISTRATION_FILES_FOLDER })
         .first('id', 'filename_disk', 'filename_download', 'type')
       if (!row || !row.filename_disk) return res.status(404).json({ error: 'Not found' })
-      const filePath = path.resolve(REG_STORAGE_ROOT, row.filename_disk)
-      if (!filePath.startsWith(path.resolve(REG_STORAGE_ROOT) + path.sep)) {
-        return res.status(400).json({ error: 'Invalid path' })
-      }
-      const bytes = await readFile(filePath)
-      res.setHeader('Content-Type', row.type || 'application/octet-stream')
-      res.setHeader('Content-Disposition', `inline; filename="${(row.filename_download || field).replace(/[^\w.\- ]/g, '_')}"`)
-      return res.send(bytes)
+      // Read through the storage abstraction, not the local disk: it resolves the driver
+      // from directus_files.storage per row, so this keeps working when uploads move to R2.
+      await streamManagedFile(
+        row.id,
+        { services, getSchema, database },
+        res,
+        { filename: row.filename_download || field, type: row.type },
+      )
+      return
     } catch (err) {
       if (err?.code === 'ENOENT') return res.status(404).json({ error: 'Not found' })
       log.error({ msg: `registration/my-docs/:field: ${err.message}`, endpoint: 'registration/my-docs', stack: err.stack })

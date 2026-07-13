@@ -37,7 +37,22 @@ rclone delete "$R2_DIR" --min-age 60d --include '*.sql.gz.gpg' 2>&1
 # The dumps carry AHV numbers and IBANs; a Synology is a ransomware target like any
 # other box, so it gets the .gpg — never the plaintext. Restoring from the NAS needs
 # the backup@kscw.ch private key, same as GDrive/R2 (see CONTINGENCY.md).
+#
+# Copy only what the NAS is missing. The old loop re-sent every dump in the 7-day
+# window on every run (~30 files x 313 MB, 4x/day) — pure waste over Tailscale.
+#
+# NOT rsync: DSM refuses rsync-over-ssh for this user ("Permission denied" on
+# `rsync --server`, even though plain ssh + scp with the same key work fine).
+# So: fetch the remote name+size list once, then scp only the files that are absent
+# or size-mismatched (a half-transferred .gpg re-sends rather than being trusted).
+REMOTE_LIST=$(ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "${NAS_USER}@${NAS_HOST}" \
+  "find '${NAS_PATH}' -maxdepth 1 -name '*.sql.gz.gpg' -printf '%f %s\n' 2>/dev/null" 2>/dev/null)
 for f in "$BACKUP_DIR"/*.sql.gz.gpg; do
+  [ -e "$f" ] || continue
+  base=$(basename "$f"); size=$(stat -c%s "$f")
+  if printf '%s\n' "$REMOTE_LIST" | grep -qx "$base $size"; then
+    continue   # already on the NAS at the correct size
+  fi
   scp -O -i "$SSH_KEY" -o StrictHostKeyChecking=no "$f" "${NAS_USER}@${NAS_HOST}:${NAS_PATH}/" 2>&1
 done
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "${NAS_USER}@${NAS_HOST}" \
