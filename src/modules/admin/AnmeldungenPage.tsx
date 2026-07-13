@@ -1,10 +1,10 @@
 import { Fragment, useState, useMemo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink, ArrowUpFromLine, Send, CheckCircle2, Link2, Clock, CircleAlert } from 'lucide-react'
+import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink, ArrowUpFromLine, Send, CheckCircle2, Link2, Clock, CircleAlert, Upload } from 'lucide-react'
 import { useCollection, useUpdate } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
-import { assetUrl, kscwApi } from '../../lib/api'
+import { assetUrl, kscwApi, uploadFile } from '../../lib/api'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import TeamChip from '../../components/TeamChip'
 import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
@@ -65,6 +65,12 @@ interface Registration extends BaseRecord {
 }
 
 // All document fields a registration can carry (BB docs + ID front/back)
+// Private quarantine folder for registration documents (migration 169; same UUID on
+// every environment). Mirrors REGISTRATION_FILES_FOLDER in kscw-endpoints.
+const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
+const DOC_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
+const DOC_UPLOAD_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+
 const DOC_FIELDS: (keyof Registration)[] = [
   'bb_doc_lizenz',
   'bb_doc_freibrief',
@@ -733,6 +739,7 @@ function ExpandedDetails({
   isResending: boolean
 }) {
   const [edits, setEdits] = useState<Record<string, string>>({})
+  const [uploadingKey, setUploadingKey] = useState<keyof Registration | null>(null)
   const hasChanges = Object.keys(edits).length > 0
 
   // The form stores gender as the German canonical value (männlich/weiblich)
@@ -817,31 +824,93 @@ function ExpandedDetails({
     { key: 'id_upload_back', label: t('anmeldungenDocIdBack') },
   ]
 
+  // Attach (or replace) a registration document. Needed because the 2026-07-06..07-13
+  // upload-truncation bug destroyed 36 documents and there was no way to put them back:
+  // the public /registration/:id/files route only accepts PENDING registrations, and the
+  // affected five were already approved.
+  //
+  // Uploads via the core POST /files helper (multipart), NOT the custom
+  // /kscw/registration/upload route — the core path is what the truncation bug never
+  // touched. `folder` drops it straight into the private registration folder, so the doc
+  // is born quarantined (the kscw-hooks sweep would move it there anyway, but being
+  // explicit means it is never briefly public).
+  const handleDocUpload = async (key: keyof Registration, file: File) => {
+    if (file.size > DOC_UPLOAD_MAX_BYTES) {
+      toast.error(t('anmeldungenDocTooLarge'))
+      return
+    }
+    if (!DOC_UPLOAD_MIME.includes(file.type)) {
+      toast.error(t('anmeldungenDocBadType'))
+      return
+    }
+    setUploadingKey(key)
+    try {
+      const { id } = await uploadFile(file, REGISTRATION_FILES_FOLDER)
+      onSave({ [key]: id } as Partial<Registration>)
+    } catch {
+      toast.error(t('anmeldungenDocUploadFailed'))
+    } finally {
+      setUploadingKey(null)
+    }
+  }
+
   const renderDoc = ({ key, label }: { key: keyof Registration; label: string }) => {
     const fileId = reg[key] as string | null
+    const busy = uploadingKey === key
+
+    const picker = (children: React.ReactNode, className: string) => (
+      <label className={className} aria-busy={busy}>
+        {children}
+        <input
+          type="file"
+          className="sr-only"
+          accept={DOC_UPLOAD_MIME.join(',')}
+          disabled={busy || isUpdating}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            // Reset so re-picking the same file fires onChange again.
+            e.target.value = ''
+            if (f) void handleDocUpload(key, f)
+          }}
+        />
+      </label>
+    )
+
     if (!fileId) {
       return (
-        <div
-          key={key}
-          className="flex items-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-400 dark:border-gray-600"
-        >
-          <FileText className="h-4 w-4" />
-          <span>{label}</span>
-          <span className="ml-auto text-xs">—</span>
+        <div key={key} className="flex min-h-11 items-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-400 dark:border-gray-600">
+          <FileText className="h-4 w-4 shrink-0" />
+          <span className="truncate">{label}</span>
+          {picker(
+            <span className="ml-auto flex items-center gap-1 whitespace-nowrap text-xs font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300">
+              <Upload className="h-3.5 w-3.5" />
+              {busy ? t('anmeldungenDocUploading') : t('anmeldungenDocUpload')}
+            </span>,
+            'ml-auto cursor-pointer',
+          )}
         </div>
       )
     }
+
     const url = assetUrl(fileId)
     return (
-      <button
-        key={key}
-        onClick={() => onPreviewFile({ url, label })}
-        className="flex items-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-700 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300 dark:hover:bg-orange-900"
-      >
-        <FileText className="h-4 w-4" />
-        <span className="truncate">{label}</span>
-        <ExternalLink className="ml-auto h-3.5 w-3.5 shrink-0" />
-      </button>
+      <div key={key} className="flex min-h-11 items-center gap-2 rounded-md border border-orange-200 bg-orange-50 pr-2 text-sm text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300">
+        <button
+          onClick={() => onPreviewFile({ url, label })}
+          className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left hover:underline"
+        >
+          <FileText className="h-4 w-4 shrink-0" />
+          <span className="truncate">{label}</span>
+          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+        </button>
+        {picker(
+          <span className="flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-1 text-xs font-medium hover:bg-orange-100 dark:hover:bg-orange-900">
+            <Upload className="h-3.5 w-3.5" />
+            {busy ? t('anmeldungenDocUploading') : t('anmeldungenDocReplace')}
+          </span>,
+          'cursor-pointer',
+        )}
+      </div>
     )
   }
 

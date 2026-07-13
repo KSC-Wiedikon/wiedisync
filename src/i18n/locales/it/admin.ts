@@ -472,6 +472,12 @@ export default {
 
   // Registrations — file preview + doc count
   anmeldungenDocsCount: '{{count}} doc.',
+  anmeldungenDocUpload: 'Carica',
+  anmeldungenDocReplace: 'Sostituisci',
+  anmeldungenDocUploading: 'Caricamento…',
+  anmeldungenDocUploadFailed: 'Caricamento non riuscito',
+  anmeldungenDocTooLarge: 'File troppo grande (max 10 MB)',
+  anmeldungenDocBadType: 'Tipo di file non supportato — usa JPG, PNG, WebP o PDF',
   anmeldungenPdfOpenTab: 'PDF — apri in una nuova scheda',
   anmeldungenDocAlt: 'Documento',
   // Iscrizioni — reinvia l'invito WiediSync (righe approvate)
