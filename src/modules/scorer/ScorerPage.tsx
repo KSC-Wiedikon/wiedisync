@@ -671,6 +671,15 @@ export default function ScorerPage() {
 
       {tab === 'games' && (
         <>
+          {/* Why the assignment dropdowns aren't there. Without this, a member who
+              can't edit just sees controls missing with no explanation — the string
+              existed in all 5 locales but had never been rendered anywhere. */}
+          {!canEdit && (
+            <p className="mt-4 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+              {t('permissionsNotice')}
+            </p>
+          )}
+
           {/* All vs Selected (games I'm personally assigned to) */}
           <div className="mt-4">
             <TabBar<'all' | 'mine'>

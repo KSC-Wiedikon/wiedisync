@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import {
@@ -42,10 +42,27 @@ const sizeClasses = {
 
 export default function Modal({ open, onClose, title, children, size = 'md', hideClose, headerAction, disableAutoFocus }: ModalProps) {
   const isDesktop = useMediaQuery('(min-width: 640px)')
+  const drawerRef = useRef<HTMLDivElement>(null)
   // Opt-in: keep focus on the trigger when the modal opens (no control gets the
   // browser focus ring). Radix Dialog (desktop) + vaul Drawer (mobile) both
   // honour `onOpenAutoFocus`.
   const focusProps = disableAutoFocus ? { onOpenAutoFocus: (e: Event) => e.preventDefault() } : {}
+
+  // Mobile focus trap. vaul leaves focus on the TRIGGER when the drawer opens —
+  // deliberate on their side (focusing the first input would summon the on-screen
+  // keyboard), but it means focus sits outside the drawer, so the trap never
+  // engages and Tab walks the page behind it. Land focus on the drawer container
+  // itself instead: it is tabIndex={-1}, so no keyboard and no focus ring, but
+  // focus IS inside the drawer and the trap holds. Desktop needs none of this —
+  // Radix already focuses the first focusable child.
+  const drawerFocusProps = disableAutoFocus
+    ? focusProps
+    : {
+        onOpenAutoFocus: (e: Event) => {
+          e.preventDefault()
+          drawerRef.current?.focus()
+        },
+      }
 
   if (isDesktop) {
     return (
@@ -83,7 +100,7 @@ export default function Modal({ open, onClose, title, children, size = 'md', hid
 
   return (
     <Drawer open={open} onOpenChange={(o) => !o && !hideClose && onClose()}>
-      <DrawerContent {...focusProps}>
+      <DrawerContent ref={drawerRef} tabIndex={-1} {...drawerFocusProps}>
         <DrawerHeader
           className={cn(headerAction && 'flex flex-row items-center gap-2 space-y-0 text-left')}
         >
