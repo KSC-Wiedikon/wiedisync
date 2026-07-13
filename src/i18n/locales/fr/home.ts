@@ -27,5 +27,5 @@ export default {
   // Bandeau des prochains rendez-vous
   next7Days: 'Les 7 prochains jours',
   today: "Aujourd'hui",
-  turnsAge: 'fête ses {{age}} ans',
+  turnsAge: 'Fête ses {{age}} ans',
 } as const

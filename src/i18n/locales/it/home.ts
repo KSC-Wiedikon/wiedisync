@@ -27,5 +27,5 @@ export default {
   // Barra dei prossimi appuntamenti
   next7Days: 'Prossimi 7 giorni',
   today: 'Oggi',
-  turnsAge: 'compie {{age}} anni',
+  turnsAge: 'Compie {{age}} anni',
 } as const

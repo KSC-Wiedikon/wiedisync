@@ -27,5 +27,5 @@ export default {
   // Nächschti Termin (Ticker)
   next7Days: 'Nächschti 7 Täg',
   today: 'Hüt',
-  turnsAge: 'wird {{age}}',
+  turnsAge: 'Wird {{age}}',
 } as const
