@@ -10,6 +10,7 @@ import { assetUrl } from '../../lib/api'
 import { formatRelativeTimeZurich } from '../../utils/dateHelpers'
 import AnnouncementDetailModal from '../home/components/AnnouncementDetailModal'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import { useNow } from '../../hooks/useNow'
 import { Table, TableBody, TableCell, TableRow } from '../../components/ui/table'
 import type { Announcement, Notification } from '../../types'
 
@@ -199,10 +200,13 @@ function NotificationTableRow({
     }
   })()
 
+  // Ticking clock (1 min) instead of a render-time Date.now() — the relative
+  // label ages on its own while the archive stays open.
+  const now = useNow()
   const timeAgo = (() => {
     const ts = notification.date_created ?? notification.created
     if (!ts) return ''
-    const diff = Date.now() - new Date(ts).getTime()
+    const diff = now - new Date(ts).getTime()
     const minutes = Math.floor(diff / 60000)
     if (minutes < 1) return String(t('justNow'))
     if (minutes < 60) return String(t('minutesAgo', { count: minutes }))

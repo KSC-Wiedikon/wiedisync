@@ -28,6 +28,7 @@ import { useUserVisibleEventIds } from '../../hooks/useUserVisibleEventIds'
 import ParticipationSummary from '../../components/ParticipationSummary'
 import { useBulkParticipationStatuses, useBulkParticipations } from '../../hooks/useBulkParticipationStatuses'
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
+import { useNow } from '../../hooks/useNow'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Participation, Ranking, BaseRecord } from '../../types'
 import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText } from 'lucide-react'
 import WhistleIcon from '../../components/WhistleIcon'
@@ -875,8 +876,12 @@ function NewsRow({ notification, onMarkAsRead }: { notification: Notification; o
     }
   })()
 
+  // Ticking clock (1 min) instead of a render-time Date.now(): the label now
+  // ages on its own ("Just now" → "2 minutes ago") rather than only when the
+  // feed happens to re-render for some other reason.
+  const now = useNow()
   const timeAgo = (() => {
-    const diff = Date.now() - new Date(notification.created ?? notification.date_created ?? '').getTime()
+    const diff = now - new Date(notification.created ?? notification.date_created ?? '').getTime()
     const minutes = Math.floor(diff / 60000)
     if (minutes < 1) return String(t('justNow'))
     if (minutes < 60) return String(t('minutesAgo', { count: minutes }))

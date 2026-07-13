@@ -14,7 +14,7 @@ import LocationCombobox from '@/components/LocationCombobox'
 import { Switch } from '@/components/ui/switch'
 import { teamNameToColorKey } from '../../utils/teamColors'
 import { formatDateLocale } from '../../utils/dateUtils'
-import { currentLocale, parseRespondByTime, toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso, toZurichDateString } from '../../utils/dateHelpers'
+import { currentLocale, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso, toZurichDateString } from '../../utils/dateHelpers'
 import type { Event, EventSession, Team } from '../../types'
 import RoleChipPicker from '@/components/RoleChipPicker'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
@@ -168,7 +168,12 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
         const tid = t?.teams_id
         return String(typeof tid === 'object' ? tid?.id : tid ?? t?.id ?? t)
       }))
-      const rbParsed = parseRespondByTime(event.respond_by)
+      // Same fallback the deadline check uses (EventCard → getDeadlineDate), so the
+      // form shows the deadline that is actually enforced, not the 00:00 sentinel.
+      const rbParsed = parseRespondByTime(
+        event.respond_by,
+        event.start_date ? formatTime(event.start_date) : undefined,
+      )
       setRespondBy(rbParsed?.date ?? '')
       setRespondByTime(rbParsed?.time ?? '')
       setMaxPlayers(event.max_players ? String(event.max_players) : '')

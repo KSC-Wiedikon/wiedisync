@@ -37,24 +37,43 @@ export function useConversations({ blockedSenderIds }: UseConversationsOptions =
   useEffect(() => { blockedRef.current = new Set(effectiveBlocked) })
   const fetchSeqRef = useRef(0)
 
-  const refetch = useCallback(async () => {
-    if (!enabled) { setConversations([]); return }
+  // The network path only. `.catch()`/`.finally()` instead of try/catch/finally
+  // so no setState is synchronously reachable from the effect that calls this
+  // (a `catch` block is statically reachable without awaiting).
+  const load = useCallback(async () => {
+    if (!enabled) return
     const mySeq = ++fetchSeqRef.current
-    setIsLoading(true)
-    try {
+    await (async () => {
       const list = await messagingApi.listConversations()
       // Stale: a newer fetch superseded this one (e.g. login/logout toggled enabled).
       if (fetchSeqRef.current !== mySeq) return
       setConversations(list)
       setError(null)
-    } catch (e) {
-      if (fetchSeqRef.current === mySeq) setError(e as Error)
-    } finally {
-      if (fetchSeqRef.current === mySeq) setIsLoading(false)
-    }
+    })()
+      .catch((e) => { if (fetchSeqRef.current === mySeq) setError(e as Error) })
+      .finally(() => { if (fetchSeqRef.current === mySeq) setIsLoading(false) })
   }, [enabled])
 
-  useEffect(() => { refetch() }, [refetch])
+  // The synchronous prologue that used to open `refetch` (clear the list when
+  // the feature is off / signed out, spinner on otherwise), moved to React's
+  // adjust-state-during-render pattern. It still lands BEFORE the fetch starts
+  // and before paint, so no stale list is ever shown. `prevEnabled` starts null
+  // so this also runs on the first render — matching the effect's mount run.
+  const [prevEnabled, setPrevEnabled] = useState<boolean | null>(null)
+  if (prevEnabled !== enabled) {
+    setPrevEnabled(enabled)
+    if (enabled) setIsLoading(true)
+    else setConversations([])
+  }
+
+  useEffect(() => { load() }, [load])
+
+  // Public refetch — keeps the original semantics for the manual/event paths.
+  const refetch = useCallback(async () => {
+    if (!enabled) { setConversations([]); return }
+    setIsLoading(true)
+    await load()
+  }, [enabled, load])
 
   // Realtime: bump unread + preview on new messages.
   // Drop events from blocked senders outright (Plan 03 populates blockedSenderIds).

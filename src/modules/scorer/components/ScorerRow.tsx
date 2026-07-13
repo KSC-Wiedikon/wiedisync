@@ -13,6 +13,7 @@ import type { CalendarEntry } from '../../../types/calendar'
 import { currentLocale, formatTime, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow, DUTY_ARRIVAL_MIN } from '../../../utils/dateHelpers'
 import { Calendar, MapPin, Clock, AlertTriangle, Users } from 'lucide-react'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
+import { useNow } from '../../../hooks/useNow'
 import RosterModal from './RosterModal'
 
 interface ScorerRowProps {
@@ -138,11 +139,15 @@ export default function ScorerRow({
   // A game is "past" once its Zurich kickoff has passed (covers same-day games
   // already played — those still sit in the upcoming list). Past games are
   // read-only: admins can't re-assign / de-confirm a duty after the game starts.
+  // `now` ticks once a minute (useNow) rather than being read during render, so
+  // an open list flips the row to read-only within a minute of kickoff instead
+  // of waiting for an unrelated re-render.
+  const now = useNow()
   const isGamePast = (() => {
     if (!game.date || !game.time) return false
     try {
       const ms = new Date(toUtcIsoFromDatetimeLocal(`${String(game.date).slice(0, 10)}T${String(game.time).slice(0, 5)}`)).getTime()
-      return !Number.isNaN(ms) && ms < Date.now()
+      return !Number.isNaN(ms) && ms < now
     } catch { return false }
   })()
   // Admins assign/clear duties via the dropdowns; clearing a person de-confirms

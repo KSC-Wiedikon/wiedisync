@@ -116,6 +116,33 @@ describe('parseRespondByTime', () => {
     expect(parseRespondByTime(undefined)).toBeNull();
     expect(parseRespondByTime('not-a-date')).toBeNull();
   });
+
+  // Zurich-midnight is the "no time set" sentinel. It must resolve exactly like
+  // getDeadlineDate does — reporting a literal 00:00 told the user the deadline
+  // was midnight while the code enforced kickoff.
+  it('resolves the Zurich-midnight sentinel to the activity start time', () => {
+    // 2026-04-18T22:00Z == 2026-04-19 00:00 Zurich (CEST) → sentinel
+    expect(parseRespondByTime('2026-04-18T22:00:00.000Z', '19:30'))
+      .toEqual({ date: '2026-04-19', time: '19:30' });
+  });
+  it('resolves the sentinel to 23:59 when no start time is given', () => {
+    expect(parseRespondByTime('2026-04-18T22:00:00.000Z'))
+      .toEqual({ date: '2026-04-19', time: '23:59' });
+  });
+  it('ignores a malformed start time and falls back to 23:59', () => {
+    expect(parseRespondByTime('2026-04-18T22:00:00.000Z', 'nonsense'))
+      .toEqual({ date: '2026-04-19', time: '23:59' });
+  });
+  it('does NOT apply the fallback when a real time is set', () => {
+    expect(parseRespondByTime('2026-04-19T10:30:00.000Z', '19:30'))
+      .toEqual({ date: '2026-04-19', time: '12:30' });
+  });
+  it('agrees with getDeadlineDate on the sentinel', () => {
+    const respondBy = '2026-04-18T22:00:00.000Z';
+    const parsed = parseRespondByTime(respondBy, '19:30');
+    const deadline = getDeadlineDate(respondBy, '19:30');
+    expect(formatTimeZurich(deadline.toISOString())).toBe(parsed?.time);
+  });
 });
 
 describe('getDeadlineDate', () => {

@@ -59,14 +59,17 @@ export default function WeekGrid({
   // Generate hour labels
   const hourLabels = useMemo(() => buildHourLabels(timeRange), [timeRange])
 
-  // Scroll to first hour. No dependency array on purpose: `weekDays` used to be
-  // a fresh array on every render, so this ran after every render — keeping it
-  // dependency-less preserves that exactly now that `weekDays` is memoised.
+  // Scroll to the first hour when the displayed week changes. This used to have no
+  // dependency array, because `weekDays` was a fresh array on every render and the
+  // effect had silently degraded to "run after EVERY render" — so any parent
+  // re-render (an entry updating, a filter toggling) yanked a scrolled grid back to
+  // the top mid-read. Now that `weekDays` is memoised, it fires only on a real week
+  // change, which is what the effect was always meant to do.
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0
     }
-  })
+  }, [weekDays])
 
   // Separate all-day/multi-day from timed
   const { allDayEntries, timedByDay } = useMemo(() => {
