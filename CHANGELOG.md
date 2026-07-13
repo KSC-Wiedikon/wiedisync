@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.40.0 — 2026-07-13
+
+### Data explorer: ClubDesk sync + registration files
+- **New "ClubDesk sync" column** — see at a glance whether each member matches the club register: *In sync*, *Drift* (a field differs), *Pending push*, *Not linked*, *Stale link* or *Departed*. Groupable, so you can pull up everyone who is out of step.
+- **New "Reg. files" column** — the documents a member uploaded when they registered are kept after approval, and can now be opened straight from the grid.
+- **The column header row and the name column stay put while you scroll**, so you always know which column you are looking at.
+- **More inline editing**: sex and preferred language are now dropdowns, and scorer (VB) / Wiedisync active toggle with a click. Yes/no columns show a checkmark only when true, so the ones that are set stand out.
+
+### Your registration documents
+- **Profile now has a "My documents" card.** The ID and licence documents you uploaded when you registered are kept, and you can open them again any time. It only appears if you have documents.
+
 ## v1.39.0 — 2026-07-12
 
 ### Data explorer: team view

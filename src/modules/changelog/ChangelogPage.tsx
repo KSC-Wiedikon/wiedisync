@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.39.0'
+const APP_VERSION = '1.40.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,27 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.40.0',
+    date: '13.07.2026',
+    sections: [
+      {
+        title: 'Data explorer: ClubDesk sync + registration files',
+        items: [
+          'New "ClubDesk sync" column — see at a glance whether each member matches the club register: In sync, Drift (a field differs), Pending push, Not linked, Stale link or Departed. Groupable, so you can pull up everyone who is out of step.',
+          'New "Reg. files" column — the documents a member uploaded when they registered are kept after approval, and can now be opened straight from the grid.',
+          'The column header row and the name column stay put while you scroll, so you always know which column you are looking at.',
+          'More inline editing: sex and preferred language are now dropdowns, and scorer (VB) / Wiedisync active toggle with a click. Yes/no columns show a checkmark only when true, so the ones that are set stand out.',
+        ],
+      },
+      {
+        title: 'Your registration documents',
+        items: [
+          'Profile now has a "My documents" card. The ID and licence documents you uploaded when you registered are kept, and you can open them again any time. It only appears if you have documents.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.39.0',
     date: '12.07.2026',
