@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.41.0 — 2026-07-13
+
+### Fixed: the member list was empty when inviting people to an event
+- **If you are a coach or a team responsible, creating an event now shows the full member list again.** The invite picker was coming up empty — not because nobody matched, but because the app was not allowed to read one of the fields it was searching on, so the request was rejected and the list silently came back blank. No error was ever shown, which is why it looked like "no members found". Fixed for every coach and team responsible.
+
+### For admins: ClubDesk consistency check
+- The ClubDesk sync page now has a **Consistency check** that lists everything which has drifted between ClubDesk and Wiedisync, with an Excel worklist to work through: members in **no ClubDesk group**, members **missing** their team's group, **coaches** missing their coach group, people **in a ClubDesk group but not on the roster**, and members **paying a playing fee while on no roster**.
+- Each team's ClubDesk group is now stored on the team itself, so a new team can no longer be silently skipped by these checks.
+
 ## v1.40.0 — 2026-07-13
 
 ### Data explorer: ClubDesk sync + registration files

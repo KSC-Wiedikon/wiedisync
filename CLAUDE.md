@@ -117,10 +117,10 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
-- **2026-07-07** **v1.26.0 — Contact-data standardization** — canonical phone/IBAN/AHV/email; migrations 184–187; dev+prod.
-- **2026-07-07** **Guides refresh** — CLAUDE/INFRA claim-audit fixes, kscw-website docs, in-app tours 10→15 (dev).
-- **2026-07-07** **v1.24.0 — Club stats season-scoped** — migration 181, season picker; dev+prod.
-- **2026-07-07** **v1.23.0 — Scorer-assignment admin page** — `/admin/scorer-assign`, VB+BB engines; dev+prod.
-- **2026-07-07** **Error-log triage** — archive/important + bulk actions + mute rules (migration 179); dev+prod.
+- **2026-07-13** **Empty event-invite picker (perms fix)** — `members.wiedisync_active` was finance-only; a **filter** on an unreadable field 403s the whole query → every coach/TR saw a blank invite list. Added to `MEMBER_VISIBLE_FIELDS`; `db:setup-perms` dev+prod (521/0).
+- **2026-07-13** **ClubDesk consistency check** — coach-group + fee/roster + unmapped-team checks; migration 205 moves the team→CD-group map out of hardcoded SQL into `teams.clubdesk_group`; dev+prod.
+- **2026-07-13** **v1.40.0 — Explorer ClubDesk-sync + reg-files columns, member document self-view, grid polish** — frozen header, inline-edit selects/toggles; dev+prod.
+- **2026-07-12** **v1.39.0 — Explorer grid v3** — Members|Teams toggle, editable roster/coach/TR chips, 9 derived member columns; dev+prod.
+- **2026-07-12** **Directus 12.1.1 + OpnForm 2.1.0** — both prod cutovers executed; ⚠ restart nginx after ANY OpnForm api recreate.
 
 **Full history → [`docs/DEVLOG.md`](docs/DEVLOG.md)** · **pre-1.0 → [`docs/DEVLOG-archive.md`](docs/DEVLOG-archive.md)** (v1.0.0 baseline consolidated 2026-06-19).

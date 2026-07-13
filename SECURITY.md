@@ -48,6 +48,16 @@ Treat this as a deduplication shield: if a future audit finds something on this 
 
 The full dated ledger of completed hardening (2026-05-06 → 2026-07-05) is archived in [`SECURITY-archive.md`](SECURITY-archive.md) to keep this doc lean. Append new post-audit `### YYYY-MM-DD` remediation blocks there; move newly-open items into the "Open / accepted" table below.
 
+### 2026-07-13 — deliberate permission WIDENING (not a hardening): `members.wiedisync_active` is now club-wide readable
+
+Recorded here because it **loosens** a read permission, so a future audit sees it was intentional and reviewed rather than a regression.
+
+- **What**: `wiedisync_active` added to `MEMBER_VISIBLE_FIELDS` — every authenticated member can now read this column on **every** member (previously the **finance policy only**).
+- **Why**: `MemberMultiSelect` (the event-invite picker) queries `members` club-wide with `filter: { wiedisync_active: { _eq: true } }`. Directus rejects a **filter** on a field the caller cannot read, so every coach/TR opening the event form got a 403 and a silently **empty** invite list. A club-wide query resolves against `MEMBER_POLICY`, not the team-scoped leader read — so the field had to join the club-wide list.
+- **Exposure assessment**: the field is a **plain activation boolean** ("has this person activated their Wiedisync account") — **no PII, no credential, no financial data**. It is strictly less sensitive than fields already club-wide readable (`kscw_membership_active`, `license_nr`, `sex`, licence flags). **Public/anon is unchanged** — the null-role policy still does NOT grant it (verified in `directus_permissions` on prod). Accepted risk: a logged-in member can enumerate which other members have activated the app. Judged negligible.
+- **Alternative rejected**: narrowing `MemberMultiSelect`'s filter to `kscw_membership_active` (already readable) would have avoided the widening, but silently changes the picker's semantics from "has activated the app" to "is a club member" — a behaviour change, not a fix.
+- **Applied**: `db:setup-perms` dev + prod, 521 permissions / 0 errors each. See `PERMISSIONS.md` (2026-07-13 note) and INFRA "Filtering on a field the caller can't read 403s the whole query".
+
 ---
 
 ## Open / accepted / out-of-scope
