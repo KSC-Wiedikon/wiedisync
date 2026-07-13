@@ -25,6 +25,7 @@ import { buildEmailLayout, buildNewsletterEmail, buildInfoCard, buildAlertBox, b
 import { sendLocalizedPush, bucketMembersByLocale, tPush } from '../../kscw-endpoints/src/push-i18n.js'
 import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-endpoints/src/signup-invites.js'
 import { bbRequiredDocs } from '../../kscw-endpoints/src/bb-docs.js'
+import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
@@ -4877,6 +4878,112 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } catch (err) {
       log.error({ msg: `[game-training-shorten] nightly sweep failed: ${err.message}`, event: 'game_training_shorten_cron_failed', stack: err.stack })
       logCronError('game_training_shorten', err)
+    }
+  })
+
+  // ── Cron: auto-file the Volleymanager Einsatzliste from confirmed RSVPs ──
+  //
+  // Picks up games whose kickoff is ~60 min out and whose effective
+  // auto_nomination_list flag is on, and spawns scripts/vm-push-nomination.mjs to
+  // file the nomination list in VM. Opt-in per game, defaulting to the team's
+  // setting — the same override cascade as auto-confirm RSVP:
+  //
+  //   COALESCE(games.auto_nomination_list,
+  //            teams.features_enabled->>'auto_nomination_list',
+  //            false)
+  //
+  // Resolved HERE, at push time, rather than stamped at game-create time — which is
+  // why this needs no backfill hook when the team toggle flips, and why the ~350
+  // games/season that sv-sync inserts via raw knex (bypassing every items hook) are
+  // covered for free.
+  //
+  // The window is deliberately wide (T-65 → T-35) and the job is idempotent, so a
+  // failed or slow tick simply retries on the next one. VM requires the list closed
+  // by ~T-40, so the last useful attempt is around then; after that the coach files
+  // it by hand. Anything already `closed` or `skipped` is never touched again.
+  //
+  // ⚠ This writes into the real Swiss Volley production system on BOTH dev and prod
+  // — there is no VM staging. The worker refuses to close a list that VM flags with
+  // an unresolved fineable issue (too few players, no coach); see vm-push-nomination.mjs.
+  const NOMINATION_LEAD_MS = 65 * 60 * 1000
+  const NOMINATION_FLOOR_MS = 35 * 60 * 1000
+  let nominationRunning = false
+
+  async function spawnNominationPush(gameId) {
+    const { spawn } = await import('node:child_process')
+    const { openSync } = await import('node:fs')
+    let logOut
+    try { logOut = openSync('/directus/logs/vm-nomination.log', 'a') } catch { logOut = 'ignore' }
+    // Scoped env — forward only what the child needs (no process.env spread).
+    const env = {
+      HOME: process.env.HOME,
+      PATH: process.env.PATH,
+      VM_USERNAME: process.env.VM_USERNAME,
+      VM_PASSWORD: process.env.VM_PASSWORD,
+      KSCW_SVRZ_CLUB_ID: process.env.KSCW_SVRZ_CLUB_ID || '',
+      DIRECTUS_URL: 'http://127.0.0.1:8055',
+      DIRECTUS_SYNC_EMAIL: process.env.DIRECTUS_SYNC_EMAIL,
+      DIRECTUS_SYNC_PASSWORD: process.env.DIRECTUS_SYNC_PASSWORD,
+      GAME_ID: String(gameId),
+      // Lets the worker refuse to write from the dev DB — VM has no staging, so a dev
+      // push would file a real Einsatzliste. See vm-push-nomination.mjs.
+      DB_DATABASE: process.env.DB_DATABASE || '',
+      VM_NOMINATION_ALLOW_DEV_WRITE: process.env.VM_NOMINATION_ALLOW_DEV_WRITE || '',
+      ...(process.env.VM_NOMINATION_DRY_RUN ? { DRY_RUN: '1' } : {}),
+    }
+    const child = spawn('node', ['/directus/scripts/vm-push-nomination.mjs'], {
+      detached: true, stdio: ['ignore', logOut, logOut], env,
+    })
+    child.unref()
+  }
+
+  schedule('*/5 * * * *', async () => {
+    if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
+    if (nominationRunning) {
+      log.info({ msg: '[vm-nomination] tick skipped: a run is already in progress', event: 'vm_nomination_cron_busy' })
+      return
+    }
+    nominationRunning = true
+    const startedAt = Date.now()
+    try {
+      // Candidate games are filtered in SQL on everything that is cheap, then on
+      // kickoff in JS — `games.date` + `games.time` are separate DST-naive columns,
+      // so the instant has to come from gameStartMs(), not from date+time arithmetic
+      // in Postgres.
+      const rows = await database('games as g')
+        .leftJoin('teams as t', 't.id', 'g.kscw_team')
+        .whereRaw("g.game_id LIKE 'vb_%'")
+        .where('g.status', 'scheduled')
+        .whereNotNull('g.kscw_team')
+        .whereNotNull('g.time')
+        .whereRaw("COALESCE(g.vm_nomination_status, '') NOT IN ('closed', 'skipped')")
+        .whereRaw(
+          "COALESCE(g.auto_nomination_list, NULLIF(t.features_enabled->>'auto_nomination_list', '')::boolean, false) = true",
+        )
+        .whereBetween('g.date', [
+          new Date(Date.now() - 86400000).toISOString().slice(0, 10),
+          new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+        ])
+        .select('g.id', 'g.date', 'g.time')
+
+      const now = Date.now()
+      const due = rows.filter((g) => {
+        const kickoff = gameStartMs(g)
+        if (kickoff == null) return false
+        const lead = kickoff - now
+        return lead <= NOMINATION_LEAD_MS && lead >= NOMINATION_FLOOR_MS
+      })
+      if (!due.length) return
+
+      for (const g of due) await spawnNominationPush(g.id)
+      log.info({ msg: `[vm-nomination] spawned ${due.length} push(es)`, event: 'vm_nomination_cron_done', count: due.length })
+      await logCronRun(database, 'vm_nomination', { status: 'ok', durationMs: Date.now() - startedAt, rowsChanged: due.length })
+    } catch (err) {
+      log.error({ msg: `[vm-nomination] cron failed: ${err.message}`, event: 'vm_nomination_cron_failed', stack: err.stack })
+      logCronError('vm_nomination', err)
+      await logCronRun(database, 'vm_nomination', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: err.message })
+    } finally {
+      nominationRunning = false
     }
   })
 

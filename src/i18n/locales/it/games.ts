@@ -168,4 +168,23 @@ export default {
   refereeExpensesSaved: 'Salvato',
   refereeExpensesEdit: 'Modifica',
   refereeExpensesNotRecorded: 'Non ancora registrato',
+
+  // Auto Einsatzliste — solo pallavolo, riservato agli allenatori
+  autoNomination: 'Einsatzliste automatica',
+  autoNominationHint: 'Registra l\'Einsatzliste in Volleymanager dalle presenze confermate, circa 60 minuti prima dell\'inizio. Valore predefinito della squadra: {{def}}.',
+  autoNominationUseTeamDefault: 'Valore predefinito della squadra',
+  autoNominationOn: 'On',
+  autoNominationOff: 'Off',
+  nominationStatusLabel: 'Einsatzliste',
+  nominationStatusPending: 'Invio in corso…',
+  nominationStatusFilled: 'I giocatori sono stati inseriti, ma l\'Einsatzliste è rimasta aperta — Volleymanager ha segnalato un problema (troppo pochi giocatori o nessun allenatore) che comporterebbe una multa. Controllala e chiudila tu.',
+  nominationStatusClosed: 'Registrata e chiusa.',
+  nominationStatusSkipped: 'Niente da registrare — nessun giocatore confermato ha una licenza.',
+  nominationStatusFailed: 'L\'invio non è riuscito.',
+  nominationCount: 'Giocatori: {{n}}',
+  nominationPushedAt: 'Ultimo invio: {{when}}',
+  nominationError: 'Motivo: {{error}}',
+  nominationPushNow: 'Invia ora',
+  nominationPushStarted: 'Invio avviato — lo stato si aggiorna tra poco.',
+  nominationPushFailed: 'Impossibile avviare l\'invio.',
 } as const

@@ -130,6 +130,8 @@ export default {
   featureAutoConfirmTrainingHint: 'Les nouveaux entraînements démarrent avec tout le monde confirmé — les membres doivent se désinscrire s\'ils ne peuvent pas venir',
   featureAutoConfirmGame: 'Confirmer automatiquement les matchs',
   featureAutoConfirmGameHint: 'Les nouveaux matchs démarrent avec tous les membres titulaires confirmés (invités exclus) — les membres doivent se désinscrire s\'ils ne peuvent pas venir',
+  featureAutoNominationList: 'Envoyer automatiquement l\'Einsatzliste',
+  featureAutoNominationListHint: 'Envoie l\'Einsatzliste dans Volleymanager à partir des confirmations reçues environ une heure avant le coup d\'envoi — seuls les joueurs licenciés peuvent être nominés, et la liste reste ouverte pour vérification si Volleymanager signale un problème',
   autoConfirmOnTitle: 'Confirmer tout le monde automatiquement ?',
   autoConfirmOffTitle: 'Désactiver la confirmation automatique ?',
   autoConfirmOnCta: 'Activer',

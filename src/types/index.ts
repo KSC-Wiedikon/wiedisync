@@ -106,6 +106,10 @@ export interface TeamSettings extends FeatureToggles {
   training_auto_confirm?: boolean
   /** Auto-confirm RSVP on game create for full members only (guests blocked). Default false. */
   game_auto_confirm?: boolean
+  /** Team default for auto-filing the Volleymanager Einsatzliste from confirmed RSVPs
+   *  ~60 min before kickoff. A game's own `auto_nomination_list` overrides this; null
+   *  there means "inherit this". Volleyball only. Default false. */
+  auto_nomination_list?: boolean
 }
 
 export interface Member extends BaseRecord {
@@ -389,6 +393,19 @@ export interface Game extends BaseRecord {
   min_participants: number
   /** Per-game override for auto-confirm RSVP. null = inherit team default. */
   auto_confirm_rsvp?: boolean | null
+
+  /** Per-game override for auto-filing the Volleymanager Einsatzliste from confirmed
+   *  RSVPs ~60 min before kickoff (migration 206). null = inherit the team default
+   *  (`TeamSettings.auto_nomination_list`). Volleyball only — basketball has no VM. */
+  auto_nomination_list?: boolean | null
+  /** Einsatzliste push journal — written by the cron / push worker, read-only in the UI.
+   *  `filled` = players written but the list left OPEN (VM flagged a fineable issue, so
+   *  we refuse to close it); `closed` = filed and closed; `skipped` = nothing to file. */
+  vm_nomination_status?: 'pending' | 'filled' | 'closed' | 'skipped' | 'failed' | null
+  vm_nomination_list_id?: string | null
+  vm_nomination_count?: number | null
+  vm_nomination_pushed_at?: string | null
+  vm_nomination_error?: string | null
 
 }
 

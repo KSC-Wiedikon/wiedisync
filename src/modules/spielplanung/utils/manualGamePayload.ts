@@ -1,6 +1,15 @@
 import type { ManualGameInput } from '../../../types'
 
 /**
+ * `ManualGameInput` plus the per-game Einsatzliste override. Kept local to the
+ * payload builder so `ManualGameInput` (also fed by the CSV import flow, which
+ * never sets an override) stays unchanged. null = inherit the team default.
+ */
+export type ManualGamePayloadInput = ManualGameInput & {
+  auto_nomination_list?: boolean | null
+}
+
+/**
  * Map a ManualGameInput from the modal/import flow to the flat `games` row
  * payload Directus expects. Handles:
  *   - generating a unique game_id (`manual_<uuid>`)
@@ -12,7 +21,7 @@ import type { ManualGameInput } from '../../../types'
  * `games.away_team` are text columns, not relations.
  */
 export function buildManualGamePayload(
-  input: ManualGameInput,
+  input: ManualGamePayloadInput,
   kscwTeamName: string,
   season: string,
 ): Record<string, unknown> {
@@ -42,5 +51,6 @@ export function buildManualGamePayload(
     away_score: 0,
     duty_confirmed: false,
     auto_confirm_rsvp: input.auto_confirm_rsvp ?? null,
+    auto_nomination_list: input.auto_nomination_list ?? null,
   }
 }

@@ -158,6 +158,8 @@ export default {
   featureAutoConfirmTrainingHint: 'Neui Trainings starte mit allne als bestätigt — Mitglieder mönd sich abmelde, wenns nöd chönd cho',
   featureAutoConfirmGame: 'Spiel automatisch bestätige',
   featureAutoConfirmGameHint: 'Neui Spiel starte mit allne Vollmitglieder als bestätigt (Gäscht usgschlosse) — Mitglieder mönd sich abmelde, wenns nöd chönd cho',
+  featureAutoNominationList: 'Einsatzliste automatisch melde',
+  featureAutoNominationListHint: 'Trait d Einsatzliste öppe e Stund vor Spielbeginn us de bestätigte Zuesage im Volleymanager i — nominiert wärded nur Spieler mit ere Lizänz, und d Lischte blibt zum Kontrolliere offe, wenn de Volleymanager es Problem meldet',
   autoConfirmOnTitle: 'Alli automatisch bestätige?',
   autoConfirmOffTitle: 'Automatischi Bestätigung usschalte?',
   autoConfirmOnCta: 'Iischalte',

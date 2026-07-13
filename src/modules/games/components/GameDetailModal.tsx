@@ -16,10 +16,11 @@ import { useMyCoveringAbsence } from '../../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../../hooks/useAbsenceNoteText'
 import { useMutation } from '../../../hooks/useMutation'
 import { fetchItem, kscwApi } from '../../../lib/api'
+import { invalidateForCollection } from '../../../lib/query'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
-import { currentLocale, formatDate, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow } from '../../../utils/dateHelpers'
+import { currentLocale, formatDate, formatTime, formatDateTimeCompactZurich, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow } from '../../../utils/dateHelpers'
 import RefereeExpenseSection from './RefereeExpenseSection'
 import TasksSection from '../../tasks/TasksSection'
 import CarpoolSection from '../../carpool/CarpoolSection'
@@ -76,6 +77,28 @@ const dateFormatOptions: Intl.DateTimeFormatOptions = {
   year: 'numeric',
 }
 
+/** Einsatzliste push journal (`games.vm_nomination_status`) → copy + colour.
+ *  `filled` is NOT a failure: the players were written to Volleymanager, but the
+ *  list was deliberately left open because VM flagged something fineable (too few
+ *  players / no coach), so the coach must review and close it. Hence amber, not red. */
+type NominationStatus = NonNullable<Game['vm_nomination_status']>
+
+const NOMINATION_STATUS_KEY: Record<NominationStatus, string> = {
+  pending: 'nominationStatusPending',
+  filled: 'nominationStatusFilled',
+  closed: 'nominationStatusClosed',
+  skipped: 'nominationStatusSkipped',
+  failed: 'nominationStatusFailed',
+}
+
+const NOMINATION_STATUS_TONE: Record<NominationStatus, string> = {
+  pending: 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300',
+  filled: 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200',
+  closed: 'border-green-300 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200',
+  skipped: 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400',
+  failed: 'border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200',
+}
+
 export default function GameDetailModal({ game, onClose, readOnly }: GameDetailModalProps) {
   const { t } = useTranslation('games')
   const { user, isCoachOf, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds, hasAdminAccessToTeam } = useAuth()
@@ -92,6 +115,10 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   })
   const [fullGame, setFullGame] = useState<Game | null>(null)
   const [lateData, setLateData] = useState<DutyLateData | null>(null)
+  // Per-game Einsatzliste override — held locally so the pills react instantly;
+  // the write goes through updateGame (which invalidates the games query).
+  const [autoNomination, setAutoNomination] = useState<boolean | null>(game?.auto_nomination_list ?? null)
+  const [pushingNomination, setPushingNomination] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const { update: updateGame } = useMutation<Game>('games')
   const canParticipate = !!user && !!game?.kscw_team && canParticipateIn(relId(game.kscw_team))
@@ -146,6 +173,13 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   if (prevGame !== game) {
     setPrevGame(game)
     setFullGame(null)
+  }
+  // Re-seed the Einsatzliste override whenever a different game is opened.
+  const [prevNominationGameId, setPrevNominationGameId] = useState(game?.id)
+  if (prevNominationGameId !== game?.id) {
+    setPrevNominationGameId(game?.id)
+    setAutoNomination(game?.auto_nomination_list ?? null)
+    setPushingNomination(false)
   }
   const lateKey = `${game?.id ?? ''}|${game?.type ?? ''}`
   const [prevLateKey, setPrevLateKey] = useState(lateKey)
@@ -300,6 +334,44 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
       toast.success(t('dutyLateReported', { name: personName || roleLabel }))
     } catch {
       toast.error(t('common:error'))
+    }
+  }
+
+  // Einsatzliste (Volleymanager nomination list) — coach-only, volleyball only.
+  const teamNominationDefault = kscwTeamObj?.features_enabled?.auto_nomination_list === true
+  const nominationStatus = (fullGame ?? game).vm_nomination_status ?? null
+  const nominationCount = (fullGame ?? game).vm_nomination_count
+  const nominationError = (fullGame ?? game).vm_nomination_error
+  const nominationPushedAt = (fullGame ?? game).vm_nomination_pushed_at
+  const showNomination = kscwSport === 'volleyball' && isCoachOf(kscwTeamId)
+
+  async function saveNominationOverride(value: boolean | null) {
+    const previous = autoNomination
+    setAutoNomination(value) // optimistic — the pills must not lag the tap
+    try {
+      await updateGame(gameId, { auto_nomination_list: value })
+    } catch {
+      setAutoNomination(previous)
+      toast.error(t('common:error'))
+    }
+  }
+
+  // Manual retry after a failed push. The endpoint spawns the same worker the T-60
+  // cron uses and flips the game back to `pending`, so we refetch to show that.
+  async function pushNominationNow() {
+    setPushingNomination(true)
+    try {
+      await kscwApi<{ spawned: boolean }>(`/games/${gameId}/nomination-push`, { method: 'POST' })
+      toast.success(t('nominationPushStarted'))
+      invalidateForCollection('games')
+      const fresh = await fetchItem<Game>('games', gameId, {
+        fields: ['*', ...GAME_EXPAND.split(',').map((r) => `${r}.*`)],
+      })
+      setFullGame(fresh)
+    } catch {
+      toast.error(t('nominationPushFailed'))
+    } finally {
+      setPushingNomination(false)
     }
   }
 
@@ -716,6 +788,88 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
         {game.type === 'away' && game.status === 'scheduled' && user && isFeatureEnabled(kscwTeamObj?.features_enabled, 'carpool') && (
           <div className="border-t dark:border-gray-700 px-6 py-4">
             <CarpoolSection gameId={game.id} />
+          </div>
+        )}
+
+        {/* Einsatzliste — volleyball only (no Volleymanager for basketball), coach only.
+            The override drives the T-60 auto-push; the box below is the push journal. */}
+        {showNomination && (
+          <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              {t('nominationStatusLabel')}
+            </h4>
+
+            {game.status === 'scheduled' && !readOnly && (
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('autoNomination')}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('autoNominationHint', {
+                    def: teamNominationDefault ? t('autoNominationOn') : t('autoNominationOff'),
+                  })}
+                </p>
+                <div className="flex flex-wrap gap-2 pt-0.5">
+                  {([
+                    { value: null, label: t('autoNominationUseTeamDefault') },
+                    { value: true, label: t('autoNominationOn') },
+                    { value: false, label: t('autoNominationOff') },
+                  ] as { value: boolean | null; label: string }[]).map((opt) => {
+                    const active = autoNomination === opt.value
+                    return (
+                      <button
+                        key={String(opt.value)}
+                        type="button"
+                        onClick={() => saveNominationOverride(opt.value)}
+                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          active
+                            ? 'border-brand-500 bg-brand-100 text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300'
+                            : 'border-gray-300 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Push journal — read-only. `filled` is a warning, not an error. */}
+            {nominationStatus && (
+              <div className={`space-y-1.5 rounded-md border p-3 text-sm ${NOMINATION_STATUS_TONE[nominationStatus]}`}>
+                <p className="flex items-start gap-2">
+                  {nominationStatus === 'filled' && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
+                  <span>{t(NOMINATION_STATUS_KEY[nominationStatus])}</span>
+                </p>
+                {(typeof nominationCount === 'number' || nominationPushedAt) && (
+                  <p className="text-xs opacity-80">
+                    {[
+                      typeof nominationCount === 'number' ? t('nominationCount', { n: nominationCount }) : '',
+                      nominationPushedAt
+                        ? t('nominationPushedAt', { when: formatDateTimeCompactZurich(nominationPushedAt) })
+                        : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                )}
+                {nominationError && (
+                  <p className="text-xs break-words opacity-90">
+                    {t('nominationError', { error: nominationError })}
+                  </p>
+                )}
+                {nominationStatus === 'failed' && !readOnly && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={pushingNomination}
+                    onClick={pushNominationNow}
+                    className="mt-1"
+                  >
+                    {t('nominationPushNow')}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         )}
 

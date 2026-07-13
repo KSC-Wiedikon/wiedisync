@@ -130,6 +130,8 @@ export default {
   featureAutoConfirmTrainingHint: 'I nuovi allenamenti partono con tutti confermati — i membri devono annullare se non possono venire',
   featureAutoConfirmGame: 'Conferma automaticamente le partite',
   featureAutoConfirmGameHint: 'Le nuove partite partono con tutti i membri effettivi confermati (ospiti esclusi) — i membri devono annullare se non possono venire',
+  featureAutoNominationList: 'Invia automaticamente l\'Einsatzliste',
+  featureAutoNominationListHint: 'Invia l\'Einsatzliste in Volleymanager con le conferme ricevute circa un\'ora prima dell\'inizio della partita — possono essere nominati solo i giocatori con licenza e la lista resta aperta per la verifica se Volleymanager segnala un problema',
   autoConfirmOnTitle: 'Confermare tutti automaticamente?',
   autoConfirmOffTitle: 'Disattivare la conferma automatica?',
   autoConfirmOnCta: 'Attiva',

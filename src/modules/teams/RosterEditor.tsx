@@ -984,6 +984,15 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
           <SettingRow label={t('featureAutoConfirmGame')} hint={t('featureAutoConfirmGameHint')}>
             <SwitchToggle checked={settings.game_auto_confirm === true} onChange={() => requestAutoConfirmToggle('game')} />
           </SettingRow>
+          {/* Volleyball only — the Einsatzliste lives in Volleymanager, basketball has no
+              equivalent. No confirm dialog: unlike auto-confirm (which backfills existing
+              participations) this flag is only read at push time, so flipping it is
+              forward-only and has no retroactive effect. */}
+          {team.sport === 'volleyball' && (
+            <SettingRow label={t('featureAutoNominationList')} hint={t('featureAutoNominationListHint')}>
+              <SwitchToggle checked={settings.auto_nomination_list === true} onChange={() => toggleBool('auto_nomination_list')} />
+            </SettingRow>
+          )}
           <SettingRow label={t('settingsRequireNoteIfAbsent')} hint={t('settingsRequireNoteHint')}>
             <SwitchToggle checked={settings.game_require_note_if_absent === true} onChange={() => toggleBool('game_require_note_if_absent')} />
           </SettingRow>
