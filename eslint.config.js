@@ -6,7 +6,15 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // Vendored UI catalogs (Aceternity, Magic UI, shadcn primitives) are third-party
+  // source we install and don't author — they ship a deliberate `@ts-nocheck` and
+  // their own hook idioms. Our own wrappers in src/components/*.tsx stay linted.
+  globalIgnores([
+    'dist',
+    'src/components/aceternity/**',
+    'src/components/magicui/**',
+    'src/components/ui/**',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

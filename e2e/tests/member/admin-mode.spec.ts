@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 // These tests rely on the desktop sidebar — skip on mobile viewport
-test.beforeEach(async ({}, testInfo) => {
+test.beforeEach(async (_fixtures, testInfo) => {
   test.skip(testInfo.project.name === 'mobile', 'desktop-only: requires sidebar')
 })
 

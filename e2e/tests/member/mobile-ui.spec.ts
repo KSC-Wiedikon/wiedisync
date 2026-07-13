@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { PUBLIC_ROUTES, AUTH_ROUTES } from '../../fixtures/test-data'
 
 // Only run in 'mobile' project — these tests require a mobile viewport
-test.beforeEach(async ({}, testInfo) => {
+test.beforeEach(async (_fixtures, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', 'mobile-only tests')
 })
 
