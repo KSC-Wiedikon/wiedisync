@@ -762,7 +762,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
       </div>
     </div>
     {isAssignedScorer ? (
-      rosterOpen && <RosterModal gameId={game.id} onClose={() => setRosterOpen(false)} />
+      rosterOpen && <RosterModal key={game.id} gameId={game.id} onClose={() => setRosterOpen(false)} />
     ) : (
       <ParticipationRosterModal
         open={rosterOpen}

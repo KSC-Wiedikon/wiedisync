@@ -59,11 +59,11 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
   const [data, setData] = useState<RosterResponse['data'] | null>(null)
   const [errorCode, setErrorCode] = useState<string | null>(null)
 
+  // No synchronous reset here (it would cascade a render): callers mount this
+  // modal per game and key it on gameId, so a new game gets a fresh instance
+  // whose initial state is already loading/empty.
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    setErrorCode(null)
-    setData(null)
     kscwApi<RosterResponse>(`/scorer/game/${gameId}/roster`)
       .then((res) => { if (!cancelled) setData(res.data) })
       .catch((err: Error & { code?: string }) => {
