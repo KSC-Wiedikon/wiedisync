@@ -27,9 +27,3 @@ export default function RichText({
     />
   )
 }
-
-/** Strip HTML tags and return plain text (for previews / truncated display) */
-export function stripHtml(html: string): string {
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  return doc.body.textContent?.trim() ?? ''
-}

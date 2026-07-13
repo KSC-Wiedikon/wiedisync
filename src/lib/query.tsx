@@ -1,14 +1,15 @@
 /**
- * TanStack Query integration — provides the QueryClientProvider
- * and reusable hook factories for Directus collections.
+ * TanStack Query integration — owns the shared `queryClient` and the reusable
+ * hook factories for Directus collections. The `<QueryProvider>` component that
+ * mounts the client lives in `lib/QueryProvider.tsx` (Fast Refresh requires a
+ * module to export either components or non-components, not both).
  *
  * Usage:
  *   const { data, isLoading } = useCollection('teams', { filter: { active: { _eq: true } } })
  *   const { mutate } = useCreate('participations')
  */
 
-import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import { QueryClient, useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { fetchItems, fetchAllItems, fetchItem, countItems, aggregateItems, createRecord, updateRecord, deleteRecord, kscwApi, stringifyIds } from './api'
 import { captureApiError } from './sentry'
 
@@ -34,14 +35,6 @@ export const queryClient = new QueryClient({
     },
   },
 })
-
-export function QueryProvider({ children }: { children: ReactNode }) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  )
-}
 
 // ── Query key factory ───────────────────────────────────────────────
 

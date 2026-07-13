@@ -13,28 +13,23 @@
  * auth/team context and the page's data are ready, then reveals everything at
  * once. `useLayoutEffect` makes the report fire before paint, so there is no
  * chrome-then-content flash. The flag resets on unmount (navigation).
+ *
+ * The provider COMPONENT lives in `hooks/PageReadyProvider.tsx` — a module may
+ * export either React components or non-components, not both (react-refresh /
+ * Fast Refresh).
  */
 
-import { createContext, useContext, useLayoutEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useLayoutEffect } from 'react'
 
-interface PageReadyContextValue {
+export interface PageReadyContextValue {
   pageLoading: boolean
   setPageLoading: (loading: boolean) => void
 }
 
-const PageReadyContext = createContext<PageReadyContextValue>({
+export const PageReadyContext = createContext<PageReadyContextValue>({
   pageLoading: false,
   setPageLoading: () => {},
 })
-
-export function PageReadyProvider({ children }: { children: ReactNode }) {
-  const [pageLoading, setPageLoading] = useState(false)
-  return (
-    <PageReadyContext.Provider value={{ pageLoading, setPageLoading }}>
-      {children}
-    </PageReadyContext.Provider>
-  )
-}
 
 /** Layout reads this to decide whether to keep the unified boot spinner up. */
 export function usePageLoading() {

@@ -42,6 +42,7 @@ interface ScorerRowProps {
 }
 
 import { asObj } from '../../../utils/relations'
+import { isFullyAssigned, isVbCombinedMode, isVbRefereeMode } from './assignmentStatus'
 
 export type ExpandedGame = Game
 
@@ -49,54 +50,6 @@ export type ExpandedGame = Game
 // rule (CLAUDE.md) applies to numeric dd.mm.yyyy dates only.
 function getDateFormatter() {
   return new Intl.DateTimeFormat(currentLocale(), { weekday: 'short', day: 'numeric', month: 'short' })
-}
-
-// ── VB helpers ──
-
-function isVbSeparateMode(game: Game): boolean {
-  return !!(game.scorer_duty_team || game.scorer_member || game.scoreboard_duty_team || game.scoreboard_member)
-}
-
-function isVbCombinedMode(game: Game): boolean {
-  return !!(game.scorer_scoreboard_duty_team || game.scorer_scoreboard_member)
-}
-
-// HU20 home games: scorer + referee (instead of Täfeler). Detected from the
-// referee columns; the admin-assign page writes referee_duty_team for HU20.
-function isVbRefereeMode(game: Game): boolean {
-  return !!(game.referee_duty_team || game.referee_member)
-}
-
-export function hasAnyVbAssignment(game: Game): boolean {
-  return !!(game.scorer_member || game.scoreboard_member || game.scorer_scoreboard_member || game.referee_member)
-}
-
-function isVbFullyAssigned(game: Game): boolean {
-  if (isVbCombinedMode(game)) return !!game.scorer_scoreboard_member
-  // Referee mode (HU20): referee only, no scorer/Täfeler. Check before separate.
-  if (isVbRefereeMode(game)) return !!game.referee_member
-  if (isVbSeparateMode(game)) return !!(game.scorer_member && game.scoreboard_member)
-  return false
-}
-
-// ── BB helpers ──
-
-export function hasAnyBbAssignment(game: Game): boolean {
-  return !!(game.bb_scorer_member || game.bb_timekeeper_member || game.bb_24s_official)
-}
-
-function isBbFullyAssigned(game: Game): boolean {
-  return !!(game.bb_scorer_member && game.bb_timekeeper_member)
-}
-
-// ── Generic helpers ──
-
-export function hasAnyAssignment(game: Game): boolean {
-  return hasAnyVbAssignment(game) || hasAnyBbAssignment(game)
-}
-
-export function isFullyAssigned(game: Game, sport: 'volleyball' | 'basketball'): boolean {
-  return sport === 'basketball' ? isBbFullyAssigned(game) : isVbFullyAssigned(game)
 }
 
 export function DutyStatus({ game, sport }: { game: Game; sport: 'volleyball' | 'basketball' }) {

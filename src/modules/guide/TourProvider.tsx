@@ -1,5 +1,4 @@
 import {
-  createContext,
   useCallback,
   useEffect,
   useMemo,
@@ -18,6 +17,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useIsMobile } from '../../hooks/useMediaQuery'
 import { TourTooltip } from './TourTooltip'
+import { TourContext, type TourContextValue } from './tourContext'
 import { tourRegistry } from './tours'
 import {
   DEFAULT_TOUR_STATE,
@@ -25,22 +25,6 @@ import {
   type TourDefinition,
   type TourState,
 } from './types'
-
-// ── Context ─────────────────────────────────────────────────────────
-
-export interface TourContextValue {
-  startTour: (tourId: string) => void
-  skipTour: (tourId: string) => void
-  completeTour: (tourId: string) => void
-  isTourCompleted: (tourId: string) => boolean
-  isTourDismissed: (tourId: string) => boolean
-  availableTours: TourDefinition[]
-  currentTour: TourDefinition | null
-  resetAllTours: () => void
-  tourState: TourState
-}
-
-export const TourContext = createContext<TourContextValue | null>(null)
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

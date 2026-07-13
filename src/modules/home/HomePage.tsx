@@ -12,7 +12,7 @@ import { formatDate, formatDateCompact, formatTime, formatWeekday, getCurrentSea
 import { asObj, relId, teamCoachIds } from '../../utils/relations'
 import TeamChip from '../../components/TeamChip'
 import StatusBadge from '../../components/StatusBadge'
-import { stripHtml } from '../../components/RichText'
+import { stripHtml } from '../../utils/stripHtml'
 import VolleyballIcon from '../../components/VolleyballIcon'
 import BasketballIcon from '../../components/BasketballIcon'
 import NotificationPanel from '../../components/NotificationPanel'

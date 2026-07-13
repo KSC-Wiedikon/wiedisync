@@ -11,6 +11,7 @@ import type { ExpandedMemberTeam } from '../../hooks/useTeamMembers'
 import type { Team, Member, MemberTeam } from '../../types'
 import { cn } from '@/lib/utils'
 import { asObj, memberName, flattenMemberIds } from '../../utils/relations'
+import { getMemberRole } from './memberRole'
 import { formatDate } from '../../utils/dateHelpers'
 import { Button } from '../../components/ui/button'
 import { updateRecord } from '../../lib/api'
@@ -39,15 +40,6 @@ const roleI18nKeys: Record<LeadershipRole, string> = {
   coach: 'roleCoach',
   captain: 'roleCaptain',
   team_responsible: 'roleTeamResponsible',
-}
-
-export function getMemberRole(memberId: string | number, team?: Team | null): string | null {
-  if (!team) return null
-  const id = String(memberId)
-  if (flattenMemberIds(team.coach).includes(id)) return 'coach'
-  if (flattenMemberIds(team.captain).includes(id)) return 'captain'
-  if (flattenMemberIds(team.team_responsible).includes(id)) return 'team_responsible'
-  return null
 }
 
 export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin, canEditRole = true, showContact = true, showGuestColumn = false, onTeamUpdate, onExtendShell, isEditing }: MemberRowProps) {

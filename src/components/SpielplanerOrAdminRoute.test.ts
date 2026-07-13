@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canAccessSpielplanung } from './SpielplanerOrAdminRoute'
+import { canAccessSpielplanung } from '../utils/spielplanerAccess'
 
 const base = {
   isAdmin: false,

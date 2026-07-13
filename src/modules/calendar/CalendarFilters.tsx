@@ -108,14 +108,3 @@ export default function CalendarFilters({ open, onClose, filters, onChange, allo
     </Modal>
   )
 }
-
-/** Count active filters (deselected sources + selected teams) */
-export function getActiveFilterCount(
-  filters: CalendarFilterState,
-  totalSources: number,
-): number {
-  let count = 0
-  if (filters.sources.length < totalSources) count += 1
-  if (filters.selectedTeamIds.length > 0) count += 1
-  return count
-}

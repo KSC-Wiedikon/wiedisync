@@ -11,11 +11,12 @@ import ExplorerSearch from './components/ExplorerSearch'
 import ExplorerTree from './components/ExplorerTree'
 import ExplorerDetail from './components/ExplorerDetail'
 import ExplorerGrid from './components/ExplorerGrid'
-import ExplorerMemberFilters, {
+import ExplorerMemberFilters from './components/ExplorerMemberFilters'
+import {
   EMPTY_FILTERS,
   applyMemberFilters,
   type MemberFilterState,
-} from './components/ExplorerMemberFilters'
+} from './components/memberFilters'
 
 const VALID_TYPES: readonly BucketKey[] = ['members', 'teams', 'events', 'trainings', 'games']
 

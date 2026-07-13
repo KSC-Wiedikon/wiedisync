@@ -1,38 +1,21 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+/**
+ * Theme context + the `useTheme` hook.
+ *
+ * The provider COMPONENT lives in `hooks/ThemeProvider.tsx` — a module may export
+ * either React components or non-components, not both (react-refresh /
+ * Fast Refresh).
+ */
 
-type Theme = 'dark' | 'light'
+import { createContext, useContext } from 'react'
 
-interface ThemeContextValue {
+export type Theme = 'dark' | 'light'
+
+export interface ThemeContextValue {
   theme: Theme
   toggleTheme: () => void
 }
 
-const ThemeContext = createContext<ThemeContextValue | null>(null)
-
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem('wiedisync-theme') as Theme | null
-    return stored === 'light' ? 'light' : 'dark'
-  })
-
-  useEffect(() => {
-    const root = document.documentElement
-    if (theme === 'dark') {
-      root.classList.add('dark')
-    } else {
-      root.classList.remove('dark')
-    }
-    localStorage.setItem('wiedisync-theme', theme)
-  }, [theme])
-
-  const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
-
-  return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  )
-}
+export const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 export function useTheme() {
   const ctx = useContext(ThemeContext)
