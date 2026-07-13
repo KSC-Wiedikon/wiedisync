@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.40.0'
+const APP_VERSION = '1.41.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.41.0',
+    date: '13.07.2026',
+    sections: [
+      {
+        title: 'Fixed: the member list was empty when inviting people to an event',
+        items: [
+          'If you are a coach or a team responsible, creating an event now shows the full member list again. The invite picker was coming up empty — not because nobody matched, but because the app was not allowed to read one of the fields it was searching on, so the request was rejected and the list silently came back blank. No error was ever shown, which is why it looked like "no members found".',
+        ],
+      },
+      {
+        title: 'For admins: ClubDesk consistency check',
+        items: [
+          'The ClubDesk sync page now lists everything that has drifted between ClubDesk and Wiedisync, with an Excel worklist: members in no ClubDesk group, members missing their team’s group, coaches missing their coach group, people in a ClubDesk group but not on the roster, and members paying a playing fee while on no roster.',
+          'Each team’s ClubDesk group is now stored on the team itself, so a new team can no longer be silently skipped by these checks.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.40.0',
     date: '13.07.2026',
