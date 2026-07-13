@@ -17,10 +17,10 @@ import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import { useTeams } from '../../hooks/useTeams'
 import { useGameConflicts } from './hooks/useGameConflicts'
-import { buildManualGamePayload } from './utils/manualGamePayload'
+import { buildManualGamePayload, type ManualGamePayloadInput } from './utils/manualGamePayload'
 import { getSeasonYear, toDateKey } from '../../utils/dateUtils'
 import { asObj } from '../../utils/relations'
-import type { Hall, Team, ManualGameInput, Game, HallSlot } from '../../types'
+import type { Hall, Team, Game, HallSlot } from '../../types'
 import type { SportFilter, GameTypeFilter } from '../../types/calendar'
 import { cn } from '../../lib/utils'
 
@@ -103,6 +103,8 @@ export default function ManualGameModal({
   const [round, setRound] = useState('')
   const [autoConfirmRsvp, setAutoConfirmRsvp] = useState<boolean | null>(null)
   const [teamAutoConfirmDefault, setTeamAutoConfirmDefault] = useState(false)
+  const [autoNominationList, setAutoNominationList] = useState<boolean | null>(null)
+  const [teamAutoNominationDefault, setTeamAutoNominationDefault] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   // ── Prop → form seeding ────────────────────────────────────────────
@@ -164,19 +166,25 @@ export default function ManualGameModal({
     setRound(editingGame.round ?? '')
     const rawAcr = (editingGame as Game & { auto_confirm_rsvp?: boolean | null }).auto_confirm_rsvp
     setAutoConfirmRsvp(rawAcr === true ? true : rawAcr === false ? false : null)
+    const rawAnl = editingGame.auto_nomination_list
+    setAutoNominationList(rawAnl === true ? true : rawAnl === false ? false : null)
   }
 
-  // Load team default for the auto-confirm hint label
+  // Load team defaults for the auto-confirm / auto-Einsatzliste hint labels
   const autoConfirmDeps: unknown[] = [open, teamId, allTeams]
   const [prevAutoConfirm, setPrevAutoConfirm] = useState<unknown[] | null>(null)
   if (prevAutoConfirm === null || autoConfirmDeps.some((d, i) => !Object.is(d, prevAutoConfirm[i]))) {
     setPrevAutoConfirm(autoConfirmDeps)
     if (!open || !teamId) {
       setTeamAutoConfirmDefault(false)
+      setTeamAutoNominationDefault(false)
     } else {
       const teamRel = (allTeams ?? []).find((t) => String(t.id) === teamId) as Team | undefined
-      const fe = teamRel?.features_enabled as { game_auto_confirm?: boolean } | undefined
+      const fe = teamRel?.features_enabled as
+        | { game_auto_confirm?: boolean; auto_nomination_list?: boolean }
+        | undefined
       setTeamAutoConfirmDefault(fe?.game_auto_confirm === true)
+      setTeamAutoNominationDefault(fe?.auto_nomination_list === true)
     }
   }
 
@@ -241,12 +249,16 @@ export default function ManualGameModal({
       setRound('')
       setAutoConfirmRsvp(null)
       setTeamAutoConfirmDefault(false)
+      setAutoNominationList(null)
+      setTeamAutoNominationDefault(false)
       setSubmitError(null)
     }
   }
 
   // ── Conflict check ────────────────────────────────────────────────
   const selectedTeam = editableTeams.find((t) => String(t.id) === teamId) as Team | undefined
+  // Volleymanager (and therefore the Einsatzliste) exists for volleyball only.
+  const isVolleyball = selectedTeam?.sport === 'volleyball'
   const kwiA = useMemo(() => (halls ?? []).find((h) => h.name === 'KWI A'), [halls])
   const kwiB = useMemo(() => (halls ?? []).find((h) => h.name === 'KWI B'), [halls])
   const kwiC = useMemo(() => (halls ?? []).find((h) => h.name === 'KWI C'), [halls])
@@ -361,7 +373,7 @@ export default function ManualGameModal({
     setSubmitError(null)
     if (blocked || !requiredFilled || !selectedTeam) return
 
-    const input: ManualGameInput = {
+    const input: ManualGamePayloadInput = {
       kscw_team: teamId,
       type,
       opponent: opponent.trim(),
@@ -382,6 +394,8 @@ export default function ManualGameModal({
       league: league.trim(),
       round: round.trim(),
       auto_confirm_rsvp: autoConfirmRsvp,
+      // Volleyball-only — basketball has no Volleymanager, so it always inherits (null).
+      auto_nomination_list: isVolleyball ? autoNominationList : null,
     }
 
     try {
@@ -618,6 +632,44 @@ export default function ManualGameModal({
             })}
           </div>
         </div>
+
+        {/* Auto Einsatzliste override — volleyball only (no Volleymanager for basketball) */}
+        {isVolleyball && (
+          <div className="space-y-1.5 text-sm">
+            <div>
+              <Label className="font-medium">{t('games:autoNomination')}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t('games:autoNominationHint', {
+                  def: teamAutoNominationDefault ? t('games:autoNominationOn') : t('games:autoNominationOff'),
+                })}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {([
+                { value: null, label: t('games:autoNominationUseTeamDefault') },
+                { value: true, label: t('games:autoNominationOn') },
+                { value: false, label: t('games:autoNominationOff') },
+              ] as { value: boolean | null; label: string }[]).map((opt) => {
+                const active = autoNominationList === opt.value
+                return (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => setAutoNominationList(opt.value)}
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      active
+                        ? 'border-brand-500 bg-brand-100 text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300'
+                        : 'border-gray-300 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Conflict banner */}
         {errors.length > 0 && (

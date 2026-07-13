@@ -58,7 +58,10 @@ function zurichOffsetMs(instantMs) {
 }
 
 // Zurich wall-clock (date+time on a game row) → absolute UTC epoch ms.
-function gameStartMs(game) {
+// Exported: the Einsatzliste cron needs the same kickoff instant, and `games` stores
+// date and time as separate DST-naive columns — re-deriving this is how you get a
+// job that fires an hour late for half the year.
+export function gameStartMs(game) {
   const ymd = dateYMD(game.date)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null
   const [hh, mm] = String(game.time ?? '').split(':')

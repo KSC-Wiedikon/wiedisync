@@ -171,4 +171,23 @@ export default {
   refereeExpensesSaved: 'Gespeichert',
   refereeExpensesEdit: 'Bearbeiten',
   refereeExpensesNotRecorded: 'Noch nicht erfasst',
+
+  // Auto Einsatzliste — nur Volleyball, nur Trainer:innen
+  autoNomination: 'Auto-Einsatzliste',
+  autoNominationHint: 'Erfasst die Einsatzliste im Volleymanager rund 60 Minuten vor Spielbeginn aus den bestätigten Zusagen. Team-Standard: {{def}}.',
+  autoNominationUseTeamDefault: 'Team-Standard',
+  autoNominationOn: 'An',
+  autoNominationOff: 'Aus',
+  nominationStatusLabel: 'Einsatzliste',
+  nominationStatusPending: 'Wird übermittelt…',
+  nominationStatusFilled: 'Die Spieler wurden eingetragen, aber die Einsatzliste blieb offen — der Volleymanager hat ein Problem gemeldet (zu wenige Spieler oder kein Trainer), das beim Abschliessen eine Busse auslösen würde. Bitte prüfe sie und schliesse sie selbst ab.',
+  nominationStatusClosed: 'Erfasst und abgeschlossen.',
+  nominationStatusSkipped: 'Nichts zu erfassen — keiner der bestätigten Spieler hat eine Lizenz.',
+  nominationStatusFailed: 'Die Übermittlung ist fehlgeschlagen.',
+  nominationCount: 'Spieler: {{n}}',
+  nominationPushedAt: 'Letzte Übermittlung: {{when}}',
+  nominationError: 'Grund: {{error}}',
+  nominationPushNow: 'Jetzt senden',
+  nominationPushStarted: 'Übermittlung gestartet — der Status aktualisiert sich gleich.',
+  nominationPushFailed: 'Die Übermittlung konnte nicht gestartet werden.',
 } as const

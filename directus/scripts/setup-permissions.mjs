@@ -385,11 +385,111 @@ const LEADER_TEAM_DASHBOARD_FIELDS = [
   'dashboard_league_only',
 ]
 
-/** Public fields for games */
+/**
+ * Public fields for games.
+ *
+ * Internal ops columns stay OUT on purpose: duty assignments, the RSVP/auto-confirm
+ * toggles (`auto_confirm_rsvp`), and — since migration 206 — the Volleymanager
+ * Einsatzliste toggle + push journal (`auto_nomination_list`, `vm_nomination_*`).
+ * Do NOT add them here: anon has no business knowing who we nominated, or that a
+ * push failed. Authenticated members read them via the Member policy below.
+ */
 const PUBLIC_GAME_FIELDS = [
   'id', 'date', 'time', 'home_team', 'away_team', 'home_score', 'away_score',
   'sets_json', 'league', 'round', 'season', 'kscw_team', 'status', 'source',
   'game_id', 'hall', 'type',
+]
+
+/**
+ * Every `games` column a Coach/TR (§7) or Spielplaner (§9d) may WRITE — i.e. the
+ * full column set MINUS the five `vm_nomination_*` push-journal columns that
+ * migration 206 added.
+ *
+ * WHY THIS LIST EXISTS AT ALL. Directus field permissions are allow-lists; there
+ * is no deny-list, and `setPerm(..., fields = null)` defaults to `['*']`. Both the
+ * LEADER and Spielplaner `games` write grants used to take that default, so they
+ * carried write access to every column — including, once 206 lands, the journal the
+ * VM-nomination cron owns:
+ *
+ *   vm_nomination_status, vm_nomination_list_id, vm_nomination_count,
+ *   vm_nomination_pushed_at, vm_nomination_error
+ *
+ * Those are written ONLY by the backend cron (admin credentials — bypasses policies
+ * entirely, so it needs no grant here). They must be read-only to everyone else: the
+ * cron re-attempts anything whose status is not `closed`/`skipped`, so a coach who
+ * could PATCH `vm_nomination_status = 'closed'` would silently suppress their own
+ * team's Einsatzliste push — and a forged `vm_nomination_error` would send whoever
+ * reads the game modal chasing a failure that never happened. Read-only journal =
+ * the cron's idempotency key can't be tampered with from the app.
+ *
+ * The per-game OPT-IN toggle `auto_nomination_list` is NOT part of the journal — it
+ * is the coach's control, exactly like its sibling `auto_confirm_rsvp`, and is
+ * therefore listed below as writable.
+ *
+ * WHY IT IS THE WHOLE COLUMN SET, NOT A HAND-PICKED SHORT LIST. Every write flow
+ * these two policies drive today (`GameDetailModal`, `GameDetailDrawer`,
+ * `ScorerPage`/`ScorerAssignPage`, `buildManualGamePayload`, `ImportPanel`,
+ * `ExcelImportPanel`) sends a flat payload of real columns — no relational aliases.
+ * Enumerating all of them minus the journal makes this a strict superset of what
+ * those flows write, so replacing the `['*']` default changes NO existing behaviour;
+ * it only subtracts the five backend-owned columns. (A Directus field allow-list is
+ * hard-fail: a payload key outside it 403s the WHOLE request, so a hand-picked list
+ * would be a coach-facing regression waiting to happen.) `id` / `date_created` /
+ * `date_updated` are kept for the same superset reason — they were writable under
+ * `['*']`; narrowing them is a separate hardening question, not this change's job.
+ *
+ * ⚠ MAINTENANCE: a NEW `games` column that a coach/TR or spielplaner must write MUST
+ * be added here, or their PATCH 403s with "You don't have permission to access field".
+ * A new BACKEND-OWNED column (another push journal, a sync marker) must deliberately
+ * stay OUT.
+ */
+const GAME_WRITE_FIELDS = [
+  'id', 'game_id', 'home_team', 'away_team', 'away_hall_json',
+  'date', 'time', 'league', 'round', 'season', 'type', 'status',
+  'home_score', 'away_score', 'sets_json',
+  'duty_confirmed', 'referees_json', 'source', 'respond_by', 'min_participants',
+  'kscw_team', 'hall', 'additional_halls',
+  // Duty assignments (VB + BB) + the confirmed-by actor pairs.
+  'scorer_member', 'scoreboard_member', 'scorer_scoreboard_member',
+  'scorer_duty_team', 'scoreboard_duty_team', 'scorer_scoreboard_duty_team',
+  'bb_scorer_member', 'bb_timekeeper_member', 'bb_24s_official',
+  'bb_duty_team', 'bb_scorer_duty_team', 'bb_timekeeper_duty_team', 'bb_24s_duty_team',
+  'referee_duty_team', 'referee_member',
+  'scorer_confirmed_by_name', 'scorer_confirmed_at',
+  'scoreboard_confirmed_by_name', 'scoreboard_confirmed_at',
+  'scorer_scoreboard_confirmed_by_name', 'scorer_scoreboard_confirmed_at',
+  'bb_scorer_confirmed_by_name', 'bb_scorer_confirmed_at',
+  'bb_timekeeper_confirmed_by_name', 'bb_timekeeper_confirmed_at',
+  'bb_24s_confirmed_by_name', 'bb_24s_confirmed_at',
+  'referee_confirmed_by_name', 'referee_confirmed_at',
+  'send_email_invite', 'svrz_push_status',
+  'date_created', 'date_updated',
+  // Per-activity RSVP auto-confirm override (migration 048): null = inherit the
+  // team default. Coach-owned toggle.
+  'auto_confirm_rsvp',
+  // Per-game Volleymanager Einsatzliste opt-in (migration 206): null = inherit
+  // teams.features_enabled.auto_nomination_list. Coach-owned toggle — same trust
+  // model as auto_confirm_rsvp above. The vm_nomination_* journal it drives is
+  // deliberately absent from this list (see the header).
+  'auto_nomination_list',
+
+  // ── Deliberately NOT in this list: backend-owned columns ────────────────────
+  // Directus field permissions are an allow-list, so anything omitted here is
+  // read-only to coaches/spielplaner. That is intentional for every column whose
+  // only writer is a custom endpoint (raw knex, which bypasses the items API and
+  // these permissions entirely):
+  //
+  //   vm_nomination_status / _list_id / _count / _pushed_at / _error  (migration 206)
+  //       → vm-push-nomination.mjs + nomination-push.js. A coach who could PATCH
+  //         vm_nomination_status = 'closed' would silently suppress their own team's
+  //         push, since the cron skips anything already closed/skipped.
+  //   duty_late_json          (migration 202) → duty-late.js
+  //   duty_leader_alert_json  (migration 203) → duty-leader-contact.js
+  //
+  // ⚠ Verify additions against the LIVE database, not SCHEMA.sql — the baseline is
+  // regenerated on demand and lags the migration journal (it was missing 202/203/205
+  // when this list was written). A `games` column that a coach must write and that is
+  // missing here 403s their ENTIRE PATCH, not just that field.
 ]
 
 /**
@@ -1139,6 +1239,17 @@ async function main() {
   // 2026-05-12 audit: previously unfiltered — every coach in the club could
   // PATCH any game (scores, duty assignments, `auto_confirm_rsvp`) including
   // for teams they had no relationship to.
+  //
+  // 2026-07-13 (migration 206): FIELD-scoped as well as row-scoped. The grant used
+  // to take the `fields = ['*']` default, which would hand coaches write access to
+  // the `vm_nomination_*` Einsatzliste push journal the backend cron owns — letting
+  // a coach mark their own game `closed` and silently suppress its VM push.
+  // GAME_WRITE_FIELDS is every games column EXCEPT that journal, so a coach keeps
+  // every write they had (scores, duties, `auto_confirm_rsvp`) and gains the new
+  // per-game opt-in `auto_nomination_list`, while the journal is read-only to them.
+  // READ of all six new columns needs no grant here — the Member policy already
+  // reads `games` club-wide with fields `*` (§6 MEMBER_READ_ALL), and coaches hold
+  // the Member policy too. See the GAME_WRITE_FIELDS header for the full rationale.
   await setPerm(LEADER_POLICY, 'games', 'update', {
     kscw_team: {
       active: { _eq: true },
@@ -1147,7 +1258,7 @@ async function main() {
         { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
       ],
     },
-  })
+  }, GAME_WRITE_FIELDS)
 
   // Trainings — coach can read/CRU/delete trainings of teams they coach or TR.
   // Read scope is required because the Member fallback policy only grants
@@ -1748,7 +1859,8 @@ async function main() {
   // this policy the only games create/delete rows lived on KSCW Sport Admin, so
   // every non-admin spielplaner 403'd on a flow the UI offers.
   //
-  // Two-layer gate (fields '*' on all three grants):
+  // Two-layer gate (create/update are field-scoped to GAME_WRITE_FIELDS; delete
+  // takes no payload, so its fields are irrelevant and stay '*'):
   //   1. SOURCE scope at the policy layer — every grant is limited to
   //      source='manual' rows: UPDATE/DELETE via the `permissions` row filter,
   //      CREATE via a scalar `validation` on the payload (Directus doesn't
@@ -1770,9 +1882,18 @@ async function main() {
 
   console.log('\n9d. Spielplaner permissions...')
 
+  // FIELD scope (2026-07-13, migration 206): create/update are limited to
+  // GAME_WRITE_FIELDS — every games column except the `vm_nomination_*` push
+  // journal the VM-nomination cron owns. This is not just belt-and-braces on top of
+  // the LEADER field scope: Directus UNIONs the permission rows of every policy a
+  // user holds for the same collection+action, so leaving `['*']` here would hand
+  // the journal straight back to any coach/TR who is also a spielplaner (on their
+  // manual games) and undo §7's field scope. The planner writes no journal column —
+  // `buildManualGamePayload` emits flat game columns incl. the coach-owned
+  // `auto_nomination_list` toggle, which IS in the list — so this is behaviour-neutral.
   const MANUAL_GAME = { source: { _eq: 'manual' } }
-  await setPerm(SPIELPLANER_POLICY, 'games', 'create', MANUAL_GAME, null, MANUAL_GAME)
-  await setPerm(SPIELPLANER_POLICY, 'games', 'update', MANUAL_GAME)
+  await setPerm(SPIELPLANER_POLICY, 'games', 'create', MANUAL_GAME, GAME_WRITE_FIELDS, MANUAL_GAME)
+  await setPerm(SPIELPLANER_POLICY, 'games', 'update', MANUAL_GAME, GAME_WRITE_FIELDS)
   await setPerm(SPIELPLANER_POLICY, 'games', 'delete', MANUAL_GAME)
 
   console.log(`  ✓ Spielplaner permissions set`)

@@ -171,4 +171,23 @@ export default {
   refereeExpensesSaved: 'Gspeicheret',
   refereeExpensesEdit: 'Bearbeite',
   refereeExpensesNotRecorded: 'Nonig erfasst',
+
+  // Auto Einsatzliste — nur Volleyball, nur Trainer
+  autoNomination: 'Auto-Einsatzliste',
+  autoNominationHint: 'Erfasst d\'Einsatzliste im Volleymanager öppe 60 Minute vor em Spielaafang us de bestätigte Zuesäge. Team-Standard: {{def}}.',
+  autoNominationUseTeamDefault: 'Team-Standard',
+  autoNominationOn: 'A',
+  autoNominationOff: 'Us',
+  nominationStatusLabel: 'Einsatzliste',
+  nominationStatusPending: 'Wird gschickt…',
+  nominationStatusFilled: 'D\'Spieler sind iitreit, aber d\'Einsatzliste isch offe blibe — de Volleymanager hät es Problem gmeldet (z\'wenig Spieler oder kein Trainer), wo bim Abschliesse e Buess uslöse würd. Bitte lueg sie aa und schliess sie sälber ab.',
+  nominationStatusClosed: 'Erfasst und abgschlosse.',
+  nominationStatusSkipped: 'Nüt z\'erfasse — kein vo de bestätigte Spieler hät e Lizänz.',
+  nominationStatusFailed: 'S\'Schicke isch fehlgschlage.',
+  nominationCount: 'Spieler: {{n}}',
+  nominationPushedAt: 'Letscht Übermittlig: {{when}}',
+  nominationError: 'Grund: {{error}}',
+  nominationPushNow: 'Jetz schicke',
+  nominationPushStarted: 'Übermittlig gstartet — de Status aktualisiert sich grad.',
+  nominationPushFailed: 'D\'Übermittlig hät nöd chöne gstartet werde.',
 } as const

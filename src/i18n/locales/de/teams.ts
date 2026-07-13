@@ -158,6 +158,8 @@ export default {
   featureAutoConfirmTrainingHint: 'Neue Trainings starten mit allen als bestätigt — Mitglieder müssen sich abmelden, falls sie nicht kommen können',
   featureAutoConfirmGame: 'Spiele automatisch bestätigen',
   featureAutoConfirmGameHint: 'Neue Spiele starten mit allen Vollmitgliedern als bestätigt (Gäste ausgeschlossen) — Mitglieder müssen sich abmelden, falls sie nicht kommen können',
+  featureAutoNominationList: 'Einsatzliste automatisch melden',
+  featureAutoNominationListHint: 'Trägt die Einsatzliste rund eine Stunde vor Spielbeginn aus den bestätigten Zusagen im Volleymanager ein — nominiert werden nur Spieler mit Lizenz, und die Liste bleibt zur Kontrolle offen, falls der Volleymanager ein Problem meldet',
   autoConfirmOnTitle: 'Alle automatisch bestätigen?',
   autoConfirmOffTitle: 'Automatische Bestätigung ausschalten?',
   autoConfirmOnCta: 'Einschalten',

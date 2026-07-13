@@ -158,6 +158,8 @@ export default {
   featureAutoConfirmTrainingHint: 'New trainings start with everyone confirmed — members must opt out if they cannot attend',
   featureAutoConfirmGame: 'Auto-confirm games',
   featureAutoConfirmGameHint: 'New games start with all full members confirmed (guests excluded) — members must opt out if they cannot attend',
+  featureAutoNominationList: 'Auto-file Einsatzliste',
+  featureAutoNominationListHint: 'Files the Volleymanager Einsatzliste from the confirmed RSVPs about an hour before kickoff — only players with a licence can be nominated, and the list is left open for review if Volleymanager flags a problem',
   autoConfirmOnTitle: 'Auto-confirm everyone?',
   autoConfirmOffTitle: 'Turn off auto-confirm?',
   autoConfirmOnCta: 'Turn on',

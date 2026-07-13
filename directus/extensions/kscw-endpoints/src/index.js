@@ -25,6 +25,7 @@ import { registerScorerClaim } from './scorer-claim.js'
 import { registerDutyLate } from './duty-late.js'
 import { registerDutyLeaderContact } from './duty-leader-contact.js'
 import { registerScorerRoster } from './scorer-roster.js'
+import { registerNominationPush } from './nomination-push.js'
 import { registerImpersonate } from './impersonate.js'
 import { registerJsExport } from './js-export.js'
 import { registerGameScheduling } from './game-scheduling.js'
@@ -2362,6 +2363,7 @@ export default {
     registerDutyLate(router, ctx)
     registerDutyLeaderContact(router, ctx)
     registerScorerRoster(router, ctx)
+    registerNominationPush(router, ctx)
     registerImpersonate(router, ctx)
     registerJsExport(router, ctx)
     registerGameScheduling(router, ctx)

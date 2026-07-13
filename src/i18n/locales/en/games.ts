@@ -171,4 +171,24 @@ export default {
   refereeExpensesSaved: 'Saved',
   refereeExpensesEdit: 'Edit',
   refereeExpensesNotRecorded: 'Not recorded yet',
+
+  // Auto Einsatzliste — volleyball only, coach-gated.
+  // "Einsatzliste" is the official Swiss Volley term and stays untranslated.
+  autoNomination: 'Auto Einsatzliste',
+  autoNominationHint: 'Files the Einsatzliste in Volleymanager from the confirmed RSVPs, about 60 minutes before the start. Team default: {{def}}.',
+  autoNominationUseTeamDefault: 'Use team default',
+  autoNominationOn: 'On',
+  autoNominationOff: 'Off',
+  nominationStatusLabel: 'Einsatzliste',
+  nominationStatusPending: 'Filing in progress…',
+  nominationStatusFilled: 'Players were entered, but the Einsatzliste was left open — Volleymanager flagged a problem (too few players, or no coach) that would be fineable if filed. Please review it and close it yourself.',
+  nominationStatusClosed: 'Filed and closed.',
+  nominationStatusSkipped: 'Nothing to file — none of the confirmed players holds a licence.',
+  nominationStatusFailed: 'The push failed.',
+  nominationCount: 'Players: {{n}}',
+  nominationPushedAt: 'Last push: {{when}}',
+  nominationError: 'Reason: {{error}}',
+  nominationPushNow: 'Push now',
+  nominationPushStarted: 'Push started — the status updates in a moment.',
+  nominationPushFailed: 'Could not start the push.',
 } as const
