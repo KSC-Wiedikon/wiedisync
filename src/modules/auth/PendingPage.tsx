@@ -4,12 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import ProfileEditModal from './ProfileEditModal'
+import ImpersonationBanner from '../../components/ImpersonationBanner'
 import { Button } from '@/components/ui/button'
 import type { Team } from '../../types'
 import { client, fetchItem } from '../../lib/api'
 
 export default function PendingPage() {
-  const { user, isApproved, isProfileComplete, isLoading, logout } = useAuth()
+  const { user, isApproved, isProfileComplete, isLoading, logout, isImpersonating } = useAuth()
   const { theme } = useTheme()
   const { t } = useTranslation('auth')
   const navigate = useNavigate()
@@ -49,6 +50,8 @@ export default function PendingPage() {
   if (isLoading || !user) return null
 
   return (
+    <>
+    <ImpersonationBanner />
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex justify-center">
@@ -101,9 +104,13 @@ export default function PendingPage() {
               {refreshing ? t('checking') : t('refreshStatus')}
             </Button>
 
-            <Button variant="outline" onClick={logout} className="w-full">
-              {t('logout')}
-            </Button>
+            {/* Hidden while impersonating — logout would end the superadmin's
+                own session. They exit read-only view via the banner instead. */}
+            {!isImpersonating && (
+              <Button variant="outline" onClick={logout} className="w-full">
+                {t('logout')}
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -116,5 +123,6 @@ export default function PendingPage() {
         />
       )}
     </div>
+    </>
   )
 }
