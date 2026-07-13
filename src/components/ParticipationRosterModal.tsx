@@ -206,16 +206,6 @@ export default function ParticipationRosterModal({
   // guest players (member_teams.guest_level > 0), combinable with the team filter.
   const [guestsOnly, setGuestsOnly] = useState(false)
 
-  // Reset filter and editing state when modal opens
-  useEffect(() => {
-    if (open) {
-      setStatusFilter(null)
-      setSelectedTeams(null)
-      setGuestsOnly(false)
-      setEditingMemberId(null)
-    }
-  }, [open])
-
   // Fetch team leadership roles (coach, captain, team_responsible)
   const { data: teamsRaw } = useCollection<Team>('teams', {
     filter: teamIds.length > 0 ? { id: { _in: teamIds } } : undefined,
@@ -253,6 +243,9 @@ export default function ParticipationRosterModal({
 
   const { user, isCoachOf, teamResponsibleIds } = useAuth()
   const { effectiveIsAdmin } = useAdminMode()
+  // Hoisted so the memo below can depend on the id itself rather than on the
+  // whole (identity-unstable) `user` object.
+  const currentUserId = user?.id
 
   const isStaffForActivity = teamIds.some(id => isCoachOf(id) || teamResponsibleIds.includes(id))
   const canEditRoster = isStaffForActivity || effectiveIsAdmin
@@ -260,6 +253,22 @@ export default function ParticipationRosterModal({
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [savingMemberIds, setSavingMemberIds] = useState<Set<string>>(new Set())
   const { create, update, remove } = useMutation<Participation>('participations')
+
+  // Reset filters + editing state when the modal opens. The modal is NOT
+  // remounted between activities (it stays mounted and takes a new activityId),
+  // so this reset is load-bearing — it just runs during render now (React's
+  // "adjust state while rendering" pattern) instead of in an effect. Same
+  // trigger as the old `useEffect(..., [open])`: a false→true transition.
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
+    if (open) {
+      setStatusFilter(null)
+      setSelectedTeams(null)
+      setGuestsOnly(false)
+      setEditingMemberId(null)
+    }
+  }
 
   // Late-signin fine prompt — when a leader confirms a member past respondBy
   // for a single-team activity with a configured late_signin rule, pop
@@ -294,12 +303,23 @@ export default function ParticipationRosterModal({
   })
   const clubWideParticipations = clubWideParticipationsRaw ?? []
 
+  // The synchronous prologue of the club-wide member fetch (clear the resolved
+  // members when there's nothing to resolve, spinner on otherwise) runs during
+  // render — React's adjust-state-while-rendering pattern, same as `prevOpen`
+  // above. It lands BEFORE the fetch effect below and before paint, so the
+  // previous event's club-wide roster is never shown while the new fetch is in
+  // flight. `prevClubWideKey` starts null so it also runs on the first render,
+  // matching the mount run of the effect it replaces.
+  const clubWideKey = `${isClubWide}|${open}|${clubWideParticipations.length}`
+  const [prevClubWideKey, setPrevClubWideKey] = useState<string | null>(null)
+  if (prevClubWideKey !== clubWideKey) {
+    setPrevClubWideKey(clubWideKey)
+    if (!isClubWide || !open || clubWideParticipations.length === 0) setClubWideMembers([])
+    else setClubWideLoading(true)
+  }
+
   useEffect(() => {
-    if (!isClubWide || !open || clubWideParticipations.length === 0) {
-      setClubWideMembers([])
-      return
-    }
-    setClubWideLoading(true)
+    if (!isClubWide || !open || clubWideParticipations.length === 0) return
     const uniqueMemberIds = [...new Set(clubWideParticipations.map(p => p.member))]
     fetchAllItems<Member>('members', {
       filter: { id: { _in: uniqueMemberIds } },
@@ -533,7 +553,7 @@ export default function ParticipationRosterModal({
         && lateSigninRuleEnabled
         && respondBy
         && new Date() > new Date(respondBy)
-        && String(memberId) !== String(user?.id ?? '')
+        && String(memberId) !== String(currentUserId ?? '')
       ) {
         const member = members.find((mm) => mm.id === memberId)
           ?? clubWideMembers.find((mm) => mm.id === memberId)
@@ -552,7 +572,7 @@ export default function ParticipationRosterModal({
         return next
       })
     }
-  }, [activityId, activityType, participations, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, user?.id, members, clubWideMembers, staffMembers])
+  }, [activityId, activityType, participations, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, currentUserId, members, clubWideMembers, staffMembers])
 
   // Staff participations (coaches/team_responsible who aren't in member_teams).
   // Use `useCollection` so the modal auto-refreshes when any staff member
@@ -576,32 +596,67 @@ export default function ParticipationRosterModal({
   // haven't RSVPed yet still appear in the staff section (otherwise a coach
   // like Michelle Howald, who has no `member_teams` row and no participation
   // row yet, is invisible to roster managers).
-  useEffect(() => {
-    if (!user || !open || !activityId || isClubWide) return
-    const staffParts = staffPartsRaw ?? []
-    const memberIdSet = new Set(rosterMemberIds.map(String))
-    const staffOnlyParts = staffParts.filter((p) => !memberIdSet.has(String(p.member)))
-    setStaffParticipationRows(staffOnlyParts)
+  //
+  // The synchronous half (derive the staff-only participation rows + the member
+  // IDs to resolve) runs during render via React's adjust-state-while-rendering
+  // pattern; only the network call stays in an effect. Two things this preserves
+  // exactly:
+  //   * the guard is a bare `return` — when the modal is closed or club-wide we
+  //     do NOT clear `staffMembers` / `staffParticipationRows` (the rows must
+  //     survive the close animation and the club-wide path, which has its own
+  //     source), whereas the fetch's `.catch` DOES clear both. That asymmetry is
+  //     kept verbatim.
+  //   * the trigger set is the old dep array (raw queries, not the derived
+  //     `leadershipRoles` Map — see WIEDISYNC-3Y note below), compared by
+  //     identity, so the fetch fires exactly when it used to.
+  // `staffFetchIds` (null = nothing to fetch) is what carries the derived IDs
+  // from render into the effect, so the two halves can't drift apart.
+  const staffDeps = [open, activityId, activityType, isClubWide, rosterMemberIds.join(','), staffPartsRaw, teamsRaw] as const
+  const [prevStaffDeps, setPrevStaffDeps] = useState<readonly unknown[] | null>(null)
+  const [staffFetchIds, setStaffFetchIds] = useState<string[] | null>(null)
+  if (prevStaffDeps === null || staffDeps.some((v, i) => !Object.is(v, prevStaffDeps[i]))) {
+    setPrevStaffDeps(staffDeps)
+    // Guard: bare return — deliberately does not clear the staff state.
+    if (user && open && activityId && !isClubWide) {
+      const staffParts = staffPartsRaw ?? []
+      const memberIdSet = new Set(rosterMemberIds.map(String))
+      const staffOnlyParts = staffParts.filter((p) => !memberIdSet.has(String(p.member)))
+      setStaffParticipationRows(staffOnlyParts)
 
-    const leadershipIds: string[] = []
-    for (const [id, role] of leadershipRoles) {
-      // captain is normally in member_teams already; only coach + TR
-      // typically live outside the regular roster
-      if ((role === 'coach' || role === 'tr') && !memberIdSet.has(String(id))) {
-        leadershipIds.push(String(id))
+      const leadershipIds: string[] = []
+      for (const [id, role] of leadershipRoles) {
+        // captain is normally in member_teams already; only coach + TR
+        // typically live outside the regular roster
+        if ((role === 'coach' || role === 'tr') && !memberIdSet.has(String(id))) {
+          leadershipIds.push(String(id))
+        }
+      }
+      const staffMemberIds = [...new Set([
+        ...leadershipIds,
+        ...staffOnlyParts.map((p) => String(p.member)),
+      ])]
+
+      if (staffMemberIds.length === 0) {
+        setStaffMembers([])
+        setStaffFetchIds(null)
+      } else {
+        // New array identity on every trigger → the effect re-fetches exactly as
+        // often as the old effect did (it also refetched on every dep change).
+        setStaffFetchIds(staffMemberIds)
       }
     }
-    const staffMemberIds = [...new Set([
-      ...leadershipIds,
-      ...staffOnlyParts.map((p) => String(p.member)),
-    ])]
+  }
 
-    if (staffMemberIds.length === 0) {
-      setStaffMembers([])
-      return
-    }
+  // Depend on the raw teams query rather than the derived `leadershipRoles`
+  // Map: when teamIds is empty, `teams = teamsRaw ?? []` is a fresh array
+  // literal each render, which makes the `leadershipRoles` useMemo identity
+  // unstable and re-fires this effect on every render → mobile Vaul Drawer
+  // setState → render → setState loop (WIEDISYNC-3Y). Hence `staffDeps` above
+  // keys on `teamsRaw` / `staffPartsRaw`, and this effect only on the derived IDs.
+  useEffect(() => {
+    if (!staffFetchIds || staffFetchIds.length === 0) return
     fetchAllItems<Member>('members', {
-      filter: { id: { _in: staffMemberIds } },
+      filter: { id: { _in: staffFetchIds } },
       // `user` is required so getEditAttribution() can suppress the
       // "Edited by …" line when a coach/TR edits their own row.
       fields: ['id', 'first_name', 'last_name', 'photo', 'user'],
@@ -611,13 +666,7 @@ export default function ParticipationRosterModal({
         setStaffMembers([])
         setStaffParticipationRows([])
       })
-  // Depend on the raw teams query rather than the derived `leadershipRoles`
-  // Map: when teamIds is empty, `teams = teamsRaw ?? []` is a fresh array
-  // literal each render, which makes the `leadershipRoles` useMemo identity
-  // unstable and re-fires this effect on every render → mobile Vaul Drawer
-  // setState → render → setState loop (WIEDISYNC-3Y).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activityId, activityType, isClubWide, rosterMemberIds.join(','), staffPartsRaw, teamsRaw])
+  }, [staffFetchIds])
 
   // For the overall tab, compute per-member session counts
   const memberSessionCounts = useMemo(() => {
@@ -636,23 +685,23 @@ export default function ParticipationRosterModal({
   // Keyed on the full roster (not the team-filtered list) so switching teams
   // reuses the already-loaded absences instead of refetching.
   const memberIdsKey = rosterMemberIds.join(',')
-  const fetchAbsences = useCallback(async () => {
+  // Promise-chain (not async/await) on purpose: this runs from an effect, and
+  // `setAbsences` must land in a callback rather than in the effect's own
+  // synchronous continuation. Same request, same result.
+  const fetchAbsences = useCallback(() => {
     if (!user || !activityDate || rosterMemberIds.length === 0) return
-    try {
-      const dateStr = activityDate.split(' ')[0]
-      const result = await fetchAllItems<Absence>('absences', {
-        filter: {
-          _and: [
-            { member: { _in: rosterMemberIds } },
-            { start_date: { _lte: dateStr } },
-            { end_date: { _gte: dateStr } },
-          ],
-        },
-      })
-      setAbsences(result)
-    } catch {
-      // ignore
-    }
+    const dateStr = activityDate.split(' ')[0]
+    fetchAllItems<Absence>('absences', {
+      filter: {
+        _and: [
+          { member: { _in: rosterMemberIds } },
+          { start_date: { _lte: dateStr } },
+          { end_date: { _gte: dateStr } },
+        ],
+      },
+    })
+      .then(setAbsences)
+      .catch(() => { /* ignore */ })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, activityDate, memberIdsKey])
 

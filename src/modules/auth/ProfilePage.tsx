@@ -57,14 +57,18 @@ function AutoSignInCard() {
 
   // Re-sync from the auth user when it refreshes elsewhere (the useState
   // initializer only runs on mount). Keyed on the specific flags so it's a
-  // no-op unless a value actually changes.
-  useEffect(() => {
+  // no-op unless a value actually changes — same trigger as the old effect's
+  // dependency array, but applied during render (no cascading re-render).
+  const syncKey = `${!!user?.auto_confirm_trainings}|${!!user?.auto_confirm_games}|${!!user?.auto_confirm_events}`
+  const [prevSyncKey, setPrevSyncKey] = useState(syncKey)
+  if (prevSyncKey !== syncKey) {
+    setPrevSyncKey(syncKey)
     setState({
       trainings: !!user?.auto_confirm_trainings,
       games: !!user?.auto_confirm_games,
       events: !!user?.auto_confirm_events,
     })
-  }, [user?.auto_confirm_trainings, user?.auto_confirm_games, user?.auto_confirm_events])
+  }
 
   if (!user) return null
 
@@ -150,17 +154,22 @@ function EmailNotificationCard() {
   const [saving, setSaving] = useState<string | null>(null)
 
   // Re-sync from the auth user when it refreshes elsewhere (the useState
-  // initializer only runs on mount). Keyed on the specific opt-out flags.
-  useEffect(() => {
-    setState(Object.fromEntries(allRows.map((r) => [r.key, user?.[r.field] !== false])))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
+  // initializer only runs on mount). Keyed on the specific opt-out flags — the
+  // same trigger the old effect's dependency array had, applied during render
+  // (no cascading re-render). `String()` keeps `undefined` (default-on) and
+  // `false` (opted out) distinguishable.
+  const syncKey = [
     user?.email_notify_registrations,
     user?.email_notify_join_requests,
     user?.email_notify_form_submissions,
     user?.email_notify_announcements,
     user?.email_notify_events,
-  ])
+  ].map(String).join('|')
+  const [prevSyncKey, setPrevSyncKey] = useState(syncKey)
+  if (prevSyncKey !== syncKey) {
+    setPrevSyncKey(syncKey)
+    setState(Object.fromEntries(allRows.map((r) => [r.key, user?.[r.field] !== false])))
+  }
 
   if (!user || rows.length === 0) return null
 

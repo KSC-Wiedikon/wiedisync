@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/auth'
 
 // Runs in 'chromium' project (authenticated as test_user, language=english)
 test.describe('Scorer page', () => {

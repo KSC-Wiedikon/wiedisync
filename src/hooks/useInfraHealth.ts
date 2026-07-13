@@ -49,8 +49,9 @@ export function useInfraHealth(): InfraHealth {
   const [runs, setRuns] = useState<SyncRun[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  const checkHealth = useCallback(async () => {
-    setIsLoading(true)
+  // The fetch itself. Every setState below runs after an `await`, so the mount
+  // effect can call this without synchronously cascading a render.
+  const runHealthCheck = useCallback(async () => {
     try {
       // API health check — /server/ping, NOT /server/health: Directus 12.1
       // restricted /server/health to authenticated users (unauth now fails →
@@ -144,7 +145,15 @@ export function useInfraHealth(): InfraHealth {
     }
   }, [])
 
-  useEffect(() => { checkHealth() }, [checkHealth])
+  // Manual refresh (event-handler path): flips the spinner on immediately.
+  // On mount this is a no-op anyway — `isLoading` already starts `true` — which
+  // is why the effect below can skip straight to `runHealthCheck`.
+  const checkHealth = useCallback(async () => {
+    setIsLoading(true)
+    await runHealthCheck()
+  }, [runHealthCheck])
+
+  useEffect(() => { runHealthCheck() }, [runHealthCheck])
 
   return useMemo(
     () => ({ services, syncs, runs, isLoading, refresh: checkHealth }),

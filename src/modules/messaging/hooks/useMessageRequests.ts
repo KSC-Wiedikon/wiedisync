@@ -8,27 +8,55 @@ import { messagingFeatureEnabled } from '../../../utils/messagingFeatureFlag'
 
 export function useMessageRequests() {
   const { user } = useAuth()
-  const enabled = messagingFeatureEnabled(user?.id) && !!user?.id
+  // Read out of `user` up-front: a `user?.id` dependency infers as `user` and
+  // trips the compiler's manual-memoization check.
+  const userId = user?.id
+  const enabled = messagingFeatureEnabled(userId) && !!userId
   const [requests, setRequests] = useState<MessageRequestRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const meRef = useRef<string | null>(user?.id ?? null)
-  meRef.current = user?.id ?? null
+  // "Latest value" ref for the realtime callback below. Written in an effect
+  // rather than during render; the callback only ever reads it asynchronously.
+  const meRef = useRef<string | null>(userId ?? null)
+  useEffect(() => { meRef.current = userId ?? null }, [userId])
 
+  // The request itself. Every state write lives in a promise callback, so this
+  // is safe to call straight from an effect.
+  const load = useCallback((uid: string) => {
+    return fetchAllItems<MessageRequestRow>('message_requests', {
+      filter: { _and: [{ recipient: { _eq: uid } }, { status: { _eq: 'pending' } }] },
+      fields: ['id', 'conversation', 'sender', 'recipient', 'status', 'created_at', 'resolved_at'],
+      sort: ['-created_at'],
+    }).then(
+      (data) => {
+        setRequests(data)
+        setIsLoading(false)
+      },
+      () => { /* ignore */ setIsLoading(false) },
+    )
+  }, [])
+
+  // Manual refetch — unchanged semantics.
   const refetch = useCallback(async () => {
-    if (!enabled || !user?.id) { setRequests([]); return }
+    if (!enabled || !userId) { setRequests([]); return }
     setIsLoading(true)
-    try {
-      const data = await fetchAllItems<MessageRequestRow>('message_requests', {
-        filter: { _and: [{ recipient: { _eq: user.id } }, { status: { _eq: 'pending' } }] },
-        fields: ['id', 'conversation', 'sender', 'recipient', 'status', 'created_at', 'resolved_at'],
-        sort: ['-created_at'],
-      })
-      setRequests(data)
-    } catch { /* ignore */ }
-    finally { setIsLoading(false) }
-  }, [enabled, user?.id])
+    await load(userId)
+  }, [enabled, userId, load])
 
-  useEffect(() => { refetch() }, [refetch])
+  // User-driven load. The "clear list" / "raise loading" half of the old effect
+  // is applied during render, so the effect body writes no state synchronously.
+  // `prevFetchKey` starts as `null` (never a valid key) so this also fires on
+  // the first render — mirroring the old effect's mount run.
+  const fetchKey = enabled && userId ? String(userId) : ''
+  const [prevFetchKey, setPrevFetchKey] = useState<string | null>(null)
+  if (prevFetchKey !== fetchKey) {
+    setPrevFetchKey(fetchKey)
+    if (fetchKey) setIsLoading(true)
+    else setRequests([])
+  }
+  useEffect(() => {
+    if (!fetchKey) return
+    void load(fetchKey)
+  }, [fetchKey, load])
 
   useRealtime<MessageRequestRow>('message_requests', (e) => {
     const me = meRef.current

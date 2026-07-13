@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchAllItems } from '../../../lib/api'
 import { messagingApi } from '../api/messaging'
 import type { BlockRow } from '../api/types'
@@ -13,31 +13,52 @@ import { messagingFeatureEnabled } from '../../../utils/messagingFeatureFlag'
  */
 export function useBlocks() {
   const { user } = useAuth()
-  const enabled = messagingFeatureEnabled(user?.id) && !!user?.id
+  const userId = user?.id
+  const enabled = messagingFeatureEnabled(userId) && !!userId
   const [rows, setRows] = useState<BlockRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const meRef = useRef<string | null>(user?.id ?? null)
-  meRef.current = user?.id ?? null
 
-  const refetch = useCallback(async () => {
-    if (!enabled || !user?.id) { setRows([]); return }
-    setIsLoading(true)
-    try {
+  // The network path only. `.catch()`/`.finally()` instead of try/catch/finally
+  // so no setState is synchronously reachable from the effect that calls this.
+  const load = useCallback(async () => {
+    if (!enabled || !userId) return
+    await (async () => {
       const data = await fetchAllItems<BlockRow>('blocks', {
-        filter: { blocker: { _eq: user.id } },
+        filter: { blocker: { _eq: userId } },
         fields: ['id', 'blocker', 'blocked', 'created_at'],
       })
       setRows(data)
-    } catch { /* RBAC / network — treat as empty */ }
-    finally { setIsLoading(false) }
-  }, [enabled, user?.id])
+    })()
+      .catch(() => { /* RBAC / network — treat as empty */ })
+      .finally(() => { setIsLoading(false) })
+  }, [enabled, userId])
 
-  useEffect(() => { refetch() }, [refetch])
+  // The synchronous prologue that used to open `refetch` (clear when signed
+  // out / feature off, spinner on otherwise), moved to React's
+  // adjust-state-during-render pattern. `prevKey` starts as null so it also runs
+  // on the first render — matching the mount run of the effect it replaces.
+  const key = `${enabled}|${userId ?? ''}`
+  const [prevKey, setPrevKey] = useState<string | null>(null)
+  if (prevKey !== key) {
+    setPrevKey(key)
+    if (!enabled || !userId) setRows([])
+    else setIsLoading(true)
+  }
 
+  useEffect(() => { load() }, [load])
+
+  // Public refetch — keeps the original semantics for the manual/event paths.
+  const refetch = useCallback(async () => {
+    if (!enabled || !userId) { setRows([]); return }
+    setIsLoading(true)
+    await load()
+  }, [enabled, userId, load])
+
+  // `userId` read straight from the closure: useRealtime always invokes the
+  // latest callback, so this is exactly as fresh as the old render-written ref.
   useRealtime<BlockRow>('blocks', (e) => {
-    const me = meRef.current
-    if (!me) return
-    if (String(e.record.blocker) !== String(me)) return
+    if (!userId) return
+    if (String(e.record.blocker) !== String(userId)) return
     if (e.action === 'create') {
       setRows(prev => prev.some(r => r.id === e.record.id) ? prev : [...prev, e.record])
     } else if (e.action === 'delete') {

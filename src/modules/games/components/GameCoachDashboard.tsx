@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCollection } from '../../../lib/query'
 import { useMutation } from '../../../hooks/useMutation'
@@ -37,11 +37,24 @@ export default function GameCoachDashboard({ teamId }: Props) {
   const [rangeError, setRangeError] = useState<string | null>(null)
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Re-sync the pickers whenever the persisted team defaults (or the computed
+  // fallbacks) change. `syncKey` is the old effect's dependency list verbatim, so
+  // this re-seeds on exactly the same renders — as a render-phase state adjustment
+  // rather than a synchronous setState inside an effect (react-hooks/set-state-in-effect).
+  const syncKey = [
+    team?.dashboard_range_from ?? null,
+    team?.dashboard_range_to ?? null,
+    team?.dashboard_league_only ?? null,
+    defaultFrom,
+    defaultTo,
+  ].join('|')
+  const [prevSyncKey, setPrevSyncKey] = useState(syncKey)
+  if (prevSyncKey !== syncKey) {
+    setPrevSyncKey(syncKey)
     setFrom(team?.dashboard_range_from ?? defaultFrom)
     setTo(team?.dashboard_range_to ?? defaultTo)
     setLeagueOnly(team?.dashboard_league_only ?? false)
-  }, [team?.dashboard_range_from, team?.dashboard_range_to, team?.dashboard_league_only, defaultFrom, defaultTo])
+  }
 
   const { update } = useMutation<Team>('teams')
   const persistFrom = async (next: string) => {

@@ -35,57 +35,81 @@ export function useAdminBookings(seasonId: string | undefined) {
   const vmPushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (vmPushTimerRef.current) clearTimeout(vmPushTimerRef.current) }, [])
 
-  const fetchAll = useCallback(async () => {
-    if (!seasonId) return
+  // The fetch itself. Written as a promise chain (not async/await) and WITHOUT
+  // the `setIsLoading(true)` flip so it can be started straight from an effect:
+  // every state write lands in a promise callback, never in the effect's own
+  // synchronous body. `fetchAll` below adds the flip back for the caller-driven
+  // (event handler) refetches.
+  const load = useCallback((): Promise<void> => {
+    if (!seasonId) return Promise.resolve()
     const key = seasonId
     latestKeyRef.current = key
-    setIsLoading(true)
-    try {
-      // allSettled so one failed collection doesn't blank the other two — set
-      // each result that fulfilled and flag a degraded load if any rejected.
-      const [bksR, oppsR, slsR] = await Promise.allSettled([
-        fetchAllItems<ExpandedBooking>('game_scheduling_bookings', {
-          filter: { season: { _eq: seasonId } },
-          fields: ['*', 'opponent.*', 'slot.*'],
-          sort: ['-date_created'],
-        }),
-        fetchAllItems<GameSchedulingOpponent>('game_scheduling_opponents', {
-          filter: { season: { _eq: seasonId } },
-          sort: ['-date_created'],
-        }),
-        fetchAllItems<GameSchedulingSlot>('game_scheduling_slots', {
-          filter: { season: { _eq: seasonId } },
-          sort: ['date'],
-        }),
-      ])
-      // A newer season fetch superseded this one — drop its results entirely.
-      if (latestKeyRef.current !== key) return
-      let degraded = false
-      if (bksR.status === 'fulfilled') setBookings(bksR.value)
-      else { degraded = true; console.error('Failed to fetch admin bookings:', bksR.reason) }
-      if (oppsR.status === 'fulfilled') setOpponents(oppsR.value)
-      else { degraded = true; console.error('Failed to fetch scheduling opponents:', oppsR.reason) }
-      if (slsR.status === 'fulfilled') setSlots(slsR.value)
-      else { degraded = true; console.error('Failed to fetch scheduling slots:', slsR.reason) }
-      setLoadError(degraded)
-      // Live validity of every pending home proposal (best-effort — never blocks
-      // the dashboard if the endpoint hiccups).
-      try {
-        const resp = await kscwApi(`/admin/terminplanung/proposal-health?season_id=${seasonId}`) as { health?: ProposalHealthEntry[] }
+    // allSettled so one failed collection doesn't blank the other two — set
+    // each result that fulfilled and flag a degraded load if any rejected.
+    return Promise.allSettled([
+      fetchAllItems<ExpandedBooking>('game_scheduling_bookings', {
+        filter: { season: { _eq: seasonId } },
+        fields: ['*', 'opponent.*', 'slot.*'],
+        sort: ['-date_created'],
+      }),
+      fetchAllItems<GameSchedulingOpponent>('game_scheduling_opponents', {
+        filter: { season: { _eq: seasonId } },
+        sort: ['-date_created'],
+      }),
+      fetchAllItems<GameSchedulingSlot>('game_scheduling_slots', {
+        filter: { season: { _eq: seasonId } },
+        sort: ['date'],
+      }),
+    ])
+      .then(([bksR, oppsR, slsR]) => {
+        // A newer season fetch superseded this one — drop its results entirely.
         if (latestKeyRef.current !== key) return
-        setProposalHealth(Array.isArray(resp?.health) ? resp.health : [])
-      } catch {
-        if (latestKeyRef.current === key) setProposalHealth([])
-      }
-    } finally {
-      if (latestKeyRef.current === key) {
-        setIsLoading(false)
-        setHasLoaded(true)
-      }
-    }
+        let degraded = false
+        if (bksR.status === 'fulfilled') setBookings(bksR.value)
+        else { degraded = true; console.error('Failed to fetch admin bookings:', bksR.reason) }
+        if (oppsR.status === 'fulfilled') setOpponents(oppsR.value)
+        else { degraded = true; console.error('Failed to fetch scheduling opponents:', oppsR.reason) }
+        if (slsR.status === 'fulfilled') setSlots(slsR.value)
+        else { degraded = true; console.error('Failed to fetch scheduling slots:', slsR.reason) }
+        setLoadError(degraded)
+        // Live validity of every pending home proposal (best-effort — never blocks
+        // the dashboard if the endpoint hiccups).
+        return kscwApi(`/admin/terminplanung/proposal-health?season_id=${seasonId}`)
+          .then((resp) => {
+            const health = (resp as { health?: ProposalHealthEntry[] })?.health
+            if (latestKeyRef.current !== key) return
+            setProposalHealth(Array.isArray(health) ? health : [])
+          })
+          .catch(() => {
+            if (latestKeyRef.current === key) setProposalHealth([])
+          })
+      })
+      .finally(() => {
+        if (latestKeyRef.current === key) {
+          setIsLoading(false)
+          setHasLoaded(true)
+        }
+      })
   }, [seasonId])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  // Caller-driven refetch (retry button, post-mutation reloads): show the loading
+  // state first, exactly like the old `fetchAll`.
+  const fetchAll = useCallback((): Promise<void> => {
+    if (!seasonId) return Promise.resolve()
+    setIsLoading(true)
+    return load()
+  }, [load, seasonId])
+
+  // Season switch → back to loading. Done while rendering (the old `fetchAll`
+  // did it inside the effect); `isLoading` already starts `true` for the mount
+  // fetch, so this only fires on an actual season change.
+  const [prevSeasonId, setPrevSeasonId] = useState(seasonId)
+  if (prevSeasonId !== seasonId) {
+    setPrevSeasonId(seasonId)
+    if (seasonId) setIsLoading(true)
+  }
+
+  useEffect(() => { load() }, [load])
 
   const confirmAwayProposal = useCallback(async (bookingId: string, proposalNumber: number, adminNotes?: string) => {
     await kscwApi('/terminplanung/admin/confirm-away', {

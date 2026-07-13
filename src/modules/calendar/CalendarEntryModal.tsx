@@ -33,10 +33,13 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
     return () => document.removeEventListener('keydown', handleKey)
   }, [entry, onClose])
 
-  // Reset absence edit state when entry changes
-  useEffect(() => {
+  // Reset absence edit state when entry changes — React's sanctioned
+  // adjust-state-during-render pattern (same commit, no cascading effect render).
+  const [prevEntryId, setPrevEntryId] = useState(entry?.id)
+  if (prevEntryId !== entry?.id) {
+    setPrevEntryId(entry?.id)
     setEditingAbsence(false)
-  }, [entry?.id])
+  }
 
   if (!entry) return null
 

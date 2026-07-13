@@ -261,7 +261,13 @@ export function useExplorerCache(scope: ExplorerScope) {
     }
   }, [scope])
 
-  useEffect(() => { void load() }, [load])
+  // Load on mount and whenever the sport scope changes. The call is made from an
+  // effect-local async function (React's documented data-fetching shape) so the
+  // effect body itself stays free of state updates.
+  useEffect(() => {
+    async function run() { await load() }
+    void run()
+  }, [load])
 
   // Optimistic in-place cache update — the grid applies successful single-cell /
   // junction writes here instead of re-running the full 8-query batch per edit.

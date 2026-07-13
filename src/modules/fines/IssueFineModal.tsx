@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../../components/Modal'
 import { Button } from '../../components/ui/button'
@@ -63,22 +63,31 @@ export default function IssueFineModal({
   const quote = useFineQuote(memberId, teamId, category, { enabled: open })
 
   // Whenever a fresh quote arrives, populate the amount field — unless the
-  // leader has typed something themselves.
-  useEffect(() => {
-    if (!open) return
-    if (amountOverridden) return
-    if (quote.data) setAmountText(quote.data.amount.toFixed(2))
-    else setAmountText('')
-  }, [open, amountOverridden, quote.data])
+  // leader has typed something themselves. Adjust-state-during-render (React's
+  // reset-on-change pattern) instead of a setState inside an effect: same
+  // triggers ([open, amountOverridden, quote.data]), same guards, one render less.
+  const amountKey = `${open}|${amountOverridden}`
+  const [prevAmountSrc, setPrevAmountSrc] = useState<{ key: string; data: typeof quote.data } | null>(null)
+  if (!prevAmountSrc || prevAmountSrc.key !== amountKey || prevAmountSrc.data !== quote.data) {
+    setPrevAmountSrc({ key: amountKey, data: quote.data })
+    if (open && !amountOverridden) {
+      setAmountText(quote.data ? quote.data.amount.toFixed(2) : '')
+    }
+  }
 
-  // Reset state when the modal closes/opens for a new member.
-  useEffect(() => {
-    if (!open) return
-    setCategory(initialCategory)
-    setAmountOverridden(false)
-    setReason(defaultReason ?? '')
-    setError(null)
-  }, [open, initialCategory, defaultReason, memberId])
+  // Reset state when the modal closes/opens for a new member. Same triggers as the
+  // former effect ([open, initialCategory, defaultReason, memberId]).
+  const resetKey = `${open}|${initialCategory}|${defaultReason ?? ''}|${memberId}`
+  const [prevResetKey, setPrevResetKey] = useState<string | null>(null)
+  if (prevResetKey !== resetKey) {
+    setPrevResetKey(resetKey)
+    if (open) {
+      setCategory(initialCategory)
+      setAmountOverridden(false)
+      setReason(defaultReason ?? '')
+      setError(null)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

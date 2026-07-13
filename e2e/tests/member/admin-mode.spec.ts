@@ -1,6 +1,8 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/auth'
 
 // These tests rely on the desktop sidebar — skip on mobile viewport
+// Playwright requires a destructuring pattern as the first arg; only `testInfo` is needed.
+// eslint-disable-next-line no-empty-pattern
 test.beforeEach(async ({}, testInfo) => {
   test.skip(testInfo.project.name === 'mobile', 'desktop-only: requires sidebar')
 })

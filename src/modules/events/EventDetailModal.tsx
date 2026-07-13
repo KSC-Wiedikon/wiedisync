@@ -266,30 +266,46 @@ function EventParticipation({ event, isStaff, isStaffParticipant }: { event: Eve
   const absenceNoteText = useAbsenceNoteText(absence)
   const [noteText, setNoteText] = useState(savedNote)
   const [noteSaved, setNoteSaved] = useState(false)
-  const noteInitRef = useRef(savedNote)
-  const [guestCount, setGuestCount] = useState(0)
+  // Previously-synced note value. Held in state (not a ref) so the compare +
+  // re-sync below is a plain adjust-state-during-render, not a render-phase ref
+  // write. Seeded with `savedNote` — exactly what `useRef(savedNote)` held.
+  const [prevNoteSync, setPrevNoteSync] = useState(savedNote)
+  const serverGuestCount = participation?.guest_count ?? 0
+  const [guestCount, setGuestCount] = useState(serverGuestCount)
+  const [prevServerGuestCount, setPrevServerGuestCount] = useState(serverGuestCount)
   const [noteRequiredError, setNoteRequiredError] = useState(false)
   const [positionsRequiredError, setPositionsRequiredError] = useState(false)
   const requireNote = !!event.require_note_if_absent
   const allowMaybe = event.allow_maybe !== false
   const showPositions = isFeatureEnabled(event.features_enabled, 'position_preferences')
-  const [pos1, setPos1] = useState<VolleyPosition | ''>(participation?.position_1 || '')
-  const [pos2, setPos2] = useState<VolleyPosition | ''>(participation?.position_2 || '')
-  const [pos3, setPos3] = useState<VolleyPosition | ''>(participation?.position_3 || '')
+  const serverPos1: VolleyPosition | '' = participation?.position_1 || ''
+  const serverPos2: VolleyPosition | '' = participation?.position_2 || ''
+  const serverPos3: VolleyPosition | '' = participation?.position_3 || ''
+  const [pos1, setPos1] = useState<VolleyPosition | ''>(serverPos1)
+  const [pos2, setPos2] = useState<VolleyPosition | ''>(serverPos2)
+  const [pos3, setPos3] = useState<VolleyPosition | ''>(serverPos3)
+  const serverPosKey = `${serverPos1}|${serverPos2}|${serverPos3}`
+  const [prevServerPosKey, setPrevServerPosKey] = useState(serverPosKey)
 
-  useEffect(() => {
-    setPos1(participation?.position_1 || '')
-    setPos2(participation?.position_2 || '')
-    setPos3(participation?.position_3 || '')
-  }, [participation?.position_1, participation?.position_2, participation?.position_3])
+  // Sync position picks from the existing participation whenever the server
+  // values change (they load async). Reset-on-value-change → done during render
+  // (React's adjust-state-during-render pattern), same trigger as the effect.
+  if (prevServerPosKey !== serverPosKey) {
+    setPrevServerPosKey(serverPosKey)
+    setPos1(serverPos1)
+    setPos2(serverPos2)
+    setPos3(serverPos3)
+  }
 
-  useEffect(() => {
-    setGuestCount(participation?.guest_count ?? 0)
-  }, [participation?.guest_count])
+  // Sync guest count from existing participation
+  if (prevServerGuestCount !== serverGuestCount) {
+    setPrevServerGuestCount(serverGuestCount)
+    setGuestCount(serverGuestCount)
+  }
 
   const effectiveSync = savedNote || absenceNoteText
-  if (effectiveSync !== noteInitRef.current) {
-    noteInitRef.current = effectiveSync
+  if (effectiveSync !== prevNoteSync) {
+    setPrevNoteSync(effectiveSync)
     setNoteText(effectiveSync)
   }
 

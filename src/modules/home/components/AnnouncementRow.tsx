@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Megaphone, Pin } from 'lucide-react'
 import { assetUrl } from '../../../lib/api'
-import { stripHtml } from '../../../components/RichText'
+import { stripHtml } from '../../../utils/stripHtml'
 import { pickTranslation } from '../../../hooks/useAnnouncements'
 import { formatRelativeTimeZurich } from '../../../utils/dateHelpers'
 import type { Announcement } from '../../../types'

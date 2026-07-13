@@ -30,11 +30,18 @@ export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, varia
 
   const schedulable = isSchedulableTeam(team)
 
+  // Drop a previously loaded calendar the moment the team stops being
+  // schedulable — React's adjust-state-during-render pattern, replacing the
+  // `setData(null)` that used to sit synchronously in the effect below.
+  // (Nothing paints in that state anyway: the guard below returns null.)
+  const [prevSchedulable, setPrevSchedulable] = useState(schedulable)
+  if (prevSchedulable !== schedulable) {
+    setPrevSchedulable(schedulable)
+    if (!schedulable) setData(null)
+  }
+
   useEffect(() => {
-    if (!schedulable) {
-      setData(null)
-      return
-    }
+    if (!schedulable) return
     let cancelled = false
     kscwApi<TeamCalendarResponse>(`/terminplanung/team-calendar/${team.id}`)
       .then((resp) => { if (!cancelled) setData(resp) })

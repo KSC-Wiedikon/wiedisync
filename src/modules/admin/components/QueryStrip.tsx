@@ -39,6 +39,19 @@ function isParameterized(template: QueryTemplate): boolean {
   return parseParams(template.params).length > 0
 }
 
+/** Read the recent-query list out of localStorage. Same guards the old mount
+ *  effect used: a missing key or unparseable payload yields an empty list. */
+function readRecentQueries(): RecentQuery[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY)
+    if (!raw) return []
+    const parsed: RecentQuery[] = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.slice(0, 20) : []
+  } catch {
+    return []
+  }
+}
+
 export default function QueryStrip({ onSelect, onSelectTemplate }: QueryStripProps) {
   const { t } = useTranslation('admin')
   const { user } = useAuth()
@@ -46,7 +59,9 @@ export default function QueryStrip({ onSelect, onSelectTemplate }: QueryStripPro
 
   const [savedQueries, setSavedQueries] = useState<QueryTemplate[]>([])
   const [templates, setTemplates] = useState<QueryTemplate[]>([])
-  const [recentQueries, setRecentQueries] = useState<RecentQuery[]>([])
+  // Lazy initialiser — localStorage is read once on mount, exactly like the
+  // old mount effect did, but without the extra setState-in-effect render.
+  const [recentQueries] = useState<RecentQuery[]>(readRecentQueries)
 
   // Fetch saved queries and templates from PB
   useEffect(() => {
@@ -64,19 +79,6 @@ export default function QueryStrip({ onSelect, onSelectTemplate }: QueryStripPro
         setTemplates([])
       })
   }, [userId])
-
-  // Load recent queries from localStorage
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(RECENT_KEY)
-      if (raw) {
-        const parsed: RecentQuery[] = JSON.parse(raw)
-        setRecentQueries(Array.isArray(parsed) ? parsed.slice(0, 20) : [])
-      }
-    } catch {
-      setRecentQueries([])
-    }
-  }, [])
 
   const handleSavedClick = (tmpl: QueryTemplate) => {
     onSelect(tmpl.query)

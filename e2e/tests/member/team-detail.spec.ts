@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/auth'
 
 async function openFirstVisibleTeam(page: import('@playwright/test').Page) {
   await page.goto('/teams')

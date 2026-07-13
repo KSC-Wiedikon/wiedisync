@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -9,6 +9,9 @@ interface BeforeInstallPromptEvent extends Event {
 let deferredPrompt: BeforeInstallPromptEvent | null = null
 let listenersAttached = false
 const CAPTURED_EVENT = 'kscw:bip-captured'
+// Fired after `promptInstall` consumes the deferred prompt, so subscribers
+// re-read the (now null) store — the old code did this with a local setState.
+const CONSUMED_EVENT = 'kscw:bip-consumed'
 
 function ensureListeners() {
   if (listenersAttached || typeof window === 'undefined') return
@@ -26,6 +29,30 @@ function ensureListeners() {
 // Attach as early as this module is imported.
 ensureListeners()
 
+// `deferredPrompt` is an external store. The module-level 'appinstalled' listener
+// above is registered first (at import time), so by the time a subscriber runs,
+// `deferredPrompt` is already null — same ordering the old effect relied on.
+function subscribeInstallPrompt(onStoreChange: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  ensureListeners()
+  window.addEventListener(CAPTURED_EVENT, onStoreChange)
+  window.addEventListener('appinstalled', onStoreChange)
+  window.addEventListener(CONSUMED_EVENT, onStoreChange)
+  return () => {
+    window.removeEventListener(CAPTURED_EVENT, onStoreChange)
+    window.removeEventListener('appinstalled', onStoreChange)
+    window.removeEventListener(CONSUMED_EVENT, onStoreChange)
+  }
+}
+
+function getInstallPromptSnapshot() {
+  return deferredPrompt !== null
+}
+
+function getInstallPromptServerSnapshot() {
+  return false
+}
+
 export type InstallOutcome = 'accepted' | 'dismissed' | 'unavailable'
 
 /**
@@ -33,25 +60,21 @@ export type InstallOutcome = 'accepted' | 'dismissed' | 'unavailable'
  * and a function to trigger it. `onInstalled` fires when the app is installed.
  */
 export function useInstallPrompt(onInstalled?: () => void) {
-  const [canInstall, setCanInstall] = useState<boolean>(() => deferredPrompt !== null)
+  const canInstall = useSyncExternalStore(
+    subscribeInstallPrompt,
+    getInstallPromptSnapshot,
+    getInstallPromptServerSnapshot,
+  )
 
   const onInstalledRef = useRef(onInstalled)
   useEffect(() => { onInstalledRef.current = onInstalled })
 
+  // The `onInstalled` side effect stays an event subscription (the store only
+  // carries the boolean).
   useEffect(() => {
-    ensureListeners()
-    setCanInstall(deferredPrompt !== null)
-    const onCaptured = () => setCanInstall(true)
-    const onInstalledEvt = () => {
-      setCanInstall(false)
-      onInstalledRef.current?.()
-    }
-    window.addEventListener(CAPTURED_EVENT, onCaptured)
+    const onInstalledEvt = () => { onInstalledRef.current?.() }
     window.addEventListener('appinstalled', onInstalledEvt)
-    return () => {
-      window.removeEventListener(CAPTURED_EVENT, onCaptured)
-      window.removeEventListener('appinstalled', onInstalledEvt)
-    }
+    return () => window.removeEventListener('appinstalled', onInstalledEvt)
   }, [])
 
   const promptInstall = useCallback(async (): Promise<InstallOutcome> => {
@@ -60,7 +83,7 @@ export function useInstallPrompt(onInstalled?: () => void) {
     await prompt.prompt()
     const choice = await prompt.userChoice
     deferredPrompt = null
-    setCanInstall(false)
+    window.dispatchEvent(new Event(CONSUMED_EVENT))
     return choice.outcome
   }, [])
 

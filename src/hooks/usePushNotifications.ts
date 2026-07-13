@@ -16,34 +16,39 @@ interface PushState {
 }
 
 /**
+ * Feature-detect Web Push support. Brave on Android blocks FCM with no
+ * user-facing toggle to re-enable it; desktop Brave has a toggle, so only
+ * exclude mobile Brave.
+ */
+function detectPushSupport(): boolean {
+  const hasApis = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+  const isBraveMobile = 'brave' in navigator && /Android|Mobile/i.test(navigator.userAgent)
+  return hasApis && !isBraveMobile
+}
+
+/**
  * Hook for managing Web Push notification subscriptions.
  * Handles permission requests, SW subscription, and backend registration.
  */
 export function usePushNotifications() {
   const { t } = useTranslation('notifications')
-  const [state, setState] = useState<PushState>({
-    supported: false,
-    permission: 'default',
-    subscribed: false,
-    loading: false,
+  // Support + permission are readable synchronously, so seed them in the lazy
+  // initializer instead of writing them from an effect on mount.
+  const [state, setState] = useState<PushState>(() => {
+    const supported = detectPushSupport()
+    return {
+      supported,
+      permission: supported ? Notification.permission : 'default',
+      subscribed: false,
+      loading: false,
+    }
   })
 
-  // Check initial state
+  // Whether a subscription already exists is only knowable asynchronously
+  // (service-worker ready → PushManager) — that stays in an effect.
   useEffect(() => {
-    const hasApis = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
-    // Brave on Android blocks FCM with no user-facing toggle to re-enable it.
-    // Desktop Brave has a toggle, so only exclude mobile Brave.
-    const isBraveMobile = 'brave' in navigator && /Android|Mobile/i.test(navigator.userAgent)
-    const supported = hasApis && !isBraveMobile
+    if (!detectPushSupport()) return
 
-    if (!supported) {
-      setState(s => ({ ...s, supported: false }))
-      return
-    }
-
-    setState(s => ({ ...s, supported: true, permission: Notification.permission }))
-
-    // Check if already subscribed
     navigator.serviceWorker.ready.then(reg => {
       reg.pushManager.getSubscription().then(sub => {
         setState(s => ({ ...s, subscribed: !!sub }))

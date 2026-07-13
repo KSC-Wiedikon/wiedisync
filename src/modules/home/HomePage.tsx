@@ -12,7 +12,7 @@ import { formatDate, formatDateCompact, formatTime, formatWeekday, getCurrentSea
 import { asObj, relId, teamCoachIds } from '../../utils/relations'
 import TeamChip from '../../components/TeamChip'
 import StatusBadge from '../../components/StatusBadge'
-import { stripHtml } from '../../components/RichText'
+import { stripHtml } from '../../utils/stripHtml'
 import VolleyballIcon from '../../components/VolleyballIcon'
 import BasketballIcon from '../../components/BasketballIcon'
 import NotificationPanel from '../../components/NotificationPanel'
@@ -28,6 +28,7 @@ import { useUserVisibleEventIds } from '../../hooks/useUserVisibleEventIds'
 import ParticipationSummary from '../../components/ParticipationSummary'
 import { useBulkParticipationStatuses, useBulkParticipations } from '../../hooks/useBulkParticipationStatuses'
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
+import { useNow } from '../../hooks/useNow'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Participation, Ranking, BaseRecord } from '../../types'
 import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText } from 'lucide-react'
 import WhistleIcon from '../../components/WhistleIcon'
@@ -59,6 +60,9 @@ type TrainingExpanded = Training & {
 
 type MemberTeamExpanded = MemberTeam & { team?: Team | string }
 
+// Cut-off for the Spielplanung absences reminder banner (volleyball players).
+const ABSENCES_ALERT_DEADLINE = new Date('2026-06-01T23:59:59+02:00').getTime()
+
 
 export default function HomePage() {
   const { t } = useTranslation('home')
@@ -89,6 +93,10 @@ export default function HomePage() {
   const [showCategorized, setShowCategorized] = useState(false)
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null)
+  // Evaluated once per mount (lazy initializer) instead of on every render —
+  // `Date.now()` is impure during render. The banner is a one-way cut-off, so a
+  // per-mount read is equivalent to a per-render one.
+  const [beforeAbsencesDeadline] = useState(() => Date.now() < ABSENCES_ALERT_DEADLINE)
   const { notifications: allNotifs, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotifications()
   const { announcements } = useAnnouncements({ limit: 10 })
 
@@ -482,7 +490,7 @@ export default function HomePage() {
       {user && isApproved && <MyDutyBanner />}
 
       {/* Spielplanung absences reminder — volleyball players, until 2026-06-01 */}
-      {user && isApproved && (primarySport === 'volleyball' || primarySport === 'both') && Date.now() < new Date('2026-06-01T23:59:59+02:00').getTime() && (
+      {user && isApproved && (primarySport === 'volleyball' || primarySport === 'both') && beforeAbsencesDeadline && (
         <div className="mb-6 lg:flex lg:flex-col lg:items-center">
           <div className="w-full rounded-xl border border-amber-300 bg-amber-50 p-4 lg:max-w-2xl dark:border-amber-700/60 dark:bg-amber-900/20">
             <div className="flex items-start gap-3">
@@ -868,8 +876,12 @@ function NewsRow({ notification, onMarkAsRead }: { notification: Notification; o
     }
   })()
 
+  // Ticking clock (1 min) instead of a render-time Date.now(): the label now
+  // ages on its own ("Just now" → "2 minutes ago") rather than only when the
+  // feed happens to re-render for some other reason.
+  const now = useNow()
   const timeAgo = (() => {
-    const diff = Date.now() - new Date(notification.created ?? notification.date_created ?? '').getTime()
+    const diff = now - new Date(notification.created ?? notification.date_created ?? '').getTime()
     const minutes = Math.floor(diff / 60000)
     if (minutes < 1) return String(t('justNow'))
     if (minutes < 60) return String(t('minutesAgo', { count: minutes }))

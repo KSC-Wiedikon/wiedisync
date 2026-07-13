@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/auth'
 import { VIEWPORTS } from '../../fixtures/test-data'
 
 // Runs in 'chromium' and 'mobile' projects (authenticated as test_user)
@@ -45,11 +45,11 @@ test.describe('Sizing — modal fits viewport', () => {
     await page.goto('/profile')
     await page.waitForLoadState('domcontentloaded')
 
-    const editBtn = page.getByRole('button', { name: /Edit Profile|Profil bearbeiten/ })
+    const editBtn = page.getByRole('button', { name: /edit profile|profil bearbeiten/i })
     await expect(editBtn).toBeVisible({ timeout: 20_000 })
     await editBtn.click()
 
-    const dialog = page.locator('dialog[open]')
+    const dialog = page.locator('[role="dialog"][data-state="open"]')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
     const dialogBox = await dialog.boundingBox()
@@ -64,11 +64,11 @@ test.describe('Sizing — modal fits viewport', () => {
     await page.goto('/profile')
     await page.waitForLoadState('domcontentloaded')
 
-    const editBtn = page.getByRole('button', { name: /Edit Profile|Profil bearbeiten/ })
+    const editBtn = page.getByRole('button', { name: /edit profile|profil bearbeiten/i })
     await expect(editBtn).toBeVisible({ timeout: 20_000 })
     await editBtn.click()
 
-    const dialog = page.locator('dialog[open]')
+    const dialog = page.locator('[role="dialog"][data-state="open"]')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
     // Modal close button has min-h-[44px] min-w-[44px] on mobile

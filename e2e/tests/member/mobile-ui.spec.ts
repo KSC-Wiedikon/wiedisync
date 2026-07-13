@@ -1,7 +1,9 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/auth'
 import { PUBLIC_ROUTES, AUTH_ROUTES } from '../../fixtures/test-data'
 
 // Only run in 'mobile' project — these tests require a mobile viewport
+// Playwright requires a destructuring pattern as the first arg; only `testInfo` is needed.
+// eslint-disable-next-line no-empty-pattern
 test.beforeEach(async ({}, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', 'mobile-only tests')
 })
@@ -19,12 +21,14 @@ test.describe('Mobile UI — navigation', () => {
     await page.goto('/')
     await page.waitForLoadState('domcontentloaded')
 
-    // 5 primary tabs + 1 More button for authenticated users
+    // 4 primary tabs (Home, Calendar, Games, Trainings) + 1 More button for
+    // authenticated users. Teams moved out of the tab bar into the More sheet
+    // in 7c8527e0 ("move Teams from bottom tab bar to MoreSheet on mobile").
     const tabBar = page.locator('nav.fixed.bottom-0')
     await expect(tabBar).toBeVisible({ timeout: 10_000 })
 
     const tabItems = tabBar.locator('a, button')
-    await expect(tabItems).toHaveCount(6)
+    await expect(tabItems).toHaveCount(5)
   })
 
   test('desktop sidebar is NOT visible on mobile', async ({ page }) => {
@@ -54,7 +58,7 @@ test.describe('Mobile UI — navigation', () => {
     const moreBtn = page.locator('nav.fixed.bottom-0 button')
     await moreBtn.click()
 
-    await expect(page.getByRole('link', { name: /My Profile|Mein Profil/ })).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByRole('link', { name: /my profile|mein profil/i })).toBeVisible({ timeout: 5_000 })
     await expect(page.getByRole('button', { name: /Logout|Abmelden/ })).toBeVisible()
   })
 

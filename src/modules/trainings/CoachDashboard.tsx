@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BarChart3 } from 'lucide-react'
 import { useAttendanceStats } from './useAttendanceStats'
@@ -30,15 +30,22 @@ export default function CoachDashboard({ teamId }: CoachDashboardProps) {
   const defaultFrom = useMemo(() => mostRecent01June(today), [today])
   const defaultTo = today
 
-  const [from, setFrom] = useState<string>(team?.dashboard_range_from ?? defaultFrom)
-  const [to, setTo] = useState<string>(team?.dashboard_range_to ?? defaultTo)
+  const syncedFrom = team?.dashboard_range_from ?? defaultFrom
+  const syncedTo = team?.dashboard_range_to ?? defaultTo
+
+  const [from, setFrom] = useState<string>(syncedFrom)
+  const [to, setTo] = useState<string>(syncedTo)
   const [rangeError, setRangeError] = useState<string | null>(null)
 
-  // Re-sync when the team row arrives or changes via realtime.
-  useEffect(() => {
-    setFrom(team?.dashboard_range_from ?? defaultFrom)
-    setTo(team?.dashboard_range_to ?? defaultTo)
-  }, [team?.dashboard_range_from, team?.dashboard_range_to, defaultFrom, defaultTo])
+  // Re-sync when the team row arrives or changes via realtime. Adjust-state-
+  // during-render (same trigger the old effect had — a change in either persisted
+  // bound, `defaultFrom`/`defaultTo` being memo-stable) instead of an effect.
+  const [syncedRange, setSyncedRange] = useState({ from: syncedFrom, to: syncedTo })
+  if (syncedRange.from !== syncedFrom || syncedRange.to !== syncedTo) {
+    setSyncedRange({ from: syncedFrom, to: syncedTo })
+    setFrom(syncedFrom)
+    setTo(syncedTo)
+  }
 
   const { stats, isLoading } = useAttendanceStats(teamId, { from, to })
 

@@ -388,21 +388,26 @@ export function getDayName(dayOfWeek: number): string {
 
 /** Parse a respond_by datetime into { date, time } in Europe/Zurich.
  * Accepts ISO UTC or the legacy "YYYY-MM-DD HH:MM:SS" space format.
- * `fallbackStartTime` is accepted for call-site compatibility but is not
- * used: this parser returns null for a missing respond_by rather than
- * synthesizing a time (see getDeadlineDate for the fallback behaviour). */
+ *
+ * Zurich-midnight (h+m+s all zero) is the stored sentinel for "no time set" —
+ * getDeadlineDate resolves it to the activity's start time, else 23:59. This
+ * parser MUST resolve it the same way: it feeds the deadline shown in the UI and
+ * the value seeded into the edit forms, and reporting a literal "00:00" told the
+ * user the deadline was midnight while the code enforced kickoff. Pass the
+ * activity's start time as `fallbackStartTime` wherever there is one. */
 export function parseRespondByTime(
   respondBy: string | null | undefined,
   fallbackStartTime?: string
-): { date: string; time: string } | null;
-export function parseRespondByTime(
-  respondBy: string | null | undefined
 ): { date: string; time: string } | null {
   if (!respondBy) return null;
   const d = parseFlexible(respondBy);
   if (Number.isNaN(d.getTime())) return null;
   const p = formatZurichParts(d);
-  return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+  const unset = p.hour === '00' && p.minute === '00' && p.second === '00';
+  const time = unset
+    ? (fallbackStartTime && /^\d{2}:\d{2}$/.test(fallbackStartTime) ? fallbackStartTime : '23:59')
+    : `${p.hour}:${p.minute}`;
+  return { date: `${p.year}-${p.month}-${p.day}`, time };
 }
 
 /** Compute deadline Date from respond_by ISO string.

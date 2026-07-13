@@ -351,9 +351,18 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   // (member_teams → members) then absences by member, per the M2M-safe pattern.
   // date key -> sorted names of members unavailable that day (so a click/hover
   // can show WHO, not just how many).
-  const [absencesByDate, setAbsencesByDate] = useState<Map<string, string[]>>(new Map())
+  const [absencesByDate, setAbsencesByDate] = useState<Map<string, string[]>>(() => new Map())
+  // Dropping the map when the calendar stops being team-scoped is a
+  // reset-on-input-change, so it runs during render (React's
+  // adjust-state-during-render pattern) instead of inside the fetch effect —
+  // same trigger (absenceTeamId changed), same result.
+  const [prevAbsenceTeamId, setPrevAbsenceTeamId] = useState(absenceTeamId)
+  if (prevAbsenceTeamId !== absenceTeamId) {
+    setPrevAbsenceTeamId(absenceTeamId)
+    if (!absenceTeamId) setAbsencesByDate(new Map())
+  }
   useEffect(() => {
-    if (!absenceTeamId) { setAbsencesByDate(new Map()); return }
+    if (!absenceTeamId) return
     let cancelled = false
     ;(async () => {
       try {

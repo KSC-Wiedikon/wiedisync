@@ -42,9 +42,14 @@ export default function WeekGrid({
   const { t } = useTranslation('calendar')
   const scrollRef = useRef<HTMLDivElement>(null)
   const today = new Date()
-  const weekMonday = startOfWeek(weekStart)
-  const weekSunday = endOfWeek(weekStart)
-  const weekDays = eachDayOfInterval(weekMonday, weekSunday)
+  // Memoised as one unit (same shape as MobileWeekGrid's `days`): `weekDays` is
+  // a dependency of the `timeRange` memo below, and a fresh array literal on
+  // every render can't be used as one.
+  const { weekMonday, weekSunday, weekDays } = useMemo(() => {
+    const monday = startOfWeek(weekStart)
+    const sunday = endOfWeek(weekStart)
+    return { weekMonday: monday, weekSunday: sunday, weekDays: eachDayOfInterval(monday, sunday) }
+  }, [weekStart])
 
   // Compute time range for the whole week, tightened to actual entries
   const timeRange = useMemo(() => computeTimeRange(weekDays, entries), [weekDays, entries])
@@ -54,7 +59,12 @@ export default function WeekGrid({
   // Generate hour labels
   const hourLabels = useMemo(() => buildHourLabels(timeRange), [timeRange])
 
-  // Scroll to first hour on mount
+  // Scroll to the first hour when the displayed week changes. This used to have no
+  // dependency array, because `weekDays` was a fresh array on every render and the
+  // effect had silently degraded to "run after EVERY render" — so any parent
+  // re-render (an entry updating, a filter toggling) yanked a scrolled grid back to
+  // the top mid-read. Now that `weekDays` is memoised, it fires only on a real week
+  // change, which is what the effect was always meant to do.
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0

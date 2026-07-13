@@ -58,8 +58,15 @@ export default function ParticipationSummary({
   // participations row (FK to members), so fetch them separately and add to confirmed.
   const isMixedTournament = activityType === 'event' && String(activityId) === MIXED_TOURNAMENT_EVENT_ID
   const [extraConfirmed, setExtraConfirmed] = useState(0)
+  // Reset the add-on count when the activity stops being the mixed tournament.
+  // Adjust-state-during-render instead of a synchronous setState in the effect.
+  const [prevIsMixed, setPrevIsMixed] = useState(isMixedTournament)
+  if (prevIsMixed !== isMixedTournament) {
+    setPrevIsMixed(isMixedTournament)
+    setExtraConfirmed(0)
+  }
   useEffect(() => {
-    if (!isMixedTournament) { setExtraConfirmed(0); return }
+    if (!isMixedTournament) return
     let cancelled = false
     kscwApi<{ count: number }>('/public/mixed-tournament/non-member-count')
       .then((r) => { if (!cancelled) setExtraConfirmed(r?.count ?? 0) })

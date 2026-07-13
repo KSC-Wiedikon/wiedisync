@@ -76,9 +76,18 @@ export default function PlayerProfile() {
   const [trainingStats, setTrainingStats] = useState<{ total: number; present: number } | null>(null)
   const [gameStats, setGameStats] = useState<{ total: number; present: number } | null>(null)
 
+  // Re-enter the loading state when the route switches to another member (the
+  // page is not remounted). `loading` already starts true, so this only fires on
+  // a change — React's adjust-state-during-render pattern, same trigger as the
+  // effect below.
+  const [prevMemberId, setPrevMemberId] = useState(memberId)
+  if (prevMemberId !== memberId) {
+    setPrevMemberId(memberId)
+    if (memberId) setLoading(true)
+  }
+
   useEffect(() => {
     if (!memberId) return
-    setLoading(true)
     fetchItem<Member>('members', memberId)
       .then(setMember)
       .catch(() => setMember(null))

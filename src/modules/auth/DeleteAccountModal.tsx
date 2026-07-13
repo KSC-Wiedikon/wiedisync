@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../hooks/useAuth'
@@ -20,13 +20,18 @@ export default function DeleteAccountModal({ open, onClose, userEmail }: DeleteA
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Reset the form when the modal closes (it is not remounted per open). Done
+  // during render via React's adjust-state-during-render pattern — same trigger
+  // (`open` changed), same result, no cascading effect render.
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
     if (!open) {
       setConfirmEmail('')
       setError(null)
       setIsDeleting(false)
     }
-  }, [open])
+  }
 
   const canConfirm = confirmEmail.trim() === userEmail
 

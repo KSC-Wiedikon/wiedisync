@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, AlertTriangle, Home as HomeIcon, Plane } from 'lucide-react'
 import Modal from '../../components/Modal'
@@ -105,13 +105,33 @@ export default function ManualGameModal({
   const [teamAutoConfirmDefault, setTeamAutoConfirmDefault] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
+  // ── Prop → form seeding ────────────────────────────────────────────
+  // Every block below used to be a `useEffect` that did nothing but write form
+  // state from props. They now run during render (React's sanctioned
+  // adjust-state-during-render) so nothing writes state synchronously from an
+  // effect. Each keeps its original source position — the blocks read state that
+  // earlier blocks write, and render-phase updates re-run the component the same
+  // way an effect cascade re-runs on the next commit, so the ordering and the
+  // fixed point they converge to are unchanged. Each `prev…` tracker starts as
+  // `null` so the block also fires on the first render, mirroring the effect's
+  // mount run.
+
   // Prefill date on (re)open (create mode)
-  useEffect(() => {
+  const dateSeedDeps: unknown[] = [open, initialDate, editingGame]
+  const [prevDateSeed, setPrevDateSeed] = useState<unknown[] | null>(null)
+  if (prevDateSeed === null || dateSeedDeps.some((d, i) => !Object.is(d, prevDateSeed[i]))) {
+    setPrevDateSeed(dateSeedDeps)
     if (open && initialDate && !editingGame) setDate(toDateKey(initialDate))
-  }, [open, initialDate, editingGame])
+  }
 
   // Prefill from existing game on open (edit mode)
-  useEffect(() => {
+  const editSeedDeps: unknown[] = [open, editingGame]
+  const [prevEditSeed, setPrevEditSeed] = useState<unknown[] | null>(null)
+  if (prevEditSeed === null || editSeedDeps.some((d, i) => !Object.is(d, prevEditSeed[i]))) {
+    setPrevEditSeed(editSeedDeps)
+    seedFromEditingGame()
+  }
+  function seedFromEditingGame() {
     if (!open || !editingGame) return
     const teamRel = asObj<Team>(editingGame.kscw_team)
     setTeamId(String(teamRel?.id ?? editingGame.kscw_team ?? ''))
@@ -144,30 +164,43 @@ export default function ManualGameModal({
     setRound(editingGame.round ?? '')
     const rawAcr = (editingGame as Game & { auto_confirm_rsvp?: boolean | null }).auto_confirm_rsvp
     setAutoConfirmRsvp(rawAcr === true ? true : rawAcr === false ? false : null)
-  }, [open, editingGame])
+  }
 
   // Load team default for the auto-confirm hint label
-  useEffect(() => {
+  const autoConfirmDeps: unknown[] = [open, teamId, allTeams]
+  const [prevAutoConfirm, setPrevAutoConfirm] = useState<unknown[] | null>(null)
+  if (prevAutoConfirm === null || autoConfirmDeps.some((d, i) => !Object.is(d, prevAutoConfirm[i]))) {
+    setPrevAutoConfirm(autoConfirmDeps)
     if (!open || !teamId) {
       setTeamAutoConfirmDefault(false)
-      return
+    } else {
+      const teamRel = (allTeams ?? []).find((t) => String(t.id) === teamId) as Team | undefined
+      const fe = teamRel?.features_enabled as { game_auto_confirm?: boolean } | undefined
+      setTeamAutoConfirmDefault(fe?.game_auto_confirm === true)
     }
-    const teamRel = (allTeams ?? []).find((t) => String(t.id) === teamId) as Team | undefined
-    const fe = teamRel?.features_enabled as { game_auto_confirm?: boolean } | undefined
-    setTeamAutoConfirmDefault(fe?.game_auto_confirm === true)
-  }, [open, teamId, allTeams])
+  }
 
   // Seed sport + home/away from the main-page filters on open (create mode).
   // Runs only when those inputs change, so it never clobbers a manual edit.
-  useEffect(() => {
-    if (!open || editingGame) return
-    setSport(initialSport === 'volleyball' || initialSport === 'basketball' ? initialSport : 'all')
-    if (initialGameType === 'home' || initialGameType === 'away') setType(initialGameType)
-  }, [open, editingGame, initialSport, initialGameType])
+  const filterSeedDeps: unknown[] = [open, editingGame, initialSport, initialGameType]
+  const [prevFilterSeed, setPrevFilterSeed] = useState<unknown[] | null>(null)
+  if (prevFilterSeed === null || filterSeedDeps.some((d, i) => !Object.is(d, prevFilterSeed[i]))) {
+    setPrevFilterSeed(filterSeedDeps)
+    if (open && !editingGame) {
+      setSport(initialSport === 'volleyball' || initialSport === 'basketball' ? initialSport : 'all')
+      if (initialGameType === 'home' || initialGameType === 'away') setType(initialGameType)
+    }
+  }
 
   // Prefill the team: prefer the main-page team filter (exactly one selected &
   // editable), else fall back to the single editable team when there's only one.
-  useEffect(() => {
+  const teamSeedDeps: unknown[] = [open, editableTeams, teamId, editingGame, initialSelectedTeamIds]
+  const [prevTeamSeed, setPrevTeamSeed] = useState<unknown[] | null>(null)
+  if (prevTeamSeed === null || teamSeedDeps.some((d, i) => !Object.is(d, prevTeamSeed[i]))) {
+    setPrevTeamSeed(teamSeedDeps)
+    seedTeamId()
+  }
+  function seedTeamId() {
     if (!open || teamId || editingGame) return
     if (initialSelectedTeamIds && initialSelectedTeamIds.length === 1) {
       const tid = String(initialSelectedTeamIds[0])
@@ -179,7 +212,7 @@ export default function ManualGameModal({
     if (editableTeams.length === 1) {
       setTeamId(String(editableTeams[0]!.id))
     }
-  }, [open, editableTeams, teamId, editingGame, initialSelectedTeamIds])
+  }
 
   // Drop the team if it no longer belongs to the newly-chosen sport.
   function handleSportChange(next: SportChoice) {
@@ -191,7 +224,9 @@ export default function ManualGameModal({
   }
 
   // Reset form on close
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState<boolean | null>(null)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
     if (!open) {
       setSport('all')
       setTeamId('')
@@ -208,7 +243,7 @@ export default function ManualGameModal({
       setTeamAutoConfirmDefault(false)
       setSubmitError(null)
     }
-  }, [open])
+  }
 
   // ── Conflict check ────────────────────────────────────────────────
   const selectedTeam = editableTeams.find((t) => String(t.id) === teamId) as Team | undefined
@@ -265,7 +300,25 @@ export default function ManualGameModal({
   }
 
   // ── VB Saturday prefill (create mode only) ─────────────────────────
-  useEffect(() => {
+  const satSeedDeps: unknown[] = [
+    open,
+    editingGame,
+    selectedTeam,
+    isSaturday,
+    type,
+    hallId,
+    halls,
+    saturdayTrainingSlots,
+    kwiC,
+    kwiA,
+    kwiB,
+  ]
+  const [prevSatSeed, setPrevSatSeed] = useState<unknown[] | null>(null)
+  if (prevSatSeed === null || satSeedDeps.some((d, i) => !Object.is(d, prevSatSeed[i]))) {
+    setPrevSatSeed(satSeedDeps)
+    seedSaturdayHall()
+  }
+  function seedSaturdayHall() {
     if (!open || editingGame) return
     if (!selectedTeam || selectedTeam.sport !== 'volleyball') return
     if (!isSaturday || type !== 'home') return
@@ -283,19 +336,7 @@ export default function ManualGameModal({
     setHallId(pick)
     setAdditionalHalls([])
     setSaturdayHintHall(pick)
-  }, [
-    open,
-    editingGame,
-    selectedTeam,
-    isSaturday,
-    type,
-    hallId,
-    halls,
-    saturdayTrainingSlots,
-    kwiC,
-    kwiA,
-    kwiB,
-  ])
+  }
 
   const { errors, warnings } = useGameConflicts({
     editingId: editingGame?.id,

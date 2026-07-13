@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle2 } from 'lucide-react'
 import Modal from '@/components/Modal'
@@ -49,18 +49,26 @@ export default function FormFillModal({ open, form, existing, onSubmitted, onCan
   const { t, i18n } = useTranslation('forms')
   const { t: tc } = useTranslation('common')
   const { user } = useAuth()
-  const [answers, setAnswers] = useState<Record<string, AnswerValue>>({})
+  // Seeded from `existing` (edit) or blank (new). The modal is not remounted per
+  // open, so the seed is re-applied whenever form/open/existing changes — a
+  // reset-on-prop-change, done during render (React's adjust-state-during-render
+  // pattern) on exactly the trigger the old effect used.
+  const seedAnswers = (): Record<string, AnswerValue> =>
+    existing ? { ...blankAnswers(form), ...existing.answers } : {}
+  const [answers, setAnswers] = useState<Record<string, AnswerValue>>(seedAnswers)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
 
   const isEdit = !!existing
 
-  useEffect(() => {
-    setAnswers(existing ? { ...blankAnswers(form), ...existing.answers } : {})
+  const [prevSeed, setPrevSeed] = useState({ form, open, existing })
+  if (prevSeed.form !== form || prevSeed.open !== open || prevSeed.existing !== existing) {
+    setPrevSeed({ form, open, existing })
+    setAnswers(seedAnswers())
     setError('')
     setDone(false)
-  }, [form, open, existing])
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

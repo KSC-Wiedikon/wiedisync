@@ -173,7 +173,9 @@ export default function RosterEditor() {
     } catch {
       toast.error(t('common:errorSaving'))
     }
-  }, [team, t])
+    // setTeam is a stable useState setter — listed so the manual deps match what
+    // the React Compiler infers (it otherwise skips optimising this component).
+  }, [team, t, setTeam])
 
   async function saveNumber(memberId: string) {
     const num = numberValue ? parseInt(numberValue, 10) : 0
@@ -753,7 +755,13 @@ function DebouncedNumberInput({ value, onChange, suffix }: { value: number | und
   const [local, setLocal] = useState(String(value ?? ''))
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => { setLocal(String(value ?? '')) }, [value])
+  // Re-seed the input when the saved value changes — adjust-state-during-render
+  // (React's reset-on-prop-change pattern) instead of a setState in an effect.
+  const [prevValue, setPrevValue] = useState(value)
+  if (prevValue !== value) {
+    setPrevValue(value)
+    setLocal(String(value ?? ''))
+  }
   // Clear a pending debounced save on unmount so it can't fire after teardown.
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
 
@@ -782,6 +790,8 @@ function DebouncedNumberInput({ value, onChange, suffix }: { value: number | und
   )
 }
 
+type UrlField = 'social_url' | 'facebook_url' | 'tiktok_url'
+
 function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: TeamSettings) => void }) {
   const { t } = useTranslation('teams')
   const { update } = useMutation<Team>('teams')
@@ -795,14 +805,20 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
   const [socialUrl, setSocialUrl] = useState(team.social_url ?? '')
   const [facebookUrl, setFacebookUrl] = useState(team.facebook_url ?? '')
   const [tiktokUrl, setTiktokUrl] = useState(team.tiktok_url ?? '')
-  const socialUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const facebookUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const tiktokUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // One ref keyed by field instead of three separate refs — the per-field ref used
+  // to be handed to handleUrlChange during render, which reads as a ref access in
+  // render. The timers are now only touched inside the change handler / on unmount.
+  const urlTimers = useRef<Record<UrlField, ReturnType<typeof setTimeout> | null>>({
+    social_url: null,
+    facebook_url: null,
+    tiktok_url: null,
+  })
   // Clear any pending debounced URL saves on unmount so they can't fire late.
   useEffect(() => () => {
-    if (socialUrlTimer.current) clearTimeout(socialUrlTimer.current)
-    if (facebookUrlTimer.current) clearTimeout(facebookUrlTimer.current)
-    if (tiktokUrlTimer.current) clearTimeout(tiktokUrlTimer.current)
+    const timers = urlTimers.current
+    for (const timer of Object.values(timers)) {
+      if (timer) clearTimeout(timer)
+    }
   }, [])
   // Auto-confirm toggles warn in both directions: turning ON backfills future
   // activities + confirms everyone; turning OFF is forward-only and leaves
@@ -848,15 +864,19 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
     setShowGuests(next)
   }
 
+  // Plain handler (not a factory invoked during render — that counted as handing a
+  // ref to a function during render); the call sites bind the field/setter in the
+  // JSX arrow, so the timer ref is only touched once the change event fires.
   const handleUrlChange = (
-    field: 'social_url' | 'facebook_url' | 'tiktok_url',
+    field: UrlField,
     setter: (v: string) => void,
-    timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
-  ) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const v = e.target.value
     setter(v)
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => {
+    const pending = urlTimers.current[field]
+    if (pending) clearTimeout(pending)
+    urlTimers.current[field] = setTimeout(() => {
       update(team.id, { [field]: v })
     }, 500)
   }
@@ -921,21 +941,21 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
             label={t('instagramUrl')}
             hint={t('instagramUrlHint')}
             value={socialUrl}
-            onChange={handleUrlChange('social_url', setSocialUrl, socialUrlTimer)}
+            onChange={(e) => handleUrlChange('social_url', setSocialUrl, e)}
             placeholder="https://instagram.com/..."
           />
           <SocialLinkRow
             label={t('facebookUrl')}
             hint={t('facebookUrlHint')}
             value={facebookUrl}
-            onChange={handleUrlChange('facebook_url', setFacebookUrl, facebookUrlTimer)}
+            onChange={(e) => handleUrlChange('facebook_url', setFacebookUrl, e)}
             placeholder="https://facebook.com/..."
           />
           <SocialLinkRow
             label={t('tiktokUrl')}
             hint={t('tiktokUrlHint')}
             value={tiktokUrl}
-            onChange={handleUrlChange('tiktok_url', setTiktokUrl, tiktokUrlTimer)}
+            onChange={(e) => handleUrlChange('tiktok_url', setTiktokUrl, e)}
             placeholder="https://tiktok.com/@..."
           />
         </SettingsGroup>

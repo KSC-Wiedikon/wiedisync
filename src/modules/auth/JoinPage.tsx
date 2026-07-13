@@ -16,13 +16,39 @@ interface InviteInfo {
 
 type Phase = 'loading' | 'error' | 'form' | 'otp' | 'set-password' | 'success'
 
+/** Invite header shown on form, OTP, and set-password phases */
+function InviteHeader({ inviteInfo }: { inviteInfo: InviteInfo | null }) {
+  const { t } = useTranslation(['join', 'teams'])
+  if (!inviteInfo) return null
+  return (
+    <div className="text-center">
+      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+        {t('join:title', { teamName: inviteInfo.team_name })}
+      </h1>
+      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">KSC Wiedikon</p>
+      <span className={`mt-2 inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+        inviteInfo.role === 'player'
+          ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
+          : 'bg-gold-100 text-gold-800 dark:bg-gold-400/20 dark:text-gold-300'
+      }`}>
+        {t('join:joiningAs', {
+          role: inviteInfo.role === 'player' ? t('teams:player') : t('teams:guest'),
+        })}
+      </span>
+    </div>
+  )
+}
+
 export default function JoinPage() {
   const { token } = useParams<{ token: string }>()
   const { theme } = useTheme()
   const { t } = useTranslation(['join', 'teams', 'auth', 'common'])
   const navigate = useNavigate()
 
-  const [phase, setPhase] = useState<Phase>('loading')
+  // No token in the URL → nothing to load, the invite is invalid on arrival. The
+  // route (`join/:token`) can't match without one, so this can only be the case
+  // from the very first render — hence a lazy initial value, not an effect.
+  const [phase, setPhase] = useState<Phase>(() => (token ? 'loading' : 'error'))
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null)
 
   const [firstName, setFirstName] = useState('')
@@ -36,10 +62,7 @@ export default function JoinPage() {
   const [otpLoading, setOtpLoading] = useState(false)
 
   useEffect(() => {
-    if (!token) {
-      setPhase('error')
-      return
-    }
+    if (!token) return
     kscwApi<InviteInfo>('/team-invites/info/' + token)
       .then((res) => {
         setInviteInfo(res)
@@ -99,28 +122,6 @@ export default function JoinPage() {
     setPhase('success')
   }
 
-  /** Invite header shown on form, OTP, and set-password phases */
-  function InviteHeader() {
-    if (!inviteInfo) return null
-    return (
-      <div className="text-center">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-          {t('join:title', { teamName: inviteInfo.team_name })}
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">KSC Wiedikon</p>
-        <span className={`mt-2 inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
-          inviteInfo.role === 'player'
-            ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
-            : 'bg-gold-100 text-gold-800 dark:bg-gold-400/20 dark:text-gold-300'
-        }`}>
-          {t('join:joiningAs', {
-            role: inviteInfo.role === 'player' ? t('teams:player') : t('teams:guest'),
-          })}
-        </span>
-      </div>
-    )
-  }
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
       <div className="w-full max-w-sm">
@@ -158,7 +159,7 @@ export default function JoinPage() {
           {/* Form — enter name + email */}
           {phase === 'form' && inviteInfo && (
             <div className="space-y-5">
-              <InviteHeader />
+              <InviteHeader inviteInfo={inviteInfo} />
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -204,7 +205,7 @@ export default function JoinPage() {
           {/* OTP — verify email with one-time code */}
           {phase === 'otp' && (
             <div className="space-y-5">
-              <InviteHeader />
+              <InviteHeader inviteInfo={inviteInfo} />
 
               <div className="text-center">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -228,7 +229,7 @@ export default function JoinPage() {
           {/* Set password — after OTP verified */}
           {phase === 'set-password' && (
             <div className="space-y-5">
-              <InviteHeader />
+              <InviteHeader inviteInfo={inviteInfo} />
 
               <SetPasswordForm
                 title={t('auth:setPasswordTitle')}

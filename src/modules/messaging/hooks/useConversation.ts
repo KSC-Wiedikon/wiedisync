@@ -30,17 +30,21 @@ export function useConversation(
   const [sendError, setSendError] = useState<Error | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const convIdRef = useRef(conversationId)
-  convIdRef.current = conversationId
   const blockedRef = useRef(new Set(effectiveBlocked))
-  blockedRef.current = new Set(effectiveBlocked)
+  // "Latest value" refs — written after commit, never during render. Declared
+  // BEFORE the refetch effect below so they are always current by the time it
+  // (or any realtime callback, which can only fire post-commit) reads them.
+  useEffect(() => { convIdRef.current = conversationId })
+  useEffect(() => { blockedRef.current = new Set(effectiveBlocked) })
   // Monotonic fetch counter — any resolver whose seq no longer matches is stale.
   const fetchSeqRef = useRef(0)
 
-  const refetch = useCallback(async () => {
-    if (!enabled || !conversationId) { setMessages([]); setIsLoading(false); return }
+  // The network path only — no setState is synchronously reachable from here,
+  // so the effect below can call it (react-hooks/set-state-in-effect).
+  const load = useCallback(async () => {
+    if (!enabled || !conversationId) return
     const mySeq = ++fetchSeqRef.current
     const myConvId = conversationId
-    setIsLoading(true)
     try {
       const { messages, has_more } = await messagingApi.listMessages(conversationId, { limit: 50 })
       // Stale: a newer fetch started (conv switch or concurrent refetch) — bail.
@@ -62,13 +66,31 @@ export function useConversation(
     }
   }, [conversationId, enabled])
 
-  useEffect(() => {
-    // Clear prior conversation's thread immediately so the switch doesn't flash
-    // stale messages while the new fetch is in flight.
+  // Clear the prior conversation's thread immediately so the switch doesn't flash
+  // stale messages while the new fetch is in flight. This used to be the
+  // synchronous prologue of the mount/switch effect; it now runs via React's
+  // adjust-state-during-render pattern, which lands BEFORE the effect (and before
+  // paint) — the stale window stays closed. `prevKey` starts null so this also
+  // runs on the first render, matching the effect's mount run.
+  const fetchKey = `${enabled}|${conversationId ?? ''}`
+  const [prevFetchKey, setPrevFetchKey] = useState<string | null>(null)
+  if (prevFetchKey !== fetchKey) {
+    setPrevFetchKey(fetchKey)
     setMessages([])
     setHasMore(false)
-    refetch()
-  }, [refetch])
+    // Mirrors the old refetch() prologue: spinner on when a fetch is about to
+    // start, off when there's nothing to load (signed out / no conversation).
+    setIsLoading(enabled && !!conversationId)
+  }
+
+  useEffect(() => { load() }, [load])
+
+  // Public refetch — keeps the original semantics for the manual/event paths.
+  const refetch = useCallback(async () => {
+    if (!enabled || !conversationId) { setMessages([]); setIsLoading(false); return }
+    setIsLoading(true)
+    await load()
+  }, [enabled, conversationId, load])
 
   useRealtime<MessageRow>('messages', (e) => {
     if (convIdRef.current !== e.record.conversation) return

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
@@ -57,6 +57,42 @@ interface LegCard {
   booking?: BookingData
 }
 
+// The proposal forms report their current picks upward through an `onChange`
+// effect that depends on the callback's identity, so each card needs an onChange
+// that is STABLE across renders — a fresh inline closure per render would re-fire
+// those effects on every render (set-state loop). These two module-scope bridges
+// hold that per-card callback in a useCallback keyed on the card, which refs
+// can't do (refs may not be read or written during render).
+type HomeFormProps = React.ComponentProps<typeof HomeProposalForm>
+type HomePicks = Parameters<NonNullable<HomeFormProps['onChange']>>[0]
+
+function HomeProposalFormForCard({
+  cardKey,
+  onPick,
+  ...rest
+}: Omit<HomeFormProps, 'onChange'> & {
+  cardKey: string
+  onPick: (key: string, picks: HomePicks) => void
+}) {
+  const onChange = useCallback((picks: HomePicks) => onPick(cardKey, picks), [cardKey, onPick])
+  return <HomeProposalForm {...rest} onChange={onChange} />
+}
+
+type AwayFormProps = React.ComponentProps<typeof AwayProposalForm>
+type AwayProposals = Parameters<NonNullable<AwayFormProps['onChange']>>[0]
+
+function AwayProposalFormForCard({
+  cardKey,
+  onPick,
+  ...rest
+}: Omit<AwayFormProps, 'onChange'> & {
+  cardKey: string
+  onPick: (key: string, proposals: AwayProposals) => void
+}) {
+  const onChange = useCallback((proposals: AwayProposals) => onPick(cardKey, proposals), [cardKey, onPick])
+  return <AwayProposalForm {...rest} onChange={onChange} />
+}
+
 // Cards for one side: one per fixture (a NULL-keyed legacy booking belongs to
 // the FIRST fixture — mirrors the backend), plus bookings whose fixture is no
 // longer in the feed (re-synced/finalized) so a confirmed game never vanishes.
@@ -99,28 +135,17 @@ export default function OpponentFlowPage() {
   const [confirmerEmail, setConfirmerEmail] = useState('')
   const [confirmerError, setConfirmerError] = useState('')
   // Current proposals reported by each card's form, keyed by card key (null
-  // while incomplete) — submitted per side by the buttons below. The
-  // per-card onChange handlers are memoised in refs: the forms' report-upward
-  // effects depend on the callback identity, so a fresh inline closure per
-  // render would re-fire them every render (set-state loop).
+  // while incomplete) — submitted per side by the buttons below. These two
+  // dispatchers are identity-stable; the per-card onChange that the forms' effects
+  // watch is derived from them inside the *ForCard bridges above.
   const [homePicksByCard, setHomePicksByCard] = useState<Record<string, string[] | null>>({})
   const [awayProposalsByCard, setAwayProposalsByCard] = useState<Record<string, Array<{ date: string; start_time: string; location: string }> | null>>({})
-  const homeChangeHandlers = useRef<Record<string, (picks: string[] | null) => void>>({})
-  const homeChangeFor = (key: string) => {
-    if (!homeChangeHandlers.current[key]) {
-      homeChangeHandlers.current[key] = (picks) =>
-        setHomePicksByCard((prev) => (prev[key] === picks ? prev : { ...prev, [key]: picks }))
-    }
-    return homeChangeHandlers.current[key]
-  }
-  const awayChangeHandlers = useRef<Record<string, (proposals: Array<{ date: string; start_time: string; location: string }> | null) => void>>({})
-  const awayChangeFor = (key: string) => {
-    if (!awayChangeHandlers.current[key]) {
-      awayChangeHandlers.current[key] = (proposals) =>
-        setAwayProposalsByCard((prev) => ({ ...prev, [key]: proposals }))
-    }
-    return awayChangeHandlers.current[key]
-  }
+  const handleHomePick = useCallback((key: string, picks: string[] | null) => {
+    setHomePicksByCard((prev) => (prev[key] === picks ? prev : { ...prev, [key]: picks }))
+  }, [])
+  const handleAwayPick = useCallback((key: string, proposals: Array<{ date: string; start_time: string; location: string }> | null) => {
+    setAwayProposalsByCard((prev) => ({ ...prev, [key]: proposals }))
+  }, [])
   // Opponent remark box. Seed from the loaded record once, then it's user-owned.
   const [remark, setRemark] = useState('')
   const didInitRemark = useRef(false)
@@ -368,11 +393,12 @@ export default function OpponentFlowPage() {
                 </ul>
               </div>
             )}
-            <HomeProposalForm
+            <HomeProposalFormForCard
+              cardKey={card.key}
+              onPick={handleHomePick}
               slots={slots}
               existing={card.booking?.status === 'pending' ? card.booking : undefined}
               seasonWindow={seasonWindow}
-              onChange={homeChangeFor(card.key)}
               hideSubmit
             />
           </>
@@ -383,12 +409,13 @@ export default function OpponentFlowPage() {
           <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{fmtDateTime(decidedAway(card.booking))}</p>
         </div>
       ) : (
-        <AwayProposalForm
+        <AwayProposalFormForCard
+          cardKey={card.key}
+          onPick={handleAwayPick}
           existingProposal={card.booking || undefined}
           blockedStrict={blockedStrict}
           blockedLoose={blockedLoose}
           seasonWindow={seasonWindow}
-          onChange={awayChangeFor(card.key)}
           hideSubmit
         />
       )}

@@ -14,7 +14,7 @@ import TopNav from './TopNav'
 import ImpersonationBanner from './ImpersonationBanner'
 import { useCollection } from '../lib/query'
 import ProfileEditModal from '../modules/auth/ProfileEditModal'
-import { ConversationsProvider } from '../modules/messaging/ConversationsProvider'
+import { ConversationsProvider } from '../modules/messaging/ConversationsStoreProvider'
 import type { MemberTeam, Team } from '../types'
 
 type ExpandedMemberTeam = MemberTeam & { team: Team | string }

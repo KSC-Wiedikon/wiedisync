@@ -135,7 +135,10 @@ export default function SqlWorkspacePage() {
   })
   const [writeMode, setWriteMode] = useState(false)
   const [tables, setTables] = useState<SchemaTable[]>([])
-  const [schemaLoading, setSchemaLoading] = useState(false)
+  // Starts true: the schema is fetched on mount (see the effect below), so the
+  // sidebar is loading from the first paint — the flag used to be flipped by
+  // loadSchema() itself, one render later.
+  const [schemaLoading, setSchemaLoading] = useState(true)
   const [tableFilter, setTableFilter] = useState('')
   const [expandedTable, setExpandedTable] = useState<string | null>(null)
 
@@ -167,13 +170,20 @@ export default function SqlWorkspacePage() {
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current) }
   }, [sql])
 
-  const loadSchema = useCallback(async () => {
-    setSchemaLoading(true)
+  // The fetch itself, without the `schemaLoading = true` flip — `schemaLoading`
+  // already starts true, so the on-mount call below needs no flip; only the
+  // manual refresh button does.
+  const loadSchemaInto = useCallback(async () => {
     try { setTables(await fetchSchema()) } catch (e) { console.warn('[sql-workspace] schema:', e) }
     finally { setSchemaLoading(false) }
   }, [])
 
-  useEffect(() => { void loadSchema() }, [loadSchema])
+  const loadSchema = useCallback(async () => {
+    setSchemaLoading(true)
+    await loadSchemaInto()
+  }, [loadSchemaInto])
+
+  useEffect(() => { void (async () => { await loadSchemaInto() })() }, [loadSchemaInto])
 
   // Map → SqlSchemaTable for autocomplete (column names + types)
   const editorTables = useMemo<SqlSchemaTable[]>(

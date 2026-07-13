@@ -11,6 +11,7 @@ import type { ExpandedMemberTeam } from '../../hooks/useTeamMembers'
 import type { Team, Member, MemberTeam } from '../../types'
 import { cn } from '@/lib/utils'
 import { asObj, memberName, flattenMemberIds } from '../../utils/relations'
+import { getMemberRole } from './memberRole'
 import { formatDate } from '../../utils/dateHelpers'
 import { Button } from '../../components/ui/button'
 import { updateRecord } from '../../lib/api'
@@ -41,15 +42,6 @@ const roleI18nKeys: Record<LeadershipRole, string> = {
   team_responsible: 'roleTeamResponsible',
 }
 
-export function getMemberRole(memberId: string | number, team?: Team | null): string | null {
-  if (!team) return null
-  const id = String(memberId)
-  if (flattenMemberIds(team.coach).includes(id)) return 'coach'
-  if (flattenMemberIds(team.captain).includes(id)) return 'captain'
-  if (flattenMemberIds(team.team_responsible).includes(id)) return 'team_responsible'
-  return null
-}
-
 export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin, canEditRole = true, showContact = true, showGuestColumn = false, onTeamUpdate, onExtendShell, isEditing }: MemberRowProps) {
   const { t } = useTranslation('teams')
   const member = asObj<Member>(memberTeam.member)
@@ -58,6 +50,10 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const positionBtnRef = useRef<HTMLButtonElement>(null)
   const roleBtnRef = useRef<HTMLButtonElement>(null)
+  // Wall clock, read once per mount (lazy initialiser) — reading Date.now() during
+  // render is impure. Only used for the day-granular shell-expiry countdown below,
+  // so a value pinned at mount renders exactly the same number.
+  const [nowMs] = useState(() => Date.now())
 
   if (!member) return null
 
@@ -185,7 +181,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
                   {' · '}
                   {t('expiresIn', {
                     days: Math.max(0, Math.ceil(
-                      (new Date(member.shell_expires).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+                      (new Date(member.shell_expires).getTime() - nowMs) / (1000 * 60 * 60 * 24)
                     ))
                   })}
                 </>

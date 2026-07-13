@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createRecord, updateRecord, deleteRecord, uploadFile } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
@@ -48,32 +48,40 @@ export default function RecordEditModal({
   const [error, setError] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  // Initialize form data when record or schema changes
-  useEffect(() => {
-    if (!open) return
-    const data: Record<string, unknown> = {}
-    for (const field of schema) {
-      if (field.type === 'file') continue // files handled separately
-      if (record) {
-        data[field.name] = record[field.name] ?? ''
-      } else {
-        // New record: use proper defaults per field type
-        const maxSelect = (field.options?.maxSelect as number) || 1
-        if (field.type === 'relation' && maxSelect > 1) {
-          data[field.name] = []
-        } else if (field.type === 'select' && maxSelect > 1) {
-          data[field.name] = []
-        } else if (field.type === 'bool') {
-          data[field.name] = false
+  // Initialize form data when open / record / schema changes. React's
+  // adjust-state-during-render pattern — same trigger set as the previous
+  // `useEffect(…, [open, record, schema])` (first render + every change of the
+  // three), just applied before paint instead of after it.
+  const [prevInit, setPrevInit] = useState<
+    { open: boolean; record: Record<string, unknown> | null | undefined; schema: typeof schema } | null
+  >(null)
+  if (!prevInit || prevInit.open !== open || prevInit.record !== record || prevInit.schema !== schema) {
+    setPrevInit({ open, record, schema })
+    if (open) {
+      const data: Record<string, unknown> = {}
+      for (const field of schema) {
+        if (field.type === 'file') continue // files handled separately
+        if (record) {
+          data[field.name] = record[field.name] ?? ''
         } else {
-          data[field.name] = ''
+          // New record: use proper defaults per field type
+          const maxSelect = (field.options?.maxSelect as number) || 1
+          if (field.type === 'relation' && maxSelect > 1) {
+            data[field.name] = []
+          } else if (field.type === 'select' && maxSelect > 1) {
+            data[field.name] = []
+          } else if (field.type === 'bool') {
+            data[field.name] = false
+          } else {
+            data[field.name] = ''
+          }
         }
       }
+      setFormData(data)
+      setFileFields({})
+      setError(null)
     }
-    setFormData(data)
-    setFileFields({})
-    setError(null)
-  }, [open, record, schema])
+  }
 
   const setField = (name: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [name]: value }))

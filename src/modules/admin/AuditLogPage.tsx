@@ -199,7 +199,9 @@ export default function AuditLogPage() {
   const [to, setTo] = useState(searchParams.get('to') || '')
 
   const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(false)
+  // Starts true: the mount effect below immediately fires the initial fetch, and
+  // that is exactly what the old effect's synchronous `setLoading(true)` did.
+  const [loading, setLoading] = useState(true)
   const [result, setResult] = useState<AuditResponse | null>(null)
   const [stats, setStats] = useState<AuditStats | null>(null)
   const [availableCollections, setAvailableCollections] = useState<string[]>([])
@@ -209,6 +211,33 @@ export default function AuditLogPage() {
   // refetches keep the page visible and use the inline refresh state.
   useReportPageLoading(loading && !result)
 
+  // The request itself. Every state write lives in a promise callback, so this
+  // is safe to call straight from an effect.
+  const runFetchLogs = useCallback((p: number, f: AuditFilters) => {
+    return kscwApi('/admin/audit', {
+      method: 'POST',
+      body: {
+        collection: f.collection, action: f.action, level: f.level, actor: f.actor,
+        record_id: f.recordId, search: f.search, from: f.from, to: f.to,
+        page: p, per_page: 100,
+      },
+    }).then(
+      (raw) => {
+        const res = raw as AuditResponse
+        setResult(res)
+        setPage(p)
+        if (res.collections.length > 0) {
+          setAvailableCollections(res.collections)
+        }
+        setLoading(false)
+      },
+      (err: unknown) => {
+        toast.error(String(err))
+        setLoading(false)
+      },
+    )
+  }, [])
+
   const fetchLogs = useCallback(async (p = 1, override?: Partial<AuditFilters>) => {
     // Merge any explicit overrides over the current state. Callers that mutate a
     // filter and immediately search (filter-link click, clear) MUST pass the new
@@ -216,40 +245,23 @@ export default function AuditLogPage() {
     // async setState and would search with the previous filter values.
     const f: AuditFilters = { collection, action, level, actor, recordId, search, from, to, ...override }
     setLoading(true)
-    try {
-      const res = await kscwApi('/admin/audit', {
-        method: 'POST',
-        body: {
-          collection: f.collection, action: f.action, level: f.level, actor: f.actor,
-          record_id: f.recordId, search: f.search, from: f.from, to: f.to,
-          page: p, per_page: 100,
-        },
-      }) as AuditResponse
-      setResult(res)
-      setPage(p)
-      if (res.collections.length > 0) {
-        setAvailableCollections(res.collections)
-      }
-    } catch (err) {
-      toast.error(String(err))
-    } finally {
-      setLoading(false)
-    }
-  }, [collection, action, level, actor, recordId, search, from, to])
+    await runFetchLogs(p, f)
+  }, [collection, action, level, actor, recordId, search, from, to, runFetchLogs])
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const res = await kscwApi('/admin/audit/stats', { method: 'GET' }) as AuditStats
-      setStats(res)
-    } catch {
-      // stats are non-critical
-    }
+  const fetchStats = useCallback(() => {
+    return kscwApi('/admin/audit/stats', { method: 'GET' }).then(
+      (res) => { setStats(res as AuditStats) },
+      () => { /* stats are non-critical */ },
+    )
   }, [])
 
-  // Initial load
+  // Initial load. `loading` already starts true (see above), so the effect body
+  // performs no synchronous state write — it just fires the two requests with
+  // the mount-time filter values (seeded from the URL params), exactly as the
+  // old `fetchLogs(1)` closure did.
   useEffect(() => {
-    fetchLogs(1)
-    fetchStats()
+    void runFetchLogs(1, { collection, action, level, actor, recordId, search, from, to })
+    void fetchStats()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSearch(override?: Partial<AuditFilters>) {

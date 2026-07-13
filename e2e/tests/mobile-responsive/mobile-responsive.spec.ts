@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/auth'
 import { PUBLIC_ROUTES, AUTH_ROUTES } from '../../fixtures/test-data'
 
 const isPhone = (projectName: string) => !projectName.includes('ipad')
@@ -16,9 +16,10 @@ test.describe('@mobile — navigation', () => {
     const tabBar = page.locator('nav.fixed.bottom-0')
     await expect(tabBar).toBeVisible({ timeout: 10_000 })
 
-    // Authenticated user: 5 primary tabs + 1 More button
+    // Authenticated user: 4 primary tabs (Home, Calendar, Games, Trainings) + 1
+    // More button — Teams moved into the More sheet in 7c8527e0.
     const tabItems = tabBar.locator('a, button')
-    await expect(tabItems).toHaveCount(6)
+    await expect(tabItems).toHaveCount(5)
   })
 
   test('desktop sidebar is hidden on phones', async ({ page }, testInfo) => {
@@ -206,14 +207,19 @@ test.describe('@mobile — forms', () => {
     await page.goto('/profile')
     await page.waitForLoadState('domcontentloaded')
 
-    const editBtn = page.getByRole('button', { name: /Edit Profile|Profil bearbeiten/ })
+    const editBtn = page.getByRole('button', { name: /edit profile|profil bearbeiten/i })
     await expect(editBtn).toBeVisible({ timeout: 20_000 })
     await editBtn.click()
 
-    const dialog = page.locator('dialog[open]')
+    const dialog = page.locator('[role="dialog"][data-state="open"]')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
-    const inputs = dialog.locator('input, select, textarea')
+    // `:not([aria-hidden="true"])` drops the 1×1 native <select> that Radix's
+    // <Select> renders purely for form autofill — it is not a user-facing control
+    // (the visible control is the trigger button), so it is not a touch target.
+    const inputs = dialog.locator(
+      'input:not([aria-hidden="true"]), select:not([aria-hidden="true"]), textarea:not([aria-hidden="true"])',
+    )
     const count = await inputs.count()
     const viewportWidth = page.viewportSize()!.width
 
@@ -243,11 +249,11 @@ test.describe('@mobile — modals', () => {
     await page.goto('/profile')
     await page.waitForLoadState('domcontentloaded')
 
-    const editBtn = page.getByRole('button', { name: /Edit Profile|Profil bearbeiten/ })
+    const editBtn = page.getByRole('button', { name: /edit profile|profil bearbeiten/i })
     await expect(editBtn).toBeVisible({ timeout: 20_000 })
     await editBtn.click()
 
-    const dialog = page.locator('dialog[open]')
+    const dialog = page.locator('[role="dialog"][data-state="open"]')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
     const dialogBox = await dialog.boundingBox()

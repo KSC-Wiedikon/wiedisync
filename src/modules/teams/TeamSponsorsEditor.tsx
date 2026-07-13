@@ -31,18 +31,25 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<Sponsor | null>(null)
 
-  const fetchSponsors = useCallback(async () => {
-    try {
-      const records = await fetchAllItems<Sponsor>('sponsors', {
-        filter: { teams: { teams_id: { _eq: team.id } } },
-        sort: ['sort_order'],
+  // Written as a promise chain rather than async/await: every setState here already
+  // ran *after* the request resolved, but the compiler inlines an async callback
+  // into its effect call site and cannot see the `await` boundary, so it reported
+  // these as synchronous setState-in-effect. `.then()/.catch()/.finally()` is the
+  // same desugaring `await` produces — identical timing, same resolved value.
+  const fetchSponsors = useCallback(() => {
+    return fetchAllItems<Sponsor>('sponsors', {
+      filter: { teams: { teams_id: { _eq: team.id } } },
+      sort: ['sort_order'],
+    })
+      .then((records) => {
+        setSponsors(records)
       })
-      setSponsors(records)
-    } catch {
-      // silently ignore fetch errors
-    } finally {
-      setLoading(false)
-    }
+      .catch(() => {
+        // silently ignore fetch errors
+      })
+      .finally(() => {
+        setLoading(false)
+      })
   }, [team.id])
 
   useEffect(() => {

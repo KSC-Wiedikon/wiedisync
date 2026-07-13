@@ -335,13 +335,27 @@ function PieChart({ data, colMeta }: ChartProps) {
   const total = data.reduce((sum, row) => sum + toNum(row[numericCol]), 0)
   if (total === 0) return <NoData />
 
-  let angle = -Math.PI / 2 // start at top
-
   function polarToCartesian(a: number, radius = r) {
     return { x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a) }
   }
 
-  const slices = data.map((row, i) => {
+  // Built with a plain loop rather than `data.map()` accumulating into a captured
+  // `let angle`: the compiler cannot prove a `.map()` callback runs during render,
+  // so mutating an outer binding from it is rejected (react-hooks/immutability).
+  // The running angle is identical — same order, same arithmetic.
+  const slices: {
+    d: string
+    label: string
+    val: number
+    pct: number
+    color: string
+    labelPos: { x: number; y: number }
+    fraction: number
+  }[] = []
+
+  let angle = -Math.PI / 2 // start at top
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i]
     const val = toNum(row[numericCol])
     const fraction = val / total
     const sweep = fraction * 2 * Math.PI
@@ -368,8 +382,8 @@ function PieChart({ data, colMeta }: ChartProps) {
     const label = labelCol ? String(row[labelCol] ?? '') : String(i + 1)
     const pct = Math.round(fraction * 100)
 
-    return { d, label, val, pct, color: COLORS[i % COLORS.length], labelPos, fraction }
-  })
+    slices.push({ d, label, val, pct, color: COLORS[i % COLORS.length], labelPos, fraction })
+  }
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-label={t('chartTypePie')}>

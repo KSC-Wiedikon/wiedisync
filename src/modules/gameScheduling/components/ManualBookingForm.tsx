@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import WeekdayHint from './WeekdayHint'
@@ -127,12 +127,19 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
 
   // The fixture options load lazily (per-team SVRZ fetch) and can arrive after
   // mount — re-pick the default whenever the current selection isn't offered.
-  useEffect(() => {
+  // Keyed on the options array (React's adjust-state-during-render pattern): the
+  // initial state and every other setter already pick an offered id, so a new
+  // options array is the only thing that can invalidate the selection.
+  const [prevHomeFixtures, setPrevHomeFixtures] = useState(homeFixtures)
+  if (prevHomeFixtures !== homeFixtures) {
+    setPrevHomeFixtures(homeFixtures)
     if (!homeFixtures.some((o) => String(o.id ?? '') === homeFixtureId)) setHomeFixtureId(defaultFixture(homeFixtures))
-  }, [homeFixtures, homeFixtureId])
-  useEffect(() => {
+  }
+  const [prevAwayFixtures, setPrevAwayFixtures] = useState(awayFixtures)
+  if (prevAwayFixtures !== awayFixtures) {
+    setPrevAwayFixtures(awayFixtures)
     if (!awayFixtures.some((o) => String(o.id ?? '') === awayFixtureId)) setAwayFixtureId(defaultFixture(awayFixtures))
-  }, [awayFixtures, awayFixtureId])
+  }
 
   const selectedHome = homeFixtures.find((o) => String(o.id ?? '') === homeFixtureId)
   const selectedAway = awayFixtures.find((o) => String(o.id ?? '') === awayFixtureId)

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2 } from 'lucide-react'
 import { useFineRules, formatFineAmount } from '../../hooks/useFines'
@@ -89,12 +89,24 @@ function CategoryEditor({ teamId, category, rule, onChange }: CategoryEditorProp
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
 
-  // Re-sync local state when the parent re-fetches.
-  useEffect(() => {
-    setEnabled(rule?.enabled ?? false)
-    setResetWindow(rule?.reset_window ?? 'calendar_month')
-    setTiers(rule?.tiers ?? [])
-  }, [rule?.id, rule?.enabled, rule?.reset_window, rule?.tiers])
+  // Re-sync local state when the parent re-fetches. Adjust-state-during-render
+  // keyed on exactly the same four values the old effect used as deps.
+  const ruleId = rule?.id
+  const ruleEnabled = rule?.enabled
+  const ruleResetWindow = rule?.reset_window
+  const ruleTiers = rule?.tiers
+  const [prevRule, setPrevRule] = useState({ ruleId, ruleEnabled, ruleResetWindow, ruleTiers })
+  if (
+    prevRule.ruleId !== ruleId ||
+    prevRule.ruleEnabled !== ruleEnabled ||
+    prevRule.ruleResetWindow !== ruleResetWindow ||
+    prevRule.ruleTiers !== ruleTiers
+  ) {
+    setPrevRule({ ruleId, ruleEnabled, ruleResetWindow, ruleTiers })
+    setEnabled(ruleEnabled ?? false)
+    setResetWindow(ruleResetWindow ?? 'calendar_month')
+    setTiers(ruleTiers ?? [])
+  }
 
   async function save(next: Partial<FineRule>) {
     setSaving(true)

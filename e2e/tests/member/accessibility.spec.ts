@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/auth'
 import { runAxe } from '../../fixtures/axe-helper'
 import { AUTH_ROUTES } from '../../fixtures/test-data'
 
@@ -34,7 +34,12 @@ test.describe('Accessibility — keyboard navigation (authenticated)', () => {
     await page.goto('/')
     await page.waitForLoadState('domcontentloaded')
 
+    // `domcontentloaded` fires before React paints the nav (and the boot overlay
+    // masks it during session restore) — wait for the nav to actually exist,
+    // otherwise this counts 0 items and passes/fails on a race.
     const navLinks = page.locator('nav a, nav button')
+    await expect(navLinks.first()).toBeAttached({ timeout: 20_000 })
+
     const count = await navLinks.count()
     expect(count).toBeGreaterThan(0)
 
@@ -48,16 +53,16 @@ test.describe('Accessibility — keyboard navigation (authenticated)', () => {
     await page.goto('/profile')
     await page.waitForLoadState('domcontentloaded')
 
-    const editBtn = page.getByRole('button', { name: /Edit Profile|Profil bearbeiten/ })
+    const editBtn = page.getByRole('button', { name: /edit profile|profil bearbeiten/i })
     await expect(editBtn).toBeVisible({ timeout: 20_000 })
     await editBtn.click()
 
-    const dialog = page.locator('dialog[open]')
+    const dialog = page.locator('[role="dialog"][data-state="open"]')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
-    // Native <dialog>.showModal() traps focus inside
+    // Radix Dialog (desktop) / vaul Drawer (mobile) both trap focus inside
     const focusInDialog = await page.evaluate(() => {
-      const d = document.querySelector('dialog[open]')
+      const d = document.querySelector('[role="dialog"][data-state="open"]')
       return d?.contains(document.activeElement) ?? false
     })
     expect(focusInDialog).toBe(true)
@@ -67,11 +72,11 @@ test.describe('Accessibility — keyboard navigation (authenticated)', () => {
     await page.goto('/profile')
     await page.waitForLoadState('domcontentloaded')
 
-    const editBtn = page.getByRole('button', { name: /Edit Profile|Profil bearbeiten/ })
+    const editBtn = page.getByRole('button', { name: /edit profile|profil bearbeiten/i })
     await expect(editBtn).toBeVisible({ timeout: 20_000 })
     await editBtn.click()
 
-    const dialog = page.locator('dialog[open]')
+    const dialog = page.locator('[role="dialog"][data-state="open"]')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
     await page.keyboard.press('Escape')

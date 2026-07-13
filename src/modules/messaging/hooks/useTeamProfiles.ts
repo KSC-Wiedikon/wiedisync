@@ -14,8 +14,18 @@ export function useTeamProfiles(teamIds: Array<string | null | undefined>): Map<
   const [map, setMap] = useState<Map<string, TeamProfile>>(new Map())
   const ids = teamIds.filter((x): x is string => !!x)
   const key = ids.slice().sort().join(',')
+
+  // Empty id set → empty map. React's adjust-state-during-render pattern; fires
+  // on the same occasions the effect below used to (first render + every `key`
+  // change), so the "clear" no longer cascades an extra render from the effect.
+  const [prevKey, setPrevKey] = useState<string | null>(null)
+  if (prevKey !== key) {
+    setPrevKey(key)
+    if (ids.length === 0) setMap(new Map())
+  }
+
   useEffect(() => {
-    if (ids.length === 0) { setMap(new Map()); return }
+    if (ids.length === 0) return
     let alive = true
     ;(async () => {
       try {

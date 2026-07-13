@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,18 @@ interface Props {
 // dd.mm.yyyy from a YYYY-MM-DD string (Swiss display; CLAUDE.md date rule).
 const ddmmyyyy = (s: string | null) => (s ? s.split('-').reverse().join('.') : '')
 
+const keyOf = (d: Derby) => `${d.team_a.id}:${d.team_b.id}`
+
+// draft[pairKey][svrz_id] = 'YYYY-MM-DD' — rebuilt whenever `derbies` changes.
+const buildDraft = (list: Derby[]): Record<string, Record<string, string>> => {
+  const next: Record<string, Record<string, string>> = {}
+  for (const d of list) {
+    next[keyOf(d)] = {}
+    for (const lg of d.legs) next[keyOf(d)][lg.svrz_id] = lg.date || ''
+  }
+  return next
+}
+
 // Intra-club derby anchoring (Art. 27 SVRZ). When two KSCW teams share a league
 // group, their two head-to-head games must be the FIRST of the Vor- and
 // Rückrunde. The spielplaner fixes those two dates here; the opponent slot flow
@@ -21,20 +33,17 @@ const ddmmyyyy = (s: string | null) => (s ? s.split('-').reverse().join('.') : '
 export default function DerbyPanel({ seasonId }: Props) {
   const { t } = useTranslation('gameScheduling')
   const { derbies, boundary, isLoading, saveDerby } = useDerbies(seasonId)
-  // draft[pairKey][svrz_id] = 'YYYY-MM-DD'
-  const [draft, setDraft] = useState<Record<string, Record<string, string>>>({})
+  const [draft, setDraft] = useState<Record<string, Record<string, string>>>(() => buildDraft(derbies))
   const [savingKey, setSavingKey] = useState<string | null>(null)
 
-  const keyOf = (d: Derby) => `${d.team_a.id}:${d.team_b.id}`
-
-  useEffect(() => {
-    const next: Record<string, Record<string, string>> = {}
-    for (const d of derbies) {
-      next[keyOf(d)] = {}
-      for (const lg of d.legs) next[keyOf(d)][lg.svrz_id] = lg.date || ''
-    }
-    setDraft(next)
-  }, [derbies])
+  // Re-seed the draft from freshly loaded derbies — React's
+  // adjust-state-during-render pattern, same trigger as the previous
+  // `useEffect(…, [derbies])` (the mount run is covered by the lazy initializer).
+  const [prevDerbies, setPrevDerbies] = useState(derbies)
+  if (prevDerbies !== derbies) {
+    setPrevDerbies(derbies)
+    setDraft(buildDraft(derbies))
+  }
 
   const halfOf = (date: string): 'vorrunde' | 'rueckrunde' | null =>
     !date || !boundary ? null : date < boundary ? 'vorrunde' : 'rueckrunde'

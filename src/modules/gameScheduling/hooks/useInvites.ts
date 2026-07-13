@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { kscwApi } from '../../../lib/api'
 import type { InviteSource, OpponentInvite } from '../../../types'
 
@@ -96,42 +96,74 @@ export interface SendInvitesContext {
 
 export function useInvites(kscwTeamId: string | number | null | undefined, seasonId: string | number | null | undefined) {
   const [invites, setInvites] = useState<OpponentInvite[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  // Lazy init mirrors the mount-time effect, which immediately flipped the spinner
+  // on whenever a team was already selected.
+  const [isLoading, setIsLoading] = useState(() => !!kscwTeamId)
   const [error, setError] = useState<string | null>(null)
 
   // The team+season the panel is currently showing. Every fetch captures the key
   // it was issued for and only applies its result if that's still the selected
   // team — otherwise a slow response for the previous team can clobber the new
   // one (flicker / wrong list) when switching quickly.
+  // The ref is refreshed in a layout effect (writing it during render is rejected
+  // by react-hooks/refs); a layout effect commits in the same synchronous commit as
+  // the render, so no in-flight response can ever read a stale key.
   const activeKey = kscwTeamId ? `${kscwTeamId}:${seasonId ?? ''}` : ''
   const activeKeyRef = useRef(activeKey)
-  activeKeyRef.current = activeKey
+  useLayoutEffect(() => {
+    activeKeyRef.current = activeKey
+  })
 
-  // `silent` skips the loading spinner — used by background refetches (ensure,
-  // reissue, revoke, mark-sent) so they update the list in place instead of
-  // flashing the spinner a second time after a team switch.
-  const fetchInvites = useCallback(async (opts?: { silent?: boolean }) => {
-    if (!kscwTeamId) { setInvites([]); return }
-    const myKey = `${kscwTeamId}:${seasonId ?? ''}`
-    if (!opts?.silent) setIsLoading(true)
-    setError(null)
-    try {
-      const qs = new URLSearchParams({ kscw_team: String(kscwTeamId) })
-      if (seasonId) qs.set('season', String(seasonId))
-      const resp = await kscwApi<InvitesListResponse>(`/admin/terminplanung/invites?${qs}`)
-      if (activeKeyRef.current !== myKey) return // superseded by a newer team
-      setInvites(resp.data ?? [])
-    } catch (err) {
-      if (activeKeyRef.current !== myKey) return
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      if (activeKeyRef.current === myKey && !opts?.silent) setIsLoading(false)
+  // Prime the spinner/error state on a team+season switch. This used to be the
+  // synchronous prologue of `fetchInvites` running inside the effect below, which
+  // the compiler rejects (react-hooks/set-state-in-effect); a render-phase state
+  // adjustment is the sanctioned equivalent and settles in the same commit.
+  const [primedKey, setPrimedKey] = useState(activeKey)
+  if (primedKey !== activeKey) {
+    setPrimedKey(activeKey)
+    if (!kscwTeamId) setInvites([])
+    else {
+      setIsLoading(true)
+      setError(null)
     }
+  }
+
+  // Request half of the fetch — deliberately free of *synchronous* setState (every
+  // update happens in a promise callback) so it can be driven straight from an
+  // effect. Written as a promise chain because the compiler inlines async callbacks
+  // into their effect call site and cannot see the `await` boundary.
+  const loadInvites = useCallback((opts?: { silent?: boolean }) => {
+    if (!kscwTeamId) return Promise.resolve()
+    const myKey = `${kscwTeamId}:${seasonId ?? ''}`
+    const qs = new URLSearchParams({ kscw_team: String(kscwTeamId) })
+    if (seasonId) qs.set('season', String(seasonId))
+    return kscwApi<InvitesListResponse>(`/admin/terminplanung/invites?${qs}`)
+      .then((resp) => {
+        if (activeKeyRef.current !== myKey) return // superseded by a newer team
+        setInvites(resp.data ?? [])
+      })
+      .catch((err) => {
+        if (activeKeyRef.current !== myKey) return
+        setError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (activeKeyRef.current === myKey && !opts?.silent) setIsLoading(false)
+      })
   }, [kscwTeamId, seasonId])
 
+  // Imperative refetch. `silent` skips the loading spinner — used by background
+  // refetches (ensure, reissue, revoke, mark-sent) so they update the list in place
+  // instead of flashing the spinner a second time after a team switch.
+  const fetchInvites = useCallback((opts?: { silent?: boolean }) => {
+    if (!kscwTeamId) { setInvites([]); return Promise.resolve() }
+    if (!opts?.silent) setIsLoading(true)
+    setError(null)
+    return loadInvites(opts)
+  }, [kscwTeamId, loadInvites])
+
   useEffect(() => {
-    fetchInvites()
-  }, [fetchInvites])
+    void loadInvites()
+  }, [loadInvites])
 
   const createInvites = useCallback(
     async (rows: CreateInviteRow[], source: InviteSource) => {

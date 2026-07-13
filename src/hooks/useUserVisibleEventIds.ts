@@ -30,13 +30,22 @@ export function useUserVisibleEventIds(
   const teamKey = teamIds.map(String).filter(Boolean).sort().join(',')
   const key = `${enabled ? '1' : '0'}|${teamKey}|${userId ?? ''}`
 
-  useEffect(() => {
+  // Disabled → drop any previously-loaded ids so a later re-enable can't serve
+  // stale results while its fetch is in flight. This is a reset-on-input-change,
+  // so it runs during render (React's adjust-state-during-render pattern) on the
+  // same trigger the effect used (`key` changed) instead of inside the effect.
+  const [prevKey, setPrevKey] = useState(key)
+  if (prevKey !== key) {
+    setPrevKey(key)
     if (!enabled) {
       setTeamEventIds([])
       setInvitedEventIds([])
       setIsLoading(false)
-      return
     }
+  }
+
+  useEffect(() => {
+    if (!enabled) return
     let cancelled = false
     async function load() {
       setIsLoading(true)

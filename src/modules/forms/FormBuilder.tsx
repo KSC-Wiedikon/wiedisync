@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { FormInput, FormTextarea, FormField } from '@/components/FormField'
@@ -100,7 +100,13 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
+  // Seed / reset the builder from the `form` prop. Adjust-state-during-render
+  // (React's reset-on-prop-change pattern) instead of a setState-in-effect: the
+  // sentinel `null` makes the first render seed too, exactly like the mount run of
+  // the former effect, and it re-seeds on every `form` identity change as before.
+  const [seededFrom, setSeededFrom] = useState<{ form: typeof form } | null>(null)
+  if (!seededFrom || seededFrom.form !== form) {
+    setSeededFrom({ form })
     if (form) {
       setTitle(form.title)
       setDescription(form.description ?? '')
@@ -138,7 +144,7 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
     setShowPreview(false)
     setPreview({})
     setError('')
-  }, [form])
+  }
 
   function addField() {
     setFields((prev) => [...prev, { id: newId(), type: 'short_text', label: '', required: false }])

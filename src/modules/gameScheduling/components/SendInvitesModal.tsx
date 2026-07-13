@@ -30,7 +30,9 @@ interface Props {
  */
 export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: Props) {
   const { t } = useTranslation('gameScheduling')
-  const [loading, setLoading] = useState(false)
+  // Lazy init mirrors the effect's first run: a modal that mounts already open with
+  // ids to preview starts in the loading state.
+  const [loading, setLoading] = useState(() => open && ids.length > 0)
   const [sending, setSending] = useState(false)
   const [previews, setPreviews] = useState<InvitePreview[]>([])
   const [selected, setSelected] = useState(0)
@@ -43,13 +45,25 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
   // blanket every team's invite). Admins can still switch to 'all'/'calendar'.
   const [group, setGroup] = useState<'all' | 'calendar' | 'team'>('team')
 
+  // Reset the preview state when the modal opens or the request key changes. The
+  // key is the effect's dependency list verbatim, so this fires on exactly the same
+  // renders the effect re-runs on — it just settles during render instead of
+  // synchronously inside the effect (react-hooks/set-state-in-effect).
+  const previewKey = `${open ? '1' : '0'}|${ids.join(',')}|${group}`
+  const [prevPreviewKey, setPrevPreviewKey] = useState(previewKey)
+  if (prevPreviewKey !== previewKey) {
+    setPrevPreviewKey(previewKey)
+    if (open && ids.length > 0) {
+      setLoading(true)
+      setError(null)
+      setPreviews([])
+      setSelected(0)
+    }
+  }
+
   useEffect(() => {
     if (!open || ids.length === 0) return
     let cancelled = false
-    setLoading(true)
-    setError(null)
-    setPreviews([])
-    setSelected(0)
     api
       .sendInvites(ids, { dryRun: true, contactsGroup: group, ...ctx })
       .then((resp) => {

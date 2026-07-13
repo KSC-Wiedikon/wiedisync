@@ -2,7 +2,8 @@ import { useState, useRef, useMemo, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import ViewToggle from '../../components/ViewToggle'
 import Modal from '@/components/Modal'
-import CalendarFilters, { getActiveFilterCount } from './CalendarFilters'
+import CalendarFilters from './CalendarFilters'
+import { getActiveFilterCount } from './filterCount'
 import MonthGrid from './components/MonthGrid'
 import WeekGrid from './components/WeekGrid'
 import MobileMonthView from './components/MobileMonthView'
@@ -97,14 +98,17 @@ export default function CalendarPage() {
     sources: [...allSources],
     selectedTeamIds: [],
   }))
-  // Auto-select user's teams on initial load (non-admin only)
+  // Auto-select user's teams on initial load (non-admin only). Latched by
+  // `autoSelected`, so it fires exactly once — on the first render where the team
+  // IDs have resolved. Applied during render instead of in an effect
+  // (react-hooks/set-state-in-effect); it settles in the same commit, and the data
+  // query is unaffected either way because `effectiveFilters` below already falls
+  // back to the user's own teams while the selection is empty.
   const [autoSelected, setAutoSelected] = useState(false)
-  useEffect(() => {
-    if (!autoSelected && userTeamIds.length > 0 && !effectiveIsAdmin && !effectiveIsVorstand) {
-      setFilters((f) => ({ ...f, selectedTeamIds: userTeamIds }))
-      setAutoSelected(true)
-    }
-  }, [userTeamIds, autoSelected, effectiveIsAdmin, effectiveIsVorstand])
+  if (!autoSelected && userTeamIds.length > 0 && !effectiveIsAdmin && !effectiveIsVorstand) {
+    setFilters((f) => ({ ...f, selectedTeamIds: userTeamIds }))
+    setAutoSelected(true)
+  }
   // Sync sources when auth state changes (e.g., user logs in → training/event/closure become available)
   const prevUserRef = useRef(user)
   useEffect(() => {
@@ -173,9 +177,12 @@ export default function CalendarPage() {
   // (`enabled: needsData && teamsReady`) so `isLoading` is false — without
   // folding `!teamsReady` in, the empty grid would flash during that window.
   // Don't mark "loaded once" until teams are actually ready and data has landed.
-  const hasLoadedOnce = useRef(false)
-  if (!isLoading && needsData && teamsReady) hasLoadedOnce.current = true
-  const showSpinner = needsData && (isLoading || !teamsReady) && !hasLoadedOnce.current
+  // A latched state rather than a ref — reading/writing a ref during render is
+  // rejected (react-hooks/refs). The guard makes the render-phase update converge
+  // immediately, so the committed render sees the same value the ref did.
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+  if (!hasLoadedOnce && !isLoading && needsData && teamsReady) setHasLoadedOnce(true)
+  const showSpinner = needsData && (isLoading || !teamsReady) && !hasLoadedOnce
 
   // Report to app boot gate — see usePageReady.tsx
   useReportPageLoading(showSpinner)

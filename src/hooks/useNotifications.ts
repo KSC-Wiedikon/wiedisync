@@ -12,43 +12,68 @@ export function useNotifications() {
   // count in sync no matter which mutation path changed the list.
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
   const [isLoading, setIsLoading] = useState(true)
-  const userIdRef = useRef(user?.id)
-  userIdRef.current = user?.id
+  const userId = user?.id
   // Captured per-fetch (not per-render) so an out-of-order response from a
   // previous user — e.g. logout→login or a token refresh firing two fetches —
   // can't commit the wrong user's notifications.
   const latestUserRef = useRef<string | undefined>(user?.id)
 
-  const fetchNotifications = useCallback(async () => {
-    if (authLoading || !user?.id) {
-      setNotifications([])
-      setIsLoading(false)
-      return
-    }
-    const uid = user.id
+  // The network path only. `.catch()`/`.finally()` instead of try/catch/finally
+  // so no setState is synchronously reachable from the effect that calls this.
+  const loadNotifications = useCallback(async () => {
+    if (authLoading || !userId) return
+    const uid = userId
     latestUserRef.current = uid
-    try {
+    await (async () => {
       const result = await fetchItems<Notification>('notifications', {
-        filter: { member: { _eq: user.id } },
+        filter: { member: { _eq: uid } },
         sort: ['-date_created'],
         limit: 30,
       })
       if (latestUserRef.current !== uid) return
       setNotifications(result)
-    } catch {
-      // silently fail
-    } finally {
-      if (latestUserRef.current === uid) setIsLoading(false)
+    })()
+      .catch(() => {
+        // silently fail
+      })
+      .finally(() => {
+        if (latestUserRef.current === uid) setIsLoading(false)
+      })
+  }, [authLoading, userId])
+
+  // The synchronous "no user / still authenticating → empty + not loading"
+  // branch that used to open `fetchNotifications`. Reproduced with React's
+  // adjust-state-during-render pattern; `prevAuthKey` starts as null so it also
+  // runs on the first render, matching the mount run of the effect it replaces.
+  const authKey = `${authLoading}|${userId ?? ''}`
+  const [prevAuthKey, setPrevAuthKey] = useState<string | null>(null)
+  if (prevAuthKey !== authKey) {
+    setPrevAuthKey(authKey)
+    if (authLoading || !userId) {
+      setNotifications([])
+      setIsLoading(false)
     }
-  }, [authLoading, user?.id])
+  }
 
   useEffect(() => {
-    fetchNotifications()
-  }, [fetchNotifications])
+    loadNotifications()
+  }, [loadNotifications])
 
-  // Listen for new notifications in realtime — skip if auth still loading
+  // Public refetch — keeps the original semantics (clears when signed out).
+  const fetchNotifications = useCallback(async () => {
+    if (authLoading || !userId) {
+      setNotifications([])
+      setIsLoading(false)
+      return
+    }
+    await loadNotifications()
+  }, [authLoading, userId, loadNotifications])
+
+  // Listen for new notifications in realtime — skip if auth still loading.
+  // `userId` is read straight from the closure: useRealtime keeps the latest
+  // callback, so this is exactly as fresh as the old render-written ref was.
   useRealtime<Notification>('notifications', (e) => {
-    if (e.record.member !== userIdRef.current) return
+    if (e.record.member !== userId) return
     if (e.action === 'create') {
       setNotifications((prev) => [e.record, ...prev].slice(0, 30))
     } else if (e.action === 'update') {

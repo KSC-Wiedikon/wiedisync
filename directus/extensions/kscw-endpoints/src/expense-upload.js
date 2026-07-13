@@ -18,12 +18,13 @@
  *
  * All require an authenticated member (session cookie). OCR reuses the existing
  * ANTHROPIC_API_KEY + the raw-fetch pattern from sql-ai.js; the file bytes are
- * read from the local uploads dir via directus_files.filename_disk. Writes are
- * raw knex → writeUserLog on every mutation (CLAUDE.md actor-capture rule).
+ * read via storage-read.js (AssetsService → the driver named in
+ * directus_files.storage), NOT off the local disk — that's what lets the uploads
+ * move to R2. Writes are raw knex → writeUserLog on every mutation (CLAUDE.md
+ * actor-capture rule).
  */
 
-import { readFile } from 'node:fs/promises'
-import path from 'node:path'
+import { readManagedFile, streamManagedFile } from './storage-read.js'
 import { writeErrorLog } from './error-log.js'
 import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, buildInfoCard, escHtml, FRONTEND_URL } from './email-template.js'
@@ -44,7 +45,6 @@ const FINANCE_INBOX_EMAIL = process.env.FINANCE_INBOX_EMAIL || 'finance@mail.ksc
 // override per env (empty on dev to avoid mailing the treasurer during testing).
 const FINANCE_NOTIFY_EMAILS = (process.env.FINANCE_NOTIFY_EMAILS ?? 'radomir.radovanovic.b@gmail.com')
   .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
-const UPLOAD_DIR = process.env.STORAGE_LOCAL_ROOT || '/directus/uploads'
 // Abuse / cost guard: each member may scan (OCR) and submit at most 5 receipts
 // per rolling hour. In-memory sliding window keyed by Directus user id — fine
 // for the single-container deployment (resets on container restart, which is rare).
@@ -216,11 +216,16 @@ const STATUS_MAIL = {
   },
 }
 
-/** Load a directus_files row + its raw bytes from local storage.
+/** Load a directus_files row + its raw bytes.
  *  Scoped to the caller (uploaded_by = ownerId) so a member can't OCR/exfiltrate
  *  another user's file by id — incl. the private invoice PDFs. 404 (not 403) on a
- *  mismatch avoids an existence oracle. */
-async function loadFile(database, fileId, ownerId) {
+ *  mismatch avoids an existence oracle.
+ *
+ *  Bytes come through the storage abstraction (resolves the driver from
+ *  directus_files.storage per row), not off the local disk — so this survives the
+ *  move to R2. The old path.resolve()/readFile() traversal guard is gone with it:
+ *  filename_disk is never joined onto a filesystem path any more. */
+async function loadFile(database, fileId, ownerId, deps) {
   const row = await database('directus_files')
     .where({ id: fileId, uploaded_by: ownerId })
     .first('id', 'filename_disk', 'filename_download', 'type', 'filesize')
@@ -234,19 +239,9 @@ async function loadFile(database, fileId, ownerId) {
     err.status = 400
     throw err
   }
-  // Resolve within UPLOAD_DIR and guard against path traversal via filename_disk.
-  const filePath = path.resolve(UPLOAD_DIR, row.filename_disk)
-  if (!filePath.startsWith(path.resolve(UPLOAD_DIR) + path.sep)) {
-    const err = new Error('Invalid file path')
-    err.status = 400
-    throw err
-  }
-  const bytes = await readFile(filePath)
-  if (bytes.length > MAX_FILE_BYTES) {
-    const err = new Error('File too large (max 8 MB)')
-    err.status = 413
-    throw err
-  }
+  // readManagedFile throws 413 itself once the stream passes maxBytes, so an
+  // oversized file is aborted mid-read instead of being buffered in full.
+  const { bytes } = await readManagedFile(fileId, deps, { maxBytes: MAX_FILE_BYTES })
   return { row, bytes }
 }
 
@@ -279,7 +274,7 @@ export function registerExpenseUpload(router, { database, logger, services, getS
       const fileId = String(req.body?.fileId ?? '').trim()
       if (!fileId) return res.status(400).json({ error: 'fileId required' })
 
-      const { row, bytes } = await loadFile(database, fileId, userId)
+      const { row, bytes } = await loadFile(database, fileId, userId, { services, getSchema, database })
       const b64 = bytes.toString('base64')
       const isPdf = row.type === 'application/pdf'
       const fileBlock = isPdf
@@ -386,7 +381,7 @@ export function registerExpenseUpload(router, { database, logger, services, getS
       const submitterName = member ? `${member.first_name || ''} ${member.last_name || ''}`.trim() : 'Unknown member'
       const submitterEmail = member?.email || null
 
-      const { row, bytes } = await loadFile(database, fileId, userId)
+      const { row, bytes } = await loadFile(database, fileId, userId, { services, getSchema, database })
 
       // Persist the submission (migration 177) so the member can follow the
       // status and finance has an in-app queue. Degrades to email-only if the
@@ -546,13 +541,15 @@ export function registerExpenseUpload(router, { database, logger, services, getS
         .where({ id: expense.file })
         .first('id', 'filename_disk', 'filename_download', 'type', 'filesize')
       if (!row || !row.filename_disk) return res.status(404).json({ error: 'Not found' })
-      const filePath = path.resolve(UPLOAD_DIR, row.filename_disk)
-      if (!filePath.startsWith(path.resolve(UPLOAD_DIR) + path.sep)) return res.status(400).json({ error: 'Invalid file path' })
-      const bytes = await readFile(filePath)
 
-      res.setHeader('Content-Type', row.type || 'application/octet-stream')
-      res.setHeader('Content-Disposition', `inline; filename="${(row.filename_download || 'receipt').replace(/[^\w.\- ]/g, '_')}"`)
-      res.send(bytes)
+      // Streamed through the storage abstraction (driver resolved per row from
+      // directus_files.storage), so this keeps working once uploads live in R2.
+      await streamManagedFile(
+        row.id,
+        { services, getSchema, database },
+        res,
+        { filename: row.filename_download || 'receipt', type: row.type },
+      )
     } catch (err) {
       log.error({ msg: `expense receipt: ${err.message}` })
       res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })

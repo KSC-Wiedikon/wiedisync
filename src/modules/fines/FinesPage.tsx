@@ -59,18 +59,21 @@ export default function FinesPage() {
   const [issuing, setIssuing] = useState<FinePickSelection | null>(null)
 
   // Fine query — leaders see their teams (server-side scoped), members see own.
+  // `userId` is read out of `user` before the memo so the compiler-inferred
+  // dependency matches the declared one (a `user?.id` dep infers as `user`).
+  const userId = user?.id
   const finesFilter = useMemo<Record<string, unknown> | undefined>(() => {
     const filters: Record<string, unknown>[] = []
     if (scope === 'mine' || !isLeader) {
-      if (!user?.id) return { id: { _eq: -1 } }
-      filters.push({ member: { _eq: user.id } })
+      if (!userId) return { id: { _eq: -1 } }
+      filters.push({ member: { _eq: userId } })
     }
     if (statusFilter !== 'all') filters.push({ status: { _eq: statusFilter } })
     if (scope === 'team' && teamFilter !== 'all') filters.push({ team: { _eq: teamFilter } })
     if (filters.length === 0) return undefined
     if (filters.length === 1) return filters[0]
     return { _and: filters }
-  }, [scope, isLeader, user?.id, statusFilter, teamFilter])
+  }, [scope, isLeader, userId, statusFilter, teamFilter])
 
   const { data: finesRaw, refetch, isLoading } = useFines({ filter: finesFilter })
   const fines = finesRaw ?? []

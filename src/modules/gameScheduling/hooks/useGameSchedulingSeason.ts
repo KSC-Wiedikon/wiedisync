@@ -8,8 +8,10 @@ export function useGameSchedulingSeason() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  const fetchSeasons = useCallback(async () => {
-    setIsLoading(true)
+  // The fetch itself, without the `isLoading = true` flip. Split out so the
+  // on-mount effect can call it directly: `isLoading` already starts true, so
+  // the flip is a no-op there — only the refetch paths (below) need it.
+  const loadSeasons = useCallback(async () => {
     try {
       const records = await fetchAllItems<GameSchedulingSeason>('game_scheduling_seasons', {
         sort: ['-date_created'],
@@ -25,7 +27,12 @@ export function useGameSchedulingSeason() {
     }
   }, [])
 
-  useEffect(() => { fetchSeasons() }, [fetchSeasons])
+  const fetchSeasons = useCallback(async () => {
+    setIsLoading(true)
+    await loadSeasons()
+  }, [loadSeasons])
+
+  useEffect(() => { void (async () => { await loadSeasons() })() }, [loadSeasons])
 
   const createSeason = useCallback(async (seasonName: string) => {
     const record = await createRecord<GameSchedulingSeason>('game_scheduling_seasons', {

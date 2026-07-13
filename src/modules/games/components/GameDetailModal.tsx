@@ -108,11 +108,13 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   const absenceNoteText = useAbsenceNoteText(absence)
   const [noteText, setNoteText] = useState(savedNote)
   const [noteSaved, setNoteSaved] = useState(false)
-  const noteInitRef = useRef(savedNote)
-  // Sync note text — fall back to absence label when no server note.
+  // Sync note text — fall back to absence label when no server note. Tracked in
+  // state rather than a ref (refs must not be read/written during render); the
+  // initial value mirrors the old `useRef(savedNote)` exactly.
+  const [noteInit, setNoteInit] = useState(savedNote)
   const effectiveSync = savedNote || absenceNoteText
-  if (effectiveSync !== noteInitRef.current) {
-    noteInitRef.current = effectiveSync
+  if (effectiveSync !== noteInit) {
+    setNoteInit(effectiveSync)
     setNoteText(effectiveSync)
   }
 
@@ -137,9 +139,23 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
     }
   }
 
+  // Drop the previously expanded game as soon as a different game object arrives —
+  // reset-on-prop-change during render (React's adjust-state-during-render pattern)
+  // instead of a setState at the top of the fetch effect below.
+  const [prevGame, setPrevGame] = useState(game)
+  if (prevGame !== game) {
+    setPrevGame(game)
+    setFullGame(null)
+  }
+  const lateKey = `${game?.id ?? ''}|${game?.type ?? ''}`
+  const [prevLateKey, setPrevLateKey] = useState(lateKey)
+  if (prevLateKey !== lateKey) {
+    setPrevLateKey(lateKey)
+    setLateData(null)
+  }
+
   // Re-fetch with full expand when opened from calendar (which only expands kscw_team,hall)
   useEffect(() => {
-    setFullGame(null)
     if (!game) return
     const exp = game as unknown as ExpandedGame
     const needsExpand =
@@ -164,7 +180,6 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   // Late-report state — only for coaches/TRs/admins of the PLAYING team, on home
   // games. Lets the "duty is late" reveal survive a reload without re-emailing.
   useEffect(() => {
-    setLateData(null)
     if (!game?.id || game.type !== 'home') return
     const teamId = relId(game.kscw_team)
     const canSee = hasAdminAccessToTeam(teamId) || coachTeamIds.includes(teamId) || teamResponsibleIds.includes(teamId)

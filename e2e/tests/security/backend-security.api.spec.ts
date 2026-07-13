@@ -108,7 +108,7 @@ test.describe('Backend security regressions (dev)', () => {
       test.skip(true, `public members read returned ${res.status()} — skipping field-leak assertion`)
     }
     const body = await res.json()
-    const rows: any[] = body?.data ?? []
+    const rows: Record<string, unknown>[] = body?.data ?? []
     for (const r of rows) {
       expect(r.email ?? null, 'email must not be exposed publicly').toBeNull()
       expect(r.phone ?? null, 'phone must not be exposed publicly').toBeNull()

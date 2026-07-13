@@ -16,8 +16,12 @@ export function useMemberSearch(
   query: string,
   { debounceMs = 200, enabled = true }: UseMemberSearchOptions = {},
 ): UseMemberSearchResult {
+  const active = enabled && query.trim().length >= 2
+
   const [results, setResults] = useState<SearchableMember[]>([])
-  const [loading, setLoading] = useState(false)
+  // Lazy init mirrors the effect's first run: an already-searchable query is
+  // "loading" (debouncing) from the very first render.
+  const [loading, setLoading] = useState(() => active)
   const [error, setError] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -35,16 +39,28 @@ export function useMemberSearch(
     }
   }, [])
 
+  // Prime the loading/results state when the search key changes; the effect below
+  // only (re)arms the debounce timer. `searchKey` covers the effect's deps verbatim
+  // (`search` is a stable useCallback), so this fires on exactly the same renders —
+  // it just settles during render rather than synchronously inside the effect
+  // (react-hooks/set-state-in-effect).
+  const searchKey = `${enabled ? '1' : '0'}|${debounceMs}|${query}`
+  const [prevSearchKey, setPrevSearchKey] = useState(searchKey)
+  if (prevSearchKey !== searchKey) {
+    setPrevSearchKey(searchKey)
+    if (active) {
+      setLoading(true)
+    } else {
+      setResults([])
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
 
-    if (!enabled || query.trim().length < 2) {
-      setResults([])
-      setLoading(false)
-      return
-    }
+    if (!enabled || query.trim().length < 2) return
 
-    setLoading(true)
     timerRef.current = setTimeout(() => { void search(query) }, debounceMs)
 
     return () => {

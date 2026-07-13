@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import TeamChip from '../../components/TeamChip'
@@ -256,19 +256,25 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant }: { trai
   const absenceNoteText = useAbsenceNoteText(absence)
   const [noteText, setNoteText] = useState(savedNote)
   const [noteSaved, setNoteSaved] = useState(false)
-  const noteInitRef = useRef(savedNote)
-  const [guestCount, setGuestCount] = useState(0)
+  // Previously-synced note value. Held in state (not a ref) so the compare +
+  // re-sync below is a plain adjust-state-during-render, not a render-phase ref
+  // write. Seeded with `savedNote` — exactly what `useRef(savedNote)` held.
+  const [prevNoteSync, setPrevNoteSync] = useState(savedNote)
+  const serverGuestCount = participation?.guest_count ?? 0
+  const [guestCount, setGuestCount] = useState(serverGuestCount)
+  const [prevServerGuestCount, setPrevServerGuestCount] = useState(serverGuestCount)
   const [noteRequiredError, setNoteRequiredError] = useState(false)
   const requireNote = !!training.require_note_if_absent
 
   // Sync guest count from existing participation
-  useEffect(() => {
-    setGuestCount(participation?.guest_count ?? 0)
-  }, [participation?.guest_count])
+  if (prevServerGuestCount !== serverGuestCount) {
+    setPrevServerGuestCount(serverGuestCount)
+    setGuestCount(serverGuestCount)
+  }
   // Sync note text when server data loads/changes — fall back to absence label.
   const effectiveSync = savedNote || absenceNoteText
-  if (effectiveSync !== noteInitRef.current) {
-    noteInitRef.current = effectiveSync
+  if (effectiveSync !== prevNoteSync) {
+    setPrevNoteSync(effectiveSync)
     setNoteText(effectiveSync)
   }
 

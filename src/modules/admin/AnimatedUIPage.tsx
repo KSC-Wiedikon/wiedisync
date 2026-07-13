@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useMemo, useState, type ReactNode } from 'react'
 import { Sparkles, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
