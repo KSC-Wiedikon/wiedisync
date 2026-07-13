@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/auth'
 import { VIEWPORTS } from '../../fixtures/test-data'
 
 // Runs in 'chromium' and 'mobile' projects (authenticated as test_user)
@@ -38,27 +38,29 @@ test.describe('Grid layout — scorer page filters', () => {
 })
 
 test.describe('Grid layout — desktop/mobile layout switch', () => {
-  test('sidebar appears at lg breakpoint, tab bar disappears', async ({ page }) => {
+  test('desktop navbar appears at lg breakpoint, tab bar disappears', async ({ page }) => {
     // Start at mobile
     await page.setViewportSize(VIEWPORTS.sm)
     await page.goto('/')
     await page.waitForLoadState('domcontentloaded')
     await page.waitForTimeout(500)
 
-    // Sidebar rail selector: direct child of the root flex h-screen layout
-    const sidebarRail = page.locator('div.flex.h-screen > div.w-16.shrink-0')
+    // Desktop nav: `Layout` renders <TopNav> (a <header> with the nav inside) only
+    // when isDesktop. It replaced the old collapsible w-16 side rail in e4491530
+    // ("feat(nav): desktop top navbar replacing the side rail").
+    const desktopNav = page.locator('header nav')
 
-    // Tab bar visible, sidebar rail hidden
+    // Tab bar visible, desktop navbar absent
     const tabBar = page.locator('nav.fixed.bottom-0')
     await expect(tabBar).toBeVisible()
-    await expect(sidebarRail).toHaveCount(0)
+    await expect(desktopNav).toHaveCount(0)
 
     // Resize to desktop
     await page.setViewportSize(VIEWPORTS.lg)
     await page.waitForTimeout(500)
 
-    // Sidebar rail appears, tab bar disappears
-    await expect(sidebarRail).toBeVisible()
+    // Desktop navbar appears, tab bar disappears
+    await expect(desktopNav).toBeVisible()
     await expect(page.locator('nav.fixed.bottom-0')).toHaveCount(0)
   })
 })

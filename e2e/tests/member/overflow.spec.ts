@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/auth'
 import { AUTH_ROUTES, VIEWPORTS } from '../../fixtures/test-data'
 
 // Runs in 'chromium' and 'mobile' projects (authenticated as test_user)

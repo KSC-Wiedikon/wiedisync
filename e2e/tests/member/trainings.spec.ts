@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/auth'
 
 // Helper: navigate to /trainings and wait for the page to load.
 // Auth hydration from storageState can be slow — if the page is blank,

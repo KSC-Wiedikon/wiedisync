@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../../fixtures/auth'
 
 // Use admin storageState — hallenplan requires admin access
 test.use({ storageState: 'e2e/.auth/admin.json' })
