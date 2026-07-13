@@ -20,6 +20,14 @@ import RoleChipPicker from '@/components/RoleChipPicker'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
 import { createRecord, deleteRecord, updateRecord, kscwApi } from '../../lib/api'
 
+/**
+ * Directus M2M aliases come back either as bare IDs or as expanded junction
+ * objects (`{ teams_id: { id, … } }` / `{ members_id: { id, … } }`), depending on
+ * how the record was fetched — the `Event` type only models the bare-ID shape.
+ */
+type TeamRef = string | number | { teams_id?: string | number | { id: string | number } | null; id?: string | number | null }
+type MemberRef = string | number | { members_id?: string | number | { id: string | number } | null; id?: string | number | null }
+
 interface SessionDraft {
   id?: string // existing record id (for edit mode)
   date: string
@@ -148,7 +156,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setLocation(event.location ?? '')
       setDescription(event.description ?? '')
       // teams from API are junction objects [{teams_id: {id, ...}}, ...] — extract team IDs
-      setSelectedTeams((event.teams ?? []).map((t: any) => {
+      setSelectedTeams((event.teams ?? []).map((t: TeamRef) => {
         if (typeof t === 'string' || typeof t === 'number') return String(t)
         const tid = t?.teams_id
         return String(typeof tid === 'object' ? tid?.id : tid ?? t?.id ?? t)
@@ -165,7 +173,11 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setEnablePositions(event.features_enabled?.position_preferences === true)
       setInvitedRoles(event.invited_roles ?? [])
       setInvitedMembers(
-        (event.invited_members ?? []).map((m: any) => typeof m === 'object' ? String(m.members_id?.id ?? m.members_id ?? m) : String(m))
+        (event.invited_members ?? []).map((m: MemberRef) => {
+          if (typeof m !== 'object') return String(m)
+          const mid = m.members_id
+          return String((typeof mid === 'object' ? mid?.id : mid) ?? m)
+        })
       )
       setSendEmailInvite(event.send_email_invite ?? false)
       setJsRelevant(!!event.js_relevant)

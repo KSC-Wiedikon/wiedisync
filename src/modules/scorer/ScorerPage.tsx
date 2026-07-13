@@ -139,7 +139,6 @@ export default function ScorerPage() {
 
   // Reminder email toggle (superuser only)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: appSettingsRaw, refetch: refetchSettings } = useCollection<any>('app_settings', {
     filter: { key: { _eq: 'scorer_reminders_enabled' } },
     limit: 1,
@@ -589,11 +588,9 @@ export default function ScorerPage() {
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('infoArrivalTitle')}</h3>
-              {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
+              {/* Hardcoded i18n strings, DOMPurify-sanitized before injection */}
               <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoArrivalScorer')) }} />
-              {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
               <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoArrivalTaefeler')) }} />
-              {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
               <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoArrivalReferee')) }} />
             </div>
           </div>
@@ -602,7 +599,7 @@ export default function ScorerPage() {
             <div>
               <h3 className="font-semibold text-red-600 dark:text-red-400">{t('infoWarningTitle')}</h3>
               <p className="mt-1 text-red-600/80 dark:text-red-400/80">{t('infoWarningFine')}</p>
-              {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
+              {/* Hardcoded i18n string, DOMPurify-sanitized before injection */}
               <p className="mt-1 text-red-600/80 dark:text-red-400/80 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('confirmSelfAssignWarning')) }} />
             </div>
           </div>
@@ -611,7 +608,7 @@ export default function ScorerPage() {
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('infoRequirementsTitle')}</h3>
               <p className="mt-1">{t('infoRequirements')}</p>
-              {/* eslint-disable-next-line react/no-danger -- hardcoded i18n */}
+              {/* Hardcoded i18n string, DOMPurify-sanitized before injection */}
               <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoRequirementsArrival')) }} />
             </div>
           </div>

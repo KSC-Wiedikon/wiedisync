@@ -9,8 +9,12 @@ vi.mock('../../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'mbr-me
 vi.mock('../../../hooks/useRealtime', () => ({ useRealtime: vi.fn() }))
 vi.mock('../../../lib/api', () => ({ fetchAllItems: vi.fn(async () => []) }))
 
-const acceptMock = vi.fn(async (_id: string) => ({ conversation_id: 'c', status: 'accepted' as const }))
-const declineMock = vi.fn(async (_id: string) => ({ conversation_id: 'c', status: 'declined' as const }))
+const acceptMock = vi.fn<(id: string) => Promise<{ conversation_id: string; status: 'accepted' }>>(
+  async () => ({ conversation_id: 'c', status: 'accepted' as const }),
+)
+const declineMock = vi.fn<(id: string) => Promise<{ conversation_id: string; status: 'declined' }>>(
+  async () => ({ conversation_id: 'c', status: 'declined' as const }),
+)
 vi.mock('../api/messaging', () => ({
   messagingApi: {
     acceptRequest: (id: string) => acceptMock(id),
@@ -30,6 +34,10 @@ vi.mock('react', async (importOriginal) => {
 })
 
 import { messagingApi } from '../api/messaging'
+import type { MessageRequestRow } from '../api/types'
+
+/** The subset of a request row the realtime reducer actually reads. */
+type RequestRow = Pick<MessageRequestRow, 'id' | 'recipient' | 'status'>
 
 describe('useMessageRequests — api contract', () => {
   beforeEach(() => { acceptMock.mockClear(); declineMock.mockClear() })
@@ -45,23 +53,23 @@ describe('useMessageRequests — api contract', () => {
   })
 
   it('realtime reducer: incoming pending create prepends', () => {
-    const prev = [{ id: 'a', recipient: 'mbr-me', status: 'pending' } as any]
-    const incoming = { id: 'b', recipient: 'mbr-me', status: 'pending' } as any
+    const prev: RequestRow[] = [{ id: 'a', recipient: 'mbr-me', status: 'pending' }]
+    const incoming: RequestRow = { id: 'b', recipient: 'mbr-me', status: 'pending' }
     const merged = prev.some(r => r.id === incoming.id) ? prev : [incoming, ...prev]
     expect(merged.map(r => r.id)).toEqual(['b', 'a'])
   })
 
   it('realtime reducer: update resolving a request removes it', () => {
-    const prev = [{ id: 'a', recipient: 'mbr-me', status: 'pending' } as any,
-                  { id: 'b', recipient: 'mbr-me', status: 'pending' } as any]
-    const resolved = { id: 'a', recipient: 'mbr-me', status: 'accepted' } as any
+    const prev: RequestRow[] = [{ id: 'a', recipient: 'mbr-me', status: 'pending' },
+                                { id: 'b', recipient: 'mbr-me', status: 'pending' }]
+    const resolved: RequestRow = { id: 'a', recipient: 'mbr-me', status: 'accepted' }
     const next = prev.filter(r => r.id !== resolved.id)
     expect(next.map(r => r.id)).toEqual(['b'])
   })
 
   it('realtime reducer: create for another recipient is ignored', () => {
-    const prev: any[] = []
-    const rec = { id: 'x', recipient: 'other', status: 'pending' } as any
+    const prev: RequestRow[] = []
+    const rec: RequestRow = { id: 'x', recipient: 'other', status: 'pending' }
     const isForMe = String(rec.recipient) === 'mbr-me'
     const next = isForMe ? [rec, ...prev] : prev
     expect(next.length).toBe(0)

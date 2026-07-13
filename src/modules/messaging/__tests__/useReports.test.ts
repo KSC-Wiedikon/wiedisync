@@ -3,12 +3,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('../../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'mbr-admin' }, isAdmin: true }) }))
 vi.mock('../../../hooks/useRealtime', () => ({ useRealtime: vi.fn() }))
 
+type ResolveReportBody = { status: 'resolved' | 'dismissed'; delete_message?: boolean; ban?: boolean }
+
 const listMock = vi.fn(async () => ({ reports: [] }))
-const resolveMock = vi.fn(async (_id: string, _b: any) => ({ id: _id, status: 'resolved', delete_message: false, ban: false }))
+const resolveMock = vi.fn<
+  (id: string, b: ResolveReportBody) => Promise<{ id: string; status: string; delete_message: boolean; ban: boolean }>
+>(
+  async (id) => ({ id, status: 'resolved', delete_message: false, ban: false }),
+)
 vi.mock('../api/messaging', () => ({
   messagingApi: {
     listReports: () => listMock(),
-    resolveReport: (id: string, b: any) => resolveMock(id, b),
+    resolveReport: (id: string, b: ResolveReportBody) => resolveMock(id, b),
   },
 }))
 
@@ -56,7 +62,7 @@ describe('useReports — api contract', () => {
   it('openCount sums status=open rows', () => {
     const rows = [
       { status: 'open' }, { status: 'open' }, { status: 'resolved' }, { status: 'dismissed' },
-    ] as any[]
+    ] as { status: string }[]
     const count = rows.filter(r => r.status === 'open').length
     expect(count).toBe(2)
   })

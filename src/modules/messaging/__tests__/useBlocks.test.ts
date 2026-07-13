@@ -10,8 +10,12 @@ vi.mock('../../../utils/messagingFeatureFlag', () => ({ messagingFeatureEnabled:
 vi.mock('../../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'mbr-me' } }) }))
 vi.mock('../../../hooks/useRealtime', () => ({ useRealtime: vi.fn() }))
 
-const blockMock = vi.fn(async (_b: { member: string }) => ({ blocked: 'them', created: true }))
-const unblockMock = vi.fn(async (_id: string) => ({ unblocked: 'them', removed: true }))
+const blockMock = vi.fn<(b: { member: string }) => Promise<{ blocked: string; created: boolean }>>(
+  async () => ({ blocked: 'them', created: true }),
+)
+const unblockMock = vi.fn<(id: string) => Promise<{ unblocked: string; removed: boolean }>>(
+  async () => ({ unblocked: 'them', removed: true }),
+)
 vi.mock('../api/messaging', () => ({
   messagingApi: {
     block: (b: { member: string }) => blockMock(b),

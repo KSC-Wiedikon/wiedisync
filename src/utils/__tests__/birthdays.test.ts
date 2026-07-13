@@ -7,9 +7,18 @@ import {
   upcomingBirthdays,
   birthdayOccurrencesInRange,
 } from '../birthdays'
+import type { Member } from '../../types'
+
+// Minimal member shape — only the fields the util reads (mirrors the util's
+// internal BirthdayMember, which isn't exported).
+type TestMember = Pick<Member, 'first_name' | 'last_name'> & {
+  id: string
+  birthdate: string | null
+  birthdate_visibility: string | null
+}
 
 // Minimal member factory — only the fields the util reads.
-function m(overrides: Record<string, unknown> = {}) {
+function m(overrides: Partial<TestMember> = {}): TestMember {
   return {
     id: '1',
     first_name: 'Anna',
@@ -17,7 +26,7 @@ function m(overrides: Record<string, unknown> = {}) {
     birthdate: '1990-05-10',
     birthdate_visibility: 'full',
     ...overrides,
-  } as any
+  }
 }
 
 describe('isBirthdayVisible', () => {

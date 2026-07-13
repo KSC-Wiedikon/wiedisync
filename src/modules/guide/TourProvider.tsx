@@ -13,7 +13,6 @@ import {
   EVENTS,
   STATUS,
   type EventData,
-  type Controls,
 } from 'react-joyride'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
@@ -198,7 +197,7 @@ export function TourProvider({ children }: Props) {
   }, [currentTour])
 
   const handleJoyrideEvent = useCallback(
-    (data: EventData, _controls: Controls) => {
+    (data: EventData) => {
       const { action, index, status, type } = data
 
       if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {

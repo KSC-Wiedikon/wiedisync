@@ -41,7 +41,8 @@ export function useRealtime<T = Record<string, unknown>>(
           directus.subscribe(collection, { event: 'changes' as never })
         )
 
-        if (cancelled) { try { unsubscribe() } catch {} return }
+        // Unmounted while connecting — unsubscribe may throw on an already-closed socket; nothing to do.
+        if (cancelled) { try { unsubscribe() } catch { /* socket already closed */ } return }
         cleanup = unsubscribe
 
         ;(async () => {
@@ -74,7 +75,8 @@ export function useRealtime<T = Record<string, unknown>>(
 
     return () => {
       cancelled = true
-      try { cleanup?.() } catch {}
+      // Best-effort unsubscribe on unmount — a failed/closed socket must not throw during cleanup.
+      try { cleanup?.() } catch { /* socket already closed */ }
     }
   }, [collection, disabled])
 }

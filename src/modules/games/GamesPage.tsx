@@ -500,7 +500,7 @@ export default function GamesPage() {
         activityType="game"
         activityId={rosterGame?.id ?? ''}
         activityDate={rosterGame?.date ?? ''}
-        teamIds={rosterGame ? [String(typeof rosterGame.kscw_team === 'object' ? (rosterGame.kscw_team as any).id : rosterGame.kscw_team)] : []}
+        teamIds={rosterGame ? [String(typeof rosterGame.kscw_team === 'object' ? (rosterGame.kscw_team as Team).id : rosterGame.kscw_team)] : []}
         title={t('participation')}
         activityKind={rosterGame ? `${rosterGame.home_team ?? ''} vs ${rosterGame.away_team ?? ''}`.trim() : undefined}
       />

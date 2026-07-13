@@ -24,6 +24,16 @@ import { asTeams, teamId } from './eventHelpers'
 import type { Event, EventSession, Participation } from '../../types'
 import { TourPageButton } from '../guide/TourPageButton'
 
+/**
+ * Runtime shape of one `events_members` entry. `Event['invited_members']` is declared
+ * as `string[]` (the un-expanded shape), but this page expands `invited_members.members_id`,
+ * so an entry can also be a junction object whose `members_id` is a raw id or an object.
+ */
+type InvitedMemberRef =
+  | string
+  | number
+  | { members_id?: string | number | { id?: string | number } | null }
+
 export default function EventsPage() {
   const { t } = useTranslation('events')
   const { user, isCoach, isCoachOf, memberTeamIds, coachTeamIds, teamsLoading, matchesRole } = useAuth()
@@ -107,9 +117,12 @@ export default function EventsPage() {
       const evtTeamIds = (event.teams ?? []).map(t => teamId(t))
       const hasTeams = evtTeamIds.length > 0
       const hasRoles = (event.invited_roles ?? []).length > 0
-      const invitedMemberIds = (event.invited_members ?? []).map((m: any) =>
-        String(typeof m === 'object' ? (m.members_id?.id ?? m.members_id ?? m) : m)
-      )
+      const invitedMemberIds = (event.invited_members ?? []).map((m: InvitedMemberRef) => {
+        if (typeof m !== 'object') return String(m)
+        const ref = m.members_id
+        const id = typeof ref === 'object' && ref !== null ? ref.id : ref
+        return String(id ?? ref ?? m)
+      })
       const hasMembers = invitedMemberIds.length > 0
 
       // No targeting = club-wide

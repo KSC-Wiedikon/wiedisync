@@ -387,10 +387,16 @@ export function getDayName(dayOfWeek: number): string {
 }
 
 /** Parse a respond_by datetime into { date, time } in Europe/Zurich.
- * Accepts ISO UTC or the legacy "YYYY-MM-DD HH:MM:SS" space format. */
+ * Accepts ISO UTC or the legacy "YYYY-MM-DD HH:MM:SS" space format.
+ * `fallbackStartTime` is accepted for call-site compatibility but is not
+ * used: this parser returns null for a missing respond_by rather than
+ * synthesizing a time (see getDeadlineDate for the fallback behaviour). */
 export function parseRespondByTime(
   respondBy: string | null | undefined,
-  _fallbackStartTime?: string
+  fallbackStartTime?: string
+): { date: string; time: string } | null;
+export function parseRespondByTime(
+  respondBy: string | null | undefined
 ): { date: string; time: string } | null {
   if (!respondBy) return null;
   const d = parseFlexible(respondBy);

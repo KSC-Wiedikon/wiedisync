@@ -28,6 +28,11 @@ interface ProfileEditModalProps {
   onboarding?: boolean
 }
 
+/** The member fields the shirt-number conflict check reads off a `member_teams` row. */
+type ConflictMember = { number?: number; first_name?: string; last_name?: string }
+/** `member_teams` row as returned here: `member` may be an expanded object or a raw id. */
+type TeammateRow = { member: ConflictMember | string | number | null }
+
 export default function ProfileEditModal({ open, onClose, onboarding }: ProfileEditModalProps) {
   const { user, primarySport, memberTeamNames, refreshUser } = useAuth()
   const { t, i18n } = useTranslation('auth')
@@ -186,14 +191,14 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
         })
         const teamIds = myTeams.map((mt) => relId(mt.team))
         if (teamIds.length > 0) {
-          const teammates = await fetchAllItems('member_teams', {
+          const teammates = await fetchAllItems<TeammateRow>('member_teams', {
             filter: { _and: [{ team: { _in: teamIds } }, { member: { _neq: user.id } }] },
           })
           const conflict = teammates.find(
-            (mt) => asObj<{ number?: number; first_name?: string; last_name?: string }>(mt.member as any)?.number === number
+            (mt) => asObj<ConflictMember>(mt.member)?.number === number
           )
           if (conflict) {
-            const conflictMember = asObj<{ number?: number; first_name?: string; last_name?: string }>(conflict.member as any)
+            const conflictMember = asObj<ConflictMember>(conflict.member)
             const conflictName = memberName(conflictMember) || '?'
             setError(t('numberTaken', { name: conflictName }))
             setLoading(false)

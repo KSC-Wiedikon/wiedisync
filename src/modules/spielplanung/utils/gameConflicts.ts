@@ -74,7 +74,7 @@ export function checkConflicts(
   try {
     candidateBlock = getBlockWindow(candidate.time)
   } catch {
-    candidateBlock = null
+    // Unparseable time → leave candidateBlock null; the hall-overlap check is skipped.
   }
 
   for (const game of allGames) {

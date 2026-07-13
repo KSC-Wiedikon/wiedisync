@@ -1077,7 +1077,7 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
   const dateStr = formatDateCompact(appointment.date)
   const weekday = formatWeekday(appointment.date)
 
-  let label = ''
+  let label: string
   let timeStr = ''
   let coachIds: string[] | undefined
   if (appointment.type === 'game') {
@@ -1177,7 +1177,7 @@ function AppointmentTableRow({ appointment, onClick, participationStatus, partic
   const dateStr = formatDateCompact(appointment.date)
   const weekday = formatWeekday(appointment.date)
 
-  let label = ''
+  let label: string
   let timeStr = ''
   let coachIds: string[] | undefined
   if (appointment.type === 'game') {

@@ -370,11 +370,6 @@ async function encryptPayload(
     )
   )
 
-  // HKDF: auth_secret → PRK
-  const prkKey = await crypto.subtle.importKey(
-    'raw', authSecret, 'HKDF', false, ['deriveBits']
-  )
-
   // IKM = HKDF-Extract(auth_secret, ecdh_secret)
   // But Web Crypto HKDF combines extract+expand, so we use a two-step approach
   const ikmKey = await crypto.subtle.importKey(

@@ -6,6 +6,7 @@
  * decision string to messagingApi.recordConsent.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { ConsentBody } from '../api/types'
 
 // ── Mock React hooks (node env) ──────────────────────────────────────
 vi.mock('react', async (importOriginal) => {
@@ -26,10 +27,13 @@ Object.defineProperty(globalThis, 'window', {
 })
 
 // ── Mock messagingApi ────────────────────────────────────────────────
-const recordConsentMock = vi.fn(async (_body: unknown) => ({ decision: 'accepted', consent_prompted_at: '' }))
+type ConsentResponse = { decision: ConsentBody['decision']; consent_prompted_at: string }
+const recordConsentMock = vi.fn<(body: ConsentBody) => Promise<ConsentResponse>>(
+  async () => ({ decision: 'accepted', consent_prompted_at: '' }),
+)
 vi.mock('../api/messaging', () => ({
   messagingApi: {
-    recordConsent: (body: unknown) => recordConsentMock(body),
+    recordConsent: (body: ConsentBody) => recordConsentMock(body),
   },
 }))
 
@@ -97,7 +101,7 @@ describe('useMessagingConsent', () => {
 
   it('later forwards decision "later" to recordConsent', async () => {
     mockUser = { consent_decision: 'pending', consent_prompted_at: null }
-    recordConsentMock.mockResolvedValueOnce({ decision: 'later' as any, consent_prompted_at: '' })
+    recordConsentMock.mockResolvedValueOnce({ decision: 'later', consent_prompted_at: '' })
     const { later } = useMessagingConsent()
     await (later as () => Promise<void>)()
     expect(recordConsentMock).toHaveBeenCalledWith({ decision: 'later' })
