@@ -1667,11 +1667,48 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         GROUP BY BTRIM(g)
         ORDER BY cnt DESC, grp`
 
-      const [missingRes, strayRes, noTeamRes] = await Promise.all([
+      // no_group — linked members whose ClubDesk contact carries NO group token at
+      // all. Invisible to `missing`, which only inspects members who are ON a
+      // Wiedisync team: someone with no team AND no ClubDesk group is flagged by
+      // nothing else today. `teams` is annotated so the admin knows which group to
+      // assign — a no-group member WITH a team is the urgent case (they play, yet
+      // the register has them in nothing). Muted (sync-excluded) accounts skipped.
+      const noGroupSql = `
+        WITH cd AS (
+          SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, gruppen_bracketed
+          FROM clubdesk_export
+          WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
+          ORDER BY BTRIM(clubdesk_id), row_id
+        )
+        SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
+               COALESCE(NULLIF(BTRIM(m.beitragskategorie), ''), '') AS kat,
+               COALESCE((
+                 SELECT string_agg(DISTINCT t.name, ', ')
+                 FROM member_teams mt JOIN teams t ON t.id = mt.team
+                 WHERE mt.member = m.id AND mt.season = :season AND COALESCE(mt.guest_level, 0) = 0
+               ), '') AS teams
+        FROM members m
+        JOIN cd ON cd.cdid = m.clubdesk_id
+        WHERE m.kscw_membership_active
+          AND COALESCE(m.clubdesk_sync_exclude, false) = false
+          AND NULLIF(BTRIM(COALESCE(cd.gruppen_bracketed, '')), '') IS NULL
+        ORDER BY m.last_name, m.first_name`
+
+      const [missingRes, strayRes, noTeamRes, noGroupRes] = await Promise.all([
         database.raw(missingSql, { season }),
         database.raw(straySql, { season }),
         database.raw(noTeamSql),
+        database.raw(noGroupSql, { season }),
       ])
+
+      const no_group = noGroupRes.rows.map((r) => ({
+        member_id: r.member_id,
+        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+        clubdesk_id: r.clubdesk_id,
+        teams: r.teams || '',
+        kat: r.kat || '',
+        has_team: !!r.teams,
+      }))
 
       const missingByMember = new Map()
       for (const r of missingRes.rows) {
@@ -1699,7 +1736,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
       const no_team_groups = noTeamRes.rows.map((r) => ({ group: r.grp, count: r.cnt }))
 
-      return res.json({ missing: [...missingByMember.values()], strays, no_team_groups, season })
+      return res.json({ missing: [...missingByMember.values()], strays, no_team_groups, no_group, season })
     } catch (err) {
       log.error({ msg: `clubdesk-group-sync: ${err.message}`, endpoint: 'clubdesk-group-sync', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
