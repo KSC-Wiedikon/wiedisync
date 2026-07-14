@@ -24,6 +24,15 @@ const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
+        title: 'New: your ID, encrypted so that nobody here can read it',
+        items: [
+          'You can upload a photo of your ID in your profile, and your coaches can show it to a referee before a game. It is encrypted on your own device before it leaves it. The club cannot read it \u2014 not the committee, not the admins, not the server. Only you and the coaches and team responsibles of your teams hold a key to it.',
+          'Coaches see them from 45 minutes before kickoff. They can download them beforehand, because halls usually have no signal, and the documents are removed from the phone again once the game starts. Every time someone opens an ID, it is recorded.',
+          'This is real encryption, and it has a real consequence. There is no master key and no way for anyone at the club to recover your document. If you reset a forgotten password, your key is lost with it and you simply upload your ID again. Changing your password from inside the app is safe \u2014 it keeps your key.',
+          'Only members who have logged in can have a document, because the key is made from your password. There is no way around that without the club being able to read your ID, which is the one thing this is for.',
+        ],
+      },
+      {
         title: 'Fixed: away games were showing the wrong list',
         items: [
           'The Einsatzliste for away games was never being read. Wiedisync only ever looked at the home team\u2019s list, so for away games it quietly fell back to the RSVPs \u2014 which meant a nominated player who had not RSVP\u2019d was simply missing from the sheet, in the away hall, which is exactly where a referee is most likely to ask for it. Away games now show the real Einsatzliste, the same as home games.',
