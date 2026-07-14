@@ -4,6 +4,7 @@ export default {
   seasonPicker: 'Stagione',
 
   // View options
+  blockedDate: 'Bloccato',
   viewCalendar: 'Calendario',
   viewWeek: 'Week',
   viewByDate: 'Per data',

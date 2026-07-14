@@ -3,6 +3,9 @@ export default {
   subtitleSeason: 'Season overview {{season}}',
   seasonPicker: 'Season',
 
+  // Club-wide blackout day (scheduling_global_blocks)
+  blockedDate: 'Blocked',
+
   // View options
   viewCalendar: 'Calendar',
   viewWeek: 'Week',

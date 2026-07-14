@@ -24,6 +24,14 @@ interface CalendarGridProps<T> {
   closedLabel?: string
   /** date key -> closure reason, shown in small text under the closed label. */
   closureReasons?: Map<string, string>
+  /**
+   * Club-wide scheduling blackouts: date key -> reason. Rendered in a stronger red
+   * than a hall closure — a closed hall is a venue fact, a block is a club decision
+   * that no game may be played that day, so the two must stay visually distinct.
+   */
+  blockedDates?: Map<string, string>
+  /** Short label shown on blocked days (e.g. "Blocked"). Opt-in. */
+  blockedLabel?: string
   highlightedDates?: Set<string>
   /** Tailwind classes for a highlighted day cell. Defaults to a soft amber. */
   highlightClassName?: string
@@ -58,6 +66,8 @@ export default function CalendarGrid<T>({
   closedDates,
   closedLabel,
   closureReasons,
+  blockedDates,
+  blockedLabel,
   highlightedDates,
   highlightClassName = 'bg-amber-50 dark:bg-amber-950',
   highlightLabel,
@@ -137,6 +147,8 @@ export default function CalendarGrid<T>({
           const isToday = isSameDay(date, today)
           const items = itemsByDate.get(key) ?? []
           const isClosed = closedDates?.has(key) ?? false
+          const isBlocked = blockedDates?.has(key) ?? false
+          const blockedReason = blockedDates?.get(key) || ''
           const isHighlighted = highlightedDates?.has(key) ?? false
           const isOutOfSeason = outOfSeasonDates?.has(key) ?? false
           const clickable = !!onDayClick && inMonth && !isOutOfSeason
@@ -165,6 +177,12 @@ export default function CalendarGrid<T>({
               {/* Closure overlay (red — visible in both light and dark mode) */}
               {isClosed && (
                 <div className="pointer-events-none absolute inset-0 bg-red-50 opacity-50 dark:bg-red-900 dark:opacity-40" />
+              )}
+
+              {/* Blocked overlay — deliberately stronger than a hall closure, and
+                  drawn after it so a day that is both reads as blocked. */}
+              {isBlocked && (
+                <div className="pointer-events-none absolute inset-0 bg-red-300/60 dark:bg-red-800/60" />
               )}
 
               {/* Day number (+ optional highlight label, e.g. "Spielsamstag") */}
@@ -208,6 +226,20 @@ export default function CalendarGrid<T>({
                   {closureReasons?.get(key) && (
                     <div className="truncate text-[9px] text-red-600/80 dark:text-red-300/70" title={closureReasons.get(key)}>
                       {closureReasons.get(key)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Blocked label + reason (e.g. "Blocked" / "U20 Tournament") */}
+              {isBlocked && inMonth && blockedLabel && (
+                <div className="relative mb-0.5 leading-tight">
+                  <div className="truncate text-[9px] font-bold uppercase tracking-wide text-red-800 dark:text-red-100">
+                    {blockedLabel}
+                  </div>
+                  {blockedReason && (
+                    <div className="truncate text-[9px] text-red-800/80 dark:text-red-100/80" title={blockedReason}>
+                      {blockedReason}
                     </div>
                   )}
                 </div>
