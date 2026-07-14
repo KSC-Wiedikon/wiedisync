@@ -73,24 +73,27 @@ export function useIdentityKeys() {
     return () => { cancelled = true }
   }, [memberId])
 
-  /** First-time setup. Generates a keypair and wraps the private half under the password. */
+  /**
+   * Set up a keypair from here. Normally unnecessary — bootstrapIdentityKey() already does
+   * this silently at login, where the password is legitimately in hand. This survives for
+   * the member whose session was restored from a cookie and who has never had a key.
+   */
   const setup = useCallback(async (password: string) => {
     if (memberId == null) throw new Error('Not signed in')
-    const created = await createKeyMaterial(password)
+    const { material: created, deviceKey } = await createKeyMaterial(password)
     await kscwApi('/identity/keys', {
       method: 'POST',
       body: { public_key: created.publicKey, private_key: created.privateKey, salt: created.salt },
     })
-    // Unwrap what we just wrapped: yields the NON-extractable key for the device store, and
-    // proves the blob round-trips before we rely on it.
-    const priv = await unwrapPrivateKey(created, password, false)
+    // Re-read: the server owns e2ee_key_created, and a device key stamped with a time the
+    // server never wrote would read as stale forever.
     const res = await kscwApi<KeysResponse>('/identity/keys')
     const stamp = res.data.has_keys ? res.data.key_created : new Date().toISOString()
 
-    await saveDeviceKey({ memberId, privateKey: priv, keyCreated: stamp })
+    await saveDeviceKey({ memberId, privateKey: deviceKey, keyCreated: stamp })
     setMaterial(created)
     setKeyCreated(stamp)
-    setPrivateKey(priv)
+    setPrivateKey(deviceKey)
     setState('unlocked')
   }, [memberId])
 

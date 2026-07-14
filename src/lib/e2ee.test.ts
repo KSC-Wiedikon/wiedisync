@@ -14,7 +14,7 @@ const doc = () => new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 
 
 describe('e2ee', () => {
   it('round-trips a document for its owner', async () => {
-    const material = await createKeyMaterial(PW)
+    const { material } = await createKeyMaterial(PW)
     const priv = await unwrapPrivateKey(material, PW)
 
     const enc = await encryptDocument(doc())
@@ -34,13 +34,13 @@ describe('e2ee', () => {
   })
 
   it('a wrong password cannot unwrap the private key', async () => {
-    const material = await createKeyMaterial(PW)
+    const { material } = await createKeyMaterial(PW)
     await expect(unwrapPrivateKey(material, 'wrong password')).rejects.toThrow()
   })
 
   it('someone else cannot open an envelope that is not theirs', async () => {
-    const mine = await createKeyMaterial(PW)
-    const theirs = await createKeyMaterial('another password')
+    const { material: mine } = await createKeyMaterial(PW)
+    const { material: theirs } = await createKeyMaterial('another password')
     const theirPriv = await unwrapPrivateKey(theirs, 'another password')
 
     const enc = await encryptDocument(doc())
@@ -52,8 +52,8 @@ describe('e2ee', () => {
   })
 
   it('wraps the same document to several readers independently', async () => {
-    const member = await createKeyMaterial(PW)
-    const coach = await createKeyMaterial('coach password')
+    const { material: member } = await createKeyMaterial(PW)
+    const { material: coach } = await createKeyMaterial('coach password')
 
     const enc = await encryptDocument(doc())
     const envMember = await wrapContentKeyFor(enc.contentKey, member.publicKey)
@@ -76,7 +76,7 @@ describe('e2ee', () => {
   })
 
   it('a password change keeps the keypair, so existing envelopes still open', async () => {
-    const material = await createKeyMaterial(PW)
+    const { material } = await createKeyMaterial(PW)
 
     // A coach was wrapped to this member's key BEFORE the password change.
     const enc = await encryptDocument(doc())
@@ -100,8 +100,26 @@ describe('e2ee', () => {
     await expect(unwrapPrivateKey(rewrapped, PW)).rejects.toThrow()
   })
 
+  it('the device key cannot be exported, only used', async () => {
+    const { material, deviceKey } = await createKeyMaterial(PW)
+
+    // This is what the device store relies on: the browser's key store will let script ASK
+    // the key to decrypt, but will not hand the bytes back. An XSS can use it while the tab
+    // is open; it cannot steal it and send it anywhere.
+    expect(deviceKey.extractable).toBe(false)
+    await expect(crypto.subtle.exportKey('pkcs8', deviceKey)).rejects.toThrow()
+
+    // ...and it is genuinely the right key, not merely an unusable one.
+    const enc = await encryptDocument(doc())
+    const env = await wrapContentKeyFor(enc.contentKey, material.publicKey)
+    const key = await unwrapContentKey(env, deviceKey)
+    expect([...(await decryptDocument(enc.ciphertext, enc.iv, key))]).toEqual(
+      [0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5],
+    )
+  })
+
   it('a corrupted or truncated document fails loudly, not silently', async () => {
-    const material = await createKeyMaterial(PW)
+    const { material } = await createKeyMaterial(PW)
     const priv = await unwrapPrivateKey(material, PW)
     const enc = await encryptDocument(doc())
     const env = await wrapContentKeyFor(enc.contentKey, material.publicKey)

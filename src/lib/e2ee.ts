@@ -90,7 +90,9 @@ async function passwordKey(password: string, salt: Uint8Array): Promise<CryptoKe
  * exactly why a forgotten password means "upload your ID again" rather than "we restore it
  * for you". There is no escrow. That is the feature, not a gap.
  */
-export async function createKeyMaterial(password: string): Promise<KeyMaterial> {
+export async function createKeyMaterial(
+  password: string,
+): Promise<{ material: KeyMaterial; deviceKey: CryptoKey }> {
   const pair = await crypto.subtle.generateKey(
     { name: 'ECDH', namedCurve: CURVE }, true, ['deriveKey', 'deriveBits'],
   ) as CryptoKeyPair
@@ -104,16 +106,26 @@ export async function createKeyMaterial(password: string): Promise<KeyMaterial> 
     pkcs8,
   )
 
-  // Deliberately does NOT hand back the live private key. The caller unwraps it via
-  // unwrapPrivateKey(), which yields a NON-extractable key for the device store and
-  // round-trip-proves the blob decodes before we persist anything to the server. Handing
-  // out the extractable key here would leave one floating around for no reason.
+  // Hand back a NON-extractable copy for the device store — script can ask it to decrypt but
+  // cannot read the key out and send it anywhere. The extractable original goes out of scope
+  // here and is never persisted.
+  //
+  // Re-importing (rather than making the caller unwrapPrivateKey() again) is not just tidier:
+  // it saves a second 600k-iteration PBKDF2, which is what makes it cheap enough to do
+  // silently during login instead of behind a "create key" button.
+  const deviceKey = await crypto.subtle.importKey(
+    'pkcs8', pkcs8, { name: 'ECDH', namedCurve: CURVE }, false, ['deriveKey', 'deriveBits'],
+  )
+
   return {
-    publicKey: b64(await crypto.subtle.exportKey('spki', pair.publicKey)),
-    // iv is prepended — it is public, and keeping it next to its ciphertext is what stops
-    // the two drifting apart in the DB.
-    privateKey: b64(new Uint8Array([...iv, ...new Uint8Array(wrapped)])),
-    salt: b64(salt),
+    material: {
+      publicKey: b64(await crypto.subtle.exportKey('spki', pair.publicKey)),
+      // iv is prepended — it is public, and keeping it next to its ciphertext is what stops
+      // the two drifting apart in the DB.
+      privateKey: b64(new Uint8Array([...iv, ...new Uint8Array(wrapped)])),
+      salt: b64(salt),
+    },
+    deviceKey,
   }
 }
 

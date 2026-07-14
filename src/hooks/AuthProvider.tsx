@@ -18,6 +18,7 @@ import { getCurrentSeason } from '../utils/dateHelpers'
 import { LICENCE_TYPES } from '../types'
 import type { Member, Team, LicenceType } from '../types'
 import { AuthContext, type AuthContextValue, type MemberUser } from './useAuth'
+import { bootstrapIdentityKey } from '../lib/identityBootstrap'
 
 // ── Roles ───────────────────────────────────────────────────────────
 
@@ -271,6 +272,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       addBreadcrumb('auth.login_success', { memberId: member.id })
       setSentryUser({ id: member.id, displayName: [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || undefined })
       await loadTeamContext(member.id)
+
+      // Create or unlock the member's encryption key. This is the ONLY moment the app holds
+      // the plaintext password — every other render restores the session from an httpOnly
+      // cookie — so it is the only place this can happen without asking them to re-type it.
+      //
+      // Fire-and-forget on purpose: it must never block or fail a login. Nothing else in the
+      // app depends on the key, and a member who cannot set one up simply cannot use the
+      // identity-document feature until they log in again.
+      void bootstrapIdentityKey(Number(member.id), password).catch(() => {})
     }
   }, [fetchMember, loadTeamContext])
 
