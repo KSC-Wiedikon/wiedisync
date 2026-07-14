@@ -131,21 +131,20 @@ function seedLibero(position) {
   return /libero/i.test(raw)
 }
 
-const KSCW_CLUB_ID = '912530'
-
 /**
- * VM game UUID for one of our games — MATCHED BY GAME NUMBER — plus which side we are on.
+ * VM game UUID for one of our games — MATCHED BY GAME NUMBER.
  *
  * `games.game_id` is `vb_<SwissVolley gameId>` and `svrz_games.svrz_number` is that same
  * number (the equivalence sv-sync.js already relies on), so the number is the join key —
  * no team-name matching, no UUID guessing. Returns null for basketball (`bb_` prefix, no
  * VM) and for games with no VM fixture.
  *
- * `isHome` comes from VM's own `home_club_id`, NOT from our `games.type`. It decides
- * which of the two nomination lists is OURS; getting it wrong would read the opponent's.
- * A team files an Einsatzliste for away fixtures too, so both sides are legitimate here.
+ * No home/away flag is passed on: VM's call is scoped to the active party and only ever
+ * returns OUR list, so the reader takes whichever side is populated. Nothing here needs
+ * to know which side we are on — and shouldn't, since a stale home_club_id in our own DB
+ * would then silently degrade the sheet to the RSVP fallback.
  */
-async function vmGameRef(database, game) {
+async function vmGameUuid(database, game) {
   const gid = String(game.game_id ?? '')
   if (!gid.startsWith('vb_')) return null
   const number = Number(gid.slice(3))
@@ -153,20 +152,15 @@ async function vmGameRef(database, game) {
 
   const row = await database('svrz_games')
     .where('svrz_number', number)
-    .first('svrz_persistence_id', 'home_club_id')
-  if (!row?.svrz_persistence_id) return null
-
-  return {
-    uuid: row.svrz_persistence_id,
-    isHome: String(row.home_club_id) === KSCW_CLUB_ID,
-  }
+    .first('svrz_persistence_id')
+  return row?.svrz_persistence_id ?? null
 }
 
 /** Source: the Einsatzliste filed in Volleymanager. null → caller falls back to RSVP. */
 async function loadVmRoster(database, log, game, captainId) {
-  const ref = await vmGameRef(database, game)
-  if (!ref) return null
-  const nl = await fetchOwnNominationList(ref.uuid, ref.isHome, log)
+  const uuid = await vmGameUuid(database, game)
+  if (!uuid) return null
+  const nl = await fetchOwnNominationList(uuid, log)
   if (!nl) return null
 
   // VM has no jersey number, no captain and no libero — merge ours in. VM's

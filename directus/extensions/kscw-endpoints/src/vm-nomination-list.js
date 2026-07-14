@@ -8,9 +8,10 @@
  * match time it is normally there and closed.
  *
  * Three properties, all established by probing the live API:
- *   - Only our OWN side is ever returned. The call is scoped to the "active party"
- *     (our club), so exactly one of `nominationListTeamHome` / `nominationListTeamAway`
- *     is populated — whichever side KSCW is on — and the opponent's is null. Verified
+ *   - Only our OWN side is ever returned, so we simply take whichever of
+ *     `nominationListTeamHome` / `nominationListTeamAway` is populated. The call is
+ *     scoped to the "active party" (our club): the opponent's list is not readable at
+ *     all, which is what makes "take the non-null one" safe rather than lucky. Verified
  *     2026-07-14 on a real home fixture (HOME 8 players / AWAY null) and a real away
  *     fixture (HOME null / AWAY 8 players).
  *     ⚠ An earlier version of this file claimed `nominationListTeamAway` is "always
@@ -94,15 +95,9 @@ const mapPerson = (p) => (p ? {
 } : null)
 
 /**
- * Fetch OUR Einsatzliste for a VM game — home or away.
+ * Fetch OUR Einsatzliste for a VM game — home or away, no caller hint needed.
  *
- * @param {string}  gameUuid  svrz_games.svrz_persistence_id (VM game __identity)
- * @param {boolean} isHome    Is KSCW the HOME club on this fixture? Decide this from
- *                            svrz_games.home_club_id (VM's own truth), NOT from our
- *                            games.type — picking the wrong side would serve the
- *                            OPPONENT's list, which is a data leak. In practice VM only
- *                            populates our side, so the other one is null anyway; this
- *                            flag makes that explicit rather than implicit.
+ * @param {string} gameUuid  svrz_games.svrz_persistence_id (VM game __identity)
  * @returns {Promise<null | {
  *   players: Array<{ license_nr: string|null, last_name: string, first_initial: string,
  *                    birthdate: string|null, licence: string|null, eligible: boolean }>,
@@ -111,7 +106,7 @@ const mapPerson = (p) => (p ? {
  *   closed_at: string|null,
  * }>}  null when VM is unusable or has no list — caller falls back to RSVP.
  */
-export async function fetchOwnNominationList(gameUuid, isHome, log) {
+export async function fetchOwnNominationList(gameUuid, log) {
   let body
   try {
     const s = await openSession(log, false)
@@ -132,12 +127,24 @@ export async function fetchOwnNominationList(gameUuid, isHome, log) {
     return null
   }
 
-  // Our side, and only our side. VM populates exactly one of these — the other belongs
-  // to the opponent and always comes back null — so reading the wrong key just yields
-  // nothing rather than someone else's data. Keyed off the caller's isHome (derived from
-  // VM's own home_club_id), never off our games.type.
+  // Take whichever side is populated — that one is ours, and only ours ever is. The call
+  // is scoped to the active party, so the opponent's list is not readable at all: on a
+  // home game the away key is null, and on an away game the home key is null.
+  //
+  // Deliberately NOT keyed off our own home/away flag. Deriving the side from
+  // svrz_games.home_club_id (or worse, games.type) would make a stale or wrong value in
+  // OUR database silently read the empty key and fall through to the RSVP fallback —
+  // which is exactly the failure this file used to have. VM already tells us the answer.
   const items = body?.items ?? body
-  const list = isHome ? items?.nominationListTeamHome : items?.nominationListTeamAway
+  const home = items?.nominationListTeamHome
+  const away = items?.nominationListTeamAway
+  if (home && away) {
+    // Never observed. If it ever happens the "only our side" assumption is broken and
+    // one of these belongs to the opponent — say so loudly rather than pick one.
+    log.warn(`[vm-nomination] ${gameUuid}: BOTH sides populated — refusing to guess which is ours`)
+    return null
+  }
+  const list = home ?? away
   const noms = Array.isArray(list?.indoorPlayerNominations) ? list.indoorPlayerNominations : []
   if (!noms.length) return null
 
