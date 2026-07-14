@@ -32,8 +32,11 @@
  * Every read is audit-logged: who opened whose ID, and when.
  */
 
+import { Transform } from 'node:stream'
 import { writeUserLog } from './activity-log.js'
 import { streamManagedFile } from './storage-read.js'
+
+const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 
 // Fixed in migration 212. Ciphertext only ever lands here, and the Member file-read policy
 // excludes it — so it is never reachable via /assets, only through this endpoint.
@@ -41,6 +44,10 @@ const IDENTITY_FOLDER = 'd0c00001-0000-4000-8000-000000000001'
 
 // The server releases key + bytes this far ahead so the coach can pre-load while they still
 // have a connection. The 45-minute DISPLAY window is enforced by the client (see above).
+//
+// ⚠ MUST be <= COACH_WINDOW_BEFORE_MS in scorer-roster.js. The Show-IDs screen reads the
+// match sheet from there to learn WHO to fetch documents for, so if that window is narrower,
+// pre-loading silently downloads nothing.
 const PRELOAD_BEFORE_MS = 6 * 60 * 60 * 1000
 const PRELOAD_AFTER_MS = 15 * 60 * 1000
 
@@ -270,6 +277,69 @@ export function registerIdentityDocument(router, ctx) {
     } catch (err) {
       log.error({ msg: `GET identity/recipients: ${err.message}`, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── upload the ciphertext ──────────────────────────────────────────────────
+  //
+  // The client cannot POST /files for this. The identity folder is excluded from the Member
+  // file-read policy, so Directus creates the row and then, having no read access to hand
+  // back, answers 204 with an EMPTY BODY — the client never learns the file id. (Found by
+  // running the real round-trip against dev; it is exactly the kind of thing that looks fine
+  // in review and fails on contact.) So the upload goes through here, privileged, and we
+  // return the id ourselves.
+  //
+  // Raw body, not multipart: the payload is already-encrypted bytes, so there is nothing to
+  // parse. Stream straight into FilesService.
+  router.post('/identity/upload', async (req, res) => {
+    try {
+      const me = await callerMember(database, req)
+      const isAdmin = req.accountability?.admin === true
+      if (!me && !isAdmin) return res.status(401).json({ error: 'Authentication required' })
+
+      if (Number(req.headers['content-length'] || 0) > UPLOAD_MAX_BYTES) {
+        return res.status(413).json({ error: 'File too large', code: 'too_large' })
+      }
+
+      // ⚠ The byte counter MUST sit INSIDE the pipeline, never in a `req.on('data')`
+      // listener. Attaching a 'data' listener switches the request into flowing mode
+      // immediately, so every chunk emitted before FilesService attaches its own pipe is
+      // DISCARDED and the file silently loses its leading bytes. That bug truncated 36
+      // registration documents in July before anyone noticed. Here it would be worse than
+      // silent: ciphertext has no magic bytes, so no integrity checker could ever spot it —
+      // the only symptom would be a coach's decrypt failing in front of a referee. A
+      // Transform counts AND forwards, so the bytes reach the store intact.
+      let bytes = 0
+      const capped = new Transform({
+        transform(chunk, _enc, cb) {
+          bytes += chunk.length
+          if (bytes > UPLOAD_MAX_BYTES) {
+            cb(Object.assign(new Error('File too large'), { status: 413 }))
+            return
+          }
+          cb(null, chunk)
+        },
+      })
+      req.on('error', (err) => capped.destroy(err))
+      req.pipe(capped)
+
+      const { FilesService } = ctx.services
+      const filesService = new FilesService({ schema: await ctx.getSchema(), knex: database })
+      const storage = (process.env.STORAGE_LOCATIONS || 'local').split(',')[0].trim()
+      const fileId = await filesService.uploadOne(capped, {
+        storage,
+        filename_download: 'identity.enc',
+        type: 'application/octet-stream',
+        folder: IDENTITY_FOLDER,
+      })
+
+      res.json({ data: { id: fileId, bytes } })
+    } catch (err) {
+      const status = err.status === 413 ? 413 : 500
+      log.error({ msg: `POST identity/upload: ${err.message}`, stack: err.stack })
+      if (!res.headersSent) {
+        res.status(status).json({ error: status === 413 ? 'File too large' : 'Internal error' })
+      }
     }
   })
 

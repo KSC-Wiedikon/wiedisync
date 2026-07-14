@@ -6,12 +6,9 @@ import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useAuth } from '../../hooks/useAuth'
 import { useIdentityKeys } from '../../hooks/useIdentityKeys'
-import { API_URL, kscwApi, uploadFile } from '../../lib/api'
+import { API_URL, kscwApi } from '../../lib/api'
 import { decryptDocument, encryptDocument, unwrapContentKey, wrapContentKeyFor, type Envelope } from '../../lib/e2ee'
 import { formatDateZurich } from '../../utils/dateHelpers'
-
-/** Migration 212. Ciphertext only — never served via /assets. */
-const IDENTITY_FOLDER = 'd0c00001-0000-4000-8000-000000000001'
 
 const MAX_BYTES = 8 * 1024 * 1024
 
@@ -112,9 +109,17 @@ export default function IdentityDocumentSection() {
       // 1. Encrypt here. The plaintext never leaves this function.
       const enc = await encryptDocument(file)
 
-      // 2. Upload the ciphertext. What lands on the server is noise without an envelope.
-      const blob = new File([enc.ciphertext as BlobPart], 'identity.enc', { type: 'application/octet-stream' })
-      const { id: fileId } = await uploadFile(blob, IDENTITY_FOLDER)
+      // 2. Upload the ciphertext through our own endpoint, NOT POST /files. The identity
+      //    folder is excluded from the Member file-read policy, so Directus would create the
+      //    row and answer 204 with an empty body — no file id ever reaches us.
+      const up = await fetch(`${API_URL}/kscw/identity/upload`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: enc.ciphertext as BodyInit,
+      })
+      if (!up.ok) throw new Error(String(up.status))
+      const { data: { id: fileId } } = await up.json() as { data: { id: string } }
 
       // 3. Wrap the content key once per authorised reader — the member, plus the coaches
       //    and TRs of their teams. The server decides that list; we only wrap to what it

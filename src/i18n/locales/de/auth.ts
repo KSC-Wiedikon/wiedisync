@@ -297,4 +297,13 @@ export default {
   idUploadedByAdmin: 'von einem Admin für dich hochgeladen',
   idForgetDevice: 'Schlüssel auf diesem Gerät vergessen',
   idError: 'Dein Schlüssel konnte nicht geladen werden.',
+
+  // Passwort ändern (Schlüssel bleibt erhalten)
+  pwCurrent: 'Aktuelles Passwort',
+  pwNew: 'Neues Passwort',
+  pwTooShort: 'Das neue Passwort muss mindestens 8 Zeichen lang sein.',
+  pwWrongCurrent: 'Dein aktuelles Passwort ist nicht korrekt.',
+  pwChanged: 'Passwort geändert',
+  pwChangedKeyKept: 'Passwort geändert. Dein Ausweisdokument bleibt lesbar.',
+  pwKeyNotice: 'Wenn du dein Passwort hier änderst, bleibt dein Schlüssel erhalten und dein Ausweisdokument lesbar. Ein Passwort-Reset per E-Mail tut das nicht — dabei geht der Schlüssel verloren und du musst das Dokument erneut hochladen.',
 } as const

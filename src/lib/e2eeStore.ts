@@ -17,8 +17,9 @@
  */
 
 const DB_NAME = 'kscw-e2ee'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE = 'device-keys'
+const DOCS = 'cached-docs'
 
 export interface DeviceKey {
   memberId: number
@@ -33,22 +34,23 @@ function open(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'memberId' })
+      if (!db.objectStoreNames.contains(DOCS)) db.createObjectStore(DOCS, { keyPath: 'id' })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
   })
 }
 
-function tx<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+function tx<T>(store: string, mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   return open().then((db) => new Promise<T>((resolve, reject) => {
-    const req = run(db.transaction(STORE, mode).objectStore(STORE))
+    const req = run(db.transaction(store, mode).objectStore(store))
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
   }).finally(() => db.close()))
 }
 
 export async function saveDeviceKey(key: DeviceKey): Promise<void> {
-  await tx('readwrite', (s) => s.put(key))
+  await tx(STORE, 'readwrite', (s) => s.put(key))
 }
 
 /**
@@ -58,7 +60,7 @@ export async function saveDeviceKey(key: DeviceKey): Promise<void> {
  */
 export async function loadDeviceKey(memberId: number): Promise<DeviceKey | null> {
   try {
-    return (await tx<DeviceKey | undefined>('readonly', (s) => s.get(memberId))) ?? null
+    return (await tx<DeviceKey | undefined>(STORE, 'readonly', (s) => s.get(memberId))) ?? null
   } catch {
     // A private-mode browser or a blocked IndexedDB is not an error worth surfacing — it
     // just means this device cannot remember, and the member unlocks again.
@@ -68,8 +70,60 @@ export async function loadDeviceKey(memberId: number): Promise<DeviceKey | null>
 
 export async function clearDeviceKey(memberId: number): Promise<void> {
   try {
-    await tx('readwrite', (s) => s.delete(memberId))
+    await tx(STORE, 'readwrite', (s) => s.delete(memberId))
   } catch {
     // Nothing to do — if we cannot open the store there is no key in it either.
+  }
+}
+
+// ── pre-loaded documents ──────────────────────────────────────────────────────
+//
+// Halls have no signal. A coach who only fetched at kickoff would be standing in a
+// basement in front of a referee with a spinner. So they pre-load while they still have
+// bars, and what lands on the phone is CIPHERTEXT plus a wrapped key — never plaintext.
+// The document is decrypted on demand, in memory, and the device key that opens it is
+// non-extractable. A lost phone leaks nothing.
+
+export interface CachedDoc {
+  /** `${gameId}:${memberId}` */
+  id: string
+  gameId: string
+  memberId: number
+  ciphertext: ArrayBuffer
+  iv: string
+  mime: string | null
+  envelope: { eph_public_key: string; wrap_iv: string; wrapped_key: string }
+  cachedAt: number
+}
+
+export async function cacheDocument(doc: Omit<CachedDoc, 'id' | 'cachedAt'>): Promise<void> {
+  await tx(DOCS, 'readwrite', (s) => s.put({
+    ...doc,
+    id: `${doc.gameId}:${doc.memberId}`,
+    cachedAt: Date.now(),
+  }))
+}
+
+export async function loadCachedDocuments(gameId: string): Promise<CachedDoc[]> {
+  try {
+    const all = await tx<CachedDoc[]>(DOCS, 'readonly', (s) => s.getAll())
+    return all.filter((d) => d.gameId === gameId)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Drop everything cached for a game. Called once the display window closes, so a squad's
+ * identity documents do not sit on a coach's phone until the end of the season.
+ */
+export async function clearCachedDocuments(gameId: string): Promise<void> {
+  try {
+    const all = await tx<CachedDoc[]>(DOCS, 'readonly', (s) => s.getAll())
+    for (const d of all.filter((x) => x.gameId === gameId)) {
+      await tx(DOCS, 'readwrite', (s) => s.delete(d.id))
+    }
+  } catch {
+    // Best effort.
   }
 }

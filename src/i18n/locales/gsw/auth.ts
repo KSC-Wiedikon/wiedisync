@@ -289,4 +289,11 @@ export default {
   idUploadedByAdmin: 'vo eme Admin für di ufeglade',
   idForgetDevice: 'Schlüssel uf dem Grät vergässe',
   idError: 'Din Schlüssel het nöd chönne glade werde.',
+  pwCurrent: 'Aktuells Passwort',
+  pwNew: 'Neus Passwort',
+  pwTooShort: 'S neue Passwort mues mindeschtens 8 Zeiche lang sii.',
+  pwWrongCurrent: 'Dis aktuelle Passwort isch nöd richtig.',
+  pwChanged: 'Passwort gänderet',
+  pwChangedKeyKept: 'Passwort gänderet. Dis Uswiisdokumänt blibt läsbar.',
+  pwKeyNotice: 'Wänn du dis Passwort da änderisch, blibt din Schlüssel erhalte und dis Uswiisdokumänt blibt läsbar. En Passwort-Reset per E-Mail macht das nöd — debii gaht de Schlüssel verlore und du muesch s Dokumänt no einisch ufelade.',
 } as const

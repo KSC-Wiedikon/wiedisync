@@ -297,4 +297,13 @@ export default {
   idUploadedByAdmin: 'uploaded for you by an admin',
   idForgetDevice: 'Forget my key on this device',
   idError: 'Your encryption key could not be loaded.',
+
+  // Change password (keeps the encryption key alive)
+  pwCurrent: 'Current password',
+  pwNew: 'New password',
+  pwTooShort: 'The new password must be at least 8 characters.',
+  pwWrongCurrent: 'Your current password is not correct.',
+  pwChanged: 'Password changed',
+  pwChangedKeyKept: 'Password changed. Your identity document is still readable.',
+  pwKeyNotice: 'Changing your password here keeps your encryption key, so your identity document stays readable. A password reset by email does not — it would lose the key and you would have to upload the document again.',
 } as const

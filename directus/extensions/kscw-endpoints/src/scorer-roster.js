@@ -67,9 +67,14 @@ const ROSTER_ROLE_COLS = ['scorer_member', 'scorer_scoreboard_member', 'bb_score
 const SCORER_WINDOW_BEFORE_MS = 40 * 60 * 1000
 const SCORER_WINDOW_AFTER_MS = 3 * 60 * 60 * 1000
 
-// Coach: wider on the near side — they prepare before leaving, and halls have no signal,
-// so the app must be able to pre-load while they still have a connection.
-const COACH_WINDOW_BEFORE_MS = 3 * 60 * 60 * 1000
+// Coach: wider on the near side — they prepare before leaving, and halls have no signal, so
+// the app must be able to pre-load while they still have a connection.
+//
+// ⚠ MUST be >= PRELOAD_BEFORE_MS in identity-document.js. The Show-IDs screen reads THIS
+// endpoint to learn who is on the sheet before it fetches their documents, so a narrower
+// window here silently breaks the ID pre-load: the coach taps "download for offline", the
+// roster 403s, and nothing downloads — with no error that points at the cause.
+const COACH_WINDOW_BEFORE_MS = 6 * 60 * 60 * 1000
 const COACH_WINDOW_AFTER_MS = 3 * 60 * 60 * 1000
 
 const dateYMD = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))

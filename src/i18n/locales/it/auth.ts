@@ -287,4 +287,11 @@ export default {
   idUploadedByAdmin: 'caricato per te da un admin',
   idForgetDevice: 'Dimentica la mia chiave su questo dispositivo',
   idError: 'Impossibile caricare la tua chiave di cifratura.',
+  pwCurrent: 'Password attuale',
+  pwNew: 'Nuova password',
+  pwTooShort: 'La nuova password deve avere almeno 8 caratteri.',
+  pwWrongCurrent: 'La tua password attuale non è corretta.',
+  pwChanged: 'Password modificata',
+  pwChangedKeyKept: 'Password modificata. Il tuo documento d\'identità resta leggibile.',
+  pwKeyNotice: 'Se cambi la password qui, la tua chiave di cifratura viene mantenuta e il tuo documento d\'identità resta leggibile. Un reset della password via e-mail invece no — la chiave andrebbe persa e dovresti caricare di nuovo il documento.',
 } as const

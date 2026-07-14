@@ -287,4 +287,11 @@ export default {
   idUploadedByAdmin: 'téléversé pour vous par un administrateur',
   idForgetDevice: 'Oublier ma clé sur cet appareil',
   idError: 'Votre clé de chiffrement n\'a pas pu être chargée.',
+  pwCurrent: 'Mot de passe actuel',
+  pwNew: 'Nouveau mot de passe',
+  pwTooShort: 'Le nouveau mot de passe doit contenir au moins 8 caractères.',
+  pwWrongCurrent: 'Votre mot de passe actuel n\'est pas correct.',
+  pwChanged: 'Mot de passe modifié',
+  pwChangedKeyKept: 'Mot de passe modifié. Votre document d\'identité reste lisible.',
+  pwKeyNotice: 'Si vous changez votre mot de passe ici, votre clé de chiffrement est conservée et votre document d\'identité reste lisible. Une réinitialisation du mot de passe par e-mail, en revanche, ne la conserve pas — la clé serait perdue et vous devriez téléverser le document à nouveau.',
 } as const
