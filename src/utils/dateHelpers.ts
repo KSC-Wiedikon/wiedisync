@@ -175,6 +175,43 @@ function getZurichOffsetMs(instantMs: number): number {
  * detail modal to gate coach/TR visibility of scorer contact to around the game.
  */
 export const SCORER_CONTACT_WINDOW_MS = 60 * 60 * 1000;
+/**
+ * Kickoff as epoch ms. `games.date` and `games.time` are separate DST-naive columns holding
+ * a Zurich wall-clock, so re-deriving this by hand is how you get a window that is an hour
+ * out for half the year — go through toUtcIsoFromDatetimeLocal, like the contact window below.
+ */
+export function gameKickoffMs(
+  date: string | null | undefined,
+  time: string | null | undefined,
+): number | null {
+  if (!date || !time) return null;
+  try {
+    const ms = new Date(
+      toUtcIsoFromDatetimeLocal(`${String(date).slice(0, 10)}T${String(time).slice(0, 5)}`),
+    ).getTime();
+    return Number.isNaN(ms) ? null : ms;
+  } catch { return null; }
+}
+
+/** Identity documents are DISPLAYED only in this window before kickoff. */
+export const ID_SHOW_BEFORE_MS = 45 * 60 * 1000;
+
+/**
+ * Where we are relative to the identity-document display window.
+ *
+ * Lives here rather than in the component so `Date.now()` is not called during render
+ * (React treats it as impure) — the same reason isWithinDutyLateWindow below is a helper.
+ */
+export function idWindowState(
+  kickoffMs: number | null,
+): 'unknown' | 'before' | 'open' | 'closed' {
+  if (kickoffMs == null) return 'unknown';
+  const now = Date.now();
+  if (now < kickoffMs - ID_SHOW_BEFORE_MS) return 'before';
+  if (now > kickoffMs) return 'closed';
+  return 'open';
+}
+
 export function isWithinGameContactWindow(
   date: string | null | undefined,
   time: string | null | undefined,

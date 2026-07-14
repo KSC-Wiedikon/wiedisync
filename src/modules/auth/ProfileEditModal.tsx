@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import ChangePasswordModal from './ChangePasswordModal'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
@@ -59,6 +60,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [resetSent, setResetSent] = useState(false)
+  const [changePwOpen, setChangePwOpen] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
 
   // ClubDesk fields
@@ -677,29 +679,48 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
           </div>
         )}
 
-        {/* Change Password — hidden in onboarding */}
+        {/* Change password — hidden in onboarding.
+            Prefer the in-app change (it verifies the current password, so it can re-wrap the
+            member's encryption key and their identity document survives). The email reset
+            link is the fallback for someone who has actually forgotten it — and it DESTROYS
+            the key, because nobody can re-wrap with a secret nobody has. */}
         {!onboarding && (
-          <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-600 dark:bg-gray-800">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {t('changePassword')}
-            </span>
-            {resetSent ? (
-              <span className="text-sm text-green-600 dark:text-green-400">
-                {t('resetLinkSent')}
+          <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-600 dark:bg-gray-800">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('changePassword')}
               </span>
-            ) : (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={handlePasswordReset}
-                loading={resetLoading}
+                onClick={() => setChangePwOpen(true)}
               >
-                {resetLoading ? tc('saving') : t('sendResetLink')}
+                {t('changePassword')}
               </Button>
-            )}
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {t('forgotPassword')}
+              </span>
+              {resetSent ? (
+                <span className="text-xs text-green-600 dark:text-green-400">
+                  {t('resetLinkSent')}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={resetLoading}
+                  className="text-xs text-gray-500 underline underline-offset-2 dark:text-gray-400"
+                >
+                  {resetLoading ? tc('saving') : t('sendResetLink')}
+                </button>
+              )}
+            </div>
           </div>
         )}
+        {changePwOpen && <ChangePasswordModal onClose={() => setChangePwOpen(false)} />}
 
         {/* Read-only fields — hidden in onboarding */}
         {!onboarding && user.license_nr && (

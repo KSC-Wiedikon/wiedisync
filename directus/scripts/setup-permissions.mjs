@@ -555,6 +555,14 @@ const FEEDBACK_FOLDER = 'feedbac0-0000-4000-8000-000000000001'
  *  Must NOT be member-readable (2026-07-04 review): Sport Admin reads via its full
  *  directus_files CRUD, Vorstand via the scoped read below. */
 const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
+/** Private folder for END-TO-END-ENCRYPTED identity documents (migration 212). The bytes are
+ *  ciphertext the club holds no key to, so leaking them would reveal nothing — but the
+ *  Member file-read filter below is a DENY-list, so a folder that is not named here is
+ *  readable by every member by default. A permissions hole is not something to leave
+ *  standing because the crypto happens to cover it. Served ONLY via /kscw/identity/*, which
+ *  checks the caller holds an envelope; never via /assets. Not granted to Vorstand or
+ *  Finance either — there is nothing there for them to read. */
+const IDENTITY_DOCS_FOLDER = 'd0c00001-0000-4000-8000-000000000001'
 
 // ── Main ──────────────────────────────────��──────────────────────
 
@@ -795,7 +803,19 @@ async function main() {
   // download every feedback screenshot). Null-folder files don't match a bare
   // _nin, hence the _or. Finance + board re-add their folder below.
   await setPermRead(MEMBER_POLICY, 'directus_files', {
-    _or: [{ folder: { _null: true } }, { folder: { _nin: [FINANCE_INVOICE_FOLDER, FEEDBACK_FOLDER, REGISTRATION_FILES_FOLDER] } }],
+    _or: [
+      { folder: { _null: true } },
+      {
+        folder: {
+          _nin: [
+            FINANCE_INVOICE_FOLDER,
+            FEEDBACK_FOLDER,
+            REGISTRATION_FILES_FOLDER,
+            IDENTITY_DOCS_FOLDER,
+          ],
+        },
+      },
+    ],
   })
 
   // ── Team-scoped reads (migration 032 / 033) ─────────────────

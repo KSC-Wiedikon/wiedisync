@@ -11,6 +11,7 @@ import { rsvpButtonClass } from '../../../utils/participationColors'
 import ParticipationRosterModal from '../../../components/ParticipationRosterModal'
 import RosterModal from '../../scorer/components/RosterModal'
 import PreGameRosterModal from './PreGameRosterModal'
+import ShowIdsModal from './ShowIdsModal'
 import { useAuth } from '../../../hooks/useAuth'
 import { useParticipation } from '../../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../../hooks/useMyCoveringAbsence'
@@ -21,7 +22,7 @@ import { invalidateForCollection } from '../../../lib/query'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
-import { currentLocale, formatDate, formatTime, formatDateTimeCompactZurich, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow } from '../../../utils/dateHelpers'
+import { currentLocale, formatDate, formatTime, formatDateTimeCompactZurich, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow, gameKickoffMs } from '../../../utils/dateHelpers'
 import RefereeExpenseSection from './RefereeExpenseSection'
 import TasksSection from '../../tasks/TasksSection'
 import CarpoolSection from '../../carpool/CarpoolSection'
@@ -105,6 +106,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   const { user, isCoachOf, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds, hasAdminAccessToTeam } = useAuth()
   const confirm = useConfirm()
   const [rosterOpen, setRosterOpen] = useState(false)
+  const [idsOpen, setIdsOpen] = useState(false)
   const [editingDeadline, setEditingDeadline] = useState(false)
   const [deadlineValue, setDeadlineValue] = useState(() => {
     const parsed = parseRespondByTime(game?.respond_by, game?.time)
@@ -628,6 +630,19 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
             >
               {t('participationRoster')}
             </Button>
+
+            {/* Show IDs — coach/TR only. The documents are end-to-end encrypted: the app
+                decrypts them on this device with the coach's own key, and the club cannot
+                read them at all. Displayed only in the 45 minutes before kickoff. */}
+            {isTeamStaff && (
+              <Button
+                variant="outline"
+                onClick={() => setIdsOpen(true)}
+                className="mt-2 w-full"
+              >
+                {t('idsTitle')}
+              </Button>
+            )}
           </div>
         )}
 
@@ -931,6 +946,14 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
         )}
       </div>
     </div>
+    {idsOpen && (
+      <ShowIdsModal
+        key={`ids-${game.id}`}
+        gameId={game.id}
+        kickoffMs={gameKickoffMs(game.date, game.time)}
+        onClose={() => setIdsOpen(false)}
+      />
+    )}
     {isAssignedScorer ? (
       rosterOpen && <RosterModal key={game.id} gameId={game.id} onClose={() => setRosterOpen(false)} />
     ) : isTeamStaff ? (

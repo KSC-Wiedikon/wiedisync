@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.42.0'
+const APP_VERSION = '1.43.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,36 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.43.0',
+    date: '14.07.2026',
+    sections: [
+      {
+        title: 'New: the match sheet, on your phone',
+        items: [
+          'Coaches and team responsibles can now open the match sheet from a game, in the hours around kickoff, and hand the phone to the scorer. It is laid out the way the sheet is actually filled in: birthdate, number, then surname and first initial. The captain\u2019s number is circled, liberos appear again in their own block, and the officials are listed at the bottom.',
+          'You can adjust it for that one game \u2014 change a number, move the captain\u2019s circle, flag a libero, or, in an emergency, add a player who turned up unnominated or strike out one who did not. None of this touches the player\u2019s normal shirt number, position, or the team\u2019s captain: it applies to that match only.',
+          'Adding or removing a player is the only change that can disagree with Volleymanager, and it is the only one that raises a warning. Numbers, captain and libero do not exist on the Einsatzliste at all, so changing them cannot contradict it. If you do add or drop someone, Wiedisync tells you, in red, that the same change must also be made by hand in Volleymanager \u2014 it does not send it for you.',
+        ],
+      },
+      {
+        title: 'New: your ID, encrypted so that nobody here can read it',
+        items: [
+          'You can upload a photo of your ID in your profile, and your coaches can show it to a referee before a game. It is encrypted on your own device before it leaves it. The club cannot read it \u2014 not the committee, not the admins, not the server. Only you and the coaches and team responsibles of your teams hold a key to it.',
+          'Coaches see them from 45 minutes before kickoff. They can download them beforehand, because halls usually have no signal, and the documents are removed from the phone again once the game starts. Every time someone opens an ID, it is recorded.',
+          'This is real encryption, and it has a real consequence. There is no master key and no way for anyone at the club to recover your document. If you reset a forgotten password, your key is lost with it and you simply upload your ID again. Changing your password from inside the app is safe \u2014 it keeps your key.',
+          'Only members who have logged in can have a document, because the key is made from your password. There is no way around that without the club being able to read your ID, which is the one thing this is for.',
+        ],
+      },
+      {
+        title: 'Fixed: away games were showing the wrong list',
+        items: [
+          'The Einsatzliste for away games was never being read. Wiedisync only ever looked at the home team\u2019s list, so for away games it quietly fell back to the RSVPs \u2014 which meant a nominated player who had not RSVP\u2019d was simply missing from the sheet, in the away hall, which is exactly where a referee is most likely to ask for it. Away games now show the real Einsatzliste, the same as home games.',
+          'Officials are now listed with their role (coach, assistant coach 1, assistant coach 2) instead of as one anonymous list. Volleymanager knew this all along; Wiedisync was throwing it away.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.42.0',
     date: '13.07.2026',
