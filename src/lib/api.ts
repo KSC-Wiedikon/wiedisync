@@ -42,7 +42,12 @@ export function setAuthHint(present: boolean): void {
 }
 
 const host = typeof window !== 'undefined' ? window.location.hostname : ''
-const isProd = host === 'wiedisync.kscw.ch'
+// Every hostname that MUST talk to prod Directus, pinned by name rather than left
+// to `VITE_DIRECTUS_URL`. The scheduling app (own CF Pages project) was missing
+// here, so prod Spielplanung reached prod only because the Production env var
+// happened to be set — an unset/typo'd var would have silently pointed the live
+// planner at the dev database. Pinning the host makes that unrepresentable.
+const isProd = host === 'wiedisync.kscw.ch' || host === 'spielplanung.wiedisync.kscw.ch'
 const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')
 // `npm run dev:prod` sets VITE_PROD_DATA=1 → vite.config.ts spins up a
 // reverse proxy that forwards `/directus/*` (REST + WS) to prod Directus.
