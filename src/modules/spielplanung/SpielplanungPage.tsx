@@ -192,6 +192,18 @@ export default function SpielplanungPage() {
     if (game.source !== 'manual') return
     if (!canEditGame(game)) return
 
+    // Dragging in Week view goes through the pure checkConflicts util, which knows
+    // nothing about club blackouts — enforce the same hard rule the modal applies.
+    if (game.type === 'home' && blockedDates.has(move.newDate)) {
+      const reason = blockedDates.get(move.newDate)
+      toast.error(
+        reason
+          ? t('manualGame.conflict.clubBlocked', { reason })
+          : t('manualGame.conflict.clubBlockedNoReason'),
+      )
+      return
+    }
+
     const teamRel = asObj<{ id: number | string }>(game.kscw_team)
     const teamId = String(teamRel?.id ?? game.kscw_team ?? '')
     const hallRel = asObj<{ id: number | string }>(game.hall)

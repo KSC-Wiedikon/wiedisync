@@ -78,6 +78,8 @@ export default {
       sameTeamSameDay: 'Cette equipe joue deja le meme jour ({{time}} contre {{opponent}}).',
       hallOverlap: 'La salle est deja occupee a un horaire qui chevauche ({{time}}–{{endTime}}).',
       sameTeamWithinTwoDays: 'Cette equipe joue aussi le {{date}} a {{time}} ({{daysDelta}} jours d\'ecart).',
+      clubBlocked: 'Ce jour est bloque pour tout le club ({{reason}}) — aucun match a domicile.',
+      clubBlockedNoReason: 'Ce jour est bloque pour tout le club — aucun match a domicile.',
     },
   },
 

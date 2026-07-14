@@ -130,6 +130,8 @@ export default {
       sameTeamSameDay: 'Dieses Team spielt bereits am gleichen Tag ({{time}} gegen {{opponent}}).',
       hallOverlap: 'Die Halle ist zu einer überlappenden Zeit bereits belegt ({{time}}–{{endTime}}).',
       sameTeamWithinTwoDays: 'Dieses Team spielt auch am {{date}} um {{time}} ({{daysDelta}} Tage Abstand).',
+      clubBlocked: 'Dieser Tag ist vereinsweit gesperrt ({{reason}}) — keine Heimspiele.',
+      clubBlockedNoReason: 'Dieser Tag ist vereinsweit gesperrt — keine Heimspiele.',
     },
   },
 
