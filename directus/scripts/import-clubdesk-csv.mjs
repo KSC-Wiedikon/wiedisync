@@ -662,6 +662,16 @@ const psqlInput =
   '  FROM clubdesk_export c\n' +
   "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.referee_bb IS DISTINCT FROM true\n" +
   "    AND c.gruppen_bracketed ~* '(^|,)\\s*Schiedsrichter BB\\s*(,|$)';\n" +
+  // Scorer licence from the ClubDesk Offiziellen Lizenz picklist (user 2026-07-13):
+  // "VB SC" IS the Schreiber licence, so ClubDesk holding it means the member is a
+  // scorer even when wiedisync never set the boolean (licence granted straight in
+  // the register, never through a wiedisync registration). Set-true only, same as
+  // the referee flags above. The BB codes (OTR1/OTR2/OTN) need no mirror rule —
+  // wiedisync owns those booleans and ClubDesk derives its string from them.
+  'UPDATE members m SET scorer_vb = true\n' +
+  '  FROM clubdesk_export c\n' +
+  '  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.scorer_vb IS DISTINCT FROM true\n' +
+  "    AND upper(btrim(c.offiziellen_lizenz)) = 'VB SC';\n" +
   // Every VOLLEYBALL referee is automatically a scorer (user 2026-07-07) — so a
   // VB referee always carries the Schreiber licence too. Basketball is separate
   // (a BB referee is NOT auto-made a table official). Set-true only.

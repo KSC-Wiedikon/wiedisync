@@ -427,13 +427,16 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           return tokens.join(', ')
         }
         case 'officials': {
+          // ClubDesk's Offiziellen Lizenz is DERIVED from these same booleans on
+          // push (deriveOffiziellenLizenz in clubdesk-update.js), so a BB official
+          // yields the identical token twice ("OTR1, OTR1") — dedupe.
           const tokens: string[] = []
           if (rawField(m, 'otr1_bb')) tokens.push('OTR1')
           if (rawField(m, 'otr2_bb')) tokens.push('OTR2')
           if (rawField(m, 'otn_bb')) tokens.push('OTN')
           const cd = m.clubdesk_id ? cache.clubdeskInfo.get(String(m.clubdesk_id)) : undefined
           if (cd?.offiziellenLizenz) tokens.push(cd.offiziellenLizenz)
-          return tokens.join(', ')
+          return [...new Set(tokens)].join(', ')
         }
         case 'scorer_vb':
         case 'wiedisync_active':
