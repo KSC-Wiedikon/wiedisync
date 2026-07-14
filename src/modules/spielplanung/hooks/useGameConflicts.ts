@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import { useCollection } from '../../../lib/query'
 import type { Game, Hall, Team } from '../../../types'
-import { checkConflicts, type ConflictCheckResult } from '../utils/gameConflicts'
+import { checkConflicts, type ConflictCheckResult, type ConflictMessage } from '../utils/gameConflicts'
 import { normalizeRelId } from '../../../utils/gameHalls'
+import { useClubBlockedDates } from '../../../hooks/useClubBlockedDates'
 
 interface UseGameConflictsInput {
   editingId?: string | number
@@ -66,9 +67,15 @@ export function useGameConflicts(input: UseGameConflictsInput): ConflictCheckRes
     staleTime: 30_000,
   })
 
+  // Club-wide blackout (scheduling_global_blocks). The backend already refuses to
+  // offer a home slot on these days, so a manual home game booked into one would
+  // contradict it — a hard error, not a warning. Away games are unaffected: the
+  // block is about the club not playing at home, not about the date being unusable.
+  const { blockedDates } = useClubBlockedDates()
+
   const result = useMemo<ConflictCheckResult>(() => {
     if (!ready) return { errors: [], warnings: [] }
-    return checkConflicts(
+    const base = checkConflicts(
       {
         editingId,
         kscw_team,
@@ -81,7 +88,18 @@ export function useGameConflicts(input: UseGameConflictsInput): ConflictCheckRes
       data ?? [],
       { teams, halls },
     )
-  }, [ready, editingId, kscw_team, hall, additional_halls, date, time, type, data, teams, halls])
+
+    if (type !== 'home' || !blockedDates.has(date)) return base
+
+    const reason = blockedDates.get(date) ?? ''
+    const clubBlock: ConflictMessage = {
+      kind: 'club_blocked',
+      messageKey: reason ? 'clubBlocked' : 'clubBlockedNoReason',
+      conflictingId: 'club-block',
+      ...(reason ? { context: { reason } } : {}),
+    }
+    return { ...base, errors: [clubBlock, ...base.errors] }
+  }, [ready, editingId, kscw_team, hall, additional_halls, date, time, type, data, teams, halls, blockedDates])
 
   return { ...result, isLoading }
 }

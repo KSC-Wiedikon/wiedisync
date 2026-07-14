@@ -117,6 +117,15 @@ export default function ManualGameModal({
   // fixed point they converge to are unchanged. Each `prev…` tracker starts as
   // `null` so the block also fires on the first render, mirroring the effect's
   // mount run.
+  //
+  // INVARIANT — every value in a `…SeedDeps` array must be a primitive or a
+  // referentially STABLE object across renders. These blocks compare with
+  // `Object.is`, so a value whose identity changes on every render makes the
+  // tracker write state on every render, and a render-phase write re-renders
+  // immediately: an infinite loop, not a stale seed. That is React #301 ("Too many
+  // re-renders"), and it took down the prod Spielplanung page on 2026-07-14 when
+  // `useTeams` returned a fresh `[]` while its query was in flight. An effect would
+  // merely have re-run; a render-phase update crashes. Pass arrays by a joined key.
 
   // Prefill date on (re)open (create mode)
   const dateSeedDeps: unknown[] = [open, initialDate, editingGame]
@@ -202,7 +211,16 @@ export default function ManualGameModal({
 
   // Prefill the team: prefer the main-page team filter (exactly one selected &
   // editable), else fall back to the single editable team when there's only one.
-  const teamSeedDeps: unknown[] = [open, editableTeams, teamId, editingGame, initialSelectedTeamIds]
+  // Both team lists are compared by a primitive key, not by array identity: a
+  // caller that passes a fresh array literal each render would otherwise make this
+  // block re-fire forever (see the invariant note above).
+  const teamSeedDeps: unknown[] = [
+    open,
+    editableTeams.map((t) => t.id).join(','),
+    teamId,
+    editingGame,
+    (initialSelectedTeamIds ?? []).join(','),
+  ]
   const [prevTeamSeed, setPrevTeamSeed] = useState<unknown[] | null>(null)
   if (prevTeamSeed === null || teamSeedDeps.some((d, i) => !Object.is(d, prevTeamSeed[i]))) {
     setPrevTeamSeed(teamSeedDeps)

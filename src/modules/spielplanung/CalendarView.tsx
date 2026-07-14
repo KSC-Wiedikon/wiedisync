@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import CalendarGrid from '../../components/CalendarGrid'
 import GameChip from './GameChip'
 import DayOverflowPopover from './DayOverflowPopover'
@@ -13,6 +14,8 @@ import { toDateKey, getSeasonMonths, getSeasonYear, formatDate } from '../../uti
 interface CalendarViewProps {
   entries: CalendarEntry[]
   closedDates: Set<string>
+  /** Club-wide blackout days: date key (yyyy-MM-dd) -> reason. */
+  blockedDates?: Map<string, string>
   month: Date
   onMonthChange: (month: Date) => void
   onGameClick?: (game: Game) => void
@@ -23,7 +26,8 @@ interface CalendarViewProps {
   crossTeamByDate?: Map<string, CrossTeamConflict[]>
 }
 
-export default function CalendarView({ entries, closedDates, month, onMonthChange, onGameClick, onEmptyDayClick, absencesByDate, crossTeamByDate }: CalendarViewProps) {
+export default function CalendarView({ entries, closedDates, blockedDates, month, onMonthChange, onGameClick, onEmptyDayClick, absencesByDate, crossTeamByDate }: CalendarViewProps) {
+  const { t } = useTranslation('spielplanung')
   // seasonMonths drives the season-month pill strip below. We intentionally
   // stopped passing min/maxMonth to CalendarGrid so the prev/next arrows can
   // cross season boundaries freely.
@@ -78,6 +82,8 @@ export default function CalendarView({ entries, closedDates, month, onMonthChang
         onMonthChange={onMonthChange}
         itemsByDate={itemsByDate}
         closedDates={closedDates}
+        blockedDates={blockedDates}
+        blockedLabel={t('blockedDate')}
         highlightedDates={highlightedDates}
         onEmptyDayClick={onEmptyDayClick}
         renderDayContent={(date, items) => {

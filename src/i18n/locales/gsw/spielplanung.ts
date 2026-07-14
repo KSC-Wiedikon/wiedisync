@@ -4,6 +4,7 @@ export default {
   seasonPicker: 'Saison',
 
   // View options
+  blockedDate: 'Gsperrt',
   viewCalendar: 'Kaländer',
   viewWeek: 'Week',
   viewByDate: 'Nach Datum',
@@ -77,6 +78,8 @@ export default {
       sameTeamSameDay: 'Das Team spilt scho am gliiche Tag ({{time}} gäge {{opponent}}).',
       hallOverlap: 'Halle isch scho zu äre überlappende Ziit bsetzt ({{time}}–{{endTime}}).',
       sameTeamWithinTwoDays: 'Das Team spilt au am {{date}} um {{time}} ({{daysDelta}} Täg Abschtand).',
+      clubBlocked: 'Dä Tag isch vereinswit gsperrt ({{reason}}) — kei Heimspiel.',
+      clubBlockedNoReason: 'Dä Tag isch vereinswit gsperrt — kei Heimspiel.',
     },
   },
 

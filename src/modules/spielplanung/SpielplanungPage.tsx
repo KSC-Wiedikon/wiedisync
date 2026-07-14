@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import ViewToggle from '../../components/ViewToggle'
 import SpielplanungFilters from './SpielplanungFilters'
@@ -26,6 +27,7 @@ import { useAvailableSeasons } from './hooks/useAvailableSeasons'
 import { checkConflicts } from './utils/gameConflicts'
 import { toast } from 'sonner'
 import { useTeams } from '../../hooks/useTeams'
+import { useClubBlockedDates } from '../../hooks/useClubBlockedDates'
 import { useTeamAbsences } from '../../hooks/useTeamAbsences'
 import { useAuth } from '../../hooks/useAuth'
 import { useMutation } from '../../hooks/useMutation'
@@ -40,6 +42,12 @@ import type { ViewMode, SpielplanungFilterState } from '../../types/calendar'
 import type { Game } from '../../types'
 import { TourPageButton } from '../guide/TourPageButton'
 
+const VIEW_MODES: ViewMode[] = ['calendar', 'week', 'list-date', 'list-team']
+
+function isViewMode(v: string | null): v is ViewMode {
+  return !!v && (VIEW_MODES as string[]).includes(v)
+}
+
 function getInitialMonth(): Date {
   const now = new Date()
   const m = now.getMonth()
@@ -51,7 +59,34 @@ export default function SpielplanungPage() {
   const { t } = useTranslation('spielplanung')
   const { t: tGs } = useTranslation('gameScheduling')
   const isMobile = useIsMobile()
-  const [viewMode, setViewMode] = useState<ViewMode>(() => isMobile ? 'list-date' : 'calendar')
+
+  // The active tab lives in the URL (`?view=`), so a view is shareable, survives a
+  // refresh, and the back button steps between tabs. No local mirror of it — the
+  // URL is the single source of truth; an absent/unknown value falls back to the
+  // per-device default, and `week` (desktop-only tab) degrades on mobile.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const viewParam = searchParams.get('view')
+  const requestedView: ViewMode = isViewMode(viewParam)
+    ? viewParam
+    : isMobile
+      ? 'list-date'
+      : 'calendar'
+  const viewMode: ViewMode = isMobile && requestedView === 'week' ? 'list-date' : requestedView
+
+  const setViewMode = useCallback(
+    (next: ViewMode) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev)
+          params.set('view', next)
+          return params
+        },
+        // Keep other query params (and don't replace — back should undo a tab switch).
+        { replace: false },
+      )
+    },
+    [setSearchParams],
+  )
   const [filters, setFilters] = useState<SpielplanungFilterState>({
     sport: 'all',
     selectedTeamIds: [],
@@ -80,6 +115,11 @@ export default function SpielplanungPage() {
 
   const { data: teams, isLoading: teamsLoading } = useTeams()
   const { seasons, isLoading: seasonsLoading } = useAvailableSeasons()
+
+  // Club-wide blackout days (superadmin-set). These are NOT hall closures — they
+  // live in scheduling_global_blocks and were invisible on this calendar until
+  // 2026-07-14, so a planner could book a home game straight into a blocked day.
+  const { blockedDates } = useClubBlockedDates()
 
   // Wait for ALL primary data before rendering the views: games/closures, the
   // team list (feeds the list views + edit-permission map), and the season list
@@ -151,6 +191,18 @@ export default function SpielplanungPage() {
     if (!game) return
     if (game.source !== 'manual') return
     if (!canEditGame(game)) return
+
+    // Dragging in Week view goes through the pure checkConflicts util, which knows
+    // nothing about club blackouts — enforce the same hard rule the modal applies.
+    if (game.type === 'home' && blockedDates.has(move.newDate)) {
+      const reason = blockedDates.get(move.newDate)
+      toast.error(
+        reason
+          ? t('manualGame.conflict.clubBlocked', { reason })
+          : t('manualGame.conflict.clubBlockedNoReason'),
+      )
+      return
+    }
 
     const teamRel = asObj<{ id: number | string }>(game.kscw_team)
     const teamId = String(teamRel?.id ?? game.kscw_team ?? '')
@@ -278,6 +330,7 @@ export default function SpielplanungPage() {
             <CalendarView
               entries={entries}
               closedDates={closedDates}
+              blockedDates={blockedDates}
               month={month}
               onMonthChange={setMonth}
               onGameClick={setSelectedGame}

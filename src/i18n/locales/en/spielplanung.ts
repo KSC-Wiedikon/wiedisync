@@ -3,6 +3,9 @@ export default {
   subtitleSeason: 'Season overview {{season}}',
   seasonPicker: 'Season',
 
+  // Club-wide blackout day (scheduling_global_blocks)
+  blockedDate: 'Blocked',
+
   // View options
   viewCalendar: 'Calendar',
   viewWeek: 'Week',
@@ -129,6 +132,8 @@ export default {
       sameTeamSameDay: 'This team is already scheduled on the same day ({{time}} vs {{opponent}}).',
       hallOverlap: 'Hall is already booked at an overlapping time ({{time}}–{{endTime}}).',
       sameTeamWithinTwoDays: 'This team also plays {{date}} at {{time}} ({{daysDelta}} days apart).',
+      clubBlocked: 'This day is blocked club-wide ({{reason}}) — no home games.',
+      clubBlockedNoReason: 'This day is blocked club-wide — no home games.',
     },
   },
 

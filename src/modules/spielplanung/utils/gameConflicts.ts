@@ -3,10 +3,11 @@ import { getBlockWindow, blocksOverlap } from './gameBlock'
 import { hallsIntersect } from '../../../utils/gameHalls'
 
 export interface ConflictMessage {
-  kind: 'same_team_same_day' | 'hall_overlap' | 'same_team_within_two_days'
+  kind: 'same_team_same_day' | 'hall_overlap' | 'same_team_within_two_days' | 'club_blocked'
   /** i18n key suffix under spielplanung:conflict.*. */
   messageKey: string
-  /** Conflicting existing game's id — useful for linking back. */
+  /** Conflicting existing game's id — useful for linking back. `club_blocked` has
+   *  no counterpart game, so it carries the sentinel 'club-block'. */
   conflictingId: string | number
   /** Optional context values for i18n interpolation. */
   context?: Record<string, string | number>

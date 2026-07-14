@@ -1,18 +1,29 @@
 /**
- * Volleymanager "Einsatzliste" (nomination list) reader — HOME side only.
+ * Volleymanager "Einsatzliste" (nomination list) reader — OUR side, home or away.
  *
  * VM keeps, per game and per team, the nomination list the club files before the
  * match: the players it may field, with their licence category and eligibility.
- * Teams must have it closed by ~40 min before kickoff, which is exactly when the
- * scorer's match sheet opens — so at match time it is normally there and closed.
+ * A team files one for EVERY game, away fixtures included. Teams must have it closed
+ * by ~40 min before kickoff, which is when the scorer's match sheet opens — so at
+ * match time it is normally there and closed.
  *
- * Two hard limits, both established by probing the live API:
- *   - Only our OWN side is returned. The endpoint is scoped to the "active party"
- *     (our club), so for a KSCW home game `nominationListTeamHome` is populated and
- *     `nominationListTeamAway` is always null. The opponent's list is not readable.
- *   - The list carries NO jersey number and NO captain flag — those live only in
- *     our own DB. Callers must merge them in (join on members.license_nr, which is
- *     VM's person.associationId).
+ * Three properties, all established by probing the live API:
+ *   - Only our OWN side is ever returned, so we simply take whichever of
+ *     `nominationListTeamHome` / `nominationListTeamAway` is populated. The call is
+ *     scoped to the "active party" (our club): the opponent's list is not readable at
+ *     all, which is what makes "take the non-null one" safe rather than lucky. Verified
+ *     2026-07-14 on a real home fixture (HOME 8 players / AWAY null) and a real away
+ *     fixture (HOME null / AWAY 8 players).
+ *     ⚠ An earlier version of this file claimed `nominationListTeamAway` is "always
+ *     null". That was wrong: it is null only on HOME games. The reader was simply never
+ *     called for an away fixture, because its one caller was gated to home games — so
+ *     the away side went untested and the club's away Einsatzliste was invisible to us.
+ *   - Officials come in three distinct slots — coach, first assistant, second assistant.
+ *     They are kept as a `role` rather than flattened, because the match sheet
+ *     distinguishes them and our own teams_coaches junction cannot.
+ *   - The list carries NO jersey number, NO captain and NO libero — those live only in
+ *     our own DB. Callers must merge them in (join on members.license_nr, which is VM's
+ *     person.associationId).
  *
  * Read-only: we call getNominationListOrTeamForActivePartyByGame and nothing else.
  * POST/PUT on `api\nominationlist` CREATE a list — never call those from here.
@@ -84,17 +95,18 @@ const mapPerson = (p) => (p ? {
 } : null)
 
 /**
- * Fetch the home team's Einsatzliste for a VM game.
+ * Fetch OUR Einsatzliste for a VM game — home or away, no caller hint needed.
  *
  * @param {string} gameUuid  svrz_games.svrz_persistence_id (VM game __identity)
  * @returns {Promise<null | {
  *   players: Array<{ license_nr: string|null, last_name: string, first_initial: string,
  *                    birthdate: string|null, licence: string|null, eligible: boolean }>,
- *   coaches: Array<{ last_name: string, first_initial: string, birthdate: string|null }>,
+ *   coaches: Array<{ last_name: string, first_initial: string, birthdate: string|null,
+ *                    role: 'coach'|'assistant_coach_1'|'assistant_coach_2' }>,
  *   closed_at: string|null,
  * }>}  null when VM is unusable or has no list — caller falls back to RSVP.
  */
-export async function fetchHomeNominationList(gameUuid, log) {
+export async function fetchOwnNominationList(gameUuid, log) {
   let body
   try {
     const s = await openSession(log, false)
@@ -115,7 +127,24 @@ export async function fetchHomeNominationList(gameUuid, log) {
     return null
   }
 
-  const list = (body?.items ?? body)?.nominationListTeamHome
+  // Take whichever side is populated — that one is ours, and only ours ever is. The call
+  // is scoped to the active party, so the opponent's list is not readable at all: on a
+  // home game the away key is null, and on an away game the home key is null.
+  //
+  // Deliberately NOT keyed off our own home/away flag. Deriving the side from
+  // svrz_games.home_club_id (or worse, games.type) would make a stale or wrong value in
+  // OUR database silently read the empty key and fall through to the RSVP fallback —
+  // which is exactly the failure this file used to have. VM already tells us the answer.
+  const items = body?.items ?? body
+  const home = items?.nominationListTeamHome
+  const away = items?.nominationListTeamAway
+  if (home && away) {
+    // Never observed. If it ever happens the "only our side" assumption is broken and
+    // one of these belongs to the opponent — say so loudly rather than pick one.
+    log.warn(`[vm-nomination] ${gameUuid}: BOTH sides populated — refusing to guess which is ours`)
+    return null
+  }
+  const list = home ?? away
   const noms = Array.isArray(list?.indoorPlayerNominations) ? list.indoorPlayerNominations : []
   if (!noms.length) return null
 
@@ -140,8 +169,19 @@ export async function fetchHomeNominationList(gameUuid, log) {
     }
   })
 
-  const coaches = [list.coachPerson, list.firstAssistantCoachPerson, list.secondAssistantCoachPerson]
-    .map(mapPerson)
+  // VM holds three distinct official slots and the match sheet distinguishes them, so
+  // keep the slot as a role instead of flattening all three into one anonymous list.
+  // (Our own teams_coaches junction has no role column, which is exactly why the VM
+  // list is the better source when it exists.)
+  const coaches = [
+    { person: list.coachPerson, role: 'coach' },
+    { person: list.firstAssistantCoachPerson, role: 'assistant_coach_1' },
+    { person: list.secondAssistantCoachPerson, role: 'assistant_coach_2' },
+  ]
+    .map(({ person, role }) => {
+      const p = mapPerson(person)
+      return p ? { ...p, role } : null
+    })
     .filter(Boolean)
 
   return { players, coaches, closed_at: list.closedAt || null }
