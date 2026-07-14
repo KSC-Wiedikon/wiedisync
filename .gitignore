@@ -62,3 +62,7 @@ docs/handbook/
 
 # ClubDesk member exports (PII — never commit)
 clubdesk-export*.csv
+
+# Google service-account keys (never commit)
+*service-account*.json
+kscw-calendar-*.json

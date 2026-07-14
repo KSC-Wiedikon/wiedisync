@@ -18,9 +18,12 @@
  * so nothing churns for unchanged entries.
  */
 
+import { pushHomeGames, KSCW_CALENDAR_ID } from './gcal-push.js'
+import { writeUserLog } from './activity-log.js'
+
 const GCAL_IDS = [
   // KSCW public calendar (kscw.ch/weiteres/kalender → embedded Google Calendar).
-  '145bqacb4v5qfkr97u2fdchi5o@group.calendar.google.com',
+  KSCW_CALENDAR_ID,
 ]
 
 function parseIcsDatetime(str) {
@@ -101,6 +104,12 @@ export function registerGCalSync(router, { database, logger, services, getSchema
 
   async function runSync(db, schema) {
     const { ItemsService } = services
+
+    // ── PUSH first: our home games onto the calendar. It hands back the ids of
+    // every event we own, so the import below can skip its own output instead of
+    // re-importing our games as duplicate hall_events display rows.
+    const push = await pushHomeGames(db, log)
+
     const halls = await db('halls').select('id', 'name')
     const hallLookup = Object.fromEntries(halls.map(h => [h.name, h.id]))
     // Halls a calendar closure applies to: the KWI school gym (A/B/C). These are
@@ -149,6 +158,19 @@ export function registerGCalSync(router, { database, logger, services, getSchema
 
       for (const ev of events) {
         if (!ev.start || ev.start.date < seasonStart) continue
+        // Never re-import an event WE wrote (ICS UID is "<eventId>@google.com").
+        // Our games already reach the Hallenplan as virtual slots off `games`, so
+        // a hall_events row would duplicate them — and a hall_closure would cancel
+        // the very game it describes.
+        //
+        // Deliberately keyed on OUR event ids, not on a "BB "/"VB " title prefix:
+        // the hall admin hand-types basketball friendlies and junior games
+        // (`BB - Freundschaftsspiel`, `BB DU16E …`) that exist ONLY on this
+        // calendar and in no `games` row. Skipping those by title deleted 84
+        // hall_events on dev — i.e. showed the hall as free while a junior game
+        // was being played in it. Other people's events keep importing exactly as
+        // they did before.
+        if (push.eventIds.has(String(ev.uid).split('@')[0])) continue
         if (ev.title?.startsWith('VB ')) continue // club VB games — app-managed, never a closure
         seenUids.add(ev.uid)
 
@@ -221,7 +243,11 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       }
     }
 
-    return { eventsCreated, eventsUpdated, eventsDeleted, closuresCreated, closuresDeleted }
+    return {
+      eventsCreated, eventsUpdated, eventsDeleted, closuresCreated, closuresDeleted,
+      gamesPushed: push.created, gamesUpdated: push.updated, gamesRemoved: push.deleted,
+      gamesSkipped: push.skipped, pushEnabled: !push.disabled,
+    }
   }
 
   router.post('/admin/gcal-sync', async (req, res) => {
@@ -230,6 +256,14 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       log.info('Manual GCal sync triggered')
       const schema = await getSchema()
       const result = await runSync(database, schema)
+      // Writes to a calendar the hall administration reads — record who triggered it.
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'gcal_sync',
+        collection: 'hall_closures',
+        recordId: null,
+        data: result,
+      })
       res.json({ status: 'ok', ...result })
     } catch (err) {
       log.error({ msg: `gcal-sync: ${err.message}`, endpoint: 'gcal-sync', userId: req?.accountability?.user || null, method: req?.method, stack: err.stack })
