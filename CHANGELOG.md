@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.43.0 — 2026-07-14
+
+### New: the match sheet, on your phone
+- **Coaches and team responsibles can now open the match sheet from a game**, in the hours around kickoff, and hand the phone to the scorer. It is laid out the way the sheet is actually filled in: birthdate, number, then surname and first initial. The captain's number is circled, liberos appear again in their own block, and the officials are listed at the bottom.
+- **You can adjust it for that one game.** Change a number, move the captain's circle, flag a libero, or — in an emergency — add a player who turned up unnominated or strike out one who did not. None of this touches the player's normal shirt number, position, or the team's captain: it applies to that match only.
+- **Adding or removing a player is the only change that can disagree with Volleymanager**, and it is the only one that raises a warning. Numbers, captain and libero do not exist on the Einsatzliste at all, so changing them cannot contradict it. If you do add or drop someone, Wiedisync tells you, in red, that the same change must also be made by hand in Volleymanager — it does not send it for you.
+
+### Fixed: away games were showing the wrong list
+- **The Einsatzliste for away games was never being read.** Wiedisync only ever looked at the home team's list, so for away games it quietly fell back to the RSVPs — which meant a nominated player who had not RSVP'd was simply missing from the sheet, in the away hall, which is exactly where a referee is most likely to ask for it. Away games now show the real Einsatzliste, the same as home games.
+- Officials are now listed with their role (coach, assistant coach 1, assistant coach 2) instead of as one anonymous list. Volleymanager knew this all along; Wiedisync was throwing it away.
+
 ## v1.42.0 — 2026-07-13
 
 ### New: the Einsatzliste can file itself
