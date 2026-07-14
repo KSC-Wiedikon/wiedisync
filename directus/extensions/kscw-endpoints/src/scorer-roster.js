@@ -19,10 +19,10 @@
  *
  *   coach  — a coach or team responsible of the playing team. Window: kickoff −3h … +3h,
  *            wider than the scorer's because they prepare before they travel and because
- *            a hall has no signal (the app pre-loads while they still have bars). Away
- *            games included: Volleymanager only hands us the HOME team's Einsatzliste,
- *            so an away game falls back to confirmed RSVPs, which is still their own
- *            team's data. MAY EDIT (see POST below).
+ *            a hall has no signal (the app pre-loads while they still have bars). Home
+ *            AND away: a team files an Einsatzliste for every fixture, and VM's call is
+ *            scoped to the active party, so it hands us OUR list on either side.
+ *            MAY EDIT (see POST below).
  *
  * Directus admins bypass both. Every read is audit-logged (writeUserLog) precisely
  * because it surfaces minor PII — a deliberate exception to the "reads need no actor
@@ -35,11 +35,12 @@
  *               by a later VM re-read.
  *   - `vm`    — the Einsatzliste the team filed in Volleymanager. The legal document the
  *               scorer copies, so it wins over RSVPs: a nominated player who never RSVP'd
- *               still belongs on the sheet. VM carries no jersey number, no captain and
- *               no libero, so those are merged in from `members` by joining VM's
- *               person.associationId to members.license_nr.
+ *               still belongs on the sheet. Available for HOME and AWAY fixtures alike —
+ *               the club files one for every game, and VM returns whichever side is ours.
+ *               VM carries no jersey number, no captain and no libero, so those are
+ *               merged in from `members` by joining person.associationId to license_nr.
  *   - `rsvp`  — fallback: confirmed RSVPs (confirmed guests included). Basketball (no VM),
- *               away games, unfiled lists, and whenever VM is slow/down/unauthenticated.
+ *               unfiled lists, and whenever VM is slow/down/unauthenticated.
  *
  * WHAT THE COACH MAY CHANGE, AND WHY IT IS SAFE
  * --------------------------------------------
@@ -56,7 +57,7 @@
  */
 
 import { writeUserLog } from './activity-log.js'
-import { fetchHomeNominationList } from './vm-nomination-list.js'
+import { fetchOwnNominationList } from './vm-nomination-list.js'
 
 // SCORER roles → assigned-member FK on `games`. Täfeler/timekeeper/24s excluded on
 // purpose — they don't fill the match sheet, so they don't get the roster.
@@ -133,14 +134,18 @@ function seedLibero(position) {
 const KSCW_CLUB_ID = '912530'
 
 /**
- * VM game UUID for one of our games — MATCHED BY GAME NUMBER.
+ * VM game UUID for one of our games — MATCHED BY GAME NUMBER — plus which side we are on.
  *
  * `games.game_id` is `vb_<SwissVolley gameId>` and `svrz_games.svrz_number` is that same
  * number (the equivalence sv-sync.js already relies on), so the number is the join key —
  * no team-name matching, no UUID guessing. Returns null for basketball (`bb_` prefix, no
  * VM) and for games with no VM fixture.
+ *
+ * `isHome` comes from VM's own `home_club_id`, NOT from our `games.type`. It decides
+ * which of the two nomination lists is OURS; getting it wrong would read the opponent's.
+ * A team files an Einsatzliste for away fixtures too, so both sides are legitimate here.
  */
-async function vmGameUuid(database, game) {
+async function vmGameRef(database, game) {
   const gid = String(game.game_id ?? '')
   if (!gid.startsWith('vb_')) return null
   const number = Number(gid.slice(3))
@@ -149,21 +154,19 @@ async function vmGameUuid(database, game) {
   const row = await database('svrz_games')
     .where('svrz_number', number)
     .first('svrz_persistence_id', 'home_club_id')
-  if (!row) return null
+  if (!row?.svrz_persistence_id) return null
 
-  // VM hands us `nominationListTeamHome`, which is only OUR list when KSCW is actually
-  // the home club. This is what makes the VM source home-only — on an away game that
-  // list belongs to the opponent, and serving it would be a data leak. Away games fall
-  // back to RSVP instead.
-  if (String(row.home_club_id) !== KSCW_CLUB_ID) return null
-  return row.svrz_persistence_id
+  return {
+    uuid: row.svrz_persistence_id,
+    isHome: String(row.home_club_id) === KSCW_CLUB_ID,
+  }
 }
 
 /** Source: the Einsatzliste filed in Volleymanager. null → caller falls back to RSVP. */
 async function loadVmRoster(database, log, game, captainId) {
-  const uuid = await vmGameUuid(database, game)
-  if (!uuid) return null
-  const nl = await fetchHomeNominationList(uuid, log)
+  const ref = await vmGameRef(database, game)
+  if (!ref) return null
+  const nl = await fetchOwnNominationList(ref.uuid, ref.isHome, log)
   if (!nl) return null
 
   // VM has no jersey number, no captain and no libero — merge ours in. VM's
@@ -364,8 +367,8 @@ export function registerScorerRoster(router, { database, logger }) {
     }
 
     // The sheet we hold is the PLAYING team's. A scorer only ever scores a home game;
-    // a coach travels to away games too (and gets the RSVP fallback there, since VM
-    // only ever hands us the home team's Einsatzliste).
+    // a coach travels to away games too, and gets the real Einsatzliste there — VM's
+    // call is scoped to the active party, so it returns our list on either side.
     if (game.kscw_team == null) {
       res.status(422).json({ error: 'Game has no KSCW team', code: 'not_home' })
       return null

@@ -1,18 +1,28 @@
 /**
- * Volleymanager "Einsatzliste" (nomination list) reader — HOME side only.
+ * Volleymanager "Einsatzliste" (nomination list) reader — OUR side, home or away.
  *
  * VM keeps, per game and per team, the nomination list the club files before the
  * match: the players it may field, with their licence category and eligibility.
- * Teams must have it closed by ~40 min before kickoff, which is exactly when the
- * scorer's match sheet opens — so at match time it is normally there and closed.
+ * A team files one for EVERY game, away fixtures included. Teams must have it closed
+ * by ~40 min before kickoff, which is when the scorer's match sheet opens — so at
+ * match time it is normally there and closed.
  *
- * Two hard limits, both established by probing the live API:
- *   - Only our OWN side is returned. The endpoint is scoped to the "active party"
- *     (our club), so for a KSCW home game `nominationListTeamHome` is populated and
- *     `nominationListTeamAway` is always null. The opponent's list is not readable.
- *   - The list carries NO jersey number and NO captain flag — those live only in
- *     our own DB. Callers must merge them in (join on members.license_nr, which is
- *     VM's person.associationId).
+ * Three properties, all established by probing the live API:
+ *   - Only our OWN side is ever returned. The call is scoped to the "active party"
+ *     (our club), so exactly one of `nominationListTeamHome` / `nominationListTeamAway`
+ *     is populated — whichever side KSCW is on — and the opponent's is null. Verified
+ *     2026-07-14 on a real home fixture (HOME 8 players / AWAY null) and a real away
+ *     fixture (HOME null / AWAY 8 players).
+ *     ⚠ An earlier version of this file claimed `nominationListTeamAway` is "always
+ *     null". That was wrong: it is null only on HOME games. The reader was simply never
+ *     called for an away fixture, because its one caller was gated to home games — so
+ *     the away side went untested and the club's away Einsatzliste was invisible to us.
+ *   - Officials come in three distinct slots — coach, first assistant, second assistant.
+ *     They are kept as a `role` rather than flattened, because the match sheet
+ *     distinguishes them and our own teams_coaches junction cannot.
+ *   - The list carries NO jersey number, NO captain and NO libero — those live only in
+ *     our own DB. Callers must merge them in (join on members.license_nr, which is VM's
+ *     person.associationId).
  *
  * Read-only: we call getNominationListOrTeamForActivePartyByGame and nothing else.
  * POST/PUT on `api\nominationlist` CREATE a list — never call those from here.
@@ -84,9 +94,15 @@ const mapPerson = (p) => (p ? {
 } : null)
 
 /**
- * Fetch the home team's Einsatzliste for a VM game.
+ * Fetch OUR Einsatzliste for a VM game — home or away.
  *
- * @param {string} gameUuid  svrz_games.svrz_persistence_id (VM game __identity)
+ * @param {string}  gameUuid  svrz_games.svrz_persistence_id (VM game __identity)
+ * @param {boolean} isHome    Is KSCW the HOME club on this fixture? Decide this from
+ *                            svrz_games.home_club_id (VM's own truth), NOT from our
+ *                            games.type — picking the wrong side would serve the
+ *                            OPPONENT's list, which is a data leak. In practice VM only
+ *                            populates our side, so the other one is null anyway; this
+ *                            flag makes that explicit rather than implicit.
  * @returns {Promise<null | {
  *   players: Array<{ license_nr: string|null, last_name: string, first_initial: string,
  *                    birthdate: string|null, licence: string|null, eligible: boolean }>,
@@ -95,7 +111,7 @@ const mapPerson = (p) => (p ? {
  *   closed_at: string|null,
  * }>}  null when VM is unusable or has no list — caller falls back to RSVP.
  */
-export async function fetchHomeNominationList(gameUuid, log) {
+export async function fetchOwnNominationList(gameUuid, isHome, log) {
   let body
   try {
     const s = await openSession(log, false)
@@ -116,7 +132,12 @@ export async function fetchHomeNominationList(gameUuid, log) {
     return null
   }
 
-  const list = (body?.items ?? body)?.nominationListTeamHome
+  // Our side, and only our side. VM populates exactly one of these — the other belongs
+  // to the opponent and always comes back null — so reading the wrong key just yields
+  // nothing rather than someone else's data. Keyed off the caller's isHome (derived from
+  // VM's own home_club_id), never off our games.type.
+  const items = body?.items ?? body
+  const list = isHome ? items?.nominationListTeamHome : items?.nominationListTeamAway
   const noms = Array.isArray(list?.indoorPlayerNominations) ? list.indoorPlayerNominations : []
   if (!noms.length) return null
 
