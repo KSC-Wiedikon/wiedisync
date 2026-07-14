@@ -90,7 +90,8 @@ const mapPerson = (p) => (p ? {
  * @returns {Promise<null | {
  *   players: Array<{ license_nr: string|null, last_name: string, first_initial: string,
  *                    birthdate: string|null, licence: string|null, eligible: boolean }>,
- *   coaches: Array<{ last_name: string, first_initial: string, birthdate: string|null }>,
+ *   coaches: Array<{ last_name: string, first_initial: string, birthdate: string|null,
+ *                    role: 'coach'|'assistant_coach_1'|'assistant_coach_2' }>,
  *   closed_at: string|null,
  * }>}  null when VM is unusable or has no list — caller falls back to RSVP.
  */
@@ -140,8 +141,19 @@ export async function fetchHomeNominationList(gameUuid, log) {
     }
   })
 
-  const coaches = [list.coachPerson, list.firstAssistantCoachPerson, list.secondAssistantCoachPerson]
-    .map(mapPerson)
+  // VM holds three distinct official slots and the match sheet distinguishes them, so
+  // keep the slot as a role instead of flattening all three into one anonymous list.
+  // (Our own teams_coaches junction has no role column, which is exactly why the VM
+  // list is the better source when it exists.)
+  const coaches = [
+    { person: list.coachPerson, role: 'coach' },
+    { person: list.firstAssistantCoachPerson, role: 'assistant_coach_1' },
+    { person: list.secondAssistantCoachPerson, role: 'assistant_coach_2' },
+  ]
+    .map(({ person, role }) => {
+      const p = mapPerson(person)
+      return p ? { ...p, role } : null
+    })
     .filter(Boolean)
 
   return { players, coaches, closed_at: list.closedAt || null }

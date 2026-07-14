@@ -10,6 +10,7 @@ import ParticipationSummary from '../../../components/ParticipationSummary'
 import { rsvpButtonClass } from '../../../utils/participationColors'
 import ParticipationRosterModal from '../../../components/ParticipationRosterModal'
 import RosterModal from '../../scorer/components/RosterModal'
+import PreGameRosterModal from './PreGameRosterModal'
 import { useAuth } from '../../../hooks/useAuth'
 import { useParticipation } from '../../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../../hooks/useMyCoveringAbsence'
@@ -932,6 +933,13 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
     </div>
     {isAssignedScorer ? (
       rosterOpen && <RosterModal key={game.id} gameId={game.id} onClose={() => setRosterOpen(false)} />
+    ) : isTeamStaff ? (
+      // Coach / TR / admin of the playing team: the match sheet, laid out the way it is
+      // filled and editable per game (number, captain, libero — none of which exist on
+      // the Einsatzliste — plus an emergency add/drop that does NOT reach Volleymanager).
+      rosterOpen && (
+        <PreGameRosterModal key={game.id} gameId={game.id} onClose={() => setRosterOpen(false)} />
+      )
     ) : (
       <ParticipationRosterModal
         open={rosterOpen}

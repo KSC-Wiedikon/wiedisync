@@ -1,48 +1,75 @@
 /**
- * Home-team roster for the assigned Schreiber (scorer).
- * GET /kscw/scorer/game/:gameId/roster
+ * The match sheet for one game.
+ *   GET  /kscw/scorer/game/:gameId/roster   — read it
+ *   POST /kscw/scorer/game/:gameId/roster   — the coach adjusts it (coach/TR only)
  *
- * Returns the HOME (playing) team's match sheet — jersey number, last name,
- * first initial, and FULL date of birth for every player, plus the team's
- * coaches, so the scorer can fill the eligibility line-up. This is the ONE
- * sanctioned place that exposes full DoB (including minors): the club's public
- * team API strips under-18 PII in three layers, but the scorer legitimately
- * needs ages at the table. It is therefore triple-gated:
- *   1. caller must be the assigned Schreiber on this game — the SCORER roles
- *      only (scorer / scorer_scoreboard / bb_scorer). The pure Täfeler /
- *      timekeeper / 24s roles do NOT get the roster.
- *   2. now ∈ [kickoff − 40min, kickoff + 3h] — opens once RSVPs are final,
- *      stays for the length of the match.
- *   3. home games only (kscw_team is the home/playing team we have data for).
- * Directus admins bypass 1 + 2 for support. The read is audit-logged
- * (writeUserLog) precisely because it surfaces minor PII — an exception to the
- * "reads need no actor capture" rule.
+ * Returns the playing team's sheet — jersey number, last name, first initial, and FULL
+ * date of birth for every player, plus the team's officials, so the sheet can be filled.
+ * This is the ONE sanctioned place that exposes full DoB (including minors): the club's
+ * public team API strips under-18 PII in three layers, but the people at the table
+ * legitimately need ages. It is therefore gated by WHO you are and WHEN you ask.
  *
- * TWO SOURCES, in order:
- *   - `vm`   — the Einsatzliste the team filed in Volleymanager. This is the
- *              legal document the scorer copies onto the match sheet, so it wins
- *              whenever it exists: a nominated player who never RSVP'd still
- *              belongs on the sheet. Teams must close it ~40 min before kickoff,
- *              i.e. as this endpoint's window opens. VM carries no jersey number
- *              and no captain, so those are merged in from `members` by joining
- *              VM's person.associationId to members.license_nr.
- *   - `rsvp` — fallback: confirmed RSVPs for the game (confirmed guests included).
- *              Used for basketball (no VM), for volleyball games whose list is
- *              empty or unfiled, and whenever VM is slow, down or unauthenticated.
- * The chosen source is returned as `source` so the UI can caption the sheet.
+ * TWO AUDIENCES, different gates:
+ *
+ *   scorer — the assigned Schreiber. SCORER roles only (scorer / scorer_scoreboard /
+ *            bb_scorer); the pure Täfeler / timekeeper / 24s roles do NOT get the sheet.
+ *            Window: kickoff −40min … +3h (opens once RSVPs are final, stays for the
+ *            match). Home games only — the sheet we hold is the home team's.
+ *            READ ONLY: a scorer never edits the sheet.
+ *
+ *   coach  — a coach or team responsible of the playing team. Window: kickoff −3h … +3h,
+ *            wider than the scorer's because they prepare before they travel and because
+ *            a hall has no signal (the app pre-loads while they still have bars). Away
+ *            games included: Volleymanager only hands us the HOME team's Einsatzliste,
+ *            so an away game falls back to confirmed RSVPs, which is still their own
+ *            team's data. MAY EDIT (see POST below).
+ *
+ * Directus admins bypass both. Every read is audit-logged (writeUserLog) precisely
+ * because it surfaces minor PII — a deliberate exception to the "reads need no actor
+ * capture" rule.
+ *
+ * THREE SOURCES, in order:
+ *   - `saved` — a snapshot in `game_rosters`, written the first time a coach edits this
+ *               game. If rows exist they ARE the sheet: the coach has already looked at
+ *               it and corrected it, and their correction must not be silently reverted
+ *               by a later VM re-read.
+ *   - `vm`    — the Einsatzliste the team filed in Volleymanager. The legal document the
+ *               scorer copies, so it wins over RSVPs: a nominated player who never RSVP'd
+ *               still belongs on the sheet. VM carries no jersey number, no captain and
+ *               no libero, so those are merged in from `members` by joining VM's
+ *               person.associationId to members.license_nr.
+ *   - `rsvp`  — fallback: confirmed RSVPs (confirmed guests included). Basketball (no VM),
+ *               away games, unfiled lists, and whenever VM is slow/down/unauthenticated.
+ *
+ * WHAT THE COACH MAY CHANGE, AND WHY IT IS SAFE
+ * --------------------------------------------
+ * number / is_captain / is_libero do not exist on the Einsatzliste at all — they are ours
+ * — so editing them cannot contradict Volleymanager. Adding or dropping a PLAYER does
+ * diverge from it; that is the emergency door (someone turns up who was not nominated, or
+ * a nominated player does not). We do NOT push it: the UI shows a red banner telling the
+ * coach to make the same change by hand in Volleymanager. See migration 211.
+ *
+ * ⚠ Migration 206 (auto_nomination_list) files the Einsatzliste from RSVPs ~60 min before
+ * kickoff and CLOSES it — 15 minutes before the coach's edit window even opens. It is
+ * dormant today (no team enables it; no game has ever been pushed). If it is ever switched
+ * on, reconcile the two: a coach's emergency add/drop would land on an already-closed list.
  */
 
 import { writeUserLog } from './activity-log.js'
 import { fetchHomeNominationList } from './vm-nomination-list.js'
 
-// SCORER roles → assigned-member FK on `games`. Täfeler/timekeeper/24s excluded
-// on purpose — they don't fill the match sheet, so they don't get the roster.
+// SCORER roles → assigned-member FK on `games`. Täfeler/timekeeper/24s excluded on
+// purpose — they don't fill the match sheet, so they don't get the roster.
 const ROSTER_ROLE_COLS = ['scorer_member', 'scorer_scoreboard_member', 'bb_scorer_member']
 
-// Match-sheet window: opens 40 min before kickoff (RSVPs are final by then) and
-// stays until ~3h after (covers a full match). Admins bypass it entirely.
-const ROSTER_WINDOW_BEFORE_MS = 40 * 60 * 1000
-const ROSTER_WINDOW_AFTER_MS = 3 * 60 * 60 * 1000
+// Scorer: opens once RSVPs are final, stays for the length of a match.
+const SCORER_WINDOW_BEFORE_MS = 40 * 60 * 1000
+const SCORER_WINDOW_AFTER_MS = 3 * 60 * 60 * 1000
+
+// Coach: wider on the near side — they prepare before leaving, and halls have no signal,
+// so the app must be able to pre-load while they still have a connection.
+const COACH_WINDOW_BEFORE_MS = 3 * 60 * 60 * 1000
+const COACH_WINDOW_AFTER_MS = 3 * 60 * 60 * 1000
 
 const dateYMD = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
 
@@ -92,15 +119,26 @@ const jersey = (n) => (n == null || Number(n) === 0 ? null : Number(n))
 // Jersey number descending; unnumbered players (staff, late entries) last.
 const byJersey = (a, b) => (b.number == null ? -Infinity : b.number) - (a.number == null ? -Infinity : a.number)
 
+/**
+ * Libero is a per-MATCH designation in the rules, not a property of a person — but the
+ * only thing we hold is `members.position`, a club-wide json array. So it seeds the
+ * flag, and the coach corrects it per game (which is the whole point of game_rosters).
+ */
+function seedLibero(position) {
+  if (!position) return false
+  const raw = typeof position === 'string' ? position : JSON.stringify(position)
+  return /libero/i.test(raw)
+}
+
 const KSCW_CLUB_ID = '912530'
 
 /**
  * VM game UUID for one of our games — MATCHED BY GAME NUMBER.
  *
- * `games.game_id` is `vb_<SwissVolley gameId>` and `svrz_games.svrz_number` is
- * that same number (the equivalence sv-sync.js already relies on), so the number
- * is the join key — no team-name matching, no UUID guessing. Returns null for
- * basketball (`bb_` prefix, no VM) and for games with no VM fixture.
+ * `games.game_id` is `vb_<SwissVolley gameId>` and `svrz_games.svrz_number` is that same
+ * number (the equivalence sv-sync.js already relies on), so the number is the join key —
+ * no team-name matching, no UUID guessing. Returns null for basketball (`bb_` prefix, no
+ * VM) and for games with no VM fixture.
  */
 async function vmGameUuid(database, game) {
   const gid = String(game.game_id ?? '')
@@ -113,25 +151,26 @@ async function vmGameUuid(database, game) {
     .first('svrz_persistence_id', 'home_club_id')
   if (!row) return null
 
-  // Safety net: VM hands us `nominationListTeamHome`, which is only OUR list if
-  // KSCW is actually the home club on that fixture. If a game number ever resolved
-  // to someone else's game, this stops us serving an opponent's Einsatzliste.
+  // VM hands us `nominationListTeamHome`, which is only OUR list when KSCW is actually
+  // the home club. This is what makes the VM source home-only — on an away game that
+  // list belongs to the opponent, and serving it would be a data leak. Away games fall
+  // back to RSVP instead.
   if (String(row.home_club_id) !== KSCW_CLUB_ID) return null
   return row.svrz_persistence_id
 }
 
-/** Source 1: the Einsatzliste filed in Volleymanager. null → caller falls back to RSVP. */
+/** Source: the Einsatzliste filed in Volleymanager. null → caller falls back to RSVP. */
 async function loadVmRoster(database, log, game, captainId) {
   const uuid = await vmGameUuid(database, game)
   if (!uuid) return null
   const nl = await fetchHomeNominationList(uuid, log)
   if (!nl) return null
 
-  // VM has no jersey number and no captain — merge ours in. VM's person.associationId
-  // IS members.license_nr (same Swiss Volley licence number), so this is an exact join.
+  // VM has no jersey number, no captain and no libero — merge ours in. VM's
+  // person.associationId IS members.license_nr (same Swiss Volley licence), exact join.
   const licences = nl.players.map((p) => p.license_nr).filter(Boolean)
   const memberRows = licences.length
-    ? await database('members').whereIn('license_nr', licences).select('id', 'number', 'license_nr')
+    ? await database('members').whereIn('license_nr', licences).select('id', 'number', 'position', 'license_nr')
     : []
   const byLicence = new Map(memberRows.map((m) => [String(m.license_nr), m]))
 
@@ -139,13 +178,20 @@ async function loadVmRoster(database, log, game, captainId) {
     .map((p) => {
       const m = p.license_nr ? byLicence.get(p.license_nr) : null
       return {
+        // null when the Einsatzliste names a licence we hold no member for. They still
+        // belong on the sheet (VM is the legal list) — we just cannot link them, and the
+        // coach cannot edit them.
+        member: m ? Number(m.id) : null,
         number: m ? jersey(m.number) : null,
         last_name: p.last_name,
         first_initial: p.first_initial,
         birthdate: p.birthdate,
         is_captain: m != null && captainId != null && Number(m.id) === captainId,
+        is_libero: m ? seedLibero(m.position) : false,
         licence: p.licence,
         eligible: p.eligible,
+        added: false,
+        dropped: false,
       }
     })
     .sort(byJersey)
@@ -153,7 +199,7 @@ async function loadVmRoster(database, log, game, captainId) {
   return { source: 'vm', roster, coaches: nl.coaches, closed_at: nl.closed_at }
 }
 
-/** Source 2 (fallback): members who RSVP'd "confirmed" (confirmed guests included). */
+/** Fallback: members who RSVP'd "confirmed" (confirmed guests included). */
 async function loadRsvpRoster(database, game, gameId, season, captainId) {
   const confirmedRows = await database('participations')
     .where('activity_type', 'game')
@@ -162,36 +208,84 @@ async function loadRsvpRoster(database, game, gameId, season, captainId) {
     .select('member')
   const confirmedIds = new Set(confirmedRows.map((r) => Number(r.member)))
 
-  // Full squad for the playing team this season, then keep only the confirmed.
-  const rows = await database('member_teams')
-    .join('members', 'members.id', 'member_teams.member')
-    .where('member_teams.team', game.kscw_team)
-    .where('member_teams.season', season)
-    .select(
-      'members.id as id',
-      'members.number as number',
-      'members.first_name as first_name',
-      'members.last_name as last_name',
-      'members.birthdate as birthdate',
-    )
+  const rows = await squadRows(database, game.kscw_team, season)
 
   const roster = rows
     .filter((r) => confirmedIds.has(Number(r.id)))
     .map((r) => ({
+      member: Number(r.id),
       number: jersey(r.number),
       last_name: r.last_name || '',
       first_initial: firstInitial(r.first_name),
       birthdate: r.birthdate ? dateYMD(r.birthdate) : null,
       is_captain: captainId != null && Number(r.id) === captainId,
+      is_libero: seedLibero(r.position),
       licence: null,
       eligible: true,
+      added: false,
+      dropped: false,
     }))
     .sort(byJersey)
 
   return { source: 'rsvp', roster, coaches: [], closed_at: null }
 }
 
-/** Team coaches from our own DB — the fallback when VM names none. */
+/** The full squad of a team for a season — the pool the coach may add from. */
+function squadRows(database, teamId, season) {
+  return database('member_teams')
+    .join('members', 'members.id', 'member_teams.member')
+    .where('member_teams.team', teamId)
+    .where('member_teams.season', season)
+    .select(
+      'members.id as id',
+      'members.number as number',
+      'members.position as position',
+      'members.first_name as first_name',
+      'members.last_name as last_name',
+      'members.birthdate as birthdate',
+    )
+}
+
+/**
+ * The coach's saved sheet. When rows exist they ARE the sheet — a coach has looked at
+ * this game and corrected it, and a later VM re-read must not silently revert them.
+ */
+async function loadSavedSheet(database, gameId) {
+  const rows = await database('game_rosters').where('game', gameId).select('*')
+  if (!rows.length) return null
+
+  const roster = rows
+    .map((r) => ({
+      member: r.member == null ? null : Number(r.member),
+      number: jersey(r.number),
+      last_name: r.last_name || '',
+      first_initial: r.first_initial || '',
+      birthdate: r.birthdate ? dateYMD(r.birthdate) : null,
+      is_captain: r.is_captain === true,
+      is_libero: r.is_libero === true,
+      licence: r.licence,
+      eligible: r.eligible !== false,
+      added: r.added === true,
+      dropped: r.dropped === true,
+    }))
+    .sort(byJersey)
+
+  return {
+    source: rows[0].source || 'vm',
+    roster,
+    coaches: [],
+    closed_at: null,
+    edited_by: rows[0].edited_by_name || null,
+    edited_at: rows[0].date_updated || null,
+  }
+}
+
+/**
+ * Team officials from our own DB — the fallback when VM names none. Our `teams_coaches`
+ * junction has NO role column, so these come back unlabelled. That is deliberate: VM
+ * distinguishes coach / assistant 1 / assistant 2 and is the better source when it
+ * exists; duplicating that into a hand-kept column would just be a second copy to drift.
+ */
 async function dbCoaches(database, teamId) {
   const rows = await database('teams_coaches')
     .join('members', 'members.id', 'teams_coaches.members_id')
@@ -201,85 +295,149 @@ async function dbCoaches(database, teamId) {
     last_name: r.last_name || '',
     first_initial: firstInitial(r.first_name),
     birthdate: r.birthdate ? dateYMD(r.birthdate) : null,
+    role: null,
   }))
+}
+
+/** Is this member a coach or team responsible of the playing team? */
+async function isTeamLeader(database, memberId, teamId) {
+  if (memberId == null || teamId == null) return false
+  const [coach, tr] = await Promise.all([
+    database('teams_coaches').where({ teams_id: teamId, members_id: memberId }).first('id'),
+    database('teams_responsibles').where({ teams_id: teamId, members_id: memberId }).first('id'),
+  ])
+  return !!coach || !!tr
 }
 
 export function registerScorerRoster(router, { database, logger }) {
   const log = logger.child({ endpoint: 'scorer-roster' })
 
+  /**
+   * Resolve caller → { access, member, game } or an error response.
+   * access: 'admin' | 'scorer' | 'coach'
+   */
+  async function authorize(req, res) {
+    const isAdmin = req.accountability?.admin === true
+    const userId = req.accountability?.user
+    if (!userId && !isAdmin) {
+      res.status(401).json({ error: 'Authentication required' })
+      return null
+    }
+
+    const gameId = req.params.gameId
+    const game = await database('games').where('id', gameId).first('*')
+    if (!game) {
+      res.status(404).json({ error: 'Game not found' })
+      return null
+    }
+
+    const member = userId ? await database('members').where('user', userId).first('id') : null
+
+    const isScorer = !!member && ROSTER_ROLE_COLS.some(
+      (col) => game[col] != null && Number(game[col]) === Number(member.id),
+    )
+    const isCoach = !!member && await isTeamLeader(database, Number(member.id), game.kscw_team)
+
+    const access = isAdmin ? 'admin' : (isCoach ? 'coach' : (isScorer ? 'scorer' : null))
+    if (!access) {
+      res.status(403).json({
+        error: 'Not the assigned scorer, coach or team responsible for this game',
+        code: 'not_scorer',
+      })
+      return null
+    }
+
+    // Time window — per audience. Admins bypass.
+    if (access !== 'admin') {
+      const startMs = gameStartMs(game)
+      if (startMs == null) {
+        res.status(403).json({ error: 'Game has no scheduled time', code: 'no_time' })
+        return null
+      }
+      const before = access === 'coach' ? COACH_WINDOW_BEFORE_MS : SCORER_WINDOW_BEFORE_MS
+      const after = access === 'coach' ? COACH_WINDOW_AFTER_MS : SCORER_WINDOW_AFTER_MS
+      const nowMs = Date.now()
+      if (nowMs < startMs - before || nowMs > startMs + after) {
+        res.status(403).json({ error: 'Roster is not available at this time', code: 'outside_window' })
+        return null
+      }
+    }
+
+    // The sheet we hold is the PLAYING team's. A scorer only ever scores a home game;
+    // a coach travels to away games too (and gets the RSVP fallback there, since VM
+    // only ever hands us the home team's Einsatzliste).
+    if (game.kscw_team == null) {
+      res.status(422).json({ error: 'Game has no KSCW team', code: 'not_home' })
+      return null
+    }
+    if (access === 'scorer' && game.type !== 'home') {
+      res.status(422).json({ error: 'Roster is only available for home games', code: 'not_home' })
+      return null
+    }
+
+    return { access, member, game, gameId }
+  }
+
+  /** The sheet as it stands: saved snapshot if the coach edited it, else VM, else RSVP. */
+  async function buildSheet(game, gameId, season, captainId) {
+    const saved = await loadSavedSheet(database, gameId)
+    if (saved) return { ...saved, edited: true }
+    const derived =
+      (await loadVmRoster(database, log, game, captainId)) ??
+      (await loadRsvpRoster(database, game, gameId, season, captainId))
+    return { ...derived, edited: false }
+  }
+
+  // ── GET: read the sheet ───────────────────────────────────────────────────
   router.get('/scorer/game/:gameId/roster', async (req, res) => {
     try {
-      const isAdmin = req.accountability?.admin === true
-      const userId = req.accountability?.user
-      if (!userId && !isAdmin) {
-        return res.status(401).json({ error: 'Authentication required' })
-      }
-
-      const gameId = req.params.gameId
-      const game = await database('games').where('id', gameId).first('*')
-      if (!game) return res.status(404).json({ error: 'Game not found' })
-
-      // Resolve caller → member id (needed for the assignment check + audit).
-      const member = userId
-        ? await database('members').where('user', userId).first('id')
-        : null
-
-      // 1) Assignment: caller must hold a SCORER role on this game.
-      const isAssigned = !!member && ROSTER_ROLE_COLS.some(
-        (col) => game[col] != null && Number(game[col]) === Number(member.id),
-      )
-      if (!isAssigned && !isAdmin) {
-        return res.status(403).json({ error: 'Not the assigned scorer for this game', code: 'not_scorer' })
-      }
-
-      // 2) Time window: ±1h around kickoff. Admins bypass.
-      if (!isAdmin) {
-        const startMs = gameStartMs(game)
-        if (startMs == null) {
-          return res.status(403).json({ error: 'Game has no scheduled time', code: 'no_time' })
-        }
-        const nowMs = Date.now()
-        if (nowMs < startMs - ROSTER_WINDOW_BEFORE_MS || nowMs > startMs + ROSTER_WINDOW_AFTER_MS) {
-          return res.status(403).json({
-            error: 'Roster is only available from 40 minutes before the game until it ends',
-            code: 'outside_window',
-          })
-        }
-      }
-
-      // 3) Home games only — kscw_team is the home/playing team whose roster we hold.
-      if (game.type !== 'home' || game.kscw_team == null) {
-        return res.status(422).json({ error: 'Roster is only available for home games', code: 'not_home' })
-      }
+      const auth = await authorize(req, res)
+      if (!auth) return
+      const { access, game, gameId } = auth
 
       const season = seasonForDate(dateYMD(game.date))
-
-      // Captain (M2O scalar on teams) — flagged with a badge on the sheet.
       const teamRow = await database('teams').where('id', game.kscw_team).first('captain')
       const captainId = teamRow?.captain != null ? Number(teamRow.captain) : null
 
-      // Volleymanager's Einsatzliste is the document the scorer copies, so it wins
-      // when it exists; RSVPs stand in whenever it does not (basketball, unfiled
-      // list, VM down/slow/unauthenticated).
-      const sheet =
-        (await loadVmRoster(database, log, game, captainId)) ??
-        (await loadRsvpRoster(database, game, gameId, season, captainId))
+      const sheet = await buildSheet(game, gameId, season, captainId)
 
-      // Coaches (staff) — always on the sheet, no RSVP needed. VM names them on the
-      // list; fall back to the teams_coaches junction when it does not.
-      const coaches = sheet.coaches.length ? sheet.coaches : await dbCoaches(database, game.kscw_team)
+      // Officials: VM names them WITH their slot (coach / assistant 1 / assistant 2);
+      // our junction cannot, so those come back unlabelled.
+      const vmCoaches = sheet.coaches?.length
+        ? sheet.coaches
+        : (await loadVmRoster(database, log, game, captainId))?.coaches ?? []
+      const coaches = vmCoaches.length ? vmCoaches : await dbCoaches(database, game.kscw_team)
 
-      // Audit the sensitive read (who saw which game's roster, how many rows).
+      // The pool the coach may add from, in an emergency. Scorers never add, so they
+      // don't get a squad list they have no business seeing.
+      let bench = []
+      if (access === 'coach' || access === 'admin') {
+        const onSheet = new Set(sheet.roster.map((r) => r.member).filter((m) => m != null))
+        bench = (await squadRows(database, game.kscw_team, season))
+          .filter((r) => !onSheet.has(Number(r.id)))
+          .map((r) => ({
+            member: Number(r.id),
+            number: jersey(r.number),
+            last_name: r.last_name || '',
+            first_initial: firstInitial(r.first_name),
+            birthdate: r.birthdate ? dateYMD(r.birthdate) : null,
+            is_libero: seedLibero(r.position),
+          }))
+          .sort(byJersey)
+      }
+
       await writeUserLog(database, log, {
         accountability: req.accountability,
         action: 'read',
         collection: 'games',
         recordId: gameId,
         data: {
-          what: 'home_roster',
+          what: 'match_sheet',
+          as: access,
           team: game.kscw_team,
           season,
           source: sheet.source,
+          edited: sheet.edited,
           count: sheet.roster.length,
           coaches: coaches.length,
         },
@@ -294,15 +452,221 @@ export function registerScorerRoster(router, { database, logger }) {
             date: dateYMD(game.date),
             time: game.time ? String(game.time).slice(0, 5) : null,
           },
+          access,
+          can_edit: access === 'coach' || access === 'admin',
           source: sheet.source,
+          edited: sheet.edited,
+          edited_by: sheet.edited_by ?? null,
           closed_at: sheet.closed_at,
           roster: sheet.roster,
           coaches,
+          bench,
         },
       })
     } catch (err) {
       log.error({
-        msg: `scorer/game/:id/roster: ${err.message}`,
+        msg: `GET scorer/game/:id/roster: ${err.message}`,
+        endpoint: 'scorer/game/:gameId/roster',
+        userId: req.accountability?.user || null,
+        method: req.method,
+        stack: err.stack,
+      })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── POST: the coach adjusts the sheet ─────────────────────────────────────
+  //
+  // Body: { players: [{ member, number, is_captain, is_libero, dropped }], added: [memberId] }
+  //
+  // Identity (name / DoB / licence) is NEVER taken from the request — it is re-derived
+  // server-side from the base sheet and from `members`. The client may only move the
+  // three flags the coach owns, strike a player off, or add one from the team's own squad.
+  router.post('/scorer/game/:gameId/roster', async (req, res) => {
+    try {
+      const auth = await authorize(req, res)
+      if (!auth) return
+      const { access, member, game, gameId } = auth
+
+      if (access === 'scorer') {
+        return res.status(403).json({ error: 'A scorer may not edit the sheet', code: 'read_only' })
+      }
+
+      const body = req.body ?? {}
+      const edits = Array.isArray(body.players) ? body.players : []
+      const addedIds = Array.isArray(body.added) ? body.added.map(Number).filter(Number.isInteger) : []
+
+      const season = seasonForDate(dateYMD(game.date))
+      const teamRow = await database('teams').where('id', game.kscw_team).first('captain')
+      const captainId = teamRow?.captain != null ? Number(teamRow.captain) : null
+
+      // Re-derive the base sheet from the ORIGINAL sources, not from the saved snapshot —
+      // otherwise an edit compounds on an edit and the Einsatzliste can never be re-read.
+      const base =
+        (await loadVmRoster(database, log, game, captainId)) ??
+        (await loadRsvpRoster(database, game, gameId, season, captainId))
+
+      // An added player must actually be in the team's squad this season. Without this a
+      // coach could put any member of the club onto their sheet.
+      const squad = await squadRows(database, game.kscw_team, season)
+      const squadById = new Map(squad.map((r) => [Number(r.id), r]))
+      const onBase = new Set(base.roster.map((r) => r.member).filter((m) => m != null))
+      const validAdded = addedIds.filter((id) => squadById.has(id) && !onBase.has(id))
+
+      const editByMember = new Map(
+        edits
+          .filter((e) => e && Number.isInteger(Number(e.member)))
+          .map((e) => [Number(e.member), e]),
+      )
+
+      const clampNumber = (n) => {
+        const v = Number(n)
+        return Number.isInteger(v) && v >= 1 && v <= 99 ? v : null
+      }
+
+      const rows = base.roster.map((r) => {
+        const e = r.member != null ? editByMember.get(r.member) : null
+        return {
+          ...r,
+          number: e && 'number' in e ? clampNumber(e.number) : r.number,
+          is_captain: e ? e.is_captain === true : r.is_captain,
+          is_libero: e ? e.is_libero === true : r.is_libero,
+          dropped: e ? e.dropped === true : false,
+        }
+      })
+
+      for (const id of validAdded) {
+        const m = squadById.get(id)
+        const e = editByMember.get(id)
+        rows.push({
+          member: id,
+          number: e && 'number' in e ? clampNumber(e.number) : jersey(m.number),
+          last_name: m.last_name || '',
+          first_initial: firstInitial(m.first_name),
+          birthdate: m.birthdate ? dateYMD(m.birthdate) : null,
+          is_captain: e ? e.is_captain === true : false,
+          is_libero: e ? e.is_libero === true : seedLibero(m.position),
+          licence: null,
+          eligible: true,
+          added: true,
+          dropped: false,
+        })
+      }
+
+      // Captain is exclusive on a match sheet — keep the first, drop the rest.
+      let seenCaptain = false
+      for (const r of rows) {
+        if (!r.is_captain || r.dropped) { r.is_captain = false; continue }
+        if (seenCaptain) r.is_captain = false
+        else seenCaptain = true
+      }
+
+      // Actor capture: raw-knex writes bypass Directus's revision trail, so the acting
+      // user is lost unless we persist it (CLAUDE.md → Audit logging).
+      const userRow = req.accountability?.user
+        ? await database('directus_users')
+          .where('id', req.accountability.user)
+          .first('first_name', 'last_name', 'email')
+        : null
+      const actorName = userRow
+        ? [userRow.first_name, userRow.last_name].filter(Boolean).join(' ') || null
+        : null
+      const actorEmail = userRow?.email ?? null
+
+      const now = new Date()
+      await database.transaction(async (trx) => {
+        await trx('game_rosters').where('game', gameId).del()
+        if (rows.length) {
+          await trx('game_rosters').insert(rows.map((r) => ({
+            game: Number(gameId),
+            member: r.member,
+            last_name: r.last_name,
+            first_initial: r.first_initial,
+            birthdate: r.birthdate,
+            licence: r.licence,
+            eligible: r.eligible !== false,
+            number: r.number,
+            is_captain: r.is_captain === true,
+            is_libero: r.is_libero === true,
+            added: r.added === true,
+            dropped: r.dropped === true,
+            source: base.source,
+            edited_by_name: actorName,
+            edited_by_email: actorEmail,
+            date_created: now,
+            date_updated: now,
+          })))
+        }
+      })
+
+      const dropped = rows.filter((r) => r.dropped).length
+      const added = rows.filter((r) => r.added).length
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'update',
+        collection: 'game_rosters',
+        recordId: gameId,
+        data: {
+          what: 'match_sheet_edit',
+          team: game.kscw_team,
+          season,
+          source: base.source,
+          count: rows.length,
+          added,
+          dropped,
+          // Diverging from the Einsatzliste is the thing worth being able to find later.
+          diverges_from_einsatzliste: added > 0 || dropped > 0,
+          by_member: member ? Number(member.id) : null,
+        },
+      })
+
+      res.json({
+        data: {
+          saved: true,
+          count: rows.length,
+          added,
+          dropped,
+          diverges_from_einsatzliste: added > 0 || dropped > 0,
+        },
+      })
+    } catch (err) {
+      log.error({
+        msg: `POST scorer/game/:id/roster: ${err.message}`,
+        endpoint: 'scorer/game/:gameId/roster',
+        userId: req.accountability?.user || null,
+        method: req.method,
+        stack: err.stack,
+      })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── DELETE: revert to the Einsatzliste ────────────────────────────────────
+  router.delete('/scorer/game/:gameId/roster', async (req, res) => {
+    try {
+      const auth = await authorize(req, res)
+      if (!auth) return
+      const { access, game, gameId } = auth
+
+      if (access === 'scorer') {
+        return res.status(403).json({ error: 'A scorer may not edit the sheet', code: 'read_only' })
+      }
+
+      const removed = await database('game_rosters').where('game', gameId).del()
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'delete',
+        collection: 'game_rosters',
+        recordId: gameId,
+        data: { what: 'match_sheet_reset', team: game.kscw_team, rows: removed },
+      })
+
+      res.json({ data: { reset: true, rows: removed } })
+    } catch (err) {
+      log.error({
+        msg: `DELETE scorer/game/:id/roster: ${err.message}`,
         endpoint: 'scorer/game/:gameId/roster',
         userId: req.accountability?.user || null,
         method: req.method,
