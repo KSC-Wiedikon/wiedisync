@@ -15,7 +15,7 @@ import BroadcastButton from '../broadcast/BroadcastButton'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import type { Training, Team, Hall, Member } from '../../types'
-import { asObj, relId, teamCoachIds } from '../../utils/relations'
+import { asObj, relId, teamCoachIds, memberDisplayName } from '../../utils/relations'
 import CancelActivityButton from '../../components/CancelActivityButton'
 import { MapPin, Clock, MessageSquare, User, Users, Calendar, Check, UserPlus } from 'lucide-react'
 
@@ -145,7 +145,7 @@ export default function TrainingDetailModal({ training, onClose }: TrainingDetai
             {coach && (
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
-                <span>{coach.first_name} {coach.last_name}</span>
+                <span>{memberDisplayName(coach)}</span>
               </div>
             )}
           </div>

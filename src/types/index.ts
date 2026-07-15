@@ -120,6 +120,12 @@ export interface Member extends BaseRecord {
   email: string
   first_name: string
   last_name: string
+  /** Migration 215: preferred display name shown INSTEAD of first_name across
+   *  the app UI (e.g. "Honza" for Jan Cerny). Empty/null → fall back to
+   *  first_name. Legal/official surfaces (match sheets, VM, ClubDesk, invoices,
+   *  public website) always use first_name. Use `memberDisplayName()` for UI,
+   *  `memberName()` for legal contexts (both in src/utils/relations.ts). */
+  nickname?: string | null
   phone: string
   license_nr: string
   number: number
@@ -878,6 +884,36 @@ export interface GameSchedulingBooking extends BaseRecord {
   vm_pushed_at?: string | null
   /** Failure message, OR a JSON {"needs_pick":[{id,label,date}]} candidate list. */
   vm_push_error?: string | null
+}
+
+/** One offered time block for a basketball home date (ProBasket template: up to 3). */
+export interface HallAvailabilityWindow {
+  hall: string
+  /** 'HH:MM' */
+  from: string
+  /** 'HH:MM' */
+  to: string
+}
+
+/**
+ * Per basketball team, per candidate home date (Fri/Sat/Sun), KWI hall availability
+ * for ProBasket scheduling (migration 214). Basketball has no opponent/token/booking
+ * flow — the association owns the schedule; this just records what we can host, edited
+ * in the Basketball prep view and (later) exported to the ProBasket Excel template.
+ */
+export interface BasketballHallAvailability extends BaseRecord {
+  /** game_scheduling_seasons.id (shared sport-neutral season identity). */
+  season: string | number
+  /** teams.id (teams.sport = 'basketball'). */
+  team: string | number
+  /** 'YYYY-MM-DD' */
+  date: string
+  /** The ProBasket template's "Nicht verfügbar" x — the hall is not available that day. */
+  unavailable: boolean
+  /** Offered time blocks (up to 3), matching the ProBasket template. */
+  windows: HallAvailabilityWindow[]
+  note?: string | null
+  created_by?: string | number | null
 }
 
 export interface ScorerDelegation extends BaseRecord {

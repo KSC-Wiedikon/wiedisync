@@ -94,7 +94,7 @@ const QUERIES: Record<
   inactiveMembers: (_parent, id) => ({
     collection: 'member_teams',
     filter: { _and: [{ team: { _eq: id } }, { member: { kscw_membership_active: { _eq: false } } }] },
-    fields: ['id', 'guest_level', 'member.id', 'member.first_name', 'member.last_name', 'member.number'],
+    fields: ['id', 'guest_level', 'member.id', 'member.first_name', 'member.last_name', 'member.nickname', 'member.number'],
     sort: ['member.last_name'],
   }),
 }

@@ -10,8 +10,18 @@ import GroupDmMenu from './GroupDmMenu'
 import Avatar, { AvatarGroup } from './Avatar'
 import { Bell, BellOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { disambiguateFirstNames } from '../../../utils/relations'
+import { disambiguateFirstNames, memberDisplayName, memberFirstName } from '../../../utils/relations'
 import type { ConversationSummary, MessageRow } from '../api/types'
+
+// The conversation-member rows carry nullable first_name/last_name and don't yet
+// declare `nickname`. These adapters normalise the nulls so the shared UI name
+// helpers (which type first_name as string) accept them — and surface a member's
+// chosen nickname the moment the members endpoint starts returning one.
+type NameFields = { first_name?: string | null; last_name?: string | null; nickname?: string | null }
+const displayNameOf = (m: NameFields): string =>
+  memberDisplayName({ nickname: m.nickname ?? null, first_name: m.first_name ?? undefined, last_name: m.last_name ?? undefined })
+const firstNameOf = (m: NameFields): string =>
+  memberFirstName({ nickname: m.nickname ?? null, first_name: m.first_name ?? undefined })
 
 type Props = {
   conversation: ConversationSummary
@@ -60,14 +70,14 @@ export default function ThreadView({ conversation, onMarkRead, onToggleMute, hea
       // Disambiguate so two "Luca"s read "Luca C." instead of "Luca, …, Luca"
       const labels = disambiguateFirstNames(members)
       return members
-        .map(m => labels.get(String(m.id)) ?? (m.first_name ?? '').trim())
+        .map(m => labels.get(String(m.id)) ?? firstNameOf(m))
         .filter(Boolean)
         .slice(0, 3)
         .join(', ')
     }
     if (isDmLike) {
       const other = members.find(m => String(m.id) !== String(user?.id))
-      if (other) return `${other.first_name ?? ''} ${other.last_name ?? ''}`.trim() || t('threadTitle')
+      if (other) return displayNameOf(other) || t('threadTitle')
     }
     return t('threadTitle')
   })()
@@ -76,7 +86,7 @@ export default function ThreadView({ conversation, onMarkRead, onToggleMute, hea
   const groupAvatars = isGroupDm
     ? members.map(m => ({
         src: m.photo,
-        alt: `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() || '—',
+        alt: displayNameOf(m) || '—',
       }))
     : []
 

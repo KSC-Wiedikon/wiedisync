@@ -35,7 +35,7 @@ export default function HomeDelegationCard() {
   // (MEMBER_VISIBLE_FIELDS, null row filter). Games are public.
   const { data: membersRaw } = useCollection<Member>('members', {
     filter: { id: { _in: fromIds.length ? fromIds : [-1] } },
-    fields: ['id', 'first_name', 'last_name'],
+    fields: ['id', 'nickname', 'first_name', 'last_name'],
     limit: 50,
     enabled: fromIds.length > 0,
   })

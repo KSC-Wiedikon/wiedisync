@@ -27,7 +27,7 @@ import AbsenceMemberFilter from './AbsenceMemberFilter'
 import { buildMemberOptions } from './absenceMemberOptions'
 import type { CalendarEntry, SourceFilter } from '../../types/calendar'
 import type { Absence, Member, HallClosure, SchedulingBlock, Team } from '../../types'
-import { relId, asObj } from '../../utils/relations'
+import { relId, asObj, memberDisplayName } from '../../utils/relations'
 
 interface TeamAbsenceViewProps {
   teamIds: string[]
@@ -65,7 +65,7 @@ function absencesToEntries(
   const out: CalendarEntry[] = []
   for (const a of absences) {
     const m = asObj<Member>(a.member) ?? memberMap[relId(a.member)]
-    const memberName = [m?.first_name, m?.last_name].filter(Boolean).join(' ') || ''
+    const memberName = memberDisplayName(m)
 
     if (a.type === 'weekly') {
       const days = a.days_of_week ?? []
@@ -588,7 +588,7 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
               <TableBody>
                 {sortedAbsences.map((a) => {
                   const member = asObj<Member>(a.member) ?? memberMap[relId(a.member)]
-                  const memberName = [member?.first_name, member?.last_name].filter(Boolean).join(' ') || t('common:unknown')
+                  const memberName = memberDisplayName(member) || t('common:unknown')
                   return (
                     <AbsenceCard
                       key={a.id}

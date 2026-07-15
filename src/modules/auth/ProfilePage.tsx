@@ -12,7 +12,7 @@ import StatusBadge from '../../components/StatusBadge'
 import TeamChip from '../../components/TeamChip'
 import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions, getPositionI18nKey } from '../../utils/memberPositions'
-import { memberName, flattenMemberIds } from '../../utils/relations'
+import { memberName, memberFirstName, flattenMemberIds } from '../../utils/relations'
 import { formatDate, getCurrentSeason, toISODate } from '../../utils/dateHelpers'
 import ProfileEditModal from './ProfileEditModal'
 import DeleteAccountModal from './DeleteAccountModal'
@@ -311,7 +311,7 @@ export default function ProfilePage() {
 
   if (!user) return <Navigate to="/login" replace />
 
-  const initials = `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()
+  const initials = `${memberFirstName(user)?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()
   const positions = coercePositions(user.position)
 
   return (
@@ -336,7 +336,7 @@ export default function ProfilePage() {
             <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
               {user.first_name || user.last_name ? (
                 <>
-                  <span className="block break-words sm:inline">{user.first_name}</span>
+                  <span className="block break-words sm:inline">{memberFirstName(user)}</span>
                   <span className="block break-words sm:ml-1.5 sm:inline">{user.last_name}</span>
                 </>
               ) : (

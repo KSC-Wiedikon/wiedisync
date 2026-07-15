@@ -157,7 +157,7 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
             for (const rec of res) {
               // Try multiple display name strategies
               const label =
-                [rec.last_name, rec.first_name].filter(Boolean).join(' ') ||
+                [rec.last_name, rec.nickname || rec.first_name].filter(Boolean).join(' ') ||
                 rec.full_name ||
                 rec.name ||
                 rec.title ||

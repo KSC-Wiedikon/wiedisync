@@ -1204,7 +1204,7 @@ export function registerMessaging(router, ctx) {
         .join('members as m', 'm.id', 'cm.member')
         .where('cm.conversation', req.params.id)
         .andWhere('cm.archived', false)
-        .select('m.id', 'm.first_name', 'm.last_name', 'm.photo', 'cm.role', 'cm.joined_at')
+        .select('m.id', 'm.first_name', 'm.last_name', 'm.nickname', 'm.photo', 'cm.role', 'cm.joined_at')
         .orderBy('m.last_name')
         .orderBy('m.first_name')
       res.json({ members: rows })

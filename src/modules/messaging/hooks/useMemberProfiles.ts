@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { fetchAllItems } from '../../../lib/api'
+import { memberDisplayName } from '../../../utils/relations'
 
-export type MemberProfile = { id: string; name: string; photo: string | null }
+export type MemberProfile = { id: string; name: string; photo: string | null; nickname: string | null }
 
 /**
  * Batch-fetch display name + photo uuid for a set of member ids.
@@ -28,15 +29,16 @@ export function useMemberProfiles(memberIds: string[]): Map<string, MemberProfil
     let alive = true
     ;(async () => {
       try {
-        const rows = await fetchAllItems<{ id: string; first_name: string; last_name: string; photo: string | null }>(
+        const rows = await fetchAllItems<{ id: string; first_name: string; last_name: string; photo: string | null; nickname: string | null }>(
           'members',
-          { filter: { id: { _in: memberIds } }, fields: ['id', 'first_name', 'last_name', 'photo'] },
+          { filter: { id: { _in: memberIds } }, fields: ['id', 'first_name', 'last_name', 'photo', 'nickname'] },
         )
         if (!alive) return
         const m = new Map<string, MemberProfile>()
         for (const r of rows) {
-          const full = `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || String(r.id)
-          m.set(String(r.id), { id: String(r.id), name: full, photo: r.photo ?? null })
+          // On-screen UI shows the member's chosen nickname (falls back to first_name).
+          const full = memberDisplayName(r) || String(r.id)
+          m.set(String(r.id), { id: String(r.id), name: full, photo: r.photo ?? null, nickname: r.nickname ?? null })
         }
         setMap(m)
       } catch { /* empty map — caller falls back */ }

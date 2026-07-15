@@ -66,6 +66,8 @@ export default function RefereeExpensesPage() {
     const rows = expenses.map((e) => {
       const game = asObj<Game & BaseRecord>(e.game)
       const paidByMember = asObj<Member & BaseRecord>(e.paid_by_member)
+      // CSV export → keep the LEGAL name (not the nickname), consistent with the
+      // exports-stay-legal rule for reimbursement/financial records.
       const paidBy = paidByMember
         ? `${paidByMember.first_name} ${paidByMember.last_name}`
         : e.paid_by_other || ''
@@ -165,7 +167,7 @@ export default function RefereeExpensesPage() {
                   : team?.name || ''
                 const paidByMember = asObj<Member & BaseRecord>(expense.paid_by_member)
                 const paidBy = paidByMember
-                  ? `${paidByMember.first_name} ${paidByMember.last_name}`
+                  ? `${paidByMember.nickname || paidByMember.first_name} ${paidByMember.last_name}`
                   : expense.paid_by_other || '–'
 
                 return (

@@ -14,6 +14,7 @@ import { reloadNow } from './lib/chunkReload'
 import SchedulingLayout from './components/SchedulingLayout'
 import AdminOrSpielplanerRoute from './components/AdminOrSpielplanerRoute'
 import MailboxRoute from './components/MailboxRoute'
+import BasketballAdminRoute from './components/BasketballAdminRoute'
 import SpielplanerOrAdminRoute from './components/SpielplanerOrAdminRoute'
 // Auth pages — pre-SSO, admins still log in on this origin until cookie-session
 // SSO (Phase 2) shares the member-app login across the .kscw.ch subdomains.
@@ -27,6 +28,7 @@ import ClubFlowPage from './modules/gameScheduling/pages/ClubFlowPage'
 import AdminSetupPage from './modules/gameScheduling/pages/AdminSetupPage'
 import AdminDashboardPage from './modules/gameScheduling/pages/AdminDashboardPage'
 import MailboxPage from './modules/gameScheduling/pages/MailboxPage'
+import BasketballPrepPage from './modules/gameScheduling/pages/BasketballPrepPage'
 import SpielplanungPage from './modules/spielplanung/SpielplanungPage'
 import SchedulingHome from './modules/gameScheduling/pages/SchedulingHome'
 
@@ -101,6 +103,12 @@ export default function SchedulingApp() {
                         <Route
                           path="admin/terminplanung/mailbox"
                           element={<MailboxRoute><MailboxPage /></MailboxRoute>}
+                        />
+                        {/* Basketball prep — availability for the ProBasket Spielplansitzung.
+                            Separate sport flow (no opponents/tokens/bookings); bb-admin gated. */}
+                        <Route
+                          path="admin/terminplanung/basketball"
+                          element={<BasketballAdminRoute><BasketballPrepPage /></BasketballAdminRoute>}
                         />
                         {/* Back-compat: the old dashboard URL now lives at the section root. */}
                         <Route

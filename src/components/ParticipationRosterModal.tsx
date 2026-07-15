@@ -24,7 +24,7 @@ import { useCollection } from '../lib/query'
 import { fetchAllItems } from '../lib/api'
 import { getFileUrl } from '../utils/fileUrl'
 import type { Participation, Absence, Member, Team, EventSession } from '../types'
-import { asObj, flattenMemberIds, disambiguateFirstNames } from '../utils/relations'
+import { asObj, flattenMemberIds, disambiguateFirstNames, memberFirstName } from '../utils/relations'
 import { currentLocale, formatDate, getDeadlineDate, formatRelativeTime, formatDateTimeCompact } from '../utils/dateHelpers'
 import { absenceCoversActivity } from '../utils/absenceHelpers'
 import { getPositionI18nKey } from '../utils/memberPositions'
@@ -323,7 +323,7 @@ export default function ParticipationRosterModal({
     const uniqueMemberIds = [...new Set(clubWideParticipations.map(p => p.member))]
     fetchAllItems<Member>('members', {
       filter: { id: { _in: uniqueMemberIds } },
-      fields: ['id', 'first_name', 'last_name', 'photo'],
+      fields: ['id', 'nickname', 'first_name', 'last_name', 'photo'],
     })
       .then(m => setClubWideMembers(m.sort(byFirstThenLastName)))
       .catch(() => setClubWideMembers([]))
@@ -659,7 +659,7 @@ export default function ParticipationRosterModal({
       filter: { id: { _in: staffFetchIds } },
       // `user` is required so getEditAttribution() can suppress the
       // "Edited by …" line when a coach/TR edits their own row.
-      fields: ['id', 'first_name', 'last_name', 'photo', 'user'],
+      fields: ['id', 'nickname', 'first_name', 'last_name', 'photo', 'user'],
     })
       .then((members) => setStaffMembers(members.sort(byFirstThenLastName)))
       .catch(() => {
@@ -834,7 +834,7 @@ export default function ParticipationRosterModal({
     : false
 
   function getInitials(member: Member) {
-    return `${(member.first_name ?? '')[0] ?? ''}${(member.last_name ?? '')[0] ?? ''}`.toUpperCase()
+    return `${memberFirstName(member)[0] ?? ''}${(member.last_name ?? '')[0] ?? ''}`.toUpperCase()
   }
 
   function getMemberStatus(memberId: string): Participation['status'] | null {
@@ -1704,7 +1704,7 @@ export default function ParticipationRosterModal({
                 {/* Name */}
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-sm text-gray-900 dark:text-gray-100">
-                    {displayNames.get(String(member.id)) ?? member.first_name}
+                    {displayNames.get(String(member.id)) ?? memberFirstName(member)}
                     {participation && (participation.guest_count ?? 0) > 0 && (
                       <span className="ml-1 text-xs text-brand-600 dark:text-brand-400">
                         +{participation.guest_count} {t('guests')}
@@ -1900,7 +1900,7 @@ export default function ParticipationRosterModal({
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="break-words text-sm text-gray-900 dark:text-gray-100">
-                        {displayNames.get(String(member.id)) ?? member.first_name}
+                        {displayNames.get(String(member.id)) ?? memberFirstName(member)}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
@@ -1967,7 +1967,7 @@ export default function ParticipationRosterModal({
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="break-words text-sm text-gray-900 dark:text-gray-100">
-                        {displayNames.get(String(member.id)) ?? member.first_name}
+                        {displayNames.get(String(member.id)) ?? memberFirstName(member)}
                       </p>
                       {showRsvpTime && (() => {
                         const sp = staffParticipations.find(p => p.member === member.id)

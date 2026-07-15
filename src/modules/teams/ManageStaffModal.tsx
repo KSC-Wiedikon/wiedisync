@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/button'
 import { getFileUrl } from '../../utils/fileUrl'
 import { logActivity } from '../../utils/logActivity'
 import { fetchAllItems, updateRecord } from '../../lib/api'
-import { flattenMemberIds } from '../../utils/relations'
+import { flattenMemberIds, memberFirstName } from '../../utils/relations'
 import type { Team, Member } from '../../types'
 
 type StaffRole = 'coach' | 'team_responsible'
@@ -22,7 +22,7 @@ interface ManageStaffModalProps {
 
 function displayName(m: Member | undefined): string {
   if (!m) return '—'
-  return [m.last_name, m.first_name].filter(Boolean).join(' ') || '—'
+  return [m.last_name, (m.nickname || m.first_name)].filter(Boolean).join(' ') || '—'
 }
 
 /**
@@ -44,7 +44,7 @@ export default function ManageStaffModal({ open, onClose, team, onTeamUpdate }: 
     if (!open) return
     fetchAllItems<Member>('members', {
       sort: ['last_name'],
-      fields: ['id', 'first_name', 'last_name', 'photo', 'kscw_membership_active'],
+      fields: ['id', 'first_name', 'nickname', 'last_name', 'photo', 'kscw_membership_active'],
     })
       .then(setAllMembers)
       .catch(() => setAllMembers([]))
@@ -240,7 +240,7 @@ function Avatar({ member }: { member: Member | undefined }) {
   }
   return (
     <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs text-gray-600 dark:bg-gray-600 dark:text-gray-300">
-      {member ? `${member.first_name?.[0] ?? ''}${member.last_name?.[0] ?? ''}` : '?'}
+      {member ? `${memberFirstName(member)[0] ?? ''}${member.last_name?.[0] ?? ''}` : '?'}
     </div>
   )
 }

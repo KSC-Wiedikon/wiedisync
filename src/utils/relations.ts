@@ -20,10 +20,42 @@ export function asObj<T>(val: T | string | number | null | undefined): T | null 
   return val != null && typeof val === 'object' ? val as T : null
 }
 
-/** Build display name from first_name + last_name fields. */
+/**
+ * Build the LEGAL display name from first_name + last_name.
+ *
+ * Use this ONLY for legal/official/export contexts — match sheets, VM
+ * Einsatzliste, ClubDesk sync, invoices/QR-bills, identity documents, official
+ * emails, the public website, and CSV/PDF exports. For on-screen app UI use
+ * `memberDisplayName()` instead so a member's chosen nickname is shown.
+ */
 export function memberName(m: { first_name?: string; last_name?: string } | null | undefined): string {
   if (!m) return ''
   return [m.first_name, m.last_name].filter(Boolean).join(' ')
+}
+
+/**
+ * Build the UI display name — prefers the member's `nickname` over `first_name`
+ * (e.g. "Honza Cerny" for Jan Cerny), falling back to first_name when the
+ * nickname is empty/null. This is the default for all on-screen app UI.
+ *
+ * DO NOT use for legal/official documents (match sheets, VM, ClubDesk, invoices,
+ * identity docs, official emails, public website, exports) — those must show the
+ * legal name; use `memberName()` there.
+ */
+export function memberDisplayName(
+  m: { nickname?: string | null; first_name?: string; last_name?: string } | null | undefined,
+): string {
+  if (!m) return ''
+  const first = (m.nickname && m.nickname.trim()) || m.first_name
+  return [first, m.last_name].filter(Boolean).join(' ')
+}
+
+/** The UI first name — nickname when set, else the legal first name. */
+export function memberFirstName(
+  m: { nickname?: string | null; first_name?: string } | null | undefined,
+): string {
+  if (!m) return ''
+  return ((m.nickname && m.nickname.trim()) || m.first_name || '')
 }
 
 /**
@@ -39,12 +71,13 @@ export function memberName(m: { first_name?: string; last_name?: string } | null
  * ParticipationRosterModal.
  */
 export function disambiguateFirstNames(
-  members: Array<{ id: string | number; first_name?: string | null; last_name?: string | null }>,
+  members: Array<{ id: string | number; nickname?: string | null; first_name?: string | null; last_name?: string | null }>,
 ): Map<string, string> {
   const labels = new Map<string, string>()
-  const byFirst = new Map<string, Array<{ id: string | number; first_name?: string | null; last_name?: string | null }>>()
+  const byFirst = new Map<string, Array<{ id: string | number; nickname?: string | null; first_name?: string | null; last_name?: string | null }>>()
   for (const m of members) {
-    const key = (m.first_name ?? '').trim()
+    // Prefer the member's nickname over the legal first name (UI display).
+    const key = ((m.nickname && m.nickname.trim()) || m.first_name || '').trim()
     const arr = byFirst.get(key)
     if (arr) arr.push(m)
     else byFirst.set(key, [m])

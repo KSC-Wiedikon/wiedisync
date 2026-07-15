@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import type { Game, Team, Training, Member, MemberTeam, Hall, LicenceType } from '../../types'
+import { memberDisplayName } from '../../utils/relations'
 import { useCollection } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { getCurrentSeason, getSeasonDateRange, formatDateCompact, formatTime } from '../../utils/dateHelpers'
@@ -95,7 +96,7 @@ export default function ScorerAssignPage() {
     filter: { kscw_membership_active: { _eq: true } },
     // kscw_membership_active is selected (not just filtered) because the person
     // editor (AssignmentEditor) filters members on that field.
-    fields: ['id', 'first_name', 'last_name', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'kscw_membership_active'],
+    fields: ['id', 'first_name', 'last_name', 'nickname', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'kscw_membership_active'],
     all: true,
   })
   const members = useMemo(() => membersRaw ?? [], [membersRaw])
@@ -259,7 +260,7 @@ export default function ScorerAssignPage() {
   // integrity clear and the "already signed up" highlight below.
   const memberNameById = useMemo(() => {
     const m = new Map<string, string>()
-    for (const mb of members) m.set(String(mb.id), `${mb.first_name} ${mb.last_name}`)
+    for (const mb of members) m.set(String(mb.id), memberDisplayName(mb))
     return m
   }, [members])
   // A game that already has a person signed up — highlighted so the admin knows

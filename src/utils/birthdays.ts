@@ -1,4 +1,5 @@
 import type { Member } from '../types'
+import { memberDisplayName } from './relations'
 
 /**
  * Birthday helpers — shared by the homepage "coming up" ticker and the team
@@ -14,7 +15,7 @@ import type { Member } from '../types'
  * existing roster gate (`MemberRow` / `PlayerProfile`).
  */
 
-type BirthdayMember = Pick<Member, 'first_name' | 'last_name'> & {
+type BirthdayMember = Pick<Member, 'first_name' | 'last_name' | 'nickname'> & {
   id?: string | number
   birthdate?: string | null
   birthdate_visibility?: string | null
@@ -70,7 +71,8 @@ function toMidnight(d: Date): Date {
 }
 
 function fullName(m: BirthdayMember): string {
-  return [m.first_name, m.last_name].filter(Boolean).join(' ').trim()
+  // UI display name (sort key) — prefers the member's chosen nickname.
+  return memberDisplayName(m).trim()
 }
 
 /** Next upcoming birthday for a member relative to `from`. Today counts as

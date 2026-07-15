@@ -10,7 +10,7 @@ import ImageLightbox from '../../components/ImageLightbox'
 import type { ExpandedMemberTeam } from '../../hooks/useTeamMembers'
 import type { Team, Member, MemberTeam } from '../../types'
 import { cn } from '@/lib/utils'
-import { asObj, memberName, flattenMemberIds } from '../../utils/relations'
+import { asObj, memberDisplayName, memberFirstName, flattenMemberIds } from '../../utils/relations'
 import { getMemberRole } from './memberRole'
 import { formatDate } from '../../utils/dateHelpers'
 import { Button } from '../../components/ui/button'
@@ -57,11 +57,11 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
 
   if (!member) return null
 
-  const displayName = [member.last_name, member.first_name].filter(Boolean).join(' ') || memberName(member) || '—'
+  const displayName = [member.last_name, (member.nickname || member.first_name)].filter(Boolean).join(' ') || memberDisplayName(member) || '—'
   const memberPositions = coercePositions(member.position)
   const nonPlaying = isNonPlayingStaff(member.id, team, memberPositions)
   const selectablePositions = getSelectablePositions(team?.sport, memberPositions)
-  const initials = `${member.first_name?.[0] ?? ''}${member.last_name?.[0] ?? ''}`.toUpperCase()
+  const initials = `${memberFirstName(member)[0] ?? ''}${member.last_name?.[0] ?? ''}`.toUpperCase()
   const role = getMemberRole(member.id, team)
 
   const birthdateDisplay = (() => {

@@ -50,6 +50,8 @@ export default {
   // Profile Edit
   firstName: 'Nome',
   lastName: 'Cognome',
+  nickname: 'Soprannome',
+  nicknameHint: 'Mostrato al posto del nome nell\'app. Lascia vuoto per usare il nome.',
   changePhoto: 'Cambia foto',
   managedByCoach: 'Gestito dall\'allenatore/admin',
   position: 'Posizione',

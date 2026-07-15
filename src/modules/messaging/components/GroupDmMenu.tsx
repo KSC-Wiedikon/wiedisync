@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { messagingApi, type SearchableMember } from '../api/messaging'
 import { useMemberSearch } from '../hooks/useMemberSearch'
+import { memberDisplayName } from '../../../utils/relations'
 import Avatar from './Avatar'
 
 interface GroupDmMenuProps {
@@ -27,7 +28,8 @@ interface GroupDmMenuProps {
 }
 
 function fullName(m: SearchableMember): string {
-  return `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() || '—'
+  // On-screen UI: prefer the member's nickname over first_name (falls back).
+  return memberDisplayName(m) || '—'
 }
 
 export default function GroupDmMenu({ conversationId, onMemberAdded, currentMemberIds }: GroupDmMenuProps) {

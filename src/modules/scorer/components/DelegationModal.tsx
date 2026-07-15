@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Search, ArrowRight, X } from 'lucide-react'
 import type { Member, Team, MemberTeam, LicenceType, ScorerDelegation } from '../../../types'
+import { memberDisplayName, memberFirstName } from '../../../utils/relations'
 
 interface DelegationModalProps {
   role: ScorerDelegation['role']
@@ -91,7 +92,7 @@ export default function DelegationModal({
     }
     const collator = new Intl.Collator(i18n.language)
     const sortFn = (a: Member, b: Member) =>
-      collator.compare(`${a.last_name} ${a.first_name}`, `${b.last_name} ${b.first_name}`)
+      collator.compare(`${a.last_name} ${memberFirstName(a)}`, `${b.last_name} ${memberFirstName(b)}`)
     same.sort(sortFn)
     cross.sort(sortFn)
     return { sameTeamMembers: same, crossTeamMembers: cross }
@@ -99,8 +100,8 @@ export default function DelegationModal({
 
   // Apply search filter
   const q = search.toLowerCase().trim()
-  const filteredSame = q ? sameTeamMembers.filter((m) => `${m.first_name} ${m.last_name}`.toLowerCase().includes(q)) : sameTeamMembers
-  const filteredCross = q ? crossTeamMembers.filter((m) => `${m.first_name} ${m.last_name}`.toLowerCase().includes(q)) : crossTeamMembers
+  const filteredSame = q ? sameTeamMembers.filter((m) => memberDisplayName(m).toLowerCase().includes(q)) : sameTeamMembers
+  const filteredCross = q ? crossTeamMembers.filter((m) => memberDisplayName(m).toLowerCase().includes(q)) : crossTeamMembers
   const hasResults = filteredSame.length > 0 || filteredCross.length > 0
 
   const teamNameMap = useMemo(() => {
@@ -120,7 +121,7 @@ export default function DelegationModal({
   }
 
   const selectedMember = selected ? members.find((m) => m.id === selected.memberId) : null
-  const selectedName = selectedMember ? `${selectedMember.first_name} ${selectedMember.last_name}` : ''
+  const selectedName = selectedMember ? memberDisplayName(selectedMember) : ''
 
   function renderMemberRow(member: Member, sameTeam: boolean) {
     const isSelected = selected?.memberId === member.id
@@ -139,7 +140,7 @@ export default function DelegationModal({
       >
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-            {member.first_name} {member.last_name}
+            {memberDisplayName(member)}
           </div>
           {teamNames.length > 0 && (
             <div className="text-xs text-gray-500 dark:text-gray-400">{teamNames.join(', ')}</div>

@@ -144,6 +144,7 @@ export interface FinanceMember {
   id: string | number
   first_name: string
   last_name: string
+  nickname?: string | null
   email?: string | null
   phone?: string | null
   number?: number | null
@@ -172,7 +173,7 @@ export interface FinanceMember {
 }
 
 const FINANCE_MEMBER_FIELDS = [
-  'id', 'first_name', 'last_name', 'email', 'phone', 'number',
+  'id', 'first_name', 'last_name', 'nickname', 'email', 'phone', 'number',
   'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'birthdate',
   'iban', 'iban_confirmed', 'ahv_nummer', 'beitragskategorie', 'sektion', 'kscw_membership_active', 'wiedisync_active',
   'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
@@ -260,7 +261,7 @@ export function useMyPayouts() {
 /** An expense reimbursement submission from /finance/expense (migration 177). */
 export interface FinanceExpense {
   id: string | number
-  member?: { id: string | number; first_name?: string | null; last_name?: string | null } | string | number | null
+  member?: { id: string | number; first_name?: string | null; last_name?: string | null; nickname?: string | null } | string | number | null
   file?: string | null
   amount?: number | string | null
   currency?: string | null
@@ -290,7 +291,7 @@ export interface FinanceExpense {
 // scope on finance_expenses (setup-permissions.mjs). The TK/section columns are
 // board-only and are NOT listed here.
 const MY_EXPENSE_FIELDS = [
-  'id', 'member.id', 'member.first_name', 'member.last_name', 'file', 'amount', 'currency',
+  'id', 'member.id', 'member.first_name', 'member.last_name', 'member.nickname', 'file', 'amount', 'currency',
   'expense_date', 'vendor', 'description', 'reference', 'pay_to_iban', 'member_note',
   'status', 'finance_note', 'payout', 'status_changed_by_name', 'date_created',
 ]

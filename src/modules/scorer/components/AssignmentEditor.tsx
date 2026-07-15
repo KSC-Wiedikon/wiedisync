@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Member, Team, LicenceType } from '../../../types'
+import { memberDisplayName } from '../../../utils/relations'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { Phone, Mail, Hand, ArrowRightLeft, Clock, Check } from 'lucide-react'
 import TeamSelect from '../../../components/TeamSelect'
@@ -139,7 +140,7 @@ export default function AssignmentEditor({
     setTeamPrompt(null)
   }
   const promptName = teamPrompt
-    ? (() => { const m = members.find((x) => x.id === teamPrompt.memberId); return m ? `${m.first_name} ${m.last_name}` : '' })()
+    ? (() => { const m = members.find((x) => x.id === teamPrompt.memberId); return m ? memberDisplayName(m) : '' })()
     : ''
 
   const assignedPerson = useMemo(() => {
@@ -148,7 +149,7 @@ export default function AssignmentEditor({
   }, [members, personValue])
 
   const assignedName = assignedPerson
-    ? `${assignedPerson.first_name} ${assignedPerson.last_name}`
+    ? memberDisplayName(assignedPerson)
     : ''
 
   const teamName = teamValue ? teams.find((t) => t.id === teamValue)?.name ?? '' : ''
@@ -206,7 +207,7 @@ export default function AssignmentEditor({
                   value={personValue}
                   onChange={handlePersonPick}
                   disabled={disabled}
-                  options={filteredMembers.map((m) => ({ value: m.id, label: `${m.first_name} ${m.last_name}` }))}
+                  options={filteredMembers.map((m) => ({ value: m.id, label: memberDisplayName(m) }))}
                   placeholder={t('selectPerson')}
                   triggerClassName={personValue ? 'border-green-400 bg-green-50 dark:border-green-700 dark:bg-green-900/25' : undefined}
                 />

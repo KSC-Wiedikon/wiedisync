@@ -45,7 +45,7 @@ export default function IssueFinePickerModal({ open, onClose, teams, onPicked }:
         .filter((m): m is Member => !!m)
         .map((m) => ({
           id: String(m.id),
-          name: `${m.last_name ?? ''} ${m.first_name ?? ''}`.trim() || `#${m.id}`,
+          name: `${m.last_name ?? ''} ${m.nickname || m.first_name || ''}`.trim() || `#${m.id}`,
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     [members],

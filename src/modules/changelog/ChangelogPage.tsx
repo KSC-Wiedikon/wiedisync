@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.43.0'
+const APP_VERSION = '1.44.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.44.0',
+    date: '15.07.2026',
+    sections: [
+      {
+        title: 'New: go by the name you actually use',
+        items: [
+          'You can set a preferred display name in your profile. If people call you something other than your legal first name — Honza instead of Jan — set it once and the whole app shows it: rosters, RSVP lists, chat, absences, scheduling. Leave it empty to keep your first name.',
+          'Official documents are unaffected. Match sheets, Volleymanager, ClubDesk, invoices and the public website always use your legal name — only the in-app display changes.',
+        ],
+      },
+      {
+        title: 'New: basketball scheduling prep',
+        items: [
+          'The scheduling app now has a Volleyball / Basketball toggle. Basketball is scheduled centrally by the association (ProBasket), so its section is a preparation view: for each team it shows which home dates (Fri/Sat/Sun) the KWI hall is free — with volleyball’s hall use, closures and blocked dates overlaid — and lets you record availability to bring to the planning meeting or the hall-availability form.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.43.0',
     date: '14.07.2026',

@@ -2,11 +2,11 @@ import { useTranslation } from 'react-i18next'
 import { Clock, MapPin, MessageSquare, UserCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Carpool, CarpoolPassenger } from '../../types'
-import { asObj, relId } from '../../utils/relations'
+import { asObj, relId, memberDisplayName } from '../../utils/relations'
 import { formatTimeZurich } from '../../utils/dateHelpers'
 
-type DriverInfo = { first_name: string; last_name: string }
-type PassengerInfo = { first_name: string; last_name: string }
+type DriverInfo = { first_name: string; last_name: string; nickname?: string | null }
+type PassengerInfo = { first_name: string; last_name: string; nickname?: string | null }
 
 interface CarpoolCardProps {
   carpool: Carpool & { driver: DriverInfo | string }
@@ -22,7 +22,7 @@ export default function CarpoolCard({ carpool, passengers, currentUserId, onJoin
 
   const driverObj = asObj<DriverInfo>(carpool.driver)
   const driverName = driverObj
-    ? `${driverObj.first_name} ${driverObj.last_name}`
+    ? memberDisplayName(driverObj)
     : t('driver')
 
   const taken = passengers.length
@@ -92,7 +92,7 @@ export default function CarpoolCard({ carpool, passengers, currentUserId, onJoin
             {passengers.map((p) => {
               const passengerObj = asObj<PassengerInfo>(p.passenger)
               const name = passengerObj
-                ? `${passengerObj.first_name} ${passengerObj.last_name}`
+                ? memberDisplayName(passengerObj)
                 : '...'
               return (
                 <span

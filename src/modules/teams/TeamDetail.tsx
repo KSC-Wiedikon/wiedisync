@@ -25,7 +25,7 @@ import { coercePositions } from '../../utils/memberPositions'
 import { getCurrentSeason } from '../../utils/dateHelpers'
 import ImageLightbox from '../../components/ImageLightbox'
 import type { Team, Member, Sponsor } from '../../types'
-import { asObj, flattenMemberIds } from '../../utils/relations'
+import { asObj, flattenMemberIds, memberDisplayName } from '../../utils/relations'
 import PollsSection from '../polls/PollsSection'
 import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalendar'
 import { isFeatureEnabled } from '../../utils/featureToggles'
@@ -578,7 +578,7 @@ export default function TeamDetail() {
             {pendingMembers.map((member) => (
               <div key={member.id} className="rounded-lg bg-white p-3 dark:bg-gray-800">
                 <p className="font-medium text-gray-900 dark:text-gray-100">
-                  {member.first_name} {member.last_name}
+                  {memberDisplayName(member)}
                 </p>
                 <p className="truncate text-sm text-gray-500 dark:text-gray-400">{member.email}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
@@ -607,7 +607,7 @@ export default function TeamDetail() {
               return (
                 <div key={req.id} className="rounded-lg bg-white p-3 dark:bg-gray-800">
                   <p className="font-medium text-gray-900 dark:text-gray-100">
-                    {member?.first_name} {member?.last_name}
+                    {memberDisplayName(member)}
                   </p>
                   <p className="truncate text-sm text-gray-500 dark:text-gray-400">
                     {member?.email} · {t('teamJoinRequest')}

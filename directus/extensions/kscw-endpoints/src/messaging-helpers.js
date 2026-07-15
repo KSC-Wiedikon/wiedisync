@@ -440,12 +440,13 @@ export async function searchMembersForDm(db, callerMemberId, q, limit = 20) {
     .andWhere(function () {
       this.whereILike('first_name', needle)
         .orWhereILike('last_name', needle)
+        .orWhereILike('nickname', needle)
         .orWhereILike('email', needle)
     })
     .orderBy('last_name', 'asc')
     .orderBy('first_name', 'asc')
     .limit(cap)
-    .select('id', 'first_name', 'last_name', 'photo')
+    .select('id', 'first_name', 'last_name', 'nickname', 'photo')
 
   if (blockedIds.length > 0) qry = qry.whereNotIn('id', blockedIds)
 

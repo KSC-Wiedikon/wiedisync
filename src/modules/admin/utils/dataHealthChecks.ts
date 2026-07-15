@@ -218,7 +218,7 @@ async function checkGames(): Promise<CollectionHealth> {
 async function checkMembers(): Promise<CollectionHealth> {
   // Get all coach-approved, active members
   const members = await fetchAllItems<Record<string, unknown>>('members', {
-    fields: ['id', 'first_name', 'last_name', 'coach_approved_team', 'wiedisync_active'],
+    fields: ['id', 'first_name', 'last_name', 'nickname', 'coach_approved_team', 'wiedisync_active'],
     filter: { _and: [{ coach_approved_team: { _eq: true } }, { wiedisync_active: { _eq: true } }] },
     sort: ['last_name', 'first_name'],
   })
@@ -258,7 +258,7 @@ async function checkMembers(): Promise<CollectionHealth> {
 
   for (const m of members) {
     if (!assignedMemberIds.has(String(m['id']))) {
-      const name = `${m['first_name'] || ''} ${m['last_name'] || ''}`.trim() || String(m['id'])
+      const name = `${m['nickname'] || m['first_name'] || ''} ${m['last_name'] || ''}`.trim() || String(m['id'])
       issues.push({
         id: String(m['id']),
         collection: 'members',
@@ -279,7 +279,7 @@ async function checkMembers(): Promise<CollectionHealth> {
   // Skip the service/system account(s) — they aren't people and would be permanent
   // un-fixable noise (same heuristic as the ClubDesk sync's non-member guard).
   const sexless = await fetchAllItems<Record<string, unknown>>('members', {
-    fields: ['id', 'first_name', 'last_name', 'email'],
+    fields: ['id', 'first_name', 'last_name', 'nickname', 'email'],
     // _empty matches NULL and '' — Directus rejects _eq: '' outright (400 INVALID_QUERY).
     filter: { sex: { _empty: true } },
     sort: ['last_name', 'first_name'],
@@ -287,7 +287,7 @@ async function checkMembers(): Promise<CollectionHealth> {
   for (const m of sexless) {
     const email = String(m['email'] || '').toLowerCase()
     if (email.startsWith('system@') || email.includes('@kscw.clubdesk.com')) continue
-    const name = `${m['first_name'] || ''} ${m['last_name'] || ''}`.trim() || String(m['id'])
+    const name = `${m['nickname'] || m['first_name'] || ''} ${m['last_name'] || ''}`.trim() || String(m['id'])
     issues.push({
       id: String(m['id']),
       collection: 'members',
