@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.44.0'
+const APP_VERSION = '1.45.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.45.0',
+    date: '15.07.2026',
+    sections: [
+      {
+        title: 'New: guided tours for more of the app',
+        items: [
+          'The in-app guide now covers more areas. News, Fines, and the Calendar each have a short, tap-through walkthrough that points out the buttons and lists right on the page. Open Guide from the menu and pick a tour — a green tick marks the ones you have finished.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.44.0',
     date: '15.07.2026',

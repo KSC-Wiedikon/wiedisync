@@ -175,7 +175,7 @@ export default function FinesPage() {
 
       {/* Member outstanding strip */}
       {scope === 'mine' && openOnly.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900/40 dark:bg-amber-900/20">
+        <div data-tour="fines-outstanding" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900/40 dark:bg-amber-900/20">
           <div className="font-medium text-amber-900 dark:text-amber-200">
             {t('fines:outstanding', { amount: formatFineAmount(openTotal) })}
           </div>
@@ -197,6 +197,7 @@ export default function FinesPage() {
       {/* Status + team filters */}
       <div className="flex flex-wrap items-center gap-2">
         <select
+          data-tour="fines-filter"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as FineStatus | 'all')}
           className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
@@ -225,6 +226,7 @@ export default function FinesPage() {
       </div>
 
       {/* Loading spinner, then table or empty state */}
+      <div data-tour="fines-list">
       {pageLoading ? null : fines.length === 0 ? (
         <EmptyState
           icon={<Gavel className="h-10 w-10" />}
@@ -283,6 +285,7 @@ export default function FinesPage() {
           </TableBody>
         </Table>
       )}
+      </div>
 
       {waiving && (
         <WaiveFineModal

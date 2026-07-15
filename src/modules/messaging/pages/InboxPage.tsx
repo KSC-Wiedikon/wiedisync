@@ -40,12 +40,13 @@ export default function InboxPage() {
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-4 gap-2">
         <h1 className="text-lg font-semibold text-foreground">{t('inboxTitle')}</h1>
-        <Button size="sm" onClick={() => setNewMsgOpen(true)} className="min-h-11">
+        <Button data-tour="inbox-new" size="sm" onClick={() => setNewMsgOpen(true)} className="min-h-11">
           <Plus className="h-4 w-4 mr-1" />
           {t('newMessage.button')}
         </Button>
       </div>
 
+      <div data-tour="inbox-conversations">
       {!hasAnything && <InboxEmptyState />}
 
       {pendingRequests.length > 0 && (
@@ -74,6 +75,7 @@ export default function InboxPage() {
           <ConversationList conversations={groups} />
         </section>
       )}
+      </div>
 
       <NewMessageDialog open={newMsgOpen} onOpenChange={setNewMsgOpen} />
       <ConsentModal />

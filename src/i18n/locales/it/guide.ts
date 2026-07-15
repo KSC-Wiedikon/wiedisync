@@ -335,5 +335,73 @@ export default {
         },
       },
     },
+    inbox: {
+      title: 'Messaggi',
+      description: 'Chatta con membri e squadre',
+      steps: {
+        new: {
+          title: 'Avvia una conversazione',
+          body: 'Tocca Nuovo messaggio per scrivere a un membro o avviare una chat di gruppo. Il tuo primo messaggio a una persona nuova arriva come richiesta che deve accettare prima che la conversazione si apra.',
+        },
+        conversations: {
+          title: 'Le tue conversazioni',
+          body: 'Messaggi diretti, chat di gruppo e richieste in sospeso sono raggruppati qui — toccane uno per aprirlo. Le chat di squadra restano sulla pagina di ciascuna squadra.',
+        },
+      },
+    },
+    news: {
+      title: 'Notizie',
+      description: 'Annunci del club e i tuoi avvisi',
+      steps: {
+        feed: {
+          title: 'Feed notizie',
+          body: 'Gli annunci del club e le tue notifiche passate, uniti dal più recente. Gli annunci fissati restano in cima — tocca una riga per leggere l\'annuncio completo o andare al suo argomento.',
+        },
+        loadMore: {
+          title: 'Elementi più vecchi',
+          body: 'All\'inizio si caricano solo gli elementi più recenti. Tocca Carica altro per andare più indietro nell\'archivio.',
+        },
+      },
+    },
+    fines: {
+      title: 'Multe',
+      description: 'Le tue multe del club e come saldarle',
+      steps: {
+        list: {
+          title: 'Le tue multe',
+          body: 'Ogni multa che ti è stata assegnata, con categoria, importo e stato. Allenatori e comitato vedono qui anche le multe delle loro squadre.',
+        },
+        outstanding: {
+          title: 'Quanto devi',
+          body: 'Il tuo totale aperto è in alto. Saldalo con la cassa della squadra o con il tesoriere — la segna come pagata qui una volta ricevuta.',
+        },
+        filter: {
+          title: 'Filtra',
+          body: 'Restringi l\'elenco per stato — aperta, pagata o annullata.',
+        },
+      },
+    },
+    calendar: {
+      title: 'Calendario',
+      description: 'Tutte le partite, gli allenamenti e gli eventi in una vista',
+      steps: {
+        view: {
+          title: 'Cambia vista',
+          body: 'Passa tra il piano palestra, una griglia mensile e — se giochi — il tuo calendario personale delle partite proposte e confermate.',
+        },
+        filter: {
+          title: 'Filtri',
+          body: 'Scegli quali tipi di voce mostrare — partite, allenamenti, eventi, chiusure, assenze e altro — e quali squadre.',
+        },
+        ical: {
+          title: 'Abbonati o esporta',
+          body: 'Abbonati dall\'app calendario del telefono o del computer per mantenere tutto sincronizzato, oppure esporta l\'intervallo attuale come file .ics.',
+        },
+        grid: {
+          title: 'Sfoglia le voci',
+          body: 'Colori e icone indicano il tipo di voce. Tocca una voce per tutti i dettagli.',
+        },
+      },
+    },
   },
 } as const

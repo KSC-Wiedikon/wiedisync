@@ -335,5 +335,73 @@ export default {
         },
       },
     },
+    inbox: {
+      title: 'Nachrichte',
+      description: 'Chatte mit Mitglider und Teams',
+      steps: {
+        new: {
+          title: 'Es Gspröch aafange',
+          body: 'Tipp uf Neui Nachricht, zum eme Mitglid schriibe oder en Gruppechat aafange. Dini erschti Nachricht an öpper Neus chunnt als Aafrog aa, wo die Person aanimmt, bevor de Chat ufgaht.',
+        },
+        conversations: {
+          title: 'Dini Gspröch',
+          body: 'Direktnachrichte, Gruppechats und offni Aafroge sind da gruppiert – tipp uf eis zum es ufmache. Team-Chats blibed uf de jewilige Team-Siite.',
+        },
+      },
+    },
+    news: {
+      title: 'News',
+      description: 'Vereinsmitteilige und dini Hiiwiis',
+      steps: {
+        feed: {
+          title: 'News-Feed',
+          body: 'Vereinsmitteilige und dini bisherige Benachrichtigunge, zämeglait und s Neuscht zerscht. Aagpinnti Mitteilige blibed obe – tipp uf e Ziile zum di ganz Meldig läse oder zum Thema springe.',
+        },
+        loadMore: {
+          title: 'Elteri Iiträg',
+          body: 'Zerscht werded nu di neuschte Iiträg glade. Tipp uf Meh lade zum wiiter is Archiv zruggah.',
+        },
+      },
+    },
+    fines: {
+      title: 'Buesse',
+      description: 'Dini Vereinsbuesse und wie du si zahlsch',
+      steps: {
+        list: {
+          title: 'Dini Buesse',
+          body: 'Jedi Buess, wo du überchoo hesch, mit Kategorie, Betrag und Status. Trainer und Vorstand gseend da au d Buesse vo ihne Teams.',
+        },
+        outstanding: {
+          title: 'Was du schuldig bisch',
+          body: 'Din offeni Betrag staht zoberscht. Zahl en über d Team-Kasse oder bim Kassier – er markiert d Buess da als zahlt, sobald s Gäld da isch.',
+        },
+        filter: {
+          title: 'Filter',
+          body: 'Schränk d Liste nach Status ii – offe, zahlt oder erlah.',
+        },
+      },
+    },
+    calendar: {
+      title: 'Kalender',
+      description: 'Alli Spiel, Trainings und Events i eire Aasicht',
+      steps: {
+        view: {
+          title: 'Aasicht wächsle',
+          body: 'Wächsle zwüsche Halleplan, Monetsraster und – falls du spielsch – dim persönliche Spielplan mit vorgschlagene und bestätigte Spiel.',
+        },
+        filter: {
+          title: 'Filter',
+          body: 'Wähl, weli Iitragstype aazeigt werded – Spiel, Trainings, Events, Schliessige, Absänze und meh – und weli Teams.',
+        },
+        ical: {
+          title: 'Abonniere oder exportiere',
+          body: 'Abonnier de Kalender i de Kalender-App uf em Händy oder Computer, damit alles synchron blibt, oder exportier de aktuell Bereich als .ics-Datei.',
+        },
+        grid: {
+          title: 'Iiträg aaluege',
+          body: 'Farbe und Symbol stönd für de Iitragstyp. Tipp uf en Iitrag für alli Details.',
+        },
+      },
+    },
   },
 } as const

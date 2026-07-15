@@ -335,5 +335,73 @@ export default {
         },
       },
     },
+    inbox: {
+      title: 'Nachrichten',
+      description: 'Chatte mit Mitgliedern und Teams',
+      steps: {
+        new: {
+          title: 'Gespräch starten',
+          body: 'Tippe auf Neue Nachricht, um einem Mitglied zu schreiben oder einen Gruppenchat zu starten. Deine erste Nachricht an jemand Neues kommt als Anfrage an, die die Person annimmt, bevor sich der Chat öffnet.',
+        },
+        conversations: {
+          title: 'Deine Gespräche',
+          body: 'Direktnachrichten, Gruppenchats und offene Anfragen sind hier gruppiert – tippe auf eines, um es zu öffnen. Team-Chats bleiben auf der jeweiligen Team-Seite.',
+        },
+      },
+    },
+    news: {
+      title: 'News',
+      description: 'Vereinsmitteilungen und deine Hinweise',
+      steps: {
+        feed: {
+          title: 'News-Feed',
+          body: 'Vereinsmitteilungen und deine bisherigen Benachrichtigungen, zusammengeführt und neueste zuerst. Angepinnte Mitteilungen bleiben oben – tippe auf eine Zeile, um die ganze Meldung zu lesen oder zum Thema zu springen.',
+        },
+        loadMore: {
+          title: 'Ältere Einträge',
+          body: 'Zuerst werden nur die neusten Einträge geladen. Tippe auf Mehr laden, um weiter ins Archiv zurückzugehen.',
+        },
+      },
+    },
+    fines: {
+      title: 'Bussen',
+      description: 'Deine Vereinsbussen und wie du sie begleichst',
+      steps: {
+        list: {
+          title: 'Deine Bussen',
+          body: 'Jede Busse, die dir auferlegt wurde, mit Kategorie, Betrag und Status. Trainer und Vorstand sehen hier auch die Bussen ihrer Teams.',
+        },
+        outstanding: {
+          title: 'Was du schuldest',
+          body: 'Dein offener Betrag steht zuoberst. Begleiche ihn über die Team-Kasse oder beim Kassier – er markiert die Busse hier als bezahlt, sobald das Geld da ist.',
+        },
+        filter: {
+          title: 'Filter',
+          body: 'Grenze die Liste nach Status ein – offen, bezahlt oder erlassen.',
+        },
+      },
+    },
+    calendar: {
+      title: 'Kalender',
+      description: 'Alle Spiele, Trainings und Events in einer Ansicht',
+      steps: {
+        view: {
+          title: 'Ansicht wechseln',
+          body: 'Wechsle zwischen Hallenplan, Monatsraster und – falls du spielst – deinem persönlichen Spielplan mit vorgeschlagenen und bestätigten Spielen.',
+        },
+        filter: {
+          title: 'Filter',
+          body: 'Wähle, welche Eintragstypen angezeigt werden – Spiele, Trainings, Events, Schliessungen, Absenzen und mehr – und welche Teams.',
+        },
+        ical: {
+          title: 'Abonnieren oder exportieren',
+          body: 'Abonniere den Kalender in der Kalender-App auf Handy oder Computer, damit alles synchron bleibt, oder exportiere den aktuellen Bereich als .ics-Datei.',
+        },
+        grid: {
+          title: 'Einträge durchsehen',
+          body: 'Farben und Symbole stehen für den Eintragstyp. Tippe auf einen Eintrag für alle Details.',
+        },
+      },
+    },
   },
 } as const

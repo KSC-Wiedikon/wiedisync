@@ -82,6 +82,7 @@ export default function NewsArchivePage() {
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{tn('news')}</h1>
       </div>
 
+      <div data-tour="news-feed">
       {isLoading && items.length === 0 ? null : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 px-6 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           {tn('noNotifications')}
@@ -113,6 +114,7 @@ export default function NewsArchivePage() {
           {hasMore && (
             <div className="mt-4 flex justify-center">
               <button
+                data-tour="news-loadmore"
                 onClick={() => setPage((p) => p + 1)}
                 className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
               >
@@ -122,6 +124,7 @@ export default function NewsArchivePage() {
           )}
         </>
       )}
+      </div>
 
       {selectedAnnouncement && (
         <AnnouncementDetailModal

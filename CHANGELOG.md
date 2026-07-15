@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.45.0 — 2026-07-15
+
+### New: guided tours for more of the app
+- **The in-app guide now covers more areas.** News, Fines, and the Calendar each have a short, tap-through walkthrough that points out the buttons and lists right on the page. Open Guide from the menu and pick a tour — a green tick marks the ones you have finished.
+
 ## v1.44.0 — 2026-07-15
 
 ### New: go by the name you actually use
