@@ -158,24 +158,27 @@ if [ -s "$CSVUTF_U" ]; then
     fail_run 'Dry-run preview failed (update set) — if a contact was deleted in ClubDesk since the last sync-down, run "Sync down" and retry. Details: up-run.log' "$PREVIEW_U"
     echo "=== up-dispatch: FAILED (preview, update set) ==="; exit 0
   fi
-  # ── Duplicate guard (2026-07-07; fail-closed rewrite 2026-07-08) ────────────
+  # ── Duplicate guard (2026-07-07; fail-closed rewrite 2026-07-08; unveränderte-
+  #    aware 2026-07-15) ─────────────────────────────────────────────────────────
   # The UPDATE set is, by definition, linked members whose ClubDesk contacts
-  # already exist — every preview row MUST be "Veränderte". Since 2026-07-08
-  # update rows are keyed on ClubDesk's own [Id] (name-less CSV): a known [Id]
-  # upserts, an unknown [Id] hard-aborts the whole import before the summary
-  # (spike-proven), so a "Neue" row is structurally impossible unless the [Id]
-  # column regressed out of the CSV — committing then would DUPLICATE contacts
-  # with EMPTY names. Invariant enforced FAIL-CLOSED: veraendert == total > 0.
-  # This subsumes the old neu>0 check AND refuses when the summary counts are
-  # unparseable (ClubDesk omits the "Neue Kontakte" line when 0 and its label
-  # wording has drifted before — Veränderte/Geänderte — so a parse miss must
-  # block the commit, not silently disarm the guard; review finding 2026-07-08).
+  # already exist. Since 2026-07-08 update rows are keyed on ClubDesk's own [Id]
+  # (name-less CSV): a known [Id] upserts, an unknown [Id] hard-aborts the whole
+  # import before the summary (spike-proven), so a "Neue" row is structurally
+  # impossible unless the [Id] column regressed out of the CSV — committing then
+  # would DUPLICATE contacts with EMPTY names.
+  # Invariant enforced FAIL-CLOSED: neu == 0 AND neu+veraendert+unveraendert == total > 0.
+  # Rows byte-identical to ClubDesk preview as "Unveränderte" (common right after a
+  # sync-down aligns members), so the old veraendert==total check FALSE-refused a
+  # safe push (2026-07-15: total=6 ver=3 unv=3, neu=0). The reconciliation sum keeps
+  # the anti-duplication guarantee STRONGER than before: if ClubDesk omits/renames
+  # ANY summary line (Neue absent when 0; Veränderte/Geänderte/Unveränderte wording
+  # drift), the parsed counts no longer add up to total → refuse, never commit blind.
   # Ancestry: this is the guard whose absence created 19 mangled "?" duplicate
   # contacts on 2026-07-07 (name-matched era).
-  NEU_U=$(num_field "$PREVIEW_U" neu); VER_U=$(num_field "$PREVIEW_U" veraendert); TOT_U=$(num_field "$PREVIEW_U" total)
-  if [ "$TOT_U" -eq 0 ] || [ "$VER_U" -ne "$TOT_U" ] || [ "$NEU_U" -gt 0 ]; then
-    fail_run "Update-set push REFUSED: every update row must preview as 'Veränderte' (total=${TOT_U}, veraendert=${VER_U}, neu=${NEU_U}). A mismatch means rows would be created (missing [Id] column?) or the summary was unparseable — refusing to commit blind. See up-run.log." "$PREVIEW_U"
-    echo "=== up-dispatch: FAILED (update-set invariant veraendert==total: ${VER_U}!=${TOT_U}, neu=${NEU_U}) ==="; exit 0
+  NEU_U=$(num_field "$PREVIEW_U" neu); VER_U=$(num_field "$PREVIEW_U" veraendert); UNV_U=$(num_field "$PREVIEW_U" unveraendert); TOT_U=$(num_field "$PREVIEW_U" total)
+  if [ "$TOT_U" -le 0 ] || [ "$NEU_U" -gt 0 ] || [ "$((NEU_U + VER_U + UNV_U))" -ne "$TOT_U" ]; then
+    fail_run "Update-set push REFUSED: need neu=0 and neu+veraendert+unveraendert==total (total=${TOT_U}, veraendert=${VER_U}, unveraendert=${UNV_U}, neu=${NEU_U}). neu>0 means rows would be created (missing [Id] column?); a sum mismatch means the summary was unparseable or a label drifted — refusing to commit blind. See up-run.log." "$PREVIEW_U"
+    echo "=== up-dispatch: FAILED (update-set reconcile: neu=${NEU_U} ver=${VER_U} unv=${UNV_U} tot=${TOT_U}) ==="; exit 0
   fi
 fi
 if [ -s "$CSVUTF_C" ]; then
