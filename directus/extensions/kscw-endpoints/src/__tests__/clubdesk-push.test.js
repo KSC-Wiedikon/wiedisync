@@ -232,6 +232,18 @@ describe('deriveMitgliederbeitrag', () => {
     expect(deriveMitgliederbeitrag(null)).toBe('')
   })
 
+  it('a guest pays base − 110 (floored at 0), never the no-Schreiber surcharge', () => {
+    expect(deriveMitgliederbeitrag('VB Erwerbstätige', null, { isGuest: true })).toBe('330')
+    expect(deriveMitgliederbeitrag('VB Schüler*in Meisterschaft', null, { isGuest: true })).toBe('200')
+    expect(deriveMitgliederbeitrag('VB Turnier KWI', null, { isGuest: true })).toBe('0') // 110 − 110
+    // The guest flag short-circuits the surcharge: an adult non-scorer (normally
+    // 540) is billed 330, not 540 − 110.
+    const adultNoLic = { scorer_vb: false, otr1_bb: false, otr2_bb: false, otn_bb: false, birthdate: '1990-01-01' }
+    expect(deriveMitgliederbeitrag('VB Erwerbstätige', adultNoLic, { isGuest: true })).toBe('330')
+    // An unknown category is still empty even for a guest.
+    expect(deriveMitgliederbeitrag('Sponsor', null, { isGuest: true })).toBe('')
+  })
+
   it('surcharges adult categories (inherently U16+) on a missing licence, regardless of birthdate', () => {
     const adultNoLic = { scorer_vb: false, otr1_bb: false, otr2_bb: false, otn_bb: false }
     expect(deriveMitgliederbeitrag('VB Erwerbstätige', adultNoLic)).toBe('540')
@@ -295,6 +307,13 @@ describe('deriveGruppen', () => {
       .toBe('VB H1 (Spieler*in)')
     expect(deriveGruppen({ membership_type: 'basketball', team: 'HU14', rolle: 'Trainer*in' }))
       .toBe('BB HU14 (Trainer*in)')
+  })
+
+  it('derives a (Guest) group for a guest registration (VB and BB)', () => {
+    expect(deriveGruppen({ membership_type: 'volleyball', team: 'H2', rolle: 'Guest' }))
+      .toBe('VB H2 (Guest)')
+    expect(deriveGruppen({ membership_type: 'basketball', team: 'HU16', rolle: 'Guest' }))
+      .toBe('BB HU16 (Guest)')
   })
 
   it('joins multiple teams into one comma-separated cell', () => {

@@ -258,8 +258,20 @@ export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT
 const CD_GRUPPEN_SPORT_PREFIX = { volleyball: 'VB', basketball: 'BB' }
 // Funktionen that map to a ClubDesk group suffix. Anything else (passive
 // licence lists, "Andere") gets NO group — never drop someone into a player
-// group they don't belong to.
-const CD_GRUPPEN_FUNKTIONEN = ['Spieler*in', 'Trainer*in']
+// group they don't belong to. 'Guest' is the guest-registration funktion (the
+// signup form's "Gast (Guest)" option) → its own '<group> (Guest)' token, same
+// as the guest-roster consistency check ([[CD_GUEST_FUNKTION]]).
+const CD_GRUPPEN_FUNKTIONEN = ['Spieler*in', 'Trainer*in', 'Guest']
+
+// ClubDesk Funktion for a guest player (member_teams.guest_level > 0). A guest
+// sits in the team's '<group> (Guest)' subgroup instead of '(Spieler*in)' — same
+// group, different Funktion — so the consistency check can verify guests are
+// marked as such in the register. Must match the ClubDesk Funktion value
+// character-for-character (capital G, English — user 2026-07-15). Applies to VB
+// and BB alike (the sport lives in clubdesk_group, e.g. 'VB H2' / 'BB HU14', not
+// in the Funktion). If ClubDesk's actual value differs (casing/spelling), change
+// it here only.
+const CD_GUEST_FUNKTION = 'Guest'
 
 // Derive the ClubDesk Gruppen cell from an approved registration: one group per
 // team, `<VB|BB> <team> (<funktion>)`, PLUS the officials groups the person's
@@ -441,10 +453,16 @@ export function isU16Plus(member, refYear = new Date().getFullYear()) {
   return (refYear - y) >= 15
 }
 
-export function deriveMitgliederbeitrag(kategorie, member = null) {
+export function deriveMitgliederbeitrag(kategorie, member = null, opts = {}) {
   const k = String(kategorie ?? '').trim()
   if (!Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, k)) return '' // unknown → empty, never guessed
   let amount = CD_BEITRAG_MAP[k]
+  // A guest (guest on a team, core on none) pays the base category fee minus
+  // CHF 110, floored at 0, and NEVER the no-Schreiber surcharge — a guest does
+  // no scorer duty (user 2026-07-15). This short-circuits the surcharge branch.
+  if (opts && opts.isGuest === true) {
+    return String(Math.max(0, amount - 110))
+  }
   // member===null (flags unavailable) → base only, a safe default. Adult
   // category → surcharge on missing licence; youth category → surcharge only
   // when the member is U16+ (isU16Plus() === true).
@@ -457,6 +475,26 @@ export function deriveMitgliederbeitrag(kategorie, member = null) {
     if (eligible && !hasLicence) amount += 100
   }
   return String(amount)
+}
+
+// Resolve which of the given members are GUESTS this season: at least one guest
+// roster (guest_level > 0) and NO core roster (guest_level = 0). A pure guest
+// gets the reduced Mitgliederbeitrag (deriveMitgliederbeitrag isGuest); someone
+// core on any team is a full member. Returns a Set of member ids. Used by the
+// CREATE-push path so a new guest contact lands in ClubDesk already billed the
+// guest rate (Mitgliederbeitrag is CREATE-only — never touched on updates).
+export async function guestMemberIdSet(database, memberIds, season) {
+  const ids = [...new Set((memberIds || []).map(Number).filter(Number.isInteger))]
+  if (!ids.length) return new Set()
+  const rows = await database('member_teams')
+    .whereIn('member', ids).andWhere('season', season)
+    .groupBy('member')
+    .select('member')
+    .select(database.raw('bool_or(COALESCE(guest_level, 0) > 0) AS any_guest'))
+    .select(database.raw('bool_or(COALESCE(guest_level, 0) = 0) AS any_core'))
+  const out = new Set()
+  for (const r of rows) if (r.any_guest && !r.any_core) out.add(Number(r.member))
+  return out
 }
 
 function fmtBirthdateDDMMYYYY(v) {
@@ -526,7 +564,7 @@ export function buildPushCsv(members, { create = false } = {}) {
         phoneOut, // Telefon Mobil = same as Privat (user: one number → both)
         mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt),
         m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m),
-        deriveMitgliederbeitrag(m.beitragskategorie, m),
+        deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
         m.cd_passiv || '', m.cd_sektion || '', // resolved by /up from the registration
         deriveSchiedsrichter(m),
       )
@@ -754,6 +792,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           .distinct(database.raw("LOWER(BTRIM(vorname)) || ' ' || LOWER(BTRIM(nachname)) AS nm"))
         for (const r of rows) cdNames.add(r.nm)
       }
+      // Guest CREATE contacts preview the reduced Mitgliederbeitrag too — same
+      // roster-based resolution as the commit path so the number the superadmin
+      // approves is exactly what gets pushed.
+      const unlinkedGuests = await guestMemberIdSet(database, unlinkedRows.map((m) => m.id), getCurrentSeason())
       const unlinked = unlinkedRows.map((m) => {
         const e = (m.email || '').toLowerCase()
         const likelyNonMember = e.includes('@kscw.clubdesk.com') || e.startsWith('system@') || e.endsWith('@kscw.ch')
@@ -768,7 +810,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           // the superadmin sees them before approving.
           beitragskategorie: mapKategorie(m.beitragskategorie) || null,
           offiziellen_lizenz: deriveOffiziellenLizenz(m) || null,
-          mitgliederbeitrag: deriveMitgliederbeitrag(m.beitragskategorie, m) || null,
+          mitgliederbeitrag: deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: unlinkedGuests.has(Number(m.id)) }) || null,
         }
       })
       return res.json({ changed, unlinked })
@@ -903,6 +945,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             .whereRaw('LOWER(BTRIM(email)) = ANY(?)', [emails])
             .select('email', 'vorname', 'submitted_at', 'membership_type', 'team', 'rolle', 'sektion_choice', 'lizenz')
           : []
+        // Guest CREATE contacts are billed the reduced Mitgliederbeitrag — resolve
+        // from the roster (guest_level), the authoritative current-season truth.
+        const guestIds = await guestMemberIdSet(database, creates.map((m) => m.id), getCurrentSeason())
         for (const m of creates) {
           const em = String(m.email || '').toLowerCase().trim()
           const reg = regs
@@ -913,6 +958,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           m.cd_status = deriveStatus(reg, m)
           m.cd_passiv = derivePassivmitglied(reg)
           m.cd_sektion = deriveSektion(reg)
+          m.is_guest = guestIds.has(Number(m.id))
         }
       }
       await database('clubdesk_member_sync').where('id', 1).update({
@@ -1592,8 +1638,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // ClubDesk group membership can only be set by hand in ClubDesk (the CSV import
   // treats Gruppen as a no-op), so it silently drifts from the Wiedisync rosters.
   // Read-only checks — the fix is always made in ClubDesk / on the roster:
-  //   • missing — a current-season REAL player (guest_level 0) whose team's CD
-  //     group is not in their gruppen_bracketed → assign it in ClubDesk.
+  //   • missing — a current-season player whose team's CD group token is not in
+  //     their gruppen_bracketed → assign it in ClubDesk. A core player expects
+  //     '<group> (Spieler*in)'; a guest (guest_level > 0) expects '<group>
+  //     (Guest)' instead — same team, different ClubDesk Funktion (VB and BB).
   //   • no_group — a linked member whose CD contact carries NO group token at all.
   //     Invisible to `missing`, which only inspects members who are ON a team.
   //   • coach_no_group — coaches (teams_coaches) missing their team's
@@ -1637,14 +1685,19 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // Anything else is a "playing" fee — being billed to play.
       const NON_PLAYING_KAT = ['Passivmitglied', 'Gratis']
 
+      // Guests (guest_level > 0) are expected in the team's '<group> (Guest)'
+      // subgroup, core players in '<group> (Spieler*in)' — one row per
+      // member_teams entry, so someone who is a guest on team A and core on
+      // team B is checked for both tokens independently.
       const missingSql = `
         WITH ${teamGroupCte}, expected AS (
           SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
-                 (tg.clubdesk_group || ' (Spieler*in)') AS grp
+                 (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
+                                            THEN ' (${CD_GUEST_FUNKTION})' ELSE ' (Spieler*in)' END) AS grp
           FROM member_teams mt
           JOIN tg ON tg.id = mt.team
           JOIN members m ON m.id = mt.member
-          WHERE mt.season = :season AND COALESCE(mt.guest_level, 0) = 0
+          WHERE mt.season = :season
             AND tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
         )
         SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.grp
