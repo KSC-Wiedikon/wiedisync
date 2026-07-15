@@ -15,10 +15,19 @@ export default function BasketballSettingsPage() {
 
   const [teamA, setTeamA] = useState('')
   const [teamB, setTeamB] = useState('')
-  const [linkType, setLinkType] = useState<'same' | 'diff'>('diff')
+  const [linkType, setLinkType] = useState<'same' | 'diff' | 'adjacent'>('diff')
 
   const teamName = (id: string | number) => teams.find((tm) => String(tm.id) === String(id))?.name ?? `#${id}`
   const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
+
+  const linkLabel = (lt: string) =>
+    lt === 'same' ? t('linkSame') : lt === 'adjacent' ? t('linkAdjacent') : t('linkDiff')
+  const linkBadge = (lt: string) =>
+    lt === 'same'
+      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+      : lt === 'adjacent'
+        ? 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300'
+        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
 
   async function add() {
     if (!teamA || !teamB || teamA === teamB) return
@@ -69,8 +78,9 @@ export default function BasketballSettingsPage() {
               <option key={tm.id} value={tm.id}>{tm.name}</option>
             ))}
           </select>
-          <select className={selectClass} value={linkType} onChange={(e) => setLinkType(e.target.value as 'same' | 'diff')}>
+          <select className={selectClass} value={linkType} onChange={(e) => setLinkType(e.target.value as 'same' | 'diff' | 'adjacent')}>
             <option value="diff">{t('linkDiff')}</option>
+            <option value="adjacent">{t('linkAdjacent')}</option>
             <option value="same">{t('linkSame')}</option>
           </select>
           <select className={selectClass} value={teamB} onChange={(e) => setTeamB(e.target.value)}>
@@ -88,14 +98,8 @@ export default function BasketballSettingsPage() {
           <ul className="space-y-1">
             {links.map((l) => (
               <li key={l.id} className="flex items-center gap-2 text-sm">
-                <span
-                  className={`rounded px-2 py-0.5 text-xs ${
-                    l.link_type === 'same'
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-                      : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-                  }`}
-                >
-                  {l.link_type === 'same' ? t('linkSame') : t('linkDiff')}
+                <span className={`rounded px-2 py-0.5 text-xs ${linkBadge(l.link_type)}`}>
+                  {linkLabel(l.link_type)}
                 </span>
                 <span>{teamName(l.team_a)} ↔ {teamName(l.team_b)}</span>
                 <button

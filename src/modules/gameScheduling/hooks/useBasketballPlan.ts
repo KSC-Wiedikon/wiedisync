@@ -249,13 +249,20 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
 
   const links = useMemo(() => linksQ.data ?? [], [linksQ.data])
 
-  // teamId → { same, diff } partner team ids (both link directions).
+  // date → day-of-week, so highlightFor can look up a date's slot ordering for adjacency.
+  const dowByDate = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const cd of candidateDates) m.set(cd.date, cd.dow)
+    return m
+  }, [candidateDates])
+
+  // teamId → { same, diff, adjacent } partner team ids (both link directions).
   const partnersByTeam = useMemo(() => {
-    const m = new Map<string, { same: Set<string>; diff: Set<string> }>()
+    const m = new Map<string, { same: Set<string>; diff: Set<string>; adjacent: Set<string> }>()
     const ensure = (id: string) => {
       let e = m.get(id)
       if (!e) {
-        e = { same: new Set(), diff: new Set() }
+        e = { same: new Set(), diff: new Set(), adjacent: new Set() }
         m.set(id, e)
       }
       return e
@@ -263,7 +270,7 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
     for (const l of links) {
       const a = String(l.team_a)
       const b = String(l.team_b)
-      const bucket = l.link_type === 'same' ? 'same' : 'diff'
+      const bucket = l.link_type === 'same' ? 'same' : l.link_type === 'adjacent' ? 'adjacent' : 'diff'
       ensure(a)[bucket].add(b)
       ensure(b)[bucket].add(a)
     }
@@ -283,24 +290,45 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
     return m
   }, [placements])
 
-  /** For a selected team, mark a (date,time) as a suggested same-time slot or a conflict. */
+  /**
+   * For a selected team, mark a (date,time) as a suggested slot or a conflict:
+   *  - conflict: a 'diff' or 'adjacent' partner already plays at this exact time (must not overlap);
+   *  - suggest: a 'same' partner plays here, or an 'adjacent' partner plays in the
+   *    neighbouring slot on this date (keep them back-to-back).
+   */
   const highlightFor = useCallback(
     (teamId: string | number | null | undefined, date: string, time: string): 'suggest' | 'conflict' | null => {
       if (teamId == null) return null
       const p = partnersByTeam.get(String(teamId))
       if (!p) return null
       const here = teamsByDateTime.get(`${date}|${time}`)
-      if (!here || here.size === 0) return null
-      for (const tid of here) if (p.diff.has(tid)) return 'conflict'
-      for (const tid of here) if (p.same.has(tid)) return 'suggest'
+      if (here && here.size) {
+        for (const tid of here) if (p.diff.has(tid) || p.adjacent.has(tid)) return 'conflict'
+        for (const tid of here) if (p.same.has(tid)) return 'suggest'
+      }
+      // An 'adjacent' partner in the slot immediately before/after → suggested (back-to-back).
+      if (p.adjacent.size) {
+        const dow = dowByDate.get(date)
+        if (dow != null) {
+          const { times } = slotsForDate(dow)
+          const idx = times.indexOf(time)
+          if (idx >= 0) {
+            for (const nt of [times[idx - 1], times[idx + 1]]) {
+              if (!nt) continue
+              const near = teamsByDateTime.get(`${date}|${nt}`)
+              if (near) for (const tid of near) if (p.adjacent.has(tid)) return 'suggest'
+            }
+          }
+        }
+      }
       return null
     },
-    [partnersByTeam, teamsByDateTime],
+    [partnersByTeam, teamsByDateTime, dowByDate],
   )
 
   const refetchLinks = linksQ.refetch
   const addLink = useCallback(
-    async (teamA: string | number, teamB: string | number, linkType: 'same' | 'diff') => {
+    async (teamA: string | number, teamB: string | number, linkType: 'same' | 'diff' | 'adjacent') => {
       if (seasonId == null || String(teamA) === String(teamB)) return
       await createRecord('basketball_team_links', {
         season: seasonId, team_a: teamA, team_b: teamB, link_type: linkType, created_by: user?.id ?? null,

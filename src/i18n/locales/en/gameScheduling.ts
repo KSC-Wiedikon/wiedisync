@@ -18,6 +18,7 @@ export default {
   legendAwayConfirmed: 'Away (confirmed)',
   legendHomeProposed: 'Home (proposed)',
   legendAwayProposed: 'Away (proposed)',
+  legendHomeBb: 'Home game (BB)',
   legendBlocked: 'Blocked',
   reservedForBB: 'Reserved for BB',
   reservedForDerby: 'Reserved for derby',

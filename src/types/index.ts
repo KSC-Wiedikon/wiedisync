@@ -941,13 +941,16 @@ export interface BasketballSlotPlan extends BaseRecord {
 
 /**
  * A coach/player-sharing link between two basketball teams (migration 217).
- * 'diff' = must not play the same time (shared person); 'same' = keep same time.
+ * 'diff'     = must not play the same time (shared person);
+ * 'same'     = keep at the same time;
+ * 'adjacent' = must not overlap, but keep in adjacent time slots when possible
+ *              (e.g. 1xDU18 ↔ Lions D1 — different time, but back-to-back if it fits).
  */
 export interface BasketballTeamLink extends BaseRecord {
   season: string | number
   team_a: string | number
   team_b: string | number
-  link_type: 'same' | 'diff'
+  link_type: 'same' | 'diff' | 'adjacent'
   created_by?: string | number | null
 }
 

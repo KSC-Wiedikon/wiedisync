@@ -18,6 +18,7 @@ export default {
   legendAwayConfirmed: 'Uswärts (bestätigt)',
   legendHomeProposed: 'Heim (vorgschlage)',
   legendAwayProposed: 'Uswärts (vorgschlage)',
+  legendHomeBb: 'Heimspiel (BB)',
   legendBlocked: 'Blockiert',
   reservedForBB: 'Für BB reserviert',
   reservedForDerby: 'Für Derby reserviert',
