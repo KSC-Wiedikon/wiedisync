@@ -12,6 +12,7 @@ import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, 
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import CrossTeamBadge from '../../spielplanung/CrossTeamBadge'
 import { useCrossTeamConflicts } from '../../spielplanung/hooks/useCrossTeamConflicts'
+import { useTeamLinks } from '../hooks/useTeamLinks'
 
 // Season-wide overview of the Terminplanung for all teams: confirmed + proposed
 // home and away games, blocked slots, and a count of remaining open home slots,
@@ -125,9 +126,27 @@ const CHIP: Record<EntryKind, string> = {
 
 // Kinds that represent "a game can't happen here" rather than a game itself.
 const isBlockerKind = (k: EntryKind) => k === 'blocked' || k === 'team_block' || k === 'club_block' || k === 'team_event'
+// Kinds that represent an actual game (home/away, confirmed/proposed) — used for
+// the team-link co-occurrence check.
+const isGameKind = (k: EntryKind) =>
+  k === 'home_confirmed' || k === 'away_confirmed' || k === 'home_proposed' || k === 'away_proposed'
+
+/** A team-link constraint surfaced on a given day: two linked teams both play. */
+interface LinkWarning {
+  teamAId: string
+  teamBId: string
+  linkType: 'same' | 'diff' | 'adjacent'
+  /** 'clash' = they play the SAME time but must not overlap (red); 'note' = a
+   *  'same'-linked pair plays the same day at DIFFERENT times (amber). */
+  severity: 'clash' | 'note'
+}
 
 export default function SchedulingCalendar({ slots, bookings, teams, season, games = [], title, showAbsences }: Props) {
   const { t } = useTranslation('gameScheduling')
+
+  // Manual coach/player-sharing links for this season (volleyball). Fail-soft: an
+  // error / missing collection just yields [] → no warnings (migration 218).
+  const { links: teamLinks } = useTeamLinks(season.id, 'volleyball')
 
   const teamName = useMemo(() => {
     const m = new Map<string, string>()
@@ -608,6 +627,49 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     return out
   }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, blocks, clubBlocks, teamEvents, bbGames])
 
+  // Team-link warnings per day: when two manually-linked teams (Settings → Team
+  // links) both have games on the same day. A 'diff'/'adjacent' pair at the SAME
+  // time is a clash (shared players can't be in both); a 'same' pair at DIFFERENT
+  // times is a note (they're meant to play together). Both teams' games must be
+  // present, so this is meaningful on the all-teams overview; a single-team
+  // calendar simply won't have the partner's games and shows nothing.
+  const linkWarningsByDate = useMemo<Map<string, LinkWarning[]>>(() => {
+    const result = new Map<string, LinkWarning[]>()
+    if (teamLinks.length === 0) return result
+    // dateKey → teamId → set of game times ('HH:MM'; '' when a proposal has no time).
+    const timesByDateTeam = new Map<string, Map<string, Set<string>>>()
+    for (const e of entries) {
+      if (!isGameKind(e.kind) || !e.teamId) continue
+      const k = toDateKey(e.date)
+      let perTeam = timesByDateTeam.get(k)
+      if (!perTeam) { perTeam = new Map(); timesByDateTeam.set(k, perTeam) }
+      const set = perTeam.get(e.teamId) ?? new Set<string>()
+      set.add(e.time || '')
+      perTeam.set(e.teamId, set)
+    }
+    for (const [dateKey, perTeam] of timesByDateTeam) {
+      const warnings: LinkWarning[] = []
+      for (const l of teamLinks) {
+        const a = String(l.team_a)
+        const b = String(l.team_b)
+        const aTimes = perTeam.get(a)
+        const bTimes = perTeam.get(b)
+        if (!aTimes || !bTimes) continue // both teams must play that day
+        // Shared concrete time (ignore the '' unknown-time placeholder).
+        let sharedTime = false
+        for (const tm of aTimes) if (tm && bTimes.has(tm)) { sharedTime = true; break }
+        const type = l.link_type
+        if (sharedTime && type !== 'same') {
+          warnings.push({ teamAId: a, teamBId: b, linkType: type, severity: 'clash' })
+        } else if (!sharedTime && type === 'same') {
+          warnings.push({ teamAId: a, teamBId: b, linkType: type, severity: 'note' })
+        }
+      }
+      if (warnings.length) result.set(dateKey, warnings)
+    }
+    return result
+  }, [teamLinks, entries])
+
   // Teams that actually appear in the calendar, for the filter chips.
   const filterableTeams = useMemo(() => {
     const ids = new Set(entries.map((e) => e.teamId).filter(Boolean))
@@ -738,6 +800,12 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
           <span className="inline-block h-3 w-3 rounded bg-red-200 dark:bg-red-900" />
           {t('legendClosed')}
         </span>
+        {linkWarningsByDate.size > 0 && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded bg-rose-500" />
+            🔗 {t('legendTeamLink')}
+          </span>
+        )}
       </div>
 
       {/* Team filter (multi-select; none selected = all shown) */}
@@ -817,7 +885,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         onDayClick={(date, items) => {
           const open = openByDate.get(toDateKey(date)) || 0
           const absent = absencesByDate.get(toDateKey(date))?.length || 0
-          if (items.length === 0 && open === 0 && absent === 0) return
+          const linkWarns = linkWarningsByDate.get(toDateKey(date))?.length || 0
+          if (items.length === 0 && open === 0 && absent === 0 && linkWarns === 0) return
           setDayDetail({ date, entries: items })
         }}
         renderDayContent={(date, items) => {
@@ -827,6 +896,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
           const open = openByDate.get(key) || 0
           const absentNames = absencesByDate.get(key) || []
           const crossTeam = crossTeamByDate.get(key) || []
+          const linkWarns = linkWarningsByDate.get(key) || []
+          const hasClash = linkWarns.some((w) => w.severity === 'clash')
           return (
             <div className="flex flex-col gap-0.5">
               {visible.map((e) => {
@@ -864,6 +935,25 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                 <div className="flex">
                   <CrossTeamBadge conflicts={crossTeam} />
                 </div>
+              )}
+              {linkWarns.length > 0 && (
+                <span
+                  className={`inline-flex w-fit items-center gap-0.5 rounded px-1 py-0.5 text-[10px] leading-tight ${
+                    hasClash
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-amber-200 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200'
+                  }`}
+                  title={linkWarns
+                    .map((w) =>
+                      t(w.severity === 'clash' ? 'linkClashDetail' : 'linkSameDayDetail', {
+                        a: teamName(w.teamAId),
+                        b: teamName(w.teamBId),
+                      }),
+                    )
+                    .join('\n')}
+                >
+                  🔗 {linkWarns.length}
+                </span>
               )}
             </div>
           )
@@ -930,6 +1020,30 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                 <p className="text-xs font-medium text-rose-700 dark:text-rose-300">{t('absentPlayers', { names: dayRows.absent.join(', ') })}</p>
               </div>
             )}
+
+            {/* Team-link warnings: linked teams both playing this day. */}
+            {(() => {
+              const warns = linkWarningsByDate.get(toDateKey(dayDetail.date)) || []
+              if (warns.length === 0) return null
+              return (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">🔗 {t('linkWarnHeading')}</p>
+                  <ul className="mt-1.5 space-y-1">
+                    {warns.map((w) => (
+                      <li
+                        key={`${w.teamAId}-${w.teamBId}`}
+                        className={`text-xs ${w.severity === 'clash' ? 'text-rose-700 dark:text-rose-300' : 'text-amber-800 dark:text-amber-300'}`}
+                      >
+                        {t(w.severity === 'clash' ? 'linkClashDetail' : 'linkSameDayDetail', {
+                          a: teamName(w.teamAId),
+                          b: teamName(w.teamBId),
+                        })}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            })()}
 
             {dayRows.open.length > 0 && (
               <details className="group">
