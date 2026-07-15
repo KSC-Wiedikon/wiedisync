@@ -6,21 +6,40 @@ import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
 import { useBasketballPlan } from '../hooks/useBasketballPlan'
 import { parseYmd } from '../utils/probasketSeason'
 
+const WEEKDAY_LOCALE: Record<string, string> = { en: 'en-GB', de: 'de-CH', fr: 'fr-CH', it: 'it-CH', gsw: 'de-CH' }
+
+type CalRow =
+  | { kind: 'bb'; date: string; time: string; hall: string; label: string; guest: boolean }
+  | { kind: 'vb'; date: string; time: string; hall: string }
+  | { kind: 'closure'; date: string; end: string; hall: string | null; reason: string }
+
 export default function BasketballCalendarPage() {
-  const { t } = useTranslation('basketballScheduling')
+  const { t, i18n } = useTranslation('basketballScheduling')
   const { season, allSeasons, setSeason } = useGameSchedulingSeason()
-  const { teams, placements } = useBasketballPlan(season)
+  const { teams, placements, vbGames, closureEntries } = useBasketballPlan(season)
 
   const teamName = (id: string | number | null | undefined, label?: string | null) =>
     (id != null ? teams.find((tm) => String(tm.id) === String(id))?.name : label) ?? label ?? ''
 
-  const rows = useMemo(
-    () =>
-      [...placements.values()].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)),
-    [placements],
-  )
+  const rows = useMemo<CalRow[]>(() => {
+    const out: CalRow[] = []
+    for (const p of placements.values()) {
+      out.push({
+        kind: 'bb',
+        date: p.date,
+        time: p.time,
+        hall: p.hall,
+        label: `${teamName(p.kscw_team, p.kscw_team_label)} vs ${p.opponent ?? '?'}`,
+        guest: p.game_type === 'guest',
+      })
+    }
+    for (const g of vbGames) out.push({ kind: 'vb', date: g.date, time: g.time, hall: g.hall })
+    for (const c of closureEntries) out.push({ kind: 'closure', date: c.start, end: c.end, hall: c.hall, reason: c.reason })
+    return out.sort((a, b) => (a.date + (('time' in a && a.time) || '')).localeCompare(b.date + (('time' in b && b.time) || '')))
+  }, [placements, vbGames, closureEntries, teams])
 
-  const weekday = (ymd: string) => new Intl.DateTimeFormat('de-CH', { weekday: 'short' }).format(parseYmd(ymd))
+  const weekday = (ymd: string) =>
+    new Intl.DateTimeFormat(WEEKDAY_LOCALE[i18n.language] ?? 'de-CH', { weekday: 'short' }).format(parseYmd(ymd))
   const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
 
   return (
@@ -48,34 +67,46 @@ export default function BasketballCalendarPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12">{/* day */}</TableHead>
+                <TableHead className="w-12" />
                 <TableHead>{t('season')}</TableHead>
                 <TableHead>Zeit</TableHead>
                 <TableHead>Halle</TableHead>
-                <TableHead>{t('kscwTeam')}</TableHead>
-                <TableHead>{t('opponent')}</TableHead>
-                <TableHead className="hidden sm:table-cell">{/* type */}</TableHead>
+                <TableHead>{/* content */}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="whitespace-normal font-medium">{weekday(p.date)}</TableCell>
-                  <TableCell className="whitespace-normal">{formatDateZurich(p.date)}</TableCell>
-                  <TableCell className="tabular-nums">{p.time}</TableCell>
-                  <TableCell className="whitespace-normal">{p.hall}</TableCell>
-                  <TableCell className="whitespace-normal">{teamName(p.kscw_team, p.kscw_team_label)}</TableCell>
-                  <TableCell className="whitespace-normal">{p.opponent ?? ''}</TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    <span
-                      className={`rounded px-2 py-0.5 text-xs ${
-                        p.game_type === 'guest'
-                          ? 'bg-purple-200 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200'
-                          : 'bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-200'
-                      }`}
-                    >
-                      {p.game_type === 'guest' ? t('type_guest') : t('type_home')}
-                    </span>
+              {rows.map((r, i) => (
+                <TableRow key={i} className={r.kind === 'closure' ? 'opacity-70' : undefined}>
+                  <TableCell className="whitespace-normal font-medium">{weekday(r.date)}</TableCell>
+                  <TableCell className="whitespace-normal">
+                    {formatDateZurich(r.date)}
+                    {r.kind === 'closure' && r.end && r.end !== r.date ? `–${formatDateZurich(r.end)}` : ''}
+                  </TableCell>
+                  <TableCell className="tabular-nums">{r.kind === 'closure' ? '' : r.time}</TableCell>
+                  <TableCell className="whitespace-normal">{r.kind === 'closure' ? (r.hall ?? '—') : r.hall}</TableCell>
+                  <TableCell className="whitespace-normal">
+                    {r.kind === 'bb' ? (
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className={`rounded px-2 py-0.5 text-xs ${
+                            r.guest
+                              ? 'bg-purple-200 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200'
+                              : 'bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-200'
+                          }`}
+                        >
+                          {r.guest ? t('type_guest') : t('type_home')}
+                        </span>
+                        {r.label}
+                      </span>
+                    ) : r.kind === 'vb' ? (
+                      <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                        {t('homeGameVb')}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {t('closedLabel')}{r.reason ? ` — ${r.reason}` : ''}
+                      </span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
