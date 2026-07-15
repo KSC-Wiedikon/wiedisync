@@ -1151,6 +1151,12 @@ async function main() {
   // so club-wide read is acceptable. Create/update/delete stay coach/TR-only.
   await setPermRead(MEMBER_POLICY, 'scheduling_blocks')
 
+  // Team links (migration 218) — club-wide READ so scheduling-calendar link warnings
+  // render for every viewer (spielplaner + members), not just admins. Not sensitive
+  // (just team↔team relationships, no PII). Create/update/delete stay Sport-Admin-only
+  // via SPORT_ADMIN_FULL_CRUD.
+  await setPermRead(MEMBER_POLICY, 'team_links')
+
   // Finance (migration 114) — members see ONLY their own invoices/dues
   // (mirrored from ClubDesk), read-only, field-scoped to the dues columns.
   // Filter walks finance_invoices.member.user → $CURRENT_USER (same shape as
@@ -1759,7 +1765,9 @@ async function main() {
     // Basketball prep (migrations 214/216) — club-wide CRUD; the Basketball prep page
     // is UI-scoped to basketball admins (full admins bypass). No opponent/token/booking
     // flow: ProBasket owns the schedule. slot_plan = games placed into KWI hall slots.
-    'basketball_hall_availability', 'basketball_slot_plan', 'basketball_team_links',
+    // team_links (migration 218, was basketball_team_links) is sport-agnostic — both the
+    // basketball prep + volleyball Terminplanung settings write it; UI-scoped per sport.
+    'basketball_hall_availability', 'basketball_slot_plan', 'team_links',
     'query_templates', 'sv_vm_check',
     'announcements',
     // Fines (migration 069) — Sport Admin full CRUD (override coach-only scope

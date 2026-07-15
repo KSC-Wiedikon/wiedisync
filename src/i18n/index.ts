@@ -21,6 +21,7 @@ import participation from './locales/en/participation'
 import notifications from './locales/en/notifications'
 import gameScheduling from './locales/en/gameScheduling'
 import basketballScheduling from './locales/en/basketballScheduling'
+import teamLinks from './locales/en/teamLinks'
 import scorerAssign from './locales/en/scorerAssign'
 import join from './locales/en/join'
 import feedback from './locales/en/feedback'
@@ -58,6 +59,7 @@ import deParticipation from './locales/de/participation'
 import deNotifications from './locales/de/notifications'
 import deGameScheduling from './locales/de/gameScheduling'
 import deBasketballScheduling from './locales/de/basketballScheduling'
+import deTeamLinks from './locales/de/teamLinks'
 import deScorerAssign from './locales/de/scorerAssign'
 import deJoin from './locales/de/join'
 import deFeedback from './locales/de/feedback'
@@ -94,6 +96,7 @@ import frParticipation from './locales/fr/participation'
 import frNotifications from './locales/fr/notifications'
 import frGameScheduling from './locales/fr/gameScheduling'
 import frBasketballScheduling from './locales/fr/basketballScheduling'
+import frTeamLinks from './locales/fr/teamLinks'
 import frScorerAssign from './locales/fr/scorerAssign'
 import frFeedback from './locales/fr/feedback'
 import frTasks from './locales/fr/tasks'
@@ -128,6 +131,7 @@ import itParticipation from './locales/it/participation'
 import itNotifications from './locales/it/notifications'
 import itGameScheduling from './locales/it/gameScheduling'
 import itBasketballScheduling from './locales/it/basketballScheduling'
+import itTeamLinks from './locales/it/teamLinks'
 import itScorerAssign from './locales/it/scorerAssign'
 import itFeedback from './locales/it/feedback'
 import itTasks from './locales/it/tasks'
@@ -162,6 +166,7 @@ import gswParticipation from './locales/gsw/participation'
 import gswNotifications from './locales/gsw/notifications'
 import gswGameScheduling from './locales/gsw/gameScheduling'
 import gswBasketballScheduling from './locales/gsw/basketballScheduling'
+import gswTeamLinks from './locales/gsw/teamLinks'
 import gswScorerAssign from './locales/gsw/scorerAssign'
 import gswFeedback from './locales/gsw/feedback'
 import gswTasks from './locales/gsw/tasks'
@@ -258,6 +263,7 @@ i18n.use(initReactI18next).init({
       notifications,
       gameScheduling,
       basketballScheduling,
+      teamLinks,
       scorerAssign,
       join,
       feedback,
@@ -297,6 +303,7 @@ i18n.use(initReactI18next).init({
       notifications: deNotifications,
       gameScheduling: deGameScheduling,
       basketballScheduling: deBasketballScheduling,
+      teamLinks: deTeamLinks,
       scorerAssign: deScorerAssign,
       join: deJoin,
       feedback: deFeedback,
@@ -334,6 +341,7 @@ i18n.use(initReactI18next).init({
       notifications: frNotifications,
       gameScheduling: frGameScheduling,
       basketballScheduling: frBasketballScheduling,
+      teamLinks: frTeamLinks,
       scorerAssign: frScorerAssign,
       feedback: frFeedback,
       tasks: frTasks,
@@ -369,6 +377,7 @@ i18n.use(initReactI18next).init({
       notifications: itNotifications,
       gameScheduling: itGameScheduling,
       basketballScheduling: itBasketballScheduling,
+      teamLinks: itTeamLinks,
       scorerAssign: itScorerAssign,
       feedback: itFeedback,
       tasks: itTasks,
@@ -404,6 +413,7 @@ i18n.use(initReactI18next).init({
       notifications: gswNotifications,
       gameScheduling: gswGameScheduling,
       basketballScheduling: gswBasketballScheduling,
+      teamLinks: gswTeamLinks,
       scorerAssign: gswScorerAssign,
       join: gswJoin,
       feedback: gswFeedback,

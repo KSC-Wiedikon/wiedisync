@@ -37,6 +37,7 @@ import LoginPage from './modules/auth/LoginPage'
 import SignUpPage from './modules/auth/SignUpPage'
 import PendingPage from './modules/auth/PendingPage'
 import ProfilePage from './modules/auth/ProfilePage'
+import ProfileEditPage from './modules/auth/ProfileEditPage'
 import EventsPage from './modules/events/EventsPage'
 import FormsPage from './modules/forms/FormsPage'
 import FormBuilderPage from './modules/forms/FormBuilderPage'
@@ -182,6 +183,7 @@ export default function App() {
             <Route path="changelog" element={<ChangelogPage />} />
             <Route path="guide" element={<AuthRoute><Suspense fallback={null}><GuidePage /></Suspense></AuthRoute>} />
             <Route path="profile" element={<AuthRoute><ProfilePage /></AuthRoute>} />
+            <Route path="profile/edit" element={<AuthRoute><ProfileEditPage /></AuthRoute>} />
             <Route path="inbox" element={<AuthRoute><Suspense fallback={null}><InboxPage /></Suspense></AuthRoute>} />
             <Route path="inbox/:conversationId" element={<AuthRoute><Suspense fallback={null}><ConversationPage /></Suspense></AuthRoute>} />
             <Route path="options/messaging" element={<AuthRoute><Suspense fallback={null}><MessagingSettingsPage /></Suspense></AuthRoute>} />

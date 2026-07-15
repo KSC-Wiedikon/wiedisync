@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createRecord, deleteRecord, updateRecord, kscwApi } from '../../../lib/api'
 import { useCollection } from '../../../lib/query'
 import { useAuth } from '../../../hooks/useAuth'
+import { useTeamLinks } from './useTeamLinks'
 import type {
   GameSchedulingSeason,
   Team,
@@ -11,7 +12,6 @@ import type {
   GameSchedulingSlot,
   BasketballSlotPlan,
   BasketballHallAvailability,
-  BasketballTeamLink,
 } from '../../../types'
 import {
   probasketConfigForSeason,
@@ -102,12 +102,11 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
     all: true,
     enabled: hasSeason,
   })
-  const linksQ = useCollection<BasketballTeamLink>('basketball_team_links', {
-    filter: { season: { _eq: seasonId } },
-    fields: ['*'],
-    all: true,
-    enabled: hasSeason,
-  })
+  // Coach/player-sharing links (sport-agnostic collection, migration 218).
+  const { links, partnersByTeam, addLink, updateLink, removeLink } = useTeamLinks(
+    hasSeason ? seasonId : null,
+    'basketball',
+  )
   const hallsQ = useCollection<Hall>('halls', { fields: ['id', 'name'], sort: ['name'], all: true, staleTime: 120_000 })
   const closuresQ = useCollection<HallClosure>('hall_closures', {
     fields: ['hall', 'start_date', 'end_date', 'reason', 'source'],
@@ -247,35 +246,12 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
     [dateInfoByDate, vbHallsByDate, placements],
   )
 
-  const links = useMemo(() => linksQ.data ?? [], [linksQ.data])
-
   // date → day-of-week, so highlightFor can look up a date's slot ordering for adjacency.
   const dowByDate = useMemo(() => {
     const m = new Map<string, number>()
     for (const cd of candidateDates) m.set(cd.date, cd.dow)
     return m
   }, [candidateDates])
-
-  // teamId → { same, diff, adjacent } partner team ids (both link directions).
-  const partnersByTeam = useMemo(() => {
-    const m = new Map<string, { same: Set<string>; diff: Set<string>; adjacent: Set<string> }>()
-    const ensure = (id: string) => {
-      let e = m.get(id)
-      if (!e) {
-        e = { same: new Set(), diff: new Set(), adjacent: new Set() }
-        m.set(id, e)
-      }
-      return e
-    }
-    for (const l of links) {
-      const a = String(l.team_a)
-      const b = String(l.team_b)
-      const bucket = l.link_type === 'same' ? 'same' : l.link_type === 'adjacent' ? 'adjacent' : 'diff'
-      ensure(a)[bucket].add(b)
-      ensure(b)[bucket].add(a)
-    }
-    return m
-  }, [links])
 
   // (date|time) → team ids placed there (any hall).
   const teamsByDateTime = useMemo(() => {
@@ -324,25 +300,6 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
       return null
     },
     [partnersByTeam, teamsByDateTime, dowByDate],
-  )
-
-  const refetchLinks = linksQ.refetch
-  const addLink = useCallback(
-    async (teamA: string | number, teamB: string | number, linkType: 'same' | 'diff' | 'adjacent') => {
-      if (seasonId == null || String(teamA) === String(teamB)) return
-      await createRecord('basketball_team_links', {
-        season: seasonId, team_a: teamA, team_b: teamB, link_type: linkType, created_by: user?.id ?? null,
-      })
-      await refetchLinks()
-    },
-    [seasonId, user?.id, refetchLinks],
-  )
-  const removeLink = useCallback(
-    async (id: string | number) => {
-      await deleteRecord('basketball_team_links', id)
-      await refetchLinks()
-    },
-    [refetchLinks],
   )
 
   const isLoading =
@@ -420,6 +377,7 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
     links,
     highlightFor,
     addLink,
+    updateLink,
     removeLink,
     isLoading,
     error,

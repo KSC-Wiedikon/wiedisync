@@ -14,7 +14,6 @@ import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions, getPositionI18nKey } from '../../utils/memberPositions'
 import { memberName, memberFirstName, flattenMemberIds } from '../../utils/relations'
 import { formatDate, getCurrentSeason, toISODate } from '../../utils/dateHelpers'
-import ProfileEditModal from './ProfileEditModal'
 import DeleteAccountModal from './DeleteAccountModal'
 import TeamRequestModal from './TeamRequestModal'
 import Modal from '@/components/Modal'
@@ -211,7 +210,6 @@ export default function ProfilePage() {
   const { user, coachTeamIds, primarySport, refreshTeamContext } = useAuth()
   const { t } = useTranslation('auth')
   const { t: tt } = useTranslation('teams')
-  const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [teamRequestOpen, setTeamRequestOpen] = useState(false)
   const [leavingTeam, setLeavingTeam] = useState<{ id: string; name: string } | null>(null)
@@ -357,10 +355,10 @@ export default function ProfilePage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setEditOpen(true)}
+            asChild
             className="shrink-0"
           >
-            {t('editProfile')}
+            <Link to="/profile/edit">{t('editProfile')}</Link>
           </Button>
         </div>
 
@@ -660,10 +658,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <ProfileEditModal
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-      />
       <TeamRequestModal
         open={teamRequestOpen}
         onClose={() => setTeamRequestOpen(false)}

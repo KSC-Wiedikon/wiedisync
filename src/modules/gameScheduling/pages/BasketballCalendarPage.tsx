@@ -1,45 +1,86 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { House } from 'lucide-react'
+import CalendarGrid from '../../../components/CalendarGrid'
+import Modal from '../../../components/Modal'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
+import { toDateKey, getSeasonYear } from '../../../utils/dateUtils'
 import { formatDateZurich } from '../../../utils/dateHelpers'
 import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
 import { useBasketballPlan } from '../hooks/useBasketballPlan'
 import { parseYmd } from '../utils/probasketSeason'
 
-const WEEKDAY_LOCALE: Record<string, string> = { en: 'en-GB', de: 'de-CH', fr: 'fr-CH', it: 'it-CH', gsw: 'de-CH' }
-
-type CalRow =
-  | { kind: 'bb'; date: string; time: string; hall: string; label: string; guest: boolean }
-  | { kind: 'vb'; date: string; time: string; hall: string }
-  | { kind: 'closure'; date: string; end: string; hall: string | null; reason: string }
+// One thing shown on a calendar day: a basketball game (home/guest) or a
+// cross-sport volleyball home game (venue coordination). Hall closures render as
+// the grid's red day background, not as items.
+type CalItem =
+  | { id: string; kind: 'bb'; time: string; hall: string; label: string; guest: boolean }
+  | { id: string; kind: 'vb'; time: string; hall: string }
 
 export default function BasketballCalendarPage() {
-  const { t, i18n } = useTranslation('basketballScheduling')
+  const { t } = useTranslation('basketballScheduling')
   const { season, allSeasons, setSeason } = useGameSchedulingSeason()
   const { teams, placements, vbGames, closureEntries } = useBasketballPlan(season)
 
-  const teamName = (id: string | number | null | undefined, label?: string | null) =>
-    (id != null ? teams.find((tm) => String(tm.id) === String(id))?.name : label) ?? label ?? ''
+  const teamName = useCallback(
+    (id: string | number | null | undefined, label?: string | null) =>
+      (id != null ? teams.find((tm) => String(tm.id) === String(id))?.name : label) ?? label ?? '',
+    [teams],
+  )
 
-  const rows = useMemo<CalRow[]>(() => {
-    const out: CalRow[] = []
+  // Season start year drives the initial month + the Sep→Mar navigation clamp.
+  const startYear = useMemo(() => {
+    const y = parseInt(String(season?.season ?? '').slice(0, 4), 10)
+    return Number.isFinite(y) ? y : getSeasonYear(new Date())
+  }, [season?.season])
+  const firstMonth = useMemo(() => new Date(startYear, 8, 1), [startYear]) // September
+  const lastMonth = useMemo(() => new Date(startYear + 1, 2, 1), [startYear]) // March
+  const [month, setMonth] = useState(() => new Date(startYear, 8, 1))
+  const goMonth = (d: Date) => setMonth(d < firstMonth ? firstMonth : d > lastMonth ? lastMonth : d)
+
+  // Games (bb + vb) keyed by the same date key CalendarGrid computes per cell.
+  const itemsByDate = useMemo(() => {
+    const m = new Map<string, CalItem[]>()
+    const push = (dateStr: string, item: CalItem) => {
+      const d = parseYmd(dateStr)
+      if (!d) return
+      const k = toDateKey(d)
+      const arr = m.get(k) ?? []
+      arr.push(item)
+      m.set(k, arr)
+    }
     for (const p of placements.values()) {
-      out.push({
-        kind: 'bb',
-        date: p.date,
-        time: p.time,
-        hall: p.hall,
+      push(p.date, {
+        id: `bb-${p.id}`, kind: 'bb', time: p.time, hall: p.hall,
         label: `${teamName(p.kscw_team, p.kscw_team_label)} vs ${p.opponent ?? '?'}`,
         guest: p.game_type === 'guest',
       })
     }
-    for (const g of vbGames) out.push({ kind: 'vb', date: g.date, time: g.time, hall: g.hall })
-    for (const c of closureEntries) out.push({ kind: 'closure', date: c.start, end: c.end, hall: c.hall, reason: c.reason })
-    return out.sort((a, b) => (a.date + (('time' in a && a.time) || '')).localeCompare(b.date + (('time' in b && b.time) || '')))
-  }, [placements, vbGames, closureEntries, teams])
+    for (const g of vbGames) push(g.date, { id: `vb-${g.date}-${g.time}-${g.hall}`, kind: 'vb', time: g.time, hall: g.hall })
+    // Sort each day's items by time.
+    for (const arr of m.values()) arr.sort((a, b) => a.time.localeCompare(b.time))
+    return m
+  }, [placements, vbGames, teamName])
 
-  const weekday = (ymd: string) =>
-    new Intl.DateTimeFormat(WEEKDAY_LOCALE[i18n.language] ?? 'de-CH', { weekday: 'short' }).format(parseYmd(ymd))
+  // Hall closures → red day background + a per-day reason, expanding each range.
+  const { closedDates, closureReasons } = useMemo(() => {
+    const dates = new Set<string>()
+    const reasons = new Map<string, string>()
+    for (const c of closureEntries) {
+      const start = parseYmd(c.start)
+      const end = parseYmd(c.end)
+      if (!start || !end) continue
+      for (let d = new Date(start), guard = 0; d <= end && guard < 400; d.setDate(d.getDate() + 1), guard++) {
+        const k = toDateKey(d)
+        dates.add(k)
+        const label = [c.hall, c.reason].filter(Boolean).join(' — ')
+        if (label && !reasons.has(k)) reasons.set(k, label)
+      }
+    }
+    return { closedDates: dates, closureReasons: reasons }
+  }, [closureEntries])
+
+  const [dayDetail, setDayDetail] = useState<{ date: Date; items: CalItem[] } | null>(null)
   const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
 
   return (
@@ -60,51 +101,101 @@ export default function BasketballCalendarPage() {
         </label>
       </header>
 
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('noGames')}</p>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-brand-500" />{t('type_home')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-purple-500" />{t('type_guest')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-amber-400" />{t('homeGameVb')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-red-200 dark:bg-red-900" />{t('closedLabel')}
+        </span>
+      </div>
+
+      <div className="rounded-lg border border-border bg-white p-4 dark:bg-gray-800">
+        <CalendarGrid<CalItem>
+          month={month}
+          onMonthChange={goMonth}
+          minMonth={firstMonth}
+          maxMonth={lastMonth}
+          itemsByDate={itemsByDate}
+          closedDates={closedDates}
+          closedLabel={t('closedLabel')}
+          closureReasons={closureReasons}
+          onDayClick={(date, items) => {
+            if (items.length === 0) return
+            setDayDetail({ date, items })
+          }}
+          renderDayContent={(_date, items) => (
+            <div className="flex flex-col gap-0.5">
+              {items.slice(0, 3).map((it) => (
+                <span
+                  key={it.id}
+                  title={it.kind === 'bb' ? `${it.time} · ${it.hall} · ${it.label}` : `${it.time} · ${it.hall} · ${t('homeGameVb')}`}
+                  className={`flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] leading-tight ${
+                    it.kind === 'vb'
+                      ? 'bg-amber-200 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200'
+                      : it.guest
+                        ? 'bg-purple-500 text-white'
+                        : 'bg-brand-500 text-white'
+                  }`}
+                >
+                  {it.time && <span className="shrink-0 tabular-nums">{it.time}</span>}
+                  {it.kind === 'bb' && !it.guest && <House className="h-2.5 w-2.5 shrink-0" aria-hidden />}
+                  <span className="truncate">{it.kind === 'bb' ? it.label : t('homeGameVb')}</span>
+                </span>
+              ))}
+              {items.length > 3 && (
+                <span className="text-[10px] text-gray-500 dark:text-gray-400">+{items.length - 3}</span>
+              )}
+            </div>
+          )}
+        />
+      </div>
+
+      {/* Day-detail modal */}
+      <Modal
+        open={!!dayDetail}
+        onClose={() => setDayDetail(null)}
+        title={dayDetail ? formatDateZurich(toDateKey(dayDetail.date)) : ''}
+        size="lg"
+      >
+        {dayDetail && (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12" />
-                <TableHead>{t('season')}</TableHead>
                 <TableHead>Zeit</TableHead>
                 <TableHead>Halle</TableHead>
-                <TableHead>{/* content */}</TableHead>
+                <TableHead>{/* matchup / type */}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r, i) => (
-                <TableRow key={i} className={r.kind === 'closure' ? 'opacity-70' : undefined}>
-                  <TableCell className="whitespace-normal font-medium">{weekday(r.date)}</TableCell>
+              {dayDetail.items.map((it) => (
+                <TableRow key={it.id}>
+                  <TableCell className="whitespace-nowrap tabular-nums">{it.time || '—'}</TableCell>
+                  <TableCell className="whitespace-normal">{it.hall}</TableCell>
                   <TableCell className="whitespace-normal">
-                    {formatDateZurich(r.date)}
-                    {r.kind === 'closure' && r.end && r.end !== r.date ? `–${formatDateZurich(r.end)}` : ''}
-                  </TableCell>
-                  <TableCell className="tabular-nums">{r.kind === 'closure' ? '' : r.time}</TableCell>
-                  <TableCell className="whitespace-normal">{r.kind === 'closure' ? (r.hall ?? '—') : r.hall}</TableCell>
-                  <TableCell className="whitespace-normal">
-                    {r.kind === 'bb' ? (
+                    {it.kind === 'bb' ? (
                       <span className="inline-flex items-center gap-2">
                         <span
                           className={`rounded px-2 py-0.5 text-xs ${
-                            r.guest
+                            it.guest
                               ? 'bg-purple-200 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200'
                               : 'bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-200'
                           }`}
                         >
-                          {r.guest ? t('type_guest') : t('type_home')}
+                          {it.guest ? t('type_guest') : t('type_home')}
                         </span>
-                        {r.label}
-                      </span>
-                    ) : r.kind === 'vb' ? (
-                      <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                        {t('homeGameVb')}
+                        {it.label}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">
-                        {t('closedLabel')}{r.reason ? ` — ${r.reason}` : ''}
+                      <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                        {t('homeGameVb')}
                       </span>
                     )}
                   </TableCell>
@@ -112,8 +203,8 @@ export default function BasketballCalendarPage() {
               ))}
             </TableBody>
           </Table>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   )
 }
