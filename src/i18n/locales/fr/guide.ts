@@ -335,5 +335,73 @@ export default {
         },
       },
     },
+    inbox: {
+      title: 'Messages',
+      description: 'Discutez avec les membres et les équipes',
+      steps: {
+        new: {
+          title: 'Démarrer une conversation',
+          body: 'Touchez Nouveau message pour écrire à un membre ou lancer une discussion de groupe. Votre premier message à une nouvelle personne arrive comme une demande qu\'elle accepte avant que la conversation ne s\'ouvre.',
+        },
+        conversations: {
+          title: 'Vos conversations',
+          body: 'Messages directs, discussions de groupe et demandes en attente sont regroupés ici — touchez-en un pour l\'ouvrir. Les discussions d\'équipe restent sur la page de chaque équipe.',
+        },
+      },
+    },
+    news: {
+      title: 'Actualités',
+      description: 'Annonces du club et vos alertes',
+      steps: {
+        feed: {
+          title: 'Fil d\'actualités',
+          body: 'Les annonces du club et vos notifications passées, regroupées, les plus récentes en premier. Les annonces épinglées restent en haut — touchez une ligne pour lire l\'annonce complète ou accéder à son sujet.',
+        },
+        loadMore: {
+          title: 'Éléments plus anciens',
+          body: 'Seuls les éléments les plus récents se chargent au début. Touchez Charger plus pour remonter plus loin dans les archives.',
+        },
+      },
+    },
+    fines: {
+      title: 'Amendes',
+      description: 'Vos amendes du club et comment les régler',
+      steps: {
+        list: {
+          title: 'Vos amendes',
+          body: 'Chaque amende qui vous est infligée, avec sa catégorie, son montant et son statut. Les entraîneurs et le comité voient aussi ici les amendes de leurs équipes.',
+        },
+        outstanding: {
+          title: 'Ce que vous devez',
+          body: 'Votre total ouvert s\'affiche en haut. Réglez-le auprès de la caisse de l\'équipe ou du trésorier — il marque l\'amende comme payée ici dès réception.',
+        },
+        filter: {
+          title: 'Filtrer',
+          body: 'Filtrez la liste par statut — ouverte, payée ou annulée.',
+        },
+      },
+    },
+    calendar: {
+      title: 'Calendrier',
+      description: 'Tous les matchs, entraînements et événements en une vue',
+      steps: {
+        view: {
+          title: 'Changer de vue',
+          body: 'Basculez entre le plan de salle, une grille mensuelle et — si vous jouez — votre calendrier personnel des matchs proposés et confirmés.',
+        },
+        filter: {
+          title: 'Filtres',
+          body: 'Choisissez les types d\'entrées à afficher — matchs, entraînements, événements, fermetures, absences et plus — et quelles équipes.',
+        },
+        ical: {
+          title: 'S\'abonner ou exporter',
+          body: 'Abonnez-vous depuis l\'app calendrier de votre téléphone ou ordinateur pour tout garder synchronisé, ou exportez la plage actuelle en fichier .ics.',
+        },
+        grid: {
+          title: 'Parcourir les entrées',
+          body: 'Les couleurs et les icônes indiquent le type d\'entrée. Touchez une entrée pour tous les détails.',
+        },
+      },
+    },
   },
 } as const

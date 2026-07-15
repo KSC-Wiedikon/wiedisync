@@ -200,6 +200,7 @@ export default function CalendarPage() {
           {needsData && (
             <>
               <button
+                data-tour="calendar-filter"
                 onClick={() => setFilterOpen(true)}
                 className="relative inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
               >
@@ -212,6 +213,7 @@ export default function CalendarPage() {
                 )}
               </button>
               <button
+                data-tour="calendar-ical"
                 onClick={() => setIcalMode('subscribe')}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                 title={t('subscribeICal')}
@@ -233,15 +235,17 @@ export default function CalendarPage() {
               </button>
             </>
           )}
-          <ViewToggle
-            options={[
-              { value: 'hallenplan', label: t('viewHall') },
-              { value: 'month', label: t('viewMonth') },
-              ...(scheduleTeams.length > 0 ? [{ value: 'schedule', label: t('viewSchedule') }] : []),
-            ]}
-            value={viewMode}
-            onChange={handleViewChange}
-          />
+          <div data-tour="calendar-view">
+            <ViewToggle
+              options={[
+                { value: 'hallenplan', label: t('viewHall') },
+                { value: 'month', label: t('viewMonth') },
+                ...(scheduleTeams.length > 0 ? [{ value: 'schedule', label: t('viewSchedule') }] : []),
+              ]}
+              value={viewMode}
+              onChange={handleViewChange}
+            />
+          </div>
         </div>
       </div>
 
@@ -273,7 +277,7 @@ export default function CalendarPage() {
       {needsData && showSpinner && null}
 
       {needsData && !showSpinner && (
-        <div className="flex flex-1 flex-col">
+        <div data-tour="calendar-grid" className="flex flex-1 flex-col">
           {/* Month view */}
           {viewMode === 'month' && (
             isMobile ? (

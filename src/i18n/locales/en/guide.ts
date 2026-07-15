@@ -335,5 +335,73 @@ export default {
         },
       },
     },
+    inbox: {
+      title: 'Messages',
+      description: 'Chat with members and teams',
+      steps: {
+        new: {
+          title: 'Start a conversation',
+          body: 'Tap New message to write to another member or start a group chat. Your first message to someone new arrives as a request they accept before the chat opens.',
+        },
+        conversations: {
+          title: 'Your conversations',
+          body: 'Direct messages, group chats, and pending requests are grouped here — tap one to open it. Team-wide chats stay on each team page.',
+        },
+      },
+    },
+    news: {
+      title: 'News',
+      description: 'Club announcements and your alerts',
+      steps: {
+        feed: {
+          title: 'News feed',
+          body: 'Club announcements and your past notifications, merged newest first. Pinned announcements stay on top — tap any row to read the full story or jump to what it is about.',
+        },
+        loadMore: {
+          title: 'Older items',
+          body: 'Only the latest items load at first. Tap Load more to reach further back through the archive.',
+        },
+      },
+    },
+    fines: {
+      title: 'Fines',
+      description: 'Your club fines and how to settle them',
+      steps: {
+        list: {
+          title: 'Your fines',
+          body: 'Every fine issued to you with its category, amount, and status. Coaches and the board also see the fines of their teams here.',
+        },
+        outstanding: {
+          title: 'What you owe',
+          body: 'Your open total is shown at the top. Settle it with the team cash box or the treasurer — they mark it paid here once received.',
+        },
+        filter: {
+          title: 'Filter',
+          body: 'Narrow the list by status — open, paid, or waived.',
+        },
+      },
+    },
+    calendar: {
+      title: 'Calendar',
+      description: 'All games, trainings, and events in one view',
+      steps: {
+        view: {
+          title: 'Switch the view',
+          body: 'Toggle between the hall plan, a month grid, and — if you play — your personal schedule of proposed and confirmed games.',
+        },
+        filter: {
+          title: 'Filters',
+          body: 'Choose which entry types to show — games, trainings, events, closures, absences, and more — and which teams.',
+        },
+        ical: {
+          title: 'Subscribe or export',
+          body: 'Subscribe from the calendar app on your phone or computer to keep everything in sync, or export the current range as an .ics file.',
+        },
+        grid: {
+          title: 'Browse entries',
+          body: 'Colors and icons encode each entry type. Tap any entry for the full details.',
+        },
+      },
+    },
   },
 } as const

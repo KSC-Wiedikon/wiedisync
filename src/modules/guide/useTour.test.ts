@@ -42,9 +42,9 @@ describe('Tour state persistence', () => {
 })
 
 describe('Tour registry', () => {
-  it('exports all 15 tours', async () => {
+  it('exports all 19 tours', async () => {
     const { tourRegistry } = await import('./tours')
-    expect(tourRegistry).toHaveLength(15)
+    expect(tourRegistry).toHaveLength(19)
   })
 
   it('every step target has a matching data-tour attribute in src/', async () => {
