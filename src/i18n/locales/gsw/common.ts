@@ -8,6 +8,7 @@ export default {
   create: 'Erstelle',
   remove: 'Ewägneh',
   add: 'Dezuetuä',
+  back: 'Zrugg',
   confirm: 'Bestätige',
   confirmTitle: 'Bitte bestätige',
   linkUrl: 'Link-URL (https://… oder /Pfad)',

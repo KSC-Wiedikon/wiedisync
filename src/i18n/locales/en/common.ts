@@ -8,6 +8,7 @@ export default {
   create: 'Create',
   remove: 'Remove',
   add: 'Add',
+  back: 'Back',
   confirm: 'Confirm',
   confirmTitle: 'Please confirm',
   linkUrl: 'Link URL (https://… or /path)',

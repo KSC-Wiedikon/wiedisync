@@ -8,6 +8,7 @@ export default {
   create: 'Erstellen',
   remove: 'Entfernen',
   add: 'Hinzufügen',
+  back: 'Zurück',
   confirm: 'Bestätigen',
   confirmTitle: 'Bitte bestätigen',
   linkUrl: 'Link-URL (https://… oder /Pfad)',

@@ -8,6 +8,7 @@ export default {
   create: 'Créer',
   remove: 'Retirer',
   add: 'Ajouter',
+  back: 'Retour',
   confirm: 'Confirmer',
   confirmTitle: 'Veuillez confirmer',
   linkUrl: 'URL du lien (https://… ou /chemin)',
