@@ -117,7 +117,7 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
   })
   const vbSlotsQ = useCollection<GameSchedulingSlot>('game_scheduling_slots', {
     filter: { season: { _eq: seasonId }, status: { _eq: 'booked' } },
-    fields: ['id', 'date', 'status', 'hall'],
+    fields: ['id', 'date', 'status', 'hall', 'start_time'],
     all: true,
     enabled: hasSeason,
   })
@@ -182,6 +182,32 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
     }
     return m
   }, [vbSlotsQ.data, hallsQ.data])
+
+  const hallNameMap = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const h of hallsQ.data ?? []) m.set(String(h.id), h.name)
+    return m
+  }, [hallsQ.data])
+
+  // Volleyball home games (booked slots) + hall closures — shown on the basketball
+  // calendar for cross-sport hall coordination.
+  const vbGames = useMemo(
+    () =>
+      (vbSlotsQ.data ?? [])
+        .map((s) => ({ date: s.date, time: String(s.start_time ?? '').slice(0, 5), hall: hallNameMap.get(String(s.hall)) ?? '' }))
+        .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)),
+    [vbSlotsQ.data, hallNameMap],
+  )
+  const closureEntries = useMemo(
+    () =>
+      (closuresQ.data ?? []).map((c) => ({
+        start: c.start_date,
+        end: c.end_date,
+        hall: c.hall ? hallNameMap.get(String(c.hall)) ?? null : null,
+        reason: c.reason ?? '',
+      })),
+    [closuresQ.data, hallNameMap],
+  )
 
   const placements = useMemo(() => {
     const m = new Map<string, BasketballSlotPlan>()
@@ -361,6 +387,8 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
     availability,
     availKey,
     slotView,
+    vbGames,
+    closureEntries,
     links,
     highlightFor,
     addLink,

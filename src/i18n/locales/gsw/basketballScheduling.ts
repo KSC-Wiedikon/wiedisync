@@ -8,6 +8,7 @@ export default {
   basketball: 'Basketball',
   season: 'Saison',
   team: 'Team',
+  highlightTeam: 'Highlight-Team',
   noSeason: 'No kei Saison — mach zerscht eini i de Volleyball-Iistellige.',
   noConfig: 'Für d Saison {{season}} isch no kei ProBasket-Kalender hinterleit.',
   provisional: 'Provisorisch — ProBasket cha die Date bis zur Spielplansitzig no ändere.',
@@ -59,4 +60,6 @@ export default {
   calendarTitle: 'Basketball-Kalender',
   noGames: 'No kei Spiel gsetzt.',
   blockedDates: 'Gsperrti Date',
+  homeGameVb: 'Heimspiel (VB)',
+  closedLabel: 'Halle zue',
 }

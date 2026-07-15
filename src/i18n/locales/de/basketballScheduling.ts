@@ -8,6 +8,7 @@ export default {
   basketball: 'Basketball',
   season: 'Saison',
   team: 'Team',
+  highlightTeam: 'Highlight-Team',
   noSeason: 'Noch keine Saison — erstellt zuerst eine in den Volleyball-Einstellungen.',
   noConfig: 'Für die Saison {{season}} ist noch kein ProBasket-Kalender hinterlegt.',
   provisional: 'Provisorisch — ProBasket kann diese Daten bis zur Spielplansitzung noch ändern.',
@@ -59,4 +60,6 @@ export default {
   calendarTitle: 'Basketball-Kalender',
   noGames: 'Noch keine Spiele gesetzt.',
   blockedDates: 'Gesperrte Daten',
+  homeGameVb: 'Heimspiel (VB)',
+  closedLabel: 'Halle geschlossen',
 }

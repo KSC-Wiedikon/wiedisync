@@ -14,8 +14,11 @@ import type { BasketballSlotPlan, Team } from '../../../types'
 // qualification), by teams.bb_source_id: Lions D1, Herren 1, DU12, HU12, HU16.
 const AUTOMATIC_BB_SOURCE_IDS = ['4445', '1348', '5104', '5791', '5498']
 
-function weekday(ymd: string): string {
-  return new Intl.DateTimeFormat('de-CH', { weekday: 'short' }).format(parseYmd(ymd))
+// Weekday abbreviation follows the UI language (Sun/Sa/So/…); the full date stays
+// Swiss dd.mm.yyyy via formatDateZurich.
+const WEEKDAY_LOCALE: Record<string, string> = { en: 'en-GB', de: 'de-CH', fr: 'fr-CH', it: 'it-CH', gsw: 'de-CH' }
+function weekday(ymd: string, lang: string): string {
+  return new Intl.DateTimeFormat(WEEKDAY_LOCALE[lang] ?? 'de-CH', { weekday: 'short' }).format(parseYmd(ymd))
 }
 
 interface ModalSlot {
@@ -28,7 +31,7 @@ interface ModalSlot {
 }
 
 export default function BasketballPrepPage() {
-  const { t } = useTranslation('basketballScheduling')
+  const { t, i18n } = useTranslation('basketballScheduling')
   const { season, allSeasons, isLoading: seasonLoading, setSeason } = useGameSchedulingSeason()
   const {
     config, candidateDates, teams, dateInfoByDate, vbHallsByDate,
@@ -108,7 +111,7 @@ export default function BasketballPrepPage() {
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-muted-foreground">{t('team')}</span>
+          <span className="font-medium text-muted-foreground">{t('highlightTeam')}</span>
           <select className={selectClass} value={String(teamId)} onChange={(e) => setPicked(e.target.value)}>
             {teams.length === 0 && <option value="">—</option>}
             {teams.map((tm) => (
@@ -153,7 +156,7 @@ export default function BasketballPrepPage() {
             if (info?.fullyBlocked) {
               return (
                 <div key={cd.date} className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm opacity-70">
-                  <span className="font-medium">{weekday(cd.date)} {formatDateZurich(cd.date)}</span>
+                  <span className="font-medium">{weekday(cd.date, i18n.language)} {formatDateZurich(cd.date)}</span>
                   <span className="rounded px-2 py-0.5 text-xs bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                     {t('statusUnavailable')}{info.blackout ? ` — ${info.blackout}` : ''}
                   </span>
@@ -163,11 +166,15 @@ export default function BasketballPrepPage() {
             return (
               <div key={cd.date} className="rounded-lg border border-border">
                 <div className="border-b border-border px-3 py-2 text-sm font-semibold">
-                  {weekday(cd.date)} {formatDateZurich(cd.date)}
+                  {weekday(cd.date, i18n.language)} {formatDateZurich(cd.date)}
                 </div>
                 <div className="divide-y divide-border">
                   {times.map((time) => {
                     const { cells, canCombineAB } = slotView(cd.date, cd.dow, time)
+                    // Only show placeable (free) or placed (game) halls — a hall taken by
+                    // volleyball or closed is omitted, not shown as a dead cell.
+                    const visible = cells.filter((c) => c.status === 'free' || c.status === 'game')
+                    if (visible.length === 0) return null
                     const hl = highlightFor(teamId, cd.date, time)
                     const hlRing =
                       hl === 'suggest'
@@ -176,31 +183,15 @@ export default function BasketballPrepPage() {
                           ? ' ring-2 ring-amber-500'
                           : ''
                     return (
-                      <div key={time} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                        <span className="w-14 shrink-0 text-sm font-medium tabular-nums">
+                      <div key={time} className="flex items-stretch gap-2 px-3 py-2">
+                        <span className="flex w-14 shrink-0 items-center text-sm font-medium tabular-nums">
                           {time}
                           {hl === 'suggest' && <span className="ml-1 text-emerald-600" title={t('suggestSameTime')}>★</span>}
                           {hl === 'conflict' && <span className="ml-1 text-amber-600" title={t('conflictTime')}>⚠</span>}
                         </span>
-                        <div className="flex flex-wrap gap-2">
-                          {cells.map((cell) => {
-                            const base = 'min-h-[44px] min-w-[9rem] rounded-md border px-2 py-1 text-left text-xs'
-                            if (cell.status === 'unavailable') {
-                              return (
-                                <div key={cell.hall} className={`${base} border-border bg-muted/40 text-muted-foreground`}>
-                                  <div className="font-medium">{cell.hall}</div>
-                                  <div>—</div>
-                                </div>
-                              )
-                            }
-                            if (cell.status === 'vb') {
-                              return (
-                                <div key={cell.hall} className={`${base} border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300`}>
-                                  <div className="font-medium">{cell.hall}</div>
-                                  <div>{t('statusVbUsing')}</div>
-                                </div>
-                              )
-                            }
+                        <div className="flex flex-1 flex-wrap gap-2">
+                          {visible.map((cell) => {
+                            const base = 'min-h-[44px] min-w-[9rem] flex-1 rounded-md border px-2 py-1 text-left text-xs'
                             if (cell.status === 'game' && cell.placement) {
                               const p = cell.placement
                               return (
