@@ -48,26 +48,28 @@ export default function SchedulingLayout() {
   const canBasketball = hasAdminAccessToSport('basketball')
   const canMailbox = canTerminplanung || canBasketball
 
-  // Sport split: the URL carries the sport (/admin/terminplanung/basketball → BB).
-  // Volleyball keeps its full tab set; basketball is a small prep-only section.
+  // Sport split: the URL carries the sport — /admin/terminplanung/volleyball* vs
+  // /admin/terminplanung/basketball*. Each sport has its own tab set.
   const activeSport: 'volleyball' | 'basketball' =
     pathname.startsWith('/admin/terminplanung/basketball') ? 'basketball' : 'volleyball'
 
   type NavItem = { to: string; label: string; Icon: typeof CalendarClock; end?: boolean }
   const volleyballNav: NavItem[] = [
-    ...(canTerminplanung ? [{ to: '/admin/terminplanung', label: t('dashboard'), Icon: LayoutDashboard, end: true }] : []),
+    ...(canTerminplanung ? [{ to: '/admin/terminplanung/volleyball', label: t('dashboard'), Icon: LayoutDashboard }] : []),
     ...(canMailbox ? [{ to: '/admin/terminplanung/mailbox', label: t('mailbox'), Icon: Mail }] : []),
     ...(canTerminplanung ? [{ to: '/admin/terminplanung/settings', label: t('settings'), Icon: Settings }] : []),
     ...(canPlanner ? [{ to: '/admin/spielplanung', label: t('gameplan'), Icon: ClipboardList }] : []),
   ]
   const basketballNav: NavItem[] = [
     ...(canBasketball ? [{ to: '/admin/terminplanung/basketball', label: tb('tab'), Icon: CalendarCheck, end: true }] : []),
-    ...(canMailbox ? [{ to: '/admin/terminplanung/mailbox', label: t('mailbox'), Icon: Mail }] : []),
+    ...(canBasketball ? [{ to: '/admin/terminplanung/basketball/calendar', label: tb('tabCalendar'), Icon: CalendarClock }] : []),
+    ...(canBasketball ? [{ to: '/admin/terminplanung/basketball/settings', label: tb('tabSettings'), Icon: Settings }] : []),
+    ...(canMailbox ? [{ to: '/admin/terminplanung/basketball/mailbox', label: t('mailbox'), Icon: Mail }] : []),
   ]
   const navItems: NavItem[] = activeSport === 'basketball' ? basketballNav : volleyballNav
 
-  // Sport-toggle landing targets (first reachable item of each sport).
-  const volleyballHome = volleyballNav[0]?.to ?? '/admin/terminplanung'
+  // Sport-toggle landing targets.
+  const volleyballHome = volleyballNav[0]?.to ?? '/admin/terminplanung/volleyball'
   const basketballHome = '/admin/terminplanung/basketball'
 
   // Most-specific match wins so /settings doesn't light up the exact-match dashboard tab.

@@ -29,6 +29,8 @@ import AdminSetupPage from './modules/gameScheduling/pages/AdminSetupPage'
 import AdminDashboardPage from './modules/gameScheduling/pages/AdminDashboardPage'
 import MailboxPage from './modules/gameScheduling/pages/MailboxPage'
 import BasketballPrepPage from './modules/gameScheduling/pages/BasketballPrepPage'
+import BasketballCalendarPage from './modules/gameScheduling/pages/BasketballCalendarPage'
+import BasketballSettingsPage from './modules/gameScheduling/pages/BasketballSettingsPage'
 import SpielplanungPage from './modules/spielplanung/SpielplanungPage'
 import SchedulingHome from './modules/gameScheduling/pages/SchedulingHome'
 
@@ -91,8 +93,14 @@ export default function SchedulingApp() {
                       {/* Admin scheduling — minimal shell. The dashboard is the
                           section landing page; setup lives under /settings. */}
                       <Route element={<SchedulingLayout />}>
+                        {/* Volleyball dashboard now lives under /volleyball; the bare
+                            section root + the old /dashboard both redirect to it. */}
                         <Route
                           path="admin/terminplanung"
+                          element={<Navigate to="/admin/terminplanung/volleyball" replace />}
+                        />
+                        <Route
+                          path="admin/terminplanung/volleyball"
                           element={<AdminOrSpielplanerRoute><AdminDashboardPage /></AdminOrSpielplanerRoute>}
                         />
                         <Route
@@ -104,16 +112,27 @@ export default function SchedulingApp() {
                           path="admin/terminplanung/mailbox"
                           element={<MailboxRoute><MailboxPage /></MailboxRoute>}
                         />
-                        {/* Basketball prep — availability for the ProBasket Spielplansitzung.
-                            Separate sport flow (no opponents/tokens/bookings); bb-admin gated. */}
+                        {/* Basketball section — planner / calendar / settings / mailbox (bb-admin gated). */}
                         <Route
                           path="admin/terminplanung/basketball"
                           element={<BasketballAdminRoute><BasketballPrepPage /></BasketballAdminRoute>}
                         />
-                        {/* Back-compat: the old dashboard URL now lives at the section root. */}
+                        <Route
+                          path="admin/terminplanung/basketball/calendar"
+                          element={<BasketballAdminRoute><BasketballCalendarPage /></BasketballAdminRoute>}
+                        />
+                        <Route
+                          path="admin/terminplanung/basketball/settings"
+                          element={<BasketballAdminRoute><BasketballSettingsPage /></BasketballAdminRoute>}
+                        />
+                        <Route
+                          path="admin/terminplanung/basketball/mailbox"
+                          element={<MailboxRoute><MailboxPage /></MailboxRoute>}
+                        />
+                        {/* Back-compat: the old dashboard URL now lives under /volleyball. */}
                         <Route
                           path="admin/terminplanung/dashboard"
-                          element={<Navigate to="/admin/terminplanung" replace />}
+                          element={<Navigate to="/admin/terminplanung/volleyball" replace />}
                         />
                         <Route
                           path="admin/spielplanung"

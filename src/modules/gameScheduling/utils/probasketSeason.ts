@@ -101,3 +101,43 @@ export function probasketConfigForSeason(seasonName: string | undefined | null):
   if (!seasonName) return null
   return PROBASKET_SEASONS[seasonName] ?? null
 }
+
+// ── Fixed hall slots ─────────────────────────────────────────────────────────
+// Basketball plays Fri/Sat/Sun; the tip-off times differ per weekday.
+export const FRIDAY_SLOTS = ['20:00'] as const
+export const SATURDAY_SLOTS = ['11:00', '13:30', '16:00', '18:30'] as const
+export const SUNDAY_SLOTS = ['10:00', '12:30', '15:00'] as const
+
+/** KWI home halls. Friday offers A/B; the weekend adds C. 'KWI A+B' = the combined big court. */
+export const HALL_A = 'KWI A'
+export const HALL_B = 'KWI B'
+export const HALL_C = 'KWI C'
+export const HALL_AB = 'KWI A+B'
+export const HALL_OPTIONS = [HALL_A, HALL_B, HALL_C, HALL_AB] as const
+
+export interface DaySlots {
+  times: string[]
+  /** Individual halls offered that day (A+B is chosen per game in the modal, not a column). */
+  halls: string[]
+}
+
+/** Fixed time slots + candidate halls for a candidate date's weekday (JS getDay: Sun=0..Sat=6). */
+export function slotsForDate(dow: number): DaySlots {
+  if (dow === 5) return { times: [...FRIDAY_SLOTS], halls: [HALL_A, HALL_B] } // Friday
+  if (dow === 6) return { times: [...SATURDAY_SLOTS], halls: [HALL_A, HALL_B, HALL_C] } // Saturday
+  if (dow === 0) return { times: [...SUNDAY_SLOTS], halls: [HALL_A, HALL_B, HALL_C] } // Sunday
+  return { times: [], halls: [] }
+}
+
+/** 'HH:MM' → Excel time serial (fraction of a day), for the availability export. */
+export function timeToExcelFraction(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number)
+  return (h * 60 + m) / 1440
+}
+
+/** A game's default end time = start + 2h, as 'HH:MM' (24h clamp). */
+export function slotEndTime(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number)
+  const end = (h * 60 + m + 120) % (24 * 60)
+  return `${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`
+}

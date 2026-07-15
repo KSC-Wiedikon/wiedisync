@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Navigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../../hooks/useAuth'
 import { useTeams } from '../../../hooks/useTeams'
@@ -27,12 +27,15 @@ export default function MailboxPage() {
   const canBB = hasAdminAccessToSport('basketball')
 
   const [searchParams, setSearchParams] = useSearchParams()
-  // Active sport from the URL, clamped to what the user can access.
+  const { pathname } = useLocation()
+  // Active sport: explicit ?sport wins (so the in-page toggle works); otherwise the
+  // basketball mailbox route (/…/basketball/mailbox) defaults to basketball.
   const urlSport = searchParams.get('sport')
   const sport: MailboxSport =
     urlSport === 'basketball' && canBB ? 'basketball'
       : urlSport === 'volleyball' && canVB ? 'volleyball'
-        : canVB ? 'volleyball' : 'basketball'
+        : pathname.includes('/basketball') && canBB ? 'basketball'
+          : canVB ? 'volleyball' : 'basketball'
 
   const mailbox = useMailbox(canVB || canBB, sport)
 
