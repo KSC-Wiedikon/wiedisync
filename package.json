@@ -70,6 +70,7 @@
     "scripts:deploy:dev": "rsync -avz directus/scripts/ hetzner:/tmp/kscw-scripts/ && ssh hetzner \"sudo rsync -a /tmp/kscw-scripts/ /opt/directus-kscw-dev/scripts/\"",
     "scripts:deploy:prod": "rsync -avz directus/scripts/ hetzner:/tmp/kscw-scripts/ && ssh hetzner \"sudo rsync -a /tmp/kscw-scripts/ /opt/directus-kscw/scripts/\"",
     "scripts:deploy": "npm run scripts:deploy:dev && npm run scripts:deploy:prod",
+    "clubdesk:deploy": "rsync -avz directus/scripts/clubdesk-*.sh directus/scripts/clubdesk-*.mjs directus/scripts/import-clubdesk-*.mjs hetzner:/tmp/clubdesk-deploy/ && ssh hetzner \"sudo cp -f /tmp/clubdesk-deploy/clubdesk-*.sh /tmp/clubdesk-deploy/clubdesk-*.mjs /tmp/clubdesk-deploy/import-clubdesk-*.mjs /opt/clubdesk-sync/ && sudo chmod +x /opt/clubdesk-sync/*.sh && ! sudo grep -lq supabase-db-vek42 /opt/clubdesk-sync/*.sh /opt/clubdesk-sync/*.mjs && echo '✓ clubdesk-sync scripts deployed (no stale container ref)'\"",
     "docs:graph": "node docs/code-graph/extract-graph.mjs && node docs/code-graph/gen-layer1.mjs && node docs/code-graph/gen-html.mjs"
   },
   "dependencies": {
