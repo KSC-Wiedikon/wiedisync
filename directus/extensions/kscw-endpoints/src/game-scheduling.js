@@ -2316,6 +2316,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           contact_email: opponent.contact_email || '',
           kscw_team_id: opponent.kscw_team,
           kscw_team_name: team?.name || '',
+          kscw_team_gender: team?.gender || null,
           club_id: opponent.club_id || null,
           home_game: opponent.home_game,
           away_game: opponent.away_game,

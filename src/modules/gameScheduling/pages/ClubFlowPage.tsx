@@ -23,9 +23,14 @@ export default function ClubFlowPage() {
 
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
-  // Team selector: 'all' shows every pairing; otherwise the opponent-row id to
-  // show only that team's games. A club with many teams lands here and picks one.
-  const [selectedTeam, setSelectedTeam] = useState<string>('all')
+  // Collapse-by-default accordion: opponent-row ids currently expanded (empty = all collapsed).
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const toggleExpanded = (id: string) => setExpanded((prev) => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
   // Which pairing+side is currently submitting (per-pairing confirm buttons).
   const [submitting, setSubmitting] = useState<ConfirmTarget | null>(null)
   const [savingRemark, setSavingRemark] = useState(false)
@@ -84,9 +89,14 @@ export default function ClubFlowPage() {
   }
 
   const clubName = portal.club_name || ''
-  const visiblePairings = selectedTeam === 'all'
-    ? pairings
-    : pairings.filter((p) => String(p.opponent.id) === selectedTeam)
+  // Group pairings by the KSCW team's gender (m → Herren, f → Damen, mixed, then
+  // any unknown), rendered as collapse-by-default accordion sections.
+  const GENDER_ORDER = ['m', 'f', 'mixed']
+  const genderLabel = (g: string) => t(`gender_${g}`, { defaultValue: g })
+  const genderGroups = [
+    ...GENDER_ORDER.map((g) => ({ gender: g, items: pairings.filter((p) => (p.opponent.kscw_team_gender || '') === g) })),
+    { gender: '', items: pairings.filter((p) => !GENDER_ORDER.includes(p.opponent.kscw_team_gender || '')) },
+  ].filter((grp) => grp.items.length > 0)
 
   const schedErrorMessage = (err: unknown): string => {
     const body = (err as { body?: { error?: string; teams?: string } })?.body
@@ -290,6 +300,73 @@ export default function ClubFlowPage() {
   const sideButtonClass =
     'mt-4 w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto sm:px-8'
 
+  // One accordion item per pairing — collapsed by default; the header shows the
+  // matchup + league + a to-do/confirmed badge; expanded shows the home/away cards.
+  const renderPairingItem = (pairing: ClubPairing) => {
+    const id = String(pairing.opponent.id)
+    const homeCards = buildLegCards(pairing.games, pairing.bookings, true, `${id}:`)
+    const awayCards = buildLegCards(pairing.games, pairing.bookings, false, `${id}:`)
+    const shownHome = homeCards.filter(isShown)
+    const shownAway = awayCards.filter(isShown)
+    const league = pairing.games.find((g) => g.league)?.league || ''
+    const submittingHome = submitting?.oppId === id && submitting?.side === 'home'
+    const submittingAway = submitting?.oppId === id && submitting?.side === 'away'
+    const isOpen = expanded.has(id)
+    const allCards = [...homeCards, ...awayCards]
+    const todo = allCards.filter((c) => legStatus(c) !== 'confirmed').length
+    return (
+      <div key={id} className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <button
+          type="button"
+          onClick={() => toggleExpanded(id)}
+          aria-expanded={isOpen}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/40"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <svg className={`h-4 w-4 flex-none text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
+            </svg>
+            <span className="min-w-0 text-sm sm:text-base">
+              <span className="font-semibold text-gray-900 dark:text-gray-100">KSCW {pairing.opponent.kscw_team_name} <span className="font-normal text-gray-400">·</span> {pairing.opponent.team_name}</span>
+              {league && <span className="ml-2 text-xs font-medium text-gray-400">{league}</span>}
+            </span>
+          </span>
+          {todo === 0
+            ? <Badge variant="success" size="sm">{t('legConfirmed')}</Badge>
+            : <Badge variant="warning" size="sm">{t('pairingOpenBadge', { count: todo })}</Badge>}
+        </button>
+        {isOpen && (
+          <div className="border-t border-gray-100 p-4 dark:border-gray-700">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              {homeCards.length > 0 && (
+                <div>
+                  <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('homeGamesTitle')}</h4>
+                  <div className="space-y-6">{homeCards.map((c) => renderCard(pairing, c))}</div>
+                  {shownHome.length > 0 && (
+                    <button type="button" onClick={() => openConfirmer(pairing, 'home', homeCards, awayCards)} disabled={busy} className={sideButtonClass}>
+                      {submittingHome ? t('submitting') : t('confirmHomeGames')}
+                    </button>
+                  )}
+                </div>
+              )}
+              {awayCards.length > 0 && (
+                <div>
+                  <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('awayGamesTitle')}</h4>
+                  <div className="space-y-6">{awayCards.map((c) => renderCard(pairing, c))}</div>
+                  {shownAway.length > 0 && (
+                    <button type="button" onClick={() => openConfirmer(pairing, 'away', homeCards, awayCards)} disabled={busy} className={sideButtonClass}>
+                      {submittingAway ? t('submitting') : t('confirmAwayGames')}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-900">
       <div className="mx-auto max-w-4xl">
@@ -311,41 +388,6 @@ export default function ClubFlowPage() {
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t('clubAllTeamsHint', { club: clubName })}</p>
         </div>
 
-        {/* Team selector — pick one of the club's teams to show only its games
-            (or "All"). Hidden for a single-team club (nothing to filter). */}
-        {pairings.length > 1 && (
-          <div className="mb-6">
-            <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('clubSelectTeam')}</span>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedTeam('all')}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  selectedTeam === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                }`}
-              >
-                {t('clubAllTeams')}
-              </button>
-              {pairings.map((p) => (
-                <button
-                  key={p.opponent.id}
-                  type="button"
-                  onClick={() => setSelectedTeam(String(p.opponent.id))}
-                  className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    selectedTeam === String(p.opponent.id)
-                      ? 'bg-blue-600 text-white'
-                      : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                  }`}
-                >
-                  {p.opponent.team_name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {bookingError && (
           <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">{bookingError}</div>
         )}
@@ -359,50 +401,17 @@ export default function ClubFlowPage() {
           </div>
         )}
 
-        {/* One section per pairing (KSCW team ↔ this club's team). */}
-        {visiblePairings.map((pairing) => {
-          const homeCards = buildLegCards(pairing.games, pairing.bookings, true, `${pairing.opponent.id}:`)
-          const awayCards = buildLegCards(pairing.games, pairing.bookings, false, `${pairing.opponent.id}:`)
-          const shownHome = homeCards.filter(isShown)
-          const shownAway = awayCards.filter(isShown)
-          const league = pairing.games.find((g) => g.league)?.league || ''
-          const submittingHome = submitting?.oppId === String(pairing.opponent.id) && submitting?.side === 'home'
-          const submittingAway = submitting?.oppId === String(pairing.opponent.id) && submitting?.side === 'away'
-          return (
-            <section key={pairing.opponent.id} className="mb-8">
-              <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-gray-200 pb-2 dark:border-gray-700">
-                <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                  KSCW {pairing.opponent.kscw_team_name} <span className="font-normal text-gray-400">·</span> {pairing.opponent.team_name}
-                </h2>
-                {league && <span className="text-sm font-medium text-gray-500 dark:text-gray-400">{league}</span>}
-              </div>
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {homeCards.length > 0 && (
-                  <div>
-                    <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('homeGamesTitle')}</h4>
-                    <div className="space-y-6">{homeCards.map((c) => renderCard(pairing, c))}</div>
-                    {shownHome.length > 0 && (
-                      <button type="button" onClick={() => openConfirmer(pairing, 'home', homeCards, awayCards)} disabled={busy} className={sideButtonClass}>
-                        {submittingHome ? t('submitting') : t('confirmHomeGames')}
-                      </button>
-                    )}
-                  </div>
-                )}
-                {awayCards.length > 0 && (
-                  <div>
-                    <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('awayGamesTitle')}</h4>
-                    <div className="space-y-6">{awayCards.map((c) => renderCard(pairing, c))}</div>
-                    {shownAway.length > 0 && (
-                      <button type="button" onClick={() => openConfirmer(pairing, 'away', homeCards, awayCards)} disabled={busy} className={sideButtonClass}>
-                        {submittingAway ? t('submitting') : t('confirmAwayGames')}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </section>
-          )
-        })}
+        {/* Teams grouped by gender; each pairing collapsed by default. */}
+        {genderGroups.map((grp) => (
+          <div key={grp.gender || 'other'} className="mb-8">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {grp.gender ? genderLabel(grp.gender) : t('otherTeams')}
+            </h2>
+            <div className="space-y-2">
+              {grp.items.map((pairing) => renderPairingItem(pairing))}
+            </div>
+          </div>
+        ))}
 
         {/* Slot-availability explainer. */}
         <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-700 dark:bg-gray-800/50">

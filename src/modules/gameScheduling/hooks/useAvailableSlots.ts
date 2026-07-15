@@ -37,6 +37,8 @@ export interface OpponentData {
   contact_email: string
   kscw_team_id: string
   kscw_team_name: string
+  /** KSCW team gender for grouping the club portal ('m' | 'f' | 'mixed' | null). */
+  kscw_team_gender?: string | null
   home_game: string
   away_game: string
   source: 'self_registration' | 'manual' | 'svrz'
