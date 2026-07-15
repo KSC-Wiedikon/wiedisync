@@ -225,6 +225,8 @@ export default {
   inviteWelcome: 'Bitte bruuch s Spielplanungs-Tool, zum d Spiel zwüsche {{club}} und KSC Wiedikon {{team}} plane.',
   clubInviteWelcome: 'KSC Wiedikon ladt {{club}} i, alli Spiel gäge üs die Saison z plane. Alli eui Teams wo gäge KSC Wiedikon spiele, sind unde ufglistet.',
   clubAllTeamsHint: 'Dä eint Link gilt für alli Teams vo {{club}} gäge KSC Wiedikon — dir chönd jedes Team einzeln bestätige.',
+  clubSelectTeam: 'Eues Team uswähle',
+  clubAllTeams: 'Alli Teams',
   clubNoFixtures: 'Für eue Klub sind na kei Spiel gäge KSC Wiedikon gfunde worde. Bitte lueged spöter nomal verbi.',
   inviteContactHint: 'Die Iladig isch a {{email}} gschickt worde. Falschi Person? Bitte leit sie a di zueständigi Person für d Spielplanig i dim Verein wiiter.',
   inviteHelpHint: 'Bruuchsch Hilf? Schriib a',

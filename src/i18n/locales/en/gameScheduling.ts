@@ -501,6 +501,8 @@ export default {
   inviteWelcome: 'Please use the Spielplanung tool to schedule the games between {{club}} and KSC Wiedikon {{team}}.',
   clubInviteWelcome: 'KSC Wiedikon invites {{club}} to schedule all your fixtures against us this season. Every one of your teams that plays KSC Wiedikon is listed below.',
   clubAllTeamsHint: 'This single link covers all of {{club}}\'s teams versus KSC Wiedikon — you can confirm each team separately.',
+  clubSelectTeam: 'Select your team',
+  clubAllTeams: 'All teams',
   clubNoFixtures: 'No fixtures against KSC Wiedikon were found for your club yet. Please check back later.',
   inviteContactHint: 'This invite was sent to {{email}}. Not the right person? Please forward it to whoever handles the scheduling at your club.',
   inviteHelpHint: 'Need help? Write to',
