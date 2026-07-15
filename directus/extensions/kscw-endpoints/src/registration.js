@@ -596,11 +596,18 @@ export function registerRegistration(router, { database, logger, services, getSc
         return res.status(400).json({ error: 'Invalid membership_type' })
       }
 
+      // A guest (funktion "Guest" on a VB/BB registration — see the signup form's
+      // "Gast (Guest)" option) trains with a team but is not licensed to play
+      // league games, so they skip the licence apparatus: no AHV requirement and
+      // no basketball ID/licence-document uploads (user 2026-07-15). Mirrors the
+      // lightweight guest gate in kscw-website registration-form.js.
+      const isGuest = String(body.rolle || '').trim().toLowerCase() === 'guest'
+
       // AHV requiredness mirror (the form enforces it client-side): active VB
       // members under 23 and BB members under 25 need an AHV number for the
       // association licence. Server-side so a bypassed/stale form can't create
       // a licence-blocked registration.
-      if (!ahvNorm.value && body.geburtsdatum && ['volleyball', 'basketball'].includes(body.membership_type)) {
+      if (!isGuest && !ahvNorm.value && body.geburtsdatum && ['volleyball', 'basketball'].includes(body.membership_type)) {
         const dob = new Date(body.geburtsdatum)
         if (!Number.isNaN(dob.getTime())) {
           const now = new Date()
@@ -663,7 +670,7 @@ export function registerRegistration(router, { database, logger, services, getSc
         bb_doc_schoolcert: docId(body.bb_doc_schoolcert),
       }
       const bbSituation = BB_SITUATIONS.includes(body.bb_situation) ? body.bb_situation : null
-      if (body.membership_type === 'basketball') {
+      if (body.membership_type === 'basketball' && !isGuest) {
         const natCode = (body.nationalitaet_code || '').trim().toUpperCase().slice(0, 2)
         // Situation + nationality + age drive the required set (school certificate
         // is optional → never required). Mirrors the client gate.

@@ -3901,13 +3901,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             { memberId, team: team.name, rolle })
         } else {
           // Everyone else (player / andere / other / unspecified) → roster player.
+          // A guest registration (funktion "Guest" → rolle) is rostered as a guest
+          // (guest_level 1): lower training priority, blocked from league games,
+          // and expected in ClubDesk's '<group> (Guest)' subgroup by the sync check
+          // (user 2026-07-15). Core players stay guest_level 0.
+          const isGuestRolle = rolle === 'guest' || rolle === 'gast'
           const exists = await db('member_teams')
             .where({ member: memberId, team: team.id, season }).first()
           if (!exists) {
             await db('member_teams').insert({
-              member: memberId, team: team.id, season, guest_level: 0,
+              member: memberId, team: team.id, season, guest_level: isGuestRolle ? 1 : 0,
             })
-            log.info({ msg: 'Added to team roster', memberId, team: team.name, season })
+            log.info({ msg: 'Added to team roster', memberId, team: team.name, season, guest: isGuestRolle })
           }
         }
       }
