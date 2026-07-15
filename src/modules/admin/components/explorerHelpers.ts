@@ -141,7 +141,8 @@ export function highlightMatch(text: string, query: string): Array<{ text: strin
 }
 
 export function memberLabel(m: Member): string {
-  const fn = m.first_name ?? ''
+  // UI label — prefers the member's chosen nickname (falls back to first_name).
+  const fn = m.nickname || m.first_name || ''
   const ln = m.last_name ?? ''
   return `${ln}, ${fn}`.trim().replace(/^,\s*/, '').trim() || `Member #${m.id}`
 }

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useCollection } from '../lib/query'
 import { X, Search, Check } from 'lucide-react'
 import type { Member } from '../types'
+import { memberDisplayName } from '../utils/relations'
 
 interface MemberMultiSelectProps {
   selected: string[]
@@ -17,7 +18,7 @@ export default function MemberMultiSelect({ selected, onChange }: MemberMultiSel
 
   const { data: membersRaw } = useCollection<Member>('members', {
     filter: { wiedisync_active: { _eq: true } },
-    fields: ['id', 'first_name', 'last_name', 'email'],
+    fields: ['id', 'nickname', 'first_name', 'last_name', 'email'],
     sort: ['last_name', 'first_name'],
     limit: -1,
   })
@@ -28,6 +29,7 @@ export default function MemberMultiSelect({ selected, onChange }: MemberMultiSel
     const q = search.toLowerCase()
     return members.filter(m =>
       `${m.first_name} ${m.last_name}`.toLowerCase().includes(q) ||
+      memberDisplayName(m).toLowerCase().includes(q) ||
       m.email?.toLowerCase().includes(q)
     )
   }, [members, search])
@@ -47,7 +49,7 @@ export default function MemberMultiSelect({ selected, onChange }: MemberMultiSel
         <div className="mb-2 flex flex-wrap gap-1.5">
           {selectedMembers.map(m => (
             <span key={m.id} className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
-              {m.first_name} {m.last_name}
+              {memberDisplayName(m)}
               <button type="button" onClick={() => toggle(m.id)} className="hover:text-brand-900 dark:hover:text-brand-100">
                 <X className="h-3 w-3" />
               </button>
@@ -95,7 +97,7 @@ export default function MemberMultiSelect({ selected, onChange }: MemberMultiSel
                   <div aria-hidden="true" className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-brand-500 bg-brand-500 text-white' : 'border-gray-300 dark:border-gray-500'}`}>
                     {isSelected && <Check className="h-3 w-3" />}
                   </div>
-                  <span className="dark:text-gray-100">{m.first_name} {m.last_name}</span>
+                  <span className="dark:text-gray-100">{memberDisplayName(m)}</span>
                   <span className="ml-auto text-xs text-muted-foreground">{m.email}</span>
                 </button>
               )

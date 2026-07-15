@@ -50,6 +50,8 @@ export default {
   // Profile Edit
   firstName: 'Vorname',
   lastName: 'Nachname',
+  nickname: 'Spitzname',
+  nicknameHint: 'Wird i de App statt em Vorname azeigt. Läär la, zum de Vorname bruuche.',
   changePhoto: 'Foti ändere',
   managedByCoach: 'Wird vom Trainer/Admin verwaltet',
   position: 'Position',

@@ -6,7 +6,7 @@ import { useAdminMode } from '../../hooks/useAdminMode'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import { useRealtime } from '../../hooks/useRealtime'
-import { relId, asObj } from '../../utils/relations'
+import { relId, asObj, memberDisplayName } from '../../utils/relations'
 import { useTeamAbsences } from '../../hooks/useTeamAbsences'
 import TeamMultiSelect from '../../components/TeamMultiSelect'
 import { teamNameToColorKey } from '../../utils/teamColors'
@@ -492,7 +492,7 @@ function TeamWeeklySection({
         <TableBody>
           {weeklies.map((a) => {
             const m = asObj<Member>(a.member) ?? memberMap[relId(a.member)]
-            const memberName = [m?.first_name, m?.last_name].filter(Boolean).join(' ') || t('common:unknown')
+            const memberName = memberDisplayName(m) || t('common:unknown')
             const canEdit = relId(a.member) === currentUserId || isCoachLike
             return (
               <WeeklyUnavailabilityCard

@@ -56,6 +56,7 @@ const MEMBER_FIELD_LABELS: Record<string, string> = {
   id: 'ID',
   first_name: 'First name',
   last_name: 'Last name',
+  nickname: 'Nickname',
   email: 'Email address',
   phone: 'Phone number',
   sex: 'Sex',
@@ -139,7 +140,7 @@ const FIELD_GROUPS: FieldGroup[] = [
   {
     id: 'identity',
     label: 'Identity',
-    keys: ['id', 'first_name', 'last_name', 'email', 'phone', 'sex', 'birthdate', 'birthdate_visibility', 'language', 'photo', 'number', 'position', 'role', 'user'],
+    keys: ['id', 'first_name', 'last_name', 'nickname', 'email', 'phone', 'sex', 'birthdate', 'birthdate_visibility', 'language', 'photo', 'number', 'position', 'role', 'user'],
   },
   {
     id: 'membership',

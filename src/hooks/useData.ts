@@ -26,7 +26,7 @@ export function useActiveMembers(fields?: string[]) {
   return useCollection<Member>('members', {
     filter: { kscw_membership_active: { _eq: true } },
     sort: ['last_name', 'first_name'],
-    fields: fields ?? ['id', 'first_name', 'last_name', 'email', 'photo', 'number', 'position', 'role'],
+    fields: fields ?? ['id', 'first_name', 'last_name', 'nickname', 'email', 'photo', 'number', 'position', 'role'],
     all: true,
     staleTime: 60_000,
   })

@@ -87,7 +87,7 @@ export default function FinesPage() {
   const teamIds = [...new Set(fines.map((f) => String(f.team)))]
   const { data: membersRaw, isLoading: membersLoading } = useCollection<Member>('members', {
     filter: memberIds.length ? { id: { _in: memberIds } } : undefined,
-    fields: ['id', 'first_name', 'last_name'],
+    fields: ['id', 'first_name', 'last_name', 'nickname'],
     enabled: memberIds.length > 0,
     all: true,
   })
@@ -248,7 +248,7 @@ export default function FinesPage() {
             {fines.map((f) => {
               const m = memberMap.get(String(f.member))
               const tm = teamMap.get(String(f.team))
-              const memberName = m ? `${m.last_name ?? ''} ${m.first_name ?? ''}`.trim() : `#${f.member}`
+              const memberName = m ? `${m.last_name ?? ''} ${m.nickname || m.first_name || ''}`.trim() : `#${f.member}`
               const teamName = (tm?.name as string) ?? `Team ${f.team}`
               return (
                 <TableRow key={f.id} className="min-h-[44px]">

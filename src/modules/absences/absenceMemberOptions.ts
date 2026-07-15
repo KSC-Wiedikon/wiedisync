@@ -1,4 +1,4 @@
-import { relId, asObj } from '../../utils/relations'
+import { relId, asObj, memberDisplayName } from '../../utils/relations'
 import type { Absence, Member } from '../../types'
 
 export interface MemberFilterOption {
@@ -21,7 +21,7 @@ export function buildMemberOptions(
     const id = relId(a.member)
     if (!id || byId.has(id)) continue
     const m = asObj<Member>(a.member) ?? memberMap[id]
-    const name = [m?.first_name, m?.last_name].filter(Boolean).join(' ') || unknownLabel
+    const name = memberDisplayName(m) || unknownLabel
     byId.set(id, name)
   }
   return [...byId.entries()]

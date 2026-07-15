@@ -27,7 +27,7 @@ export default function VolleyRefereesPage() {
 
   const { data: refereesRaw, isLoading: refLoading } = useCollection<Member>('members', {
     filter: { referee_vb: { _eq: true } },
-    fields: ['id', 'first_name', 'last_name', 'referee_vb'],
+    fields: ['id', 'first_name', 'last_name', 'nickname', 'referee_vb'],
     sort: ['first_name', 'last_name'],
     all: true,
     enabled: !!user && canVb,
@@ -172,7 +172,7 @@ export default function VolleyRefereesPage() {
                   return (
                     <TableRow key={rid} className={busy ? 'opacity-60' : ''}>
                       <TableCell className="whitespace-normal break-words align-top font-medium">
-                        {`${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || `#${rid}`}
+                        {`${r.nickname || r.first_name || ''} ${r.last_name ?? ''}`.trim() || `#${rid}`}
                       </TableCell>
                       <TableCell className="align-top">
                         <div className="mb-1 flex flex-wrap gap-1">
@@ -237,7 +237,7 @@ export default function VolleyRefereesPage() {
               ) : (
                 <ul className="mt-2 space-y-0.5 text-sm text-gray-600 dark:text-gray-300">
                   {refereesWithoutDuty.map((r) => (
-                    <li key={r.id}>{`${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || `#${r.id}`}</li>
+                    <li key={r.id}>{`${r.nickname || r.first_name || ''} ${r.last_name ?? ''}`.trim() || `#${r.id}`}</li>
                   ))}
                 </ul>
               )}

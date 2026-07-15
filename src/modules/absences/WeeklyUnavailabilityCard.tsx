@@ -3,7 +3,7 @@ import { Pencil, Trash2, CalendarClock } from 'lucide-react'
 import { formatDate, formatDateTimeCompact } from '../../utils/dateHelpers'
 import { TableCell, TableRow } from '../../components/ui/table'
 import type { Absence, Member } from '../../types'
-import { asObj } from '../../utils/relations'
+import { asObj, memberDisplayName } from '../../utils/relations'
 
 const DAY_KEYS = ['dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat', 'daySun'] as const
 
@@ -29,7 +29,7 @@ interface WeeklyUnavailabilityCardProps {
 export default function WeeklyUnavailabilityCard({ absence, onEdit, onDelete, showMemberName, canEdit }: WeeklyUnavailabilityCardProps) {
   const { t } = useTranslation('absences')
   const m = asObj<Member>(absence.member)
-  const memberName = m ? `${m.first_name} ${m.last_name}`.trim() : undefined
+  const memberName = m ? memberDisplayName(m) : undefined
 
   const affectsLabels: Record<string, string> = {
     trainings: t('affectsTrainings'),

@@ -10,7 +10,7 @@ import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
 import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions, getPositionI18nKey } from '../../utils/memberPositions'
-import { asObj, relId, memberName } from '../../utils/relations'
+import { asObj, relId, memberDisplayName, memberFirstName } from '../../utils/relations'
 import { formatDate, getCurrentSeason, getSeasonDateRange, todayLocal } from '../../utils/dateHelpers'
 import ImageLightbox from '../../components/ImageLightbox'
 import type { Member, MemberTeam, Team, Absence, Participation } from '../../types'
@@ -143,7 +143,7 @@ export default function PlayerProfile() {
     return <EmptyState icon={<XCircle className="h-10 w-10" />} title={t('playerNotFound')} />
   }
 
-  const initials = `${member.first_name?.[0] ?? ''}${member.last_name?.[0] ?? ''}`.toUpperCase()
+  const initials = `${memberFirstName(member)[0] ?? ''}${member.last_name?.[0] ?? ''}`.toUpperCase()
   const positions = coercePositions(member.position)
   const trainingPct = trainingStats && trainingStats.total > 0
     ? Math.round((trainingStats.present / trainingStats.total) * 100)
@@ -184,7 +184,7 @@ export default function PlayerProfile() {
           </>
         )}
         <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-        <span className="font-medium text-gray-900 dark:text-gray-100">{memberName(member)}</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{memberDisplayName(member)}</span>
       </nav>
 
       {isAdmin && member.communications_banned === true && (
@@ -208,7 +208,7 @@ export default function PlayerProfile() {
                 <div className="relative shrink-0">
                   <img
                     src={getFileUrl('members', member.id, member.photo)}
-                    alt={memberName(member)}
+                    alt={memberDisplayName(member)}
                     className="h-20 w-20 cursor-pointer rounded-full object-cover ring-2 ring-white sm:h-24 sm:w-24 dark:ring-gray-800"
                     onClick={() => setLightboxOpen(true)}
                   />
@@ -220,7 +220,7 @@ export default function PlayerProfile() {
                 </div>
                 <ImageLightbox
                   src={getFileUrl('members', member.id, member.photo)}
-                  alt={memberName(member)}
+                  alt={memberDisplayName(member)}
                   open={lightboxOpen}
                   onClose={() => setLightboxOpen(false)}
                 />
@@ -242,7 +242,7 @@ export default function PlayerProfile() {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">
-                  {memberName(member)}
+                  {memberDisplayName(member)}
                 </h1>
                 {member.role.map((r) => <StatusBadge key={r} status={r} />)}
               </div>

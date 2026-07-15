@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import Avatar from './Avatar'
 import { useMemberSearch } from '../hooks/useMemberSearch'
 import { messagingApi, type SearchableMember } from '../api/messaging'
+import { memberDisplayName } from '../../../utils/relations'
 
 export interface NewMessageDialogProps {
   open: boolean
@@ -18,7 +19,8 @@ export interface NewMessageDialogProps {
 }
 
 function displayName(m: SearchableMember): string {
-  return `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() || '—'
+  // On-screen UI: prefer the member's nickname over first_name (falls back).
+  return memberDisplayName(m) || '—'
 }
 
 export default function NewMessageDialog({ open, onOpenChange }: NewMessageDialogProps) {

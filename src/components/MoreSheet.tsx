@@ -10,7 +10,7 @@ import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
 import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList, FolderSync } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
-import { asObj } from '../utils/relations'
+import { asObj, memberDisplayName } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { SCHEDULING_ORIGIN } from '../lib/api'
 import { handlePWAExternalClick } from '../utils/pwa'
@@ -512,7 +512,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {user.first_name} {user.last_name}
+                      {memberDisplayName(user)}
                     </span>
                     {memberTeams.length > 0 && (
                       <div className="mt-0.5 flex flex-wrap gap-1">

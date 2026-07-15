@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import AffectsMultiSelect from '@/components/AffectsMultiSelect'
 import type { Absence, Member } from '../../types'
-import { memberName, relId } from '../../utils/relations'
+import { memberDisplayName, relId } from '../../utils/relations'
 
 interface AbsenceFormProps {
   open: boolean
@@ -43,7 +43,7 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
     filter: { kscw_membership_active: { _eq: true } },
     sort: ['last_name'],
     all: true,
-    fields: ['id', 'first_name', 'last_name'],
+    fields: ['id', 'first_name', 'last_name', 'nickname'],
     enabled: showMemberPicker && effectiveIsAdmin,
   })
   // Coaches/TRs: fetch members of their coached teams via member_teams junction
@@ -171,7 +171,7 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
             placeholder={t('common:select')}
             value={memberId}
             onChange={setMemberId}
-            options={visibleMembers.map((m) => ({ value: m.id, label: memberName(m) || '—' }))}
+            options={visibleMembers.map((m) => ({ value: m.id, label: memberDisplayName(m) || '—' }))}
           />
         )}
 

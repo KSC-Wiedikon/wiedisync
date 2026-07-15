@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { Game, Member, Team } from '../../../types'
 import type { ExpandedGame } from './ScorerRow'
-import { asObj } from '../../../utils/relations'
+import { asObj, memberDisplayName } from '../../../utils/relations'
 import { DutyStatus } from './ScorerRow'
 import TeamChip from '../../../components/TeamChip'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
@@ -52,7 +52,7 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
     const getMemberName = (id: string | undefined): string | null => {
       if (!id) return null
       const m = memberMap.get(id)
-      return m ? `${m.first_name} ${m.last_name}` : null
+      return m ? memberDisplayName(m) : null
     }
     // The games carry the duty-team fields as BARE IDs (not expanded), so resolve
     // names from the teams list by id; fall back to an expanded object then '?'.

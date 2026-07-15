@@ -20,9 +20,10 @@ import { ExpenseStatusBadge } from './expenseShared'
  * writes via POST /kscw/expenses/:id/tk-confirm. Purely informational — it never
  * changes the treasurer's paid/rejected lifecycle.
  */
+// UI display name — prefers the member's chosen nickname (falls back to first_name).
 const memberName = (e: FinanceExpense) => {
   const m = e.member
-  if (m && typeof m === 'object') return [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || `#${m.id}`
+  if (m && typeof m === 'object') return [(m.nickname || m.first_name), m.last_name].filter(Boolean).join(' ').trim() || `#${m.id}`
   return m != null ? `#${m}` : '—'
 }
 

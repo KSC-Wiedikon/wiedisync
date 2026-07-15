@@ -270,7 +270,7 @@ function rawField(rec: Member | Team, key: string): unknown {
 
 function shortMemberName(m: Member | undefined, fallback: string): string {
   if (!m) return fallback
-  return `${m.last_name ?? ''} ${m.first_name ?? ''}`.trim() || fallback
+  return `${m.last_name ?? ''} ${m.nickname || m.first_name || ''}`.trim() || fallback
 }
 
 export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMutate }: Props) {
@@ -684,7 +684,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     const member = memberById.get(row.member)
     const ok = await confirm({
       message: t('admin:explorerGridRemoveFromTeam', {
-        name: member ? `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() : row.member,
+        name: member ? `${member.nickname || member.first_name || ''} ${member.last_name ?? ''}`.trim() : row.member,
         team: team ? teamLabel(team) : row.team,
       }),
       danger: true,
@@ -725,7 +725,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     const member = memberById.get(row.member)
     const ok = await confirm({
       message: t(kind === 'coach' ? 'admin:explorerGridRemoveCoach' : 'admin:explorerGridRemoveTr', {
-        name: member ? `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() : row.member,
+        name: member ? `${member.nickname || member.first_name || ''} ${member.last_name ?? ''}`.trim() : row.member,
         team: team ? teamLabel(team) : row.team,
       }),
       danger: true,
@@ -1513,7 +1513,7 @@ function MemberPicker({
           <CommandList>
             <CommandEmpty>{empty}</CommandEmpty>
             {available.map((m) => {
-              const name = `${m.last_name ?? ''} ${m.first_name ?? ''}`.trim() || `#${m.id}`
+              const name = `${m.last_name ?? ''} ${m.nickname || m.first_name || ''}`.trim() || `#${m.id}`
               return (
                 <CommandItem
                   key={String(m.id)}

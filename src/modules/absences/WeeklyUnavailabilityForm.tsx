@@ -12,7 +12,7 @@ import SearchableSelect from '@/components/ui/SearchableSelect'
 import { Checkbox } from '@/components/ui/checkbox'
 import AffectsMultiSelect from '@/components/AffectsMultiSelect'
 import type { Absence, Member } from '../../types'
-import { memberName, relId, asObj } from '../../utils/relations'
+import { memberDisplayName, relId, asObj } from '../../utils/relations'
 import { useMultiTeamMembers } from '../../hooks/useTeamMembers'
 
 const DAY_KEYS = ['dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat', 'daySun'] as const
@@ -39,7 +39,7 @@ export default function WeeklyUnavailabilityForm({ open, absence, onSave, onCanc
     filter: { kscw_membership_active: { _eq: true } },
     sort: ['last_name'],
     all: true,
-    fields: ['id', 'first_name', 'last_name'],
+    fields: ['id', 'first_name', 'last_name', 'nickname'],
     enabled: showMemberPicker && effectiveIsAdmin,
   })
   const { members: teamMemberRows } = useMultiTeamMembers(
@@ -168,7 +168,7 @@ export default function WeeklyUnavailabilityForm({ open, absence, onSave, onCanc
             placeholder={t('common:select')}
             value={memberId}
             onChange={setMemberId}
-            options={visibleMembers.map((m) => ({ value: m.id, label: memberName(m) || '—' }))}
+            options={visibleMembers.map((m) => ({ value: m.id, label: memberDisplayName(m) || '—' }))}
           />
         )}
 

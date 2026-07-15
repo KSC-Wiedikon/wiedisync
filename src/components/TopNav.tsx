@@ -10,7 +10,7 @@ import { useNavItems, type NavItem } from '../hooks/useNavItems'
 import { useUnreadTotal } from '../modules/messaging/hooks/useUnreadTotal'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { getFileUrl } from '../utils/fileUrl'
-import { asObj } from '../utils/relations'
+import { asObj, memberDisplayName, memberFirstName } from '../utils/relations'
 import { openExternalApp, handlePWAExternalClick } from '../utils/pwa'
 import type { MemberTeam, Team } from '../types'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
@@ -331,7 +331,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                   <img src={getFileUrl('members', user.id, user.photo)} alt="" className="h-8 w-8 rounded-full object-cover" />
                 ) : (
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-500 dark:bg-brand-800 dark:text-gray-300">
-                    {`${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()}
+                    {`${memberFirstName(user)[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()}
                   </div>
                 )}
                 <ChevronDown className="h-4 w-4 text-gray-400" />
@@ -340,7 +340,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
             <DropdownMenuContent align="end" className="w-60">
               <div className="px-2 py-1.5">
                 <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                  {user.first_name} {user.last_name}
+                  {memberDisplayName(user)}
                 </div>
                 {memberTeams.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">

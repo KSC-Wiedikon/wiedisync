@@ -311,7 +311,7 @@ const OWN_PASSENGER = { passenger: { user: { _eq: '$CURRENT_USER' } } }
  * Migration 030 added `kscw_membership_active`, `shell`, `shell_expires`.
  */
 const MEMBER_VISIBLE_FIELDS = [
-  'id', 'first_name', 'last_name', 'photo', 'number',
+  'id', 'first_name', 'last_name', 'nickname', 'photo', 'number',
   'position', 'user',
   // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
@@ -336,7 +336,7 @@ const MEMBER_VISIBLE_FIELDS = [
 
 /** Fields a member can update on their own profile */
 const MEMBER_EDITABLE_FIELDS = [
-  'first_name', 'last_name', 'phone', 'birthdate', 'email',
+  'first_name', 'last_name', 'nickname', 'phone', 'birthdate', 'email',
   'birthdate_visibility', 'hide_phone', 'hide_email', 'photo', 'language',
   'position', 'number', 'website_visible', 'website_name_private',
   // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
@@ -530,7 +530,7 @@ const MEMBER_INVOICE_FIELDS = [
  * reads members — but field-scoped to the finance-relevant columns, not '*'.
  */
 const FINANCE_MEMBER_FIELDS = [
-  'id', 'first_name', 'last_name', 'email', 'phone', 'number',
+  'id', 'first_name', 'last_name', 'nickname', 'email', 'phone', 'number',
   'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'birthdate',
   'iban', 'ahv_nummer', 'beitragskategorie', 'sektion', 'kscw_membership_active', 'wiedisync_active',
   'language', 'role', 'member_teams', 'date_created', 'iban_confirmed',
@@ -1756,6 +1756,10 @@ async function main() {
     'game_scheduling_seasons', 'game_scheduling_slots',
     'game_scheduling_opponents', 'game_scheduling_bookings',
     'game_scheduling_club_portals',
+    // Basketball hall availability (migration 214) — club-wide CRUD; the Basketball
+    // prep page is UI-scoped to basketball admins (full admins bypass). No opponent/
+    // token/booking flow: ProBasket owns the schedule.
+    'basketball_hall_availability',
     'query_templates', 'sv_vm_check',
     'announcements',
     // Fines (migration 069) — Sport Admin full CRUD (override coach-only scope

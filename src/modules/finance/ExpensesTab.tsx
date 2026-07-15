@@ -64,9 +64,16 @@ function TkConfirmCell({ e }: { e: FinanceExpense }) {
  * PATCH /kscw/expenses/:id — the endpoint notifies the member on paid/rejected
  * and auto-creates the linked finance_payouts row on paid.
  */
+// LEGAL name — used only for the confirm-paid / confirm-rejected message.
 const memberName = (e: FinanceExpense) => {
   const m = e.member
   if (m && typeof m === 'object') return [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || `#${m.id}`
+  return m != null ? `#${m}` : '—'
+}
+// UI display name — prefers the member's chosen nickname (falls back to first_name).
+const memberDisplayName = (e: FinanceExpense) => {
+  const m = e.member
+  if (m && typeof m === 'object') return [(m.nickname || m.first_name), m.last_name].filter(Boolean).join(' ').trim() || `#${m.id}`
   return m != null ? `#${m}` : '—'
 }
 
@@ -205,7 +212,7 @@ export default function ExpensesTab() {
                       {e.date_created ? formatDateCompactZurich(e.date_created) : '—'}
                     </TableCell>
                     <TableCell className="whitespace-normal break-words text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {memberName(e)}
+                      {memberDisplayName(e)}
                     </TableCell>
                     <TableCell className="text-right text-sm font-medium tabular-nums text-gray-900 dark:text-gray-100">
                       {formatExpenseAmount(e)}

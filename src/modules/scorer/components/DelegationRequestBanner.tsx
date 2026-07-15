@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { ArrowRightLeft, Check, X } from 'lucide-react'
 import type { ScorerDelegation, Member, Game } from '../../../types'
+import { memberDisplayName } from '../../../utils/relations'
 import { formatTime } from '../../../utils/dateHelpers'
 
 interface DelegationRequestBannerProps {
@@ -39,7 +40,7 @@ export default function DelegationRequestBanner({
 
   function getMemberName(id: string): string {
     const m = members.find((mem) => mem.id === id)
-    return m ? `${m.first_name} ${m.last_name}` : ''
+    return m ? memberDisplayName(m) : ''
   }
 
   return (

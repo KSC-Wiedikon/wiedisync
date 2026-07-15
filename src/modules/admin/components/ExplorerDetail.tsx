@@ -608,12 +608,12 @@ function renderInactiveMembersTable(rows: unknown[], t: TFn) {
       ]}
       rows={rows.map((row) => {
         const r = row as {
-          member?: { first_name?: string; last_name?: string; number?: number } | string | null
+          member?: { first_name?: string; last_name?: string; nickname?: string | null; number?: number } | string | null
           guest_level?: number
         }
         const mem = r.member && typeof r.member === 'object' ? r.member : null
         const name = mem
-          ? `${mem.last_name ?? ''}, ${mem.first_name ?? ''}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, '')
+          ? `${mem.last_name ?? ''}, ${mem.nickname || mem.first_name || ''}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, '')
           : '—'
         const guest = Number(r.guest_level) > 0 ? ` (G${Number(r.guest_level)})` : ''
         return [

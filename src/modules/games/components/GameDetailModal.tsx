@@ -28,7 +28,7 @@ import TasksSection from '../../tasks/TasksSection'
 import CarpoolSection from '../../carpool/CarpoolSection'
 import BroadcastButton from '../../broadcast/BroadcastButton'
 import { isFeatureEnabled } from '../../../utils/featureToggles'
-import { asObj, relId, teamCoachIds } from '../../../utils/relations'
+import { asObj, relId, teamCoachIds, memberDisplayName } from '../../../utils/relations'
 import CancelActivityButton from '../../../components/CancelActivityButton'
 
 const GAME_EXPAND = 'kscw_team,hall,scorer_member,scoreboard_member,scorer_scoreboard_member,referee_member,scorer_duty_team,scoreboard_duty_team,scorer_scoreboard_duty_team,referee_duty_team,bb_scorer_member,bb_timekeeper_member,bb_24s_official,bb_duty_team,bb_scorer_duty_team,bb_timekeeper_duty_team,bb_24s_duty_team'
@@ -1008,7 +1008,7 @@ function DutyPersonRow({
   onReport: (role: string, roleLabel: string, personName: string) => void
 }) {
   const { t } = useTranslation('games')
-  const name = member ? `${member.first_name} ${member.last_name}` : ''
+  const name = member ? memberDisplayName(member) : ''
   const teamName = dutyTeam?.name
   const inWindow = isWithinDutyLateWindow(gameDate, gameTime, role)
 

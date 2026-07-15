@@ -86,7 +86,7 @@ export function useExplorerCache(scope: ExplorerScope) {
         fetchAllItems<Member>('members', {
           filter: f.members,
           fields: [
-            'id', 'first_name', 'last_name', 'email', 'sex', 'kscw_membership_active', 'role', 'user',
+            'id', 'first_name', 'last_name', 'nickname', 'email', 'sex', 'kscw_membership_active', 'role', 'user',
             // Fields used by ExplorerMemberFilters (multiselect/multiselect-chip/tri-state/presence)
             'phone', 'license_nr', 'birthdate', 'photo', 'number', 'position', 'language',
             // Per-flag licence booleans (migration 067) — what the filter reads.

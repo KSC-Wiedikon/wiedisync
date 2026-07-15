@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.44.0 — 2026-07-15
+
+### New: go by the name you actually use
+- **You can set a preferred display name in your profile.** If people call you something other than your legal first name — Honza instead of Jan, Thamy instead of Thamalayant — set it once and the whole app shows it: rosters, RSVP lists, chat, absences, scheduling. Leave it empty to keep your first name.
+- **Official documents are unaffected.** Match sheets, Volleymanager, ClubDesk, invoices and the public website always use your legal name — only the in-app display changes.
+
+### New: basketball scheduling prep (for coordinators)
+- **The scheduling app now has a Volleyball / Basketball toggle.** Basketball follows a completely different process from volleyball — the association (ProBasket) builds the schedule at a central planning meeting — so its section is a preparation view: for each team it shows which home dates (Fri/Sat/Sun) the KWI hall is free, with volleyball's hall use, closures and blocked dates overlaid, and lets you record availability to bring to the meeting or the 17 August hall-availability form.
+
 ## v1.43.0 — 2026-07-14
 
 ### New: the match sheet, on your phone

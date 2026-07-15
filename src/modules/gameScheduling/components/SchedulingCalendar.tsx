@@ -7,7 +7,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { fetchAllItems, kscwApi } from '../../../lib/api'
 import { toDateKey, getSeasonYear, formatDate } from '../../../utils/dateUtils'
 import { toZurichDateString } from '../../../utils/dateHelpers'
-import { relId } from '../../../utils/relations'
+import { relId, memberDisplayName } from '../../../utils/relations'
 import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team, Absence, MemberTeam, SchedulingBlock } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import CrossTeamBadge from '../../spielplanung/CrossTeamBadge'
@@ -374,8 +374,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         const winStart = `${startYear}-08-01`
         const winEnd = `${startYear + 1}-03-31`
         const [members, abs] = await Promise.all([
-          fetchAllItems<{ id: string; first_name?: string; last_name?: string }>('members', {
-            fields: ['id', 'first_name', 'last_name'], filter: { id: { _in: memberIds } },
+          fetchAllItems<{ id: string; first_name?: string; last_name?: string; nickname?: string | null }>('members', {
+            fields: ['id', 'first_name', 'last_name', 'nickname'], filter: { id: { _in: memberIds } },
           }),
           fetchAllItems<Absence & { member?: string | { id: string } }>('absences', {
             fields: ['id', 'member', 'start_date', 'end_date', 'type', 'days_of_week', 'affects', 'blocking'],
@@ -384,7 +384,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         ])
         const nameById = new Map<string, string>()
         for (const m of members) {
-          const nm = `${m.first_name || ''} ${m.last_name || ''}`.trim()
+          const nm = memberDisplayName(m)
           nameById.set(String(m.id), nm || String(m.id))
         }
         const lo = new Date(startYear, 7, 1) // Aug 1

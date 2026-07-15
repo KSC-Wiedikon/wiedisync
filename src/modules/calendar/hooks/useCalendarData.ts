@@ -12,7 +12,7 @@ import {
 } from '../../../utils/dateUtils'
 import { format, isBefore, isAfter, isSameDay, max as maxDate, min as minDate } from 'date-fns'
 import { formatTime, getDayOfWeek, toZurichDateString } from '../../../utils/dateHelpers'
-import { asObj, relId, memberName, disambiguateFirstNames } from '../../../utils/relations'
+import { asObj, relId, memberDisplayName, memberFirstName, disambiguateFirstNames } from '../../../utils/relations'
 import { trimBBTeamName } from '../../../utils/teamColors'
 import { isAuthenticated } from '../../../lib/api'
 import { useAuth } from '../../../hooks/useAuth'
@@ -334,7 +334,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       filters.selectedTeamIds,
       'team',
     ),
-    fields: ['*', 'team.*', 'team.coach.members_id', 'team.team_responsible.members_id', 'hall.*', 'coach.first_name', 'coach.last_name'],
+    fields: ['*', 'team.*', 'team.coach.members_id', 'team.team_responsible.members_id', 'hall.*', 'coach.first_name', 'coach.last_name', 'coach.nickname'],
     sort: ['date', 'start_time'],
     all: true,
   })
@@ -410,7 +410,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
     filter: hasTeamFilter
       ? { team: { _in: filters.selectedTeamIds } }
       : { id: { _eq: -1 } },
-    fields: ['member.id', 'member.first_name', 'member.last_name', 'member.birthdate', 'member.birthdate_visibility'],
+    fields: ['member.id', 'member.first_name', 'member.last_name', 'member.nickname', 'member.birthdate', 'member.birthdate_visibility'],
     all: true,
   })
   const birthdayLinks = birthdayLinksRaw ?? []
@@ -423,7 +423,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
     // Only the disambiguated label needs member fields — scope to id/name so we
     // don't ship email/phone/birthdate/IBAN etc. to the client (member.* pulled
     // every column).
-    fields: ['id', 'member.id', 'member.first_name', 'member.last_name', 'start_date', 'end_date', 'reason', 'reason_detail', 'affects', 'type', 'days_of_week', 'blocking'],
+    fields: ['id', 'member.id', 'member.first_name', 'member.last_name', 'member.nickname', 'start_date', 'end_date', 'reason', 'reason_detail', 'affects', 'type', 'days_of_week', 'blocking'],
     sort: ['start_date'],
     all: true,
   })
@@ -551,12 +551,12 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       // "Luca C." / "Luca Ca." instead of both showing "Luca".
       const nameLabels = disambiguateFirstNames(
         shownAbsences
-          .map((a) => asObj<{ id: string | number; first_name: string; last_name: string }>(a.member))
-          .filter((m): m is { id: string | number; first_name: string; last_name: string } => !!m),
+          .map((a) => asObj<{ id: string | number; first_name: string; last_name: string; nickname?: string | null }>(a.member))
+          .filter((m): m is { id: string | number; first_name: string; last_name: string; nickname?: string | null } => !!m),
       )
       for (const a of shownAbsences) {
-        const m = asObj<{ id: string | number; first_name: string; last_name: string }>(a.member)
-        const label = (m && nameLabels.get(String(m.id))) || m?.first_name || memberName(m) || '?'
+        const m = asObj<{ id: string | number; first_name: string; last_name: string; nickname?: string | null }>(a.member)
+        const label = (m && nameLabels.get(String(m.id))) || memberFirstName(m) || memberDisplayName(m) || '?'
         if (a.type === 'weekly') {
           all.push(...weeklyAbsenceToEntries(a, label, rangeStart, rangeEnd))
         } else {
@@ -580,7 +580,7 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
           all.push({
             id: `bday-${mid}:${occ.date.getFullYear()}`,
             type: 'birthday',
-            title: memberName(m) || m.first_name || '?',
+            title: memberDisplayName(m) || memberFirstName(m) || '?',
             date: occ.date,
             startTime: null,
             endTime: null,

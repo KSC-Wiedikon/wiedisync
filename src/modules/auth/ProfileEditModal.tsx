@@ -14,6 +14,7 @@ import { backendLangToI18n } from '../../utils/languageMap'
 import { asObj, relId, memberName } from '../../utils/relations'
 import { getCurrentSeason } from '../../utils/dateHelpers'
 import { normalizePhone, normalizeAhv } from '../../utils/contact'
+import { normalizeIban, isValidIban } from '../../utils/iban'
 import { type BackendLanguage } from '../../i18n/languageConfig'
 import LanguageSelect from '@/components/LanguageSelect'
 import { CheckIcon } from 'lucide-react'
@@ -42,6 +43,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [nickname, setNickname] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [number, setNumber] = useState<number>(0)
@@ -71,6 +73,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
   const [nationalitaet, setNationalitaet] = useState('')
   const [sex, setSex] = useState('')
   const [ahvNummer, setAhvNummer] = useState('')
+  const [iban, setIban] = useState('')
   const [clubdeskOpen, setClubdeskOpen] = useState(false)
 
   // Re-seed every field from `user` whenever the modal opens or the member record
@@ -86,6 +89,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
     if (user && open) {
       setFirstName(user.first_name ?? '')
       setLastName(user.last_name ?? '')
+      setNickname(user.nickname ?? '')
       setEmail(user.email ?? '')
       setPhone(user.phone ?? '')
       setNumber(user.number ?? 0)
@@ -111,6 +115,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       setNationalitaet(user.nationalitaet ?? '')
       setSex(user.sex ?? '')
       setAhvNummer(user.ahv_nummer ?? '')
+      setIban(user.iban ?? '')
       setClubdeskOpen(false)
     }
   }
@@ -193,6 +198,20 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       }
       const ahvCanonical = ahvNorm.value ?? ''
 
+      // IBAN is optional; when provided it must pass the ISO 13616 checksum.
+      // Stored normalised (uppercase, no spaces), same canonical form the
+      // Finance payout card and reimbursement upload use.
+      const ibanTrimmed = iban.trim()
+      let ibanCanonical = ''
+      if (ibanTrimmed) {
+        if (!isValidIban(ibanTrimmed)) {
+          setError(t('invalidIban'))
+          setLoading(false)
+          return
+        }
+        ibanCanonical = normalizeIban(ibanTrimmed)
+      }
+
       // Check for duplicate number in the same team(s)
       if (number > 0 && number !== user.number) {
         const myTeams = await fetchAllItems('member_teams', {
@@ -221,6 +240,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       const payload: Record<string, unknown> = {
         first_name: fn,
         last_name: ln,
+        nickname: nickname.trim(),
         email: em,
         phone: phoneCanonical,
         number,
@@ -251,6 +271,11 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
       payload.nationalitaet = nationalitaet
       payload.sex = sex
       payload.ahv_nummer = ahvCanonical
+      payload.iban = ibanCanonical
+      // Typing your own IBAN in the profile counts as confirming it — clears the
+      // Finance "please confirm your IBAN" prompt (the iban_confirmed flow from
+      // migration 136, which exists for ClubDesk-backfilled IBANs).
+      if (ibanCanonical) payload.iban_confirmed = true
 
       // Upload the photo to /files first (multipart), then set the FK in the
       // plain-JSON payload. Passing FormData straight to updateRecord() is a
@@ -262,7 +287,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
         payload.photo = fileId
       }
       await updateRecord('members', user.id, payload)
-      logActivity('update', 'members', user.id, { first_name: fn, last_name: ln, phone, language, position: selectedPositions })
+      logActivity('update', 'members', user.id, { first_name: fn, last_name: ln, nickname: nickname.trim(), phone, language, position: selectedPositions })
       // Detect ClubDesk field changes and notify admin
       const clubdeskFields = {
         first_name: { old: user.first_name, new: fn },
@@ -277,6 +302,7 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
         nationalitaet: { old: user.nationalitaet || '', new: nationalitaet },
         sex: { old: user.sex || '', new: sex },
         ahv_nummer: { old: user.ahv_nummer || '', new: ahvCanonical },
+        iban: { old: user.iban || '', new: ibanCanonical },
       }
       // Normalize before diffing — `undefined`/`null`/`''`/whitespace must all
       // compare equal, otherwise an empty optional field (e.g. phone) emits a
@@ -423,6 +449,14 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
             required
           />
         </div>
+
+        <FormInput
+          label={t('nickname')}
+          type="text"
+          value={nickname}
+          onChange={(e) => setNickname(e.target.value)}
+          helperText={t('nicknameHint')}
+        />
 
         <FormInput
           label={t('email')}
@@ -604,8 +638,15 @@ export default function ProfileEditModal({ open, onClose, onboarding }: ProfileE
                   placeholder="756.XXXX.XXXX.XX"
                 />
 
-                {/* IBAN moved to the Finance tab (Finance → payout IBAN card)
-                    so all finance settings live in one place. */}
+                {/* IBAN — member's own bank account for reimbursements. Also
+                    editable on the Finance payout card; kept here too on request. */}
+                <FormInput
+                  label={t('iban')}
+                  value={iban}
+                  onChange={(e) => setIban(e.target.value)}
+                  placeholder="CH00 0000 0000 0000 0000 0"
+                  helperText={t('ibanHint')}
+                />
 
                 {/* Read-only admin fields */}
                 <div className="mt-2 space-y-2 rounded-md bg-gray-50 p-3 dark:bg-gray-800">

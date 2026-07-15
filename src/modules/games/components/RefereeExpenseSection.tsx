@@ -7,7 +7,7 @@ import { useMutation } from '../../../hooks/useMutation'
 import { useAuth } from '../../../hooks/useAuth'
 import SearchableSelect from '../../../components/ui/SearchableSelect'
 import { fetchItems, fetchItem } from '../../../lib/api'
-import { asObj } from '../../../utils/relations'
+import { asObj, memberDisplayName } from '../../../utils/relations'
 
 interface RefereeExpenseSectionProps {
   gameId: string
@@ -125,14 +125,14 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
       const m = typeof mt.member === 'object' ? mt.member : null
       if (!m || seen.has(m.id)) continue
       seen.add(m.id)
-      options.push({ value: m.id, label: `${m.first_name} ${m.last_name}` })
+      options.push({ value: m.id, label: memberDisplayName(m) })
     }
 
     // Add coaches/team responsibles not already in roster
     for (const m of coaches) {
       if (seen.has(m.id)) continue
       seen.add(m.id)
-      options.push({ value: m.id, label: `${m.first_name} ${m.last_name}` })
+      options.push({ value: m.id, label: memberDisplayName(m) })
     }
 
     options.sort((a, b) => a.label.localeCompare(b.label, i18n.language))
@@ -175,7 +175,7 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
   const isFormMode = (!existing && canEdit) || editing
   const paidByMemberObj = existing ? asObj<Member & BaseRecord>(existing.paid_by_member) : null
   const paidByName = paidByMemberObj
-    ? `${paidByMemberObj.first_name} ${paidByMemberObj.last_name}`
+    ? memberDisplayName(paidByMemberObj)
     : existing?.paid_by_other || ''
 
   // Collapsed by default; open on click, or stay open while editing an existing record

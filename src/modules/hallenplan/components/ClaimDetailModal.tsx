@@ -41,10 +41,10 @@ export default function ClaimDetailModal({ slot, claim, halls, teams, onClose, o
 
   // Resolve claiming member name from expanded relation
   const claimedByMember = typeof claim.claimed_by_member === 'object' && claim.claimed_by_member != null
-    ? (claim.claimed_by_member as { first_name?: string; last_name?: string })
+    ? (claim.claimed_by_member as { first_name?: string; last_name?: string; nickname?: string | null })
     : null
   const memberName = claimedByMember
-    ? `${claimedByMember.first_name || ''} ${claimedByMember.last_name || ''}`.trim()
+    ? `${claimedByMember.nickname || claimedByMember.first_name || ''} ${claimedByMember.last_name || ''}`.trim()
     : ''
 
   const canRelease = isAdmin || isCoachOf(claim.claimed_by_team)

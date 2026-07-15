@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, X, User } from 'lucide-react'
 import type { Task, TaskCategory } from '../../types'
-import { disambiguateFirstNames } from '../../utils/relations'
+import { disambiguateFirstNames, memberDisplayName, memberFirstName } from '../../utils/relations'
 
 interface TaskCardProps {
   task: Task
@@ -12,7 +12,7 @@ interface TaskCardProps {
   onDelete: (id: string) => void
   currentUserId?: string
   canManage: boolean
-  members?: Array<{ id: string; first_name: string; last_name: string }>
+  members?: Array<{ id: string; first_name: string; last_name: string; nickname?: string | null }>
 }
 
 const categoryColors: Record<TaskCategory, string> = {
@@ -91,10 +91,10 @@ export default function TaskCard({
       {displayMember ? (
         <span
           className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300"
-          title={`${displayMember.first_name} ${displayMember.last_name}`}
+          title={memberDisplayName(displayMember)}
         >
           <User className="h-3 w-3" />
-          {displayNames.get(String(displayMember.id)) ?? displayMember.first_name}
+          {displayNames.get(String(displayMember.id)) ?? memberFirstName(displayMember)}
         </span>
       ) : isClaimed ? (
         // Claimed by someone not in the members list

@@ -24,13 +24,13 @@ import type { Team, Member, MemberPosition, MemberTeam, TeamSettings } from '../
 import { Button } from '../../components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { fetchAllItems, fetchItems, kscwApi, updateRecord, uploadFile } from '../../lib/api'
-import { asObj, relId } from '../../utils/relations'
+import { asObj, relId, memberFirstName } from '../../utils/relations'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type LeadershipRole = 'coach' | 'captain' | 'team_responsible'
 
 function displayName(m: Member): string {
-  return [m.last_name, m.first_name].filter(Boolean).join(' ') || '—'
+  return [m.last_name, (m.nickname || m.first_name)].filter(Boolean).join(' ') || '—'
 }
 
 const ROLE_I18N: Record<LeadershipRole, string> = {
@@ -51,7 +51,7 @@ export default function RosterEditor() {
   const { teamSlug } = useParams<{ teamSlug: string }>()
   const { isCoachOf } = useAuth()
   const season = getCurrentSeason()
-  const { data: allMembersRaw } = useCollection<Member>('members', { filter: { kscw_membership_active: { _eq: true } }, all: true, sort: ['last_name'], fields: ['id', 'first_name', 'last_name', 'photo', 'number', 'position'] })
+  const { data: allMembersRaw } = useCollection<Member>('members', { filter: { kscw_membership_active: { _eq: true } }, all: true, sort: ['last_name'], fields: ['id', 'first_name', 'nickname', 'last_name', 'photo', 'number', 'position'] })
   const allMembers = allMembersRaw ?? []
   const { create, remove } = useMutation<MemberTeam>('member_teams')
 
@@ -385,7 +385,7 @@ export default function RosterEditor() {
                 {sortedMembers.map((mt) => {
                   const member = asObj<Member>(mt.member)
                   if (!member) return null
-                  const initials = `${member.first_name?.[0] ?? ''}${member.last_name?.[0] ?? ''}`.toUpperCase()
+                  const initials = `${memberFirstName(member)[0] ?? ''}${member.last_name?.[0] ?? ''}`.toUpperCase()
                   const isCaptain = team ? relId(team.captain) === String(member.id) : false
                   const overrides = localOverrides[String(member.id)]
                   const memberPositions = coercePositions(overrides?.position ?? member.position)
@@ -525,7 +525,7 @@ export default function RosterEditor() {
                       </TableCell>
                       <TableCell className="whitespace-normal text-sm font-medium text-gray-900 dark:text-gray-100 leading-tight">
                         <span className="block sm:inline">{member.last_name}</span>
-                        <span className="block sm:inline sm:ml-1 text-gray-600 dark:text-gray-400 sm:text-gray-900 sm:dark:text-gray-100">{member.first_name}</span>
+                        <span className="block sm:inline sm:ml-1 text-gray-600 dark:text-gray-400 sm:text-gray-900 sm:dark:text-gray-100">{memberFirstName(member)}</span>
                       </TableCell>
                       <TableCell className="text-center">{numberEl}</TableCell>
                       <TableCell>{positionEl}</TableCell>
@@ -605,7 +605,7 @@ export default function RosterEditor() {
                     />
                   ) : (
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600 text-xs text-gray-600 dark:text-gray-300">
-                      {m.first_name?.[0]}{m.last_name?.[0]}
+                      {memberFirstName(m)[0]}{m.last_name?.[0]}
                     </div>
                   )}
                   <span>{displayName(m)}</span>

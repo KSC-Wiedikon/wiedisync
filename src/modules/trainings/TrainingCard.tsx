@@ -8,7 +8,7 @@ import { formatDate, formatWeekday, formatTime } from '../../utils/dateHelpers'
 import ParticipationWarningBadge from '../../components/ParticipationWarningBadge'
 import { getTrainingWarnings } from '../../utils/participationWarnings'
 import type { Training, Team, Hall, Member, Participation } from '../../types'
-import { asObj, relId, memberName, teamCoachIds } from '../../utils/relations'
+import { asObj, relId, memberDisplayName, teamCoachIds } from '../../utils/relations'
 import CancelActivityButton from '../../components/CancelActivityButton'
 import ActivityParticipation from '../../components/ActivityParticipation'
 
@@ -101,7 +101,7 @@ export default function TrainingCard({ training, participations, myParticipation
       <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
         {formatTime(training.start_time)} – {formatTime(training.end_time)}
         {(hall || training.hall_name) && <span> · {hall?.name || training.hall_name}</span>}
-        {coach && <span> · {memberName(coach)}</span>}
+        {coach && <span> · {memberDisplayName(coach)}</span>}
       </p>
 
       {training.cancelled && training.cancel_reason && (

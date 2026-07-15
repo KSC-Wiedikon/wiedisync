@@ -5,7 +5,7 @@ import type {
   ReportBody, ReportRow, SendMessageBody, SettingsBody, CreatePollBody,
 } from './types'
 
-export type SearchableMember = { id: number; first_name: string; last_name: string; photo: string | null }
+export type SearchableMember = { id: number; first_name: string; last_name: string; nickname: string | null; photo: string | null }
 export type CreateGroupDmBody = { member_ids: number[]; title?: string }
 export type CreateGroupDmResponse = { conversation_id: string; created: true; type: 'group_dm'; member_count: number }
 export type AddGroupMemberResponse = { added: boolean; unarchived?: boolean; member: number }
@@ -14,6 +14,7 @@ export type ConversationMemberRow = {
   id: number
   first_name: string | null
   last_name: string | null
+  nickname: string | null
   photo: string | null
   role: string
   joined_at: string

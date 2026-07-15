@@ -15,6 +15,7 @@ import {
 } from '../../hooks/useFinance'
 import type { FinanceInvoice } from './types'
 import type { Member, Team } from '../../types'
+import { memberDisplayName } from '../../utils/relations'
 import PaymentLedgerModal from './PaymentLedgerModal'
 
 /** Searchable single-member picker (mirrors MemberMultiSelect's dropdown). */
@@ -24,7 +25,7 @@ function MemberPicker({ value, onChange }: { value: Member | null; onChange: (m:
   const [open, setOpen] = useState(false)
   const { data: membersRaw } = useCollection<Member>('members', {
     filter: { wiedisync_active: { _eq: true } },
-    fields: ['id', 'first_name', 'last_name', 'email'],
+    fields: ['id', 'first_name', 'last_name', 'nickname', 'email'],
     sort: ['last_name', 'first_name'],
     limit: -1,
   })
@@ -32,13 +33,13 @@ function MemberPicker({ value, onChange }: { value: Member | null; onChange: (m:
   const filtered = useMemo(() => {
     if (!search) return members
     const q = search.toLowerCase()
-    return members.filter((m) => `${m.first_name} ${m.last_name}`.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q))
+    return members.filter((m) => `${m.first_name} ${m.last_name} ${m.nickname ?? ''}`.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q))
   }, [members, search])
 
   if (value) {
     return (
       <div className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2 dark:border-gray-600">
-        <span className="text-sm dark:text-gray-100">{value.first_name} {value.last_name}</span>
+        <span className="text-sm dark:text-gray-100">{memberDisplayName(value)}</span>
         <button type="button" onClick={() => onChange(null)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
       </div>
     )
@@ -57,7 +58,7 @@ function MemberPicker({ value, onChange }: { value: Member | null; onChange: (m:
           {filtered.slice(0, 50).map((m) => (
             <button key={m.id} type="button" onClick={() => { onChange(m); setOpen(false); setSearch('') }}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
-              <span className="dark:text-gray-100">{m.first_name} {m.last_name}</span>
+              <span className="dark:text-gray-100">{memberDisplayName(m)}</span>
               <span className="ml-auto text-xs text-muted-foreground">{m.email}</span>
             </button>
           ))}

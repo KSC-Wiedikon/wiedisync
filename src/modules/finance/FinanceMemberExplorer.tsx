@@ -42,7 +42,7 @@ function ageOf(birthdate?: string | null): number | null {
   return age
 }
 
-const fullName = (m: FinanceMember) => [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || '—'
+const fullName = (m: FinanceMember) => [(m.nickname || m.first_name), m.last_name].filter(Boolean).join(' ').trim() || '—'
 
 /** Member's sport: ClubDesk Sektion first, else the membership-category VB/BB prefix. */
 function sportOf(m: FinanceMember): 'volleyball' | 'basketball' | null {

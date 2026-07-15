@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import type { Game, Member, Team, MemberTeam, ScorerDelegation, Absence } from '../../types'
 import { licencesOf } from '../../types'
+import { memberDisplayName } from '../../utils/relations'
 import { useCollection } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useAuth } from '../../hooks/useAuth'
@@ -167,7 +168,7 @@ export default function ScorerPage() {
     filter: { kscw_membership_active: { _eq: true } },
     sort: ['last_name', 'first_name'],
     all: true,
-    fields: ['id', 'first_name', 'last_name', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'kscw_membership_active', 'phone', 'email'],
+    fields: ['id', 'first_name', 'last_name', 'nickname', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'kscw_membership_active', 'phone', 'email'],
   })
   const members = membersRaw ?? []
 
@@ -410,7 +411,7 @@ export default function ScorerPage() {
         const matches = ids.some((id) => {
           const m = memberMap.get(id)
           if (!m) return false
-          return `${m.first_name} ${m.last_name}`.toLowerCase().includes(q)
+          return memberDisplayName(m).toLowerCase().includes(q)
         })
         if (!matches) return false
       }

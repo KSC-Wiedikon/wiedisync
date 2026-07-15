@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchAllItems } from '../../../lib/api'
+import { memberDisplayName } from '../../../utils/relations'
 
 /** Shared, never-mutated empty result (the fetch always builds a fresh Map). */
 const EMPTY_NAMES: Map<string, string> = new Map()
@@ -24,14 +25,15 @@ export function useMemberDisplayNames(memberIds: string[]): Map<string, string> 
     let alive = true
     ;(async () => {
       try {
-        const rows = await fetchAllItems<{ id: string; first_name: string; last_name: string }>(
+        const rows = await fetchAllItems<{ id: string; first_name: string; last_name: string; nickname: string | null }>(
           'members',
-          { filter: { id: { _in: memberIds } }, fields: ['id', 'first_name', 'last_name'] },
+          { filter: { id: { _in: memberIds } }, fields: ['id', 'first_name', 'last_name', 'nickname'] },
         )
         if (!alive) return
         const m = new Map<string, string>()
         for (const r of rows) {
-          const full = `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()
+          // On-screen UI shows the member's chosen nickname (falls back to first_name).
+          const full = memberDisplayName(r)
           m.set(String(r.id), full || String(r.id))
         }
         setMap(m)

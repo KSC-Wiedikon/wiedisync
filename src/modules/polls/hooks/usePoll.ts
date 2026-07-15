@@ -5,7 +5,7 @@ import { useAuth } from '../../../hooks/useAuth'
 import { useRealtime } from '../../../hooks/useRealtime'
 import { kscwApi } from '../../../lib/api'
 import type { Poll, PollVote } from '../../../types'
-import { relId, memberName } from '../../../utils/relations'
+import { relId, memberDisplayName } from '../../../utils/relations'
 import { toZurichDateString } from '../../../utils/dateHelpers'
 
 /**
@@ -135,7 +135,7 @@ export function usePollVotes(poll: Poll, canManage = false) {
     // read is OWN_MEMBER for them), so this leaks nothing. As of the 2026-07-02
     // audit (#5/#14) the manager reads are ALSO scoped to non-anonymous polls,
     // so for an anonymous poll this returns just the caller's own row.
-    fields: ['id', 'poll', 'member', 'selected_options', 'member.id', 'member.first_name', 'member.last_name'],
+    fields: ['id', 'poll', 'member', 'selected_options', 'member.id', 'member.first_name', 'member.last_name', 'member.nickname'],
     all: true,
     enabled: !!pollId,
   })
@@ -208,9 +208,9 @@ export function usePollVotes(poll: Poll, canManage = false) {
     const counts: Record<number, number> = {}
     const voters: Record<number, Array<{ id: string; name: string }>> = {}
     votes.forEach(v => {
-      const m = v.member as unknown as string | { id: string | number; first_name?: string; last_name?: string }
+      const m = v.member as unknown as string | { id: string | number; first_name?: string; last_name?: string; nickname?: string | null }
       const id = relId(m)
-      const name = (typeof m === 'object' && m ? memberName(m) : '') || id
+      const name = (typeof m === 'object' && m ? memberDisplayName(m) : '') || id
       const selected = (v.selected_options as number[]) ?? []
       selected.forEach(idx => {
         counts[idx] = (counts[idx] || 0) + 1

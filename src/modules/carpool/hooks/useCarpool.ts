@@ -13,7 +13,7 @@ export function useCarpool(gameId: string) {
     filter: gameId ? { game: { _eq: gameId } } : { id: { _eq: -1 } },
     // Expand `driver` so CarpoolCard can render the driver's name — without this
     // `driver` comes back as a bare ID and the card falls back to a generic label.
-    fields: ['*', 'driver.id', 'driver.first_name', 'driver.last_name'],
+    fields: ['*', 'driver.id', 'driver.first_name', 'driver.last_name', 'driver.nickname'],
     all: true,
     enabled: !!gameId,
   })
@@ -24,7 +24,7 @@ export function useCarpool(gameId: string) {
       ? { carpool: { _in: carpools.map(c => c.id) } }
       : { id: { _eq: -1 } },
     // Expand `passenger` so CarpoolCard can render each passenger's name.
-    fields: ['*', 'passenger.id', 'passenger.first_name', 'passenger.last_name'],
+    fields: ['*', 'passenger.id', 'passenger.first_name', 'passenger.last_name', 'passenger.nickname'],
     all: true,
     enabled: !!gameId && carpools.length > 0,
   })

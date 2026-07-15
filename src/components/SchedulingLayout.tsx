@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { CalendarClock, Check, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, LogOut, Mail, Moon, Settings, Sun } from 'lucide-react'
+import { CalendarCheck, CalendarClock, Check, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, LogOut, Mail, Moon, Settings, Sun } from 'lucide-react'
 
 const WIEDISYNC_URL = 'https://wiedisync.kscw.ch'
 
@@ -29,6 +29,7 @@ export default function SchedulingLayout() {
   } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
+  const { t: tb } = useTranslation('basketballScheduling')
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
@@ -44,14 +45,31 @@ export default function SchedulingLayout() {
     coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   // The mailbox tab is reachable by either sport's admins (basketball-only
   // bb_admins included), wider than the terminplanung dashboard.
-  const canMailbox = canTerminplanung || hasAdminAccessToSport('basketball')
+  const canBasketball = hasAdminAccessToSport('basketball')
+  const canMailbox = canTerminplanung || canBasketball
 
-  const navItems: { to: string; label: string; Icon: typeof CalendarClock; end?: boolean }[] = [
+  // Sport split: the URL carries the sport (/admin/terminplanung/basketball → BB).
+  // Volleyball keeps its full tab set; basketball is a small prep-only section.
+  const activeSport: 'volleyball' | 'basketball' =
+    pathname.startsWith('/admin/terminplanung/basketball') ? 'basketball' : 'volleyball'
+
+  type NavItem = { to: string; label: string; Icon: typeof CalendarClock; end?: boolean }
+  const volleyballNav: NavItem[] = [
     ...(canTerminplanung ? [{ to: '/admin/terminplanung', label: t('dashboard'), Icon: LayoutDashboard, end: true }] : []),
     ...(canMailbox ? [{ to: '/admin/terminplanung/mailbox', label: t('mailbox'), Icon: Mail }] : []),
     ...(canTerminplanung ? [{ to: '/admin/terminplanung/settings', label: t('settings'), Icon: Settings }] : []),
     ...(canPlanner ? [{ to: '/admin/spielplanung', label: t('gameplan'), Icon: ClipboardList }] : []),
   ]
+  const basketballNav: NavItem[] = [
+    ...(canBasketball ? [{ to: '/admin/terminplanung/basketball', label: tb('tab'), Icon: CalendarCheck, end: true }] : []),
+    ...(canMailbox ? [{ to: '/admin/terminplanung/mailbox', label: t('mailbox'), Icon: Mail }] : []),
+  ]
+  const navItems: NavItem[] = activeSport === 'basketball' ? basketballNav : volleyballNav
+
+  // Sport-toggle landing targets (first reachable item of each sport).
+  const volleyballHome = volleyballNav[0]?.to ?? '/admin/terminplanung'
+  const basketballHome = '/admin/terminplanung/basketball'
+
   // Most-specific match wins so /settings doesn't light up the exact-match dashboard tab.
   const activeItem =
     navItems
@@ -62,6 +80,13 @@ export default function SchedulingLayout() {
     `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
       isActive
         ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
+        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+    }`
+
+  const sportPillClass = (active: boolean) =>
+    `flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
+      active
+        ? 'bg-brand-600 text-white shadow-sm'
         : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
     }`
 
@@ -82,6 +107,31 @@ export default function SchedulingLayout() {
             />
             <span className="hidden text-sm font-bold sm:inline">Spielplanung</span>
           </NavLink>
+
+          {/* Sport toggle — Volleyball ↔ Basketball. Only shown to users with
+              basketball access; volleyball-only admins see the app unchanged. */}
+          {canBasketball && (
+            <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5">
+              <button
+                type="button"
+                onClick={() => navigate(volleyballHome)}
+                aria-pressed={activeSport === 'volleyball'}
+                className={sportPillClass(activeSport === 'volleyball')}
+              >
+                <span aria-hidden>🏐</span>
+                <span className="hidden md:inline">{tb('volleyball')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(basketballHome)}
+                aria-pressed={activeSport === 'basketball'}
+                className={sportPillClass(activeSport === 'basketball')}
+              >
+                <span aria-hidden>🏀</span>
+                <span className="hidden md:inline">{tb('basketball')}</span>
+              </button>
+            </div>
+          )}
 
           {/* Desktop: inline tabs. Mobile: a dropdown so long labels never scroll horizontally. */}
           <nav className="hidden flex-1 items-center gap-1 sm:flex">

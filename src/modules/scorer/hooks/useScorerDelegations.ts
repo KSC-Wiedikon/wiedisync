@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react'
 import type { ScorerDelegation, Member } from '../../../types'
+import { memberDisplayName } from '../../../utils/relations'
 import { useCollection } from '../../../lib/query'
 import { useRealtime } from '../../../hooks/useRealtime'
 import { useAuth } from '../../../hooks/useAuth'
@@ -95,7 +96,7 @@ export function useScorerDelegations() {
   const getDelegationTargetName = useCallback(
     (delegation: ScorerDelegation, members: Member[]): string => {
       const m = members.find((mem) => mem.id === delegation.to_member)
-      return m ? `${m.first_name} ${m.last_name}` : ''
+      return m ? memberDisplayName(m) : ''
     },
     [],
   )
