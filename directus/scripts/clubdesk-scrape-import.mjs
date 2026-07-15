@@ -81,7 +81,7 @@ const readSummary = (page) => page.evaluate(() => {
       break
     }
   }
-  if (!dialog) return { total: null, neu: null, veraendert: null, hasSummary: false }
+  if (!dialog) return { total: null, neu: null, veraendert: null, unveraendert: null, hasSummary: false }
   const leaves = []
   for (const e of dialog.querySelectorAll('*')) {
     const t = ownText(e); if (!t) continue
@@ -100,13 +100,14 @@ const readSummary = (page) => page.evaluate(() => {
     total: countFor(/Insgesamt eingelesene/i),
     neu: countFor(/Neue Kontakte/i),
     veraendert: countFor(/(Veränderte|Geänderte) Kontakte/i),
+    unveraendert: countFor(/Unveränderte Kontakte/i),
     hasSummary: true,
   }
 })
 
 async function run() {
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] })
-  let result = { mode: MODE, total: null, neu: null, veraendert: null, committed: false }
+  let result = { mode: MODE, total: null, neu: null, veraendert: null, unveraendert: null, committed: false }
   try {
     const ctx = await browser.newContext({ locale: 'de-CH', timezoneId: 'Europe/Zurich', viewport: { width: 1500, height: 950 }, deviceScaleFactor: 1 })
     const page = await ctx.newPage(); page.setDefaultTimeout(45000)
@@ -142,8 +143,8 @@ async function run() {
     await sleep(3500)
     await shot(page, '2-summary')
     const s = await readSummary(page)
-    result.total = s.total; result.neu = s.neu; result.veraendert = s.veraendert
-    log(`Summary: total=${s.total} neu=${s.neu} veraendert=${s.veraendert} hasSummary=${s.hasSummary}`)
+    result.total = s.total; result.neu = s.neu; result.veraendert = s.veraendert; result.unveraendert = s.unveraendert
+    log(`Summary: total=${s.total} neu=${s.neu} veraendert=${s.veraendert} unveraendert=${s.unveraendert} hasSummary=${s.hasSummary}`)
     if (!s.hasSummary) throw new Error('Did not reach the confirmation summary (mapping may have failed).')
 
     if (MODE === 'commit') {
