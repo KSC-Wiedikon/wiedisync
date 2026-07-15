@@ -22,6 +22,7 @@ import SaturdayHallPanel from '../components/SaturdayHallPanel'
 import DerbyPanel from '../components/DerbyPanel'
 import ExcelImportPanel from '../components/ExcelImportPanel'
 import InvitesPanel from '../components/InvitesPanel'
+import ClubPortalsPanel from '../components/ClubPortalsPanel'
 import type { SpielsamstagConfig, TeamSlotConfig, GameSchedulingGapConfig } from '../../../types'
 
 interface RolloverResult {
@@ -236,6 +237,12 @@ export default function AdminSetupPage() {
               seasonId={season.id}
               seasonName={season.season || ''}
             />
+          )}
+
+          {/* Club portals — ONE link per opponent club (2027/28+). Renders the
+              enable toggle even when off; the portal list once enabled. */}
+          {season.status === 'open' && (
+            <ClubPortalsPanel season={season} onUpdateSeason={updateSeason} />
           )}
         </>
       )}
