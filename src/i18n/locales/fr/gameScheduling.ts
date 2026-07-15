@@ -18,6 +18,7 @@ export default {
   legendAwayConfirmed: 'Extérieur (confirmé)',
   legendHomeProposed: 'Domicile (proposé)',
   legendAwayProposed: 'Extérieur (proposé)',
+  legendHomeBb: 'Match à domicile (BB)',
   legendBlocked: 'Bloqué',
   reservedForBB: 'Réservé pour le BB',
   reservedForDerby: 'Réservé pour le derby',

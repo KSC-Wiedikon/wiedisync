@@ -26,6 +26,7 @@ type EntryKind =
   | 'team_block'   // a scheduling_blocks "no games" period for the team
   | 'club_block'   // a scheduling_global_blocks club-wide blackout (all teams)
   | 'team_event'   // a team event that blocks games that day
+  | 'bb_game'      // a basketball game placed at KWI (cross-sport hall coordination)
 
 /** An intra-club game (e.g. the H1↔H3 derby) — not a booking; comes from `games`.
  *  Rendered as a normal confirmed home/away game per the team's perspective. */
@@ -119,6 +120,7 @@ const CHIP: Record<EntryKind, string> = {
   team_block: 'bg-rose-200 text-rose-800 dark:bg-rose-900/50 dark:text-rose-200',
   club_block: 'bg-red-300 text-red-900 dark:bg-red-950/70 dark:text-red-100',
   team_event: 'bg-purple-200 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
+  bb_game: 'bg-orange-500 text-white',
 }
 
 // Kinds that represent "a game can't happen here" rather than a game itself.
@@ -267,6 +269,30 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       .catch(() => { if (!cancelled) setClubBlocks([]) })
     return () => { cancelled = true }
   }, [])
+
+  // Basketball games placed at KWI this season (cross-sport hall coordination):
+  // a BB game holds a court, so volleyball schedulers need to see it as "Home game
+  // (BB)". Read-only + fail-soft — a non-admin viewer without basketball_slot_plan
+  // read simply gets none (same pattern as clubBlocks). BB teams aren't in this
+  // calendar's `teams` prop, so the team name comes from the expand / free-text label.
+  const [bbGames, setBbGames] = useState<{ id: string; date: string; time?: string | null; team: string; opponent?: string | null }[]>([])
+  useEffect(() => {
+    if (season.id == null) return
+    let cancelled = false
+    fetchAllItems<{ id: string; date: string; time?: string | null; opponent?: string | null; kscw_team_label?: string | null; kscw_team?: { name?: string } | null }>('basketball_slot_plan', {
+      fields: ['id', 'date', 'time', 'opponent', 'kscw_team_label', 'kscw_team.name'],
+      filter: { season: { _eq: season.id } },
+    })
+      .then((rows) => {
+        if (cancelled) return
+        setBbGames(rows.map((r) => ({
+          id: String(r.id), date: r.date, time: r.time,
+          team: r.kscw_team?.name || r.kscw_team_label || '', opponent: r.opponent,
+        })))
+      })
+      .catch(() => { if (!cancelled) setBbGames([]) })
+    return () => { cancelled = true }
+  }, [season.id])
 
   // Team events that block games (a tournament weekend, a team trip). The backend
   // drops every slot whose date falls in a linked event, so they too vanish
@@ -566,8 +592,21 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         })
       }
     }
+
+    // Basketball games placed at KWI (cross-sport). Not tied to a volleyball team, so
+    // teamId is empty and itemsByDate shows them regardless of the team filter.
+    for (const g of bbGames) {
+      const d = parseYmd(g.date)
+      if (!d) continue
+      const time = g.time ? hhmm(g.time) : ''
+      out.push({
+        id: `bb-${g.id}`, date: d, kind: 'bb_game', label: g.team || t('legendHomeBb'),
+        teamId: '', time, opponent: g.opponent || undefined,
+        title: `${t('legendHomeBb')}: ${g.team}${g.opponent ? ` vs ${g.opponent}` : ''}${time ? ` · ${time}` : ''}`,
+      })
+    }
     return out
-  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, blocks, clubBlocks, teamEvents])
+  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, blocks, clubBlocks, teamEvents, bbGames])
 
   // Teams that actually appear in the calendar, for the filter chips.
   const filterableTeams = useMemo(() => {
@@ -592,8 +631,9 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   const itemsByDate = useMemo(() => {
     const map = new Map<string, SchedEntry[]>()
     for (const e of entries) {
-      // Club blocks apply to every team, so they ignore the team filter.
-      if (e.kind !== 'club_block' && !(teamFilter.size === 0 || teamFilter.has(e.teamId))) continue
+      // Club blocks + basketball games aren't tied to a volleyball team, so they
+      // ignore the team filter (always shown).
+      if (e.kind !== 'club_block' && e.kind !== 'bb_game' && !(teamFilter.size === 0 || teamFilter.has(e.teamId))) continue
       const k = toDateKey(e.date)
       const arr = map.get(k) ?? []
       arr.push(e)
@@ -618,6 +658,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     { kind: 'home_proposed', label: t('legendHomeProposed') },
     { kind: 'away_proposed', label: t('legendAwayProposed') },
     { kind: 'blocked', label: t('reserved') },
+    // Basketball games at KWI — shown on every view (cross-sport) when any exist.
+    ...(bbGames.length ? [{ kind: 'bb_game' as EntryKind, label: t('legendHomeBb') }] : []),
     // Club-wide blackout — shown on every view (not team-scoped) when any exist.
     ...(clubBlocks.length ? [{ kind: 'club_block' as EntryKind, label: t('clubBlockLegend') }] : []),
     // "No games" + event blockers are per-team only — keep them out of the
@@ -637,6 +679,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     team_block: t('blockNoGames'),
     club_block: t('clubBlockLegend'),
     team_event: t('teamEventLabel'),
+    bb_game: t('legendHomeBb'),
     open: t('legendOpen'),
   }), [t])
 
@@ -649,7 +692,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     const games: DayRow[] = dayDetail.entries
       .filter((e) => !isBlockerKind(e.kind))
       .map((e) => {
-        const team = teamName(e.teamId)
+        // BB games carry their team name in `label` (BB teams aren't in `teams`).
+        const team = e.kind === 'bb_game' ? e.label : teamName(e.teamId)
         const opp = e.opponent || ''
         // Home-team first: for an away game the opponent hosts, so it goes left.
         const isAway = e.kind === 'away_confirmed' || e.kind === 'away_proposed'
