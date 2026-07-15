@@ -64,6 +64,13 @@ export default function ResultsTable({ columns, rows, maxHeight = 'max-h-[60vh]'
         <table className="w-full text-left text-xs">
           <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
             <tr>
+              {/* Row-number gutter — sticky left so it stays visible on horizontal scroll */}
+              <th
+                className="sticky left-0 z-20 whitespace-nowrap border-b border-r border-gray-200 bg-gray-50 px-2 py-2 text-right font-semibold text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500"
+                aria-label="#"
+              >
+                #
+              </th>
               {columns.map((col) => (
                 <th
                   key={col}
@@ -82,6 +89,10 @@ export default function ResultsTable({ columns, rows, maxHeight = 'max-h-[60vh]'
                   i % 2 === 1 ? 'bg-gray-50/50 dark:bg-gray-800/30' : ''
                 } hover:bg-gray-100 dark:hover:bg-gray-700/50`}
               >
+                {/* Row number (1-indexed) */}
+                <td className="sticky left-0 z-10 whitespace-nowrap border-r border-gray-200 bg-gray-50 px-2 py-1.5 text-right font-mono tabular-nums text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500">
+                  {i + 1}
+                </td>
                 {row.map((cell, j) => (
                   <td
                     key={j}
