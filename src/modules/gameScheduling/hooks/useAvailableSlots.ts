@@ -66,6 +66,8 @@ export interface BookingData {
   status: 'pending' | 'confirmed' | 'rejected'
   /** SVRZ fixture this booking schedules (multi-game pairings); null = legacy, owned by the first fixture of its side. */
   svrz_game_id?: string | null
+  /** Official VM game number of this booking's fixture — set even when the fixture is already approved (and thus no longer in the offered `games` list). */
+  svrz_number?: number | null
   slot: string
   proposed_datetime_1: string
   proposed_place_1: string

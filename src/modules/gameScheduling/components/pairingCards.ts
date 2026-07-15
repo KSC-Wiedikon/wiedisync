@@ -64,7 +64,7 @@ export function buildLegCards(games: InviteGame[], bookings: BookingData[], isHo
   })
   for (const b of sideBookings) {
     if (used.has(b.id)) continue
-    cards.push({ key: `${keyPrefix}bk-${b.id}`, isHome, svrzGameId: b.svrz_game_id ?? null, number: null, seq: cards.length + 1, sideCount: side.length, booking: b })
+    cards.push({ key: `${keyPrefix}bk-${b.id}`, isHome, svrzGameId: b.svrz_game_id ?? null, number: b.svrz_number ?? null, seq: cards.length + 1, sideCount: side.length, booking: b })
   }
   if (cards.length === 0) {
     cards.push({ key: `${keyPrefix}${isHome ? 'legacy-home' : 'legacy-away'}`, isHome, svrzGameId: null, number: null, seq: 1, sideCount: 1 })

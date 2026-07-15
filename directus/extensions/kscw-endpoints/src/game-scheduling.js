@@ -2158,6 +2158,21 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where('opponent', opponent.id)
         .select('*')
 
+      // Attach the official VM game number (svrz_number) to each booking from its
+      // fixture — resolved across ALL statuses (not just open/waitingForApproval),
+      // so a game already APPROVED in VolleyManager (which drops out of the offered
+      // `games` list) still shows its number on the confirmed card.
+      const bookingFixtureIds = [...new Set(bookings.map((b) => b.svrz_game_id).filter(Boolean))]
+      if (bookingFixtureIds.length) {
+        const numRows = await database('svrz_games')
+          .whereIn('svrz_persistence_id', bookingFixtureIds)
+          .select('svrz_persistence_id', 'svrz_number')
+        const numById = new Map(numRows.map((r) => [String(r.svrz_persistence_id), r.svrz_number]))
+        for (const b of bookings) {
+          if (b.svrz_game_id != null) b.svrz_number = numById.get(String(b.svrz_game_id)) ?? null
+        }
+      }
+
       // Attach the chosen home slot's date/time/hall so the opponent sees the
       // decided home game (the slot itself is no longer in the available list).
       for (const b of bookings) {

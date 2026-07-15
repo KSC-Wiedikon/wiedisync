@@ -23,6 +23,9 @@ export default function ClubFlowPage() {
 
   const [bookingError, setBookingError] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState('')
+  // Team selector: 'all' shows every pairing; otherwise the opponent-row id to
+  // show only that team's games. A club with many teams lands here and picks one.
+  const [selectedTeam, setSelectedTeam] = useState<string>('all')
   // Which pairing+side is currently submitting (per-pairing confirm buttons).
   const [submitting, setSubmitting] = useState<ConfirmTarget | null>(null)
   const [savingRemark, setSavingRemark] = useState(false)
@@ -81,6 +84,9 @@ export default function ClubFlowPage() {
   }
 
   const clubName = portal.club_name || ''
+  const visiblePairings = selectedTeam === 'all'
+    ? pairings
+    : pairings.filter((p) => String(p.opponent.id) === selectedTeam)
 
   const schedErrorMessage = (err: unknown): string => {
     const body = (err as { body?: { error?: string; teams?: string } })?.body
@@ -305,6 +311,41 @@ export default function ClubFlowPage() {
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t('clubAllTeamsHint', { club: clubName })}</p>
         </div>
 
+        {/* Team selector — pick one of the club's teams to show only its games
+            (or "All"). Hidden for a single-team club (nothing to filter). */}
+        {pairings.length > 1 && (
+          <div className="mb-6">
+            <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('clubSelectTeam')}</span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedTeam('all')}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  selectedTeam === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                }`}
+              >
+                {t('clubAllTeams')}
+              </button>
+              {pairings.map((p) => (
+                <button
+                  key={p.opponent.id}
+                  type="button"
+                  onClick={() => setSelectedTeam(String(p.opponent.id))}
+                  className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    selectedTeam === String(p.opponent.id)
+                      ? 'bg-blue-600 text-white'
+                      : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {p.opponent.team_name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {bookingError && (
           <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">{bookingError}</div>
         )}
@@ -319,7 +360,7 @@ export default function ClubFlowPage() {
         )}
 
         {/* One section per pairing (KSCW team ↔ this club's team). */}
-        {pairings.map((pairing) => {
+        {visiblePairings.map((pairing) => {
           const homeCards = buildLegCards(pairing.games, pairing.bookings, true, `${pairing.opponent.id}:`)
           const awayCards = buildLegCards(pairing.games, pairing.bookings, false, `${pairing.opponent.id}:`)
           const shownHome = homeCards.filter(isShown)
