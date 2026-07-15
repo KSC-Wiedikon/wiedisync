@@ -143,6 +143,18 @@ if [ "$fail" -eq 1 ]; then
   exit 1
 fi
 
+# Clear the cloned Directus license so dev runs keyless (Core/grace) and never
+# re-activates. The clone carries prod's license_key/license_token encrypted with
+# PROD's KEY/SECRET — dev can't decrypt them and would re-activate from the env
+# LICENSE_KEY, burning a fresh activation slot every night until the 5-activation
+# cap is exhausted (dev crash-loops on "Activation limit exceeded"). Dev has no
+# LICENSE_KEY in its .env (commented out 2026-07-15), so nulling these keeps dev
+# in the 30-day Core grace period, which resets on every nightly clone. Prod is
+# untouched. Runs unconditionally (independent of the PII scrub flag).
+echo "[5b/7] Clearing cloned license (dev runs keyless / Core grace)"
+docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" </dev/null \
+  -c "UPDATE directus_settings SET license_key=NULL, license_token=NULL;" >/dev/null 2>&1 || true
+
 if [ "$DO_SCRUB" = "1" ]; then
   echo "[6/7] Scrubbing PII"
   cat > "$SCRUB" <<'SQL'
