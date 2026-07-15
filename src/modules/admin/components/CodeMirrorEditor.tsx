@@ -213,10 +213,12 @@ export default function CodeMirrorEditor({
           }
         }),
         EditorView.theme({
-          '&': { fontSize: '13px' },
+          // Fill the (bounded, resizable) wrapper; `.cm-scroller` is the single
+          // internal scroller — see the wrapper's className below.
+          '&': { fontSize: '13px', height: '100%' },
           '.cm-content': { fontFamily: 'ui-monospace, "JetBrains Mono", monospace' },
           '.cm-gutters': { borderRight: 'none' },
-          '.cm-scroller': { minHeight: '160px' },
+          '.cm-scroller': { overflow: 'auto' },
           '.cm-tooltip-autocomplete': { fontFamily: 'ui-monospace, "JetBrains Mono", monospace' },
           '.cm-completionDetail': { color: '#94a3b8', fontStyle: 'normal', marginLeft: '0.75rem' },
         }),
@@ -279,9 +281,14 @@ export default function CodeMirrorEditor({
   }, [value])
 
   return (
+    // The wrapper is the bounded, user-resizable box: `resize-y` puts a drag
+    // grip at the bottom edge, `overflow-hidden` clips to its bounds (and is
+    // what makes `resize` take effect), and min/default/max heights bound it.
+    // `.cm-editor` fills it (`h-full`) and `.cm-scroller` scrolls internally, so
+    // a query taller than the box scrolls instead of being clipped.
     <div
       ref={containerRef}
-      className="overflow-hidden rounded-lg border border-border bg-card [&_.cm-editor]:min-h-[160px] [&_.cm-editor]:max-h-[55vh] [&_.cm-editor]:resize-y [&_.cm-editor]:overflow-auto [&_.cm-scroller]:overflow-auto"
+      className="resize-y overflow-hidden rounded-lg border border-border bg-card min-h-[160px] h-[260px] max-h-[70vh] [&_.cm-editor]:h-full"
     />
   )
 }
