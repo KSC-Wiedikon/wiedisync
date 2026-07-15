@@ -23,6 +23,8 @@ import DerbyPanel from '../components/DerbyPanel'
 import ExcelImportPanel from '../components/ExcelImportPanel'
 import InvitesPanel from '../components/InvitesPanel'
 import ClubPortalsPanel from '../components/ClubPortalsPanel'
+import TeamLinksEditor from '../components/TeamLinksEditor'
+import { useTeamLinks } from '../hooks/useTeamLinks'
 import type { SpielsamstagConfig, TeamSlotConfig, GameSchedulingGapConfig } from '../../../types'
 
 interface RolloverResult {
@@ -40,6 +42,9 @@ export default function AdminSetupPage() {
   const { season, allSeasons, isLoading, createSeason, updateSeason, setSeason, refetch: refetchSeasons } = useGameSchedulingSeason()
   const { generateSlots, slots, isLoading: slotsLoading } = useAdminBookings(season?.id)
   const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams()
+  // Coach/player-sharing team links for volleyball (migration 218, sport-agnostic).
+  const { links: teamLinks, addLink: addTeamLink, updateLink: updateTeamLink, removeLink: removeTeamLink } =
+    useTeamLinks(season?.id, 'volleyball')
   const [generating, setGenerating] = useState(false)
   const [genResult, setGenResult] = useState<{ total_created: number } | null>(null)
 
@@ -229,6 +234,20 @@ export default function AdminSetupPage() {
               onGenerate={handleGenerate}
             />
           </div>
+
+          {/* Coach/player-sharing team links — VB admins only (they hold the write
+              policy; a plain spielplaner would 403). Same editor as basketball. */}
+          {hasAdminAccessToSport('volleyball') && (
+            <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+              <TeamLinksEditor
+                teams={volleyballTeams}
+                links={teamLinks}
+                addLink={addTeamLink}
+                updateLink={updateTeamLink}
+                removeLink={removeTeamLink}
+              />
+            </div>
+          )}
 
           {/* Invites (admin-issued per-verein links — full width) */}
           {season.status === 'open' && (
