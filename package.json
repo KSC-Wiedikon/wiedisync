@@ -33,6 +33,8 @@
     "backup:deploy-scripts": "rsync -avz directus/scripts/vps/ hetzner:/tmp/kscw-vps-scripts/ && ssh hetzner \"sudo install -m 0755 -o root -g root /tmp/kscw-vps-scripts/*.sh /usr/local/bin/ && rm -rf /tmp/kscw-vps-scripts\"",
     "files:check:dev": "bash directus/scripts/check-file-integrity.sh dev --refresh",
     "files:check:prod": "bash directus/scripts/check-file-integrity.sh prod --refresh",
+    "assets:check:dev": "node scripts/verify-frontend-assets.mjs https://wiedisync.pages.dev",
+    "assets:check:prod": "node scripts/verify-frontend-assets.mjs https://wiedisync.kscw.ch",
     "r2:cutover:dev": "bash directus/scripts/r2-cutover.sh dev",
     "r2:cutover:prod": "bash directus/scripts/r2-cutover.sh prod",
     "db:snapshot:dev": "ssh hetzner 'sudo /usr/local/bin/predeploy-snapshot.sh dev'",
