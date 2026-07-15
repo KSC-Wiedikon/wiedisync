@@ -916,6 +916,41 @@ export interface BasketballHallAvailability extends BaseRecord {
   created_by?: string | number | null
 }
 
+/**
+ * A basketball game placed into a fixed KWI hall slot for the ProBasket
+ * Spielplansitzung (migration 216). One row per (season, date, time, hall).
+ */
+export interface BasketballSlotPlan extends BaseRecord {
+  season: string | number
+  /** 'YYYY-MM-DD' */
+  date: string
+  /** 'HH:MM' tip-off */
+  time: string
+  /** 'KWI A' | 'KWI B' | 'KWI C' | 'KWI A+B' */
+  hall: string
+  /** teams.id, or null when the KSCW side is free-text. */
+  kscw_team?: string | number | null
+  kscw_team_label?: string | null
+  opponent?: string | null
+  sex?: 'm' | 'f' | 'mixed' | null
+  /** 'home' = KSCW hosts at KWI; 'guest' = a guest game occupying the hall. */
+  game_type?: 'home' | 'guest'
+  note?: string | null
+  created_by?: string | number | null
+}
+
+/**
+ * A coach/player-sharing link between two basketball teams (migration 217).
+ * 'diff' = must not play the same time (shared person); 'same' = keep same time.
+ */
+export interface BasketballTeamLink extends BaseRecord {
+  season: string | number
+  team_a: string | number
+  team_b: string | number
+  link_type: 'same' | 'diff'
+  created_by?: string | number | null
+}
+
 export interface ScorerDelegation extends BaseRecord {
   game: string
   role: 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'referee' | 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official'

@@ -1756,10 +1756,10 @@ async function main() {
     'game_scheduling_seasons', 'game_scheduling_slots',
     'game_scheduling_opponents', 'game_scheduling_bookings',
     'game_scheduling_club_portals',
-    // Basketball hall availability (migration 214) — club-wide CRUD; the Basketball
-    // prep page is UI-scoped to basketball admins (full admins bypass). No opponent/
-    // token/booking flow: ProBasket owns the schedule.
-    'basketball_hall_availability',
+    // Basketball prep (migrations 214/216) — club-wide CRUD; the Basketball prep page
+    // is UI-scoped to basketball admins (full admins bypass). No opponent/token/booking
+    // flow: ProBasket owns the schedule. slot_plan = games placed into KWI hall slots.
+    'basketball_hall_availability', 'basketball_slot_plan', 'basketball_team_links',
     'query_templates', 'sv_vm_check',
     'announcements',
     // Fines (migration 069) — Sport Admin full CRUD (override coach-only scope
