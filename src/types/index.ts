@@ -681,6 +681,8 @@ export interface GameSchedulingSeason extends BaseRecord {
   season_closes: string | null
   /** Date the SV feed takes over date/time/venue for tool-scheduled games (YYYY-MM-DD). Null → protect until the game is completed. */
   vm_authority_date: string | null
+  /** When true, opponents get ONE link per club (/terminplanung/club/:token) instead of one per team. Set on 2027/28 onward. */
+  use_club_portals?: boolean
   notes: string
 
 }

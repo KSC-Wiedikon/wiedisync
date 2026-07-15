@@ -347,17 +347,26 @@ export function schedEmail(lang, kind, vars) {
  * @returns {{ subject: string, text: string, html: string }}
  */
 export function inviteEmail(vars) {
-  const { kscw = '', league = '', season = '', url = '', expires = '', opponent = '', reminder = false } = vars || {}
+  const { kscw = '', league = '', season = '', url = '', expires = '', opponent = '', reminder = false, club = false } = vars || {}
   const team = league ? `${kscw} (${league})` : kscw
+  // Club-portal invites (one link per opponent club, covering all their teams vs
+  // KSCW) phrase the match line club-wide instead of naming a single KSCW team.
+  const matchDe = club ? 'gegen alle unsere Teams' : `gegen unser Team ${team}`
+  const matchEn = club ? 'against all our teams' : `against our team ${team}`
   // Reminder sends add an "ignore if you're already set" line — they go to clubs
   // that may already have scheduled everything (the tool computes who's still
   // open, but a club can have arranged a game outside the tool).
   const remDe = 'Falls bei euch bereits alles geplant ist, kannst du diese E-Mail ignorieren.'
   const remEn = 'If everything is already scheduled on your side, please ignore this email.'
-  // Per-opponent subject so the spielplaner can tell at a glance which invite
-  // went to whom, e.g. "Spielplanung - KSCW D1 / Rüschlikon 2". Falls back to the
-  // generic season subject when the team/opponent names aren't available.
-  const subject = (kscw && opponent)
+  // Per-opponent subject so the spielplaner can tell at a glance which invite went
+  // to whom, e.g. "Spielplanung - KSCW D1 / Rüschlikon 2". Club portals are keyed
+  // by the whole club: "Spielplanung - KSC Wiedikon / <club>". Falls back to the
+  // generic season subject when the names aren't available.
+  const subject = club
+    ? (opponent
+        ? `Spielplanung - KSC Wiedikon / ${opponent}`.trim()
+        : `KSC Wiedikon – Spielplanung / Game scheduling ${season}`.trim())
+    : (kscw && opponent)
     ? `Spielplanung - KSCW ${kscw} / ${opponent}`.trim()
     : `KSC Wiedikon – Spielplanung / Game scheduling ${season}`.trim()
 
@@ -365,7 +374,7 @@ export function inviteEmail(vars) {
   // so a single recipient name would be wrong for the rest.
   const text =
     `Hallo,\n\n` +
-    `KSC Wiedikon lädt euch zur Spielplanung der Saison ${season} ein – gegen unser Team ${team}.\n\n` +
+    `KSC Wiedikon lädt euch zur Spielplanung der Saison ${season} ein – ${matchDe}.\n\n` +
     `Unter folgendem Link könnt ihr eure Heim- und Auswärtsspieltermine auswählen:\n${url}\n\n` +
     (expires ? `Der Link ist bis ${expires} gültig.\n` : '') +
     (reminder ? `${remDe}\n\n` : '') +
@@ -373,7 +382,7 @@ export function inviteEmail(vars) {
     `Sportliche Grüsse\nKSC Wiedikon\n\n` +
     `— — — — —\n\n` +
     `Hello,\n\n` +
-    `KSC Wiedikon invites you to schedule your home and away matches for the ${season} season against our team ${team}.\n\n` +
+    `KSC Wiedikon invites you to schedule your home and away matches for the ${season} season ${matchEn}.\n\n` +
     `Open the link below to pick your slots:\n${url}\n\n` +
     (expires ? `This link is valid until ${expires}.\n` : '') +
     (reminder ? `${remEn}\n\n` : '') +
@@ -381,11 +390,11 @@ export function inviteEmail(vars) {
     `Best regards\nKSC Wiedikon`
 
   const body =
-    para(`KSC Wiedikon lädt euch zur Spielplanung der Saison ${season} ein – gegen unser Team ${team}. Über den Link unten wählt ihr eure Heim- und Auswärtsspieltermine.`) +
+    para(`KSC Wiedikon lädt euch zur Spielplanung der Saison ${season} ein – ${matchDe}. Über den Link unten wählt ihr eure Heim- und Auswärtsspieltermine.`) +
     (reminder ? paraStrong(remDe) : '') +
     (expires ? para(`Der Link ist bis ${expires} gültig. Bei Fragen antwortet einfach auf diese E-Mail.`) : para('Bei Fragen antwortet einfach auf diese E-Mail.')) +
     '<div style="height:10px;font-size:0;line-height:0">&nbsp;</div>' +
-    para(`KSC Wiedikon invites you to schedule your home and away matches for the ${season} season against our team ${team}. Use the link below to pick your slots.`) +
+    para(`KSC Wiedikon invites you to schedule your home and away matches for the ${season} season ${matchEn}. Use the link below to pick your slots.`) +
     (reminder ? paraStrong(remEn) : '') +
     (expires ? para(`This link is valid until ${expires}. If you have any questions, just reply to this email.`) : para('If you have any questions, just reply to this email.'))
 

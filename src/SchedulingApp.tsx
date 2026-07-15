@@ -23,6 +23,7 @@ import SetPasswordPage from './modules/auth/SetPasswordPage'
 // Scheduling pages
 import PublicTerminplanungPage from './modules/gameScheduling/pages/PublicTerminplanungPage'
 import OpponentFlowPage from './modules/gameScheduling/pages/OpponentFlowPage'
+import ClubFlowPage from './modules/gameScheduling/pages/ClubFlowPage'
 import AdminSetupPage from './modules/gameScheduling/pages/AdminSetupPage'
 import AdminDashboardPage from './modules/gameScheduling/pages/AdminDashboardPage'
 import MailboxPage from './modules/gameScheduling/pages/MailboxPage'
@@ -70,6 +71,10 @@ export default function SchedulingApp() {
                     <Routes>
                       {/* Public opponent flow — bare, no shell (as on the member app) */}
                       <Route path="terminplanung" element={<PublicTerminplanungPage />} />
+                      {/* Per-club portal (2027/28+): ONE link covering all the club's
+                          teams. Static `club` segment outranks the dynamic :token, and
+                          tokens are 32-hex so they never collide with the literal. */}
+                      <Route path="terminplanung/club/:token" element={<ClubFlowPage />} />
                       <Route path="terminplanung/:token" element={<OpponentFlowPage />} />
 
                       {/* Auth (pre-SSO login on this origin) */}

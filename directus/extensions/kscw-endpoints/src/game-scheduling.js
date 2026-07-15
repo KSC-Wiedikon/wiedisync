@@ -1911,6 +1911,21 @@ export function registerGameScheduling(router, { database, logger, services, get
         opponent.first_viewed_at = nowIso
       }
 
+      return res.json(await computeOpponentSlotsPayload(opponent))
+    } catch (err) {
+      log.error({ msg: `terminplanung/slots: ${err.message}`, endpoint: 'terminplanung/slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // Core slot/booking payload for ONE opponent pairing (one KSCW team ↔ one
+  // opposing team). Extracted from the /terminplanung/slots/:token route so the
+  // per-token page AND the club-portal aggregate endpoint (/terminplanung/club/
+  // slots/:token) share ONE computation — every cap/derby/junior rule is applied
+  // per pairing exactly as before. Reads only from the resolved `opponent` row;
+  // returns the exact object the opponent page consumes. Throws on error (callers
+  // wrap in try/catch). Declaration-hoisted, so the route above may call it.
+  async function computeOpponentSlotsPayload(opponent) {
       // Games, booked home slots and confirmed away proposals — expanded by the
       // season's gap. Home slots use the home gap; away proposals use the
       // proposal gap (1-2) and the lenient proposal-3 gap.
@@ -2277,7 +2292,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         }))
       }
 
-      res.json({
+      return {
         opponent: {
           id: opponent.id,
           club_name: opponent.club_name || opponent.team_name || '',
@@ -2286,6 +2301,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           contact_email: opponent.contact_email || '',
           kscw_team_id: opponent.kscw_team,
           kscw_team_name: team?.name || '',
+          club_id: opponent.club_id || null,
           home_game: opponent.home_game,
           away_game: opponent.away_game,
           source: opponent.source || 'self_registration',
@@ -2300,19 +2316,15 @@ export function registerGameScheduling(router, { database, logger, services, get
         blocked_away_strict,
         blocked_away_loose,
         season_window,
-      })
-    } catch (err) {
-      log.error({ msg: `terminplanung/slots: ${err.message}`, endpoint: 'terminplanung/slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
-      res.status(500).json({ error: 'Internal error' })
-    }
-  })
+      }
+  }
 
   // POST /kscw/terminplanung/propose-home/:token — propose exactly 3 home slots
   // (opponent picks slots in OUR hall; the spielplaner confirms one). Mirrors
   // propose-away. Slots are NOT reserved on proposal — only the confirmed one
   // books the slot, so two opponents may propose the same slot (admin arbitrates;
   // the opponent + admin are warned a proposed slot might not be available).
-  router.post('/terminplanung/propose-home/:token', async (req, res) => {
+  const handleProposeHome = async (req, res) => {
     try {
       if (!rateLimit(writeAttempts, req, 10, 15 * 60 * 1000)) {
         return res.status(429).json({ error: 'Too many requests. Try again later.' })
@@ -2645,7 +2657,8 @@ export function registerGameScheduling(router, { database, logger, services, get
       log.error({ msg: `terminplanung/propose-home: ${err.message}`, endpoint: 'terminplanung/propose-home', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
-  })
+  }
+  router.post('/terminplanung/propose-home/:token', handleProposeHome)
 
   // POST /kscw/terminplanung/admin/confirm-home — confirm one of an opponent's 3
   // proposed home slots. Body: { booking_id, proposal_number (1-3), admin_notes? }.
@@ -2835,7 +2848,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   })
 
   // POST /kscw/terminplanung/propose-away/:token — propose 3 away dates
-  router.post('/terminplanung/propose-away/:token', async (req, res) => {
+  const handleProposeAway = async (req, res) => {
     try {
       // Rate limit: max 10 proposal attempts per 15 min per IP
       if (!rateLimit(writeAttempts, req, 10, 15 * 60 * 1000)) {
@@ -3091,12 +3104,13 @@ export function registerGameScheduling(router, { database, logger, services, get
       log.error({ msg: `terminplanung/propose-away: ${err.message}`, endpoint: 'terminplanung/propose-away', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
-  })
+  }
+  router.post('/terminplanung/propose-away/:token', handleProposeAway)
 
   // POST /kscw/terminplanung/set-language/:token — remember the opponent's UI
   // language so transactional emails go out in it. Called on page load and each
   // time the opponent flips the language switcher. Idempotent.
-  router.post('/terminplanung/set-language/:token', async (req, res) => {
+  const handleSetLanguage = async (req, res) => {
     try {
       if (!rateLimit(langAttempts, req, 40, 15 * 60 * 1000)) {
         return res.status(429).json({ error: 'Too many requests. Try again later.' })
@@ -3115,12 +3129,13 @@ export function registerGameScheduling(router, { database, logger, services, get
       log.error({ msg: `terminplanung/set-language: ${err.message}`, endpoint: 'terminplanung/set-language', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
-  })
+  }
+  router.post('/terminplanung/set-language/:token', handleSetLanguage)
 
   // POST /kscw/terminplanung/note/:token — the opponent saves/updates their free
   // -text remark to KSCW (shown to the spielplaner in the dashboard). Token-gated,
   // independent of proposing so they can leave a note even with no workable slot.
-  router.post('/terminplanung/note/:token', async (req, res) => {
+  const handleSaveNote = async (req, res) => {
     try {
       if (!rateLimit(writeAttempts, req, 20, 15 * 60 * 1000)) {
         return res.status(429).json({ error: 'Too many requests. Try again later.' })
@@ -3134,6 +3149,195 @@ export function registerGameScheduling(router, { database, logger, services, get
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `terminplanung/note: ${err.message}`, endpoint: 'terminplanung/note', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  }
+  router.post('/terminplanung/note/:token', handleSaveNote)
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Club portal — ONE opponent link/page per CLUB (use_club_portals seasons).
+  // A portal (game_scheduling_club_portals, keyed by season+club_id) owns a
+  // shared token and fans out to the club's per-team game_scheduling_opponents
+  // rows. The public endpoints reuse the exact per-pairing engine:
+  //   * GET slots → computeOpponentSlotsPayload() per pairing
+  //   * mutations → re-dispatched to the per-opponent handlers via a synthetic
+  //     request carrying the target opponent's own token, so every cap / derby
+  //     clamp / booking-upsert / receipt+admin email runs unchanged.
+  // Portal status only transitions invited→viewed (cosmetic; the per-pairing
+  // open/proposed/confirmed badges remain authoritative for booking state).
+  // ─────────────────────────────────────────────────────────────────────
+  const CLUB_PORTAL_VIEW_STATUSES = ['invited', 'viewed', 'booked']
+
+  async function clubPortalByToken(token) {
+    return database('game_scheduling_club_portals')
+      .where('token', token)
+      .whereIn('status', CLUB_PORTAL_VIEW_STATUSES)
+      .first()
+  }
+
+  // The club's per-team opponent anchor rows for a portal (season + club_id).
+  async function clubPortalOpponents(portal) {
+    return database('game_scheduling_opponents')
+      .where('season', portal.season)
+      .where('club_id', portal.club_id)
+      .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
+      .orderBy('kscw_team', 'asc')
+  }
+
+  // Which of the portal's opponent rows owns a given SVRZ fixture id? A fixture
+  // belongs to exactly one (kscw_team ↔ opp team) pairing.
+  async function findPortalOpponentByFixture(opponents, svrzGameId) {
+    if (!svrzGameId) return null
+    for (const opp of opponents) {
+      const fixtures = await opponentSvrzFixtures(opp)
+      if (fixtures.some((f) => String(f.id) === String(svrzGameId))) return opp
+    }
+    return null
+  }
+
+  // Re-dispatch a club mutation to a per-opponent handler by faking the token on
+  // a prototype-chained request clone (body/headers/accountability inherited).
+  const dispatchAsOpponent = (handler, req, res, opponent) => {
+    const subReq = Object.create(req)
+    subReq.params = { ...(req.params || {}), token: opponent.token }
+    return handler(subReq, res)
+  }
+
+  // GET /kscw/terminplanung/club/slots/:token — aggregate slots for ALL the
+  // club's pairings on one page.
+  router.get('/terminplanung/club/slots/:token', async (req, res) => {
+    try {
+      if (!rateLimit(tokenAttempts, req, 60, 15 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many requests. Try again later.' })
+      }
+      const portal = await clubPortalByToken(req.params.token)
+      if (!portal) return res.status(404).json({ error: 'Invalid or expired link' })
+      if (portal.status !== 'booked' && portal.expires_at && new Date() > new Date(portal.expires_at)) {
+        return res.status(400).json({ error: 'Link expired' })
+      }
+      if (portal.status === 'invited') {
+        const nowIso = new Date().toISOString()
+        await database('game_scheduling_club_portals').where('id', portal.id)
+          .update({ status: 'viewed', first_viewed_at: nowIso, date_updated: nowIso })
+        portal.status = 'viewed'
+      }
+      const seasonRow = await database('game_scheduling_seasons').where('id', portal.season).first('id', 'season')
+      const opponents = await clubPortalOpponents(portal)
+      const pairings = []
+      for (const opp of opponents) {
+        // Flip the anchor row invited→viewed too so the admin dashboard reflects
+        // engagement (the same transition the per-token route does).
+        if (opp.status === 'invited') {
+          const nowIso = new Date().toISOString()
+          await database('game_scheduling_opponents').where('id', opp.id)
+            .update({ status: 'viewed', first_viewed_at: nowIso })
+          opp.status = 'viewed'
+        }
+        pairings.push(await computeOpponentSlotsPayload(opp))
+      }
+      res.json({
+        portal: {
+          id: portal.id,
+          club_id: portal.club_id,
+          club_name: portal.club_name || '',
+          status: portal.status || 'invited',
+          language: portal.language || null,
+          contact_name: portal.contact_name || '',
+          contact_email: portal.contact_email || '',
+          club_note: portal.club_note || '',
+          season_id: portal.season,
+          season_name: seasonRow?.season || '',
+        },
+        pairings,
+      })
+    } catch (err) {
+      log.error({ msg: `terminplanung/club/slots: ${err.message}`, endpoint: 'terminplanung/club/slots', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/terminplanung/club/propose-home/:token — delegate to the per-
+  // opponent home handler for the pairing that owns req.body.svrz_game_id.
+  router.post('/terminplanung/club/propose-home/:token', async (req, res) => {
+    try {
+      const portal = await clubPortalByToken(req.params.token)
+      if (!portal) return res.status(404).json({ error: 'Invalid or expired link' })
+      if (portal.status !== 'booked' && portal.expires_at && new Date() > new Date(portal.expires_at)) {
+        return res.status(400).json({ error: 'Link expired' })
+      }
+      const opponents = await clubPortalOpponents(portal)
+      const target = await findPortalOpponentByFixture(opponents, req.body?.svrz_game_id)
+      if (!target) return res.status(400).json({ error: 'invalid_game' })
+      return await dispatchAsOpponent(handleProposeHome, req, res, target)
+    } catch (err) {
+      log.error({ msg: `terminplanung/club/propose-home: ${err.message}`, endpoint: 'terminplanung/club/propose-home', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/terminplanung/club/propose-away/:token — same, away handler.
+  router.post('/terminplanung/club/propose-away/:token', async (req, res) => {
+    try {
+      const portal = await clubPortalByToken(req.params.token)
+      if (!portal) return res.status(404).json({ error: 'Invalid or expired link' })
+      if (portal.status !== 'booked' && portal.expires_at && new Date() > new Date(portal.expires_at)) {
+        return res.status(400).json({ error: 'Link expired' })
+      }
+      const opponents = await clubPortalOpponents(portal)
+      const target = await findPortalOpponentByFixture(opponents, req.body?.svrz_game_id)
+      if (!target) return res.status(400).json({ error: 'invalid_game' })
+      return await dispatchAsOpponent(handleProposeAway, req, res, target)
+    } catch (err) {
+      log.error({ msg: `terminplanung/club/propose-away: ${err.message}`, endpoint: 'terminplanung/club/propose-away', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/terminplanung/club/note/:token — one shared remark; store on the
+  // portal + mirror onto every opponent row so the admin dashboard shows it.
+  router.post('/terminplanung/club/note/:token', async (req, res) => {
+    try {
+      if (!rateLimit(writeAttempts, req, 20, 15 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many requests. Try again later.' })
+      }
+      const note = String(req.body?.note ?? '').slice(0, 2000)
+      const portal = await clubPortalByToken(req.params.token)
+      if (!portal) return res.status(404).json({ error: 'Invalid link' })
+      const nowIso = new Date().toISOString()
+      await database('game_scheduling_club_portals').where('id', portal.id)
+        .update({ club_note: note, date_updated: nowIso })
+      await database('game_scheduling_opponents')
+        .where('season', portal.season).where('club_id', portal.club_id)
+        .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
+        .update({ opponent_note: note })
+      res.json({ success: true })
+    } catch (err) {
+      log.error({ msg: `terminplanung/club/note: ${err.message}`, endpoint: 'terminplanung/club/note', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/terminplanung/club/set-language/:token — one shared language;
+  // store on the portal + propagate to opponent rows (per-opponent receipt
+  // emails read opponent.language).
+  router.post('/terminplanung/club/set-language/:token', async (req, res) => {
+    try {
+      if (!rateLimit(langAttempts, req, 40, 15 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many requests. Try again later.' })
+      }
+      const language = String(req.body?.language || '').toLowerCase()
+      if (!VALID_LANGS.includes(language)) return res.status(400).json({ error: 'Invalid language' })
+      const portal = await clubPortalByToken(req.params.token)
+      if (!portal) return res.status(404).json({ error: 'Invalid link' })
+      await database('game_scheduling_club_portals').where('id', portal.id)
+        .update({ language, date_updated: new Date().toISOString() })
+      await database('game_scheduling_opponents')
+        .where('season', portal.season).where('club_id', portal.club_id)
+        .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
+        .update({ language })
+      res.json({ success: true })
+    } catch (err) {
+      log.error({ msg: `terminplanung/club/set-language: ${err.message}`, endpoint: 'terminplanung/club/set-language', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })
@@ -4949,6 +5153,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           kscw_team, season, team_name: r.team_name, contact_email: email,
           contact_name: r.contact_name || '', token, status: 'invited',
           source: r.source || 'manual', created_by_admin: true, expires_at: expiresAt,
+          club_id: r.club_id || null,
         }).returning(['id'])
         const newId = Array.isArray(inserted) ? (inserted[0]?.id ?? inserted[0]) : inserted
         created.push({ id: newId, token, email, team_name: r.team_name })
@@ -6088,6 +6293,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           contact_email: union.emails, contact_name: union.names,
           calendar_contact_email: cal.emails, calendar_contact_name: cal.names,
           team_contact_email: team.emails, team_contact_name: team.names,
+          // club_id groups this opponent row under the per-club portal (season, club_id).
+          club_id: opp.club_id || null,
         }
         const existingRow = existingByName.get(norm(teamName))
         if (existingRow) {
@@ -6095,11 +6302,12 @@ export function registerGameScheduling(router, { database, logger, services, get
           // responsibles that were dropped before they'd been synced (they're
           // matched by the opponent team's staticTeamIdentifier). Never touches
           // token/status/expiry, so a revoked invite stays revoked. Only writes
-          // when the union (or a split group) actually changed.
+          // when the union (or a split group), or the club_id, actually changed.
           const changed =
             (existingRow.contact_email || '') !== contactFields.contact_email ||
             (existingRow.calendar_contact_email || '') !== contactFields.calendar_contact_email ||
-            (existingRow.team_contact_email || '') !== contactFields.team_contact_email
+            (existingRow.team_contact_email || '') !== contactFields.team_contact_email ||
+            (!!opp.club_id && (existingRow.club_id || '') !== String(opp.club_id))
           if (changed) { await database('game_scheduling_opponents').where('id', existingRow.id).update(contactFields); refreshed++ }
           continue
         }
@@ -6120,6 +6328,131 @@ export function registerGameScheduling(router, { database, logger, services, get
       res.json({ created, refreshed, invites })
     } catch (err) {
       log.error({ msg: `invites ensure-from-svrz: ${err.message}`, endpoint: 'admin/terminplanung/invites/ensure-from-svrz', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── Club portals (admin) — one opponent link per CLUB (use_club_portals) ──
+  // GET /admin/terminplanung/club-portals?season= — list a season's portals.
+  router.get('/admin/terminplanung/club-portals', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const season = Number(req.query.season)
+      if (!season) return res.status(400).json({ error: 'season required' })
+      const portals = await database('game_scheduling_club_portals')
+        .where('season', season).orderBy('club_name', 'asc')
+      res.json({ portals })
+    } catch (err) {
+      log.error({ msg: `club-portals list: ${err.message}`, endpoint: 'admin/terminplanung/club-portals', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /admin/terminplanung/club-portals/ensure — mint/refresh one portal per
+  // (season, club_id) from the season's opponent anchor rows. Idempotent: never
+  // touches an existing portal's token/status/expiry; only unions in fresh
+  // contacts and fills the club name. Requires the season's use_club_portals flag.
+  router.post('/admin/terminplanung/club-portals/ensure', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const season = Number(req.body?.season)
+      if (!season) return res.status(400).json({ error: 'season required' })
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
+      if (!seasonRow) return res.status(404).json({ error: 'season not found' })
+      if (!seasonRow.use_club_portals) return res.status(400).json({ error: 'club_portals_disabled' })
+      // Group opponent anchor rows by club. The contact union is derived from the
+      // rows themselves (their contact_email is already the resolved team+calendar
+      // union), so every recipient a per-team send would reach still gets the link.
+      const opps = await database('game_scheduling_opponents')
+        .where('season', season).whereNotNull('club_id')
+        .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
+      const splitList = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean)
+      const byClub = new Map()
+      for (const o of opps) {
+        const key = String(o.club_id)
+        if (!byClub.has(key)) byClub.set(key, { club_id: key, club_name: o.club_name || '', emails: new Map(), names: new Set() })
+        const g = byClub.get(key)
+        if (!g.club_name && o.club_name) g.club_name = o.club_name
+        for (const e of splitList(o.contact_email)) { const lc = e.toLowerCase(); if (!g.emails.has(lc)) g.emails.set(lc, e) }
+        for (const n of splitList(o.contact_name)) g.names.add(n)
+      }
+      let created = 0, refreshed = 0
+      for (const g of byClub.values()) {
+        const emails = [...g.emails.values()].join(', ')
+        const names = [...g.names].join(', ')
+        const existing = await database('game_scheduling_club_portals')
+          .where({ season, club_id: g.club_id }).first()
+        if (existing) {
+          const patch = {}
+          if ((existing.contact_email || '') !== emails) patch.contact_email = emails
+          if ((existing.contact_name || '') !== names) patch.contact_name = names
+          if (!existing.club_name && g.club_name) patch.club_name = g.club_name
+          if (Object.keys(patch).length) {
+            patch.date_updated = new Date().toISOString()
+            await database('game_scheduling_club_portals').where('id', existing.id).update(patch)
+            refreshed++
+          }
+          continue
+        }
+        await database('game_scheduling_club_portals').insert({
+          season, club_id: g.club_id, club_name: g.club_name,
+          token: crypto.randomBytes(16).toString('hex'), status: 'invited',
+          contact_email: emails, contact_name: names,
+          expires_at: newInviteExpiry(seasonRow.season), created_by_admin: true,
+        })
+        created++
+      }
+      const portals = await database('game_scheduling_club_portals')
+        .where('season', season).orderBy('club_name', 'asc')
+      res.json({ created, refreshed, portals })
+    } catch (err) {
+      log.error({ msg: `club-portals ensure: ${err.message}`, endpoint: 'admin/terminplanung/club-portals/ensure', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /admin/terminplanung/club-portals/send — email the one club link to each
+  // portal's recipients (union of the club's team contacts). dry_run → preview.
+  router.post('/admin/terminplanung/club-portals/send', async (req, res) => {
+    if (!(await isAdminOrSpielplaner(req))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const { season, ids = null, dry_run } = req.body || {}
+      if (!season) return res.status(400).json({ error: 'season required' })
+      const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
+      if (!seasonRow) return res.status(404).json({ error: 'season not found' })
+      let q = database('game_scheduling_club_portals').where('season', season).whereNotIn('status', ['revoked', 'expired'])
+      if (Array.isArray(ids) && ids.length) q = q.whereIn('id', ids)
+      const portals = await q
+      const fmtDate = (ts) => {
+        if (!ts) return ''
+        const d = new Date(ts); if (isNaN(d.getTime())) return ''
+        const p = (n) => String(n).padStart(2, '0')
+        return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`
+      }
+      const previews = []; const failed = []; let sent = 0
+      for (const portal of portals) {
+        const url = `${SCHEDULING_URL}/terminplanung/club/${portal.token}`
+        const { subject, text, html } = inviteEmail({
+          club: true, opponent: portal.club_name || '',
+          season: seasonRow.season || '', url, expires: fmtDate(portal.expires_at),
+        })
+        previews.push({ id: portal.id, to: portal.contact_email, club_name: portal.club_name, subject, html, text })
+        if (!dry_run) {
+          const recipients = parseRecipients(portal.contact_email)
+          if (!recipients || (Array.isArray(recipients) && recipients.length === 0)) {
+            failed.push({ id: portal.id, error: 'no valid recipient' }); continue
+          }
+          try {
+            await sendSchedulingMail(portal.contact_email, subject, text, SCHEDULING_REPLY_TO, html)
+            await database('game_scheduling_club_portals').where('id', portal.id)
+              .update({ email_sent_at: new Date().toISOString() })
+            sent++
+          } catch (e) { failed.push({ id: portal.id, error: e.message }) }
+        }
+      }
+      res.json({ previews, sent, failed, dry_run: !!dry_run })
+    } catch (err) {
+      log.error({ msg: `club-portals send: ${err.message}`, endpoint: 'admin/terminplanung/club-portals/send', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

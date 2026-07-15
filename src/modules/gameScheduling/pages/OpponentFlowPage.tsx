@@ -3,120 +3,18 @@ import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
 import { gameStartForDate } from '../utils/slotTime'
-import type { BookingData, InviteGame } from '../hooks/useAvailableSlots'
-import HomeProposalForm from '../components/HomeProposalForm'
-import AwayProposalForm from '../components/AwayProposalForm'
+import type { BookingData } from '../hooks/useAvailableSlots'
+import { buildLegCards, fmtDate, fmtDateTime } from '../components/pairingCards'
+import type { LegCard, LegStatus } from '../components/pairingCards'
+import { HomeProposalFormForCard, AwayProposalFormForCard } from '../components/pairingForms'
 import Modal from '../../../components/Modal'
 import { useReportPageLoading } from '../../../hooks/usePageReady'
 import { Badge } from '../../../components/ui/badge'
 import LanguageDropdown from '../../../components/LanguageDropdown'
-import { currentLocale } from '../../../utils/dateHelpers'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const SUPPORT_EMAIL = 'volleyball@spielplanung.kscw.ch'
-
-// Weekday NAME follows the active UI language; the numeric part stays Swiss
-// dd.mm.yyyy regardless of language (CLAUDE.md → date format).
-function fmtDateTime(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return String(iso)
-  const wd = d.toLocaleDateString(currentLocale(), { weekday: 'short' })
-  const numeric = d.toLocaleString('de-CH', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  })
-  return `${wd}, ${numeric}`
-}
-
-function fmtDate(ymd: string | undefined): string {
-  if (!ymd) return ''
-  const d = new Date(`${ymd}T00:00:00`)
-  if (Number.isNaN(d.getTime())) return String(ymd)
-  const wd = d.toLocaleDateString(currentLocale(), { weekday: 'short' })
-  return `${wd}, ${d.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
-}
-
-
-type LegStatus = 'open' | 'proposed' | 'confirmed'
-
-/** One schedulable game = one card. A pairing can be played 2-3× per season
- *  (junior triple round-robin), so each side (home/away) may carry several
- *  fixtures; bookings are matched per fixture via booking.svrz_game_id. */
-interface LegCard {
-  key: string
-  isHome: boolean
-  /** Fixture to pass to propose-* (null = legacy/non-SVRZ single-game flow). */
-  svrzGameId: string | null
-  /** SVRZ fixture number (official game number) shown on the card; null if unknown. */
-  number: number | null
-  /** 1-based position within its side, and how many games that side has. */
-  seq: number
-  sideCount: number
-  booking?: BookingData
-}
-
-// The proposal forms report their current picks upward through an `onChange`
-// effect that depends on the callback's identity, so each card needs an onChange
-// that is STABLE across renders — a fresh inline closure per render would re-fire
-// those effects on every render (set-state loop). These two module-scope bridges
-// hold that per-card callback in a useCallback keyed on the card, which refs
-// can't do (refs may not be read or written during render).
-type HomeFormProps = React.ComponentProps<typeof HomeProposalForm>
-type HomePicks = Parameters<NonNullable<HomeFormProps['onChange']>>[0]
-
-function HomeProposalFormForCard({
-  cardKey,
-  onPick,
-  ...rest
-}: Omit<HomeFormProps, 'onChange'> & {
-  cardKey: string
-  onPick: (key: string, picks: HomePicks) => void
-}) {
-  const onChange = useCallback((picks: HomePicks) => onPick(cardKey, picks), [cardKey, onPick])
-  return <HomeProposalForm {...rest} onChange={onChange} />
-}
-
-type AwayFormProps = React.ComponentProps<typeof AwayProposalForm>
-type AwayProposals = Parameters<NonNullable<AwayFormProps['onChange']>>[0]
-
-function AwayProposalFormForCard({
-  cardKey,
-  onPick,
-  ...rest
-}: Omit<AwayFormProps, 'onChange'> & {
-  cardKey: string
-  onPick: (key: string, proposals: AwayProposals) => void
-}) {
-  const onChange = useCallback((proposals: AwayProposals) => onPick(cardKey, proposals), [cardKey, onPick])
-  return <AwayProposalForm {...rest} onChange={onChange} />
-}
-
-// Cards for one side: one per fixture (a NULL-keyed legacy booking belongs to
-// the FIRST fixture — mirrors the backend), plus bookings whose fixture is no
-// longer in the feed (re-synced/finalized) so a confirmed game never vanishes.
-// No fixtures and no bookings → the single legacy card (pre-multi-game flow).
-function buildLegCards(games: InviteGame[], bookings: BookingData[], isHome: boolean): LegCard[] {
-  const side = games.filter((g) => g.is_home_kscw === isHome)
-  const sideBookings = bookings.filter((b) => b.type === (isHome ? 'home_slot_pick' : 'away_proposal'))
-  const used = new Set<string>()
-  const cards: LegCard[] = side.map((g, i) => {
-    let bk = sideBookings.find((b) => String(b.svrz_game_id || '') === String(g.id))
-    if (!bk && i === 0) bk = sideBookings.find((b) => b.svrz_game_id == null && !used.has(b.id))
-    if (bk) used.add(bk.id)
-    return { key: String(g.id), isHome, svrzGameId: g.id, number: g.number ?? null, seq: i + 1, sideCount: side.length, booking: bk }
-  })
-  for (const b of sideBookings) {
-    if (used.has(b.id)) continue
-    cards.push({ key: `bk-${b.id}`, isHome, svrzGameId: b.svrz_game_id ?? null, number: null, seq: cards.length + 1, sideCount: side.length, booking: b })
-  }
-  if (cards.length === 0) {
-    cards.push({ key: isHome ? 'legacy-home' : 'legacy-away', isHome, svrzGameId: null, number: null, seq: 1, sideCount: 1 })
-  }
-  // sideCount drives the "Game N" suffix — recompute after orphans were added.
-  return cards.map((c) => ({ ...c, sideCount: cards.length }))
-}
 
 export default function OpponentFlowPage() {
   const { token } = useParams<{ token: string }>()

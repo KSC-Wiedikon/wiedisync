@@ -1524,6 +1524,7 @@ async function main() {
   await setPermRead(LEADER_POLICY, 'game_scheduling_slots')
   await setPermRead(LEADER_POLICY, 'game_scheduling_opponents')
   await setPermRead(LEADER_POLICY, 'game_scheduling_bookings')
+  await setPermRead(LEADER_POLICY, 'game_scheduling_club_portals')
 
   // Fines + fine_rules (migration 069) — full CRUD scoped to teams the user
   // coaches or is TR for. Row filter walks `team.coach.members_id.user` etc;
@@ -1678,6 +1679,7 @@ async function main() {
     // results as identity-free counts via GET /kscw/polls/:id/results.
     'game_scheduling_seasons', 'game_scheduling_slots',
     'game_scheduling_opponents', 'game_scheduling_bookings',
+    'game_scheduling_club_portals',
     'announcements',
     // Fines (migration 069) — Vorstand sees club-wide for oversight.
     'fines', 'fine_rules',
@@ -1753,6 +1755,7 @@ async function main() {
     'polls', 'team_requests', 'registrations',
     'game_scheduling_seasons', 'game_scheduling_slots',
     'game_scheduling_opponents', 'game_scheduling_bookings',
+    'game_scheduling_club_portals',
     'query_templates', 'sv_vm_check',
     'announcements',
     // Fines (migration 069) — Sport Admin full CRUD (override coach-only scope
@@ -1818,6 +1821,7 @@ async function main() {
   await setPermRead(TERMINPLANUNG_POLICY, 'game_scheduling_slots')
   await setPermRead(TERMINPLANUNG_POLICY, 'game_scheduling_opponents')
   await setPermRead(TERMINPLANUNG_POLICY, 'game_scheduling_bookings')
+  await setPermRead(TERMINPLANUNG_POLICY, 'game_scheduling_club_portals')
   // Scheduling blocks (migration 085) — club-wide Spielplaner can manage team
   // blackouts for any team (no row filter; holding the policy IS the gate, like
   // the season collections above). The create hook still stamps created_by.
