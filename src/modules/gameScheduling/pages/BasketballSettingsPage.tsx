@@ -11,7 +11,7 @@ export default function BasketballSettingsPage() {
   const { t } = useTranslation('basketballScheduling')
   const confirm = useConfirm()
   const { season, allSeasons, setSeason } = useGameSchedulingSeason()
-  const { teams, links, addLink, removeLink } = useBasketballPlan(season)
+  const { teams, links, addLink, updateLink, removeLink } = useBasketballPlan(season)
 
   const [teamA, setTeamA] = useState('')
   const [teamB, setTeamB] = useState('')
@@ -20,8 +20,6 @@ export default function BasketballSettingsPage() {
   const teamName = (id: string | number) => teams.find((tm) => String(tm.id) === String(id))?.name ?? `#${id}`
   const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
 
-  const linkLabel = (lt: string) =>
-    lt === 'same' ? t('linkSame') : lt === 'adjacent' ? t('linkAdjacent') : t('linkDiff')
   const linkBadge = (lt: string) =>
     lt === 'same'
       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
@@ -98,9 +96,22 @@ export default function BasketballSettingsPage() {
           <ul className="space-y-1">
             {links.map((l) => (
               <li key={l.id} className="flex items-center gap-2 text-sm">
-                <span className={`rounded px-2 py-0.5 text-xs ${linkBadge(l.link_type)}`}>
-                  {linkLabel(l.link_type)}
-                </span>
+                <select
+                  className={`rounded border-0 px-2 py-0.5 text-xs font-medium ${linkBadge(l.link_type)}`}
+                  value={l.link_type}
+                  onChange={async (e) => {
+                    try {
+                      await updateLink(l.id, e.target.value as 'same' | 'diff' | 'adjacent')
+                    } catch {
+                      toast.error(t('saveError'))
+                    }
+                  }}
+                  aria-label={t('teamLinks')}
+                >
+                  <option value="diff">{t('linkDiff')}</option>
+                  <option value="adjacent">{t('linkAdjacent')}</option>
+                  <option value="same">{t('linkSame')}</option>
+                </select>
                 <span>{teamName(l.team_a)} ↔ {teamName(l.team_b)}</span>
                 <button
                   type="button"

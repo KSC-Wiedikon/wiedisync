@@ -327,15 +327,37 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
   )
 
   const refetchLinks = linksQ.refetch
+  // Upsert by unordered pair: if a link between these two teams already exists (in
+  // EITHER direction), update its type instead of creating a duplicate — the
+  // UNIQUE(season, team_a, team_b) constraint would otherwise 400 on a re-add, and
+  // a reversed (team_b, team_a) row would be a contradictory second link.
   const addLink = useCallback(
     async (teamA: string | number, teamB: string | number, linkType: 'same' | 'diff' | 'adjacent') => {
       if (seasonId == null || String(teamA) === String(teamB)) return
-      await createRecord('basketball_team_links', {
-        season: seasonId, team_a: teamA, team_b: teamB, link_type: linkType, created_by: user?.id ?? null,
-      })
+      const a = String(teamA)
+      const b = String(teamB)
+      const existing = links.find(
+        (l) =>
+          (String(l.team_a) === a && String(l.team_b) === b) ||
+          (String(l.team_a) === b && String(l.team_b) === a),
+      )
+      if (existing) {
+        await updateRecord('basketball_team_links', existing.id, { link_type: linkType })
+      } else {
+        await createRecord('basketball_team_links', {
+          season: seasonId, team_a: teamA, team_b: teamB, link_type: linkType, created_by: user?.id ?? null,
+        })
+      }
       await refetchLinks()
     },
-    [seasonId, user?.id, refetchLinks],
+    [seasonId, user?.id, refetchLinks, links],
+  )
+  const updateLink = useCallback(
+    async (id: string | number, linkType: 'same' | 'diff' | 'adjacent') => {
+      await updateRecord('basketball_team_links', id, { link_type: linkType })
+      await refetchLinks()
+    },
+    [refetchLinks],
   )
   const removeLink = useCallback(
     async (id: string | number) => {
@@ -420,6 +442,7 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
     links,
     highlightFor,
     addLink,
+    updateLink,
     removeLink,
     isLoading,
     error,
