@@ -275,6 +275,54 @@ const OWN_MEMBER = { member: { user: { _eq: '$CURRENT_USER' } } }
 const OWN_USER = { user: { _eq: '$CURRENT_USER' } }
 
 /**
+ * Announcements a non-admin may read: published, not expired, and addressed to
+ * them. Shared verbatim by MEMBER_POLICY and LEADER_POLICY.
+ *
+ * The audience arm (migration 219) is the part worth understanding. `all` and
+ * `sport` match on the row itself — the client narrows sport by primarySport,
+ * and both audience_type and audience_sport are in the readable field list.
+ * `teams` and `roles` cannot work that way: their targeting arrays are
+ * deliberately NOT readable (see ANNOUNCEMENT_READ_FIELDS), so the client has
+ * nothing to match itself against. They're gated instead on a materialized
+ * announcement_recipients row written by the publish fanout in kscw-hooks.
+ *
+ * This does NOT hit the M2M-deep-filter trap in CLAUDE.md: that fires when a
+ * frontend filter walks the same alias a policy filter walks. useAnnouncements
+ * never walks `recipients` — it filters on published_at/expires_at/audience_type
+ * only, so the junction is traversed exactly once, here.
+ */
+const ANNOUNCEMENT_VISIBLE = {
+  _and: [
+    { published_at: { _nnull: true } },
+    { published_at: { _lte: '$NOW' } },
+    { _or: [
+      { expires_at: { _null: true } },
+      { expires_at: { _gt: '$NOW' } },
+    ] },
+    { _or: [
+      { audience_type: { _in: ['all', 'sport'] } },
+      { recipients: OWN_MEMBER },
+    ] },
+  ],
+}
+
+/**
+ * Readable announcement fields for non-admins. Intentionally excludes
+ * audience_teams / audience_roles — exposing those arrays would reveal targeting
+ * intent for posts that weren't meant to be widely visible. That exclusion is
+ * exactly why ANNOUNCEMENT_VISIBLE has to gate teams/roles on the recipients
+ * junction rather than on the row. Also excludes internal admin state
+ * (notify_push, notify_email, fanout_sent_at, reply_to, email_layout).
+ */
+const ANNOUNCEMENT_READ_FIELDS = [
+  'id', 'image', 'link', 'pinned',
+  'published_at', 'expires_at',
+  'audience_type', 'audience_sport',
+  'translations', 'created_by',
+  'date_created', 'date_updated',
+]
+
+/**
  * user_logs.user is an INTEGER FK to members.id, NOT a UUID FK to
  * directus_users. The naive `{ user: { _eq: '$CURRENT_USER' } }` filter
  * tries to compare an int to the caller's UUID and Postgres throws
@@ -959,30 +1007,16 @@ async function main() {
   // guard additionally blocks edits once the form is closed / past deadline.
   await setPerm(MEMBER_POLICY, 'form_submissions', 'update', FORM_SUBMISSION_OWN, ['answers'])
 
-  // Announcements (Vereinsnews) — read only published, non-expired posts.
-  // Audience matching (sport / teams / roles) is enforced client-side in
-  // useAnnouncements; the server-side filter just prevents draft leakage.
-  // Field whitelist excludes internal admin state (notify_push, notify_email,
-  // fanout_sent_at) which members shouldn't see.
-  await setPermRead(MEMBER_POLICY, 'announcements', {
-    _and: [
-      { published_at: { _nnull: true } },
-      { published_at: { _lte: '$NOW' } },
-      { _or: [
-        { expires_at: { _null: true } },
-        { expires_at: { _gt: '$NOW' } },
-      ] },
-    ],
-  }, [
-    // Intentionally exclude audience_teams / audience_roles — once role/team
-    // targeting (v2) lands, exposing those arrays to non-admins would reveal
-    // targeting intent for posts that weren't meant to be widely visible.
-    'id', 'image', 'link', 'pinned',
-    'published_at', 'expires_at',
-    'audience_type', 'audience_sport',
-    'translations', 'created_by',
-    'date_created', 'date_updated',
-  ])
+  // Announcements (Vereinsnews) — published, non-expired, addressed to me.
+  // Sport narrowing is additionally applied client-side in useAnnouncements;
+  // teams/roles targeting is enforced here via the recipients junction.
+  await setPermRead(MEMBER_POLICY, 'announcements', ANNOUNCEMENT_VISIBLE, ANNOUNCEMENT_READ_FIELDS)
+
+  // Announcement recipients — read own rows only. This is what ANNOUNCEMENT_VISIBLE
+  // walks; without a read row the relational filter matches nothing and a targeted
+  // post stays invisible to the very member it was addressed to. Fields are limited
+  // to the join keys: the delivery-log columns (email_error &c.) are admin-only.
+  await setPermRead(MEMBER_POLICY, 'announcement_recipients', OWN_MEMBER, ['id', 'announcement', 'member'])
 
   // Push subscriptions — CRUD own. 2026-05-31 security audit: self-scope
   // create with OWN_MEMBER so a member can't register a push subscription
@@ -1500,25 +1534,8 @@ async function main() {
   // Announcements — restricted to same filter as members (no draft access).
   // F6 audit fix: coaches don't need to see admin's pre-publication drafts.
   // Vorstand keeps unrestricted access for their pipeline-visibility role.
-  await setPermRead(LEADER_POLICY, 'announcements', {
-    _and: [
-      { published_at: { _nnull: true } },
-      { published_at: { _lte: '$NOW' } },
-      { _or: [
-        { expires_at: { _null: true } },
-        { expires_at: { _gt: '$NOW' } },
-      ] },
-    ],
-  }, [
-    // Intentionally exclude audience_teams / audience_roles — once role/team
-    // targeting (v2) lands, exposing those arrays to non-admins would reveal
-    // targeting intent for posts that weren't meant to be widely visible.
-    'id', 'image', 'link', 'pinned',
-    'published_at', 'expires_at',
-    'audience_type', 'audience_sport',
-    'translations', 'created_by',
-    'date_created', 'date_updated',
-  ])
+  await setPermRead(LEADER_POLICY, 'announcements', ANNOUNCEMENT_VISIBLE, ANNOUNCEMENT_READ_FIELDS)
+  await setPermRead(LEADER_POLICY, 'announcement_recipients', OWN_MEMBER, ['id', 'announcement', 'member'])
 
   // User logs — REMOVED for LEADER (2026-05-12 audit). The audit log endpoint
   // at /kscw/admin/audit is the only sanctioned access path and is admin-only.
@@ -1687,6 +1704,11 @@ async function main() {
     'game_scheduling_opponents', 'game_scheduling_bookings',
     'game_scheduling_club_portals',
     'announcements',
+    // Per-recipient announcement delivery log (migration 219) — read-only for
+    // oversight ("did the blast reach everyone?"). Rows are written by the
+    // kscw-hooks fanout in system context, so no policy needs write access;
+    // granting it would only let an admin fabricate a delivery record.
+    'announcement_recipients',
     // Fines (migration 069) — Vorstand sees club-wide for oversight.
     'fines', 'fine_rules',
     // Scheduling blocks (migration 085) — club-wide read for oversight.
@@ -1787,6 +1809,10 @@ async function main() {
   for (const col of SPORT_ADMIN_FULL_CRUD) {
     await setPermCRUD(SPORT_ADMIN_POLICY, col)
   }
+  // Announcement delivery log (migration 219) — READ only, deliberately not in
+  // SPORT_ADMIN_FULL_CRUD. The fanout writes these rows in system context, so
+  // write access would buy nothing and would let a delivery record be forged.
+  await setPermRead(SPORT_ADMIN_POLICY, 'announcement_recipients')
   // poll_votes — read non-anonymous polls only (2026-07-02 audit #5/#14); keep
   // create/update/delete for oversight/correction. Anonymous results via the
   // counts endpoint. (Full Directus admins still bypass all filters by design.)

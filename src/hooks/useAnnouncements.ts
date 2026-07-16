@@ -33,16 +33,22 @@ export function pickTranslation(
  * Fetch published announcements visible to the current user, sorted with
  * pinned first then newest published_at.
  *
- * v1 audience filter: `all` always visible; `sport` matches user's primarySport
- * (or shown when primarySport='both'). `teams`/`roles` reserved for v2.
+ * Audience filter: `all` always visible; `sport` matches user's primarySport (or
+ * shown when primarySport='both'); `teams`/`roles` are let through here and
+ * narrowed server-side.
  *
- * Audit note (F2): the sport audience narrowing IS applied server-side — the
- * `sportFilter` below is part of the Directus `_and/_or` query, so a member of
+ * Audit note (F2): the sport narrowing IS applied server-side — the
+ * `audienceFilter` below is part of the Directus `_and/_or` query, so a member of
  * one sport is not sent the other sport's `sport`-targeted rows by the API.
- * What is NOT enforced is `teams`/`roles` targeting: those audience types are
- * not matched by this filter and therefore never surfaced yet (reserved for
- * v2). Acceptable for v1 (low-sensitivity content) — revisit when teams/roles
- * audiences ship or announcements carry confidential payload.
+ *
+ * `teams`/`roles` (migration 219) work differently and deliberately so. Their
+ * targeting arrays (audience_teams / audience_roles) are NOT in the member field
+ * whitelist — exposing them would reveal targeting intent — so this hook has
+ * nothing to match itself against and cannot narrow them. Instead the Member
+ * policy filter (ANNOUNCEMENT_VISIBLE in setup-permissions.mjs) requires a
+ * materialized `announcement_recipients` row for the requesting user, so the API
+ * only ever returns targeted posts the member was actually addressed in. Passing
+ * the type through here is therefore safe: the server has already decided.
  */
 export function useAnnouncements(opts?: { limit?: number }) {
   const { user, isApproved, primarySport } = useAuth()
@@ -58,22 +64,27 @@ export function useAnnouncements(opts?: { limit?: number }) {
     }
     try {
       const nowIso = new Date().toISOString()
-      // Audience filter: all + (primarySport-matched sport rows)
-      const sportFilter: Record<string, unknown>[] = [
+      // all + (primarySport-matched sport rows) + (server-gated teams/roles rows)
+      const audienceFilter: Record<string, unknown>[] = [
         { audience_type: { _eq: 'all' } },
       ]
       if (primarySport === 'volleyball' || primarySport === 'both') {
-        sportFilter.push({ _and: [{ audience_type: { _eq: 'sport' } }, { audience_sport: { _eq: 'volleyball' } }] })
+        audienceFilter.push({ _and: [{ audience_type: { _eq: 'sport' } }, { audience_sport: { _eq: 'volleyball' } }] })
       }
       if (primarySport === 'basketball' || primarySport === 'both') {
-        sportFilter.push({ _and: [{ audience_type: { _eq: 'sport' } }, { audience_sport: { _eq: 'basketball' } }] })
+        audienceFilter.push({ _and: [{ audience_type: { _eq: 'sport' } }, { audience_sport: { _eq: 'basketball' } }] })
       }
+      // Narrowed by the policy filter's recipients walk, not here — see the
+      // doc comment above. Note this filter must never walk `recipients` itself:
+      // a frontend filter and a policy filter traversing the same relation is the
+      // documented silent-empty trap (CLAUDE.md → M2M deep filter + policy walk).
+      audienceFilter.push({ audience_type: { _in: ['teams', 'roles'] } })
       const result = await fetchItems<Announcement>('announcements', {
         filter: {
           _and: [
             { published_at: { _nnull: true, _lte: nowIso } },
             { _or: [{ expires_at: { _null: true } }, { expires_at: { _gt: nowIso } }] },
-            { _or: sportFilter },
+            { _or: audienceFilter },
           ],
         },
         sort: ['-pinned', '-published_at'],
