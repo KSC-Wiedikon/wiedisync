@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.46.0 — 2026-07-16
+
+### New: send club news to specific teams or roles
+- **Club news can now be addressed to particular teams, or to people by what they do.** Alongside "all members" and "one sport", you can pick specific teams — which reaches their players, coaches, team responsibles and captain — or target roles and functions: the board, coaches, captains, scorers, referees, finance, and so on. The email, the push and the in-app post all go to exactly that group, and nobody else sees the post.
+- **Every news email now asks you to confirm before it sends**, and tells you who it is about to reach. Previously only the "all members" blast asked.
+
 ## v1.45.0 — 2026-07-15
 
 ### New: guided tours for more of the app
