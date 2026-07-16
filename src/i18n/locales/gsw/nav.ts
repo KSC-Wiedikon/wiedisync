@@ -65,6 +65,7 @@ export default {
   guide: 'Aleitig',
   adminExplorer: 'Dateni-Explorer',
   announcements: 'Mitteilige',
+  clubMailbox: 'Vereinsposchtfach',
   news: 'News',
   moderationReports: 'Moderationsberichte',
   messagingSettings: 'Nachrichten',

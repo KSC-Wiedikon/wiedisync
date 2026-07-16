@@ -116,7 +116,8 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | user_logs | `OWN_DU` (note traversal!) | `*` | 4.4.8 fix |
 | notifications | `OWN_MEMBER` | `*` | |
 | push_subscriptions | `OWN_MEMBER` | `*` | |
-| announcements | published + non-expired only | excludes `audience_teams` / `audience_roles` | 3.11 |
+| announcements | published + non-expired + **addressed to me** | excludes `audience_teams` / `audience_roles` | 3.11, **219** |
+| announcement_recipients | `OWN_MEMBER` | `id, announcement, member` only | **219** |
 | polls | `MY_TEAMS` (via team)| `*` | 035 |
 | referee_expenses | `MY_TEAMS` (via team) | `*` | 035 |
 | fines | `member.user = $CURRENT_USER` | `*` | **069** |
@@ -188,7 +189,8 @@ Inherits everything from Member. Adds:
 | team_requests | read / update | none | |
 | absences | read | own + members on teams I coach/TR | Doc drift fixed 2026-06-10 — read is NOT unfiltered. Scoped to the coach/TR-of-the-target-team filter (`member.member_teams.team.{coach,team_responsible}.members_id.user = $CURRENT_USER`, plus own), same scope as the CUD rows (2026-05-12 audit closed the full-club absence-notes dump) |
 | notifications | create | none | |
-| announcements | read | published + non-expired only (no draft access) | F6 audit |
+| announcements | read | published + non-expired + addressed to me (no draft access) | F6 audit, **219** |
+| announcement_recipients | read | `OWN_MEMBER`, fields `id, announcement, member` | **219** — the row the announcements read filter walks; without it a targeted post is invisible to its own audience |
 | user_logs | read | **REVOKED** (removed from LEADER 2026-05-12) | Audit access goes through `/kscw/admin/audit` (admin-only). Doc drift fixed 2026-06-10 — LEADER has NO `user_logs.read`; the smoke test asserts a coach token 403s here |
 | game_scheduling_* | read | none | |
 | fines | CRUD | scoped via teams.coach / team_responsible | **069** |
@@ -209,7 +211,9 @@ Inherits everything from Member. Adds:
 
 Inherits Member. Adds read-all on operational collections — board oversight role:
 
-`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, tasks, task_templates, poll_votes, team_requests, push_subscriptions, game_scheduling_seasons, game_scheduling_slots, game_scheduling_opponents, game_scheduling_bookings, announcements, fines, fine_rules, scheduling_blocks, finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides`.
+`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, tasks, task_templates, poll_votes, team_requests, push_subscriptions, game_scheduling_seasons, game_scheduling_slots, game_scheduling_opponents, game_scheduling_bookings, announcements, announcement_recipients, fines, fine_rules, scheduling_blocks, finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides`.
+
+**Announcement targeting (migration 219)** — `announcements.audience_type` now supports `teams` and `roles` alongside `all` / `sport`. Members and coaches still cannot read `audience_teams` / `audience_roles` (exposing them would reveal targeting intent), so the read filter cannot match a targeted post client-side. Instead the publish fanout materializes one `announcement_recipients` row per resolved member, and the Member/Leader read filter gates `teams`/`roles` posts on that row (`all` / `sport` keep matching on the announcement itself). `announcement_recipients` is **read-only in every policy** — the fanout writes it in system context, so write access would only allow forging a delivery record. Sport Admin and Vorstand read it unfiltered for delivery oversight (`email_at` / `email_error` answer "who didn't get it").
 
 **Finance (migration 114)** — the `finance_*` collections are the full board finance dashboard (ClubDesk Finanz read-only mirror, Scope A). Vorstand reads all; Members read only their own `finance_invoices` (above). No policy-layer writes.
 

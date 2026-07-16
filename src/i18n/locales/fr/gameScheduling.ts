@@ -577,6 +577,7 @@ export default {
   mailboxForward: 'Transférer',
   mailboxNew: 'Nouvel e-mail',
   mailboxPageTitle: 'Messagerie',
+  mailboxAdminPageTitle: 'Messagerie du club',
   mailboxSportVolleyball: 'Volleyball',
   mailboxSportBasketball: 'Basketball',
   mailboxFolderInbox: 'Boîte de réception',

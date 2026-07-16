@@ -1335,39 +1335,174 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return t[code] || t.de || t.en || Object.values(t).find(v => v && v.title) || { title: '', body: '' }
   }
 
+  // Role tokens for audience_type='roles' (migration 219). Prefixed across three
+  // disjoint namespaces because "role" means three different things here: an
+  // app-permission value in members.role, a team function derived from a
+  // junction, and a qualification boolean on members.
+  const ANN_ROLE_ENUM = ['admin', 'superuser', 'vb_admin', 'bb_admin', 'vorstand', 'website_admin', 'finance', 'user']
+  const ANN_FUNCTIONS = ['coach', 'team_responsible', 'captain']
+  const ANN_QUAL_COLUMNS = ['is_spielplaner', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb']
+
+  function parseJsonArray(value) {
+    if (Array.isArray(value)) return value
+    if (typeof value === 'string') {
+      try { const p = JSON.parse(value); return Array.isArray(p) ? p : [] } catch { return [] }
+    }
+    return []
+  }
+
+  // Everyone attached to the given teams: players + coaches + team responsibles
+  // + captains. Column names differ per junction — member_teams uses
+  // member/team, the staff junctions use members_id/teams_id. Same shape as the
+  // forms fanout below.
+  async function membersOnTeams(teamIds) {
+    if (teamIds.length === 0) return []
+    const [players, coaches, trs, captains] = await Promise.all([
+      database('member_teams').whereIn('team', teamIds).select('member'),
+      database('teams_coaches').whereIn('teams_id', teamIds).select('members_id'),
+      database('teams_responsibles').whereIn('teams_id', teamIds).select('members_id'),
+      database('teams').whereIn('id', teamIds).whereNotNull('captain').select('captain'),
+    ])
+    return [...new Set([
+      ...players.map(r => r.member),
+      ...coaches.map(r => r.members_id),
+      ...trs.map(r => r.members_id),
+      ...captains.map(r => r.captain),
+    ].filter(Boolean))]
+  }
+
+  async function membersWithRoleTokens(tokens) {
+    const roleNames = []
+    const functions = []
+    const quals = []
+    for (const raw of tokens) {
+      const tok = String(raw || '')
+      // Unknown/unprefixed tokens are dropped rather than treated as a wildcard —
+      // a typo must never widen the audience.
+      if (tok.startsWith('role:') && ANN_ROLE_ENUM.includes(tok.slice(5))) roleNames.push(tok.slice(5))
+      else if (tok.startsWith('fn:') && ANN_FUNCTIONS.includes(tok.slice(3))) functions.push(tok.slice(3))
+      else if (tok.startsWith('qual:') && ANN_QUAL_COLUMNS.includes(tok.slice(5))) quals.push(tok.slice(5))
+      else log.warn({ msg: `[announcements] unknown audience_roles token "${tok}" — ignored` })
+    }
+
+    const ids = new Set()
+
+    if (roleNames.length > 0) {
+      const rows = await database('members')
+        .where('wiedisync_active', true)
+        .where(function () {
+          // @> per role rather than the jsonb any-of operator ?| — knex reads a
+          // bare ? as a binding placeholder, and escaping it is easy to get wrong.
+          for (const name of roleNames) this.orWhereRaw('role::jsonb @> ?::jsonb', [JSON.stringify([name])])
+        })
+        .select('id')
+      rows.forEach(r => ids.add(r.id))
+    }
+
+    if (quals.length > 0) {
+      const rows = await database('members')
+        .where('wiedisync_active', true)
+        .where(function () { for (const col of quals) this.orWhere(col, true) })
+        .select('id')
+      rows.forEach(r => ids.add(r.id))
+    }
+
+    if (functions.length > 0) {
+      const staff = new Set()
+      if (functions.includes('coach')) {
+        const rows = await database('teams_coaches as tc').join('teams as t', 't.id', 'tc.teams_id')
+          .where('t.active', true).select('tc.members_id as id')
+        rows.forEach(r => staff.add(r.id))
+      }
+      if (functions.includes('team_responsible')) {
+        const rows = await database('teams_responsibles as tr').join('teams as t', 't.id', 'tr.teams_id')
+          .where('t.active', true).select('tr.members_id as id')
+        rows.forEach(r => staff.add(r.id))
+      }
+      if (functions.includes('captain')) {
+        const rows = await database('teams').where('active', true).whereNotNull('captain').select('captain as id')
+        rows.forEach(r => staff.add(r.id))
+      }
+      // The junctions carry no activity flag of their own, so gate on the member
+      // row the same way the role/qual branches do.
+      if (staff.size > 0) {
+        const rows = await database('members').whereIn('id', [...staff]).where('wiedisync_active', true).select('id')
+        rows.forEach(r => ids.add(r.id))
+      }
+    }
+
+    return [...ids]
+  }
+
+  // An explicit switch, not an `!== 'all'` fallthrough: the old shape sent every
+  // non-'all' type down the sport branch, so a teams/roles post found no
+  // audience_sport, returned [], and was stamped fanned-out having mailed nobody.
+  // Every path must resolve deliberately, and an unrecognised type must fail
+  // closed rather than land in a neighbouring branch.
   async function resolveAnnouncementAudience(ann) {
-    if (ann.audience_type !== 'all') {
-      // Sport-scoped fanout REQUIRES an explicit sport. A null audience_sport
-      // must NOT fall through to the all-members blast (the
-      // validateAnnouncementAudience filter rejects this for non-admins, but a
-      // system-context / future-scheduled row could still reach here) — return
-      // an empty audience so the post is marked fanned-out without club-wide mail.
-      if (!ann.audience_sport) {
-        log.warn({ msg: `[announcements] audience_type=${ann.audience_type} but audience_sport is null — skipping fanout`, annId: ann.id })
+    switch (ann.audience_type) {
+      case 'all': {
+        const rows = await database('members').where('wiedisync_active', true).select('id')
+        return rows.map(r => r.id).filter(Boolean)
+      }
+      case 'sport': {
+        // Sport-scoped fanout REQUIRES an explicit sport. A null audience_sport
+        // must NOT fall through to the all-members blast (the
+        // validateAnnouncementAudience filter rejects this for non-admins, but a
+        // system-context / future-scheduled row could still reach here) — return
+        // an empty audience so the post is marked fanned-out without club-wide mail.
+        if (!ann.audience_sport) {
+          log.warn({ msg: '[announcements] audience_type=sport but audience_sport is null — skipping fanout', annId: ann.id })
+          return []
+        }
+        // Reach EVERY member on an ACTIVE team of that sport in the current
+        // season, regardless of wiedisync_active. Club-wide sport comms
+        // (tournaments, discounts, federation news) should hit the whole sport,
+        // not just app opt-ins — but NOT ex-members or archived-season rosters
+        // (member_teams/teams have no season guard otherwise). Per-channel opt-out
+        // still applies inside the send loop (email requires a non-null address;
+        // push requires an active subscription).
+        const rows = await database('member_teams as mt')
+          .join('teams as t', 't.id', 'mt.team')
+          .join('members as m', 'm.id', 'mt.member')
+          .where('t.sport', ann.audience_sport)
+          .where('t.active', true)
+          .where('m.kscw_membership_active', true)
+          .distinct('m.id')
+          .select('m.id')
+        return rows.map(r => r.id).filter(Boolean)
+      }
+      case 'teams': {
+        const teamIds = parseJsonArray(ann.audience_teams).map(Number).filter(Number.isFinite)
+        if (teamIds.length === 0) {
+          log.warn({ msg: '[announcements] audience_type=teams but audience_teams is empty — skipping fanout', annId: ann.id })
+          return []
+        }
+        const candidates = await membersOnTeams(teamIds)
+        if (candidates.length === 0) return []
+        // Same activity gate as the sport branch: a targeted team's whole roster,
+        // app opt-in or not, but never ex-members.
+        const rows = await database('members')
+          .whereIn('id', candidates)
+          .where('kscw_membership_active', true)
+          .select('id')
+        return rows.map(r => r.id).filter(Boolean)
+      }
+      case 'roles': {
+        const tokens = parseJsonArray(ann.audience_roles)
+        if (tokens.length === 0) {
+          log.warn({ msg: '[announcements] audience_type=roles but audience_roles is empty — skipping fanout', annId: ann.id })
+          return []
+        }
+        // Roles are app-level concepts, so the wiedisync_active gate inside
+        // membersWithRoleTokens is the right one (not kscw_membership_active).
+        return await membersWithRoleTokens(tokens)
+      }
+      default: {
+        log.warn({ msg: `[announcements] unrecognised audience_type "${ann.audience_type}" — skipping fanout`, annId: ann.id })
         return []
       }
-      // Sport-scoped: reach EVERY member on an ACTIVE team of that sport in the
-      // current season, regardless of wiedisync_active. Club-wide sport comms
-      // (tournaments, discounts, federation news) should hit the whole sport,
-      // not just app opt-ins — but NOT ex-members or archived-season rosters
-      // (member_teams/teams have no season guard otherwise). Per-channel opt-out
-      // still applies inside the send loop (email requires a non-null address;
-      // push requires an active subscription).
-      const rows = await database('member_teams as mt')
-        .join('teams as t', 't.id', 'mt.team')
-        .join('members as m', 'm.id', 'mt.member')
-        .where('t.sport', ann.audience_sport)
-        .where('t.active', true)
-        .where('m.kscw_membership_active', true)
-        .distinct('m.id')
-        .select('m.id')
-      return rows.map(r => r.id).filter(Boolean)
     }
-    // Default 'all' — every wiedisync-active member
-    const rows = await database('members')
-      .where('wiedisync_active', true)
-      .select('id')
-    return rows.map(r => r.id).filter(Boolean)
   }
 
   async function notifyAnnouncementPublished(annId) {
@@ -1405,6 +1540,32 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         return
       }
 
+      // Materialize the resolved audience (migration 219). For teams/roles this
+      // IS the read gate — members can't read audience_teams/audience_roles, so
+      // the Member policy filter matches on these rows instead. It therefore has
+      // to land before any channel fanout: a member who gets the bell but has no
+      // recipient row would click through to a post they can't open.
+      try {
+        const CHUNK = 500
+        for (let i = 0; i < memberIds.length; i += CHUNK) {
+          await database('announcement_recipients')
+            .insert(memberIds.slice(i, i + CHUNK).map(mid => ({ announcement: annId, member: mid })))
+            .onConflict(['announcement', 'member']).ignore()
+        }
+      } catch (recErr) {
+        log.error({ msg: `[announcements] recipient materialization failed: ${recErr.message}`, annId, stack: recErr.stack })
+        if (ann.audience_type === 'teams' || ann.audience_type === 'roles') {
+          // Without the rows a targeted post mails and pushes people to a /news
+          // entry they cannot open. Release the claim and bail so the 5-min cron
+          // retries cleanly, rather than half-delivering.
+          await database('announcements').where('id', annId).update({ fanout_sent_at: null })
+          writeErrorLog?.('announcement_recipients_failed', recErr.message, { annId, stack: recErr.stack })
+          return
+        }
+        // all/sport keep their own arm in the policy filter, so the post stays
+        // visible either way — press on and lose only the delivery log.
+      }
+
       const translations = (typeof ann.translations === 'string')
         ? (() => { try { return JSON.parse(ann.translations) } catch { return {} } })()
         : (ann.translations || {})
@@ -1433,7 +1594,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             })
           }
         }
-        if (bellRows.length > 0) await database('notifications').insert(bellRows)
+        if (bellRows.length > 0) {
+          await database('notifications').insert(bellRows)
+          await database('announcement_recipients')
+            .where('announcement', annId)
+            .whereIn('member', bellRows.map(r => r.member))
+            .update({ bell_at: new Date().toISOString() })
+        }
         log.info(`[announcements] Bell notifications: ${bellRows.length} inserted`)
       } catch (bellErr) {
         log.warn({ msg: `[announcements] bell fanout failed: ${bellErr.message}` })
@@ -1540,9 +1707,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                 ...(ann.reply_to ? { replyTo: ann.reply_to } : {}),
               })
               sent++
+              await database('announcement_recipients')
+                .where({ announcement: annId, member: r.id })
+                .update({ email_at: new Date().toISOString(), email_error: null })
             } catch (perEmailErr) {
               failed++
               log.warn({ msg: `[announcements] email to ${r.email} failed: ${perEmailErr.message}` })
+              // Record against the recipient row too — a log line answers "how
+              // many failed", this answers "who didn't get it".
+              await database('announcement_recipients')
+                .where({ announcement: annId, member: r.id })
+                .update({ email_error: String(perEmailErr.message).slice(0, 500) })
+                .catch(() => {})
             }
           }
           log.info(`[announcements] Emails: ${sent} sent, ${failed} failed (out of ${recipients.length})`)
@@ -1574,7 +1750,56 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // F3: Prevents a sport-scoped admin (vb_admin / bb_admin) from posting
   // an announcement targeting the OTHER sport. Global admin/superuser
   // and members with BOTH sport roles bypass.
-  async function validateAnnouncementAudience(payload, context) {
+  function denyAudience(message) {
+    const err = new Error(message)
+    err.status = 403
+    throw err
+  }
+
+  // `a` is the EFFECTIVE audience state (payload merged over the stored row),
+  // never a bare update payload — see validateAnnouncementAudience.
+  async function assertAudienceAllowed(a, isVb, isBb) {
+    const sport = isVb ? 'volleyball' : (isBb ? 'basketball' : null)
+    if (!sport) denyAudience('Only global admins can post club-wide announcements.')
+    const type = a.audience_type || 'all'
+
+    // audience_type='all' ignores audience_sport entirely in the resolver, so a
+    // sport admin sending type=all + sport=volleyball reaches the whole club.
+    // The old check only looked at audience_sport and let exactly that through.
+    if (type === 'all') {
+      denyAudience('Only global admins can post club-wide announcements. Target a sport or specific teams instead.')
+    }
+
+    // Role targeting crosses every sport boundary by nature (role:vorstand,
+    // role:finance), so it stays global-admin only.
+    if (type === 'roles') {
+      denyAudience('Only global admins can target announcements by role.')
+    }
+
+    if (type === 'teams') {
+      const ids = parseJsonArray(a.audience_teams).map(Number).filter(Number.isFinite)
+      if (ids.length === 0) denyAudience('Select at least one team to target.')
+      const rows = await database('teams').whereIn('id', ids).select('id', 'sport')
+      if (rows.length !== ids.length) denyAudience('One or more selected teams do not exist.')
+      if (rows.some(r => r.sport !== sport)) {
+        denyAudience(`Only ${sport === 'volleyball' ? 'basketball' : 'volleyball'} admins can target ${sport === 'volleyball' ? 'basketball' : 'volleyball'} teams.`)
+      }
+      return
+    }
+
+    // type === 'sport'
+    if (!a.audience_sport) {
+      denyAudience('Only global admins can post club-wide announcements. Set audience_sport to your scope.')
+    }
+    if (a.audience_sport === 'volleyball' && !isVb) {
+      denyAudience('Only volleyball admins can post volleyball-targeted announcements.')
+    }
+    if (a.audience_sport === 'basketball' && !isBb) {
+      denyAudience('Only basketball admins can post basketball-targeted announcements.')
+    }
+  }
+
+  async function validateAnnouncementAudience(payload, meta, context) {
     const userId = context?.accountability?.user
     if (!userId) return
     const m = await database('members').where('user', userId).select('role').first()
@@ -1587,31 +1812,26 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const isBb = roles.includes('bb_admin')
     if (isVb && isBb) return
 
-    // Club-wide announcements (audience_sport unset OR audience_type='all'):
-    // only full admins may address every member of every team. A
-    // sport-scoped admin omitting audience_sport must NOT silently fall
-    // through to the all-members fanout (resolveAnnouncementAudience treats
-    // missing sport as "all").
-    if (!payload?.audience_sport) {
-      const err = new Error('Only global admins can post club-wide announcements. Set audience_sport to your scope.')
-      err.status = 403
-      throw err
+    // On update the payload is PARTIAL, so it cannot be judged alone: a PATCH of
+    // only {audience_teams} carries no audience_type and would read as club-wide,
+    // while a PATCH of {audience_sport, audience_teams} would pass the sport check
+    // with the other sport's teams still in the array. Merge over the stored row
+    // and validate the state the write would actually produce.
+    const keys = meta?.keys || (meta?.key ? [meta.key] : [])
+    if (keys.length > 0) {
+      const existing = await database('announcements')
+        .whereIn('id', keys)
+        .select('audience_type', 'audience_sport', 'audience_teams', 'audience_roles')
+      for (const row of existing) {
+        await assertAudienceAllowed({ ...row, ...payload }, isVb, isBb)
+      }
+      return
     }
-
-    if (payload.audience_sport === 'volleyball' && !isVb) {
-      const err = new Error('Only volleyball admins can post volleyball-targeted announcements.')
-      err.status = 403
-      throw err
-    }
-    if (payload.audience_sport === 'basketball' && !isBb) {
-      const err = new Error('Only basketball admins can post basketball-targeted announcements.')
-      err.status = 403
-      throw err
-    }
+    await assertAudienceAllowed(payload || {}, isVb, isBb)
   }
 
-  filter('announcements.items.create', async (payload, _meta, context) => {
-    await validateAnnouncementAudience(payload, context)
+  filter('announcements.items.create', async (payload, meta, context) => {
+    await validateAnnouncementAudience(payload, meta, context)
     const userId = context?.accountability?.user
     if (userId) {
       const m = await database('members').where('user', userId).select('id').first()
@@ -1622,8 +1842,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
     return payload
   })
-  filter('announcements.items.update', async (payload, _meta, context) => {
-    await validateAnnouncementAudience(payload, context)
+  filter('announcements.items.update', async (payload, meta, context) => {
+    await validateAnnouncementAudience(payload, meta, context)
     if (payload && Object.prototype.hasOwnProperty.call(payload, 'created_by')) {
       delete payload.created_by
     }

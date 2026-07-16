@@ -19,6 +19,7 @@
  * vm_push_error. NEVER changes game status / finalizes (no validateGames).
  */
 import { vmLogin, csrfFromPage, registerWindow, VM_BASE, UA } from './vm-client.mjs';
+import { resolveVmHall, hallIdsOf } from './vm-halls.mjs';
 
 const DIRECTUS_URL = process.env.DIRECTUS_URL || 'http://127.0.0.1:8055';
 const VM_CLUB_UUID = process.env.VM_CLUB_UUID || '956158d5-806f-4af9-8378-e7a9e19adeff';
@@ -205,12 +206,26 @@ async function main() {
   if (!opp?.team_name) return finish('failed', { error: 'opponent has no team_name' });
   if (!slot?.date || !slot?.start_time) return finish('failed', { error: 'slot missing date/time' });
 
-  // Target hall → VM hall uuid
+  // Target hall set → VM gym. A slot can span several courts (hall +
+  // additional_halls, e.g. an H1/H3 derby across KWI A+B); VM models that as ONE
+  // combo gym, so the set has to be translated rather than read off `slot.hall`.
+  // resolveVmHall FAILS CLOSED on a set it cannot express — pushing the primary
+  // hall alone would silently book half the courts the club reserved and report
+  // success, which is exactly how a wrong hall reaches the national system
+  // unnoticed.
   let vmHallId = null;
-  if (slot.hall) {
-    const hall = await dGet(`/items/halls/${slot.hall}?fields=id,name,vm_hall_id`);
-    vmHallId = hall?.vm_hall_id || null;
-    if (!vmHallId) log(`hall "${hall?.name}" has no vm_hall_id — will push date/time only`);
+  const hallIds = hallIdsOf(slot);
+  const hallRows = [];
+  for (const id of hallIds) hallRows.push(await dGet(`/items/halls/${id}?fields=id,name,vm_hall_id`));
+  const hallRes = resolveVmHall(hallRows);
+  if (hallRes.kind === 'unmapped_combo') {
+    return finish('unmapped_combo', { error: hallRes.error });
+  }
+  vmHallId = hallRes.vmHallId;
+  if (hallRes.kind === 'unmapped_single') {
+    log(`hall "${hallRes.label}" has no vm_hall_id — will push date/time only`);
+  } else if (hallRes.kind === 'combo') {
+    log(`slot spans ${hallIds.length} courts → VM combo gym "${hallRes.label}"`);
   }
 
   // Candidate KSCW-home fixtures vs this opponent (status open), from svrz_games:

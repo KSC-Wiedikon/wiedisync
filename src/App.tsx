@@ -12,6 +12,7 @@ import { TourProvider } from './modules/guide/TourProvider'
 import Layout from './components/Layout'
 import BootOverlay from './components/BootOverlay'
 import AdminRoute from './components/AdminRoute'
+import VorstandRoute from './components/VorstandRoute'
 import SuperAdminRoute from './components/SuperAdminRoute'
 import GamesPage from './modules/games/GamesPage'
 import TrainingsPage from './modules/trainings/TrainingsPage'
@@ -76,6 +77,7 @@ const InboxPage = lazy(() => import('./modules/messaging/pages/InboxPage'))
 const ConversationPage = lazy(() => import('./modules/messaging/pages/ConversationPage'))
 const MessagingSettingsPage = lazy(() => import('./modules/messaging/pages/MessagingSettingsPage'))
 const AdminReportsPage = lazy(() => import('./modules/admin/AdminReportsPage'))
+const AdminMailboxPage = lazy(() => import('./modules/admin/AdminMailboxPage'))
 
 // Stale lazy-import chunk recovery (deploy rotates hashed chunk names → a tab on
 // an older bundle fails to import a now-missing chunk). Detection + one-time
@@ -202,6 +204,10 @@ export default function App() {
             <Route path="admin/explore" element={<AdminRoute><ExplorePage /></AdminRoute>} />
             <Route path="admin/announcements" element={<AdminRoute><AnnouncementsPage /></AdminRoute>} />
             <Route path="admin/reports" element={<AdminRoute><Suspense fallback={null}><AdminReportsPage /></Suspense></AdminRoute>} />
+            {/* Club mailbox — board tool. VorstandRoute (vorstand || admin ||
+                superuser) mirrors the server's authForAccount('admin'); notably
+                NOT is_spielplaner / vb_admin / bb_admin, so it is NOT AdminRoute. */}
+            <Route path="admin/mailbox" element={<VorstandRoute><Suspense fallback={null}><AdminMailboxPage /></Suspense></VorstandRoute>} />
             <Route path="news" element={<AuthRoute><NewsArchivePage /></AuthRoute>} />
             <Route path="admin/infra" element={<SuperAdminRoute><InfraHealthPage /></SuperAdminRoute>} />
             <Route path="admin/data-health" element={<SuperAdminRoute><DataHealthPage /></SuperAdminRoute>} />

@@ -6,7 +6,7 @@ import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users,
   Building2, CalendarClock, Activity, ClipboardList, ClipboardCheck,
-  HeartPulse, MessageSquare, Inbox, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, FolderSync, GraduationCap,
+  HeartPulse, MessageSquare, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, FolderSync, GraduationCap,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
 
@@ -116,38 +116,55 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
     schedulingItem,
     // Admin tools grouped into labeled sections — the flat list outgrew the
     // dropdown (11+ entries). Same grouping is mirrored in MoreSheet (mobile).
+    //
+    // Items are gated INDIVIDUALLY, not by one section-wide isAdmin: every entry
+    // here is AdminRoute-guarded (isAdmin) except the club mailbox, which is
+    // VorstandRoute-guarded (isVorstand). Neither set contains the other — a
+    // vb_admin is isAdmin but NOT isVorstand (server 403s them on the mailbox),
+    // while a plain vorstand is the reverse. Empty groups are dropped so a board
+    // member who isn't an admin sees just the mailbox instead of a section full
+    // of links that would bounce them back to '/'.
     adminGroups: [
       {
         label: t('adminGroupPlanning'),
         items: [
-          { to: '/admin/hallenplan', label: t('hallenplan'), icon: <Building2 className={iconClass} /> },
+          ...(isAdmin ? [{ to: '/admin/hallenplan', label: t('hallenplan'), icon: <Building2 className={iconClass} /> }] : []),
         ] as NavItem[],
       },
       {
         label: t('adminGroupGames'),
         items: [
-          { to: '/admin/scorer-assign', label: t('scorerAssign'), icon: <ClipboardList className={iconClass} /> },
-          { to: '/admin/vb-referees', label: t('vbReferees'), icon: <Gavel className={iconClass} /> },
-          { to: '/admin/referee-expenses', label: t('refereeExpenses'), icon: <Banknote className={iconClass} /> },
+          ...(isAdmin ? [
+            { to: '/admin/scorer-assign', label: t('scorerAssign'), icon: <ClipboardList className={iconClass} /> },
+            { to: '/admin/vb-referees', label: t('vbReferees'), icon: <Gavel className={iconClass} /> },
+            { to: '/admin/referee-expenses', label: t('refereeExpenses'), icon: <Banknote className={iconClass} /> },
+          ] : []),
         ] as NavItem[],
       },
       {
         label: t('adminGroupMembers'),
         items: [
-          { to: '/admin/anmeldungen', label: t('anmeldungen'), icon: <UserPlus className={iconClass} /> },
-          { to: '/admin/announcements', label: t('announcements'), icon: <Megaphone className={iconClass} /> },
-          { to: '/admin/reports', label: t('moderationReports'), icon: <Flag className={iconClass} /> },
-          { to: '/admin/volley-feedback', label: t('volleyFeedback'), icon: <MessageSquare className={iconClass} /> },
+          ...(isAdmin ? [
+            { to: '/admin/anmeldungen', label: t('anmeldungen'), icon: <UserPlus className={iconClass} /> },
+            { to: '/admin/announcements', label: t('announcements'), icon: <Megaphone className={iconClass} /> },
+          ] : []),
+          ...(isVorstand ? [{ to: '/admin/mailbox', label: t('clubMailbox'), icon: <Mail className={iconClass} /> }] : []),
+          ...(isAdmin ? [
+            { to: '/admin/reports', label: t('moderationReports'), icon: <Flag className={iconClass} /> },
+            { to: '/admin/volley-feedback', label: t('volleyFeedback'), icon: <MessageSquare className={iconClass} /> },
+          ] : []),
         ] as NavItem[],
       },
       {
         label: t('adminGroupData'),
         items: [
-          { to: '/admin/explore', label: t('adminExplorer'), icon: <Database className={iconClass} /> },
-          { to: '/admin/club-stats', label: t('clubStats'), icon: <BarChart3 className={iconClass} /> },
+          ...(isAdmin ? [
+            { to: '/admin/explore', label: t('adminExplorer'), icon: <Database className={iconClass} /> },
+            { to: '/admin/club-stats', label: t('clubStats'), icon: <BarChart3 className={iconClass} /> },
+          ] : []),
         ] as NavItem[],
       },
-    ],
+    ].filter((g) => g.items.length > 0),
     superadminItems: [
       { to: '/admin/infra', label: t('infraHealth'), icon: <Activity className={iconClass} /> },
       { to: '/admin/data-health', label: t('dataHealth'), icon: <HeartPulse className={iconClass} /> },

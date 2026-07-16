@@ -606,6 +606,7 @@ export default {
   mailboxForward: 'Weiterleiten',
   mailboxNew: 'Neue E-Mail',
   mailboxPageTitle: 'Postfach',
+  mailboxAdminPageTitle: 'Vereinspostfach',
   mailboxSportVolleyball: 'Volleyball',
   mailboxSportBasketball: 'Basketball',
   mailboxFolderInbox: 'Posteingang',

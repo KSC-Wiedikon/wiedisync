@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.45.0'
+const APP_VERSION = '1.46.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.46.0',
+    date: '16.07.2026',
+    sections: [
+      {
+        title: 'New: send club news to specific teams or roles',
+        items: [
+          'Club news can now be addressed to particular teams, or to people by what they do. Alongside "all members" and "one sport", you can pick specific teams — which reaches their players, coaches, team responsibles and captain — or target roles and functions: the board, coaches, captains, scorers, referees, finance, and so on. The email, the push and the in-app post all go to exactly that group, and nobody else sees the post.',
+          'Every news email now asks you to confirm before it sends, and tells you who it is about to reach. Previously only the "all members" blast asked.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.45.0',
     date: '15.07.2026',

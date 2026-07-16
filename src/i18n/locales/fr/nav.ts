@@ -65,6 +65,7 @@ export default {
   guide: 'Guide',
   adminExplorer: 'Explorateur de Données',
   announcements: 'Annonces',
+  clubMailbox: 'Messagerie du club',
   news: 'News',
   moderationReports: 'Signalements',
   messagingSettings: 'Messagerie',

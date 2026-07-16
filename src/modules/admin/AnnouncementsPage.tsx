@@ -25,6 +25,50 @@ const LOCALE_LABEL: Record<AnnouncementLocale, string> = {
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 
+/**
+ * Role tokens for audience_type='roles' (migration 219). Prefixed across three
+ * namespaces because "role" means three different things on this schema: an
+ * app-permission value in `members.role`, a function derived from the team
+ * junctions, and a qualification boolean on `members`. The backend resolver
+ * (kscw-hooks → membersWithRoleTokens) parses the same prefixes and drops any
+ * token it doesn't recognise, so these strings must stay in step with it.
+ */
+const ROLE_GROUPS: { labelKey: string; options: { token: string; labelKey: string }[] }[] = [
+  {
+    labelKey: 'roleGroupApp',
+    options: [
+      { token: 'role:admin', labelKey: 'roleAdmin' },
+      { token: 'role:superuser', labelKey: 'roleSuperuser' },
+      { token: 'role:vb_admin', labelKey: 'roleVbAdmin' },
+      { token: 'role:bb_admin', labelKey: 'roleBbAdmin' },
+      { token: 'role:vorstand', labelKey: 'roleVorstand' },
+      { token: 'role:website_admin', labelKey: 'roleWebsiteAdmin' },
+      { token: 'role:finance', labelKey: 'roleFinance' },
+      { token: 'role:user', labelKey: 'roleUser' },
+    ],
+  },
+  {
+    labelKey: 'roleGroupFunction',
+    options: [
+      { token: 'fn:coach', labelKey: 'fnCoach' },
+      { token: 'fn:team_responsible', labelKey: 'fnTeamResponsible' },
+      { token: 'fn:captain', labelKey: 'fnCaptain' },
+    ],
+  },
+  {
+    labelKey: 'roleGroupQual',
+    options: [
+      { token: 'qual:is_spielplaner', labelKey: 'qualSpielplaner' },
+      { token: 'qual:scorer_vb', labelKey: 'qualScorerVb' },
+      { token: 'qual:referee_vb', labelKey: 'qualRefereeVb' },
+      { token: 'qual:otr1_bb', labelKey: 'qualOtr1Bb' },
+      { token: 'qual:otr2_bb', labelKey: 'qualOtr2Bb' },
+      { token: 'qual:otn_bb', labelKey: 'qualOtnBb' },
+      { token: 'qual:referee_bb', labelKey: 'qualRefereeBb' },
+    ],
+  },
+]
+
 interface FormState {
   id: string | null
   image: string | null
@@ -35,6 +79,8 @@ interface FormState {
   expires_at: string | null
   audience_type: AnnouncementAudienceType
   audience_sport: 'volleyball' | 'basketball' | null
+  audience_teams: string[]
+  audience_roles: string[]
   notify_push: boolean
   notify_email: boolean
   email_layout: 'standard' | 'newsletter'
@@ -52,6 +98,8 @@ const emptyForm: FormState = {
   expires_at: null,
   audience_type: 'all',
   audience_sport: null,
+  audience_teams: [],
+  audience_roles: [],
   notify_push: false,
   notify_email: false,
   email_layout: 'standard',
@@ -64,6 +112,7 @@ export default function AnnouncementsPage() {
   const confirm = useConfirm()
   const { user } = useAuth()
   const [items, setItems] = useState<Announcement[]>([])
+  const [teams, setTeams] = useState<{ id: string; name: string; sport: string }[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [editorOpen, setEditorOpen] = useState(false)
   const [form, setForm] = useState<FormState>(emptyForm)
@@ -95,6 +144,20 @@ export default function AnnouncementsPage() {
   // set it to `true` again for nothing — `load()` is the exact same request.
   useEffect(() => { load() }, [])
 
+  // Teams for the `teams` audience picker. Active only: the fanout resolves a
+  // targeted team's roster against kscw_membership_active, and an archived team
+  // would just produce an empty audience.
+  useEffect(() => {
+    fetchItems<{ id: string; name: string; sport: string }>('teams', {
+      filter: { active: { _eq: true } },
+      fields: ['id', 'name', 'sport'],
+      sort: ['sport', 'name'],
+      limit: -1,
+    })
+      .then(setTeams)
+      .catch(() => setTeams([]))
+  }, [])
+
   const openCreate = () => {
     setForm(emptyForm)
     setActiveLocale('de')
@@ -112,6 +175,10 @@ export default function AnnouncementsPage() {
       expires_at: a.expires_at ? toDatetimeLocalFromUtcIso(a.expires_at) : null,
       audience_type: a.audience_type ?? 'all',
       audience_sport: a.audience_sport ?? null,
+      // Nullable json in Postgres — rows written before migration 219 have no
+      // value at all, so the `?? []` is load-bearing, not defensive noise.
+      audience_teams: (a.audience_teams ?? []).map(String),
+      audience_roles: a.audience_roles ?? [],
       notify_push: !!a.notify_push,
       notify_email: !!a.notify_email,
       email_layout: a.email_layout === 'newsletter' ? 'newsletter' : 'standard',
@@ -152,6 +219,40 @@ export default function AnnouncementsPage() {
     }
   }
 
+  const toggleTeam = (id: string) => setForm((f) => ({
+    ...f,
+    audience_teams: f.audience_teams.includes(id)
+      ? f.audience_teams.filter((x) => x !== id)
+      : [...f.audience_teams, id],
+  }))
+
+  const toggleRole = (token: string) => setForm((f) => ({
+    ...f,
+    audience_roles: f.audience_roles.includes(token)
+      ? f.audience_roles.filter((x) => x !== token)
+      : [...f.audience_roles, token],
+  }))
+
+  /** Human-readable audience, for the send-confirmation prompt. */
+  const audienceSummary = (): string => {
+    switch (form.audience_type) {
+      case 'sport':
+        return form.audience_sport ? t(form.audience_sport) : t('audienceSport')
+      case 'teams': {
+        const names = teams.filter((tm) => form.audience_teams.includes(String(tm.id))).map((tm) => tm.name)
+        return names.length > 0 ? names.join(', ') : t('audienceTeams')
+      }
+      case 'roles': {
+        const labels = ROLE_GROUPS.flatMap((g) => g.options)
+          .filter((o) => form.audience_roles.includes(o.token))
+          .map((o) => t(o.labelKey))
+        return labels.length > 0 ? labels.join(', ') : t('audienceRoles')
+      }
+      default:
+        return t('audienceAll')
+    }
+  }
+
   const handleSubmit = async () => {
     if (!form.translations.de?.title?.trim()) {
       toast.error(t('titleRequired'))
@@ -162,16 +263,27 @@ export default function AnnouncementsPage() {
       toast.error(t('sportRequired'))
       return
     }
+    if (form.audience_type === 'teams' && form.audience_teams.length === 0) {
+      toast.error(t('teamsRequired'))
+      return
+    }
+    if (form.audience_type === 'roles' && form.audience_roles.length === 0) {
+      toast.error(t('rolesRequired'))
+      return
+    }
     const trimmedLink = form.link.trim()
     if (trimmedLink && !isSafeAppLink(trimmedLink)) {
       toast.error(t('linkInvalid'))
       return
     }
 
-    // Mass-email confirmation guard — audience=all + email send would hit ~200 members.
-    // Single point of friction modeled on the /events/test-email CLAUDE.md guideline.
-    if (form.notify_email && form.audience_type === 'all' && (form.publishNow || form.published_at)) {
-      const ok = await confirm({ message: t('confirmMassEmail'), danger: true })
+    // Mass-email confirmation guard. This used to key on audience_type === 'all',
+    // which teams/roles targeting walks straight past — and `role:user` is every
+    // member of the club, i.e. exactly the blast the guard exists to slow down.
+    // Any email send that reaches publish now confirms, with the audience named
+    // so the click is informed rather than reflexive.
+    if (form.notify_email && (form.publishNow || form.published_at)) {
+      const ok = await confirm({ message: t('confirmMassEmail', { audience: audienceSummary() }), danger: true })
       if (!ok) return
     }
 
@@ -195,7 +307,11 @@ export default function AnnouncementsPage() {
         : null,
       expires_at: form.expires_at ? toUtcIsoFromDatetimeLocal(form.expires_at) : null,
       audience_type: form.audience_type,
+      // Null out the arms that don't apply, so a post edited from teams → sport
+      // doesn't leave a stale audience_teams behind for the resolver to read.
       audience_sport: form.audience_type === 'sport' ? form.audience_sport : null,
+      audience_teams: form.audience_type === 'teams' ? form.audience_teams.map(Number) : null,
+      audience_roles: form.audience_type === 'roles' ? form.audience_roles : null,
       notify_push: form.notify_push,
       notify_email: form.notify_email,
       email_layout: form.email_layout,
@@ -491,6 +607,8 @@ export default function AnnouncementsPage() {
               >
                 <option value="all">{t('audienceAll')}</option>
                 <option value="sport">{t('audienceSport')}</option>
+                <option value="teams">{t('audienceTeams')}</option>
+                <option value="roles">{t('audienceRoles')}</option>
               </select>
             </div>
             {form.audience_type === 'sport' && (
@@ -510,6 +628,67 @@ export default function AnnouncementsPage() {
               </div>
             )}
           </div>
+
+          {form.audience_type === 'teams' && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('selectTeams')}
+              </label>
+              <div className="max-h-52 overflow-y-auto rounded-md border border-gray-300 p-2 dark:border-gray-600">
+                {teams.length === 0 && (
+                  <p className="px-1 py-2 text-sm text-gray-500 dark:text-gray-400">{t('noTeams')}</p>
+                )}
+                {teams.map((tm) => (
+                  <label
+                    key={tm.id}
+                    className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded px-1 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.audience_teams.includes(String(tm.id))}
+                      onChange={() => toggleTeam(String(tm.id))}
+                      className="h-4 w-4 shrink-0 rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-900 dark:text-gray-100">{tm.name}</span>
+                    <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">{t(tm.sport)}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('teamsHint')}</p>
+            </div>
+          )}
+
+          {form.audience_type === 'roles' && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('selectRoles')}
+              </label>
+              <div className="max-h-64 overflow-y-auto rounded-md border border-gray-300 p-2 dark:border-gray-600">
+                {ROLE_GROUPS.map((group) => (
+                  <div key={group.labelKey} className="mb-2 last:mb-0">
+                    <p className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      {t(group.labelKey)}
+                    </p>
+                    {group.options.map((opt) => (
+                      <label
+                        key={opt.token}
+                        className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded px-1 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={form.audience_roles.includes(opt.token)}
+                          onChange={() => toggleRole(opt.token)}
+                          className="h-4 w-4 shrink-0 rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-900 dark:text-gray-100">{t(opt.labelKey)}</span>
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('rolesHint')}</p>
+            </div>
+          )}
 
           {/* Pin + Expiry + Publish */}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -664,6 +843,14 @@ function audienceLabel(a: Announcement, t: (k: string, o?: Record<string, unknow
       : a.audience_sport === 'basketball'
         ? t('basketball')
         : '—'
+  }
+  // Counts rather than names: the list row has one narrow cell, and the full
+  // selection is one click away in the editor.
+  if (a.audience_type === 'teams') {
+    return t('audienceTeamsCount', { count: (a.audience_teams ?? []).length })
+  }
+  if (a.audience_type === 'roles') {
+    return t('audienceRolesCount', { count: (a.audience_roles ?? []).length })
   }
   return a.audience_type
 }
