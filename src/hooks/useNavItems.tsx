@@ -26,7 +26,7 @@ export interface NavItem {
  */
 export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number | string | null) {
   const { t } = useTranslation('nav')
-  const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, coachTeamIds, teamResponsibleIds } = useAuth()
+  const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin, isGlobalAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, coachTeamIds, teamResponsibleIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   // Forms authoring is a leadership tool — gated on ROLE (not the admin-mode
   // toggle), like the Spielplaner items below. Members reach forms-to-fill via
@@ -148,7 +148,10 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
             { to: '/admin/anmeldungen', label: t('anmeldungen'), icon: <UserPlus className={iconClass} /> },
             { to: '/admin/announcements', label: t('announcements'), icon: <Megaphone className={iconClass} /> },
           ] : []),
-          ...(isVorstand ? [{ to: '/admin/mailbox', label: t('clubMailbox'), icon: <Mail className={iconClass} /> }] : []),
+          // Club mailbox: admin||superuser only — mirrors the server's
+          // authForAccount('admin'). NOT isAdmin (that includes vb/bb admins,
+          // whom the server 403s) and NOT isVorstand (board was rejected).
+          ...(isGlobalAdmin ? [{ to: '/admin/mailbox', label: t('clubMailbox'), icon: <Mail className={iconClass} /> }] : []),
           ...(isAdmin ? [
             { to: '/admin/reports', label: t('moderationReports'), icon: <Flag className={iconClass} /> },
             { to: '/admin/volley-feedback', label: t('volleyFeedback'), icon: <MessageSquare className={iconClass} /> },

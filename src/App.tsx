@@ -12,7 +12,7 @@ import { TourProvider } from './modules/guide/TourProvider'
 import Layout from './components/Layout'
 import BootOverlay from './components/BootOverlay'
 import AdminRoute from './components/AdminRoute'
-import VorstandRoute from './components/VorstandRoute'
+import GlobalAdminRoute from './components/GlobalAdminRoute'
 import SuperAdminRoute from './components/SuperAdminRoute'
 import GamesPage from './modules/games/GamesPage'
 import TrainingsPage from './modules/trainings/TrainingsPage'
@@ -204,10 +204,11 @@ export default function App() {
             <Route path="admin/explore" element={<AdminRoute><ExplorePage /></AdminRoute>} />
             <Route path="admin/announcements" element={<AdminRoute><AnnouncementsPage /></AdminRoute>} />
             <Route path="admin/reports" element={<AdminRoute><Suspense fallback={null}><AdminReportsPage /></Suspense></AdminRoute>} />
-            {/* Club mailbox — board tool. VorstandRoute (vorstand || admin ||
-                superuser) mirrors the server's authForAccount('admin'); notably
-                NOT is_spielplaner / vb_admin / bb_admin, so it is NOT AdminRoute. */}
-            <Route path="admin/mailbox" element={<VorstandRoute><Suspense fallback={null}><AdminMailboxPage /></Suspense></VorstandRoute>} />
+            {/* Club mailbox. GlobalAdminRoute (admin || superuser) mirrors the
+                server's authForAccount('admin') exactly — notably NOT vorstand,
+                is_spielplaner, vb_admin or bb_admin, so neither AdminRoute nor
+                VorstandRoute is correct here. Widen both sides together. */}
+            <Route path="admin/mailbox" element={<GlobalAdminRoute><Suspense fallback={null}><AdminMailboxPage /></Suspense></GlobalAdminRoute>} />
             <Route path="news" element={<AuthRoute><NewsArchivePage /></AuthRoute>} />
             <Route path="admin/infra" element={<SuperAdminRoute><InfraHealthPage /></SuperAdminRoute>} />
             <Route path="admin/data-health" element={<SuperAdminRoute><DataHealthPage /></SuperAdminRoute>} />

@@ -595,11 +595,15 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   //                the club-wide volleyball-scheduler grant)
   //   basketball → Directus superadmin OR app admin/bb_admin
   // So a vb_admin can't touch the basketball mailbox and vice-versa.
-  //   admin      → Directus superadmin OR app admin/superuser OR vorstand
-  //                (the club mailbox is board/admin correspondence; deliberately
-  //                NOT granted to is_spielplaner or the sport admins — a
-  //                volleyball scheduler has no business in the club's general
-  //                inbox, and vb_admin/bb_admin are sport-scoped by design)
+  //   admin      → Directus superadmin OR app admin/superuser ONLY (the
+  //                admin/superuser early-return below is the whole grant).
+  //                Deliberately NOT vorstand, is_spielplaner, vb_admin or
+  //                bb_admin: the club inbox carries general correspondence, and
+  //                a scheduler or a sport-scoped admin has no business in it.
+  //                Board access was considered and explicitly rejected.
+  //                ⚠ If you widen this, widen the frontend guard on
+  //                /admin/mailbox in the same commit or people get a 403 from a
+  //                nav item they can see.
   async function authForAccount(req, key) {
     if (req.accountability?.admin) return true
     const userId = req.accountability?.user
@@ -610,7 +614,8 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     if (roles.includes('admin') || roles.includes('superuser')) return true
     if (key === 'volleyball') return roles.includes('vb_admin') || member.is_spielplaner === true
     if (key === 'basketball') return roles.includes('bb_admin')
-    if (key === 'admin') return roles.includes('vorstand')
+    // No `admin` branch by design — admin/superuser already returned true above,
+    // and nothing below that tier may read the club inbox.
     return false
   }
 

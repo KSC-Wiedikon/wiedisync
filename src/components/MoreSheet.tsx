@@ -90,13 +90,13 @@ interface NavItem { to: string; labelKey: string; icon: ReactNode }
 //
 // Items are gated INDIVIDUALLY, not by one section-wide isAdmin: every entry
 // here is AdminRoute-guarded (isAdmin) except the club mailbox, which is
-// VorstandRoute-guarded (isVorstand). Neither set contains the other — a
-// vb_admin is isAdmin but NOT isVorstand (the server 403s them on the mailbox),
-// while a plain vorstand is the reverse. Empty groups are dropped so a board
-// member who isn't an admin sees just the mailbox rather than a section of links
-// that would bounce them back to '/'.
+// GlobalAdminRoute-guarded (isGlobalAdmin = admin || superuser) to mirror the
+// server's authForAccount('admin'). isAdmin is the WIDER set — it also contains
+// vb_admin / bb_admin, whom the server 403s on the mailbox — so the two cannot
+// share a gate. Empty groups are dropped so nobody sees a section of links that
+// would bounce them back to '/'.
 function buildAdminGroups(
-  { isAdmin, isVorstand }: { isAdmin: boolean; isVorstand: boolean },
+  { isAdmin, isGlobalAdmin }: { isAdmin: boolean; isGlobalAdmin: boolean },
 ): Array<{ labelKey: string; items: NavItem[] }> {
   return [
     {
@@ -122,7 +122,10 @@ function buildAdminGroups(
           { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: <UserPlus className={iconClass} /> },
           { to: '/admin/announcements', labelKey: 'announcements', icon: <Megaphone className={iconClass} /> },
         ] : []),
-        ...(isVorstand ? [{ to: '/admin/mailbox', labelKey: 'clubMailbox', icon: <Mail className={iconClass} /> }] : []),
+        // Club mailbox: admin||superuser only — mirrors the server's
+        // authForAccount('admin'). NOT isAdmin (includes vb/bb admins, whom the
+        // server 403s) and NOT isVorstand (board was rejected).
+        ...(isGlobalAdmin ? [{ to: '/admin/mailbox', labelKey: 'clubMailbox', icon: <Mail className={iconClass} /> }] : []),
         ...(isAdmin ? [
           { to: '/admin/reports', labelKey: 'moderationReports', icon: <Flag className={iconClass} /> },
           { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: <MessageSquare className={iconClass} /> },
@@ -286,9 +289,9 @@ interface MoreSheetProps {
 }
 
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
-  const { user, isApproved, isAdmin, isSuperAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, logout } = useAuth()
+  const { user, isApproved, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, logout } = useAuth()
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
-  const adminGroups = buildAdminGroups({ isAdmin, isVorstand })
+  const adminGroups = buildAdminGroups({ isAdmin, isGlobalAdmin })
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
   const { t: tn } = useTranslation('notifications')
