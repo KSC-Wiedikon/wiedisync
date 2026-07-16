@@ -1369,6 +1369,22 @@ export function registerGameScheduling(router, { database, logger, services, get
           .whereRaw('hc.hall = game_scheduling_slots.hall')
           .whereRaw('game_scheduling_slots.date BETWEEN hc.start_date AND hc.end_date')
       })
+      // Never offer a court that a multi-hall game already claims (migration 221).
+      // A combo booking marks only its PRIMARY hall taken; the extra courts live
+      // in `additional_halls`, which no other availability query reads. Slots are
+      // per-team and A and B are routinely offered to two different teams at the
+      // same time, so without this an opponent could book KWI B underneath an
+      // A+B derby and put two games on one court.
+      .whereNotExists(function () {
+        this.select(database.raw('1'))
+          .from('game_scheduling_slots as combo')
+          .whereRaw('combo.date = game_scheduling_slots.date')
+          .whereRaw('combo.start_time = game_scheduling_slots.start_time')
+          .whereRaw('combo.id <> game_scheduling_slots.id')
+          .whereRaw("combo.status IN ('booked','blocked')")
+          .whereRaw('combo.additional_halls IS NOT NULL')
+          .whereRaw('combo.additional_halls::jsonb @> to_jsonb(game_scheduling_slots.hall)')
+      })
       .select('game_scheduling_slots.*', database.raw(
         '(SELECT count(DISTINCT a.member) FROM absences a ' +
         'JOIN member_teams mt ON mt.member = a.member ' +
@@ -3933,6 +3949,26 @@ export function registerGameScheduling(router, { database, logger, services, get
             const known = await database('halls').whereIn('id', extras).pluck('id')
             const unknown = extras.filter((h) => !known.map(String).includes(String(h)))
             if (unknown.length) return res.status(400).json({ error: `Unknown hall ID(s): ${unknown.join(', ')}` })
+
+            // An extra court must actually be FREE at that moment. Slots are
+            // per-team and each team gets its own hall from the Trainingsplan, so
+            // KWI A and KWI B are routinely offered to two different teams at the
+            // same time — claiming B for an A+B game while another team already
+            // has B booked would put two games on one court. Nothing else checks
+            // this: `additional_halls` is invisible to every availability query.
+            const clash = await database('game_scheduling_slots as s')
+              .leftJoin('teams as t', 't.id', 's.kscw_team')
+              .whereIn('s.hall', extras)
+              .where('s.date', home.date)
+              .where('s.start_time', home.start_time)
+              .whereIn('s.status', ['booked', 'blocked'])
+              .first('s.hall', 's.status', 't.name as team_name')
+            if (clash) {
+              const hallRow = await database('halls').where('id', clash.hall).first('name')
+              return res.status(400).json({
+                error: `${hallRow?.name || `Hall ${clash.hall}`} is already ${clash.status} at that time${clash.team_name ? ` (${clash.team_name})` : ''} — it cannot also be used by this game.`,
+              })
+            }
             homeExtraHalls = JSON.stringify(extras)
           }
         }
