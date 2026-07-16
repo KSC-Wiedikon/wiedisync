@@ -13,10 +13,13 @@
  */
 
 // Wired into the scorer_courses OpnForm routes in Task A5 — imported here to co-locate the dependency.
+import { Transform } from 'node:stream'
 import { badSlug, listSubmissions, deleteSubmission, getCloses, setCloses } from './opnform.js'
 import { streamManagedFile } from './storage-read.js'
-import { SCORER_EXAM_FOLDER } from './scorer-exam.js'
-import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH } from './email-template.js'
+// Cap and type allowlist are imported, never re-declared: an admin correction must be
+// held to exactly what the participant upload accepts, and two copies would drift.
+import { SCORER_EXAM_FOLDER, sniffType, EXT_FOR, UPLOAD_MAX_BYTES } from './scorer-exam.js'
+import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH, escHtml } from './email-template.js'
 
 export const ALL_SECTIONS = [
   'news', 'events', 'registrations', 'sponsors', 'scorer_courses', 'mixed_turnier',
@@ -443,9 +446,13 @@ export function registerWadmin(router, ctx) {
   // ⚠ The file id arrives from the client, so holding the scorer_courses grant must NOT
   // become "read any file in Directus" (that would reach registration ID scans and expense
   // receipts). Two independent conditions, both required: the id must be REFERENCED by a
-  // scorer_course_attendance.exam_file, and the row must sit in SCORER_EXAM_FOLDER. The
-  // folder check alone would be enough today, but the reference check is what keeps this
-  // honest if someone ever points another feature at the same folder.
+  // scorer_course_attendance exam-sheet column, and the row must sit in SCORER_EXAM_FOLDER.
+  // The folder check alone would be enough today, but the reference check is what keeps
+  // this honest if someone ever points another feature at the same folder.
+  //
+  // Both columns count: exam_file is the participant's sheet, exam_file_corrected the
+  // admin's correction. Matching only exam_file would 404 every correction — the same
+  // guard, applied to the wrong half of the pair.
   router.get('/wadmin/scorer_courses/assets/:id', async (req, res) => {
     const userId = req.accountability?.user
     if (!userId) return res.status(401).json({ error: 'unauthenticated' })
@@ -456,7 +463,9 @@ export function registerWadmin(router, ctx) {
     if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'invalid_id' })
 
     try {
-      const att = await database('scorer_course_attendance').where('exam_file', id).first('sub_key')
+      const att = await database('scorer_course_attendance')
+        .where('exam_file', id).orWhere('exam_file_corrected', id)
+        .first('sub_key')
       if (!att) return res.status(404).json({ error: 'not_found' })
       const file = await database('directus_files').where('id', id)
         .first('id', 'folder', 'filename_download', 'type')
@@ -474,14 +483,163 @@ export function registerWadmin(router, ctx) {
     }
   })
 
-  // ── "Prüfung bestanden" confirmation mail ──────────────────────────────────
-  // Sent server-side so the recipient address comes from the OpnForm submission we
-  // already hold, never from the client — an admin (or anything that reaches this route)
-  // cannot aim KSCW's DKIM-aligned sender at an address of their choosing.
-  router.post('/wadmin/scorer_courses/opnform/forms/:slug/submissions/:id/exam-passed-email', async (req, res) => {
+  // ── admin uploads a corrected scoresheet ───────────────────────────────────
+  //
+  // Writes exam_file_corrected, NEVER exam_file: the participant's own sheet is what they
+  // submitted, and it stays exactly as they left it. The correction is a second, separate
+  // claim that outranks it in the SVRZ zip.
+  //
+  // The attribution (exam_file_corrected_by) is resolved HERE from the session user, and
+  // is not accepted from the request. A name the client could choose would be decoration,
+  // not a record of who did it.
+  //
+  // Body is the raw bytes (application/octet-stream), same as the participant route —
+  // multipart would buy nothing but a parser.
+  router.post('/wadmin/scorer_courses/scoresheet-correction/:slug/:id', async (req, res) => {
     if (!(await guardScorer(req, res))) return
     const subId = String(req.params.id || '')
     if (!/^[0-9]+$/.test(subId)) return res.status(400).json({ error: 'Invalid submission id' })
+    const subKey = `${req.params.slug}:${subId}`
+
+    try {
+      const who = await database('directus_users').where('id', req.accountability.user)
+        .first('first_name', 'last_name', 'email')
+      const byName = [who?.first_name, who?.last_name].filter(Boolean).join(' ') || who?.email || 'Unbekannt'
+
+      const prev = await database('scorer_course_attendance').where('sub_key', subKey)
+        .first('id', 'exam_file_corrected')
+
+      // Everything that awaits happens BEFORE the pipe starts — see the participant
+      // route: an async gap between req.pipe() and the consumer is exactly when an early
+      // stream error has nobody listening.
+      const { FilesService } = services
+      const schema = await getSchema()
+      const filesService = new FilesService({ schema, knex: database })
+      const storage = (process.env.STORAGE_LOCATIONS || 'local').split(',')[0].trim()
+
+      // ⚠ The byte counter MUST live inside the pipeline, not on a req.on('data')
+      // listener — that switches the stream to flowing mode and drops chunks emitted
+      // before FilesService attaches its pipe. (It truncated 36 registration documents
+      // in July; see identity-document.js.)
+      let bytes = 0
+      let head = Buffer.alloc(0)
+      let sniffed = null
+      const capped = new Transform({
+        transform(chunk, _enc, cb) {
+          bytes += chunk.length
+          if (bytes > UPLOAD_MAX_BYTES) { cb(Object.assign(new Error('too_large'), { status: 413 })); return }
+          if (!sniffed) {
+            head = head.length ? Buffer.concat([head, chunk]) : chunk
+            if (head.length >= 12) {
+              sniffed = sniffType(head)
+              if (!sniffed) { cb(Object.assign(new Error('unsupported_type'), { status: 415 })); return }
+            }
+          }
+          cb(null, chunk)
+        },
+        flush(cb) {
+          if (!sniffed) { cb(Object.assign(new Error('unsupported_type'), { status: 415 })); return }
+          cb()
+        },
+      })
+
+      // ⚠⚠ NOT OPTIONAL — a stream that emits 'error' with no 'error' listener is an
+      // UNCAUGHT EXCEPTION in Node: it kills the Directus process, PM2 restarts the
+      // worker, and every in-flight request across the API 502s. This route rejects on
+      // the FIRST chunk (bad magic bytes), so the error fires before FilesService has
+      // attached its own handler. Same shape, same reason, as scorer-exam.js.
+      let streamError = null
+      capped.on('error', (err) => { streamError = err })
+      req.on('error', (err) => capped.destroy(err))
+      req.pipe(capped)
+
+      let fileId
+      try {
+        fileId = await filesService.uploadOne(capped, {
+          storage,
+          // Provisional — `sniffed` is still null here; corrected below once bytes flowed.
+          filename_download: `matchblatt-korrigiert-${subId}`,
+          type: 'application/octet-stream',
+          folder: SCORER_EXAM_FOLDER, // ⚠ never null — folder=null is publicly readable
+          title: `Matchblatt (korrigiert) ${subKey}`,
+        })
+      } catch (err) {
+        throw streamError || err
+      }
+      if (streamError) throw streamError
+
+      // ⚠ The real type is only known AFTER the bytes have flowed — the options object
+      // above was built before the Transform saw a chunk. Without this the file is stored
+      // as octet-stream and the browser refuses to preview it.
+      await database('directus_files').where('id', fileId).update({
+        type: sniffed,
+        filename_download: `matchblatt-korrigiert-${subId}.${EXT_FOR[sniffed] || 'bin'}`,
+      })
+
+      const patch = {
+        exam_file_corrected: fileId,
+        exam_file_corrected_by: byName,
+        exam_file_corrected_on: new Date(),
+      }
+      if (prev) {
+        await database('scorer_course_attendance').where('id', prev.id).update(patch)
+      } else {
+        // The menu only offers a correction once a sheet exists, so this row should
+        // already be here. Insert rather than 404 anyway: refusing to store bytes we have
+        // already accepted would lose them for a row we can perfectly well create.
+        await database('scorer_course_attendance').insert({
+          sub_key: subKey, form_slug: req.params.slug, submission_id: subId, ...patch,
+        })
+      }
+
+      // Replacing a correction drops the superseded bytes rather than orphaning them.
+      // Best-effort: the new file is already linked, so a failure costs disk, not
+      // correctness. Note this never touches exam_file — the participant's sheet stays.
+      if (prev?.exam_file_corrected && prev.exam_file_corrected !== fileId) {
+        try { await filesService.deleteOne(prev.exam_file_corrected) } catch (e) {
+          log.warn({ msg: 'could not delete superseded correction', file: prev.exam_file_corrected, error: e.message })
+        }
+      }
+
+      log.info({ msg: 'corrected scoresheet uploaded', sub_key: subKey, bytes, type: sniffed, by: byName })
+      // `id` so the caller can offer "open the correction" without a refetch; `by`/`on` so
+      // the attribution it shows is the one that was stored, not one the client guessed.
+      res.json({
+        data: {
+          ok: true,
+          id: fileId,
+          by: byName,
+          on: patch.exam_file_corrected_on,
+          replaced: !!prev?.exam_file_corrected,
+        },
+      })
+    } catch (err) {
+      const status = err.status === 413 ? 413 : err.status === 415 ? 415 : 500
+      if (status === 500) log.error({ msg: `correction upload failed: ${err.message}`, stack: err.stack })
+      if (!res.headersSent) res.status(status).json({ error: err.message || 'internal' })
+    }
+  })
+
+  // ── exam result mail (passed / not passed) ─────────────────────────────────
+  // Sent server-side so the recipient address comes from the OpnForm submission we
+  // already hold, never from the client — an admin (or anything that reaches this route)
+  // cannot aim KSCW's DKIM-aligned sender at an address of their choosing.
+  //
+  // `note` is an optional free-text line the admin writes in the confirm modal. It is
+  // admin-authored rather than public input, but it is still escaped before it enters the
+  // HTML: an unescaped '<' would break the layout at best, and "admin-authored" is a
+  // property of today's callers, not of this function.
+  router.post('/wadmin/scorer_courses/opnform/forms/:slug/submissions/:id/exam-result-email', async (req, res) => {
+    if (!(await guardScorer(req, res))) return
+    const subId = String(req.params.id || '')
+    if (!/^[0-9]+$/.test(subId)) return res.status(400).json({ error: 'Invalid submission id' })
+
+    // No default: a mail that says "passed" because a field was missing is the one
+    // mistake this route must not make.
+    const result = String(req.body?.result || '')
+    if (result !== 'passed' && result !== 'failed') return res.status(400).json({ error: 'invalid_result' })
+    const passed = result === 'passed'
+    const note = String(req.body?.note || '').slice(0, 2000).trim()
 
     try {
       const listing = await listSubmissions(req.params.slug, { page: 1, perPage: 100 })
@@ -514,43 +672,74 @@ export function registerWadmin(router, ctx) {
         .where('sub_key', `${req.params.slug}:${subId}`)
         .first('exam_date', 'sv_license')
 
-      const subject = en
-        ? 'Scorer exam passed — KSC Wiedikon'
-        : 'Schreiber-Prüfung bestanden — KSC Wiedikon'
-      const alert = buildAlertBox(
-        'success',
-        en ? 'Exam passed' : 'Prüfung bestanden',
-        en
-          ? 'Your scorer exam has been marked as passed. Congratulations!'
-          : 'Deine Schreiber-Prüfung wurde als bestanden erfasst. Herzliche Gratulation!',
-      )
+      const subject = passed
+        ? (en ? 'Scorer exam passed — KSC Wiedikon' : 'Schreiber-Prüfung bestanden — KSC Wiedikon')
+        : (en ? 'Scorer exam — KSC Wiedikon' : 'Schreiber-Prüfung — KSC Wiedikon')
+      const alert = passed
+        ? buildAlertBox(
+          'success',
+          en ? 'Exam passed' : 'Prüfung bestanden',
+          en
+            ? 'Your scorer exam has been marked as passed. Congratulations!'
+            : 'Deine Schreiber-Prüfung wurde als bestanden erfasst. Herzliche Gratulation!',
+        )
+        : buildAlertBox(
+          'warning',
+          en ? 'Exam not passed' : 'Prüfung nicht bestanden',
+          en
+            ? 'Your scorer exam has been recorded as not passed.'
+            : 'Deine Schreiber-Prüfung wurde als nicht bestanden erfasst.',
+        )
       const card = buildInfoCard([
         ...(course?.date_iso ? [{ label: en ? 'Course' : 'Kurs', value: formatDateCH(course.date_iso), halfWidth: true }] : []),
         ...(att?.exam_date ? [{ label: en ? 'Exam date' : 'Prüfungsdatum', value: formatDateCH(att.exam_date), halfWidth: true }] : []),
-        ...(att?.sv_license ? [{ label: en ? 'Licence no.' : 'Lizenznummer', value: String(att.sv_license) }] : []),
+        // Licence number only on a pass: on a fail there is no licence coming, and
+        // printing the number next to "not passed" reads like one is on its way.
+        ...(passed && att?.sv_license ? [{ label: en ? 'Licence no.' : 'Lizenznummer', value: String(att.sv_license) }] : []),
       ])
-      const body = `<p style="margin:0 0 12px">${
-        en
-          ? 'We have forwarded your details to the SVRZ. They issue the scorer licence — you will hear from them directly.'
-          : 'Wir haben deine Angaben an den SVRZ weitergeleitet. Die Schreiberlizenz wird von dort ausgestellt — du hörst direkt von ihnen.'
-      }</p>`
+      // Escape first, then newlines → <br>, paragraphs split on blank lines — same
+      // treatment buildBroadcastEmail gives an admin-written message body.
+      const noteHtml = note
+        ? `<p style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;font-weight:700">${
+          en ? 'Note from KSC Wiedikon' : 'Anmerkung von KSC Wiedikon'
+        }</p>` + escHtml(note).split(/\n{2,}/)
+          .map((p) => `<p style="margin:0 0 12px">${p.replace(/\n/g, '<br>')}</p>`).join('')
+        : ''
+      // A pass says where the licence comes from next. A fail deliberately says nothing
+      // further: what happens next is a conversation, not a form letter — the note above
+      // is where that goes when there is something to say.
+      const body = (passed
+        ? `<p style="margin:0 0 12px">${
+          en
+            ? 'We have forwarded your details to the SVRZ. They issue the scorer licence — you will hear from them directly.'
+            : 'Wir haben deine Angaben an den SVRZ weitergeleitet. Die Schreiberlizenz wird von dort ausgestellt — du hörst direkt von ihnen.'
+        }</p>`
+        : '') + noteHtml
       const html = buildEmailLayout(alert + card + body, {
         sport: 'vb',
-        title: en ? 'Scorer exam passed' : 'Schreiber-Prüfung bestanden',
+        title: passed
+          ? (en ? 'Scorer exam passed' : 'Schreiber-Prüfung bestanden')
+          : (en ? 'Scorer exam not passed' : 'Schreiber-Prüfung nicht bestanden'),
         greeting: firstName ? (en ? `Hi ${firstName},` : `Hallo ${firstName},`) : undefined,
       })
-      const text = en
-        ? `Your scorer exam has been marked as passed. Congratulations!\n\nWe have forwarded your details to the SVRZ, who issue the licence.\n\nKSC Wiedikon`
-        : `Deine Schreiber-Prüfung wurde als bestanden erfasst. Herzliche Gratulation!\n\nWir haben deine Angaben an den SVRZ weitergeleitet — die Lizenz wird von dort ausgestellt.\n\nKSC Wiedikon`
+      const noteText = note ? `\n\n${en ? 'Note from KSC Wiedikon' : 'Anmerkung von KSC Wiedikon'}:\n${note}` : ''
+      const text = (passed
+        ? (en
+          ? `Your scorer exam has been marked as passed. Congratulations!\n\nWe have forwarded your details to the SVRZ, who issue the licence.`
+          : `Deine Schreiber-Prüfung wurde als bestanden erfasst. Herzliche Gratulation!\n\nWir haben deine Angaben an den SVRZ weitergeleitet — die Lizenz wird von dort ausgestellt.`)
+        : (en
+          ? `Your scorer exam has been recorded as not passed.`
+          : `Deine Schreiber-Prüfung wurde als nicht bestanden erfasst.`)
+      ) + noteText + `\n\nKSC Wiedikon`
 
       const { MailService } = services
       const mail = new MailService({ schema: await getSchema(), knex: database })
       await mail.send({ to, subject, html, text })
-      log.info({ msg: 'exam-passed mail sent', slug: req.params.slug, submission: subId })
+      log.info({ msg: 'exam-result mail sent', result, noted: !!note, slug: req.params.slug, submission: subId })
       res.json({ ok: true, to })
     } catch (err) {
       if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
-      log.error({ msg: `exam-passed mail failed: ${err.message}`, stack: err.stack })
+      log.error({ msg: `exam-result mail failed: ${err.message}`, result, stack: err.stack })
       res.status(500).json({ error: 'send_failed' })
     }
   })

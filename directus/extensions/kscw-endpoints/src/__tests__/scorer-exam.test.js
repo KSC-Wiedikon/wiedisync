@@ -18,8 +18,18 @@ describe('sniffType', () => {
     expect(sniffType(pdf)).toBe('application/pdf')
     expect(sniffType(jpeg)).toBe('image/jpeg')
     expect(sniffType(png)).toBe('image/png')
-    expect(sniffType(heic)).toBe('image/heic')
     expect(sniffType(avif)).toBe('image/avif')
+  })
+
+  // HEIC is a valid photo an iPhone really produces, and it is refused anyway: Chrome and
+  // Firefox cannot decode it, so it can be neither previewed in /admin nor folded into the
+  // PDF the SVRZ zip ships. Accepting it would mean storing a file nobody downstream can
+  // open — better to say so at upload, while the participant can still re-shoot it.
+  it('refuses HEIC even though the bytes are a real image', () => {
+    expect(sniffType(heic)).toBeNull()
+    for (const brand of ['heix', 'hevc', 'mif1', 'heim']) {
+      expect(sniffType(Buffer.concat([Buffer.alloc(4), Buffer.from('ftyp'), Buffer.from(brand)]))).toBeNull()
+    }
   })
 
   // The whole point of sniffing: a filename and a Content-Type are attacker-chosen, so

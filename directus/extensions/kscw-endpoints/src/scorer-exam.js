@@ -49,7 +49,10 @@ const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 // folder=null is publicly readable via /assets (see header).
 export const SCORER_EXAM_FOLDER = 'd0c00002-0000-4000-8000-000000000001'
 
-const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
+// Exported so the admin correction-upload route (wadmin.js) enforces the SAME cap and
+// the SAME type allowlist. A second copy would drift, and the drift would be silent
+// until an admin stored something the participant route would have refused.
+export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 const TICKET_TTL_MS = 30 * 60 * 1000 // long enough to find the file and scan it, short enough to not be a credential
 
 // Directus refuses to boot without SECRET, so this is always present in practice;
@@ -76,20 +79,25 @@ export function sniffType(buf) {
   if (buf.subarray(0, 4).toString('latin1') === '%PDF') return 'application/pdf'
   if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg'
   if (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png'
-  // ISO-BMFF: "ftyp" at offset 4, brand at 8. Covers what iPhones produce.
+  // ISO-BMFF: "ftyp" at offset 4, brand at 8.
+  //
+  // HEIC is deliberately NOT accepted, though iPhones shoot it: nothing downstream can
+  // read it. Chrome and Firefox cannot decode HEIC, so the admin table cannot preview it
+  // and the SVRZ export cannot turn it into the PDF the list ships as — it would reach
+  // SVRZ as a file they likely cannot open either. Rejecting at upload tells the
+  // participant while they can still do something about it. In practice iOS Safari
+  // transcodes to JPEG when a photo goes through a file input, so this rarely fires.
   if (buf.subarray(4, 8).toString('latin1') === 'ftyp') {
     const brand = buf.subarray(8, 12).toString('latin1')
-    if (brand === 'heic' || brand === 'heix' || brand === 'hevc' || brand === 'mif1' || brand === 'heim') return 'image/heic'
     if (brand === 'avif' || brand === 'avis') return 'image/avif'
   }
   return null
 }
 
-const EXT_FOR = {
+export const EXT_FOR = {
   'application/pdf': 'pdf',
   'image/jpeg': 'jpg',
   'image/png': 'png',
-  'image/heic': 'heic',
   'image/avif': 'avif',
 }
 
