@@ -1,9 +1,22 @@
 /**
- * Scheduling Mailbox (Terminplanung)
+ * Mailbox (Terminplanung + club admin)
  *
- * Embedded email client for the Spielplanung dashboard. The "server" is the
- * existing dedicated Migadu mailbox volleyball@spielplanung.kscw.ch (incoming)
- * + SES SMTP (outgoing, DKIM-aligned for spielplanung.kscw.ch). This module:
+ * Embedded email client. The "server" is a dedicated Migadu mailbox per account
+ * (incoming) + SES SMTP (outgoing). Migadu's send quota is never consumed —
+ * only a human sending from Migadu webmail touches it.
+ *
+ * THREE accounts (see ACCOUNTS): volleyball@ / basketball@spielplanung.kscw.ch
+ * for the Spielplanung dashboard, and admin@wiedisync.kscw.ch for club
+ * correspondence (migration 222). The module name and the `scheduling_emails`
+ * table predate the third — `account` is a partition key, not a sport.
+ *
+ * Routes come in two families, sharing the same handlers so they can't drift:
+ *   /admin/terminplanung/mailbox*  → Spielplanung, account from ?sport=
+ *   /admin/mailbox*                → club admin, account pinned
+ * The split is a security boundary, not cosmetics: the Spielplanung gate grants
+ * is_spielplaner, which must never imply access to the club's general inbox.
+ *
+ * This module:
  *
  *  - syncs INBOX + Sent over IMAP (imapflow) into `scheduling_emails`,
  *    parsing MIME with mailparser and deduping by Message-ID
@@ -24,6 +37,12 @@
  *   SCHEDULING_IMAP_USER      default volleyball@spielplanung.kscw.ch
  *   SCHEDULING_IMAP_PASSWORD  required to activate
  *   SCHEDULING_MAILBOX_SYNC_DAYS  IMAP search window, default 60
+ *   ADMIN_MAILBOX_IMAP_USER      default admin@wiedisync.kscw.ch
+ *   ADMIN_MAILBOX_IMAP_PASSWORD  required to activate the club-admin account
+ *
+ * NB env-file changes need a container RECREATE, not `docker restart` — a
+ * restart silently keeps the old env and the account just reports
+ * configured:false. See INFRA.md → "Restart Directus (recreate with env file)".
  */
 
 import crypto from 'crypto'
@@ -37,6 +56,7 @@ import { writeUserLog } from './activity-log.js'
 import {
   SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT,
   SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML, SCHEDULING_SIGNATURE_BASKETBALL_TEXT,
+  ADMIN_SIGNATURE_LIGHT_HTML, ADMIN_SIGNATURE_TEXT,
 } from './scheduling-signature.js'
 
 // Same Migadu server for both mailboxes; only the credentials + From differ.
@@ -76,6 +96,32 @@ const ACCOUNTS = {
     signatureText: SCHEDULING_SIGNATURE_BASKETBALL_TEXT,
     groupAddress: (process.env.SCHEDULING_GROUP_ADDRESS_BASKETBALL || '').trim().toLowerCase(),
   },
+  // Club-admin mailbox (migration 222). Not a sport — `sport` here is the
+  // account key, which is what the field has always really been. Served at its
+  // own /admin/mailbox routes rather than /admin/terminplanung/mailbox.
+  //
+  // ⚠ Sending needs wiedisync.kscw.ch verified as an SES identity AND
+  // `include:amazonses.com` in its SPF. That domain is DMARC p=quarantine, so
+  // without both, replies fail SPF and are silently quarantined at the receiver
+  // — the same failure mode as finance@mail.kscw.ch forwarding via ClubDesk and
+  // the Google Group before the option-4 remailer. Nothing surfaces in a log.
+  admin: {
+    sport: 'admin',
+    imapUser: process.env.ADMIN_MAILBOX_IMAP_USER || 'admin@wiedisync.kscw.ch',
+    imapPassword: process.env.ADMIN_MAILBOX_IMAP_PASSWORD || '',
+    fromAddress: 'admin@wiedisync.kscw.ch',
+    fromName: 'KSC Wiedikon',
+    msgIdDomain: 'wiedisync.kscw.ch',
+    signatureHtml: ADMIN_SIGNATURE_LIGHT_HTML,
+    signatureText: ADMIN_SIGNATURE_TEXT,
+    // No group repost — that exists to work around Google Groups spoof-rejecting
+    // Migadu's transparent forward for the VB scheduling list. Nothing analogous here.
+    groupAddress: '',
+    // Several admins read this box independently, so one person opening a message
+    // must not mark it read for everyone. Reads live in scheduling_email_reads
+    // instead of the shared scheduling_emails.read_at (migration 222).
+    perUserReads: true,
+  },
 }
 
 // Repost commit gate: only actually send to the group when explicitly enabled
@@ -90,10 +136,24 @@ const accountConfigured = (acct) => Boolean(acct && acct.imapPassword)
 
 // Resolve a sport param to an ACCOUNTS entry, defaulting to volleyball for
 // back-compat. Returns null for an unknown sport so the route can 400.
+//
+// `admin` is NOT reachable this way: it isn't a sport, and the Spielplanung
+// routes must not become a second door to the club mailbox (their gate grants
+// is_spielplaner, which must never imply club-admin mail access). The
+// /admin/mailbox routes pin the account explicitly via adminAccount() instead.
 function resolveAccount(raw) {
   const sport = String(raw || 'volleyball').toLowerCase()
+  if (sport === 'admin') return null
   return ACCOUNTS[sport] || null
 }
+
+/** The club-admin mailbox account, for the /admin/mailbox route family. */
+function adminAccount() {
+  return ACCOUNTS.admin
+}
+
+/** Accounts whose read state is per-user (migration 222) rather than the shared read_at. */
+const usesPerUserReads = (acct) => acct?.perUserReads === true
 
 // Body columns are text; cap to keep pathological messages from bloating rows.
 const MAX_BODY_CHARS = 500_000
@@ -535,7 +595,12 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   //                the club-wide volleyball-scheduler grant)
   //   basketball → Directus superadmin OR app admin/bb_admin
   // So a vb_admin can't touch the basketball mailbox and vice-versa.
-  async function authForSport(req, sport) {
+  //   admin      → Directus superadmin OR app admin/superuser OR vorstand
+  //                (the club mailbox is board/admin correspondence; deliberately
+  //                NOT granted to is_spielplaner or the sport admins — a
+  //                volleyball scheduler has no business in the club's general
+  //                inbox, and vb_admin/bb_admin are sport-scoped by design)
+  async function authForAccount(req, key) {
     if (req.accountability?.admin) return true
     const userId = req.accountability?.user
     if (!userId) return false
@@ -543,9 +608,75 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     if (!member) return false
     const roles = member.role ? (typeof member.role === 'string' ? JSON.parse(member.role) : member.role) : []
     if (roles.includes('admin') || roles.includes('superuser')) return true
-    if (sport === 'volleyball') return roles.includes('vb_admin') || member.is_spielplaner === true
-    if (sport === 'basketball') return roles.includes('bb_admin')
+    if (key === 'volleyball') return roles.includes('vb_admin') || member.is_spielplaner === true
+    if (key === 'basketball') return roles.includes('bb_admin')
+    if (key === 'admin') return roles.includes('vorstand')
     return false
+  }
+
+  /** members.id for the caller — the per-user read state keys on it. */
+  async function callerMemberId(req) {
+    const userId = req.accountability?.user
+    if (!userId) return null
+    const m = await database('members').where('user', userId).first('id')
+    return m?.id ?? null
+  }
+
+  /**
+   * Overlay per-user read state onto a list of rows. For per-user accounts the
+   * shared scheduling_emails.read_at is meaningless, so it's replaced wholesale
+   * by this member's own read row (or null). No-op for the Spielplanung accounts.
+   */
+  async function applyReadState(acct, memberId, rows) {
+    if (!usesPerUserReads(acct) || rows.length === 0) return rows
+    if (!memberId) { rows.forEach((r) => { r.read_at = null }); return rows }
+    const reads = await database('scheduling_email_reads')
+      .where('member', memberId)
+      .whereIn('email', rows.map((r) => r.id))
+      .select('email', 'read_at')
+    const byId = new Map(reads.map((r) => [r.email, r.read_at]))
+    rows.forEach((r) => { r.read_at = byId.get(r.id) ?? null })
+    return rows
+  }
+
+  /** Unread inbound count for this account, honouring per-user reads. */
+  async function unreadCount(acct, memberId) {
+    if (usesPerUserReads(acct)) {
+      if (!memberId) return 0
+      const [{ count }] = await database('scheduling_emails as e')
+        .where({ 'e.account': acct.sport, 'e.direction': 'in' })
+        .whereNotExists(function () {
+          this.select(database.raw('1')).from('scheduling_email_reads as r')
+            .whereRaw('r.email = e.id').where('r.member', memberId)
+        })
+        .count('e.id as count')
+      return Number(count)
+    }
+    const [{ count }] = await database('scheduling_emails')
+      .where({ account: acct.sport, direction: 'in' })
+      .whereNull('read_at')
+      .count('id as count')
+    return Number(count)
+  }
+
+  /** Mark inbound `row` read for this caller. Returns the read timestamp. */
+  async function markRead(acct, memberId, row) {
+    const now = new Date().toISOString()
+    if (usesPerUserReads(acct)) {
+      if (!memberId) return null
+      await database('scheduling_email_reads')
+        .insert({ email: row.id, member: memberId, read_at: now })
+        .onConflict(['email', 'member']).ignore()
+      const existing = await database('scheduling_email_reads')
+        .where({ email: row.id, member: memberId }).first('read_at')
+      return existing?.read_at ?? now
+    }
+    await database('scheduling_emails').where('id', row.id).update({ read_at: now })
+    return now
+  }
+
+  async function authForSport(req, sport) {
+    return authForAccount(req, sport)
   }
 
   const fail = (res, route, err, req) => {
@@ -553,14 +684,23 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     res.status(500).json({ error: 'Internal error' })
   }
 
-  // GET /kscw/admin/terminplanung/mailbox — message list (no bodies) + unread
-  // count + last sync heartbeat. Opponent matching happens in the frontend.
-  router.get('/admin/terminplanung/mailbox', async (req, res) => {
-    const acct = resolveAccount(req.query.sport)
-    if (!acct) return res.status(400).json({ error: 'Unknown sport' })
-    if (!(await authForSport(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
+  // Every mailbox route below is registered TWICE: under
+  // /admin/terminplanung/mailbox (Spielplanung — account from ?sport=) and under
+  // /admin/mailbox (the club-admin account, pinned). The handlers are shared, so
+  // the two families can't drift; only account resolution differs.
+  const schedulingAccount = (req) => resolveAccount(req.query.sport)
+  const pinnedAdmin = () => adminAccount()
+
+  // GET /kscw/{admin/terminplanung/mailbox,admin/mailbox} — message list (no
+  // bodies) + unread count + last sync heartbeat. Opponent matching happens in
+  // the frontend.
+  const listHandler = (getAcct) => async (req, res) => {
+    const acct = getAcct(req)
+    if (!acct) return res.status(400).json({ error: 'Unknown mailbox' })
+    if (!(await authForAccount(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
     try {
       if (!accountConfigured(acct)) return res.json({ configured: false, unread: 0, messages: [], last_sync: null })
+      const memberId = usesPerUserReads(acct) ? await callerMemberId(req) : null
       // Optional full-text search: subject + sender/recipient AND body_text.
       // ≥2 chars to avoid scanning the whole table on a single keystroke; LIKE
       // wildcards in the term are escaped so they're matched literally.
@@ -582,28 +722,36 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       const rows = await q
         .orderBy([{ column: 'date_sent', order: 'desc', nulls: 'last' }])
         .limit(LIST_LIMIT)
-      const [{ count }] = await database('scheduling_emails').where({ account: acct.sport, direction: 'in' }).whereNull('read_at').count('id as count')
+      await applyReadState(acct, memberId, rows)
+      const unread = await unreadCount(acct, memberId)
       const sync = await database('sync_runs').where({ source: 'mailbox_sync' }).first().catch(() => null)
-      res.json({ configured: true, unread: Number(count), messages: rows, last_sync: sync?.last_run_at || null })
-    } catch (err) { fail(res, 'admin/terminplanung/mailbox', err, req) }
-  })
+      res.json({ configured: true, unread, messages: rows, last_sync: sync?.last_run_at || null })
+    } catch (err) { fail(res, 'mailbox/list', err, req) }
+  }
+  router.get('/admin/terminplanung/mailbox', listHandler(schedulingAccount))
+  router.get('/admin/mailbox', listHandler(pinnedAdmin))
 
-  // GET /kscw/admin/terminplanung/mailbox/message/:id — full body; opening an
-  // inbound message IS the read action, so it stamps read_at.
-  router.get('/admin/terminplanung/mailbox/message/:id', async (req, res) => {
-    const acct = resolveAccount(req.query.sport)
-    if (!acct) return res.status(400).json({ error: 'Unknown sport' })
-    if (!(await authForSport(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
+  // GET .../mailbox/message/:id — full body; opening an inbound message IS the
+  // read action. For the Spielplanung accounts that stamps the shared read_at;
+  // for the admin account it writes this caller's own read row instead, so one
+  // admin reading doesn't mark it read for the rest of the board.
+  const messageHandler = (getAcct) => async (req, res) => {
+    const acct = getAcct(req)
+    if (!acct) return res.status(400).json({ error: 'Unknown mailbox' })
+    if (!(await authForAccount(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
     try {
       const row = await database('scheduling_emails').where({ id: Number(req.params.id), account: acct.sport }).first()
       if (!row) return res.status(404).json({ error: 'Message not found' })
+      const memberId = usesPerUserReads(acct) ? await callerMemberId(req) : null
+      if (usesPerUserReads(acct)) await applyReadState(acct, memberId, [row])
       if (row.direction === 'in' && !row.read_at) {
-        row.read_at = new Date().toISOString()
-        await database('scheduling_emails').where('id', row.id).update({ read_at: row.read_at })
+        row.read_at = await markRead(acct, memberId, row)
       }
       res.json({ message: row })
-    } catch (err) { fail(res, 'admin/terminplanung/mailbox/message', err, req) }
-  })
+    } catch (err) { fail(res, 'mailbox/message', err, req) }
+  }
+  router.get('/admin/terminplanung/mailbox/message/:id', messageHandler(schedulingAccount))
+  router.get('/admin/mailbox/message/:id', messageHandler(pinnedAdmin))
 
   // POST /kscw/admin/terminplanung/mailbox/assign — manual opponent override.
   // Body: { ids: number[], opponent_id: number|null }. Pins a whole email chain
@@ -663,6 +811,18 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     } catch (err) { fail(res, 'admin/terminplanung/mailbox/sync', err, req) }
   })
 
+  // POST /kscw/admin/mailbox/sync — "Check now" for the club mailbox only. No
+  // no-account branch here: the cron's sync-everything path stays on the
+  // terminplanung route, which already syncs every configured account (incl.
+  // this one, since runMailboxSync iterates ACCOUNTS).
+  router.post('/admin/mailbox/sync', async (req, res) => {
+    const acct = adminAccount()
+    if (!(await authForAccount(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      res.json(await runMailboxSync(database, log, acct.sport))
+    } catch (err) { fail(res, 'admin/mailbox/sync', err, req) }
+  })
+
   // POST /kscw/admin/terminplanung/mailbox/reply — compose + send (also handles
   // reply-all via `cc`, and forward via `forward_from_id`/`forward_attach_indices`,
   // which re-attaches the source message's files from IMAP). The active account
@@ -670,10 +830,10 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   // defaults to volleyball for legacy callers). Raw MIME via MailComposer so we
   // own Message-ID + threading headers; sent over the container's SES SMTP
   // (DKIM-aligned for spielplanung.kscw.ch), then appended to Migadu Sent.
-  router.post('/admin/terminplanung/mailbox/reply', async (req, res) => {
-    const acct = resolveAccount(req.query.sport)
-    if (!acct) return res.status(400).json({ error: 'Unknown sport' })
-    if (!(await authForSport(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
+  const replyHandler = (getAcct) => async (req, res) => {
+    const acct = getAcct(req)
+    if (!acct) return res.status(400).json({ error: 'Unknown mailbox' })
+    if (!(await authForAccount(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
     try {
       if (!accountConfigured(acct)) return res.status(409).json({ error: 'Mailbox not configured' })
 
@@ -857,17 +1017,18 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         },
       })
       res.json({ success: true, id: sentId })
-    } catch (err) { fail(res, 'admin/terminplanung/mailbox/reply', err, req) }
-  })
+    } catch (err) { fail(res, 'mailbox/reply', err, req) }
+  }
+  router.post('/admin/terminplanung/mailbox/reply', replyHandler(schedulingAccount))
+  router.post('/admin/mailbox/reply', replyHandler(pinnedAdmin))
 
-  // GET /kscw/admin/terminplanung/mailbox/attachment/:id/:index — stream one
-  // attachment live from IMAP (content is never stored locally). 410 when the
-  // stored folder/uid no longer resolves to the same message — a fresh sync
-  // re-points it.
-  router.get('/admin/terminplanung/mailbox/attachment/:id/:index', async (req, res) => {
-    const acct = resolveAccount(req.query.sport)
-    if (!acct) return res.status(400).json({ error: 'Unknown sport' })
-    if (!(await authForSport(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
+  // GET .../mailbox/attachment/:id/:index — stream one attachment live from IMAP
+  // (content is never stored locally). 410 when the stored folder/uid no longer
+  // resolves to the same message — a fresh sync re-points it.
+  const attachmentHandler = (getAcct) => async (req, res) => {
+    const acct = getAcct(req)
+    if (!acct) return res.status(400).json({ error: 'Unknown mailbox' })
+    if (!(await authForAccount(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
     try {
       if (!accountConfigured(acct)) return res.status(409).json({ error: 'Mailbox not configured' })
       const row = await database('scheduling_emails').where({ id: Number(req.params.id), account: acct.sport }).first()
@@ -884,6 +1045,8 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       res.setHeader('Content-Type', att.contentType || 'application/octet-stream')
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
       res.send(att.content)
-    } catch (err) { fail(res, 'admin/terminplanung/mailbox/attachment', err, req) }
-  })
+    } catch (err) { fail(res, 'mailbox/attachment', err, req) }
+  }
+  router.get('/admin/terminplanung/mailbox/attachment/:id/:index', attachmentHandler(schedulingAccount))
+  router.get('/admin/mailbox/attachment/:id/:index', attachmentHandler(pinnedAdmin))
 }

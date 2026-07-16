@@ -608,6 +608,7 @@ export default {
   mailboxForward: 'Forward',
   mailboxNew: 'New email',
   mailboxPageTitle: 'Mailbox',
+  mailboxAdminPageTitle: 'Club mailbox',
   mailboxSportVolleyball: 'Volleyball',
   mailboxSportBasketball: 'Basketball',
   mailboxFolderInbox: 'Inbox',

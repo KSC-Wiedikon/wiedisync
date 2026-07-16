@@ -578,6 +578,7 @@ export default {
   mailboxForward: 'Witerleite',
   mailboxNew: 'Nöji E-Mail',
   mailboxPageTitle: 'Postfach',
+  mailboxAdminPageTitle: 'Vereinsposchtfach',
   mailboxSportVolleyball: 'Volleyball',
   mailboxSportBasketball: 'Basketball',
   mailboxFolderInbox: 'Iigang',

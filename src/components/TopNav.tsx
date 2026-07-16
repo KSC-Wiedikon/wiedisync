@@ -233,7 +233,10 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
             </NavLink>
           )
         )}
-        {isAdmin && (
+        {/* Gate on the groups themselves, not isAdmin: useNavItems already gates
+            each entry by role and drops empty groups, so a plain vorstand still
+            gets the section for the club mailbox alone. */}
+        {adminGroups.length > 0 && (
           <NavCategory
             label={t('admin')}
             groups={adminGroups}

@@ -17,9 +17,9 @@ import {
   messagesForOwner,
   threadIdsForMessage,
   type MailboxAttachment,
+  type MailboxAccount,
   type MailboxMessage,
   type MailboxMessageFull,
-  type MailboxSport,
   type MessageClassification,
   type OpponentContacts,
   type UseMailboxReturn,
@@ -95,8 +95,9 @@ interface ComposeState {
 interface Props {
   mailbox: UseMailboxReturn
   /** Which mailbox account this panel is showing — passed through to attachment
-   *  downloads so they hit the right account. */
-  sport?: MailboxSport
+   *  downloads so they hit the right account, and used to derive our own address
+   *  (kept out of reply-all recipients). Includes the non-sport `admin` account. */
+  sport?: MailboxAccount
   /** All opponents + their contact sets (and KSCW-pairing aliases), built once
    *  by the page so the chip and the per-opponent thread disambiguate
    *  identically across opponent rows that share a club's contacts. Empty for
@@ -245,7 +246,11 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
 
   // Our own mailbox address for this account — kept out of reply-all recipients
   // (the server also strips it, but the compose form shouldn't show it either).
-  const selfAddress = (sport === 'basketball' ? 'basketball@spielplanung.kscw.ch' : 'volleyball@spielplanung.kscw.ch')
+  // Mirrors the fromAddress of each account in scheduling-mailbox.js.
+  const selfAddress =
+    sport === 'basketball' ? 'basketball@spielplanung.kscw.ch'
+      : sport === 'admin' ? 'admin@wiedisync.kscw.ch'
+        : 'volleyball@spielplanung.kscw.ch'
 
   const splitAddrs = (s: string | null | undefined) =>
     String(s || '').split(',').map((a) => a.trim()).filter(Boolean)
@@ -785,7 +790,7 @@ function MailboxAssign({
   )
 }
 
-function MailboxAttachments({ message, sport }: { message: MailboxMessageFull; sport: MailboxSport }) {
+function MailboxAttachments({ message, sport }: { message: MailboxMessageFull; sport: MailboxAccount }) {
   const { t } = useTranslation('gameScheduling')
   const attachments: MailboxAttachment[] = useMemo(() => {
     const raw = message.attachments

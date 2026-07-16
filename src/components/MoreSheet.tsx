@@ -8,7 +8,7 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList, FolderSync } from 'lucide-react'
+import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList, FolderSync } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
@@ -87,38 +87,59 @@ interface NavItem { to: string; labelKey: string; icon: ReactNode }
 
 // Admin tools grouped into labeled sections — mirrors useNavItems.adminGroups
 // (desktop dropdown). Keep the two in sync when adding admin pages.
-const adminGroups: Array<{ labelKey: string; items: NavItem[] }> = [
-  {
-    labelKey: 'adminGroupPlanning',
-    items: [
-      { to: '/admin/hallenplan', labelKey: 'hallenplan', icon: <Building2 className={iconClass} /> },
-    ],
-  },
-  {
-    labelKey: 'adminGroupGames',
-    items: [
-      { to: '/admin/scorer-assign', labelKey: 'scorerAssign', icon: <ClipboardList className={iconClass} /> },
-      { to: '/admin/vb-referees', labelKey: 'vbReferees', icon: <Gavel className={iconClass} /> },
-      { to: '/admin/referee-expenses', labelKey: 'refereeExpenses', icon: <Banknote className={iconClass} /> },
-    ],
-  },
-  {
-    labelKey: 'adminGroupMembers',
-    items: [
-      { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: <UserPlus className={iconClass} /> },
-      { to: '/admin/announcements', labelKey: 'announcements', icon: <Megaphone className={iconClass} /> },
-      { to: '/admin/reports', labelKey: 'moderationReports', icon: <Flag className={iconClass} /> },
-      { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: <MessageSquare className={iconClass} /> },
-    ],
-  },
-  {
-    labelKey: 'adminGroupData',
-    items: [
-      { to: '/admin/explore', labelKey: 'adminExplorer', icon: <Database className={iconClass} /> },
-      { to: '/admin/club-stats', labelKey: 'clubStats', icon: <BarChart3 className={iconClass} /> },
-    ],
-  },
-]
+//
+// Items are gated INDIVIDUALLY, not by one section-wide isAdmin: every entry
+// here is AdminRoute-guarded (isAdmin) except the club mailbox, which is
+// VorstandRoute-guarded (isVorstand). Neither set contains the other — a
+// vb_admin is isAdmin but NOT isVorstand (the server 403s them on the mailbox),
+// while a plain vorstand is the reverse. Empty groups are dropped so a board
+// member who isn't an admin sees just the mailbox rather than a section of links
+// that would bounce them back to '/'.
+function buildAdminGroups(
+  { isAdmin, isVorstand }: { isAdmin: boolean; isVorstand: boolean },
+): Array<{ labelKey: string; items: NavItem[] }> {
+  return [
+    {
+      labelKey: 'adminGroupPlanning',
+      items: [
+        ...(isAdmin ? [{ to: '/admin/hallenplan', labelKey: 'hallenplan', icon: <Building2 className={iconClass} /> }] : []),
+      ],
+    },
+    {
+      labelKey: 'adminGroupGames',
+      items: [
+        ...(isAdmin ? [
+          { to: '/admin/scorer-assign', labelKey: 'scorerAssign', icon: <ClipboardList className={iconClass} /> },
+          { to: '/admin/vb-referees', labelKey: 'vbReferees', icon: <Gavel className={iconClass} /> },
+          { to: '/admin/referee-expenses', labelKey: 'refereeExpenses', icon: <Banknote className={iconClass} /> },
+        ] : []),
+      ],
+    },
+    {
+      labelKey: 'adminGroupMembers',
+      items: [
+        ...(isAdmin ? [
+          { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: <UserPlus className={iconClass} /> },
+          { to: '/admin/announcements', labelKey: 'announcements', icon: <Megaphone className={iconClass} /> },
+        ] : []),
+        ...(isVorstand ? [{ to: '/admin/mailbox', labelKey: 'clubMailbox', icon: <Mail className={iconClass} /> }] : []),
+        ...(isAdmin ? [
+          { to: '/admin/reports', labelKey: 'moderationReports', icon: <Flag className={iconClass} /> },
+          { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: <MessageSquare className={iconClass} /> },
+        ] : []),
+      ],
+    },
+    {
+      labelKey: 'adminGroupData',
+      items: [
+        ...(isAdmin ? [
+          { to: '/admin/explore', labelKey: 'adminExplorer', icon: <Database className={iconClass} /> },
+          { to: '/admin/club-stats', labelKey: 'clubStats', icon: <BarChart3 className={iconClass} /> },
+        ] : []),
+      ],
+    },
+  ].filter((g) => g.items.length > 0)
+}
 
 const superAdminItems: NavItem[] = [
   { to: '/admin/data-health', labelKey: 'dataHealth', icon: <HeartPulse className={iconClass} /> },
@@ -267,6 +288,7 @@ interface MoreSheetProps {
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
   const { user, isApproved, isAdmin, isSuperAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, logout } = useAuth()
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
+  const adminGroups = buildAdminGroups({ isAdmin, isVorstand })
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
   const { t: tn } = useTranslation('notifications')
@@ -455,8 +477,10 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
 
           {/* Admin/Superadmin nav gated on ROLE, not the toggle — the navbar is
               always complete for privileged users; the admin-mode toggle only
-              changes data scope. Routes enforce the same raw-role gate. */}
-          {isAdmin && (
+              changes data scope. Routes enforce the same raw-role gate.
+              Gated on the built groups (not isAdmin) so a plain vorstand still
+              gets the section for the club mailbox alone. */}
+          {adminGroups.length > 0 && (
             <>
               <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
               <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">

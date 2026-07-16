@@ -578,6 +578,7 @@ export default {
   mailboxForward: 'Inoltra',
   mailboxNew: 'Nuova e-mail',
   mailboxPageTitle: 'Posta',
+  mailboxAdminPageTitle: 'Posta del club',
   mailboxSportVolleyball: 'Volleyball',
   mailboxSportBasketball: 'Basketball',
   mailboxFolderInbox: 'In arrivo',

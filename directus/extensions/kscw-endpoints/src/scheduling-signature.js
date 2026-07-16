@@ -19,6 +19,7 @@ import { FRONTEND_URL, escHtml } from './email-template.js'
 const LOGO_URL = `${FRONTEND_URL}/kscw_email_crest.png`
 const SIG_EMAIL = 'volleyball@spielplanung.kscw.ch'
 const SIG_EMAIL_BB = 'basketball@spielplanung.kscw.ch'
+const SIG_EMAIL_ADMIN = 'admin@wiedisync.kscw.ch'
 const SIG_WA_HREF = 'https://wa.me/41797891817'
 const SIG_WA_DISPLAY = '+41&nbsp;79&nbsp;789&nbsp;18&nbsp;17'
 const SIG_PEOPLE = 'Luca &middot; Martin &middot; Hella'
@@ -77,6 +78,17 @@ export const SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML =
 
 export const SCHEDULING_SIGNATURE_BASKETBALL_TEXT =
   sigText({ role: 'Spielplanung Basketball', email: SIG_EMAIL_BB })
+
+// Club-admin mailbox signature (migration 222). Deliberately generic: no
+// scheduler names and no WhatsApp line, because this box is general club
+// correspondence rather than a fixed pair of operators the way Spielplanung is.
+// `role` reads "Vereinsadministration" rather than repeating "KSC Wiedikon",
+// which lightCard/sigText already prefix.
+export const ADMIN_SIGNATURE_LIGHT_HTML =
+  lightCard({ role: 'Vereinsadministration', email: SIG_EMAIL_ADMIN, people: null, waLabel: null })
+
+export const ADMIN_SIGNATURE_TEXT =
+  sigText({ role: 'Vereinsadministration', email: SIG_EMAIL_ADMIN })
 
 // Localised role + WhatsApp label for the dark automated footer (gsw → de).
 const DARK_I18N = {

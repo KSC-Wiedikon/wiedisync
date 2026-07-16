@@ -57,8 +57,29 @@ export interface MailboxReplyPayload {
   attachments?: File[]
 }
 
-/** The mailbox account a hook/call targets — one Migadu mailbox each. */
+/**
+ * A mailbox account a hook/call targets — one Migadu mailbox each. `admin` is
+ * the club-admin box (admin@wiedisync.kscw.ch,
+ * migration 222) — not a sport, and served from its own route family, because
+ * the Spielplanung gate grants `is_spielplaner` and that must never imply access
+ * to the club's general inbox.
+ */
+export type MailboxAccount = 'volleyball' | 'basketball' | 'admin'
+
+/** @deprecated Use MailboxAccount — kept so the Spielplanung callers still typecheck. */
 export type MailboxSport = 'volleyball' | 'basketball'
+
+/**
+ * Build a mailbox route. The admin account has its own path and takes no
+ * `sport` param; the Spielplanung accounts stay on the terminplanung path and
+ * pass `?sport=`, which the server reads BEFORE parsing any multipart body so
+ * auth runs first.
+ */
+function mailboxUrl(account: MailboxAccount, suffix = '', extra = ''): string {
+  const base = account === 'admin' ? '/admin/mailbox' : '/admin/terminplanung/mailbox'
+  const qs = [account === 'admin' ? '' : `sport=${account}`, extra].filter(Boolean).join('&')
+  return `${base}${suffix}${qs ? `?${qs}` : ''}`
+}
 
 /** Lower-cased bare addresses from a comma/semicolon-joined contact_email. */
 export function contactAddressSet(opp: Pick<GameSchedulingOpponent, 'contact_email'>): Set<string> {
@@ -419,8 +440,8 @@ export function messagesForOpponentThread(
  * Download an attachment through the authed endpoint (a plain <a href> can't
  * carry the Bearer token). Streams live from IMAP server-side.
  */
-export async function downloadMailboxAttachment(messageId: number, index: number, filename: string, sport: MailboxSport = 'volleyball'): Promise<void> {
-  const res = await fetch(`${API_URL}/kscw/admin/terminplanung/mailbox/attachment/${messageId}/${index}?sport=${sport}`, {
+export async function downloadMailboxAttachment(messageId: number, index: number, filename: string, account: MailboxAccount = 'volleyball'): Promise<void> {
+  const res = await fetch(`${API_URL}/kscw${mailboxUrl(account, `/attachment/${messageId}/${index}`)}`, {
     credentials: 'include',
   })
   if (!res.ok) throw new Error(`Attachment download failed (${res.status})`)
@@ -465,7 +486,7 @@ export interface UseMailboxReturn {
   assignThread: (ids: number[], opponentId: number | null) => Promise<void>
 }
 
-export function useMailbox(enabled: boolean = true, sport: MailboxSport = 'volleyball'): UseMailboxReturn {
+export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'volleyball'): UseMailboxReturn {
   const [configured, setConfigured] = useState<boolean | null>(null)
   const [messages, setMessages] = useState<MailboxMessage[]>([])
   const [unread, setUnread] = useState(0)
@@ -480,7 +501,7 @@ export function useMailbox(enabled: boolean = true, sport: MailboxSport = 'volle
   const refetch = useCallback(async () => {
     const seq = ++fetchSeq.current
     try {
-      const resp = await kscwApi<MailboxListResponse>(`/admin/terminplanung/mailbox?sport=${sport}`)
+      const resp = await kscwApi<MailboxListResponse>(mailboxUrl(sport))
       if (seq !== fetchSeq.current) return
       setConfigured(resp.configured)
       setMessages(Array.isArray(resp.messages) ? resp.messages : [])
@@ -499,7 +520,7 @@ export function useMailbox(enabled: boolean = true, sport: MailboxSport = 'volle
   const sync = useCallback(async () => {
     setSyncing(true)
     try {
-      await kscwApi(`/admin/terminplanung/mailbox/sync?sport=${sport}`, { method: 'POST' })
+      await kscwApi(mailboxUrl(sport, '/sync'), { method: 'POST' })
       await refetch()
     } finally {
       setSyncing(false)
@@ -507,7 +528,7 @@ export function useMailbox(enabled: boolean = true, sport: MailboxSport = 'volle
   }, [refetch, sport])
 
   const loadMessage = useCallback(async (id: number) => {
-    const resp = await kscwApi<{ message: MailboxMessageFull }>(`/admin/terminplanung/mailbox/message/${id}?sport=${sport}`)
+    const resp = await kscwApi<{ message: MailboxMessageFull }>(mailboxUrl(sport, `/message/${id}`))
     const msg = resp.message
     if (msg.read_at) {
       setMessages((prev) => {
@@ -540,7 +561,7 @@ export function useMailbox(enabled: boolean = true, sport: MailboxSport = 'volle
       for (const f of payload.attachments || []) fd.append('attachments', f, f.name)
       // sport goes in the query string so the server authorizes the account
       // before parsing the multipart body.
-      const res = await fetch(`${API_URL}/kscw/admin/terminplanung/mailbox/reply?sport=${sport}`, {
+      const res = await fetch(`${API_URL}/kscw${mailboxUrl(sport, '/reply')}`, {
         method: 'POST',
         credentials: 'include',
         body: fd,
@@ -566,7 +587,7 @@ export function useMailbox(enabled: boolean = true, sport: MailboxSport = 'volle
   // state so the opponent thread/chip features still read the full list.
   const searchMessages = useCallback(async (q: string) => {
     const resp = await kscwApi<MailboxListResponse>(
-      `/admin/terminplanung/mailbox?sport=${sport}&search=${encodeURIComponent(q)}`)
+      mailboxUrl(sport, '', `search=${encodeURIComponent(q)}`))
     return Array.isArray(resp.messages) ? resp.messages : []
   }, [sport])
 
@@ -576,7 +597,7 @@ export function useMailbox(enabled: boolean = true, sport: MailboxSport = 'volle
   const assignThread = useCallback(async (ids: number[], opponentId: number | null) => {
     const idSet = new Set(ids)
     setMessages((prev) => prev.map((m) => (idSet.has(m.id) ? { ...m, assigned_opponent: opponentId } : m)))
-    await kscwApi(`/admin/terminplanung/mailbox/assign?sport=${sport}`, {
+    await kscwApi(mailboxUrl(sport, '/assign'), {
       method: 'POST',
       body: { ids, opponent_id: opponentId },
     })
