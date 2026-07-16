@@ -121,6 +121,10 @@ const COLLECTION = {
       schema: { is_nullable: true },
       meta: { interface: 'input', width: 'half',
         note: 'OpnForm slug for the English form (last URL segment).' } },
+    { field: 'scorer_expert', type: 'string',
+      schema: { is_nullable: true },
+      meta: { interface: 'input', width: 'half',
+        note: 'Name printed in the "Schreiberexperte" line of the SVRZ Teilnehmerliste export. Nothing public reads it.' } },
     { field: 'date_created', type: 'timestamp',
       schema: {},
       meta: { interface: 'datetime', readonly: true, hidden: true,
@@ -155,6 +159,16 @@ async function main() {
   } else {
     await api('POST', '/collections', COLLECTION)
     console.log('  ✓ collection scorer_courses created')
+  }
+
+  // Re-runnable field pass — the create above no-ops on an existing collection, so a
+  // field added to COLLECTION later would never reach a live instance without this.
+  const live = await api('GET', '/fields/scorer_courses')
+  const have = new Set((live || []).map((f) => f.field))
+  for (const f of COLLECTION.fields) {
+    if (have.has(f.field)) continue
+    await api('POST', '/fields/scorer_courses', f)
+    console.log(`  ✓ field ${f.field} created`)
   }
 
   const rows = await api('GET', '/items/scorer_courses?filter[slug_id][_eq]=2026-07-08-en&limit=1')

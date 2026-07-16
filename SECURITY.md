@@ -119,6 +119,8 @@ These have bitten before and will bite again:
 
 11. **Push notifications need both ends to share VAPID public key.** Worker reads it from `wrangler secret` and Directus reads from `process.env.VAPID_PUBLIC_KEY`. A split-brain (e.g. via the formerly-hardcoded fallback) makes every push silently fail.
 
+12. **An upload stream that errors with no `'error'` listener kills the whole worker.** In Node an unhandled stream `'error'` is an *uncaught exception* — it does not reject your `await`, it exits the process, PM2 restarts Directus and every in-flight request across the API 502s. On a **public** upload route that is an unauthenticated remote kill switch. The trap is the async gap: `req.pipe(capped)` starts data flowing immediately, so any `await` between the pipe and the consumer (`FilesService.uploadOne`) is a window in which an early error has nobody listening. Caught on dev in `scorer-exam.js`, whose validator rejects on the *first* chunk (bad magic bytes) and so hit that window every time — reproducible: `Error: unsupported_type` → `App [directus:0] exited` → restart. Rules: do every `await` **before** piping, and attach an `'error'` listener to the Transform the moment you create it (capture it and re-throw after `uploadOne`, so the real 413/415 still reaches the client). ⚠ `identity-document.js` has the same shape — latent only because its Transform errors past 10 MB, by which point the consumer is attached. Also note `sniffType`-style state is **null at `uploadOne(...)` call time** (no bytes have flowed yet), so a type/filename derived from it must be patched onto `directus_files` afterwards.
+
 ---
 
 ## Audit cadence

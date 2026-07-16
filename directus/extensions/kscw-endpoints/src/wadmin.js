@@ -14,6 +14,9 @@
 
 // Wired into the scorer_courses OpnForm routes in Task A5 — imported here to co-locate the dependency.
 import { badSlug, listSubmissions, deleteSubmission } from './opnform.js'
+import { streamManagedFile } from './storage-read.js'
+import { SCORER_EXAM_FOLDER } from './scorer-exam.js'
+import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH } from './email-template.js'
 
 export const ALL_SECTIONS = [
   'news', 'events', 'registrations', 'sponsors', 'scorer_courses', 'mixed_turnier',
@@ -379,6 +382,127 @@ export function registerWadmin(router, ctx) {
       }
       log.warn({ msg: 'wadmin opnform delete failed', slug: req.params.slug, status: err.status })
       res.status(err.status || 502).json({ error: 'Upstream error' })
+    }
+  })
+
+  // ── exam scoresheets ───────────────────────────────────────────────────────
+  //
+  // Participants upload these themselves (scorer-exam.js). They are personal data and
+  // therefore live in a private folder, which puts them out of reach of /assets — so the
+  // admin table reads them here instead.
+  //
+  // ⚠ The file id arrives from the client, so holding the scorer_courses grant must NOT
+  // become "read any file in Directus" (that would reach registration ID scans and expense
+  // receipts). Two independent conditions, both required: the id must be REFERENCED by a
+  // scorer_course_attendance.exam_file, and the row must sit in SCORER_EXAM_FOLDER. The
+  // folder check alone would be enough today, but the reference check is what keeps this
+  // honest if someone ever points another feature at the same folder.
+  router.get('/wadmin/scorer_courses/assets/:id', async (req, res) => {
+    const userId = req.accountability?.user
+    if (!userId) return res.status(401).json({ error: 'unauthenticated' })
+    const a = await authorize(database, userId, 'scorer_courses')
+    if (!a.ok) return res.status(a.status).json({ error: a.error, section: 'scorer_courses' })
+
+    const id = String(req.params.id || '')
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'invalid_id' })
+
+    try {
+      const att = await database('scorer_course_attendance').where('exam_file', id).first('sub_key')
+      if (!att) return res.status(404).json({ error: 'not_found' })
+      const file = await database('directus_files').where('id', id)
+        .first('id', 'folder', 'filename_download', 'type')
+      if (!file || String(file.folder) !== SCORER_EXAM_FOLDER) {
+        log.warn({ msg: 'scoresheet read refused — file outside the exam folder', file: id, user: userId })
+        return res.status(404).json({ error: 'not_found' })
+      }
+      await streamManagedFile(id, { services, getSchema, database }, res, {
+        filename: file.filename_download || 'matchblatt',
+        type: file.type || 'application/octet-stream',
+      })
+    } catch (e) {
+      log.warn({ msg: 'wadmin scoresheet read failed', file: id, error: e.message })
+      if (!res.headersSent) res.status(500).json({ error: 'internal' })
+    }
+  })
+
+  // ── "Prüfung bestanden" confirmation mail ──────────────────────────────────
+  // Sent server-side so the recipient address comes from the OpnForm submission we
+  // already hold, never from the client — an admin (or anything that reaches this route)
+  // cannot aim KSCW's DKIM-aligned sender at an address of their choosing.
+  router.post('/wadmin/scorer_courses/opnform/forms/:slug/submissions/:id/exam-passed-email', async (req, res) => {
+    if (!(await guardScorer(req, res))) return
+    const subId = String(req.params.id || '')
+    if (!/^[0-9]+$/.test(subId)) return res.status(400).json({ error: 'Invalid submission id' })
+
+    try {
+      const listing = await listSubmissions(req.params.slug, { page: 1, perPage: 100 })
+      const fields = listing.fields || []
+      const idsOf = (re, typeMatch) => fields
+        .filter((f) => (typeMatch && f.type === typeMatch) || re.test(String(f.name || '')))
+        .map((f) => f.id)
+      const emailIds = idsOf(/^e-?mail/i, 'email')
+      const firstIds = idsOf(/vorname|first\s*name/i)
+      const row = (listing.data || []).find((r) => String(r.id) === subId)
+      if (!row) return res.status(404).json({ error: 'Submission not found' })
+
+      // ⚠ Answers live in `row.data`, keyed by field id — never on the row itself.
+      // Reading row[fieldId] yields undefined for everything and the mail silently gets
+      // no recipient. Same shape admin.astro reads (var d = row.data).
+      const answers = (row && row.data) || row || {}
+      const pick = (ids) => { for (const i of ids) { const v = answers[i]; if (v != null && v !== '') return String(v) } return '' }
+      const to = pick(emailIds).trim()
+      if (!to || /[\r\n]/.test(to)) return res.status(422).json({ error: 'no_email_on_submission' })
+      const firstName = pick(firstIds).replace(/[\r\n]/g, '').trim()
+
+      // Which language the person signed up in — the DE form and the EN form are separate
+      // records, so the slug itself tells us.
+      const course = await database('scorer_courses')
+        .where('form_slug_de', req.params.slug).orWhere('form_slug_en', req.params.slug)
+        .first('date_iso', 'form_slug_en')
+      const en = course && String(course.form_slug_en || '') === String(req.params.slug)
+
+      const att = await database('scorer_course_attendance')
+        .where('sub_key', `${req.params.slug}:${subId}`)
+        .first('exam_date', 'sv_license')
+
+      const subject = en
+        ? 'Scorer exam passed — KSC Wiedikon'
+        : 'Schreiber-Prüfung bestanden — KSC Wiedikon'
+      const alert = buildAlertBox(
+        'success',
+        en ? 'Exam passed' : 'Prüfung bestanden',
+        en
+          ? 'Your scorer exam has been marked as passed. Congratulations!'
+          : 'Deine Schreiber-Prüfung wurde als bestanden erfasst. Herzliche Gratulation!',
+      )
+      const card = buildInfoCard([
+        ...(course?.date_iso ? [{ label: en ? 'Course' : 'Kurs', value: formatDateCH(course.date_iso), halfWidth: true }] : []),
+        ...(att?.exam_date ? [{ label: en ? 'Exam date' : 'Prüfungsdatum', value: formatDateCH(att.exam_date), halfWidth: true }] : []),
+        ...(att?.sv_license ? [{ label: en ? 'Licence no.' : 'Lizenznummer', value: String(att.sv_license) }] : []),
+      ])
+      const body = `<p style="margin:0 0 12px">${
+        en
+          ? 'We have forwarded your details to the SVRZ. They issue the scorer licence — you will hear from them directly.'
+          : 'Wir haben deine Angaben an den SVRZ weitergeleitet. Die Schreiberlizenz wird von dort ausgestellt — du hörst direkt von ihnen.'
+      }</p>`
+      const html = buildEmailLayout(alert + card + body, {
+        sport: 'vb',
+        title: en ? 'Scorer exam passed' : 'Schreiber-Prüfung bestanden',
+        greeting: firstName ? (en ? `Hi ${firstName},` : `Hallo ${firstName},`) : undefined,
+      })
+      const text = en
+        ? `Your scorer exam has been marked as passed. Congratulations!\n\nWe have forwarded your details to the SVRZ, who issue the licence.\n\nKSC Wiedikon`
+        : `Deine Schreiber-Prüfung wurde als bestanden erfasst. Herzliche Gratulation!\n\nWir haben deine Angaben an den SVRZ weitergeleitet — die Lizenz wird von dort ausgestellt.\n\nKSC Wiedikon`
+
+      const { MailService } = services
+      const mail = new MailService({ schema: await getSchema(), knex: database })
+      await mail.send({ to, subject, html, text })
+      log.info({ msg: 'exam-passed mail sent', slug: req.params.slug, submission: subId })
+      res.json({ ok: true, to })
+    } catch (err) {
+      if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
+      log.error({ msg: `exam-passed mail failed: ${err.message}`, stack: err.stack })
+      res.status(500).json({ error: 'send_failed' })
     }
   })
 
