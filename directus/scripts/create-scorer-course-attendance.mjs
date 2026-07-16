@@ -118,6 +118,14 @@ const COLLECTION = {
       schema: { is_nullable: true },
       meta: { interface: 'input', width: 'half',
         note: 'Swiss Volley licence number, filled in when the registrant did not provide one.' } },
+    { field: 'exam_date', type: 'date',
+      schema: { is_nullable: true },
+      meta: { interface: 'datetime', width: 'half',
+        note: 'Prüfungsdatum — set to the upload date when the registrant uploads their scoresheet; editable in /admin. Printed on the SVRZ Teilnehmerliste.' } },
+    { field: 'exam_file', type: 'uuid',
+      schema: { is_nullable: true },
+      meta: { interface: 'file', special: ['file'], width: 'half',
+        note: 'The uploaded exam scoresheet. Private (SCORER_EXAM_FOLDER) — read via /kscw/wadmin/scorer_courses/assets/:id, never /assets.' } },
     { field: 'notes', type: 'text',
       schema: { is_nullable: true },
       meta: { interface: 'input-multiline', width: 'full',
@@ -133,6 +141,12 @@ const COLLECTION = {
   ],
 }
 
+// Scoresheets are personal data. The Public file policy grants /assets reads on
+// FOLDER-LESS files only (setup-permissions.mjs: "a folder assignment === private"), so
+// this folder is the privacy boundary — an upload written with folder=null would be
+// fetchable by anyone holding its id. Mirrored as SCORER_EXAM_FOLDER in scorer-exam.js.
+const SCORER_EXAM_FOLDER = 'd0c00002-0000-4000-8000-000000000001'
+
 async function main() {
   await auth()
   console.log(`→ ${DIRECTUS_URL}`)
@@ -143,6 +157,40 @@ async function main() {
   } else {
     await api('POST', '/collections', COLLECTION)
     console.log('  ✓ collection scorer_course_attendance created')
+  }
+
+  // Re-runnable field pass. The create above is a no-op on an existing collection, so
+  // fields added to COLLECTION after the first run would otherwise never reach a live
+  // instance — which is exactly how exam_date/exam_file came to exist on prod but not
+  // here. Add fields to COLLECTION.fields and re-run; this reconciles the difference.
+  const live = await api('GET', '/fields/scorer_course_attendance')
+  const have = new Set((live || []).map((f) => f.field))
+  for (const f of COLLECTION.fields) {
+    if (have.has(f.field)) continue
+    await api('POST', '/fields/scorer_course_attendance', f)
+    console.log(`  ✓ field ${f.field} created`)
+  }
+
+  const folders = await api('GET', `/folders?filter[id][_eq]=${SCORER_EXAM_FOLDER}&limit=1`)
+  if (folders?.length) {
+    console.log('  ✓ scorer exam folder already exists')
+  } else {
+    await api('POST', '/folders', { id: SCORER_EXAM_FOLDER, name: 'Scorer exam scoresheets', parent: null })
+    console.log('  ✓ scorer exam folder created')
+  }
+
+  // exam_file → directus_files. Without the relation Directus treats the column as a
+  // bare uuid and the admin file interface cannot resolve it.
+  const rels = await api('GET', '/relations/scorer_course_attendance/exam_file').catch(() => null)
+  if (rels) {
+    console.log('  ✓ exam_file relation already exists')
+  } else {
+    await api('POST', '/relations', {
+      collection: 'scorer_course_attendance',
+      field: 'exam_file',
+      related_collection: 'directus_files',
+    })
+    console.log('  ✓ exam_file relation created')
   }
 
   console.log('Done. Next: npm run schema:pull && review git diff directus/sync/')
