@@ -607,12 +607,11 @@ export function registerWadmin(router, ctx) {
         const plz = plausiblePlz(m.plz) ? String(m.plz).trim() : ''
         const ort = plausibleOrt(m.ort) ? String(m.ort).trim() : ''
         if (!ort && !plz) continue
-        m = { ...m, plz, ort }
         // First writer wins: two members sharing a name cannot be told apart from a
         // signup, so the ambiguous ones are dropped below rather than guessed at.
         const k = key(m.first_name, m.last_name)
         if (byName.has(k)) byName.set(k, null) // ambiguous → refuse to answer
-        else byName.set(k, { plz: m.plz || '', ort: m.ort || '' })
+        else byName.set(k, { plz, ort })
       }
 
       const out = {}
