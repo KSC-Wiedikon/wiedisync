@@ -18,7 +18,7 @@ import { badSlug, listSubmissions, deleteSubmission, getCloses, setCloses } from
 import { streamManagedFile, readManagedFile } from './storage-read.js'
 // Cap and type allowlist are imported, never re-declared: an admin correction must be
 // held to exactly what the participant upload accepts, and two copies would drift.
-import { SCORER_EXAM_FOLDER, sniffType, EXT_FOR, UPLOAD_MAX_BYTES } from './scorer-exam.js'
+import { SCORER_EXAM_FOLDER, sniffType, EXT_FOR, UPLOAD_MAX_BYTES, zurichToday } from './scorer-exam.js'
 import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH, escHtml } from './email-template.js'
 
 export const ALL_SECTIONS = [
@@ -580,23 +580,40 @@ export function registerWadmin(router, ctx) {
     }
   })
 
-  // ── admin uploads a corrected scoresheet ───────────────────────────────────
+  // ── admin uploads a scoresheet ─────────────────────────────────────────────
   //
-  // Writes exam_file_corrected, NEVER exam_file: the participant's own sheet is what they
-  // submitted, and it stays exactly as they left it. The correction is a second, separate
-  // claim that outranks it in the SVRZ zip.
+  // Two slots, chosen by ?slot=:
   //
-  // The attribution (exam_file_corrected_by) is resolved HERE from the session user, and
-  // is not accepted from the request. A name the client could choose would be decoration,
-  // not a record of who did it.
+  //   corrected (default) — an admin's correction. Writes exam_file_corrected and NEVER
+  //     exam_file: the participant's own sheet is what they submitted and stays exactly as
+  //     they left it. The correction is a second, separate claim that outranks it in the
+  //     SVRZ zip. Attribution (exam_file_corrected_by) is resolved HERE from the session
+  //     user and is not accepted from the request — a name the client could choose would
+  //     be decoration, not a record of who did it.
+  //
+  //   original — the sheet ITSELF, for when it reached us by email or on paper rather than
+  //     through the upload page. Writes exam_file, and only while that slot is EMPTY: an
+  //     admin must not be able to quietly replace what a participant submitted. To change
+  //     a sheet that already exists, upload a correction — that leaves both, and says who.
+  //     Deliberately unattributed, matching what the participant route records.
   //
   // Body is the raw bytes (application/octet-stream), same as the participant route —
   // multipart would buy nothing but a parser.
-  router.post('/wadmin/scorer_courses/scoresheet-correction/:slug/:id', async (req, res) => {
+  //
+  // Registered at both paths: /scoresheet is the honest name now that it is not
+  // corrections-only, and /scoresheet-correction is kept so a deployed website calling the
+  // old path keeps working across the deploy window. Drop the alias once prod is on the
+  // new one.
+  router.post([
+    '/wadmin/scorer_courses/scoresheet/:slug/:id',
+    '/wadmin/scorer_courses/scoresheet-correction/:slug/:id',
+  ], async (req, res) => {
     if (!(await guardScorer(req, res))) return
     const subId = String(req.params.id || '')
     if (!/^[0-9]+$/.test(subId)) return res.status(400).json({ error: 'Invalid submission id' })
     const subKey = `${req.params.slug}:${subId}`
+    const slot = String(req.query?.slot || 'corrected')
+    if (slot !== 'original' && slot !== 'corrected') return res.status(400).json({ error: 'invalid_slot' })
 
     try {
       const who = await database('directus_users').where('id', req.accountability.user)
@@ -604,7 +621,12 @@ export function registerWadmin(router, ctx) {
       const byName = [who?.first_name, who?.last_name].filter(Boolean).join(' ') || who?.email || 'Unbekannt'
 
       const prev = await database('scorer_course_attendance').where('sub_key', subKey)
-        .first('id', 'exam_file_corrected')
+        .first('id', 'exam_file', 'exam_file_corrected')
+
+      // Refused rather than silently rerouted to the correction slot: the caller asked to
+      // write the participant's sheet, and there already is one. Saying so is the only way
+      // an admin learns they were about to overwrite a submission.
+      if (slot === 'original' && prev?.exam_file) return res.status(409).json({ error: 'original_exists' })
 
       // Everything that awaits happens BEFORE the pipe starts — see the participant
       // route: an async gap between req.pipe() and the consumer is exactly when an early
@@ -650,15 +672,16 @@ export function registerWadmin(router, ctx) {
       req.on('error', (err) => capped.destroy(err))
       req.pipe(capped)
 
+      const stem = slot === 'original' ? `matchblatt-${subId}` : `matchblatt-korrigiert-${subId}`
       let fileId
       try {
         fileId = await filesService.uploadOne(capped, {
           storage,
           // Provisional — `sniffed` is still null here; corrected below once bytes flowed.
-          filename_download: `matchblatt-korrigiert-${subId}`,
+          filename_download: stem,
           type: 'application/octet-stream',
           folder: SCORER_EXAM_FOLDER, // ⚠ never null — folder=null is publicly readable
-          title: `Matchblatt (korrigiert) ${subKey}`,
+          title: slot === 'original' ? `Matchblatt ${subKey}` : `Matchblatt (korrigiert) ${subKey}`,
         })
       } catch (err) {
         throw streamError || err
@@ -670,14 +693,18 @@ export function registerWadmin(router, ctx) {
       // as octet-stream and the browser refuses to preview it.
       await database('directus_files').where('id', fileId).update({
         type: sniffed,
-        filename_download: `matchblatt-korrigiert-${subId}.${EXT_FOR[sniffed] || 'bin'}`,
+        filename_download: `${stem}.${EXT_FOR[sniffed] || 'bin'}`,
       })
 
-      const patch = {
-        exam_file_corrected: fileId,
-        exam_file_corrected_by: byName,
-        exam_file_corrected_on: new Date(),
-      }
+      const patch = slot === 'original'
+        // exam_date is the upload date, matching the participant route: it is what the
+        // SVRZ Teilnehmerliste prints as Prüfungsdatum, and an admin can correct it.
+        ? { exam_file: fileId, exam_date: zurichToday() }
+        : {
+          exam_file_corrected: fileId,
+          exam_file_corrected_by: byName,
+          exam_file_corrected_on: new Date(),
+        }
       if (prev) {
         await database('scorer_course_attendance').where('id', prev.id).update(patch)
       } else {
@@ -698,16 +725,18 @@ export function registerWadmin(router, ctx) {
         }
       }
 
-      log.info({ msg: 'corrected scoresheet uploaded', sub_key: subKey, bytes, type: sniffed, by: byName })
-      // `id` so the caller can offer "open the correction" without a refetch; `by`/`on` so
-      // the attribution it shows is the one that was stored, not one the client guessed.
+      log.info({ msg: 'scoresheet uploaded by admin', slot, sub_key: subKey, bytes, type: sniffed, by: byName })
+      // `id` so the caller can offer "open it" without a refetch; `by`/`on` so the
+      // attribution it shows is the one that was stored, not one the client guessed.
       res.json({
         data: {
           ok: true,
+          slot,
           id: fileId,
-          by: byName,
-          on: patch.exam_file_corrected_on,
-          replaced: !!prev?.exam_file_corrected,
+          by: patch.exam_file_corrected_by || null,
+          on: patch.exam_file_corrected_on || null,
+          exam_date: patch.exam_date || null,
+          replaced: slot === 'corrected' && !!prev?.exam_file_corrected,
         },
       })
     } catch (err) {
