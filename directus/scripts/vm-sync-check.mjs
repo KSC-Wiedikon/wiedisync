@@ -9,6 +9,7 @@
  */
 
 import { vmLogin, csrfFromPage, VM_BASE, UA } from './vm-client.mjs';
+import { resolveVmHall, hallIdsOf } from './vm-halls.mjs';
 
 // ─── Config ──────────────────────────────────────────────────────────
 const VM_USERNAME = process.env.VM_USERNAME;
@@ -799,6 +800,118 @@ async function syncToMembers(rows) {
 
 // ─── Main ────────────────────────────────────────────────────────────
 
+// ─── Group C: hall audit (read-only) ─────────────────────────────────
+// Nobody pushes halls to VM (svrz_push_status is null on all 80 2026/27 home
+// fixtures — the league places them and it has always happened to match us), so
+// nothing detects drift. The 2026-07-16 audit only ran because someone thought
+// to ask, and it surfaced a gym that had appeared without us noticing (4144
+// A+B). This makes the check part of the weekly run.
+//
+// Compares our hall SET to VM's gym via resolveVmHall — NOT `games.hall` to
+// `hall.name`. A naive name compare reports the H1/H3 derbies as mismatches
+// forever: we store them as KWI A + additional_halls [KWI B], VM stores gym 4144.
+// Both say "A+B"; only the set comparison knows that.
+const VM_AUDIT_CLUB_UUID = process.env.VM_CLUB_UUID || '956158d5-806f-4af9-8378-e7a9e19adeff';
+
+async function fetchHomeFixtures(jar, csrf, wuid) {
+  const RENDER = ['number', 'status', 'startingDateTime', 'hall.name',
+    'encounter.teamHomeName', 'encounter.teamAwayName'];
+  const PAGE = 500;
+  const all = [];
+  for (let offset = 0; offset <= 20000; offset += PAGE) {
+    const p = new URLSearchParams();
+    p.set('searchConfiguration[propertyFilters][0][propertyName]', 'encounter.teamHome.club.Persistence_Object_Identifier');
+    p.set('searchConfiguration[propertyFilters][0][values][0]', VM_AUDIT_CLUB_UUID);
+    p.set('searchConfiguration[customFilters]', '');
+    p.set('searchConfiguration[propertyOrderings]', '');
+    p.set('searchConfiguration[offset]', String(offset));
+    p.set('searchConfiguration[limit]', String(PAGE));
+    p.set('searchConfiguration[textSearchOperator]', 'AND');
+    RENDER.forEach((pr, i) => p.set(`propertyRenderConfiguration[${i}]`, pr));
+    p.set('__csrfToken', csrf);
+    const r = await fetch(`${VM_BASE}/api/sportmanager.indoorvolleyball/api%5cgame/search`, {
+      method: 'POST',
+      headers: {
+        'User-Agent': UA, 'Content-Type': 'text/plain;charset=UTF-8', Accept: '*/*',
+        Origin: VM_BASE, Referer: `${VM_BASE}/sportmanager.indoorvolleyball/game/index`,
+        Cookie: jar.header(), ...(wuid ? { 'Window-Unique-Id': wuid } : {}),
+      },
+      body: p.toString(),
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (!r.ok) throw new Error(`game search HTTP ${r.status}`);
+    const items = (await r.json()).items || [];
+    all.push(...items);
+    if (items.length < PAGE) break;
+  }
+  return all;
+}
+
+async function auditHalls(jar, csrf, wuid) {
+  const season = currentSeason();                       // e.g. "2026/27"
+  const startYear = Number(season.slice(0, 4));
+  const from = `${startYear}-07-01`, to = `${startYear + 1}-07-01`;
+
+  const fixtures = (await fetchHomeFixtures(jar, csrf, wuid)).filter((g) => {
+    const d = String(g.startingDateTime || '');
+    return d >= from && d < to;
+  });
+
+  const token = await getDirectusToken();
+  const headers = { Authorization: `Bearer ${token}` };
+  // Throw, never default to []. An audit whose reads silently returned nothing
+  // would compare zero fixtures and report a clean ✓ — a false all-clear is the
+  // one outcome worse than no audit at all (observed: a 401 did exactly this).
+  const dg = async (p) => {
+    const r = await fetch(`${DIRECTUS_URL}${p}`, { headers });
+    if (!r.ok) throw new Error(`hall-audit read ${p.split('?')[0]} → HTTP ${r.status}`);
+    const rows = (await r.json())?.data;
+    if (!Array.isArray(rows)) throw new Error(`hall-audit read ${p.split('?')[0]} → unexpected shape`);
+    return rows;
+  };
+
+  const halls = await dg('/items/halls?fields=id,name,vm_hall_id&limit=-1');
+  const byId = new Map(halls.map((h) => [String(h.id), h]));
+  const games = await dg(
+    `/items/games?filter[game_id][_starts_with]=vb_&filter[type][_eq]=home` +
+    `&filter[date][_gte]=${from}&filter[date][_lt]=${to}` +
+    `&fields=game_id,date,hall,additional_halls,away_team&limit=-1`,
+  );
+  const ourByNumber = new Map(games.map((g) => [String(g.game_id).replace(/^vb_/, ''), g]));
+
+  const mismatches = [];
+  const skipped = { unscheduled: 0, noHall: 0, notApproved: 0, unmapped: 0 };
+  let checked = 0;
+  for (const f of fixtures) {
+    const ours = ourByNumber.get(String(f.number));
+    if (!ours) { skipped.unscheduled++; continue; }     // not scheduled our side yet
+    const rows = hallIdsOf(ours).map((id) => byId.get(id)).filter(Boolean);
+    if (rows.length === 0) { skipped.noHall++; continue; }
+    // Only flag once VM considers the fixture settled. While a fixture is `open`
+    // the schedule is still being negotiated and divergence is expected — flagging
+    // it would cry wolf every week of the scheduling window.
+    if (f.status !== 'approved') { skipped.notApproved++; continue; }
+    const want = resolveVmHall(rows);
+    const vmGym = f.hall?.__identity || f.hall?.persistenceObjectIdentifier || null;
+    if (!want.vmHallId || !vmGym) { skipped.unmapped++; continue; }
+    // Count only what actually reached the comparison — an inflated `checked`
+    // would mask a wholly-skipped audit behind a reassuring number.
+    checked++;
+    if (want.vmHallId !== vmGym) {
+      // Show the gym uuids, not just the names. Our hall name and VM's gym name
+      // are usually near-identical ("KWI C" vs "Kantonsschule Wiedikon C"), so a
+      // name-only message reads as if the two sides AGREE — the drift lives in
+      // the uuid the push would actually send.
+      const short = (u) => String(u || '(none)').slice(0, 8);
+      mismatches.push(`#${f.number} ${String(f.startingDateTime).slice(0, 10)} `
+        + `${f.encounter?.teamHomeName} vs ${f.encounter?.teamAwayName}: `
+        + `we say ${want.label || '?'} → gym ${short(want.vmHallId)}, `
+        + `VM has ${f.hall?.name || '(unset)'} → gym ${short(vmGym)}`);
+    }
+  }
+  return { season, fixtures: fixtures.length, checked, mismatches, skipped };
+}
+
 async function main() {
   const t0 = Date.now();
   const failures = [];
@@ -819,6 +932,20 @@ async function main() {
     return { jar, csrf, wuid };
   })(), FETCH_TIMEOUT_MS, 'login+csrf'));
   console.log('✓ Logged in to Volleymanager\n');
+
+  // AUDIT_ONLY — run just the read-only hall audit and stop. Nothing here writes
+  // (VM search + two Directus GETs), so it is safe to point at prod on demand:
+  //   AUDIT_ONLY=1 DIRECTUS_URL=… DIRECTUS_TOKEN=… node vm-sync-check.mjs
+  // Exists because "do the halls still match?" is the question this file answers
+  // that someone actually asks out-of-band; the weekly run below reports it too.
+  if (process.env.AUDIT_ONLY) {
+    const audit = await auditHalls(jar, csrf, wuid);
+    console.log(`Season ${audit.season}: ${audit.fixtures} VM home fixtures, ${audit.checked} compared, ${audit.mismatches.length} mismatch(es)`);
+    console.log(`Skipped: unscheduled ${audit.skipped.unscheduled}, no hall ${audit.skipped.noHall}, not yet approved ${audit.skipped.notApproved}, unmapped ${audit.skipped.unmapped}`);
+    for (const m of audit.mismatches) console.warn(`  ⚠ ${m}`);
+    if (audit.checked === 0) console.warn('  ⚠ INCONCLUSIVE — compared nothing; this is not an all-clear.');
+    return { deferred: false };
+  }
 
   // ── Group A: team metadata → `teams` (independent + non-destructive) ──
   // Detached from person data so a person-data hiccup never blocks the
@@ -886,6 +1013,31 @@ async function main() {
     console.log(`Members synced: ${memberSync.matched} matched, ${memberSync.updated} updated, ${memberSync.errors} errors`);
   } else {
     console.log('Person data:    SKIPPED (fetch failed)');
+  }
+
+  // ── Group C: hall audit (read-only, never fatal) ──────────────────
+  // Reports only. A hall mismatch is a real finding needing a human, but it is
+  // NOT a sync error: nothing here writes, so failing the run would alert + make
+  // the watchdog retry something a retry cannot fix, and would falsely mark the
+  // person/team syncs (which DID apply) as failed. A transient VM 403 during the
+  // audit is likewise just skipped — the next weekly run re-checks.
+  try {
+    const audit = await withTimeout(auditHalls(jar, csrf, wuid), FETCH_TIMEOUT_MS, 'hall-audit');
+    if (audit.checked === 0) {
+      // Never print a ✓ for a comparison that never happened.
+      console.warn(`\n⚠ Hall audit INCONCLUSIVE — 0 of ${audit.fixtures} ${audit.season} VM fixtures could be compared. Expect a games row per fixture; this means our side is unscheduled or unreadable, NOT that the halls agree.`);
+    } else if (audit.mismatches.length) {
+      console.warn(`\n⚠ HALL MISMATCH — VM disagrees with wiedisync on ${audit.mismatches.length} of ${audit.checked} approved ${audit.season} home fixture(s):`);
+      for (const m of audit.mismatches) console.warn(`    ${m}`);
+      console.warn('  Nobody pushes halls to VM — these were placed by the league and have drifted from us.');
+      console.warn('  Fix the wrong side by hand; a combo gym (KWI A+B) is expected for the H1/H3 derbies.');
+    } else {
+      console.log(`\n✓ Hall audit: ${audit.checked} of ${audit.fixtures} ${audit.season} home fixtures match VM`
+        + ` (skipped — unscheduled ${audit.skipped.unscheduled}, no hall ${audit.skipped.noHall},`
+        + ` not yet approved ${audit.skipped.notApproved}, unmapped ${audit.skipped.unmapped})`);
+    }
+  } catch (e) {
+    console.error(`\n✗ Hall audit skipped (non-fatal): ${e.message}`);
   }
 
   // Hard failures → throw so the cron records `error`, alerts, and the 30-min
