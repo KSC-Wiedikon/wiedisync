@@ -102,6 +102,15 @@ const COLLECTION = {
       schema: { is_nullable: true },
       meta: { interface: 'input', width: 'half', options: { placeholder: '18:00' },
         note: '24h HH:MM.' } },
+    // UTC instant, entered in /admin as Europe/Zurich wall-clock. The public card
+    // locks past it (sign-up button → "Anmeldung geschlossen"); the card itself
+    // stays visible until date_iso passes. Source of truth for the deadline —
+    // /admin mirrors it onto each OpnForm's own closes_at, which is what actually
+    // rejects late submissions.
+    { field: 'registration_closes', type: 'timestamp',
+      schema: { is_nullable: true },
+      meta: { interface: 'datetime', width: 'half',
+        note: 'Sign-up closes at this instant. Empty = open until the course date.' } },
     { field: 'mode', type: 'string',
       schema: { is_nullable: false, default_value: 'in_person' },
       meta: { interface: 'select-dropdown', width: 'half',

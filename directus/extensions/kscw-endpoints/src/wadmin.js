@@ -13,7 +13,7 @@
  */
 
 // Wired into the scorer_courses OpnForm routes in Task A5 — imported here to co-locate the dependency.
-import { badSlug, listSubmissions, deleteSubmission } from './opnform.js'
+import { badSlug, listSubmissions, deleteSubmission, getCloses, setCloses } from './opnform.js'
 import { streamManagedFile } from './storage-read.js'
 import { SCORER_EXAM_FOLDER } from './scorer-exam.js'
 import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH } from './email-template.js'
@@ -363,6 +363,55 @@ export function registerWadmin(router, ctx) {
       if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
       log.warn({ msg: 'wadmin opnform list failed', slug: req.params.slug, status: err.status })
       res.status(err.status || 502).json({ error: 'Upstream error' })
+    }
+  })
+
+  // ── registration deadline (OpnForm closes_at) ──────────────────────────────
+  //
+  // scorer_courses.registration_closes is the source of truth and drives the public
+  // card's lock; that lock is cosmetic, so /admin mirrors it here onto the form's own
+  // closes_at, which is what actually rejects a late submission. GET exists so /admin
+  // can show drift when someone has edited the deadline in OpnForm directly, rather
+  // than silently racing two writers.
+  router.get('/wadmin/scorer_courses/opnform/forms/:slug/closes', async (req, res) => {
+    if (!(await guardScorer(req, res))) return
+    try {
+      res.json(await getCloses(req.params.slug))
+    } catch (err) {
+      if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
+      log.warn({ msg: 'wadmin opnform closes read failed', slug: req.params.slug, status: err.status })
+      res.status(err.status || 502).json({ error: 'Upstream error' })
+    }
+  })
+
+  router.put('/wadmin/scorer_courses/opnform/forms/:slug/closes', async (req, res) => {
+    if (!(await guardScorer(req, res))) return
+    const raw = req.body?.closes_at
+    // null = reopen. Anything else must be a real instant: a bad string here would
+    // otherwise reach OpnForm and could close a form at an unintended moment.
+    let closesAt = null
+    if (raw != null && raw !== '') {
+      const t = Date.parse(String(raw))
+      if (!Number.isFinite(t)) return res.status(400).json({ error: 'invalid_closes_at' })
+      closesAt = new Date(t).toISOString()
+    }
+    try {
+      const out = await setCloses(req.params.slug, closesAt)
+      log.info({ msg: 'opnform closes_at updated', slug: req.params.slug, closes_at: closesAt, user: req.accountability?.user })
+      res.json(out)
+    } catch (err) {
+      if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
+      if (err.status === 401 || err.status === 403) {
+        return res.status(403).json({ error: 'OpnForm rejected the update — the OPNFORM_PAT likely lacks the forms-write ability' })
+      }
+      if (err.status === 422) {
+        log.warn({ msg: 'opnform closes_at rejected', slug: req.params.slug, detail: err.detail })
+        return res.status(422).json({ error: 'OpnForm rejected the form payload', detail: err.detail })
+      }
+      // Includes the post-write verification failure — loud on purpose: it means a
+      // live registration form may have been altered beyond its closes_at.
+      log.error({ msg: 'wadmin opnform closes write failed', slug: req.params.slug, status: err.status, error: err.message })
+      res.status(err.status || 502).json({ error: err.message || 'Upstream error' })
     }
   })
 

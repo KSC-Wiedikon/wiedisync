@@ -19,7 +19,7 @@ export function badSlug(slug) {
   return !slug || !SLUG_RE.test(slug)
 }
 
-async function opnformFetch(path, { method = 'GET' } = {}) {
+async function opnformFetch(path, { method = 'GET', body } = {}) {
   const token = process.env.OPNFORM_PAT || ''
   if (!token) {
     const err = new Error('OPNFORM_PAT not configured')
@@ -28,13 +28,21 @@ async function opnformFetch(path, { method = 'GET' } = {}) {
   }
   const res = await fetch(`${OPNFORM_BASE}/api/open${path}`, {
     method,
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
   })
   if (!res.ok) {
+    const text = await res.text().catch(() => '')
     const err = new Error(`OpnForm ${res.status} on ${path}`)
     // Pass through auth/not-found so callers can report something useful
-    // instead of a misleading 502.
-    err.status = [401, 403, 404].includes(res.status) ? res.status : 502
+    // instead of a misleading 502. 422 carries the validation detail, which is
+    // the difference between "your date was rejected" and "we sent junk".
+    err.status = [401, 403, 404, 422].includes(res.status) ? res.status : 502
+    err.detail = text.slice(0, 500)
     throw err
   }
   const text = await res.text()
@@ -78,6 +86,75 @@ export async function listSubmissions(slug, { page = 1, perPage = 100 } = {}) {
   const total = Number(submissionsJson?.meta?.total ?? data.length)
   const lastPage = Number(submissionsJson?.meta?.last_page ?? 1)
   return { title: meta.title, fields: meta.properties, data, total, page: pg, per_page: pp, last_page: lastPage }
+}
+
+// Fields UpdateFormRequest marks `required` — a PUT missing any of them is a 422.
+// Everything else is `sometimes`/`nullable`, and Laravel writes only the keys
+// present in validated(), so omitting them leaves the stored value untouched.
+// Sending this minimal set instead of spreading the whole ~69-key GET response
+// back keeps the write surface as small as the validator allows.
+const FORM_REQUIRED_FIELDS = [
+  'title', 'visibility', 'language', 'theme', 'presentation_style', 'width', 'size',
+  'border_radius', 'dark_mode', 'color', 'uppercase_labels', 'no_branding',
+  'transparent_background', 'properties',
+]
+
+async function getForm(slug) {
+  const json = await opnformFetch(`/forms/${encodeURIComponent(slug)}`)
+  return json?.data || json
+}
+
+/** The form's own deadline — what actually rejects a late submission. */
+export async function getCloses(slug) {
+  const form = await getForm(slug)
+  return {
+    slug,
+    id: form?.id ?? null,
+    closes_at: form?.closes_at ?? null,
+    is_closed: form?.is_closed === true,
+  }
+}
+
+/** Field-set fingerprint — what a bad write to a live form would destroy. */
+function propsSignature(form) {
+  return JSON.stringify((form?.properties || []).map((p) => [p.id, p.name, p.type]))
+}
+
+/**
+ * Mirror a course's registration deadline onto the form's own closes_at.
+ * `closesAt` is an ISO instant, or null to reopen.
+ *
+ * ⚠ `properties` (the form's actual question set) is `required` by
+ * UpdateFormRequest, so it must be round-tripped on every write — which makes a
+ * bad write capable of damaging a live registration form. Two things keep that
+ * honest: we send back exactly what we read, and we re-read afterwards and throw
+ * rather than report success if the field set moved.
+ */
+export async function setCloses(slug, closesAt) {
+  const before = await getForm(slug)
+  if (!before || !before.id) {
+    const err = new Error(`OpnForm ${slug}: form has no id`)
+    err.status = 502
+    throw err
+  }
+
+  const payload = { closes_at: closesAt }
+  for (const k of FORM_REQUIRED_FIELDS) payload[k] = before[k]
+  await opnformFetch(`/forms/${before.id}`, { method: 'PUT', body: payload })
+
+  const after = await getForm(slug)
+  if (propsSignature(before) !== propsSignature(after)) {
+    const err = new Error(`OpnForm ${slug}: field set changed during a closes_at write`)
+    err.status = 500
+    throw err
+  }
+  formMetaCache.delete(slug)
+  return {
+    slug,
+    id: after.id,
+    closes_at: after.closes_at ?? null,
+    is_closed: after.is_closed === true,
+  }
 }
 
 export async function deleteSubmission(slug, id) {
