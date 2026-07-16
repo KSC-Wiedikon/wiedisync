@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   ALL_SECTIONS, SECTION_COLLECTIONS,
-  isManager, normalizeSections, computeAccess, buildExamResultMail,
+  isManager, normalizeSections, computeAccess, buildExamResultMail, norm, plausiblePlz, plausibleOrt,
 } from '../wadmin.js'
 
 function makeDb({ roleRow = null, accessRow = null } = {}) {
@@ -266,5 +266,40 @@ describe('buildExamResultMail', () => {
 
   it('drops the greeting rather than greeting nobody', () => {
     expect(buildExamResultMail({ ...base, passed: true, firstName: '' }).html).not.toContain('Hallo ,')
+  })
+})
+
+describe('member address lookup helpers', () => {
+  // "Léo" on a signup and "Leo" in ClubDesk are the same person; a miss here becomes a
+  // guessed town on the SVRZ list downstream.
+  it('folds accents, case and punctuation when matching names', () => {
+    expect(norm('Léo')).toBe(norm('Leo'))
+    expect(norm('Zürich')).toBe('zurich')
+    expect(norm('  Anna-Maria ')).toBe('anna maria')
+    expect(norm('van Kleef')).toBe('van kleef')
+    expect(norm(null)).toBe('')
+  })
+
+  // Swiss postcodes are 1000–9999. A real member record carries "0849", which is a typo.
+  it('rejects postcodes that are not Swiss', () => {
+    expect(plausiblePlz('8055')).toBe(true)
+    expect(plausiblePlz('1000')).toBe(true)
+    expect(plausiblePlz('0849')).toBe(false) // the actual junk in the data
+    expect(plausiblePlz('849')).toBe(false)
+    expect(plausiblePlz('80555')).toBe(false)
+    expect(plausiblePlz('')).toBe(false)
+    expect(plausiblePlz(null)).toBe(false)
+  })
+
+  // A canton code on an official list is a wrong answer dressed as a right one — worse
+  // than the blank it replaces.
+  it('rejects a canton abbreviation where a town belongs', () => {
+    expect(plausibleOrt('Zürich')).toBe(true)
+    expect(plausibleOrt('Uitikon Waldegg')).toBe(true)
+    expect(plausibleOrt('Zug')).toBe(true) // a real town that is also 3 letters
+    expect(plausibleOrt('ZH')).toBe(false) // the actual junk in the data
+    expect(plausibleOrt('BE')).toBe(false)
+    expect(plausibleOrt('')).toBe(false)
+    expect(plausibleOrt(null)).toBe(false)
   })
 })

@@ -48,6 +48,40 @@ const MANAGER_ROLES = new Set(['superuser', 'administrator'])
 const GATED_ROLE = 'website admin'
 
 /**
+ * Fold a name to something two spellings of the same person agree on: case, accents,
+ * punctuation and repeated spaces. "Léo" typed on a signup and "Leo" as ClubDesk holds it
+ * are the same human; a match that misses them leaves a blank the export then fills with
+ * a guessed town, which is the outcome this exists to avoid.
+ *
+ * NFD splits an accented char into base + combining mark, so the mark can be stripped —
+ * ü→u, é→e — without a per-character table.
+ */
+export function norm(s) {
+  return String(s ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+/**
+ * Swiss postcodes are four digits and never start with 0 (1000–9999). A member record
+ * carrying "0849" is a typo, not an address.
+ */
+export function plausiblePlz(v) {
+  return /^[1-9]\d{3}$/.test(String(v ?? '').trim())
+}
+
+/**
+ * A town, not a canton. "ZH" sits in at least one member record where a town should be;
+ * two letters is never a Swiss municipality name, and a cantonal abbreviation on an SVRZ
+ * list is a wrong answer wearing the clothes of a right one.
+ */
+export function plausibleOrt(v) {
+  const s = String(v ?? '').trim()
+  if (s.length < 3) return false
+  return !/^(zh|be|lu|ur|sz|ow|nw|gl|zg|fr|so|bs|bl|sh|ar|ai|sg|gr|ag|tg|ti|vd|vs|ne|ge|ju)$/i.test(s)
+}
+
+/**
  * Build the exam-result mail (subject + html + text).
  *
  * Exported and pure — it takes plain values, touches no database and sends nothing — so
@@ -531,6 +565,67 @@ export function registerWadmin(router, ctx) {
       }
       log.warn({ msg: 'wadmin opnform delete failed', slug: req.params.slug, status: err.status })
       res.status(err.status || 502).json({ error: 'Upstream error' })
+    }
+  })
+
+  // ── postcode/town lookup for the SVRZ Teilnehmerliste ──────────────────────
+  //
+  // OpnForm's Adresse is one free-text box, and most people read "Adresse" as "street":
+  // 16 of 25 signups carry no postcode or town, which the SVRZ list requires. Members are
+  // ClubDesk-synced and DO have both, so this fills the gap from what the club already
+  // knows rather than from a guess. (Guessing "Zürich" would be wrong about 30% of the
+  // time — only 485 of 691 members with an Ort live there.)
+  //
+  // ⚠ Deliberately narrow, because /admin cannot read `members` and must not start to
+  // (SECTION_COLLECTIONS excludes it: the generic CRUD bypasses RLS, so member access
+  // there would be full PII + IDOR). Two limits keep this from becoming that:
+  //   - it returns ONLY plz + ort. No street, no email, no birthdate, no id.
+  //   - it only ever matches names ALREADY ON the caller's own signup list, so it cannot
+  //     be used to enumerate members or to probe for an arbitrary person.
+  // A scorer-scoped admin can already see these people's addresses on the signup itself;
+  // this adds the postcode for a name they are holding, and nothing else.
+  router.get('/wadmin/scorer_courses/opnform/forms/:slug/member-addresses', async (req, res) => {
+    if (!(await guardScorer(req, res))) return
+    try {
+      const listing = await listSubmissions(req.params.slug, { page: 1, perPage: 100 })
+      const fields = listing.fields || []
+      const idsOf = (re) => fields.filter((f) => re.test(String(f.name || ''))).map((f) => f.id)
+      const firstIds = idsOf(/vorname|first\s*name/i)
+      const lastIds = idsOf(/nachname|last\s*name/i)
+
+      // Fold case, accents and punctuation: "Léo" on a signup and "Leo" in ClubDesk are
+      // the same person, and a list that misses them is a list that invents a town instead.
+      const key = (f, l) => `${norm(f)}|${norm(l)}`
+      const rows = await database('members').select('first_name', 'last_name', 'plz', 'ort')
+      const byName = new Map()
+      for (const m of rows) {
+        // ClubDesk is human-entered and some of it is junk: one member carries postcode
+        // "0849" with the town "ZH" — a canton abbreviation, not a town, and not a Swiss
+        // postcode either (they are four digits, 1000–9999). Forwarding that onto an
+        // official SVRZ list is worse than leaving the cell blank, because it looks like
+        // an answer. Implausible values are dropped here so they cannot reach the export.
+        const plz = plausiblePlz(m.plz) ? String(m.plz).trim() : ''
+        const ort = plausibleOrt(m.ort) ? String(m.ort).trim() : ''
+        if (!ort && !plz) continue
+        // First writer wins: two members sharing a name cannot be told apart from a
+        // signup, so the ambiguous ones are dropped below rather than guessed at.
+        const k = key(m.first_name, m.last_name)
+        if (byName.has(k)) byName.set(k, null) // ambiguous → refuse to answer
+        else byName.set(k, { plz, ort })
+      }
+
+      const out = {}
+      for (const row of listing.data || []) {
+        const answers = (row && row.data) || row || {}
+        const pick = (ids) => { for (const i of ids) { const v = answers[i]; if (v != null && v !== '') return String(v) } return '' }
+        const hit = byName.get(key(pick(firstIds), pick(lastIds)))
+        if (hit) out[String(row.id)] = hit
+      }
+      res.json({ data: out })
+    } catch (err) {
+      if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
+      log.warn({ msg: `member-addresses lookup failed: ${err.message}` })
+      res.status(500).json({ error: 'internal' })
     }
   })
 
