@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   ALL_SECTIONS, SECTION_COLLECTIONS,
-  isManager, normalizeSections, computeAccess,
+  isManager, normalizeSections, computeAccess, buildExamResultMail,
 } from '../wadmin.js'
 
 function makeDb({ roleRow = null, accessRow = null } = {}) {
@@ -202,5 +202,69 @@ describe('wadmin assertScalarQuery — relational traversal guard (#4 + 2026-07-
     expect(isRel({ filter: { invited_members: { _and: [{ members_id: { email: { _eq: 'a' } } }] } } })).toBe(true)
     expect(isRel({ fields: ['invited_members.members_id.ahv_nummer'] })).toBe(true)
     expect(isRel({ sort: ['invited_members.members_id.email'] })).toBe(true)
+  })
+})
+
+describe('buildExamResultMail', () => {
+  const base = { firstName: 'Anna', courseDateIso: '2026-08-12', examDate: '2026-08-19', svLicense: '337646' }
+
+  it('says passed on a pass, in both languages', () => {
+    expect(buildExamResultMail({ ...base, passed: true }).subject).toContain('bestanden')
+    expect(buildExamResultMail({ ...base, passed: true, en: true }).subject).toContain('passed')
+    expect(buildExamResultMail({ ...base, passed: true }).html).toContain('Herzliche Gratulation')
+  })
+
+  // The result belongs in the mail, not in a phone's lock-screen preview.
+  it('keeps the verdict out of a failure subject line', () => {
+    expect(buildExamResultMail({ ...base, passed: false }).subject).toBe('Schreiber-Prüfung — KSC Wiedikon')
+    expect(buildExamResultMail({ ...base, passed: false, en: true }).subject).toBe('Scorer exam — KSC Wiedikon')
+    expect(buildExamResultMail({ ...base, passed: false }).html).toContain('nicht bestanden erfasst')
+  })
+
+  // On a fail no licence is coming; printing the number reads like one is on its way.
+  it('shows the licence number only on a pass', () => {
+    expect(buildExamResultMail({ ...base, passed: true }).html).toContain('337646')
+    expect(buildExamResultMail({ ...base, passed: false }).html).not.toContain('337646')
+  })
+
+  // ⚠ Regression guard. The 1.11.0 exam-passed mail rendered its body paragraph with no
+  // colour on buildEmailLayout's dark navy card — near-black on navy, unreadable. Caught
+  // only by rendering the template. Every body paragraph must carry an explicit colour.
+  it('gives every body paragraph an explicit colour', () => {
+    const html = buildExamResultMail({ ...base, passed: true, hasAttachment: true, note: 'x' }).html
+    const bodyParas = html.match(/<p style="[^"]*margin:0 0 12px[^"]*"/g) || []
+    expect(bodyParas.length).toBeGreaterThan(0)
+    for (const p of bodyParas) expect(p, `paragraph without a colour: ${p}`).toContain('color:')
+  })
+
+  it('only mentions an attachment when one is actually going out', () => {
+    expect(buildExamResultMail({ ...base, passed: false, hasAttachment: true }).html).toContain('im Anhang')
+    expect(buildExamResultMail({ ...base, passed: false, hasAttachment: true }).text).toContain('im Anhang')
+    expect(buildExamResultMail({ ...base, passed: false, hasAttachment: false }).html).not.toContain('Anhang')
+    expect(buildExamResultMail({ ...base, passed: false, hasAttachment: false }).text).not.toContain('Anhang')
+  })
+
+  // Admin-authored today — but that is a property of the callers, not of this function.
+  it('escapes HTML in the note instead of rendering it', () => {
+    const html = buildExamResultMail({ ...base, passed: false, note: '<img src=x onerror=alert(1)>' }).html
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+    // The only <img> in the mail is the layout's logo — the note must not add another.
+    const withoutNote = buildExamResultMail({ ...base, passed: false }).html
+    expect((html.match(/<img/g) || []).length).toBe((withoutNote.match(/<img/g) || []).length)
+  })
+
+  it('renders a multi-paragraph note as separate paragraphs', () => {
+    const html = buildExamResultMail({ ...base, passed: false, note: 'first\n\nsecond' }).html
+    expect(html).toContain('first')
+    expect(html).toContain('second')
+    expect(html).toContain('Anmerkung von KSC Wiedikon')
+  })
+
+  it('omits the note block entirely when there is no note', () => {
+    expect(buildExamResultMail({ ...base, passed: true }).html).not.toContain('Anmerkung von KSC Wiedikon')
+  })
+
+  it('drops the greeting rather than greeting nobody', () => {
+    expect(buildExamResultMail({ ...base, passed: true, firstName: '' }).html).not.toContain('Hallo ,')
   })
 })

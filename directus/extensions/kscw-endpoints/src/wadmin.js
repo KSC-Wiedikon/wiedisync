@@ -15,7 +15,7 @@
 // Wired into the scorer_courses OpnForm routes in Task A5 — imported here to co-locate the dependency.
 import { Transform } from 'node:stream'
 import { badSlug, listSubmissions, deleteSubmission, getCloses, setCloses } from './opnform.js'
-import { streamManagedFile } from './storage-read.js'
+import { streamManagedFile, readManagedFile } from './storage-read.js'
 // Cap and type allowlist are imported, never re-declared: an admin correction must be
 // held to exactly what the participant upload accepts, and two copies would drift.
 import { SCORER_EXAM_FOLDER, sniffType, EXT_FOR, UPLOAD_MAX_BYTES } from './scorer-exam.js'
@@ -46,6 +46,103 @@ export const SECTION_COLLECTIONS = {
 
 const MANAGER_ROLES = new Set(['superuser', 'administrator'])
 const GATED_ROLE = 'website admin'
+
+/**
+ * Build the exam-result mail (subject + html + text).
+ *
+ * Exported and pure — it takes plain values, touches no database and sends nothing — so
+ * the wording can be unit-tested and previewed exactly as it will arrive. A preview that
+ * re-implements the copy is a preview of the preview; this is the only copy.
+ *
+ * `hasAttachment` is a claim the CALLER has already made good on: the route resolves the
+ * attachment bytes before calling this, so the sentence about a PDF in the mail cannot
+ * promise a file that failed to load.
+ */
+export function buildExamResultMail({
+  en = false, passed = false, note = '', firstName = '',
+  courseDateIso = null, examDate = null, svLicense = null, hasAttachment = false,
+} = {}) {
+  const subject = passed
+    ? (en ? 'Scorer exam passed — KSC Wiedikon' : 'Schreiber-Prüfung bestanden — KSC Wiedikon')
+    // A fail does not announce itself in the subject line. The result is in the mail; it
+    // does not also need to be in the notification on a phone on a tram.
+    : (en ? 'Scorer exam — KSC Wiedikon' : 'Schreiber-Prüfung — KSC Wiedikon')
+  const alert = passed
+    ? buildAlertBox(
+      'success',
+      en ? 'Exam passed' : 'Prüfung bestanden',
+      en
+        ? 'Your scorer exam has been marked as passed. Congratulations!'
+        : 'Deine Schreiber-Prüfung wurde als bestanden erfasst. Herzliche Gratulation!',
+    )
+    : buildAlertBox(
+      'warning',
+      en ? 'Exam not passed' : 'Prüfung nicht bestanden',
+      en
+        ? 'Your scorer exam has been recorded as not passed.'
+        : 'Deine Schreiber-Prüfung wurde als nicht bestanden erfasst.',
+    )
+  const card = buildInfoCard([
+    ...(courseDateIso ? [{ label: en ? 'Course' : 'Kurs', value: formatDateCH(courseDateIso), halfWidth: true }] : []),
+    ...(examDate ? [{ label: en ? 'Exam date' : 'Prüfungsdatum', value: formatDateCH(examDate), halfWidth: true }] : []),
+    // Licence number only on a pass: on a fail there is no licence coming, and printing
+    // the number next to "not passed" reads like one is on its way.
+    ...(passed && svLicense ? [{ label: en ? 'Licence no.' : 'Lizenznummer', value: String(svLicense) }] : []),
+  ])
+  // ⚠ Body paragraphs MUST carry an explicit colour. buildEmailLayout renders on a dark
+  // navy card and sets no inherited text colour, so a bare <p> falls back to the client's
+  // default — near-black on navy, i.e. invisible. The exam-passed mail shipped in 1.11.0
+  // with exactly that bug and its SVRZ paragraph was unreadable; caught by rendering the
+  // template rather than by reading it. Matches buildBroadcastEmail's body style.
+  const P = 'font-size:14px;color:#e2e8f0;line-height:1.6;margin:0 0 12px'
+  // Escape first, then newlines → <br>, paragraphs split on blank lines — the same
+  // treatment buildBroadcastEmail gives an admin-written message body.
+  const noteHtml = note
+    ? `<p style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;font-weight:700">${
+      en ? 'Note from KSC Wiedikon' : 'Anmerkung von KSC Wiedikon'
+    }</p>` + escHtml(note).split(/\n{2,}/)
+      .map((p) => `<p style="${P}">${p.replace(/\n/g, '<br>')}</p>`).join('')
+    : ''
+  const attachHtml = hasAttachment
+    ? `<p style="${P}">${
+      en
+        ? 'Your corrected scoresheet is attached as a PDF.'
+        : 'Dein korrigiertes Spielblatt findest du als PDF im Anhang.'
+    }</p>`
+    : ''
+  // A pass says where the licence comes from next. A fail deliberately says nothing
+  // further: what happens next is a conversation, not a form letter — the note is where
+  // that goes when there is something to say.
+  const body = (passed
+    ? `<p style="${P}">${
+      en
+        ? 'We have forwarded your details to the SVRZ. They issue the scorer licence — you will hear from them directly.'
+        : 'Wir haben deine Angaben an den SVRZ weitergeleitet. Die Schreiberlizenz wird von dort ausgestellt — du hörst direkt von ihnen.'
+    }</p>`
+    : '') + attachHtml + noteHtml
+  const html = buildEmailLayout(alert + card + body, {
+    sport: 'vb',
+    title: passed
+      ? (en ? 'Scorer exam passed' : 'Schreiber-Prüfung bestanden')
+      : (en ? 'Scorer exam not passed' : 'Schreiber-Prüfung nicht bestanden'),
+    greeting: firstName ? (en ? `Hi ${firstName},` : `Hallo ${firstName},`) : undefined,
+  })
+  const attachText = hasAttachment
+    ? (en ? '\n\nYour corrected scoresheet is attached as a PDF.'
+      : '\n\nDein korrigiertes Spielblatt findest du als PDF im Anhang.')
+    : ''
+  const noteText = note ? `\n\n${en ? 'Note from KSC Wiedikon' : 'Anmerkung von KSC Wiedikon'}:\n${note}` : ''
+  const text = (passed
+    ? (en
+      ? 'Your scorer exam has been marked as passed. Congratulations!\n\nWe have forwarded your details to the SVRZ, who issue the licence.'
+      : 'Deine Schreiber-Prüfung wurde als bestanden erfasst. Herzliche Gratulation!\n\nWir haben deine Angaben an den SVRZ weitergeleitet — die Lizenz wird von dort ausgestellt.')
+    : (en
+      ? 'Your scorer exam has been recorded as not passed.'
+      : 'Deine Schreiber-Prüfung wurde als nicht bestanden erfasst.')
+  ) + attachText + noteText + '\n\nKSC Wiedikon'
+
+  return { subject, html, text }
+}
 
 export function isManager(roleName) {
   return !!roleName && MANAGER_ROLES.has(String(roleName).toLowerCase())
@@ -670,71 +767,45 @@ export function registerWadmin(router, ctx) {
 
       const att = await database('scorer_course_attendance')
         .where('sub_key', `${req.params.slug}:${subId}`)
-        .first('exam_date', 'sv_license')
+        .first('exam_date', 'sv_license', 'exam_file_corrected')
 
-      const subject = passed
-        ? (en ? 'Scorer exam passed — KSC Wiedikon' : 'Schreiber-Prüfung bestanden — KSC Wiedikon')
-        : (en ? 'Scorer exam — KSC Wiedikon' : 'Schreiber-Prüfung — KSC Wiedikon')
-      const alert = passed
-        ? buildAlertBox(
-          'success',
-          en ? 'Exam passed' : 'Prüfung bestanden',
-          en
-            ? 'Your scorer exam has been marked as passed. Congratulations!'
-            : 'Deine Schreiber-Prüfung wurde als bestanden erfasst. Herzliche Gratulation!',
-        )
-        : buildAlertBox(
-          'warning',
-          en ? 'Exam not passed' : 'Prüfung nicht bestanden',
-          en
-            ? 'Your scorer exam has been recorded as not passed.'
-            : 'Deine Schreiber-Prüfung wurde als nicht bestanden erfasst.',
-        )
-      const card = buildInfoCard([
-        ...(course?.date_iso ? [{ label: en ? 'Course' : 'Kurs', value: formatDateCH(course.date_iso), halfWidth: true }] : []),
-        ...(att?.exam_date ? [{ label: en ? 'Exam date' : 'Prüfungsdatum', value: formatDateCH(att.exam_date), halfWidth: true }] : []),
-        // Licence number only on a pass: on a fail there is no licence coming, and
-        // printing the number next to "not passed" reads like one is on its way.
-        ...(passed && att?.sv_license ? [{ label: en ? 'Licence no.' : 'Lizenznummer', value: String(att.sv_license) }] : []),
-      ])
-      // Escape first, then newlines → <br>, paragraphs split on blank lines — same
-      // treatment buildBroadcastEmail gives an admin-written message body.
-      const noteHtml = note
-        ? `<p style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;font-weight:700">${
-          en ? 'Note from KSC Wiedikon' : 'Anmerkung von KSC Wiedikon'
-        }</p>` + escHtml(note).split(/\n{2,}/)
-          .map((p) => `<p style="margin:0 0 12px">${p.replace(/\n/g, '<br>')}</p>`).join('')
-        : ''
-      // A pass says where the licence comes from next. A fail deliberately says nothing
-      // further: what happens next is a conversation, not a form letter — the note above
-      // is where that goes when there is something to say.
-      const body = (passed
-        ? `<p style="margin:0 0 12px">${
-          en
-            ? 'We have forwarded your details to the SVRZ. They issue the scorer licence — you will hear from them directly.'
-            : 'Wir haben deine Angaben an den SVRZ weitergeleitet. Die Schreiberlizenz wird von dort ausgestellt — du hörst direkt von ihnen.'
-        }</p>`
-        : '') + noteHtml
-      const html = buildEmailLayout(alert + card + body, {
-        sport: 'vb',
-        title: passed
-          ? (en ? 'Scorer exam passed' : 'Schreiber-Prüfung bestanden')
-          : (en ? 'Scorer exam not passed' : 'Schreiber-Prüfung nicht bestanden'),
-        greeting: firstName ? (en ? `Hi ${firstName},` : `Hallo ${firstName},`) : undefined,
+      // Attach the CORRECTED sheet when one exists — not the participant's own, which
+      // they uploaded and already have. The correction is the new information.
+      //
+      // Corrections are stored as PDF (converted in /admin at upload time), so this is a
+      // byte passthrough: there is no canvas in Node to convert an image with, and adding
+      // an image pipeline here to redo work the browser already did would be daft.
+      //
+      // Read BEFORE the body is built, so the mail can only mention an attachment that is
+      // actually going to be on it. A failure here degrades to a mail with no attachment
+      // and no mention of one — the result still has to reach the participant.
+      let attachments = null
+      if (att?.exam_file_corrected) {
+        try {
+          const { bytes } = await readManagedFile(att.exam_file_corrected, { services, getSchema, database })
+          attachments = [{
+            filename: `schreiberpruefung${att.sv_license ? `_${att.sv_license}` : ''}.pdf`,
+            content: bytes,
+            contentType: 'application/pdf',
+          }]
+        } catch (e) {
+          log.warn({ msg: 'could not attach corrected scoresheet', file: att.exam_file_corrected, error: e.message })
+        }
+      }
+
+      const { subject, html, text } = buildExamResultMail({
+        en, passed, note, firstName,
+        courseDateIso: course?.date_iso || null,
+        examDate: att?.exam_date || null,
+        svLicense: att?.sv_license || null,
+        hasAttachment: !!attachments,
       })
-      const noteText = note ? `\n\n${en ? 'Note from KSC Wiedikon' : 'Anmerkung von KSC Wiedikon'}:\n${note}` : ''
-      const text = (passed
-        ? (en
-          ? `Your scorer exam has been marked as passed. Congratulations!\n\nWe have forwarded your details to the SVRZ, who issue the licence.`
-          : `Deine Schreiber-Prüfung wurde als bestanden erfasst. Herzliche Gratulation!\n\nWir haben deine Angaben an den SVRZ weitergeleitet — die Lizenz wird von dort ausgestellt.`)
-        : (en
-          ? `Your scorer exam has been recorded as not passed.`
-          : `Deine Schreiber-Prüfung wurde als nicht bestanden erfasst.`)
-      ) + noteText + `\n\nKSC Wiedikon`
 
       const { MailService } = services
       const mail = new MailService({ schema: await getSchema(), knex: database })
-      await mail.send({ to, subject, html, text })
+      // MailService forwards nodemailer options, so `attachments` rides through as-is
+      // (same shape kscw-hooks uses for its CSV export mail).
+      await mail.send({ to, subject, html, text, ...(attachments ? { attachments } : {}) })
       log.info({ msg: 'exam-result mail sent', result, noted: !!note, slug: req.params.slug, submission: subId })
       res.json({ ok: true, to })
     } catch (err) {
