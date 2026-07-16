@@ -63,6 +63,25 @@ export function norm(s) {
 }
 
 /**
+ * Swiss postcodes are four digits and never start with 0 (1000–9999). A member record
+ * carrying "0849" is a typo, not an address.
+ */
+export function plausiblePlz(v) {
+  return /^[1-9]\d{3}$/.test(String(v ?? '').trim())
+}
+
+/**
+ * A town, not a canton. "ZH" sits in at least one member record where a town should be;
+ * two letters is never a Swiss municipality name, and a cantonal abbreviation on an SVRZ
+ * list is a wrong answer wearing the clothes of a right one.
+ */
+export function plausibleOrt(v) {
+  const s = String(v ?? '').trim()
+  if (s.length < 3) return false
+  return !/^(zh|be|lu|ur|sz|ow|nw|gl|zg|fr|so|bs|bl|sh|ar|ai|sg|gr|ag|tg|ti|vd|vs|ne|ge|ju)$/i.test(s)
+}
+
+/**
  * Build the exam-result mail (subject + html + text).
  *
  * Exported and pure — it takes plain values, touches no database and sends nothing — so
@@ -580,7 +599,15 @@ export function registerWadmin(router, ctx) {
       const rows = await database('members').select('first_name', 'last_name', 'plz', 'ort')
       const byName = new Map()
       for (const m of rows) {
-        if (!m.ort && !m.plz) continue
+        // ClubDesk is human-entered and some of it is junk: one member carries postcode
+        // "0849" with the town "ZH" — a canton abbreviation, not a town, and not a Swiss
+        // postcode either (they are four digits, 1000–9999). Forwarding that onto an
+        // official SVRZ list is worse than leaving the cell blank, because it looks like
+        // an answer. Implausible values are dropped here so they cannot reach the export.
+        const plz = plausiblePlz(m.plz) ? String(m.plz).trim() : ''
+        const ort = plausibleOrt(m.ort) ? String(m.ort).trim() : ''
+        if (!ort && !plz) continue
+        m = { ...m, plz, ort }
         // First writer wins: two members sharing a name cannot be told apart from a
         // signup, so the ambiguous ones are dropped below rather than guessed at.
         const k = key(m.first_name, m.last_name)
