@@ -94,6 +94,55 @@ async function openKontakte(page) {
   if (ak) { await page.mouse.click(ak.x, ak.y); await sleep(1600) }
 }
 
+// True while a contact-detail tab is open (its "Gruppen:" form label is present).
+const detailOpen = (page) => page.evaluate(() => [...document.querySelectorAll('*')].some((e) => { let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent; return t.trim() === 'Gruppen:' }))
+
+// The uuid shown in the OPEN detail's "Wiedisync ID" field. MUST read the detail form
+// field (bottom of the form, top>600 left>850), NOT the grid Filtern box — that box
+// still holds the uuid we typed, so matching it would always "confirm" and defeat the
+// whole guard. Returns lowercased uuid or null.
+const detailUuid = (page) => page.evaluate(() => {
+  for (const i of document.querySelectorAll('input')) {
+    const v = (i.value || '').trim()
+    if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) continue
+    const r = i.getBoundingClientRect()
+    if (r.top > 600 && r.left > 850) return v.toLowerCase()
+  }
+  return null
+})
+
+// Close the contact-detail tab and confirm we're back on the grid.
+async function closeDetail(page) {
+  for (let i = 0; i < 3; i++) {
+    if (!(await detailOpen(page))) return true
+    await clickExact(page, 'Schließen', 120, 200); await sleep(700)
+    if (!(await detailOpen(page))) return true
+    await page.keyboard.press('Escape').catch(() => {}); await sleep(500)
+  }
+  return !(await detailOpen(page))
+}
+
+// Open contact <uuid>'s detail and CONFIRM the detail shows that uuid before returning
+// true. Guards the multi-contact stale-detail lag: a dblclick that no-ops on a not-yet-
+// ready grid leaves the PREVIOUS contact's detail on screen → without this we'd edit
+// the WRONG person (proven in the 2026-07-16 dry-run: 28/49 read a neighbour's detail).
+// Re-selects + re-opens on mismatch; returns false if it can't confirm the right detail.
+async function openDetailConfirmed(page, uuid, cell) {
+  const want = uuid.toLowerCase()
+  let c = cell
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.mouse.dblclick(c.x, c.y); await sleep(2500)
+    for (let k = 0; k < 14; k++) {
+      if (await detailOpen(page)) { const du = await detailUuid(page); if (du === want) return true; if (du && du !== want) break }
+      await sleep(400)
+    }
+    await closeDetail(page)                       // wrong/missing detail → reset and retry
+    const f = await selectRow(page, uuid)
+    if (f.cnt === 1 && f.cell) c = f.cell; else await sleep(600)
+  }
+  return false
+}
+
 async function run() {
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] })
   const results = []
@@ -106,30 +155,31 @@ async function run() {
       try {
         const f = await selectRow(page, row.uuid)
         if (f.cnt !== 1 || !f.cell) { r.status = 'skip_filter_failed'; r.matched = f.cnt; results.push(r); log(`· ${row.name}: uuid → cnt=${f.cnt}`); continue }
-        await page.mouse.dblclick(f.cell.x, f.cell.y); await sleep(2500)
-        // confirm detail opened (Gruppen: label present)
-        const opened = await page.evaluate(() => [...document.querySelectorAll('*')].some((e) => { let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent; return t.trim() === 'Gruppen:' }))
-        if (!opened) { r.status = 'error'; r.detail = 'detail did not open'; results.push(r); log(`· ${row.name}: no detail`); await page.keyboard.press('Escape'); await sleep(500); continue }
+        // Open the detail AND confirm it's the target uuid (never edit an unconfirmed
+        // detail — the stale-detail lag would otherwise strip the wrong contact's group).
+        if (!(await openDetailConfirmed(page, row.uuid, f.cell))) { r.status = 'skip_identity_unconfirmed'; results.push(r); log(`· ${row.name}: could not confirm detail == uuid`); await closeDetail(page); continue }
         await shot(page, `${row.uuid.slice(0, 8)}-01-detail`)
         const chip = await findChipRemove(page, row.group_label)
-        if (chip.notfound) { r.status = 'skip_not_in_group'; r.chips = chip.chips; results.push(r); log(`· ${row.name}: chip "${row.group_label}" not present. chips=${JSON.stringify(chip.chips)}`); await clickExact(page, 'Schließen', 120, 200); await sleep(800); continue }
+        if (chip.notfound) { r.status = 'skip_not_in_group'; r.chips = chip.chips; results.push(r); log(`· ${row.name}: chip "${row.group_label}" not present. chips=${JSON.stringify(chip.chips)}`); await closeDetail(page); continue }
         r.clickVia = chip.via
         if (MODE === 'commit') {
+          // Re-assert identity immediately before mutating (belt-and-suspenders vs any drift).
+          if ((await detailUuid(page)) !== row.uuid.toLowerCase()) { r.status = 'error'; r.detail = 'identity drift before ×'; results.push(r); log(`✗ ${row.name}: identity drift`); await closeDetail(page); continue }
           await page.mouse.click(chip.x, chip.y); await sleep(700)
           await shot(page, `${row.uuid.slice(0, 8)}-02-xclicked`)
-          // verify the chip is gone before saving
+          // verify the chip is gone AND we're still on the right contact before saving
           const still = await findChipRemove(page, row.group_label)
-          if (!still.notfound) { r.status = 'error'; r.detail = 'chip still present after × click'; results.push(r); log(`✗ ${row.name}: × did not remove chip`); await clickExact(page, 'Schließen', 120, 200); await sleep(600); await page.keyboard.press('Escape').catch(() => {}); continue }
-          if (!(await clickExact(page, 'Speichern & Schließen', 120, 200))) { r.status = 'error'; r.detail = 'save button not found'; results.push(r); await page.keyboard.press('Escape'); continue }
-          await sleep(2800); await page.keyboard.press('Escape').catch(() => {}); await sleep(400)
+          if (!still.notfound || (await detailUuid(page)) !== row.uuid.toLowerCase()) { r.status = 'error'; r.detail = 'chip still present / identity drift after × click'; results.push(r); log(`✗ ${row.name}: × did not remove chip (or drifted)`); await closeDetail(page); continue }
+          if (!(await clickExact(page, 'Speichern & Schließen', 120, 200))) { r.status = 'error'; r.detail = 'save button not found'; results.push(r); await closeDetail(page); continue }
+          await sleep(2800); await closeDetail(page)
           r.status = 'removed'; log(`✓ ${row.name} ✂ ${row.group_label}`)
         } else {
           r.status = 'previewed'; log(`◦ ${row.name} → would remove "${row.group_label}" (× via ${chip.via} @ ${chip.x},${chip.y})`)
           await shot(page, `${row.uuid.slice(0, 8)}-preview`)
-          await clickExact(page, 'Schließen', 120, 200); await sleep(800)
+          await closeDetail(page)
         }
         results.push(r)
-      } catch (e) { r.status = 'error'; r.detail = e.message; results.push(r); log(`✗ ${row.name}:`, e.message); for (let i = 0; i < 3; i++) { await page.keyboard.press('Escape').catch(() => {}); await sleep(300) } }
+      } catch (e) { r.status = 'error'; r.detail = e.message; results.push(r); log(`✗ ${row.name}:`, e.message); await closeDetail(page).catch(() => {}); for (let i = 0; i < 2; i++) { await page.keyboard.press('Escape').catch(() => {}); await sleep(300) } }
     }
   } catch (e) { log('✗ fatal:', e.message); process.exitCode = 1 } finally { await browser.close() }
   const tally = {}; for (const x of results) tally[x.status] = (tally[x.status] || 0) + 1
