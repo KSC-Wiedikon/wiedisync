@@ -69,7 +69,7 @@ interface BarSegment {
 
 /**
  * For a given week (array of 7 Dates), compute bar segments for multi-day/all-day events.
- * Returns timed (single-day, non-all-day) entries separately.
+ * Returns the per-day entry list (timed entries plus birthdays) separately.
  */
 function layoutWeek(
   weekDays: Date[],
@@ -101,6 +101,15 @@ function layoutWeek(
       continue
     }
 
+    // Birthdays stay all-day in the data model (date-only; the iCal export needs
+    // VALUE=DATE), but as a spanning bar one would become the cell's background
+    // and repaint the whole day pink. Listed with the day's entries instead.
+    if (e.type === 'birthday') {
+      const col = weekDays.findIndex((d) => isSameDay(d, e.date))
+      if (col >= 0) timedByCol[col].push(e)
+      continue
+    }
+
     if (e.allDay || e.endDate) {
       spanning.push(e)
     } else {
@@ -108,6 +117,12 @@ function layoutWeek(
       const col = weekDays.findIndex((d) => isSameDay(d, e.date))
       if (col >= 0) timedByCol[col].push(e)
     }
+  }
+
+  // Birthdays lead the day, above the timed entries (the absence bar sits above
+  // both). Stable, so the incoming order of everything else is untouched.
+  for (const col of timedByCol) {
+    col.sort((a, b) => Number(b.type === 'birthday') - Number(a.type === 'birthday'))
   }
 
   // Sort spanning entries by start date (earlier first), then by length (longer first)
@@ -386,7 +401,11 @@ export default function MonthGrid({
                                   ) : null}
                                 </>
                               ) : (
-                                <span className="hidden truncate lg:inline">{entry.title}</span>
+                                // A birthday has no time to show, so below `lg` the row
+                                // would be a bare cake — keep its name at every width.
+                                <span className={`truncate ${entry.type === 'birthday' ? '' : 'hidden lg:inline'}`}>
+                                  {entry.title}
+                                </span>
                               )}
                             </button>
                             )
