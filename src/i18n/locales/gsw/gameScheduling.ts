@@ -549,6 +549,8 @@ export default {
   manualHall: 'Halle',
   manualSelectHall: 'Halle uswähle',
   manualOpenSlotHall: 'Offne Slot',
+  manualAlsoUses: 'Bruucht zuesätzlich',
+  manualAlsoUsesHint: 'Nume aachrüzle, wenn s Spiel über beidi Fälder gaht (z. B. es H1/H3-Derby über KWI A+B). Volleymanager buecht s als ei kombinierti Halle.',
   manualHallMismatchWarn: 'Das isch nöd d Halle, wo dem Team i dem Slot zueteilt isch — nu bestätige, wenns würkli so gmeint isch.',
   manualPlace: 'Ort',
   manualPlacePlaceholder: 'z. B. Name vo de gegnerische Halle',

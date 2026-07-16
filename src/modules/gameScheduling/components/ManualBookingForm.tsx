@@ -45,7 +45,7 @@ interface Props {
    *  date (admin/spielplaner-scoped). Returns null when there's nothing to show. */
   fetchDateContext?: (date: string) => Promise<ProposalHealthProposal | null>
   onSave: (legs: {
-    home?: { date: string; start_time: string; end_time?: string; hall: number | string; svrz_game_id?: string }
+    home?: { date: string; start_time: string; end_time?: string; hall: number | string; additional_halls?: number[]; svrz_game_id?: string }
     away?: { date: string; start_time?: string; place?: string; svrz_game_id?: string }
   }) => Promise<void>
 }
@@ -81,6 +81,9 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
   const [homeDate, setHomeDate] = useState('')
   const [homeStart, setHomeStart] = useState('')
   const [homeHall, setHomeHall] = useState<string>('')
+  // Extra courts for a multi-hall game (e.g. an H1/H3 derby across KWI A+B with
+  // the divider open). VolleyManager takes the whole set as ONE combo gym.
+  const [homeExtraHalls, setHomeExtraHalls] = useState<string[]>([])
 
   const [awayOn, setAwayOn] = useState(false)
   const [awayFixtureId, setAwayFixtureId] = useState(() => defaultFixture(awayFixtures))
@@ -103,7 +106,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
   }
 
   const reset = () => {
-    setHomeOn(false); setHomeDate(''); setHomeStart(''); setHomeHall('')
+    setHomeOn(false); setHomeDate(''); setHomeStart(''); setHomeHall(''); setHomeExtraHalls([])
     setAwayOn(false); setAwayDate(''); setAwayStart(''); setAwayPlace('')
     setHomeFixtureId(defaultFixture(homeFixtures))
     setAwayFixtureId(defaultFixture(awayFixtures))
@@ -116,6 +119,9 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
     setHomeDate(fx?.prefill?.date || '')
     setHomeStart(fx?.prefill?.start_time || '')
     setHomeHall(String(fx?.prefill?.hall ?? defaultHomeHall ?? ''))
+    // Switching fixture must not carry the previous one's extra courts over —
+    // that would silently book a second hall for an unrelated game.
+    setHomeExtraHalls([])
     refreshCtx('home', fx?.prefill?.date || '')
   }
   const applyAwayPrefill = (fx?: ManualFixtureOption) => {
@@ -166,9 +172,15 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
     }
     if (homeOn) {
       if (!homeDate || !homeStart || !homeHall) { toast.error(t('manualHomeIncomplete')); return }
+      // Drop the primary if it somehow got ticked — it's implicit in `hall`, and
+      // a set containing it twice is not a combo.
+      const extras = homeExtraHalls.filter((h) => h !== homeHall).map(Number).filter(Number.isFinite)
       legs.home = {
         // End time is derived (start + 90 min) — the admin only enters a start.
         date: homeDate, start_time: homeStart, end_time: plus90(homeStart), hall: homeHall,
+        // Send [] as undefined so an ordinary single-court booking keeps the exact
+        // payload it has always sent.
+        ...(extras.length ? { additional_halls: extras } : {}),
         ...(homeFixtureId ? { svrz_game_id: homeFixtureId } : {}),
       }
     }
@@ -257,7 +269,17 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
             </label>
             <label htmlFor="mbf-home-hall" className="col-span-2 sm:col-span-1">
               <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualHall')}</span>
-              <select id="mbf-home-hall" value={homeHall} onChange={(e) => setHomeHall(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+              <select
+                id="mbf-home-hall"
+                value={homeHall}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setHomeHall(next)
+                  // The new primary can't also be an "also uses" court.
+                  setHomeExtraHalls((prev) => prev.filter((x) => x !== next))
+                }}
+                className={`${inputCls} dark:bg-gray-800`}
+              >
                 <option value="">{t('manualSelectHall')}</option>
                 {orderedHalls.map((h) => (
                   <option key={h.id} value={h.id}>
@@ -266,6 +288,30 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
                 ))}
               </select>
             </label>
+            {/* Extra courts. Only offered once a primary hall is picked — an
+                "also uses" list with nothing to add to would be meaningless. */}
+            {homeHall && orderedHalls.length > 1 && (
+              <fieldset className="col-span-2">
+                <legend className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualAlsoUses')}</legend>
+                <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                  {orderedHalls.filter((h) => String(h.id) !== homeHall).map((h) => (
+                    <label key={h.id} htmlFor={`mbf-extra-${h.id}`} className="flex min-h-[44px] items-center gap-1.5 text-sm sm:min-h-0">
+                      <input
+                        id={`mbf-extra-${h.id}`}
+                        type="checkbox"
+                        checked={homeExtraHalls.includes(String(h.id))}
+                        onChange={(e) => setHomeExtraHalls((prev) => (
+                          e.target.checked ? [...prev, String(h.id)] : prev.filter((x) => x !== String(h.id))
+                        ))}
+                        className="h-4 w-4"
+                      />
+                      <span>{h.name}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('manualAlsoUsesHint')}</p>
+              </fieldset>
+            )}
           </div>
         )}
         {homeOn && homeCtx && (

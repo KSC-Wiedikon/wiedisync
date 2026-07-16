@@ -154,7 +154,9 @@ export function useAdminBookings(seasonId: string | undefined) {
   const manualBooking = useCallback(async (
     opponentId: string | number,
     legs: {
-      home?: { date: string; start_time: string; end_time?: string; hall: number | string; svrz_game_id?: string }
+      // `additional_halls` books the game across more than one court (e.g. an
+      // H1/H3 derby over KWI A+B). VolleyManager takes the set as one combo gym.
+      home?: { date: string; start_time: string; end_time?: string; hall: number | string; additional_halls?: number[]; svrz_game_id?: string }
       away?: { date: string; start_time?: string; place?: string; svrz_game_id?: string }
     },
   ) => {
