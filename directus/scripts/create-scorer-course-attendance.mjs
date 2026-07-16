@@ -113,7 +113,19 @@ const COLLECTION = {
     { field: 'exam_passed', type: 'boolean',
       schema: { is_nullable: false, default_value: false },
       meta: { interface: 'boolean', special: ['cast-boolean'], width: 'half',
-        note: 'Registrant passed the exam.' } },
+        note: 'Superseded by exam_result — kept because it is what was recorded before the Yes/No split. /admin reads and writes exam_result.' } },
+    // exam_passed could not answer "has anyone decided yet?": false meant both "failed"
+    // and "not looked at", and the overwhelming majority of rows are the latter. Reading
+    // that false as "failed" would print "Nicht bestanden" against every undecided
+    // participant on an official SVRZ list. Hence a third state, spelled out.
+    { field: 'exam_result', type: 'string',
+      schema: { is_nullable: true },
+      meta: { interface: 'select-dropdown', width: 'half',
+        options: { choices: [
+          { text: 'Bestanden', value: 'passed' },
+          { text: 'Nicht bestanden', value: 'failed' },
+        ] },
+        note: 'Exam outcome: passed / failed / empty = not decided yet. Empty is NOT a fail — see the SVRZ export.' } },
     { field: 'sv_license', type: 'string',
       schema: { is_nullable: true },
       meta: { interface: 'input', width: 'half',
@@ -125,7 +137,23 @@ const COLLECTION = {
     { field: 'exam_file', type: 'uuid',
       schema: { is_nullable: true },
       meta: { interface: 'file', special: ['file'], width: 'half',
-        note: 'The uploaded exam scoresheet. Private (SCORER_EXAM_FOLDER) — read via /kscw/wadmin/scorer_courses/assets/:id, never /assets.' } },
+        note: 'The scoresheet as the PARTICIPANT uploaded it. Never overwritten by an admin correction — see exam_file_corrected. Private (SCORER_EXAM_FOLDER) — read via /kscw/wadmin/scorer_courses/assets/:id, never /assets.' } },
+    // A correction does not replace exam_file: the participant's own sheet is what they
+    // actually submitted, and an admin edit on top is a separate claim. Both stay readable.
+    { field: 'exam_file_corrected', type: 'uuid',
+      schema: { is_nullable: true },
+      meta: { interface: 'file', special: ['file'], width: 'half',
+        note: 'Admin-corrected scoresheet, uploaded from /admin. Takes precedence in the SVRZ zip. Same private folder as exam_file.' } },
+    // Written server-side from the Directus session (wadmin.js) — never accepted from a
+    // client, or the attribution would be worth nothing.
+    { field: 'exam_file_corrected_by', type: 'string',
+      schema: { is_nullable: true },
+      meta: { interface: 'input', readonly: true, width: 'half',
+        note: 'Name of the admin who uploaded the correction. Set server-side from the session; not client-writable.' } },
+    { field: 'exam_file_corrected_on', type: 'timestamp',
+      schema: { is_nullable: true },
+      meta: { interface: 'datetime', readonly: true, width: 'half',
+        note: 'When the correction was uploaded. Set server-side alongside exam_file_corrected_by.' } },
     { field: 'notes', type: 'text',
       schema: { is_nullable: true },
       meta: { interface: 'input-multiline', width: 'full',
@@ -179,18 +207,36 @@ async function main() {
     console.log('  ✓ scorer exam folder created')
   }
 
-  // exam_file → directus_files. Without the relation Directus treats the column as a
-  // bare uuid and the admin file interface cannot resolve it.
-  const rels = await api('GET', '/relations/scorer_course_attendance/exam_file').catch(() => null)
-  if (rels) {
-    console.log('  ✓ exam_file relation already exists')
-  } else {
+  // exam_file / exam_file_corrected → directus_files. Without the relation Directus treats
+  // the column as a bare uuid and the admin file interface cannot resolve it.
+  for (const field of ['exam_file', 'exam_file_corrected']) {
+    const rels = await api('GET', `/relations/scorer_course_attendance/${field}`).catch(() => null)
+    if (rels) {
+      console.log(`  ✓ ${field} relation already exists`)
+      continue
+    }
     await api('POST', '/relations', {
       collection: 'scorer_course_attendance',
-      field: 'exam_file',
+      field,
       related_collection: 'directus_files',
     })
-    console.log('  ✓ exam_file relation created')
+    console.log(`  ✓ ${field} relation created`)
+  }
+
+  // Backfill exam_result from the exam_passed it replaces. Only `true` carries over:
+  // exam_passed=false is the default every row is born with, so reading it as "failed"
+  // would invent a verdict nobody gave. Those rows stay undecided until someone answers.
+  // Guarded on exam_result IS NULL, so a re-run cannot overwrite a later correction.
+  const stale = await api('GET', '/items/scorer_course_attendance'
+    + '?filter[exam_passed][_eq]=true&filter[exam_result][_null]=true&fields=id&limit=-1')
+  if (stale?.length) {
+    await api('PATCH', '/items/scorer_course_attendance', {
+      keys: stale.map((r) => r.id),
+      data: { exam_result: 'passed' },
+    })
+    console.log(`  ✓ exam_result backfilled to 'passed' on ${stale.length} row(s)`)
+  } else {
+    console.log('  ✓ no exam_passed=true rows need an exam_result backfill')
   }
 
   console.log('Done. Next: npm run schema:pull && review git diff directus/sync/')
