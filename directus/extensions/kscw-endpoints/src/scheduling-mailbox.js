@@ -647,7 +647,19 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   /** Unread inbound count for this account, honouring per-user reads. */
   async function unreadCount(acct, memberId) {
     if (usesPerUserReads(acct)) {
-      if (!memberId) return 0
+      // No linked members row — a bare Directus superadmin (an ops identity, not
+      // a daily reader; every app admin/superuser has a member row by
+      // construction, since the role lives on members.role). Per-user reads have
+      // nothing to key on, and applyReadState already reports every row as
+      // unread — so count them all rather than returning 0, which would
+      // contradict the list in the same response. Such a caller can read but
+      // can't persist a read (markRead no-ops), so the count simply stays put.
+      if (!memberId) {
+        const [{ count }] = await database('scheduling_emails')
+          .where({ account: acct.sport, direction: 'in' })
+          .count('id as count')
+        return Number(count)
+      }
       const [{ count }] = await database('scheduling_emails as e')
         .where({ 'e.account': acct.sport, 'e.direction': 'in' })
         .whereNotExists(function () {
