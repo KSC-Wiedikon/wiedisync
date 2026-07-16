@@ -549,6 +549,8 @@ export default {
   manualHall: 'Palestra',
   manualSelectHall: 'Seleziona una palestra',
   manualOpenSlotHall: 'Slot libero',
+  manualAlsoUses: 'Usa anche',
+  manualAlsoUsesHint: 'Seleziona un campo solo se la partita si gioca su entrambi (p. es. un derby H1/H3 su KWI A+B). Volleymanager la prenota come una sola palestra combinata.',
   manualHallMismatchWarn: 'Questa non è la palestra assegnata a questa squadra per il suo slot — conferma solo se la modifica è voluta.',
   manualPlace: 'Luogo',
   manualPlacePlaceholder: 'es. nome della palestra avversaria',

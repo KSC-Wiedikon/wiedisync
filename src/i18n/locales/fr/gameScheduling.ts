@@ -548,6 +548,8 @@ export default {
   manualHall: 'Salle',
   manualSelectHall: 'Choisir une salle',
   manualOpenSlotHall: 'Créneau libre',
+  manualAlsoUses: 'Utilise aussi',
+  manualAlsoUsesHint: 'À cocher uniquement si le match se joue sur les deux terrains (p. ex. un derby H1/H3 sur KWI A+B). Volleymanager le réserve comme une seule salle combinée.',
   manualHallMismatchWarn: "Ce n'est pas la salle attribuée à cette équipe pour son créneau — confirmez seulement si ce changement est voulu.",
   manualPlace: 'Lieu',
   manualPlacePlaceholder: 'p. ex. nom de la salle adverse',

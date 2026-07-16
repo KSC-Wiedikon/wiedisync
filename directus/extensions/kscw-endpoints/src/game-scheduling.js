@@ -1602,6 +1602,13 @@ export function registerGameScheduling(router, { database, logger, services, get
       .where('s.season', seasonId).where('s.status', 'booked')
       .whereRaw('s.date >= CURRENT_DATE')
       .whereIn('s.hall', kwiIds)
+      // A multi-court booking (migration 221 — e.g. an H1/H3 derby deliberately
+      // played across KWI A+B) opts OUT of this rule. The rule assumes one game
+      // = one court and rewrites `hall` in place; applied to a combo it would
+      // silently move the primary and strand `additional_halls`, leaving a set
+      // like {C, B} that no VM gym exists for. Someone ticked both courts on
+      // purpose — that beats the automatic re-sort.
+      .whereNull('s.additional_halls')
       .select('s.id as slot_id', 's.hall', 'b.id as booking_id', 'b.svrz_game_id',
         db.raw('s.date::text as d'), db.raw('s.start_time::text as st'))
 
@@ -3906,6 +3913,30 @@ export function registerGameScheduling(router, { database, logger, services, get
         if (home.end_time && !TIME_RE.test(String(home.end_time))) return res.status(400).json({ error: 'home.end_time must be HH:MM' })
         if (!home.hall) return res.status(400).json({ error: 'home.hall required' })
 
+        // Optional multi-court booking (migration 221): a game played across more
+        // than one hall, e.g. an H1/H3 derby over KWI A+B with the divider open.
+        // VolleyManager models that as ONE combo gym, so the push translates the
+        // SET {hall, ...additional_halls} → a gym uuid (see scripts/vm-halls.mjs);
+        // it refuses rather than guessing if the set has no registered gym.
+        // Validated here so a typo can't reach the push as a silent half-booking.
+        let homeExtraHalls = null
+        if (home.additional_halls != null) {
+          if (!Array.isArray(home.additional_halls)) {
+            return res.status(400).json({ error: 'home.additional_halls must be an array of hall IDs' })
+          }
+          const extras = [...new Set(home.additional_halls.map((h) => Number(h)).filter((h) => Number.isFinite(h)))]
+            .filter((h) => String(h) !== String(home.hall))   // the primary is implicit
+          if (extras.length !== new Set(home.additional_halls.map(String)).size - (home.additional_halls.map(String).includes(String(home.hall)) ? 1 : 0)) {
+            return res.status(400).json({ error: 'home.additional_halls must contain only numeric hall IDs' })
+          }
+          if (extras.length) {
+            const known = await database('halls').whereIn('id', extras).pluck('id')
+            const unknown = extras.filter((h) => !known.map(String).includes(String(h)))
+            if (unknown.length) return res.status(400).json({ error: `Unknown hall ID(s): ${unknown.join(', ')}` })
+            homeExtraHalls = JSON.stringify(extras)
+          }
+        }
+
         await database.transaction(async (trx) => {
           await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [GSCH_BOOK_LOCK_CLASS, opponent.kscw_team])
           // Releasing-on-overwrite: if this opponent already had a confirmed home
@@ -3937,12 +3968,20 @@ export function registerGameScheduling(router, { database, logger, services, get
               throw Object.assign(new Error('That slot is blocked — unblock it first'), { httpStatus: 400 })
             }
             await trx('game_scheduling_slots').where('id', existing.id)
-              .update({ status: 'booked', end_time: home.end_time || existing.end_time || null })
+              .update({
+                status: 'booked',
+                end_time: home.end_time || existing.end_time || null,
+                // Always write the caller's intent, including back to NULL — a
+                // re-entry that drops the extra hall must shrink the booking, not
+                // silently keep yesterday's combo and push two courts.
+                additional_halls: homeExtraHalls,
+              })
             slotId = existing.id
           } else {
             const inserted = await trx('game_scheduling_slots').insert({
               season: seasonId, kscw_team: opponent.kscw_team, date: home.date,
               start_time: home.start_time, end_time: home.end_time || null, hall: home.hall,
+              additional_halls: homeExtraHalls,
               source: 'manual', status: 'booked',
             }).returning('id')
             slotId = typeof inserted[0] === 'object' ? inserted[0].id : inserted[0]

@@ -577,6 +577,8 @@ export default {
   manualHall: 'Halle',
   manualSelectHall: 'Halle wählen',
   manualOpenSlotHall: 'Offener Slot',
+  manualAlsoUses: 'Nutzt zusätzlich',
+  manualAlsoUsesHint: 'Nur ankreuzen, wenn das Spiel über beide Felder geht (z. B. ein H1/H3-Derby über KWI A+B). Volleymanager bucht es als eine kombinierte Halle.',
   manualHallMismatchWarn: 'Das ist nicht die Halle, die diesem Team im Slot zugewiesen ist — nur bestätigen, wenn das so gewollt ist.',
   manualPlace: 'Ort',
   manualPlacePlaceholder: 'z. B. Name der gegnerischen Halle',

@@ -579,6 +579,8 @@ export default {
   manualHall: 'Hall',
   manualSelectHall: 'Select a hall',
   manualOpenSlotHall: 'Open slot',
+  manualAlsoUses: 'Also uses',
+  manualAlsoUsesHint: 'Tick a court only if the game is played across both (e.g. an H1/H3 derby over KWI A+B). VolleyManager books it as one combined gym.',
   manualHallMismatchWarn: 'This is not the gym assigned to this team in its slot — confirm only if that change is intended.',
   manualPlace: 'Location',
   manualPlacePlaceholder: 'e.g. opponent hall name',
