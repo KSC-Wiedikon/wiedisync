@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# clubdesk-group-cleanup.sh — Weekly auto-removal of STALE ClubDesk player-group
+# memberships ("strays"). Counterpart to the on-demand add tool: it keeps group
+# hygiene hands-off for the common, unambiguous case.
+#
+# A "stray" (mirrors straySql in clubdesk-update.js — the source of truth) is a
+# member whose ClubDesk contact is in a '<team> (Spieler*in)' group that maps to a
+# real Wiedisync team, but who has NO member_teams row for the current season. The
+# bucket is already narrow: player groups only, BB-league umbrellas excluded
+# (clubdesk_group=''), and ANY roster row (incl. guest) disqualifies.
+#
+# AUTO-REMOVE ENVELOPE (user-approved 2026-07-16) — remove only where it's safe to
+# act unattended:
+#   • active=false  → the member has LEFT the club; lingering in a team's player
+#                     group is pure staleness. Remove.
+#   • active=true AND (coach OR team-responsible) → the "Lasse pattern": they staff a
+#                     team but play on none this season, so their player group is
+#                     stale (they keep their (Trainer*in) group). Remove.
+#   • active=true, NOT coach/TR (plain player or bare official) → AMBIGUOUS: usually a
+#                     MISSING ROSTER ROW in Wiedisync, not a wrong ClubDesk group.
+#                     LEFT UNTOUCHED for the manual consistency-check card.
+#
+# Runs the proven clubdesk-remove-group.mjs (detail-view chip ×, verify-before-save)
+# under the shared .sync.lock, exactly like the add/import scrapers.
+#
+# Install at /opt/clubdesk-sync/ and wire to root crontab AFTER the weekly down-sync
+# (Sat 22:00 UTC) so clubdesk_export reflects the latest ClubDesk state:
+#   0 6 * * 0 CLUBDESK_ENV=prod CLUBDESK_CLEANUP_COMMIT=1 /opt/clubdesk-sync/clubdesk-group-cleanup.sh >> /opt/clubdesk-sync/group-cleanup.log 2>&1
+#
+# ⚠ Commit WRITES to the club's legal member record. It is gated behind CLUBDESK_ENV=prod
+#   AND CLUBDESK_CLEANUP_COMMIT=1 (default = dry-run preview); dev is ALWAYS forced to
+#   preview (single shared ClubDesk account, no dev instance).
+# ⚠ Runaway guards: aborts if <20 member_teams rows exist for the season (a DB glitch
+#   would make every player-group member look like a stray), and if the computed
+#   removal set exceeds CAP (default 75) — a normal week is 0–3; the first catch-up
+#   run is ~49. A stale/partial clubdesk_export only ever UNDER-counts (safe), and the
+#   remove tool no-ops (skip_not_in_group) on anyone already out of the group.
+set -uo pipefail
+DIR=/opt/clubdesk-sync
+PG=kscw-postgres
+PW_IMG=mcr.microsoft.com/playwright:v1.60.0-jammy
+CAP="${CLUBDESK_CLEANUP_CAP:-75}"
+
+CLUBDESK_ENV="${CLUBDESK_ENV:-prod}"
+case "$CLUBDESK_ENV" in
+  prod) DB=postgres ;;
+  dev)  DB=directus_kscw_dev ;;
+  *) echo "FATAL: bad CLUBDESK_ENV '$CLUBDESK_ENV' (expected dev|prod)" >&2; exit 1 ;;
+esac
+export CLUBDESK_ENV
+
+# Per-env self-exclusion (the ClubDesk scrape itself serialises on .sync.lock below).
+exec 9>"$DIR/.group-cleanup-${DB}.lock"
+flock -n 9 || exit 0
+
+psqlc() { docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -tAc "$1"; }
+
+# Current season — mirror getCurrentSeason() in clubdesk-update.js exactly:
+# Jun–Dec → "Y/Y+1", Jan–May → "Y-1/Y".
+Y=$(date -u +%Y); M=$(date -u +%-m)
+if [ "$M" -ge 6 ]; then SEASON="$Y/$(printf '%02d' $(( (Y + 1) % 100 )))"; else SEASON="$((Y - 1))/$(printf '%02d' $(( Y % 100 )))"; fi
+
+echo "=== group-cleanup $(date -u +%FT%TZ) (db=$DB, season=$SEASON, cap=$CAP) ==="
+
+# Runaway guard 1: the season must be populated, else strays = the whole club.
+MT=$(psqlc "SELECT count(*) FROM member_teams WHERE season='$SEASON'" 2>/dev/null || echo 0)
+if [ "${MT:-0}" -lt 20 ]; then
+  echo "ABORT: only ${MT:-0} member_teams rows for $SEASON (<20) — refusing to compute strays."; exit 1
+fi
+
+# Shared stray CTE (definition mirrors clubdesk-update.js straySql + the approved envelope).
+CTE="
+WITH cd_groups AS (
+  SELECT BTRIM(ce.clubdesk_id) AS clubdesk_id, BTRIM(g) AS grp
+  FROM clubdesk_export ce, LATERAL unnest(string_to_array(ce.gruppen_bracketed, ', ')) AS g
+  WHERE g LIKE '%(Spieler*in)%'
+),
+team_groups AS (
+  SELECT DISTINCT (clubdesk_group || ' (Spieler*in)') AS grp
+  FROM teams WHERE clubdesk_group IS NOT NULL AND clubdesk_group <> ''
+),
+strays AS (
+  SELECT m.id, m.uuid,
+         BTRIM(COALESCE(m.first_name,'') || ' ' || COALESCE(m.last_name,'')) AS nm,
+         cg.grp AS grp
+  FROM cd_groups cg
+  JOIN members m ON m.clubdesk_id = cg.clubdesk_id
+  WHERE cg.grp IN (SELECT grp FROM team_groups)
+    AND m.uuid IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM member_teams mt WHERE mt.member = m.id AND mt.season = '$SEASON')
+    AND ( COALESCE(m.wiedisync_active, false) = false
+          OR EXISTS (SELECT 1 FROM teams_coaches tc WHERE tc.members_id = m.id)
+          OR EXISTS (SELECT 1 FROM teams_responsibles tr WHERE tr.members_id = m.id) )
+)"
+
+CNT=$(psqlc "$CTE SELECT count(*) FROM strays" 2>/dev/null || echo -1)
+if [ "${CNT:-0}" = "0" ]; then echo "Nothing to remove (0 strays in the auto-remove envelope)."; exit 0; fi
+if [ "${CNT:-0}" -lt 0 ]; then echo "ABORT: stray query failed."; exit 1; fi
+# Runaway guard 2: cap.
+if [ "$CNT" -gt "$CAP" ]; then
+  echo "ABORT: $CNT strays exceeds CAP=$CAP — refusing to auto-remove (raise CLUBDESK_CLEANUP_CAP to override after review)."
+  psqlc "$CTE SELECT nm || '  ✂  ' || grp FROM strays ORDER BY nm" | sed 's/^/  /'
+  exit 1
+fi
+
+# Build the worklist ([{name,uuid,group_label}]) → file in $DIR (mounted /work).
+WL="$DIR/group-cleanup-worklist.json"
+cleanup() { rm -f "$WL"; }   # carries uuid + names — don't linger
+trap cleanup EXIT
+psqlc "$CTE SELECT COALESCE(json_agg(json_build_object('name', nm, 'uuid', uuid, 'group_label', grp)), '[]') FROM strays" > "$WL"
+if [ ! -s "$WL" ]; then echo "ABORT: empty worklist."; exit 1; fi
+echo "Removal set ($CNT):"
+psqlc "$CTE SELECT nm || '  ✂  ' || grp FROM strays ORDER BY nm" | sed 's/^/  /'
+
+# Commit gating: prod + explicit flag → commit; anything else → dry-run preview.
+MODE=preview
+if [ "$CLUBDESK_ENV" = "prod" ] && [ "${CLUBDESK_CLEANUP_COMMIT:-0}" = "1" ]; then MODE=commit; fi
+echo "Mode: $MODE"
+
+SUMMARY=$(flock "$DIR/.sync.lock" docker run --rm -w /work -v "$DIR":/work --env-file "$DIR/.env" "$PW_IMG" \
+  node clubdesk-remove-group.mjs "group-cleanup-worklist.json" "$MODE" | tail -1)
+echo "Result: $SUMMARY"
+echo "=== group-cleanup done $(date -u +%FT%TZ) ==="
