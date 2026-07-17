@@ -5,8 +5,9 @@ import { toast } from 'sonner'
 import { formatTimeZurich } from '../../utils/dateHelpers'
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight,
-  Wrench, XCircle, RefreshCcw, ScrollText,
+  Wrench, XCircle, RefreshCcw, ScrollText, Download,
 } from 'lucide-react'
+import { toXlsx, downloadBlob } from './utils/exportResults'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '../../components/ui/table'
@@ -37,6 +38,10 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   clubdeskCoachGroup: 'dhIssueClubdeskCoachGroup',
   clubdeskFeeNoRoster: 'dhIssueClubdeskFeeNoRoster',
   clubdeskUnmappedTeam: 'dhIssueClubdeskUnmappedTeam',
+  scorerNotInVm: 'dhIssueScorerNotInVm',
+  scorerVmWriterNotFlagged: 'dhIssueScorerVmWriterNotFlagged',
+  scorerCdVbScNotFlagged: 'dhIssueScorerCdVbScNotFlagged',
+  scorerCheckFailed: 'dhIssueScorerCheckFailed',
 }
 
 function severityIcon(severity: DataIssue['severity']) {
@@ -75,6 +80,19 @@ function CollectionCard({
     if (a.severity !== b.severity) return a.severity === 'error' ? -1 : 1
     return a.issueKey.localeCompare(b.issueKey)
   })
+
+  // Aggregate rows carry their full per-member list; the row shows only a count,
+  // so this is the only way to see WHO. English headers — exports-always-English.
+  async function handleExport(issue: DataIssue) {
+    if (!issue.exportRows) return
+    try {
+      const { columns, rows, filename } = issue.exportRows
+      const blob = await toXlsx(columns, rows)
+      downloadBlob(blob, `${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    } catch {
+      toast.error(t('dhExportFailed'))
+    }
+  }
 
   async function handleFixOne(issue: DataIssue) {
     setFixingId(issue.id)
@@ -286,7 +304,15 @@ function CollectionCard({
                     </p>
                   </TableCell>
                   <TableCell className="text-right align-top">
-                    {issue.manualKind === 'clubdeskDeactivate' ? (
+                    {issue.exportRows ? (
+                      <button
+                        onClick={() => { void handleExport(issue) }}
+                        className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                      >
+                        <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                        {t('dhExport')}
+                      </button>
+                    ) : issue.manualKind === 'clubdeskDeactivate' ? (
                       <button
                         onClick={() => handleDeactivate(issue)}
                         disabled={manualFixingId === issue.id}
