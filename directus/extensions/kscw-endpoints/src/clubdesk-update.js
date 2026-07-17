@@ -852,7 +852,32 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // Beitragskategorie + Eintritt + Gruppen (see CD_PUSH_CREATE_HEADERS for
       // why the sets must never share a CSV).
       const updates0 = members.filter((m) => m.clubdesk_id)
-      const creates = members.filter((m) => !m.clubdesk_id)
+      const creates0 = members.filter((m) => !m.clubdesk_id)
+      // Duplicate-CREATE guard. up-preview flags `would_duplicate` (a ClubDesk
+      // contact already exists under this exact first+last name, divergent email)
+      // so the modal can warn — but nothing re-checked it here, so an approved
+      // CREATE could still duplicate the contact in the legal register (the
+      // 2026-07-05 audit #11 gap: the flag was computed, surfaced, then ignored
+      // on commit). Re-run the SAME name match server-side and skip collisions —
+      // the operator relinks the member to the existing contact instead. Mirrors
+      // the stale-link / blank-risk guards: refuse rather than write a dup.
+      let wouldDuplicateSkipped = []
+      let creates = creates0
+      if (creates0.length) {
+        const cdKey = (f, l) => `${(f || '').trim().toLowerCase()} ${(l || '').trim().toLowerCase()}`.trim()
+        const wantNames = [...new Set(creates0.map((m) => cdKey(m.first_name, m.last_name)).filter(Boolean))]
+        if (wantNames.length) {
+          const rows = await database('clubdesk_export')
+            .whereRaw("LOWER(BTRIM(vorname)) || ' ' || LOWER(BTRIM(nachname)) = ANY(?)", [wantNames])
+            .distinct(database.raw("LOWER(BTRIM(vorname)) || ' ' || LOWER(BTRIM(nachname)) AS nm"))
+          const cdNames = new Set(rows.map((r) => r.nm))
+          wouldDuplicateSkipped = creates0.filter((m) => cdNames.has(cdKey(m.first_name, m.last_name))).map((m) => m.id)
+          if (wouldDuplicateSkipped.length) {
+            const skip = new Set(wouldDuplicateSkipped)
+            creates = creates0.filter((m) => !skip.has(m.id))
+          }
+        }
+      }
       // Blank-risk guard (2026-07-05 audit #5). An UPDATE row carries the FULL
       // contact scope, so a linked member whose wiedisync side is EMPTY where
       // ClubDesk still holds a value would blank the authoritative register on
@@ -920,13 +945,17 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       }
       const pushMembers = [...updates, ...creates]
       if (!pushMembers.length) {
-        const staleOnly = staleLinkSkipped.length && !blankRiskSkipped.length
+        const staleOnly = staleLinkSkipped.length && !blankRiskSkipped.length && !wouldDuplicateSkipped.length
+        const dupOnly = wouldDuplicateSkipped.length && !blankRiskSkipped.length && !staleLinkSkipped.length
         return res.status(409).json({
-          error: staleOnly
-            ? 'Every eligible member has a stale ClubDesk link (contact no longer exists in ClubDesk) — mute or relink them'
-            : 'Every eligible member would blank ClubDesk data (empty fields ClubDesk still owns) — run "Sync down" first',
-          code: staleOnly ? 'stale_link' : 'blank_risk',
+          error: dupOnly
+            ? 'Every eligible member already exists in ClubDesk under this name (divergent email) — relink them to the existing contact instead of creating a duplicate'
+            : staleOnly
+              ? 'Every eligible member has a stale ClubDesk link (contact no longer exists in ClubDesk) — mute or relink them'
+              : 'Every eligible member would blank ClubDesk data (empty fields ClubDesk still owns) — run "Sync down" first',
+          code: dupOnly ? 'would_duplicate' : staleOnly ? 'stale_link' : 'blank_risk',
           skipped_blank_risk: blankRiskSkipped, skipped_stale_link: staleLinkSkipped,
+          skipped_would_duplicate: wouldDuplicateSkipped,
         })
       }
       // Eintritt = the registration SUBMISSION date — user rule 2026-07-06:
@@ -972,9 +1001,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       await writeUserLog(database, log, {
         accountability: req.accountability, action: 'update',
         collection: 'clubdesk_member_sync', recordId: 1,
-        data: { kind: 'clubdesk_member_sync_request', direction: 'up', member_count: pushMembers.length, create_count: creates.length, skipped_blank_risk: blankRiskSkipped.length, skipped_stale_link: staleLinkSkipped.length },
+        data: { kind: 'clubdesk_member_sync_request', direction: 'up', member_count: pushMembers.length, create_count: creates.length, skipped_blank_risk: blankRiskSkipped.length, skipped_stale_link: staleLinkSkipped.length, skipped_would_duplicate: wouldDuplicateSkipped.length },
       })
-      return res.json({ state: 'queued', count: pushMembers.length, skipped_blank_risk: blankRiskSkipped, skipped_stale_link: staleLinkSkipped })
+      return res.json({ state: 'queued', count: pushMembers.length, skipped_blank_risk: blankRiskSkipped, skipped_stale_link: staleLinkSkipped, skipped_would_duplicate: wouldDuplicateSkipped })
     } catch (err) {
       log.error({ msg: `up-commit: ${err.message}`, endpoint: 'clubdesk-member-sync/up', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })

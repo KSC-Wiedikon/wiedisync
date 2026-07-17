@@ -478,7 +478,15 @@ export default {
   dhExport: 'Esporta',
   dhExportFailed: 'Esportazione non riuscita',
   dhMarkSync: 'Segna per la sincronizzazione',
-  dhMarkedForSync: 'Segnato per la sincronizzazione — invio via Anmeldungen → «Sync up to ClubDesk»',
+  dhMarkedForSync: 'Segnato per la sincronizzazione — invio via «Sync up to ClubDesk»',
+  dhIssueClubdeskNameDrift: 'Il nome differisce da ClubDesk (l’invio non cambia i nomi)',
+  dhSyncUp: 'Sincronizza verso ClubDesk',
+  dhBulkSelectAll: 'Seleziona tutti',
+  dhBulkSelectRow: 'Seleziona questo membro',
+  dhBulkSelected: '{{count}} selezionati',
+  dhBulkMark: 'Segna {{count}} per la sincronizzazione',
+  dhBulkMarked: '{{count}} segnati per la sincronizzazione',
+  dhBulkBlankRisk: '{{count}} ignorati — svuoterebbe dati ClubDesk, fare prima «Sync down»',
 
   // Registrations — file preview + doc count
   anmeldungenDocsCount: '{{count}} doc.',

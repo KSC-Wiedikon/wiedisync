@@ -6,6 +6,15 @@ export type IssueSeverity = 'error' | 'warning'
 export type FixAction = 'update' | 'delete'
 
 /**
+ * Drift fields the ClubDesk sync-up cannot push because ClubDesk owns legal
+ * names — the UPDATE CSV (CD_PUSH_CONTACT_HEADERS in clubdesk-update.js) carries
+ * no Vorname/Nachname on purpose. computeClubdeskDrift still compares them, so
+ * these must be split off into an info-only row (no "Mark for sync-up"). If the
+ * push scope ever changes, this must stay the compared-but-not-pushed set.
+ */
+const NAME_DRIFT_FIELDS = new Set(['first_name', 'last_name'])
+
+/**
  * Stable, locale-independent issue identifier. Drives the translated label
  * (resolved in the component via t()) and the grouping/sort — never group or
  * label off a translated string, or grouping breaks per-locale.
@@ -29,6 +38,7 @@ export type IssueKey =
   | 'clubdeskCoachGroup'
   | 'clubdeskFeeNoRoster'
   | 'clubdeskUnmappedTeam'
+  | 'clubdeskNameDrift'
   | 'scorerNotInVm'
   | 'scorerVmWriterNotFlagged'
   | 'scorerCdVbScNotFlagged'
@@ -390,6 +400,32 @@ async function checkMembers(): Promise<CollectionHealth> {
     // values; the next sync-down fills those fields and unblocks them. Their
     // issueKey carries the explanation ("run sync down first") via its label.
     for (const c of candidates || []) {
+      // The ClubDesk UPDATE CSV is deliberately NAME-LESS (CD_PUSH_CONTACT_HEADERS
+      // carries no Vorname/Nachname — ClubDesk owns legal names; see CLAUDE.md).
+      // computeClubdeskDrift still COMPARES names, so a member whose only drift is
+      // a name change can be flagged but never actually pushed: the sync-up CSV
+      // changes nothing on the register, the pending flag clears, and the drift
+      // recomputes on the next scan — a permanent no-op treadmill. Split those
+      // into their own row with NO "Mark for sync-up" button; the fix is a human
+      // editing one side by hand, not a push. NAME_DRIFT_FIELDS is the exact
+      // compared-but-not-pushed set (see the push headers).
+      const pushableConflicts = c.conflicts.filter((d) => !NAME_DRIFT_FIELDS.has(d.field))
+      const hasPushable = pushableConflicts.length > 0 || c.fills.length > 0
+      if (!hasPushable) {
+        const nameTxt = c.conflicts
+          .map((d) => `${d.field}: ${d.clubdesk} → ${d.wiedisync}`)
+          .join(' · ')
+        issues.push({
+          id: `cd-namedrift-${c.member_id}`,
+          collection: 'members',
+          field: 'clubdesk_id',
+          severity: 'warning',
+          issueKey: 'clubdeskNameDrift',
+          detail: `${c.member_name} — ${nameTxt}`,
+          autoFixable: false,
+        })
+        continue
+      }
       const diffTxt = c.conflicts
         .map((d) => `${d.field}: ${d.clubdesk} → ${d.wiedisync}`)
         .join(' · ')
@@ -724,6 +760,25 @@ export async function flagClubdeskDrift(issue: DataIssue): Promise<void> {
     method: 'POST',
     body: { member_ids: memberIds },
   })
+}
+
+/**
+ * Bulk variant: flag every member behind the given drift/fill issues in a SINGLE
+ * request. /clubdesk-drift/flag already takes an array and does its own blank-risk
+ * filtering, so a multi-select collapses to one POST (no per-issue fan-out).
+ * Returns the server's tally so the caller can report partial skips. Members with
+ * no live drift are silently ignored server-side (they may have been marked since
+ * the scan), which is why this never 409s on a mixed batch the way a single flag can.
+ */
+export async function flagClubdeskDriftBulk(
+  issues: DataIssue[],
+): Promise<{ flagged: number; skipped_blank_risk: number }> {
+  const memberIds = [...new Set(issues.flatMap((i) => i.bulkMemberIds ?? []))]
+  if (!memberIds.length) return { flagged: 0, skipped_blank_risk: 0 }
+  return await kscwApi<{ flagged: number; skipped_blank_risk: number }>(
+    '/clubdesk-drift/flag',
+    { method: 'POST', body: { member_ids: memberIds } },
+  )
 }
 
 export async function autoFix(issue: DataIssue): Promise<void> {
