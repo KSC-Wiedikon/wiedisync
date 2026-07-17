@@ -153,6 +153,12 @@ export default {
   dhIssueClubdeskCoachGroup: 'Coaches without their ClubDesk coach group',
   dhIssueClubdeskFeeNoRoster: 'Billed as a player, but on no roster',
   dhIssueClubdeskUnmappedTeam: 'Team has no ClubDesk group configured',
+  dhIssueScorerNotInVm: 'Scorer licence set, but not in Volleymanager',
+  dhIssueScorerVmWriterNotFlagged: 'Volleymanager scorer without the scorer licence',
+  dhIssueScorerCdVbScNotFlagged: 'ClubDesk VB SC licence, but scorer licence cleared',
+  dhIssueScorerCheckFailed: 'Scorer licence check could not run',
+  dhExport: 'Export',
+  dhExportFailed: 'Export failed',
   dhMarkSync: 'Mark for sync-up',
   dhMarkedForSync: 'Marked for sync-up — push via Anmeldungen → \'Sync up to ClubDesk\'',
 

@@ -29,6 +29,10 @@ export type IssueKey =
   | 'clubdeskCoachGroup'
   | 'clubdeskFeeNoRoster'
   | 'clubdeskUnmappedTeam'
+  | 'scorerNotInVm'
+  | 'scorerVmWriterNotFlagged'
+  | 'scorerCdVbScNotFlagged'
+  | 'scorerCheckFailed'
 
 export interface DataIssue {
   id: string
@@ -52,6 +56,13 @@ export interface DataIssue {
   link?: { clubdeskId: string; clubdeskEmail?: string | null }
   /** For manualKind 'clubdeskDriftFlag' aggregate (fill) rows: all member ids to flag. */
   bulkMemberIds?: number[]
+  /**
+   * Full per-member list behind an AGGREGATE row, offered as an xlsx download.
+   * Aggregates are the alarm; without this the detail would have nowhere to live
+   * (unlike the ClubDesk aggregates, which expand on the ClubDesk sync page).
+   * Columns/values are English — exports-always-English.
+   */
+  exportRows?: { columns: string[]; rows: string[][]; filename: string }
 }
 
 export interface CollectionHealth {
@@ -535,7 +546,133 @@ async function checkMembers(): Promise<CollectionHealth> {
     // Best-effort — see above.
   }
 
+  await checkScorerLicences(issues)
+
   return { collection: 'members', total: members.length, issues }
+}
+
+interface ScorerCheckRow {
+  member_id: number
+  member_name: string
+  license_nr: string | null
+  in_vm?: boolean
+  vm_is_writer?: boolean
+  vm_assoc_id?: string | number | null
+  clubdesk_lizenz?: string | null
+  referee_vb?: boolean
+  cleared_next_sync?: boolean
+}
+
+/**
+ * Scorer licence cross-check — members.scorer_vb vs Volleymanager's indoorwriter
+ * registry vs ClubDesk's `VB SC`. Three registers, two crons writing the same
+ * column from different sources, so the flag can oscillate weekly. Backend does
+ * the join (it replicates vm-sync-check.mjs's match cascade); this only shapes rows.
+ *
+ * Aggregated one row per direction, with the full list on the row's Export button.
+ *
+ * NOTE the asymmetry: `scorerNotInVm` is a WARNING (VM's list is merely
+ * incomplete — as of 2026-07-17 its writers are a strict subset of ClubDesk's
+ * VB SC holders, so it contradicts nothing), while `scorerCdVbScNotFlagged` is an
+ * ERROR — that one means the VM sync has actively cleared a licence the club
+ * register grants, i.e. data already lost, not merely two lists differing.
+ */
+async function checkScorerLicences(issues: DataIssue[]): Promise<void> {
+  try {
+    const { flagged_not_in_vm, vm_writer_not_flagged, cd_vb_sc_not_flagged, summary } =
+      await kscwApi<{
+        flagged_not_in_vm: ScorerCheckRow[]
+        vm_writer_not_flagged: ScorerCheckRow[]
+        cd_vb_sc_not_flagged: ScorerCheckRow[]
+        vm_writer_no_member: { vm_assoc_id: string; vm_name: string }[]
+        summary: {
+          scorer_vb_total: number
+          vm_writers: number
+          cd_vb_sc: number
+          cleared_next_sync: number
+        }
+      }>('/admin/scorer-vm-check')
+
+    const yn = (b: boolean | undefined) => (b ? 'yes' : 'no')
+
+    if (flagged_not_in_vm.length > 0) {
+      issues.push({
+        id: 'scorer-not-in-vm',
+        collection: 'members',
+        field: 'scorer_vb',
+        severity: 'warning',
+        issueKey: 'scorerNotInVm',
+        // `cleared_next_sync` is the actionable half — those lose the flag at the
+        // next Monday 04:00 VM sync; the rest have no VM row so nothing touches them.
+        detail: `${flagged_not_in_vm.length} · ${summary.cleared_next_sync} cleared by next VM sync · VM ${summary.vm_writers} / ClubDesk ${summary.cd_vb_sc}`,
+        autoFixable: false,
+        exportRows: {
+          columns: ['Member ID', 'Name', 'Licence nr', 'In Volleymanager', 'VM writer', 'ClubDesk licence', 'VB referee', 'Cleared by next VM sync'],
+          rows: flagged_not_in_vm.map((r) => [
+            String(r.member_id), r.member_name, r.license_nr || '',
+            yn(r.in_vm), yn(r.vm_is_writer), r.clubdesk_lizenz || '',
+            yn(r.referee_vb), yn(r.cleared_next_sync),
+          ]),
+          filename: 'scorer_vb_not_in_volleymanager',
+        },
+      })
+    }
+
+    if (vm_writer_not_flagged.length > 0) {
+      issues.push({
+        id: 'scorer-vm-writer-not-flagged',
+        collection: 'members',
+        field: 'scorer_vb',
+        severity: 'error',
+        issueKey: 'scorerVmWriterNotFlagged',
+        detail: `${vm_writer_not_flagged.length}`,
+        autoFixable: false,
+        exportRows: {
+          columns: ['Member ID', 'Name', 'Licence nr', 'VM association ID', 'ClubDesk licence'],
+          rows: vm_writer_not_flagged.map((r) => [
+            String(r.member_id), r.member_name, r.license_nr || '',
+            String(r.vm_assoc_id ?? ''), r.clubdesk_lizenz || '',
+          ]),
+          filename: 'volleymanager_writers_without_scorer_flag',
+        },
+      })
+    }
+
+    if (cd_vb_sc_not_flagged.length > 0) {
+      issues.push({
+        id: 'scorer-cd-vbsc-not-flagged',
+        collection: 'members',
+        field: 'scorer_vb',
+        severity: 'error',
+        issueKey: 'scorerCdVbScNotFlagged',
+        detail: `${cd_vb_sc_not_flagged.length}`,
+        autoFixable: false,
+        exportRows: {
+          columns: ['Member ID', 'Name', 'Licence nr', 'In Volleymanager', 'VM writer'],
+          rows: cd_vb_sc_not_flagged.map((r) => [
+            String(r.member_id), r.member_name, r.license_nr || '',
+            yn(r.in_vm), yn(r.vm_is_writer),
+          ]),
+          filename: 'clubdesk_vbsc_without_scorer_flag',
+        },
+      })
+    }
+  } catch {
+    // Deliberately NOT the silent best-effort swallow the ClubDesk checks use.
+    // This check's whole job is to notice a flag being cleared; a check that goes
+    // quiet when its endpoint 403s/500s reports "all clean" at exactly the moment
+    // it has stopped looking — the false all-clear the hall audit hit when a 401
+    // let it print "✓ 0/80 mismatches" (DEVLOG 2026-07-16). Surface it instead.
+    issues.push({
+      id: 'scorer-check-failed',
+      collection: 'members',
+      field: 'scorer_vb',
+      severity: 'error',
+      issueKey: 'scorerCheckFailed',
+      detail: '',
+      autoFixable: false,
+    })
+  }
 }
 
 // ── Public API ──

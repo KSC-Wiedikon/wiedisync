@@ -42,6 +42,7 @@ import { registerRegistration } from './registration.js'
 import { registerNewsletter } from './newsletter.js'
 import { registerNewsletterDigest } from './newsletter-digest.js'
 import { registerClubdeskUpdate } from './clubdesk-update.js'
+import { registerScorerVmCheck } from './scorer-vm-check.js'
 import { registerBugfixes } from './bugfixes.js'
 import { registerEventNotify } from './event-notify.js'
 import { registerMessaging } from './messaging.js'
@@ -2380,6 +2381,7 @@ export default {
     registerNewsletter(router, ctx)
     registerNewsletterDigest(router, ctx)
     registerClubdeskUpdate(router, ctx)
+    registerScorerVmCheck(router, ctx)
     registerBugfixes(router, ctx)
     registerEventNotify(router, ctx)
     registerForms(router, ctx, { logEndpointError, requireAuth })
