@@ -11,7 +11,7 @@ import { readMe } from '@directus/sdk'
 import { toast } from 'sonner'
 import { client, login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, setImpersonating, fetchItems, fetchAllItems, kscwApi } from '../lib/api'
 import { queryClient } from '../lib/query'
-import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb } from '../lib/sentry'
+import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb, isTransientNetworkMessage } from '../lib/sentry'
 import i18n from '../i18n'
 import { backendLangToI18n } from '../utils/languageMap'
 import { getCurrentSeason } from '../utils/dateHelpers'
@@ -221,7 +221,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         captureAuthError(err, { action: 'session_restore' })
-        // Refresh failed — token is stale/invalid, clear everything
+        // A statusless fetch reject means the request never reached the server
+        // — a dropped signal, a backgrounded tab, or an edge block (Cloudflare
+        // renders a 403 statusless via CORS). The session is NOT known to be
+        // bad, so tearing it down here logs out a member over a blip and the
+        // reload re-fires this whole boot (~350 requests), which is what turns
+        // a transient block into a sustained one. Keep the session and let the
+        // normal retry paths recover.
+        if (isTransientNetworkMessage(err instanceof Error ? err.message : String(err))) return
+        // Refresh genuinely rejected — token is stale/invalid, clear everything
         await apiLogout()
         // Force reload to clear SDK internal state
         window.location.reload()

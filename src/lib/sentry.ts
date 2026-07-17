@@ -194,6 +194,22 @@ function hasAuthToken(): boolean {
   } catch { return false }
 }
 
+// A fetch that never reached the server rejects with one of these generic
+// messages and no HTTP status. Anchored ^…$ so a real error merely *containing*
+// the words is not swallowed; the optional trailing " (…)" absorbs the API host
+// the @directus/sdk `request` helper appends ("Load failed (directus.kscw.ch)").
+//
+// NOTE: a CORS-blocked response is indistinguishable from a dropped connection
+// here — the browser withholds the status by design, so an edge 403 (e.g. a
+// Cloudflare rate-limit block) also surfaces as a bare "Failed to fetch".
+// Callers must therefore treat a match as "unreachable", never as "logged out".
+const TRANSIENT_NETWORK_MESSAGE =
+  /^(Load failed|Failed to fetch|NetworkError when attempting to fetch resource|The Internet connection appears to be offline|The network connection was lost)\.?(?:\s*\([^)]*\))?$/i
+
+export function isTransientNetworkMessage(message: string): boolean {
+  return TRANSIENT_NETWORK_MESSAGE.test(message.trim())
+}
+
 /**
  * Capture an API error with full operation context to Sentry + console.
  * Called automatically from api.ts data helpers — no manual wiring needed.
@@ -230,10 +246,7 @@ export function captureApiError(
   // mobile aborts paged anyway (prod 2026-06-18: 6 at once from one iPhone
   // backgrounding /games → fetchItems/fetchAllItems on teams, status null).
   const isTransientNetworkFailure =
-    context.status == null &&
-    /^(Load failed|Failed to fetch|NetworkError when attempting to fetch resource|The Internet connection appears to be offline|The network connection was lost)\.?(?:\s*\([^)]*\))?$/i.test(
-      err.message.trim(),
-    )
+    context.status == null && isTransientNetworkMessage(err.message)
   if (isTransientNetworkFailure) {
     console.warn(
       `[Network] ${context.operation}${context.collection ? ` on ${context.collection}` : ''} — request did not reach the server (${err.message})`,
@@ -368,6 +381,31 @@ export function captureAuthError(
   // 2026-05-12 with 100+ hits/day). Log to console but skip remote capture.
   if (context.action === 'token_refresh' && /token expired/i.test(err.message)) {
     console.info('[Auth] Refresh token expired — user must re-authenticate')
+    return
+  }
+
+  // The request never reached the server (dropped signal, backgrounded tab, or
+  // an edge block that CORS renders statusless). Nothing about the session is
+  // known to be wrong, so this is not an auth fault — mirror the carve-out
+  // captureApiError has had since 2026-06-18 and downgrade to `network_error`
+  // at warn (kept in the JSONL, hidden from the default view, never paged).
+  // Without this, one blip on mobile emitted a red auth_error pair
+  // (token_refresh + session_restore, the nested captures double-reporting a
+  // single failure) and burned a Sentry envelope per occurrence — the volume
+  // that trips the sentry-tunnel 60/min cap during a burst.
+  if (isTransientNetworkMessage(err.message)) {
+    console.warn(`[Network] auth ${context.action} — request did not reach the server (${err.message})`)
+    sendToErrorLog({
+      source: 'frontend',
+      project: 'wiedisync',
+      event: 'network_error',
+      level: 'warn',
+      action: context.action,
+      method: context.method,
+      page: window.location.pathname,
+      userAgent: navigator.userAgent,
+      error: err.message,
+    })
     return
   }
 
