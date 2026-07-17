@@ -78,7 +78,16 @@ const MATCH_CASCADE_SQL = `
   ),
   j AS (
     SELECT m.*, v.is_writer AS vm_is_writer, v.association_id AS vm_assoc_id,
-           upper(btrim(coalesce(c.offiziellen_lizenz, ''))) AS cd_lizenz
+           upper(btrim(coalesce(c.offiziellen_lizenz, ''))) AS cd_lizenz,
+           -- Mirrors vm-sync-check.mjs's clubSaysScorer: ClubDesk VB SC, or an
+           -- effective referee (VM's list OR the ClubDesk VB Schiedsrichter*innen
+           -- group, which the sync now also honours). These are exactly the people
+           -- the sync refuses to clear.
+           (
+             upper(btrim(coalesce(c.offiziellen_lizenz, ''))) = 'VB SC'
+             OR v.is_referee = true
+             OR coalesce(c.gruppen_bracketed, '') ~* '(^|,)\\s*VB Schiedsrichter\\*innen\\s*(,|$)'
+           ) AS club_says_scorer
     FROM m
     LEFT JOIN sv_vm_check v ON v.id = m.vm_id
     LEFT JOIN clubdesk_export c ON btrim(c.clubdesk_id) = btrim(m.clubdesk_id)
@@ -107,17 +116,24 @@ export function registerScorerVmCheck(router, { database, logger }) {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
 
       // Direction 1 — flagged as scorer, but VM's writer registry doesn't list them.
-      // `cleared_next_sync` is the actionable half: the VM sync only rewrites members
-      // it MATCHES, so a member with no VM row keeps the flag indefinitely while a
-      // matched non-writer loses it next Monday 04:00.
+      //
+      // `cleared_next_sync` must mirror vm-sync-check.mjs's ACTUAL clearing rule,
+      // not merely "VM says not-a-writer". Since the 2026-07-17 guard the sync
+      // clears only when it matches the member AND no other register vouches for
+      // them, so this needs the same `club_says_scorer` test — otherwise it
+      // predicts a wipe that cannot happen and every row reads a false "yes"
+      // (it did, briefly, between the endpoint and the guard shipping).
+      // ⚠ Keep in step with that script: this column's only job is to predict it.
       const flaggedSql = `${MATCH_CASCADE_SQL}
         SELECT id, first_name, last_name, license_nr, vm_assoc_id, cd_lizenz, referee_vb,
                (vm_id IS NOT NULL) AS in_vm,
                vm_is_writer,
-               (vm_id IS NOT NULL AND vm_is_writer = false) AS cleared_next_sync
+               (vm_id IS NOT NULL AND vm_is_writer = false AND club_says_scorer = false)
+                 AS cleared_next_sync
         FROM j
         WHERE scorer_vb = true AND (vm_id IS NULL OR vm_is_writer = false)
-        ORDER BY (vm_id IS NOT NULL AND vm_is_writer = false) DESC, last_name, first_name`
+        ORDER BY (vm_id IS NOT NULL AND vm_is_writer = false AND club_says_scorer = false) DESC,
+                 last_name, first_name`
 
       // Direction 2 — VM says writer, flag missing. Reads 0 while the VM sync is
       // healthy (it sets these true on every run); non-zero means the sync is
