@@ -5,7 +5,7 @@
  */
 
 import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, escHtml } from './email-template.js'
-import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
+import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail, titleCaseName } from './normalize.js'
 import { BB_SITUATIONS, bbRequiredDocs } from './bb-docs.js'
 import crypto from 'crypto'
 import { streamManagedFile } from './storage-read.js'
@@ -713,13 +713,16 @@ export function registerRegistration(router, { database, logger, services, getSc
         status: 'pending',
         membership_type: body.membership_type,
         anrede: body.anrede || null,
-        vorname: body.vorname.trim(),
-        nachname: body.nachname.trim(),
+        // Title-case names + address so lazy all-lowercase entry ("janina vanha",
+        // "rosengartenstrasse 33", "zürich") is stored — and shown in the
+        // confirmation / admin emails and the /admin list — properly capitalized.
+        vorname: titleCaseName(body.vorname),
+        nachname: titleCaseName(body.nachname),
         email: emailNorm.value,
         telefon_mobil: phoneNorm.value,
-        adresse: body.adresse || null,
+        adresse: titleCaseName(body.adresse),
         plz: body.plz || null,
-        ort: body.ort || null,
+        ort: titleCaseName(body.ort),
         geburtsdatum: body.geburtsdatum || null,
         nationalitaet: body.nationalitaet || null,
         nationalitaet_code: (body.nationalitaet_code || '').trim().toUpperCase().slice(0, 2) || null,
