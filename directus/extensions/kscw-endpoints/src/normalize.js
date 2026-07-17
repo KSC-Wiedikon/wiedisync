@@ -99,6 +99,26 @@ export function normalizeAhv(raw) {
   return { ok: true, value: `${d.slice(0, 3)}.${d.slice(3, 7)}.${d.slice(7, 11)}.${d.slice(11, 13)}` }
 }
 
+/** Title-case a free-text name / address for storage + display: uppercase the
+ *  first letter of each word, leaving the REST of each word as typed. Fixes the
+ *  common all-lowercase entry ("janina vanha" → "Janina Vanha",
+ *  "rosengartenstrasse 33" → "Rosengartenstrasse 33", "zürich" → "Zürich") that
+ *  mobile keyboards produce, without mangling a correctly-typed name
+ *  ("McDonald", "d'Angelo" keep their intentional casing) or a house
+ *  number / unit ("8b" stays "8b"). Word boundaries: start + whitespace and the
+ *  usual name separators (- ' ’ / .). Unicode-aware (\p{L} + toUpperCase) so
+ *  umlauts capitalize correctly. Returns null for empty/whitespace input.
+ *
+ *  Unlike the phone/iban/ahv/email normalizers above this can never fail — it
+ *  returns the value directly, not { ok, value } — and it is NOT one of the
+ *  cross-DB canonical formats (no SQL/frontend mirror): it's a write-path
+ *  display normalizer applied to the registration name/address fields. */
+export function titleCaseName(raw) {
+  const s = String(raw ?? '').trim()
+  if (!s) return null
+  return s.replace(/(^|[\s'’\-/.])(\p{L})/gu, (_, sep, ch) => sep + ch.toUpperCase())
+}
+
 /** Email → trimmed + lowercased; single-@ shape with a 2+ char TLD. */
 export function normalizeEmail(raw) {
   const s = String(raw ?? '').trim().toLowerCase()
