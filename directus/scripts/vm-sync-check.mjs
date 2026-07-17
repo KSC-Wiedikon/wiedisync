@@ -649,11 +649,37 @@ async function syncToMembers(rows) {
   }
   for (const k of nameCollisions) rowByName.delete(k);
 
+  // ClubDesk `VB SC` holders — the set this sync must NOT clear scorer_vb for.
+  // See the scorer_vb block below for why. Paginated; `clubdesk_id` is unique in
+  // clubdesk_export (verified on prod 2026-07-17), so a plain Set is safe.
+  const cdScorerIds = new Set();
+  {
+    let cdPage = 1;
+    while (true) {
+      const url = `${DIRECTUS_URL}/items/clubdesk_export?fields=clubdesk_id,offiziellen_lizenz&limit=250&page=${cdPage}`;
+      const res = await fetch(url, { headers });
+      // Fail loud, don't degrade. An empty/failed read here would look exactly
+      // like "nobody holds VB SC" and re-arm the very wipe this guard prevents —
+      // silently, on 45 members. Better to abort the member sync than to clear.
+      if (!res.ok) throw new Error(`Directus clubdesk_export list failed: ${res.status}`);
+      const { data } = await res.json();
+      if (!data || data.length === 0) break;
+      for (const r of data) {
+        const id = (r.clubdesk_id ?? '').toString().trim();
+        if (id && (r.offiziellen_lizenz ?? '').toString().trim().toUpperCase() === 'VB SC') {
+          cdScorerIds.add(id);
+        }
+      }
+      cdPage++;
+    }
+    console.log(`  ClubDesk VB SC holders: ${cdScorerIds.size}`);
+  }
+
   // Fetch all members (paginated) — we want to backfill members without license_nr too.
   const members = [];
   let page = 1;
   while (true) {
-    const url = `${DIRECTUS_URL}/items/members?fields=id,license_nr,sex,scorer_vb,referee_vb,vm_email,email,first_name,last_name,birthdate,birthdate_visibility,licence_category,licence_activated,licence_validated&limit=250&page=${page}`;
+    const url = `${DIRECTUS_URL}/items/members?fields=id,license_nr,sex,scorer_vb,referee_vb,clubdesk_id,vm_email,email,first_name,last_name,birthdate,birthdate_visibility,licence_category,licence_activated,licence_validated&limit=250&page=${page}`;
     const res = await fetch(url, { headers });
     if (!res.ok) throw new Error(`Directus members list failed: ${res.status}`);
     const { data } = await res.json();
@@ -669,6 +695,10 @@ async function syncToMembers(rows) {
   let matched = 0;
   let matchedByLicense = 0, matchedByEmail = 0, matchedByNameDob = 0, matchedByName = 0;
   let backfilledLicense = 0, backfilledBirthdate = 0;
+  // scorer_vb kept despite VM not listing the person as a writer (ClubDesk VB SC
+  // or VB referee). Printed so the guard's reach is visible per run — a silent
+  // guard is indistinguishable from a broken one.
+  let keptScorer = 0;
 
   for (const member of members) {
     let row = null;
@@ -745,13 +775,38 @@ async function syncToMembers(rows) {
 
     // Licences are per-flag booleans (migration 067; legacy `licences` json
     // dropped in migration 119). sv_vm_check stays the source of truth.
+    //
+    // ⚠ SET-TRUE-ONLY for anyone another register calls a Schreiber. VM's
+    // indoorwriter list is NOT the whole truth: measured on prod 2026-07-17 its
+    // 109 writers were a strict SUBSET of ClubDesk's 154 `VB SC` holders — zero
+    // VM writers lacked `VB SC`, so VM never *contradicts* ClubDesk, it just
+    // holds less. Clearing on `!is_writer` therefore deleted good data rather
+    // than resolving a disagreement, and fought `import-clubdesk-csv.mjs`
+    // (Sat 22:00, set-true from `VB SC` — migration 207) which set it straight
+    // back: the flag oscillated weekly for 28 members, and scorer assignment saw
+    // a different eligible pool depending on the day. Confirmed in prod
+    // revisions: member 180 true 2026-07-11 13:29 → cleared here 2026-07-13 04:00.
+    //
+    // Absence from VM is absence of evidence, not evidence of absence. So VM may
+    // still GRANT the flag, but only a register that actually knows a licence was
+    // revoked may remove it. Detector: GET /kscw/admin/scorer-vm-check.
     const hasScorer = member.scorer_vb === true;
+    const cdId = (member.clubdesk_id ?? '').toString().trim();
+    // `row.is_referee` (not member.referee_vb) — that is this run's post-sync
+    // referee state, and ClubDesk auto-grants scorer_vb to every VB referee
+    // ("every VB referee is automatically a scorer", import-clubdesk-csv.mjs), so
+    // clearing one here would oscillate identically. 0 such members today (all 13
+    // VB referees also hold `VB SC`), but the rule is real — don't let it become a
+    // silent bug the first time a referee is registered without the licence.
+    const clubSaysScorer = (cdId && cdScorerIds.has(cdId)) || row.is_referee === true;
     if (row.is_writer && !hasScorer) {
       payload.scorer_vb = true;
       changed = true;
-    } else if (!row.is_writer && hasScorer) {
+    } else if (!row.is_writer && hasScorer && !clubSaysScorer) {
       payload.scorer_vb = false;
       changed = true;
+    } else if (!row.is_writer && hasScorer) {
+      keptScorer++;
     }
 
     // Referee licence (vb). Boolean column only. Never touch referee_bb.
@@ -769,6 +824,7 @@ async function syncToMembers(rows) {
 
   console.log(`  Matched: ${matched} (license=${matchedByLicense}, email=${matchedByEmail}, name+dob=${matchedByNameDob}, name=${matchedByName}), To update: ${updates.length}`);
   console.log(`  Backfill: license_nr=${backfilledLicense}, birthdate=${backfilledBirthdate}`);
+  console.log(`  Kept scorer_vb (ClubDesk VB SC / VB referee, not a VM writer): ${keptScorer}`);
 
   // Per-item PATCH (NOT the batch-array form). The batch-array PATCH
   // (PATCH /items/members with an array body) silently drops the scorer_vb /
