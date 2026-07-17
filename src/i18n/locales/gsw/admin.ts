@@ -155,7 +155,15 @@ export default {
   dhExport: 'Exportiere',
   dhExportFailed: 'Export het nöd klappt',
   dhMarkSync: 'Für Sync-up vormerke',
-  dhMarkedForSync: 'Für Sync-up vorgmerkt — Push via Anmeldunge → «Sync up to ClubDesk»',
+  dhMarkedForSync: 'Für Sync-up vorgmerkt — Push via «Sync up to ClubDesk»',
+  dhIssueClubdeskNameDrift: 'Name wiicht vo ClubDesk ab (Push änderet Näme nöd)',
+  dhSyncUp: 'Sync up zu ClubDesk',
+  dhBulkSelectAll: 'Alli uswähle',
+  dhBulkSelectRow: 'Das Mitglied uswähle',
+  dhBulkSelected: '{{count}} uusgwählt',
+  dhBulkMark: '{{count}} für Sync-up vormerke',
+  dhBulkMarked: '{{count}} für Sync-up vorgmerkt',
+  dhBulkBlankRisk: '{{count}} übersprunge — würd ClubDesk-Date leere, zerscht «Sync down»',
 
   // Audit Log
   auditTitle: 'Audit Log',

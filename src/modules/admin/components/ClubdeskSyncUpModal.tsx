@@ -14,7 +14,7 @@ interface FieldChange { field: string; old_value?: string | null; new_value?: st
 // stale-link guard would skip the member anyway, so the modal shows why and
 // offers mute instead of silently re-listing the member on every open.
 interface ChangedMember { id: number; first_name: string; last_name: string; email: string; clubdesk_id: string; changes: FieldChange[]; stale?: boolean }
-interface UnlinkedMember { id: number; first_name: string; last_name: string; email: string; likely_non_member: boolean; beitragskategorie?: string | null; offiziellen_lizenz?: string | null; mitgliederbeitrag?: string | null }
+interface UnlinkedMember { id: number; first_name: string; last_name: string; email: string; likely_non_member: boolean; would_duplicate?: boolean; beitragskategorie?: string | null; offiziellen_lizenz?: string | null; mitgliederbeitrag?: string | null }
 interface Preview { changed: ChangedMember[]; unlinked: UnlinkedMember[] }
 interface UpResult { total?: number | null; neu?: number | null; veraendert?: number | null; committed?: boolean }
 interface UpStatus { state: 'idle' | 'queued' | 'running' | 'done' | 'failed'; message: string | null; result: UpResult | null }
@@ -56,7 +56,11 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
         setPreview(p)
         const sel = new Set<number>()
         p.changed.forEach((m) => { if (!m.stale) sel.add(m.id) })
-        p.unlinked.forEach((m) => { if (!m.likely_non_member) sel.add(m.id) })
+        // would_duplicate: a CREATE would duplicate an existing ClubDesk contact
+        // (same name, divergent email). Off by default like likely_non_member —
+        // the admin opts in only after relinking or confirming it's a real second
+        // person; /up refuses it server-side regardless.
+        p.unlinked.forEach((m) => { if (!m.likely_non_member && !m.would_duplicate) sel.add(m.id) })
         setSelected(sel)
         setPhase('review')
       })
@@ -96,9 +100,9 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
       // for the rest, but the operator must know these members were NOT pushed
       // — otherwise a partial skip looks like a full success and the member
       // silently resurfaces on every preview (review finding 2026-07-08).
-      const q = await kscwApi<{ skipped_stale_link?: number[]; skipped_blank_risk?: number[] }>(
+      const q = await kscwApi<{ skipped_stale_link?: number[]; skipped_blank_risk?: number[]; skipped_would_duplicate?: number[] }>(
         '/clubdesk-member-sync/up', { method: 'POST', body: { member_ids: ids } })
-      const nSkipped = (q.skipped_stale_link?.length ?? 0) + (q.skipped_blank_risk?.length ?? 0)
+      const nSkipped = (q.skipped_stale_link?.length ?? 0) + (q.skipped_blank_risk?.length ?? 0) + (q.skipped_would_duplicate?.length ?? 0)
       if (nSkipped > 0) toast.warning(t('clubdeskUpSkipped', { count: nSkipped }))
       // Scale with batch size: bulk drift-fills can push 100+ rows through the
       // per-minute dispatcher + Playwright import — a fixed 240 s would show a
@@ -220,7 +224,7 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
                   </TableHeader>
                   <TableBody>
                     {preview.unlinked.map((m) => (
-                      <TableRow key={m.id}>
+                      <TableRow key={m.id} className={m.would_duplicate ? 'opacity-70' : undefined}>
                         <TableCell><Checkbox checked={selected.has(m.id)} onCheckedChange={() => toggle(m.id)} /></TableCell>
                         <TableCell className="whitespace-normal break-words">
                           <div className="font-medium">{m.last_name} {m.first_name}</div>
@@ -238,6 +242,11 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
                             {m.likely_non_member && (
                               <Badge variant="outline" className="mt-0.5 border-amber-300 text-[10px] text-amber-700 dark:text-amber-300">
                                 {t('clubdeskUpNonMember')}
+                              </Badge>
+                            )}
+                            {m.would_duplicate && (
+                              <Badge variant="outline" className="mt-0.5 border-red-300 text-[10px] text-red-700 dark:text-red-300">
+                                {t('clubdeskUpDuplicate')}
                               </Badge>
                             )}
                           </div>

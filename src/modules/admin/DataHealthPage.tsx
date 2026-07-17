@@ -5,15 +5,18 @@ import { toast } from 'sonner'
 import { formatTimeZurich } from '../../utils/dateHelpers'
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight,
-  Wrench, XCircle, RefreshCcw, ScrollText, Download,
+  Wrench, XCircle, RefreshCcw, ScrollText, Download, ArrowUpFromLine,
 } from 'lucide-react'
 import { toXlsx, downloadBlob } from './utils/exportResults'
+import { Checkbox } from '../../components/ui/checkbox'
+import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '../../components/ui/table'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import {
   runAllChecks, autoFix, autoFixAll, manualFix, linkClubdesk, deactivateMember, flagClubdeskDrift,
+  flagClubdeskDriftBulk,
   type CollectionHealth, type DataIssue, type IssueKey,
 } from './utils/dataHealthChecks'
 
@@ -38,6 +41,7 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   clubdeskCoachGroup: 'dhIssueClubdeskCoachGroup',
   clubdeskFeeNoRoster: 'dhIssueClubdeskFeeNoRoster',
   clubdeskUnmappedTeam: 'dhIssueClubdeskUnmappedTeam',
+  clubdeskNameDrift: 'dhIssueClubdeskNameDrift',
   scorerNotInVm: 'dhIssueScorerNotInVm',
   scorerVmWriterNotFlagged: 'dhIssueScorerVmWriterNotFlagged',
   scorerCdVbScNotFlagged: 'dhIssueScorerCdVbScNotFlagged',
@@ -68,6 +72,10 @@ function CollectionCard({
   const [fixingId, setFixingId] = useState<string | null>(null)
   const [fixingAll, setFixingAll] = useState(false)
   const [manualFixingId, setManualFixingId] = useState<string | null>(null)
+  // Multi-select for "Mark for sync-up" — holds selected issue.ids (drift/fill
+  // rows only). Cleared after a bulk mark; a rescan then drops the marked rows.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkMarking, setBulkMarking] = useState(false)
 
   const hasIssues = health.issues.length > 0
   const fixableCount = health.issues.filter((i) => i.autoFixable).length
@@ -154,6 +162,48 @@ function CollectionCard({
       }
     } finally {
       setManualFixingId(null)
+    }
+  }
+
+  // Rows that can be marked for sync-up (drift + fill). Name-drift rows are
+  // excluded by construction — they carry no manualKind (the push can't send names).
+  const markable = health.issues.filter((i) => i.manualKind === 'clubdeskDriftFlag')
+  const selectedMarkable = markable.filter((i) => selected.has(i.id))
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  }
+
+  const toggleSelectAll = () => {
+    setSelected((prev) =>
+      prev.size === markable.length ? new Set() : new Set(markable.map((i) => i.id)))
+  }
+
+  async function handleBulkMark() {
+    if (!selectedMarkable.length) return
+    setBulkMarking(true)
+    try {
+      // One POST for the whole selection — /clubdesk-drift/flag takes an array and
+      // filters blank-risk itself, so there's no per-row fan-out.
+      const { flagged, skipped_blank_risk } = await flagClubdeskDriftBulk(selectedMarkable)
+      if (flagged > 0) {
+        toast.success(t('dhBulkMarked', { count: flagged }))
+      } else {
+        // Nothing survived (all resolved or all blank-risk) — informational.
+        toast.info(t('dhDriftGone'))
+      }
+      if (skipped_blank_risk > 0) toast.warning(t('dhBulkBlankRisk', { count: skipped_blank_risk }))
+      setSelected(new Set())
+      onFixed()
+    } catch {
+      toast.error(t('dhFixFailed'))
+    } finally {
+      setBulkMarking(false)
     }
   }
 
@@ -264,6 +314,38 @@ function CollectionCard({
             </div>
           )}
 
+          {/* Bulk "Mark for sync-up" — select-all + a single flag POST for the
+              selection. Only shows when the collection has markable drift rows. */}
+          {markable.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-2 dark:border-gray-700">
+              <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 text-xs text-gray-500 sm:min-h-0 dark:text-gray-400">
+                <Checkbox
+                  checked={
+                    selected.size === 0 ? false
+                      : selectedMarkable.length === markable.length ? true
+                        : 'indeterminate'
+                  }
+                  onCheckedChange={toggleSelectAll}
+                  aria-label={t('dhBulkSelectAll')}
+                />
+                {selectedMarkable.length > 0
+                  ? t('dhBulkSelected', { count: selectedMarkable.length })
+                  : t('dhBulkSelectAll')}
+              </label>
+              {selectedMarkable.length > 0 && (
+                <button
+                  onClick={handleBulkMark}
+                  disabled={bulkMarking}
+                  aria-busy={bulkMarking}
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50 sm:min-h-0"
+                >
+                  <ArrowUpFromLine className="h-3 w-3" aria-hidden="true" />
+                  {bulkMarking ? t('dhFixing') : t('dhBulkMark', { count: selectedMarkable.length })}
+                </button>
+              )}
+            </div>
+          )}
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -279,6 +361,13 @@ function CollectionCard({
                 <TableRow key={`${issue.id}-${issue.field}-${issue.issueKey}`}>
                   <TableCell className="align-top">
                     <span className="flex items-center gap-2">
+                      {issue.manualKind === 'clubdeskDriftFlag' && (
+                        <Checkbox
+                          checked={selected.has(issue.id)}
+                          onCheckedChange={() => toggleSelect(issue.id)}
+                          aria-label={t('dhBulkSelectRow')}
+                        />
+                      )}
                       {severityIcon(issue.severity)}
                       <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
                         {t(ISSUE_LABEL_KEY[issue.issueKey])}
@@ -389,6 +478,7 @@ export default function DataHealthPage() {
   // immediately rather than flashing the empty state for a frame.
   const [loading, setLoading] = useState(true)
   const [lastCheck, setLastCheck] = useState('')
+  const [syncUpOpen, setSyncUpOpen] = useState(false)
 
   const runChecks = useCallback(async () => {
     setLoading(true)
@@ -440,6 +530,16 @@ export default function DataHealthPage() {
               {lastCheck}
             </span>
           )}
+          {/* Push marked members to ClubDesk without leaving the page — the same
+              modal as /admin/clubdesk-sync and Anmeldungen (single approval gate,
+              not a second copy). This page is already SuperAdminRoute-gated. */}
+          <button
+            onClick={() => setSyncUpOpen(true)}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            <ArrowUpFromLine className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('dhSyncUp')}
+          </button>
           <button
             onClick={runChecks}
             disabled={loading}
@@ -460,6 +560,9 @@ export default function DataHealthPage() {
           </button>
         </div>
       </div>
+
+      {/* Rescan after a push so pushed members drop off the drift list. */}
+      <ClubdeskSyncUpModal open={syncUpOpen} onOpenChange={setSyncUpOpen} onDone={runChecks} />
 
       {/* Initial scan — branded "load everything then render" spinner */}
       {initialScan ? null : (

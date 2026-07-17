@@ -478,7 +478,15 @@ export default {
   dhExport: 'Exporter',
   dhExportFailed: 'Échec de l’exportation',
   dhMarkSync: 'Marquer pour la synchro',
-  dhMarkedForSync: 'Marqué pour la synchro — envoi via Anmeldungen → « Sync up to ClubDesk »',
+  dhMarkedForSync: 'Marqué pour la synchro — envoi via « Sync up to ClubDesk »',
+  dhIssueClubdeskNameDrift: 'Le nom diffère de ClubDesk (l’envoi ne change pas les noms)',
+  dhSyncUp: 'Synchroniser vers ClubDesk',
+  dhBulkSelectAll: 'Tout sélectionner',
+  dhBulkSelectRow: 'Sélectionner ce membre',
+  dhBulkSelected: '{{count}} sélectionné(s)',
+  dhBulkMark: 'Marquer {{count}} pour la synchro',
+  dhBulkMarked: '{{count}} marqué(s) pour la synchro',
+  dhBulkBlankRisk: '{{count}} ignoré(s) — viderait des données ClubDesk, faire « Sync down » d’abord',
 
   // Registrations — file preview + doc count
   anmeldungenDocsCount: '{{count}} doc.',
