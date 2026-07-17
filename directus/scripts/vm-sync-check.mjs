@@ -18,6 +18,11 @@ if (!VM_USERNAME || !VM_PASSWORD) {
   console.error('Missing VM_USERNAME or VM_PASSWORD environment variables');
   process.exit(1);
 }
+// ClubDesk's volleyball-referee group. Must match the name used by
+// import-clubdesk-csv.mjs's referee_vb rule exactly — the two read the same
+// [Gruppen] column and a drift between them silently un-guards referee_vb.
+const CD_REFEREE_GROUP_VB = 'VB Schiedsrichter*innen';
+
 const DIRECTUS_URL = process.env.DIRECTUS_URL || 'https://directus-dev.kscw.ch';
 const DIRECTUS_TOKEN = process.env.DIRECTUS_TOKEN || process.env.DIRECTUS_ADMIN_TOKEN;
 const DIRECTUS_EMAIL = process.env.ADMIN_EMAIL || 'admin@kscw.ch';
@@ -649,30 +654,44 @@ async function syncToMembers(rows) {
   }
   for (const k of nameCollisions) rowByName.delete(k);
 
-  // ClubDesk `VB SC` holders — the set this sync must NOT clear scorer_vb for.
-  // See the scorer_vb block below for why. Paginated; `clubdesk_id` is unique in
-  // clubdesk_export (verified on prod 2026-07-17), so a plain Set is safe.
+  // ClubDesk is the register this sync must not overrule — see the scorer_vb /
+  // referee_vb blocks below. Two sets, one pass:
+  //   cdScorerIds  — `Offiziellen Lizenz` = VB SC (the Schreiber licence)
+  //   cdRefereeIds — membership of the `VB Schiedsrichter*innen` group, which
+  //                  import-clubdesk-csv.mjs calls "the source of truth for is a
+  //                  referee for Wiedikon" and only ever sets true.
+  // Paginated; `clubdesk_id` is unique in clubdesk_export (verified on prod
+  // 2026-07-17), so plain Sets are safe.
   const cdScorerIds = new Set();
+  const cdRefereeIds = new Set();
   {
     let cdPage = 1;
     while (true) {
-      const url = `${DIRECTUS_URL}/items/clubdesk_export?fields=clubdesk_id,offiziellen_lizenz&limit=250&page=${cdPage}`;
+      const url = `${DIRECTUS_URL}/items/clubdesk_export?fields=clubdesk_id,offiziellen_lizenz,gruppen_bracketed&limit=250&page=${cdPage}`;
       const res = await fetch(url, { headers });
       // Fail loud, don't degrade. An empty/failed read here would look exactly
-      // like "nobody holds VB SC" and re-arm the very wipe this guard prevents —
-      // silently, on 45 members. Better to abort the member sync than to clear.
+      // like "nobody holds VB SC / nobody is in the referee group" and re-arm the
+      // very wipes these guards prevent — silently, on 45 + 2 members. Better to
+      // abort the member sync than to clear.
       if (!res.ok) throw new Error(`Directus clubdesk_export list failed: ${res.status}`);
       const { data } = await res.json();
       if (!data || data.length === 0) break;
       for (const r of data) {
         const id = (r.clubdesk_id ?? '').toString().trim();
-        if (id && (r.offiziellen_lizenz ?? '').toString().trim().toUpperCase() === 'VB SC') {
+        if (!id) continue;
+        if ((r.offiziellen_lizenz ?? '').toString().trim().toUpperCase() === 'VB SC') {
           cdScorerIds.add(id);
         }
+        // `gruppen_bracketed` is the comma-joined [Gruppen] list. Split rather
+        // than substring-match: a bare `includes` would also fire on a future
+        // group whose name merely contains this one.
+        const groups = (r.gruppen_bracketed ?? '').toString()
+          .split(',').map((g) => g.trim().toLowerCase());
+        if (groups.includes(CD_REFEREE_GROUP_VB.toLowerCase())) cdRefereeIds.add(id);
       }
       cdPage++;
     }
-    console.log(`  ClubDesk VB SC holders: ${cdScorerIds.size}`);
+    console.log(`  ClubDesk VB SC holders: ${cdScorerIds.size}, VB referee group: ${cdRefereeIds.size}`);
   }
 
   // Fetch all members (paginated) — we want to backfill members without license_nr too.
@@ -695,10 +714,10 @@ async function syncToMembers(rows) {
   let matched = 0;
   let matchedByLicense = 0, matchedByEmail = 0, matchedByNameDob = 0, matchedByName = 0;
   let backfilledLicense = 0, backfilledBirthdate = 0;
-  // scorer_vb kept despite VM not listing the person as a writer (ClubDesk VB SC
-  // or VB referee). Printed so the guard's reach is visible per run — a silent
-  // guard is indistinguishable from a broken one.
+  // Flags kept despite VM not listing the person. Printed so each guard's reach is
+  // visible per run — a silent guard is indistinguishable from a broken one.
   let keptScorer = 0;
+  let keptReferee = 0;
 
   for (const member of members) {
     let row = null;
@@ -792,13 +811,14 @@ async function syncToMembers(rows) {
     // revoked may remove it. Detector: GET /kscw/admin/scorer-vm-check.
     const hasScorer = member.scorer_vb === true;
     const cdId = (member.clubdesk_id ?? '').toString().trim();
-    // `row.is_referee` (not member.referee_vb) — that is this run's post-sync
-    // referee state, and ClubDesk auto-grants scorer_vb to every VB referee
-    // ("every VB referee is automatically a scorer", import-clubdesk-csv.mjs), so
-    // clearing one here would oscillate identically. 0 such members today (all 13
-    // VB referees also hold `VB SC`), but the rule is real — don't let it become a
-    // silent bug the first time a referee is registered without the licence.
-    const clubSaysScorer = (cdId && cdScorerIds.has(cdId)) || row.is_referee === true;
+    // Effective post-sync referee state: VM's list OR the ClubDesk group (which
+    // the referee block below now honours). ClubDesk auto-grants scorer_vb to
+    // every VB referee ("every VB referee is automatically a scorer",
+    // import-clubdesk-csv.mjs), so clearing a referee's scorer_vb here would
+    // oscillate identically.
+    const clubSaysReferee = cdId !== '' && cdRefereeIds.has(cdId);
+    const effectiveReferee = row.is_referee === true || clubSaysReferee;
+    const clubSaysScorer = (cdId !== '' && cdScorerIds.has(cdId)) || effectiveReferee;
     if (row.is_writer && !hasScorer) {
       payload.scorer_vb = true;
       changed = true;
@@ -810,13 +830,35 @@ async function syncToMembers(rows) {
     }
 
     // Referee licence (vb). Boolean column only. Never touch referee_bb.
+    //
+    // ⚠ Same set-true-only rule as scorer_vb, for the same reason. VM's
+    // `clubreferee` (11 people) is a strict SUBSET of ClubDesk's
+    // `VB Schiedsrichter*innen` group (13) — zero VM referees sit outside it —
+    // and import-clubdesk-csv.mjs calls that group "the source of truth for is a
+    // referee for Wiedikon" and only ever sets true. Clearing on `!is_referee`
+    // therefore fought it: this sync cleared members 5 + 61 on 2026-07-13
+    // 04:00, a raw-SQL ClubDesk run put them back (no revision row), and the
+    // next run would have cleared them again — a live weekly flip.
+    //
+    // The two registers answer DIFFERENT questions: VM = holds a current SVRZ
+    // referee licence; the ClubDesk group = the club's referee roster.
+    // referee_vb means the latter (it drives the read-only "Referee for
+    // Wiedikon" profile badge), so the club's roster wins and VM may only add.
+    //
+    // ⚠ CONSEQUENCE: nothing clears referee_vb automatically any more — ClubDesk's
+    // own rule is set-true-only too ("dropped from the group keeps the flag until
+    // manually cleared"). Revoking a referee now means removing them from the
+    // ClubDesk group AND clearing the flag by hand. That is the accepted trade
+    // (2026-07-17): a stale badge beats a value that changes every week.
     const hasReferee = member.referee_vb === true;
     if (row.is_referee && !hasReferee) {
       payload.referee_vb = true;
       changed = true;
-    } else if (!row.is_referee && hasReferee) {
+    } else if (!row.is_referee && hasReferee && !clubSaysReferee) {
       payload.referee_vb = false;
       changed = true;
+    } else if (!row.is_referee && hasReferee) {
+      keptReferee++;
     }
 
     if (changed) updates.push(payload);
@@ -825,6 +867,7 @@ async function syncToMembers(rows) {
   console.log(`  Matched: ${matched} (license=${matchedByLicense}, email=${matchedByEmail}, name+dob=${matchedByNameDob}, name=${matchedByName}), To update: ${updates.length}`);
   console.log(`  Backfill: license_nr=${backfilledLicense}, birthdate=${backfilledBirthdate}`);
   console.log(`  Kept scorer_vb (ClubDesk VB SC / VB referee, not a VM writer): ${keptScorer}`);
+  console.log(`  Kept referee_vb (in ClubDesk ${CD_REFEREE_GROUP_VB}, not a VM referee): ${keptReferee}`);
 
   // Per-item PATCH (NOT the batch-array form). The batch-array PATCH
   // (PATCH /items/members with an array body) silently drops the scorer_vb /
