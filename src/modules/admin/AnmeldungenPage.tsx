@@ -536,8 +536,8 @@ export default function AnmeldungenPage() {
                                 />
                               </TableCell>
                               <TableCell className="whitespace-normal">
-                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                  <span className="block sm:inline font-medium text-gray-900 dark:text-gray-100">{reg.nachname}</span>
+                                <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
+                                  <span className="block sm:inline font-medium text-gray-900 dark:text-gray-100">{reg.nachname}{reg.vorname ? ',' : ''}</span>
                                   <span className="block sm:inline text-gray-600 dark:text-gray-400 sm:text-gray-900 sm:dark:text-gray-100">{reg.vorname}</span>
                                   <span className="sm:hidden">{statusBadge(reg.status)}</span>
                                 </div>
