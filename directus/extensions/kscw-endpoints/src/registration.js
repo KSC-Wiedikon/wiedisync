@@ -579,8 +579,9 @@ export function registerRegistration(router, { database, logger, services, getSc
           code: 'invalid_ahv',
         })
       }
-      // IBAN is OPTIONAL and used only to pay money back (reimbursements) —
-      // registrations.iban, migration 185.
+      // IBAN is REQUIRED (used to pay money back — reimbursements/expenses;
+      // registrations.iban, migration 185). Mirrors the client's required check;
+      // server = bypass/stale-cache backstop.
       const ibanNorm = normalizeIban(body.iban)
       if (!ibanNorm.ok) {
         return res.status(400).json({
@@ -588,6 +589,14 @@ export function registerRegistration(router, { database, logger, services, getSc
             ? 'Please check the IBAN — it is not a valid account number.'
             : 'Bitte überprüfe die IBAN — sie ist keine gültige Kontonummer.',
           code: 'invalid_iban',
+        })
+      }
+      if (!ibanNorm.value) {
+        return res.status(400).json({
+          error: isEn
+            ? 'Please enter your IBAN.'
+            : 'Bitte gib deine IBAN an.',
+          code: 'iban_required',
         })
       }
 
