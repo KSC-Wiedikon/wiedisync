@@ -4371,18 +4371,23 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           const csvBuffer = toCp1252Buffer(csv)
           const filename = `anmeldung_${reg.nachname}_${reg.vorname}_${reg.reference_number}.csv`
           const recipients = await getApprovalRecipients(reg.membership_type)
+          // Sport type is stored lowercase ("volleyball"); show it capitalized in
+          // the subject, TYPE field, and subtitle (matches the member email above).
+          const sportLabel = reg.membership_type
+            ? reg.membership_type.charAt(0).toUpperCase() + reg.membership_type.slice(1)
+            : reg.membership_type
           const adminCsvCopy = {
             de: {
               name: 'Name', type: 'Typ', team: 'Team', email: 'E-Mail', ref: 'Referenz',
               intro: 'Die Anmeldung wurde bestätigt. Die CSV-Datei für den ClubDesk-Import ist im Anhang.',
               title: 'Anmeldung bestätigt', cta: 'Im Admin öffnen',
-              subject: `[KSCW] Anmeldung bestätigt: ${reg.vorname} ${reg.nachname} (${reg.membership_type})`,
+              subject: `[KSCW] Anmeldung bestätigt: ${reg.vorname} ${reg.nachname} (${sportLabel})`,
             },
             en: {
               name: 'Name', type: 'Type', team: 'Team', email: 'Email', ref: 'Reference',
               intro: 'The registration has been approved. The CSV file for the ClubDesk import is attached.',
               title: 'Registration approved', cta: 'Open in admin',
-              subject: `[KSCW] Registration approved: ${reg.vorname} ${reg.nachname} (${reg.membership_type})`,
+              subject: `[KSCW] Registration approved: ${reg.vorname} ${reg.nachname} (${sportLabel})`,
             },
           }
           const ccLower = (recipients.cc || []).map(e => e.toLowerCase())
@@ -4403,14 +4408,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             const c = adminCsvCopy[loc] || adminCsvCopy.de
             const adminCsvBody = buildInfoCard([
               { label: c.name, value: `${reg.vorname} ${reg.nachname}`, halfWidth: true },
-              { label: c.type, value: reg.membership_type, halfWidth: true },
+              { label: c.type, value: sportLabel, halfWidth: true },
               { label: c.team, value: reg.team || '-', halfWidth: true },
               { label: c.email, value: reg.email, halfWidth: true },
               { label: c.ref, value: reg.reference_number },
             ]) + `<div style="font-size:13px;color:#94a3b8;line-height:1.7;margin-top:12px;text-align:justify"><p>${c.intro}</p></div>`
             const adminCsvHtml = buildEmailLayout(adminCsvBody, {
               title: c.title,
-              subtitle: `${reg.vorname} ${reg.nachname} — ${reg.membership_type}`,
+              subtitle: `${reg.vorname} ${reg.nachname} — ${sportLabel}`,
               sport,
               ctaUrl: 'https://wiedisync.kscw.ch/admin/anmeldungen',
               ctaLabel: c.cta,
