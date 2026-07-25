@@ -201,33 +201,99 @@ function splitEmails(raw: string | null | undefined): string[] {
 }
 
 /**
+ * VIS stores federation names in ALL CAPS ("GERMAN VOLLEYBALL FEDERATION").
+ * Acceptable as a table label, but it shouts in a letter we send to that
+ * federation — so it is title-cased for display, lowercasing the connectors
+ * title case would otherwise capitalise ("FEDERACIÓN ESPAÑOLA DE VOLEIBOL" →
+ * "Federación Española de Voleibol"). A name VIS already stores mixed-case
+ * ("Nederlandse Volleybalbond (Nevobo)") is trusted exactly as it is.
+ *
+ * ⚠ Deliberately NO "short tokens are acronyms" rule. It is the obvious guess
+ * and it is wrong for this data: across all 69 rows the directory holds long-
+ * form names only, so every short token is either a connector or a real word —
+ * "VOLLEYBALL NEW ZEALAND INC." and "SRI LANKA …" would come out as "NEW" and
+ * "SRI". Federations that genuinely spell themselves in capitals go in
+ * FED_KEEP_UPPER by name.
+ */
+const FED_KEEP_UPPER = new Set(['FIVB', 'FIBA', 'CEV', 'NORCECA', 'CAVB', 'CSV', 'AVC'])
+const FED_LOWER = new Set([
+  'DE', 'DI', 'DA', 'DEL', 'DES', 'DU', 'LA', 'LE', 'EL', 'OF', 'AND', 'Y', 'E', 'IL',
+  'VAN', 'DER', 'DEN', 'DELLA',
+])
+function prettyFederationName(raw: string | null | undefined): string {
+  const s = String(raw ?? '').trim()
+  if (!s || s !== s.toUpperCase()) return s
+  return s.replace(/[\p{L}\p{M}'’]+/gu, (word, offset: number) => {
+    if (FED_KEEP_UPPER.has(word)) return word
+    // A connector only reads as one mid-sentence; leading it stays capitalised.
+    if (offset > 0 && FED_LOWER.has(word)) return word.toLowerCase()
+    return word[0] + word.slice(1).toLowerCase()
+  })
+}
+
+/** "Tobias Armstrong, date of birth 07.08.1994, to.armstr@gmail.com" — exactly
+ *  the identity a federation needs to find or create the player. */
+function memberRequestLine(m: TransferMember): string {
+  const name = [m.first_name, m.last_name].map((s) => String(s ?? '').trim()).filter(Boolean).join(' ')
+  const parts = [name || '(name)']
+  const dob = formatDateZurich(m.birthdate)
+  if (dob) parts.push(`date of birth ${dob}`)
+  const email = String(m.email ?? '').trim()
+  if (email) parts.push(email)
+  return parts.join(', ')
+}
+
+/**
  * The text an admin copies into their own mail client to ask a federation to
- * enter a player in VIS. Nothing is ever sent from this page.
+ * enter players in VIS. Nothing is ever sent from this page.
+ *
+ * ONE letter per federation, listing every player of theirs we cannot open a
+ * transfer for yet — a federation that has to answer 24 near-identical emails
+ * about the same club answers none of them.
  *
  * ⚠ ALWAYS ENGLISH, deliberately not translated (same reasoning as the exports
  * rule): the recipient is a foreign national federation, and the language the
  * KSCW admin happens to read the app in says nothing about what that federation
  * reads. English is the FIVB working language.
  *
- * ⚠ The wording ASKS whether the player is registered rather than asserting they
- * are missing. `in_vis === false` is a name-match miss against a federation we
- * usually only GUESSED (seeded from nationality), and this block is also offered
- * for members who were never checked at all — so an accusatory "your player is
- * missing from VIS" would frequently be simply untrue.
+ * ⚠ The wording ASKS whether the players are registered rather than asserting
+ * they are missing. `in_vis === false` is a name-match miss against a federation
+ * we usually only GUESSED (seeded from nationality), and never-checked members
+ * are on the same list — so an accusatory "your players are missing from VIS"
+ * would frequently be simply untrue.
  */
-function visRequestText(m: TransferMember, federationName: string): string {
-  const name = [m.first_name, m.last_name].map((s) => String(s ?? '').trim()).filter(Boolean).join(' ')
-  const dob = formatDateZurich(m.birthdate)
+function visRequestText(rows: TransferMember[], federationName: string): string {
+  const one = rows.length === 1
+  const list = one
+    ? [memberRequestLine(rows[0])]
+    : rows.map((m, i) => `${i + 1}. ${memberRequestLine(m)}`)
   return [
     'Dear Sir or Madam',
     '',
-    `Our member ${name || '(name)'}${dob ? `, date of birth ${dob},` : ''} plays for KSC Wiedikon in Zurich, Switzerland, and we would like to request an international transfer to Swiss Volley.`,
-    `Could you please confirm whether the player is registered in the FIVB VIS player index of ${federationName}, and enter them if they are not?`,
+    one
+      ? 'The player below plays for KSC Wiedikon in Zurich, Switzerland, and we would like to request an international transfer to Swiss Volley.'
+      : `The ${rows.length} players below play for KSC Wiedikon in Zurich, Switzerland, and we would like to request international transfers to Swiss Volley for them.`,
+    `Could you please confirm whether ${one ? 'the player is' : 'they are'} registered in the FIVB VIS player index of ${federationName}, and enter ${one ? 'them if they are not' : 'those who are not'}? We cannot open a transfer request before a player appears in VIS.`,
+    '',
+    ...list,
     '',
     'Thank you very much and kind regards',
     'KSC Wiedikon, Zurich (Switzerland)',
   ].join('\n')
 }
+
+/** Subject line for the prepared request. English, for the same reason the body is. */
+const VIS_REQUEST_SUBJECT =
+  'International transfer to Swiss Volley — request to register KSC Wiedikon players in VIS'
+
+/**
+ * Some mail clients silently TRUNCATE an over-long `mailto:` — which would send
+ * a letter missing its last players while looking complete. Past this length the
+ * body is dropped from the link (recipient + subject only) and the admin pastes
+ * the copied text in; 1800 sits under the ~2048 Windows hands to a mail client.
+ * For scale: 5 players prefill comfortably, 16 do not.
+ */
+const MAILTO_MAX = 1800
 
 /**
  * Copy-to-clipboard button. Icon-only when no `label` is given, so it fits
@@ -268,10 +334,17 @@ function CopyButton({ value, title, label }: { value: string; title: string; lab
   )
 }
 
-/** Last name on line 1, first name on line 2 — the mobile name-wrap rule. */
+/**
+ * Last name on line 1, first name on line 2 — the mobile name-wrap rule.
+ *
+ * Carries the whole identity a federation is asked to match on (name, birthdate,
+ * email), which is why the birthdate lives here rather than in a column of its
+ * own: it is not an attribute of the transfer, it is how the player is found.
+ */
 function NameCell({ m }: { m: TransferMember }) {
   const { t } = useTranslation('admin')
   const display = (m.nickname && m.nickname.trim()) || m.first_name || ''
+  const dob = formatDateZurich(m.birthdate)
   return (
     // min-h keeps the row itself ≥44px on mobile even for a one-word name.
     <div className="flex min-h-[44px] min-w-0 flex-col justify-center">
@@ -281,8 +354,13 @@ function NameCell({ m }: { m: TransferMember }) {
       <span className="block text-sm whitespace-normal break-words text-gray-700 dark:text-gray-300">
         {display}
       </span>
+      {dob && (
+        <span className="text-xs text-gray-500 dark:text-gray-400" title={t('trColBirthdate')}>
+          {dob}
+        </span>
+      )}
       {m.email && (
-        <span className="mt-0.5 hidden text-xs break-all text-gray-400 sm:block dark:text-gray-500">
+        <span className="hidden text-xs break-all text-gray-400 sm:block dark:text-gray-500">
           {m.email}
         </span>
       )}
@@ -411,18 +489,36 @@ export default function TransfersPage() {
   }, [junction, sportByTeam])
 
   /**
-   * A member with NO team membership plays no sport we can name — but they can
-   * still owe a transfer, and hiding them behind a tab they never appear in is
-   * the one failure mode worth avoiding here. They surface under BOTH sports;
-   * the row carries a "no team" hint so the duplicate is explained rather than
-   * mysterious. A genuinely dual-sport member likewise appears twice, which is
-   * correct: two federations, two transfers (one shared status column is a
-   * schema limit, noted so nobody reads it as a bug).
+   * A member appears under a sport only when a team actually puts them there.
+   *
+   * Members on NO team used to surface under BOTH sports so nothing could hide
+   * — but a transfer is only owed by someone who plays, and the register carries
+   * enough team-less people (ehemalige, passive, parents) that they buried the
+   * cohort this page exists for. They are counted and named in the header
+   * instead, so dropping them stays visible rather than silent: give them a team
+   * and they reappear.
+   *
+   * A genuinely dual-sport member still appears twice, which is correct: two
+   * federations, two transfers (one shared status column is a schema limit,
+   * noted so nobody reads it as a bug).
    */
-  const inSport = useCallback((memberId: string, s: Sport) => {
-    const set = sportsByMember.get(memberId)
-    return !set || set.size === 0 || set.has(s)
-  }, [sportsByMember])
+  const inSport = useCallback(
+    (memberId: string, s: Sport) => sportsByMember.get(memberId)?.has(s) ?? false,
+    [sportsByMember],
+  )
+
+  /** Members who WOULD be on a worklist but sit on no team at all — reported in
+   *  the header so the filter above never silently swallows a real transfer.
+   *  Only the two cohorts that render as ROWS count: a settled member never had
+   *  a row to lose, so counting them would overstate what is being hidden. */
+  const hiddenNoTeam = useMemo(
+    () => members.filter((m) => {
+      const bucket = bucketOf(m)
+      return (bucket === 'needs' || bucket === 'clarify')
+        && !sportsByMember.get(String(m.id))?.size
+    }).length,
+    [members, sportsByMember],
+  )
 
   /** Per-sport buckets. Computed for BOTH sports so the tab labels carry counts. */
   const bySport = useMemo(() => {
@@ -730,138 +826,183 @@ export default function TransfersPage() {
   }
 
   /**
-   * VIS presence AND the next step for that member, in one cell.
+   * VIS presence for ONE member: the state, when it was established, and — when
+   * they are in VIS — the number to paste into the VIS search.
    *
-   * Deliberately one column rather than two: the state and the action are not
-   * independent (a player in VIS is opened in VIS, one who is not needs their
-   * federation emailed), and the actionable table already carries eight columns
-   * — a ninth and tenth would push the note field off every phone.
+   * The federation contact and the request letter deliberately do NOT live here.
+   * They are identical for every row of a federation group, so per row they were
+   * ~120px of repeated boilerplate that pushed the note field off the screen;
+   * they now sit once in the group header, which is also the only place a
+   * consolidated ask can exist.
    *
    * The three states are worded as evidence, never as verdicts. In particular
    * `false` renders as "not found", never "does not exist": see the `in_vis`
    * doc comment on TransferMember for why a miss usually indicts our seeded
    * federation of origin rather than the federation itself.
    */
-  const visCell = (m: TransferMember) => {
-    const iso = String(m.federation_of_origin ?? '').trim().toUpperCase()
+  const visCell = (m: TransferMember) => (
+    <div className="min-w-[7rem] space-y-1">
+      {m.in_vis === true ? (
+        <span
+          title={t('trInVisYesHint')}
+          className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300"
+        >
+          <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+          {t('trInVisYes')}
+        </span>
+      ) : m.in_vis === false ? (
+        // Amber, not red: this is a lead to follow up, not a violation.
+        <span
+          title={t('trInVisNoHint')}
+          className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+        >
+          <HelpCircle className="h-3 w-3" aria-hidden="true" />
+          {t('trInVisNo')}
+        </span>
+      ) : (
+        <span className="block text-xs text-gray-400 dark:text-gray-500" title={t('trInVisUnknownHint')}>
+          {t('trInVisUnknown')}
+        </span>
+      )}
+
+      {/* A stale check is worth seeing: the answer only holds as of this date. */}
+      {m.in_vis_checked_at && (
+        <span className="block text-xs text-gray-400 dark:text-gray-500">
+          {t('trInVisCheckedAt', { date: formatDateZurich(m.in_vis_checked_at) })}
+        </span>
+      )}
+
+      {m.in_vis === true && (
+        <div className="flex flex-wrap items-center gap-1">
+          {m.vis_player_no != null && (
+            <>
+              <span
+                title={t('trVisPlayerNo')}
+                className="font-mono text-xs font-medium text-gray-900 dark:text-white"
+              >
+                #{m.vis_player_no}
+              </span>
+              <CopyButton value={String(m.vis_player_no)} title={t('trCopyPlayerNo')} />
+            </>
+          )}
+          {/* `title` carries the "VIS has no per-player URL" explanation that
+              used to be a line of text under every single row. */}
+          <a
+            href={VIS_TRANSFERS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={t('trOpenInVisHint')}
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-brand-300 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:min-h-0 dark:border-brand-700 dark:text-brand-200 dark:hover:bg-brand-900/30"
+          >
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('trOpenInVis')}
+          </a>
+        </div>
+      )}
+    </div>
+  )
+
+  /**
+   * The federation strip under a group header: who they are, how to reach them,
+   * and the ONE letter that asks them to enter every player of theirs we cannot
+   * open a transfer for yet.
+   *
+   * ⚠ Volleyball only. `vis_federations` is FIVB's directory, so on the
+   * basketball tab this would address a national VOLLEYBALL federation about a
+   * basketball player — the contact row still shows (it is a usable lead, per
+   * `trVisBasketballHint`) but the prepared letter, which names Swiss Volley and
+   * the FIVB VIS index, does not.
+   */
+  const federationBar = (g: Group) => {
+    const iso = g.key
     const fed = federationByIso.get(iso) ?? null
-    const checkedAt = m.in_vis_checked_at
-      ? t('trInVisCheckedAt', { date: formatDateZurich(m.in_vis_checked_at) })
-      : ''
     const emails = splitEmails(fed?.email)
-    const requestText = fed ? visRequestText(m, fed.name) : ''
+    const name = prettyFederationName(fed?.name)
+    // Everyone we cannot request a transfer for yet: not found AND never
+    // checked. Both need the same thing from the federation, and splitting them
+    // into two letters would ask the same people the same question twice.
+    const pending = g.rows.filter((m) => m.in_vis !== true)
+    const canRequest = sport === 'volleyball' && !!fed && pending.length > 0
+    const body = canRequest ? visRequestText(pending, name) : ''
+    // Prefilling the body is the nice case, but a 16-name letter blows past what
+    // Windows will hand to a mail client. Rather than drop the link (the big
+    // federations are exactly the ones worth writing to), fall back to a
+    // pre-addressed EMPTY message and tell the admin to paste — a truncated
+    // letter that looks complete is the only genuinely bad outcome here.
+    const subject = encodeURIComponent(VIS_REQUEST_SUBJECT)
+    const withBody = emails[0]
+      ? `mailto:${emails[0]}?subject=${subject}&body=${encodeURIComponent(body)}`
+      : ''
+    const mailtoOk = withBody.length > 0 && withBody.length <= MAILTO_MAX
+    const mailto = !canRequest || !emails[0]
+      ? ''
+      : mailtoOk ? withBody : `mailto:${emails[0]}?subject=${subject}`
+
     return (
-      <div className="min-w-[11rem] space-y-1.5">
-        {m.in_vis === true ? (
-          <span
-            title={t('trInVisYesHint')}
-            className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300"
-          >
-            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-            {t('trInVisYes')}
-          </span>
-        ) : m.in_vis === false ? (
-          // Amber, not red: this is a lead to follow up, not a violation.
-          <span
-            title={t('trInVisNoHint')}
-            className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-          >
-            <HelpCircle className="h-3 w-3" aria-hidden="true" />
-            {t('trInVisNo')}
-          </span>
-        ) : (
-          <span className="block text-xs text-gray-400 dark:text-gray-500" title={t('trInVisUnknownHint')}>
-            {t('trInVisUnknown')}
-          </span>
-        )}
-
-        {/* A stale check is worth seeing: the answer only holds as of this date. */}
-        {checkedAt && (
-          <span className="block text-xs text-gray-400 dark:text-gray-500">{checkedAt}</span>
-        )}
-
-        {m.in_vis === true ? (
-          <div className="space-y-1">
-            {fed && (
-              <span className="block text-xs text-gray-600 dark:text-gray-300">{fed.name}</span>
-            )}
-            <a
-              href={VIS_TRANSFERS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-brand-300 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:min-h-0 dark:border-brand-700 dark:text-brand-200 dark:hover:bg-brand-900/30"
-            >
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-              {t('trOpenInVis')}
-            </a>
-            {m.vis_player_no != null && (
-              <div className="flex flex-wrap items-center gap-1">
-                <span className="text-xs text-gray-500 dark:text-gray-400">{t('trVisPlayerNo')}</span>
-                <span className="font-mono text-xs font-medium text-gray-900 dark:text-white">
-                  {m.vis_player_no}
-                </span>
-                <CopyButton value={String(m.vis_player_no)} title={t('trCopyPlayerNo')} />
-              </div>
-            )}
-            {/* Says out loud why there is a number to copy instead of a link. */}
-            <p className="text-xs text-gray-400 dark:text-gray-500">{t('trOpenInVisHint')}</p>
-          </div>
-        ) : !fed ? (
+      <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-2 dark:border-gray-700 dark:bg-gray-900/20">
+        {!fed ? (
           // No directory row for this ISO — say so plainly. An empty mailto:
           // would look like a working contact and silently go nowhere.
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {t('trVisFederationMissing', { code: iso || '—' })}
           </p>
         ) : (
-          <div className="space-y-1">
-            <span className="block text-xs text-gray-600 dark:text-gray-300">{fed.name}</span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-200">{name}</span>
             {emails.length === 0 ? (
-              <p className="text-xs text-gray-500 dark:text-gray-400">{t('trVisNoEmail')}</p>
+              <span className="text-xs text-gray-500 dark:text-gray-400">{t('trVisNoEmail')}</span>
             ) : (
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-1">
-                  {/* mailto on the FIRST address only — VIS lists several for
-                      many federations and which one is right for a transfer is
-                      the club's call, so the rest are shown but not pre-picked. */}
-                  <a
-                    href={`mailto:${emails[0]}`}
-                    className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium break-all text-brand-700 hover:bg-gray-100 sm:min-h-0 dark:border-gray-600 dark:text-brand-200 dark:hover:bg-gray-700"
-                  >
-                    <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    {emails[0]}
-                  </a>
-                  <CopyButton
-                    value={emails.join('; ')}
-                    title={emails.length > 1 ? t('trCopyEmails') : t('trCopyEmail')}
-                  />
-                </div>
+              <span className="inline-flex flex-wrap items-center gap-1">
+                {/* mailto on the FIRST address only — VIS lists several for many
+                    federations and which one is right for a transfer is the
+                    club's call, so the rest are copied but not pre-picked. */}
+                <a
+                  href={`mailto:${emails[0]}`}
+                  className="text-xs font-medium break-all text-brand-700 hover:underline dark:text-brand-200"
+                >
+                  {emails[0]}
+                </a>
+                <CopyButton
+                  value={emails.join('; ')}
+                  title={emails.length > 1 ? t('trCopyEmails') : t('trCopyEmail')}
+                />
                 {emails.length > 1 && (
-                  <>
-                    <p className="text-xs break-all text-gray-500 dark:text-gray-400">
-                      {emails.slice(1).join('; ')}
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
-                      {t('trVisMultipleAddresses')}
-                    </p>
-                  </>
+                  <span className="text-xs text-gray-400 dark:text-gray-500" title={emails.slice(1).join('; ')}>
+                    {t('trVisMoreAddresses', { count: emails.length - 1 })}
+                  </span>
                 )}
-              </div>
+              </span>
             )}
-            {/* Collapsed by default: a two-sentence letter open on every row
-                would bury the table it belongs to. Nothing is sent from here. */}
-            <details className="text-xs">
-              <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-xs font-medium text-gray-600 sm:min-h-0 dark:text-gray-300">
-                {t('trRequestTitle')}
-              </summary>
-              <p className="mt-1 rounded-md bg-gray-50 px-2 py-1.5 text-xs whitespace-pre-line text-gray-600 dark:bg-gray-900/40 dark:text-gray-300">
-                {requestText}
-              </p>
-              <div className="mt-1">
-                <CopyButton value={requestText} title={t('trRequestCopy')} label={t('trRequestCopy')} />
-              </div>
-              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('trRequestHint')}</p>
-            </details>
           </div>
+        )}
+
+        {/* Collapsed by default: a 24-name letter open on every group would bury
+            the tables it belongs to. Nothing is ever sent from this page. */}
+        {canRequest && (
+          <details className="mt-1.5">
+            <summary className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 text-xs font-medium text-brand-700 sm:min-h-0 dark:text-brand-200">
+              <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {t('trBulkRequestTitle', { count: pending.length })}
+            </summary>
+            <p className="mt-1 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs whitespace-pre-line text-gray-600 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-300">
+              {body}
+            </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <CopyButton value={body} title={t('trRequestCopy')} label={t('trRequestCopy')} />
+              {mailto && (
+                <a
+                  href={mailto}
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-brand-300 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:min-h-0 dark:border-brand-700 dark:text-brand-200 dark:hover:bg-brand-900/30"
+                >
+                  <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t('trBulkCompose')}
+                </a>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              {mailtoOk ? t('trRequestHint') : t('trBulkTooLong')}
+            </p>
+          </details>
         )}
       </div>
     )
@@ -872,28 +1013,58 @@ export default function TransfersPage() {
    *  status about; the note is the place to record "asked on …". */
   const renderTable = (groups: Group[], withStatus: boolean) => (
     <div className="space-y-4">
-      {groups.map((g) => (
+      {groups.map((g) => {
+        // Per-federation VIS split, shown in the header so an admin can see
+        // which groups still need a letter without opening any of them. Zero
+        // buckets are omitted rather than shown as "0" — three pills on every
+        // group is noise; the ones that are there all mean something.
+        const inVis = g.rows.filter((m) => m.in_vis === true).length
+        const notFound = g.rows.filter((m) => m.in_vis === false).length
+        const unchecked = g.rows.length - inVis - notFound
+        return (
         <div
           key={g.key || 'unknown'}
-          className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50"
+          className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50"
         >
-          <div className="flex min-h-[44px] items-center gap-3 px-4 py-3">
+          <div className="flex min-h-[44px] flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5">
             <span className="text-sm font-semibold text-gray-900 dark:text-white">
               {g.label || t('trUnknownFederation')}
             </span>
-            <span className="ml-auto rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
               {t('trMemberCount', { count: g.rows.length })}
             </span>
+            {withStatus && (
+              <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                {inVis > 0 && (
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                    {inVis} {t('trInVisYes')}
+                  </span>
+                )}
+                {notFound > 0 && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                    {notFound} {t('trInVisNo')}
+                  </span>
+                )}
+                {unchecked > 0 && (
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                    {unchecked} {t('trInVisUnknown')}
+                  </span>
+                )}
+              </span>
+            )}
           </div>
+          {/* Federation contact + the one consolidated letter. Only for the
+              actionable cohort: a "to clarify" group is keyed by NATIONALITY,
+              which is not a federation-of-origin answer and must not be
+              addressed as though it were. */}
+          {withStatus && federationBar(g)}
           <div className="border-t border-gray-100 dark:border-gray-700">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('trColMember')}</TableHead>
                   <TableHead className="hidden sm:table-cell">{t('trColNationality')}</TableHead>
-                  <TableHead className="hidden md:table-cell">{t('trColLicenceNr')}</TableHead>
-                  <TableHead className="hidden lg:table-cell">{t('trColCategory')}</TableHead>
-                  <TableHead className="hidden lg:table-cell">{t('trColBirthdate')}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t('trColLicence')}</TableHead>
                   {withStatus && showLicence && <TableHead>{t('trColLicenceValidated')}</TableHead>}
                   {/* Both sports, unlike the licence column: the VIS check runs
                       on every member with a foreign federation of origin. See
@@ -906,16 +1077,10 @@ export default function TransfersPage() {
               <TableBody>
                 {g.rows.map((m) => {
                   const id = String(m.id)
-                  const noTeam = !sportsByMember.get(id)?.size
                   return (
                     <TableRow key={id}>
                       <TableCell className="min-h-[44px] align-top">
                         <NameCell m={m} />
-                        {noTeam && (
-                          <span className="mt-0.5 block text-xs text-gray-400 dark:text-gray-500">
-                            {t('trNoTeam')}
-                          </span>
-                        )}
                       </TableCell>
                       <TableCell className="hidden align-top text-xs text-gray-600 sm:table-cell dark:text-gray-300">
                         <span aria-hidden="true" className="mr-1">
@@ -923,14 +1088,19 @@ export default function TransfersPage() {
                         </span>
                         {formatCountryCodes(m.nationalitaet_codes)}
                       </TableCell>
-                      <TableCell className="hidden align-top font-mono text-xs text-gray-600 md:table-cell dark:text-gray-300">
-                        {m.license_nr || '—'}
-                      </TableCell>
-                      <TableCell className="hidden align-top text-xs text-gray-600 lg:table-cell dark:text-gray-300">
-                        {m.licence_category || '—'}
-                      </TableCell>
-                      <TableCell className="hidden align-top text-xs text-gray-600 lg:table-cell dark:text-gray-300">
-                        {formatDateZurich(m.birthdate) || '—'}
+                      {/* Licence number + category in one column. They are two
+                          facets of the same fact and each alone was a near-empty
+                          column; the birthdate moved into the member cell, where
+                          it belongs with the rest of the identity. */}
+                      <TableCell className="hidden align-top text-xs whitespace-normal text-gray-600 md:table-cell dark:text-gray-300">
+                        <span className="block font-mono" title={t('trColLicenceNr')}>
+                          {m.license_nr || '—'}
+                        </span>
+                        {m.licence_category && (
+                          <span className="block text-gray-400 dark:text-gray-500" title={t('trColCategory')}>
+                            {m.licence_category}
+                          </span>
+                        )}
                       </TableCell>
                       {withStatus && showLicence && (
                         <TableCell className="align-top">{licenceCell(m)}</TableCell>
@@ -994,7 +1164,8 @@ export default function TransfersPage() {
             </Table>
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 
@@ -1005,6 +1176,13 @@ export default function TransfersPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('trTitle')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('trDescription')}</p>
+          {/* Say what the sport filter drops. A worklist that quietly omits
+              people is worse than one that is a little longer. */}
+          {hiddenNoTeam > 0 && (
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              {t('trHiddenNoTeam', { count: hiddenNoTeam })}
+            </p>
+          )}
         </div>
         <button
           onClick={() => { void refetch() }}
@@ -1079,61 +1257,57 @@ export default function TransfersPage() {
         </div>
       )}
 
-      {/* The licence signal is a ONE-WAY implication and the wording has to say
-          so, or an admin will read "not validated" as "the transfer failed". */}
-      {showLicence && (
-        <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
-          {t('trLicenceHint')}
-        </p>
-      )}
+      {/* ONE context panel instead of the three stacked boxes this page used to
+          open with. Top line: the numbers (how many transfers can be REQUESTED
+          today vs. are blocked on getting the player into VIS, and the derived
+          "needs nothing" tally). Below: the caveats those numbers need to be
+          read correctly — each of which is a one-way implication that an admin
+          will otherwise get backwards. */}
+      <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/30">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          {active.needs.length > 0 && (
+            <>
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                {t('trVisSummaryTitle')}
+              </span>
+              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                {visCounts.inVis} {t('trInVisYes')}
+              </span>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                {visCounts.notFound} {t('trInVisNo')}
+              </span>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                {visCounts.unchecked} {t('trInVisUnknown')}
+              </span>
+            </>
+          )}
+          {/* Derived "no transfer needed" tally. A count only — these members
+              have no independent state to toggle; their federation answer
+              already IS the answer. */}
+          <span
+            title={t('trSettledDescription')}
+            className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300"
+          >
+            <ShieldCheck className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" aria-hidden="true" />
+            {t('trSettledCount', { count: active.settled })}
+          </span>
+        </div>
 
-      {/* VIS presence across this sport's actionable cohort. Answers the first
-          question of the workflow before the admin scrolls: how many of these
-          transfers can actually be REQUESTED today, and how many are blocked on
-          getting the player into VIS in the first place. */}
-      {active.needs.length > 0 && (
-        <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/30">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-              {t('trVisSummaryTitle')}
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
-              {visCounts.inVis} {t('trInVisYes')}
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-              {visCounts.notFound} {t('trInVisNo')}
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300">
-              {visCounts.unchecked} {t('trInVisUnknown')}
-            </span>
-          </div>
-          {/* The "false is not proof" caveat, stated once where it is always
-              visible — a per-row `title` alone is unreachable on a phone. */}
-          <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-            {t('trVisSummaryHint')}
-          </p>
+        <div className="mt-1.5 space-y-1 text-xs text-gray-500 dark:text-gray-400">
+          <p>{t('trSettledDescription')}</p>
+          {/* The "false is not proof" caveat, stated where it is always visible
+              — a per-row `title` alone is unreachable on a phone. */}
+          {active.needs.length > 0 && <p>{t('trVisSummaryHint')}</p>}
+          {/* The licence signal is a ONE-WAY implication and the wording has to
+              say so, or an admin reads "not validated" as "the transfer failed". */}
+          {showLicence && <p>{t('trLicenceHint')}</p>}
           {/* VIS is FIVB's index, so on the basketball tab both the badge and the
               federation contact describe the wrong sport's governing body. Said
               once per tab rather than repeated on every row. */}
-          {sport === 'basketball' && (
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-              {t('trVisBasketballHint')}
-            </p>
+          {sport === 'basketball' && active.needs.length > 0 && (
+            <p className="text-amber-700 dark:text-amber-400">{t('trVisBasketballHint')}</p>
           )}
         </div>
-      )}
-
-      {/* Derived "no transfer needed" tally. A count only — these members have no
-          independent state to toggle; their federation answer already IS the answer. */}
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/30">
-        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-green-600 dark:text-green-400" aria-hidden="true" />
-        <p className="text-xs text-gray-600 dark:text-gray-300">
-          <span className="font-medium">
-            {t('trSettledCount', { count: active.settled })}
-          </span>
-          {' — '}
-          {t('trSettledDescription')}
-        </p>
       </div>
 
       {nothingToDo ? (

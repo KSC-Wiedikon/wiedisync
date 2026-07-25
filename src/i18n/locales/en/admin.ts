@@ -931,6 +931,7 @@ export default {
   trUnknownFederation: 'Unknown federation',
   trColMember: 'Member',
   trColNationality: 'Nationality',
+  trColLicence: 'Licence',
   trColLicenceNr: 'Licence nr',
   trColCategory: 'Category',
   trColBirthdate: 'Date of birth',
@@ -944,7 +945,8 @@ export default {
   trNotePlaceholder: 'Add a note',
   trDoneByOn: 'Done {{date}} by {{name}}',
   trDoneOn: 'Done {{date}}',
-  trNoTeam: 'No team — shown under both sports',
+  trHiddenNoTeam_one: '{{count}} member is not shown because they are on no team.',
+  trHiddenNoTeam_other: '{{count}} members are not shown because they are on no team.',
   trInactive: 'Membership inactive',
   trLicenceValidated: 'Validated',
   trLicenceNotValidated: 'Not validated',
@@ -981,14 +983,22 @@ export default {
   trCopyPlayerNo: 'Copy the VIS player number',
   trVisFederationMissing: 'No VIS contact on file for {{code}} — look the federation up manually.',
   trVisNoEmail: 'VIS lists no email address for this federation.',
-  trVisMultipleAddresses: 'VIS lists several addresses; the link opens the first one.',
+  trVisMoreAddresses_one: '+{{count}} more address',
+  trVisMoreAddresses_other: '+{{count}} more addresses',
   trCopyEmail: 'Copy the address',
   trCopyEmails: 'Copy all addresses',
   trCopied: 'Copied',
   trCopyFailed: 'Could not copy',
-  trRequestTitle: 'Prepared request',
   trRequestCopy: 'Copy request',
   trRequestHint: 'Nothing is sent from here — copy the text into your own email. It is in English because the recipient is a foreign federation.',
+  // One letter per federation, listing everyone we cannot open a transfer for
+  // yet (not found in VIS + never checked). Both need the same thing from the
+  // federation, so splitting them would ask the same people the same question
+  // twice.
+  trBulkRequestTitle_one: 'Prepared request — ask them to register {{count}} player',
+  trBulkRequestTitle_other: 'Prepared request — ask them to register {{count}} players',
+  trBulkCompose: 'Open in email',
+  trBulkTooLong: 'Too long to prefill an email — the link opens an empty message to the federation; copy the text and paste it in. It is in English because the recipient is a foreign federation.',
 
   trSaveFailed: 'Could not save',
   trEmptyTitle: 'Nothing to work through',

@@ -49,6 +49,9 @@ const CHANGELOG: ChangelogEntry[] = [
         items: [
           'A per-sport view of international transfers, grouped by federation of origin, with a note field and a done marker. It also lists members whose nationality suggests the question has never been put to them.',
           'For volleyball it cross-checks Swiss Volley\'s licence data and flags two situations: someone marked done whose licence is not validated — meaning they are not yet eligible to play — and someone still marked pending whose licence has been validated, which usually means the certificate has already arrived.',
+          'One prepared email per federation. A transfer cannot be requested until the player exists in the FIVB VIS index, so each federation group carries a single ready-to-send request listing everyone of theirs still missing from it, with name, date of birth and email. Copy it, or open it straight in your mail programme. It is always written in English — the working language of the FIVB — whatever language you read the app in.',
+          'The federation\'s own contact address is on file for every country our members come from, taken from VIS, and shown once per group.',
+          'Only members who are actually on a team appear. Anyone on no team is counted in the page header instead of filling the lists; add them to a team and they return.',
         ],
       },
       {
