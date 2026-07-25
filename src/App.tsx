@@ -26,6 +26,7 @@ import PlayerProfile from './modules/teams/PlayerProfile'
 import RosterEditor from './modules/teams/RosterEditor'
 import InfraHealthPage from './modules/admin/InfraHealthPage'
 import DataHealthPage from './modules/admin/DataHealthPage'
+import TransfersPage from './modules/admin/TransfersPage'
 import ClubdeskSyncPage from './modules/admin/ClubdeskSyncPage'
 import AuditLogPage from './modules/admin/AuditLogPage'
 import RefereeExpensesPage from './modules/admin/RefereeExpensesPage'
@@ -212,6 +213,14 @@ export default function App() {
             <Route path="news" element={<AuthRoute><NewsArchivePage /></AuthRoute>} />
             <Route path="admin/infra" element={<SuperAdminRoute><InfraHealthPage /></SuperAdminRoute>} />
             <Route path="admin/data-health" element={<SuperAdminRoute><DataHealthPage /></SuperAdminRoute>} />
+            {/* International transfers. AdminRoute, NOT SuperAdminRoute like its
+                neighbour: this is per-sport casework and the people who do it are
+                the sport TK (vb_admin / bb_admin), whom SuperAdminRoute excludes.
+                AdminRoute (admin | superuser | vb_admin | bb_admin) is also
+                exactly the set that already holds `members` read+update with
+                fields=* via KSCW Sport Admin, so the gate and the grant line up
+                and nobody can reach a page whose toggles would 403. */}
+            <Route path="admin/transfers" element={<AdminRoute><TransfersPage /></AdminRoute>} />
             <Route path="admin/clubdesk-sync" element={<SuperAdminRoute><ClubdeskSyncPage /></SuperAdminRoute>} />
             <Route path="admin/audit-log" element={<SuperAdminRoute><AuditLogPage /></SuperAdminRoute>} />
             <Route path="admin/error-logs" element={<SuperAdminRoute><ErrorLogsPage /></SuperAdminRoute>} />
