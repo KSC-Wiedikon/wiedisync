@@ -23,6 +23,9 @@ export default {
   noResults: 'Keine Ergebnisse',
   search: 'Suchen...',
   searchCountry: 'Land suchen...',
+  primaryNationality: 'Hauptnationalität',
+  nSelected_one: '{{count}} ausgewählt',
+  nSelected_other: '{{count}} ausgewählt',
 
   // Days (full)
   monday: 'Montag',

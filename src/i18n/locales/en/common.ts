@@ -23,6 +23,9 @@ export default {
   noResults: 'No results',
   search: 'Search...',
   searchCountry: 'Search country...',
+  primaryNationality: 'Primary nationality',
+  nSelected_one: '{{count}} selected',
+  nSelected_other: '{{count}} selected',
 
   // Days (full)
   monday: 'Monday',

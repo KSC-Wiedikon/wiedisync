@@ -71,28 +71,41 @@ export default function CountryMultiSelect({
       {label && <Label id={labelId} className="mb-1.5">{label}</Label>}
 
       {selected.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1.5">
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
           {selected.map((code, i) => (
             <span
               key={code}
-              className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
-              // The first chip is the value ClubDesk receives — say so rather
-              // than relying on position alone.
-              title={i === 0 && selected.length > 1 ? `${byCode.get(code) ?? code} (1.)` : undefined}
+              // Solid brand fill so a chosen nationality is unmistakable against
+              // the form's neutral surface. Every chip gets the SAME weight —
+              // tinting the non-primary ones differently made them read as "not
+              // really selected", which is the opposite of the point. Primary-ness
+              // is carried by the ordinal badge instead.
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary py-1 pl-2 pr-1 text-xs font-semibold text-primary-foreground shadow-sm"
+              title={selected.length > 1 && i === 0 ? t('primaryNationality') : undefined}
             >
+              {/* Order is meaningful — the first code is the one ClubDesk
+                  receives — so number the chips once there is more than one. */}
+              {selected.length > 1 && (
+                <span className="grid h-4 w-4 place-items-center rounded-full bg-primary-foreground/25 text-[10px] leading-none tabular-nums">
+                  {i + 1}
+                </span>
+              )}
               {byCode.get(code) ?? code}
               {!disabled && (
                 <button
                   type="button"
                   onClick={() => toggle(code)}
                   aria-label={`${t('remove')} ${byCode.get(code) ?? code}`}
-                  className="hover:text-brand-900 dark:hover:text-brand-100"
+                  className="grid h-5 w-5 shrink-0 place-items-center rounded-full transition-colors hover:bg-primary-foreground/25"
                 >
                   <X className="h-3 w-3" />
                 </button>
               )}
             </span>
           ))}
+          <span className="ml-0.5 text-xs text-muted-foreground tabular-nums">
+            {t('nSelected', { count: selected.length })}
+          </span>
         </div>
       )}
 
@@ -137,12 +150,25 @@ export default function CountryMultiSelect({
                 aria-selected={isSelected}
                 onClick={() => toggle(o.value)}
                 className={cn(
-                  'flex min-h-[44px] w-full items-center px-3 py-2 text-left text-sm transition-colors hover:bg-accent',
-                  isSelected && 'bg-accent',
+                  // A chosen row must not look like a merely hovered one: hover
+                  // is `bg-accent` (brand-50 / brand-900-50), so selection uses a
+                  // stronger brand wash + bold brand text + a left brand bar, and
+                  // keeps winning on hover.
+                  'flex min-h-[44px] w-full items-center border-l-2 px-3 py-2 text-left text-sm transition-colors',
+                  isSelected
+                    // brand-500 is dark, so `text-primary` would sit low-contrast
+                    // on a dark surface — dark mode gets a heavier wash + white text.
+                    ? 'border-l-primary bg-primary/10 font-semibold text-primary hover:bg-primary/20 dark:bg-primary/30 dark:text-primary-foreground dark:hover:bg-primary/40'
+                    : 'border-l-transparent hover:bg-accent',
                   isLastFavourite && 'border-b',
                 )}
               >
-                <Check className={cn('mr-2 h-4 w-4 shrink-0', isSelected ? 'opacity-100' : 'opacity-0')} />
+                <Check
+                  className={cn(
+                    'mr-2 h-4 w-4 shrink-0',
+                    isSelected ? 'opacity-100' : 'opacity-0',
+                  )}
+                />
                 {o.label}
               </button>
             )
