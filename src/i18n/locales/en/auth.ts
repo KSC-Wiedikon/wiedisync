@@ -244,7 +244,7 @@ export default {
   ort: 'City',
   nationalitaet: 'Nationality',
   federationOfOrigin: 'Federation of origin',
-  federationOfOriginNone: 'None / never licensed before',
+  federationOfOriginNone: 'None / never licensed with a national federation',
   federationOfOriginHint: 'The first national federation you held a licence with.',
   nationalitaetHint: 'Select all that apply.',
   sex: 'Sex',

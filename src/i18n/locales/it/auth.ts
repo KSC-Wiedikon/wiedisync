@@ -242,7 +242,7 @@ export default {
   ort: 'Ort',
   nationalitaet: 'Nationalität',
   federationOfOrigin: 'Federazione di origine',
-  federationOfOriginNone: 'Nessuna / mai tesserato',
+  federationOfOriginNone: 'Nessuna / mai tesserato presso una federazione nazionale',
   federationOfOriginHint: 'La prima federazione nazionale presso cui sei stato tesserato.',
   nationalitaetHint: 'Sono possibili più scelte.',
   sex: 'Sesso',

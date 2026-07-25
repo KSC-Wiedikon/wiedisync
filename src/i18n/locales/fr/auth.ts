@@ -242,7 +242,7 @@ export default {
   ort: 'Ort',
   nationalitaet: 'Nationalität',
   federationOfOrigin: "Fédération d'origine",
-  federationOfOriginNone: 'Aucune / jamais licencié',
+  federationOfOriginNone: "Aucune / jamais licencié auprès d'une fédération nationale",
   federationOfOriginHint: "La première fédération nationale auprès de laquelle vous avez été licencié.",
   nationalitaetHint: 'Plusieurs choix possibles.',
   sex: 'Sexe',

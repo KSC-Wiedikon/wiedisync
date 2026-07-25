@@ -244,7 +244,7 @@ export default {
   ort: 'Ort',
   nationalitaet: 'Nationalität',
   federationOfOrigin: 'Herkunftsverband',
-  federationOfOriginNone: 'Kene / nonig lizenziert',
+  federationOfOriginNone: 'Kene / nonig bin eme nationale Verband lizenziert',
   federationOfOriginHint: 'De erscht nationaal Verband, wo du e Lizänz gha häsch.',
   nationalitaetHint: 'Mehrfachuswahl möglich.',
   sex: 'Gschlächt',

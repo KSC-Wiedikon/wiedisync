@@ -244,7 +244,7 @@ export default {
   ort: 'Ort',
   nationalitaet: 'Nationalität',
   federationOfOrigin: 'Herkunftsverband',
-  federationOfOriginNone: 'Keiner / noch nie lizenziert',
+  federationOfOriginNone: 'Keiner / noch nie bei einem nationalen Verband lizenziert',
   federationOfOriginHint: 'Der erste nationale Verband, bei dem du eine Lizenz hattest.',
   nationalitaetHint: 'Mehrfachauswahl möglich.',
   sex: 'Geschlecht',
