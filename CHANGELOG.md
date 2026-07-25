@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.48.0 — 2026-07-25
+
+### New: Hall finder — free city sport halls for the season
+- **A new admin tool (Options → Hall finder)** shows which City of Zürich sport halls have a free recurring training slot for the whole winter season, so you no longer have to check the city booking site hall by hall.
+- **Filter by weekday, earliest start, minimum duration, city district and hall type.** By default it lists only halls that are free every week excluding school holidays; switch that off to also see halls that are free most weeks.
+- **Each result links straight to the city occupancy calendar and to a pre-filled reservation request.** Availability is refreshed automatically every night.
+
 ## v1.47.0 — 2026-07-25
 
 ### New: nationality is now a proper list, with flags

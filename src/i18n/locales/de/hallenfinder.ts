@@ -1,0 +1,42 @@
+export default {
+  title: 'Hallenfinder',
+  subtitle: 'Freie Sporthallen der Stadt Zürich für die Saison',
+  intro: 'Städtische Hallen mit einem freien wiederkehrenden Termin über die Wintersaison. Die Verfügbarkeit wird nächtlich aus dem städtischen Buchungstool zwischengespeichert; Schulferienwochen sind ausgenommen.',
+  filters: {
+    weekday: 'Wochentag',
+    startFrom: 'Ab',
+    minDuration: 'Min. Dauer',
+    district: 'Kreis',
+    hallType: 'Hallentyp',
+    freeAllWeeks: 'Jede Woche frei (ohne Schulferien)',
+    allDistricts: 'Alle Kreise',
+    allTypes: 'Alle Typen',
+    anyDay: 'Mo–Fr',
+    search: 'Suchen',
+  },
+  weekday: {
+    1: 'Montag', 2: 'Dienstag', 3: 'Mittwoch', 4: 'Donnerstag', 5: 'Freitag', 6: 'Samstag', 7: 'Sonntag',
+  },
+  weekdayShort: {
+    1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So',
+  },
+  type: {
+    gymnastikraum: 'Gymnastikraum', sporthalle: 'Sporthalle', dreifachhalle: 'Dreifachhalle', doppelhalle: 'Doppelhalle',
+  },
+  table: {
+    day: 'Tag', hall: 'Halle', window: 'Freies Fenster', weeks: 'Freie Wochen', district: 'Kreis', address: 'Adresse', actions: 'Buchen',
+  },
+  allWeeks: 'Alle {{total}}',
+  someWeeks: '{{free}} / {{total}}',
+  book: 'Anfrage',
+  calendar: 'Kalender',
+  lastUpdated: 'Daten aktualisiert {{ago}}',
+  neverUpdated: 'Noch nicht synchronisiert',
+  noData: 'Noch keine Verfügbarkeitsdaten — die nächtliche Synchronisation ist noch nicht gelaufen.',
+  noResults: 'Mit diesen Filtern ist keine Halle die ganze Saison frei. Versuche eine kürzere Dauer oder einen späteren Start.',
+  loading: 'Verfügbarkeit wird geladen…',
+  error: 'Verfügbarkeit konnte nicht geladen werden.',
+  resultCount_one: '{{count}} Halle',
+  resultCount_other: '{{count}} Hallen',
+  durationOption: '{{h}} Std.',
+}
