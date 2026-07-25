@@ -103,6 +103,7 @@ function buildAdminGroups(
       labelKey: 'adminGroupPlanning',
       items: [
         ...(isAdmin ? [{ to: '/admin/hallenplan', labelKey: 'hallenplan', icon: <Building2 className={iconClass} /> }] : []),
+        ...(isAdmin ? [{ to: '/admin/hallenfinder', labelKey: 'hallenfinder', icon: <CalendarClock className={iconClass} /> }] : []),
       ],
     },
     {

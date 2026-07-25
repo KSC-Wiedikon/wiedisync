@@ -38,6 +38,7 @@ import { FRONTEND_URL } from './email-template.js'
 import { sendLocalizedPush, tPush, memberLangToCode } from './push-i18n.js'
 import { writeErrorLog, logErrorToFile, logAuthDenial, logWarning, cleanOldLogs, computeErrorHash, logCronRun } from './error-log.js'
 import { registerStats } from './stats.js'
+import { registerHallenfinder } from './hallenfinder.js'
 import { registerRegistration } from './registration.js'
 import { registerNewsletter } from './newsletter.js'
 import { registerNewsletterDigest } from './newsletter-digest.js'
@@ -2393,6 +2394,7 @@ export default {
     registerSvLicence(router, ctx)
     registerMigrationsStatus(router, ctx)
     registerSyncStatus(router, ctx)
+    registerHallenfinder(router, ctx)
     registerAudit(router, ctx)
     registerOpnform(router, ctx)
     registerWadmin(router, ctx)

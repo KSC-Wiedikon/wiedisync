@@ -1,0 +1,824 @@
+    
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/2002/REC-xhtml1-20020801/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="de" lang="de">
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freie Termine</title>
+    <link rel="stylesheet" href="assets/css/datepicker.css" type="text/css" media="all" />
+    <link href="assets/css/fonts.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/main.min.css?v=1755598590" rel="stylesheet" type="text/css" />
+    <link href="assets/css/customStyle.css?v=1755598590" rel="stylesheet" type="text/css" />
+    <script src="/assets/js/head.min.js"></script>
+    <script type="text/javascript" src="https://www.stadt-zuerich.ch/etc/clientlibs/stzh/iframeResizer.min.js"></script>
+    <script>
+        window.resourceRoot = '';
+        window.estaticoPrefix = 'estatico';
+        window.initOnlyPrefixed = false;
+        window.charts = {};
+    </script>
+</head>
+<body class="freie-termine">
+<script>
+	if( window === window.parent ){
+		document.body.className += ' noIframe';
+	}
+</script>
+<div class="mod_form mod_search">
+    
+    <form action="#" >
+        <input id="terminart" type="hidden" name="terminart" value=""/>
+        <div class="form_section">
+            <div class="row selection section">
+                <div class="mod_formselect is_checked " data-init="formselect">
+    <label for="hallentyp">Hallentyp wählen</label>
+
+    <select name="hallentyp" id="hallentyp"  class="" size="1" data-formselect="select" >
+            <option  value=''>- Alle Hallentypen -</option>
+            <option  value='1'>Einfachhallen</option>
+            <option  value='4'>Mehrfach- und Spezialhallen</option>
+        </select><span class="styled_select" data-formselect="styledSelect" >Hallentyp wählen</span>
+    </div>            </div>
+
+            <div class="mod_formradio var_horizontal  " data-init="formradio" >
+    <input type="radio" id="switchYes" checked  name="switch" value="yes" >
+    <label for="switchYes">Einmalige Belegung</label>
+</div><div class="mod_formradio var_horizontal  " data-init="formradio" >
+    <input type="radio" id="switchNo"   name="switch" value="no" >
+    <label for="switchNo">Wiederkehrende Belegung</label>
+</div>
+        </div>
+        <div class="form_section"> 
+            
+            <fieldset>
+                <!-- Show search attributes for Periodische Termine -->
+                <div id="periodisch" class="mod_search__timespan ">
+                    <div class="flex flex-wrap">
+                        <div class="flex-width-17-perc margin-right-15">
+                            <div id="recurring"  class="row selection section  ">
+                                <div class="mod_formselect is_checked " data-init="formselect">
+    <label for="wochentag">Wochentag *</label>
+
+    <select name="wochentag" id="wochentag"  class="" size="1" data-formselect="select" >
+            <option  value=''></option>
+            <option  value='1'>Montag</option>
+            <option selected value='2'>Dienstag</option>
+            <option  value='3'>Mittwoch</option>
+            <option  value='4'>Donnerstag</option>
+            <option  value='5'>Freitag</option>
+            <option  value='6'>Samstag</option>
+            <option  value='7'>Sonntag</option>
+        </select><span class="styled_select" data-formselect="styledSelect" >Wochentag *</span>
+    </div>                            </div>
+                        </div>
+
+                        <div class="flex flex-width-34-perc">
+                            <div class="flex-width-17-perc margin-right-10">
+                                <div id="startdatum" class="row datefield section ">
+                                    <div class="mod_formdatepicker" data-init="formdatepicker"  data-formdatepicker-options='{
+    "dateFormat": "DD.MM.YYYY",
+    "i18n": {
+        "dayToMonthSeparator": ".",
+        "today": "Heute",
+        "goToPreviousMonth": "Go to previous month",
+        "goToNextMonth": "Go to next month",
+        "days": {
+            "monday": "Montag",
+            "tuesday": "Dienstag",
+            "wednesday": "Mittwoch",
+            "thursday": "Donnerstag",
+            "friday": "Freitag",
+            "saturday": "Samstag",
+            "sunday": "Sonntag"
+        },
+        "abbr": {
+            "monday": "Mo",
+            "tuesday": "Di",
+            "wednesday": "Mi",
+            "thursday": "Do",
+            "friday": "Fr",
+            "saturday": "Sa",
+            "sunday": "So"
+        }
+    },
+    "datepickerVariant": "datepicker--left-aligned"
+}'>
+
+    <label class="date_ttl" for="tag_ab">Startdatum *</label>
+    
+    <div class="mod_formtextinput " data-init="formtextinput">
+        <input
+            data-formdatepicker="input"
+            type="text"
+                        name="tag_ab"
+            id="tag_ab"
+            value="01.09.2026"
+        />
+        <button  class="open_calendar " type="button" data-formdatepicker="openCalendar"><span>Open calendar</span></button>
+        
+            </div>
+    
+    </div>                                </div>
+                            </div>
+
+                            <div class="flex-width-17-perc margin-right-30">
+                                <div id="enddatum" class="row datefield section">
+                                    <div class="mod_formdatepicker" data-init="formdatepicker"  data-formdatepicker-options='{
+    "dateFormat": "DD.MM.YYYY",
+    "i18n": {
+        "dayToMonthSeparator": ".",
+        "today": "Heute",
+        "goToPreviousMonth": "Go to previous month",
+        "goToNextMonth": "Go to next month",
+        "days": {
+            "monday": "Montag",
+            "tuesday": "Dienstag",
+            "wednesday": "Mittwoch",
+            "thursday": "Donnerstag",
+            "friday": "Freitag",
+            "saturday": "Samstag",
+            "sunday": "Sonntag"
+        },
+        "abbr": {
+            "monday": "Mo",
+            "tuesday": "Di",
+            "wednesday": "Mi",
+            "thursday": "Do",
+            "friday": "Fr",
+            "saturday": "Sa",
+            "sunday": "So"
+        }
+    },
+    "datepickerVariant": "datepicker--left-aligned"
+}'>
+
+    <label class="date_ttl" for="tag_bis">Enddatum</label>
+    
+    <div class="mod_formtextinput " data-init="formtextinput">
+        <input
+            data-formdatepicker="input"
+            type="text"
+                        name="tag_bis"
+            id="tag_bis"
+            value="31.03.2027"
+        />
+        <button  class="open_calendar " type="button" data-formdatepicker="openCalendar"><span>Open calendar</span></button>
+        
+            </div>
+    
+    </div>                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-width-28-perc">
+                            <div class="margin-right-10">
+                                <div class="row selection section">
+                                    <div class="mod_formselect is_checked " data-init="formselect">
+    <label for="zeit_von">Startzeit *</label>
+
+    <select name="zeit_von" id="zeit_von"  class="" size="1" data-formselect="select" >
+            <option  value=''></option>
+            <option  value='07:00'>07:00</option>
+            <option  value='07:15'>07:15</option>
+            <option  value='07:30'>07:30</option>
+            <option  value='07:45'>07:45</option>
+            <option  value='08:00'>08:00</option>
+            <option  value='08:15'>08:15</option>
+            <option  value='08:30'>08:30</option>
+            <option  value='08:45'>08:45</option>
+            <option  value='09:00'>09:00</option>
+            <option  value='09:15'>09:15</option>
+            <option  value='09:30'>09:30</option>
+            <option  value='09:45'>09:45</option>
+            <option  value='10:00'>10:00</option>
+            <option  value='10:15'>10:15</option>
+            <option  value='10:30'>10:30</option>
+            <option  value='10:45'>10:45</option>
+            <option  value='11:00'>11:00</option>
+            <option  value='11:15'>11:15</option>
+            <option  value='11:30'>11:30</option>
+            <option  value='11:45'>11:45</option>
+            <option  value='12:00'>12:00</option>
+            <option  value='12:15'>12:15</option>
+            <option  value='12:30'>12:30</option>
+            <option  value='12:45'>12:45</option>
+            <option  value='13:00'>13:00</option>
+            <option  value='13:15'>13:15</option>
+            <option  value='13:30'>13:30</option>
+            <option  value='13:45'>13:45</option>
+            <option  value='14:00'>14:00</option>
+            <option  value='14:15'>14:15</option>
+            <option  value='14:30'>14:30</option>
+            <option  value='14:45'>14:45</option>
+            <option  value='15:00'>15:00</option>
+            <option  value='15:15'>15:15</option>
+            <option  value='15:30'>15:30</option>
+            <option  value='15:45'>15:45</option>
+            <option  value='16:00'>16:00</option>
+            <option  value='16:15'>16:15</option>
+            <option  value='16:30'>16:30</option>
+            <option  value='16:45'>16:45</option>
+            <option  value='17:00'>17:00</option>
+            <option  value='17:15'>17:15</option>
+            <option  value='17:30'>17:30</option>
+            <option  value='17:45'>17:45</option>
+            <option selected value='18:00'>18:00</option>
+            <option  value='18:15'>18:15</option>
+            <option  value='18:30'>18:30</option>
+            <option  value='18:45'>18:45</option>
+            <option  value='19:00'>19:00</option>
+            <option  value='19:15'>19:15</option>
+            <option  value='19:30'>19:30</option>
+            <option  value='19:45'>19:45</option>
+            <option  value='20:00'>20:00</option>
+            <option  value='20:15'>20:15</option>
+            <option  value='20:30'>20:30</option>
+            <option  value='20:45'>20:45</option>
+            <option  value='21:00'>21:00</option>
+            <option  value='21:15'>21:15</option>
+            <option  value='21:30'>21:30</option>
+            <option  value='21:45'>21:45</option>
+            <option  value='22:00'>22:00</option>
+            <option  value='22:15'>22:15</option>
+        </select><span class="styled_select" data-formselect="styledSelect" >Startzeit *</span>
+    </div>                                </div>
+                            </div>
+
+                            <div class="">
+                                <div class="row selection section">
+                                    <div class="mod_formselect is_checked " data-init="formselect">
+    <label for="zeit_bis">Endzeit *</label>
+
+    <select name="zeit_bis" id="zeit_bis"  class="" size="1" data-formselect="select" >
+            <option  value=''></option>
+            <option  value='07:15'>07:15</option>
+            <option  value='07:30'>07:30</option>
+            <option  value='07:45'>07:45</option>
+            <option  value='08:00'>08:00</option>
+            <option  value='08:15'>08:15</option>
+            <option  value='08:30'>08:30</option>
+            <option  value='08:45'>08:45</option>
+            <option  value='09:00'>09:00</option>
+            <option  value='09:15'>09:15</option>
+            <option  value='09:30'>09:30</option>
+            <option  value='09:45'>09:45</option>
+            <option  value='10:00'>10:00</option>
+            <option  value='10:15'>10:15</option>
+            <option  value='10:30'>10:30</option>
+            <option  value='10:45'>10:45</option>
+            <option  value='11:00'>11:00</option>
+            <option  value='11:15'>11:15</option>
+            <option  value='11:30'>11:30</option>
+            <option  value='11:45'>11:45</option>
+            <option  value='12:00'>12:00</option>
+            <option  value='12:15'>12:15</option>
+            <option  value='12:30'>12:30</option>
+            <option  value='12:45'>12:45</option>
+            <option  value='13:00'>13:00</option>
+            <option  value='13:15'>13:15</option>
+            <option  value='13:30'>13:30</option>
+            <option  value='13:45'>13:45</option>
+            <option  value='14:00'>14:00</option>
+            <option  value='14:15'>14:15</option>
+            <option  value='14:30'>14:30</option>
+            <option  value='14:45'>14:45</option>
+            <option  value='15:00'>15:00</option>
+            <option  value='15:15'>15:15</option>
+            <option  value='15:30'>15:30</option>
+            <option  value='15:45'>15:45</option>
+            <option  value='16:00'>16:00</option>
+            <option  value='16:15'>16:15</option>
+            <option  value='16:30'>16:30</option>
+            <option  value='16:45'>16:45</option>
+            <option  value='17:00'>17:00</option>
+            <option  value='17:15'>17:15</option>
+            <option  value='17:30'>17:30</option>
+            <option  value='17:45'>17:45</option>
+            <option  value='18:00'>18:00</option>
+            <option  value='18:15'>18:15</option>
+            <option  value='18:30'>18:30</option>
+            <option  value='18:45'>18:45</option>
+            <option  value='19:00'>19:00</option>
+            <option  value='19:15'>19:15</option>
+            <option  value='19:30'>19:30</option>
+            <option  value='19:45'>19:45</option>
+            <option  value='20:00'>20:00</option>
+            <option  value='20:15'>20:15</option>
+            <option  value='20:30'>20:30</option>
+            <option  value='20:45'>20:45</option>
+            <option  value='21:00'>21:00</option>
+            <option  value='21:15'>21:15</option>
+            <option  value='21:30'>21:30</option>
+            <option  value='21:45'>21:45</option>
+            <option selected value='22:00'>22:00</option>
+            <option  value='22:15'>22:15</option>
+            <option  value='22:30'>22:30</option>
+        </select><span class="styled_select" data-formselect="styledSelect" >Endzeit *</span>
+    </div>                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Show search attributes for Einzeltermine-->
+                <div id="einzeltermin" class="mod_search__timespan hidden">
+                    <div class="flex flex-wrap full-width"> 
+                        <div id="datum" class="row margin-right-30">
+                            <div class="mod_formdatepicker" data-init="formdatepicker"  data-formdatepicker-options='{
+    "dateFormat": "DD.MM.YYYY",
+    "i18n": {
+        "dayToMonthSeparator": ".",
+        "today": "Heute",
+        "goToPreviousMonth": "Go to previous month",
+        "goToNextMonth": "Go to next month",
+        "days": {
+            "monday": "Montag",
+            "tuesday": "Dienstag",
+            "wednesday": "Mittwoch",
+            "thursday": "Donnerstag",
+            "friday": "Freitag",
+            "saturday": "Samstag",
+            "sunday": "Sonntag"
+        },
+        "abbr": {
+            "monday": "Mo",
+            "tuesday": "Di",
+            "wednesday": "Mi",
+            "thursday": "Do",
+            "friday": "Fr",
+            "saturday": "Sa",
+            "sunday": "So"
+        }
+    },
+    "datepickerVariant": "datepicker--left-aligned"
+}'>
+
+    <label class="date_ttl" for="tag">Datum *</label>
+    
+    <div class="mod_formtextinput " data-init="formtextinput">
+        <input
+            data-formdatepicker="input"
+            type="text"
+                        name="tag"
+            id="tag"
+            value=""
+        />
+        <button  class="open_calendar " type="button" data-formdatepicker="openCalendar"><span>Open calendar</span></button>
+        
+            </div>
+    
+    </div>                        </div>
+                            
+                        <div class="flex flex-wrap">
+                            <div class="row selection section " style="margin-right: 10px">
+                                <div class="mod_formselect is_checked " data-init="formselect">
+    <label for="von">Startzeit *</label>
+
+    <select name="von" id="von"  class="" size="1" data-formselect="select" >
+            <option  value=''></option>
+            <option  value='07:00'>07:00</option>
+            <option  value='07:15'>07:15</option>
+            <option  value='07:30'>07:30</option>
+            <option  value='07:45'>07:45</option>
+            <option  value='08:00'>08:00</option>
+            <option  value='08:15'>08:15</option>
+            <option  value='08:30'>08:30</option>
+            <option  value='08:45'>08:45</option>
+            <option  value='09:00'>09:00</option>
+            <option  value='09:15'>09:15</option>
+            <option  value='09:30'>09:30</option>
+            <option  value='09:45'>09:45</option>
+            <option  value='10:00'>10:00</option>
+            <option  value='10:15'>10:15</option>
+            <option  value='10:30'>10:30</option>
+            <option  value='10:45'>10:45</option>
+            <option  value='11:00'>11:00</option>
+            <option  value='11:15'>11:15</option>
+            <option  value='11:30'>11:30</option>
+            <option  value='11:45'>11:45</option>
+            <option  value='12:00'>12:00</option>
+            <option  value='12:15'>12:15</option>
+            <option  value='12:30'>12:30</option>
+            <option  value='12:45'>12:45</option>
+            <option  value='13:00'>13:00</option>
+            <option  value='13:15'>13:15</option>
+            <option  value='13:30'>13:30</option>
+            <option  value='13:45'>13:45</option>
+            <option  value='14:00'>14:00</option>
+            <option  value='14:15'>14:15</option>
+            <option  value='14:30'>14:30</option>
+            <option  value='14:45'>14:45</option>
+            <option  value='15:00'>15:00</option>
+            <option  value='15:15'>15:15</option>
+            <option  value='15:30'>15:30</option>
+            <option  value='15:45'>15:45</option>
+            <option  value='16:00'>16:00</option>
+            <option  value='16:15'>16:15</option>
+            <option  value='16:30'>16:30</option>
+            <option  value='16:45'>16:45</option>
+            <option  value='17:00'>17:00</option>
+            <option  value='17:15'>17:15</option>
+            <option  value='17:30'>17:30</option>
+            <option  value='17:45'>17:45</option>
+            <option  value='18:00'>18:00</option>
+            <option  value='18:15'>18:15</option>
+            <option  value='18:30'>18:30</option>
+            <option  value='18:45'>18:45</option>
+            <option  value='19:00'>19:00</option>
+            <option  value='19:15'>19:15</option>
+            <option  value='19:30'>19:30</option>
+            <option  value='19:45'>19:45</option>
+            <option  value='20:00'>20:00</option>
+            <option  value='20:15'>20:15</option>
+            <option  value='20:30'>20:30</option>
+            <option  value='20:45'>20:45</option>
+            <option  value='21:00'>21:00</option>
+            <option  value='21:15'>21:15</option>
+            <option  value='21:30'>21:30</option>
+            <option  value='21:45'>21:45</option>
+            <option  value='22:00'>22:00</option>
+            <option  value='22:15'>22:15</option>
+        </select><span class="styled_select" data-formselect="styledSelect" >Startzeit *</span>
+    </div>                            </div>
+                            
+                            <div class="row selection section ">
+                                <div class="mod_formselect is_checked " data-init="formselect">
+    <label for="bis">Endzeit *</label>
+
+    <select name="bis" id="bis"  class="" size="1" data-formselect="select" >
+            <option  value=''></option>
+            <option  value='07:15'>07:15</option>
+            <option  value='07:30'>07:30</option>
+            <option  value='07:45'>07:45</option>
+            <option  value='08:00'>08:00</option>
+            <option  value='08:15'>08:15</option>
+            <option  value='08:30'>08:30</option>
+            <option  value='08:45'>08:45</option>
+            <option  value='09:00'>09:00</option>
+            <option  value='09:15'>09:15</option>
+            <option  value='09:30'>09:30</option>
+            <option  value='09:45'>09:45</option>
+            <option  value='10:00'>10:00</option>
+            <option  value='10:15'>10:15</option>
+            <option  value='10:30'>10:30</option>
+            <option  value='10:45'>10:45</option>
+            <option  value='11:00'>11:00</option>
+            <option  value='11:15'>11:15</option>
+            <option  value='11:30'>11:30</option>
+            <option  value='11:45'>11:45</option>
+            <option  value='12:00'>12:00</option>
+            <option  value='12:15'>12:15</option>
+            <option  value='12:30'>12:30</option>
+            <option  value='12:45'>12:45</option>
+            <option  value='13:00'>13:00</option>
+            <option  value='13:15'>13:15</option>
+            <option  value='13:30'>13:30</option>
+            <option  value='13:45'>13:45</option>
+            <option  value='14:00'>14:00</option>
+            <option  value='14:15'>14:15</option>
+            <option  value='14:30'>14:30</option>
+            <option  value='14:45'>14:45</option>
+            <option  value='15:00'>15:00</option>
+            <option  value='15:15'>15:15</option>
+            <option  value='15:30'>15:30</option>
+            <option  value='15:45'>15:45</option>
+            <option  value='16:00'>16:00</option>
+            <option  value='16:15'>16:15</option>
+            <option  value='16:30'>16:30</option>
+            <option  value='16:45'>16:45</option>
+            <option  value='17:00'>17:00</option>
+            <option  value='17:15'>17:15</option>
+            <option  value='17:30'>17:30</option>
+            <option  value='17:45'>17:45</option>
+            <option  value='18:00'>18:00</option>
+            <option  value='18:15'>18:15</option>
+            <option  value='18:30'>18:30</option>
+            <option  value='18:45'>18:45</option>
+            <option  value='19:00'>19:00</option>
+            <option  value='19:15'>19:15</option>
+            <option  value='19:30'>19:30</option>
+            <option  value='19:45'>19:45</option>
+            <option  value='20:00'>20:00</option>
+            <option  value='20:15'>20:15</option>
+            <option  value='20:30'>20:30</option>
+            <option  value='20:45'>20:45</option>
+            <option  value='21:00'>21:00</option>
+            <option  value='21:15'>21:15</option>
+            <option  value='21:30'>21:30</option>
+            <option  value='21:45'>21:45</option>
+            <option  value='22:00'>22:00</option>
+            <option  value='22:15'>22:15</option>
+            <option  value='22:30'>22:30</option>
+        </select><span class="styled_select" data-formselect="styledSelect" >Endzeit *</span>
+    </div>                            </div>
+                        </div>
+                    </div>
+                </div>
+            </fieldset>
+
+            <div class="mod_accordion" data-init="accordion">
+                <div class="var_small">
+                    
+                    <a href="#" class="trigger" data-accordion="trigger" > 
+                        <span class="trigger_title">Erweiterte Optionen</span> 
+                        <span class="trigger_icon " data-accordion="triggerIcon"></span> 
+                    </a>
+
+                    <div class="content " data-accordion="content" > 
+
+                        <div class="flex flex-wrap">
+                            <div class="flex-width-40-perc ie-width-35-perc margin-right-20">
+                                <div class="row selection section">
+                                    <script>
+                                    var mindest_einzel =
+                                    '    <option  value="">- Stunden -</option> \
+    <option  value="1">1</option> \
+    <option  value="1.5">1.5</option> \
+    <option selected value="2">2</option> \
+    <option  value="2.5">2.5</option> \
+    <option  value="3">3</option> \
+    <option  value="3.5">3.5</option> \
+    <option  value="4">4</option> \
+    <option  value="4.5">4.5</option> \
+    <option  value="5">5</option> \
+    <option  value="5.5">5.5</option> \
+    <option  value="6">6</option> \
+                                    ';
+
+                                    var mindest_periodic = 
+                                    '    <option  value="">- Stunden -</option> \
+    <option  value="1">1</option> \
+    <option  value="1.5">1.5</option> \
+    <option selected value="2">2</option> \
+    <option  value="2.5">2.5</option> \
+    <option  value="3">3</option> \
+    <option  value="3.5">3.5</option> \
+    <option  value="4">4</option> \
+    <option  value="4.5">4.5</option> \
+                                    ';
+                                    </script>
+
+                                    <div class="mod_formselect is_checked" data-init="formselect">
+                                        <label for="mindestbelegungszeit">Mindestbelegungszeit (in Stunden)</label>
+                                        <select name="mindestbelegungszeit" id="mindestbelegungszeit" size="1" data-formselect="select" ></select>
+                                        <span class="styled_select" data-formselect="styledSelect" >Mindestbelegungszeit (in Stunden)</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex-width-60-perc min-width-250 max-width-350">
+                                <div class="row textfield section">
+                                <div class="mod_formautocomplete" data-init="formautocomplete" data-formautocomplete-options="{&quot;useUrl&quot;:false,&quot;url&quot;:&quot;&quot;,&quot;autoCompleteData&quot;:{&quot;items&quot;:[{&quot;name&quot;:&quot;Dreifachhalle Blumenfeld&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Dreifachhalle Hardau&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Dreifachhalle Hofacker&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Dreifachhalle Im Birch&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Gymnastikraum Buhnrain&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Gymnastikraum In der Ey&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Gymnastikraum Rösli gross (U2)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Gymnastikraum Rösli klein (U1)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage  Apfelbaum&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Borrweg&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Buchwiesen&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Döltschi&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Falletsche&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Freilager&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Guggach&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Hirzenbach&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Lavater&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Leutschenbach&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Nordstern (ehem. Thurgauerstrasse)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Schauenberg&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Schul- und Sportanlage Stettbach&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Aegerten&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Aemtler A&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Aemtler B&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Ahorn&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Allenmoos oben&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Allenmoos unten&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Altstetterstrasse&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Altweg&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Am Wasser&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle An der Egg 1 (links)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle An der Egg 2 (rechts)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Aubrücke&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Auhof&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Auzelg&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Bachtobel&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Balgrist&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Bläsi&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Buchlern links (Mädchen)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Buchlern rechts (Knaben)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Bühl 1 links&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Bühl 2 rechts&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Buhn&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Buhnrain oben&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Buhnrain unten&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Bungertwies&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Chriesiweg&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Dachslernstrasse&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Entlisberg&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Eugen Huber&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Feld 1&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Feld 2&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Fluntern&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Friedrichstrasse&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Friesenberg&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Gabler&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Grünau&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Gubel A&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Halde&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Hans Asper&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Herzogenmühle oben&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Herzogenmühle unten&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Himmeri-Heumatt&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Hirschengraben Nord&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Hirschengraben Süd&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Holderbach&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Hürstholz&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Ilgen&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Im Gut nord&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Im Gut süd&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Im Herrlig&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Im Isengrind&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Imfeldstrasse oben (Turnhaus Letten)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Imfeldstrasse unten (TH Letten mit Spiegelwand)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle In der Ey oben&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Käferholz&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kappeli ost (vorne)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kappeli unten (Gymnastikraum)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kappeli west (hinten)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kartaus&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kern A&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kern B&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kern C&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kindergartenhaus Wiedikon&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kolbenacker oben&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kolbenacker unten&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kornhaus A&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kornhaus B&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kügeliloo oben&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Kügeliloo unten&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Küngenmatt&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Lachenzelg Ost&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Lachenzelg West&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Langmatt&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Letten&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Letzi 1 (links)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Letzi 2 (rechts)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Liguster oben&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Liguster unten&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Limmat 1&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Limmat 2 &quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Loogarten&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Looren A&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Looren B&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Manegg&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Mattenhof&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Milchbuck A&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Milchbuck B&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Münchhalde&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Neubühl&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Neumünster&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Nordstrasse&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Pfingstweid&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Probstei&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Rebhügel 1&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Rebhügel 2&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Rebhügel 3&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Riedenhalden&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Riedhof&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Riedtli&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Rösli&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Ruggächer&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Rütihof 1 (Linolbelag)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Rütihof 2 (Parkettbelag)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Saatlen B&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Scherr&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Schütze&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Seefeld&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Sihlfeld A&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Sihlfeld B&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Sihlfeld C&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Sihlweid 1 (oben)&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Stapfer&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Staudenbühl&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Triemli prov&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Untermoos&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Vogtsrain 1&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Vogtsrain 2&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Waidhalde oben&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sporthalle Waidhalde unten&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sportzentrum Fronwald&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sportzentrum Sihlhölzli&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;},{&quot;name&quot;:&quot;Sportzentrum Utogrund&quot;,&quot;type&quot;:&quot;stop&quot;,&quot;id&quot;:&quot;id-1&quot;}]}}">
+    <label class="date_ttl" for="hallenname">Hallenname</label>
+    <div class="mod_formtextinput " data-init="formtextinput">
+        <input
+            type="text"
+            name="hallenname"
+            id="hallenname"
+            value=""
+                            
+        />
+        
+    </div>
+    <input type="hidden" name="name" data-formautocomplete="get-selected-id">
+    </div>                
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div class="flex flex-wrap">
+                            <div class="flex-width-40-perc ie-width-35-perc margin-right-20">
+                                <div class="row selection section">
+                                <div class="mod_formselect is_checked " data-init="formselect">
+    <label for="schulkreis">Schulkreis</label>
+
+    <select name="schulkreis" id="schulkreis"  class="" size="1" data-formselect="select" >
+            <option  value=''>- Alle Schulkreise -</option>
+            <option  value='kanton z&uuml;rich'>Kanton Zürich</option>
+            <option  value='schulkreis glattal'>Schulkreis Glattal</option>
+            <option  value='schulkreis letzi'>Schulkreis Letzi</option>
+            <option  value='schulkreis limmattal'>Schulkreis Limmattal</option>
+            <option  value='schulkreis schwamendingen'>Schulkreis Schwamendingen</option>
+            <option  value='schulkreis uto'>Schulkreis Uto</option>
+            <option  value='schulkreis waidberg'>Schulkreis Waidberg</option>
+            <option  value='schulkreis z&uuml;richberg'>Schulkreis Zürichberg</option>
+        </select><span class="styled_select" data-formselect="styledSelect" >Schulkreis</span>
+    </div>                                </div>
+                            </div>
+
+                            <div class="flex-width-60-perc">
+                                <div class="row selection section">
+                                <div class="mod_formselect is_checked " data-init="formselect">
+    <label for="quartier">Stadtkreis / Quartier</label>
+
+    <select name="quartier" id="quartier"  class="" size="1" data-formselect="select" >
+            <option  value=''>- Alle Stadtkreise / Quartiere -</option>
+            <option  value='Kreis 1'>- Kreis 1 -</option>
+            <option  value='Rathaus'>Rathaus</option>
+            <option  value='Hochschulen'>Hochschulen</option>
+            <option  value='Lindenhof'>Lindenhof</option>
+            <option  value='City'>City</option>
+            <option  value='Kreis 2'>- Kreis 2 -</option>
+            <option  value='Wollishofen'>Wollishofen</option>
+            <option  value='Leimbach'>Leimbach</option>
+            <option  value='Enge'>Enge</option>
+            <option  value='Kreis 3'>- Kreis 3 -</option>
+            <option  value='Alt-Wiedikon'>Alt-Wiedikon</option>
+            <option  value='Sihlfeld'>Sihlfeld</option>
+            <option  value='Friesenberg'>Friesenberg</option>
+            <option  value='Kreis 4'>- Kreis 4 -</option>
+            <option  value='Werd'>Werd</option>
+            <option  value='Langstrasse'>Langstrasse</option>
+            <option  value='Hard'>Hard</option>
+            <option  value='Kreis 5'>- Kreis 5 -</option>
+            <option  value='Gewerbeschule'>Gewerbeschule</option>
+            <option  value='Escher Wyss'>Escher Wyss</option>
+            <option  value='Kreis 6'>- Kreis 6 -</option>
+            <option  value='Oberstrass'>Oberstrass</option>
+            <option  value='Unterstrass'>Unterstrass</option>
+            <option  value='Kreis 7'>- Kreis 7 -</option>
+            <option  value='Hottingen'>Hottingen</option>
+            <option  value='Witikon'>Witikon</option>
+            <option  value='Hirslanden'>Hirslanden</option>
+            <option  value='Fluntern'>Fluntern</option>
+            <option  value='Kreis 8'>- Kreis 8 -</option>
+            <option  value='Mühlebach'>Mühlebach</option>
+            <option  value='Weinegg'>Weinegg</option>
+            <option  value='Seefeld'>Seefeld</option>
+            <option  value='Kreis 9'>- Kreis 9 -</option>
+            <option  value='Albisrieden'>Albisrieden</option>
+            <option  value='Altstetten'>Altstetten</option>
+            <option  value='Kreis 10'>- Kreis 10 -</option>
+            <option  value='Wipkingen'>Wipkingen</option>
+            <option  value='Höngg'>Höngg</option>
+            <option  value='Kreis 11'>- Kreis 11 -</option>
+            <option  value='Affoltern'>Affoltern</option>
+            <option  value='Seebach'>Seebach</option>
+            <option  value='Oerlikon'>Oerlikon</option>
+            <option  value='Kreis 12'>- Kreis 12 -</option>
+            <option  value='Saatlen'>Saatlen</option>
+            <option  value='Schwamend.-Mitte'>Schwamend.-Mitte</option>
+            <option  value='Hirzenbach'>Hirzenbach</option>
+        </select><span class="styled_select" data-formselect="styledSelect" >Stadtkreis / Quartier</span>
+    </div>                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>            
+        </div>
+        
+        <div class="row section">
+            <div class="form_actions">
+                <input type="submit" value="Suchen" class="mod_button" class="send">
+                <input type="hidden" name="submitted" value="1"/>
+            </div>
+        </div>
+    </form>
+
+<div data-modal="dialogWrapper" class="alert-modal hidden">
+    <div class="dialog" data-modal="dialog">
+	    <div class="dialog_overlay" tabindex="-1">
+			<div style="display: inline-block; height: 100%; vertical-align: middle;"></div>
+			<div class="dialog_content_wrapper">
+				<div class="dialog_content" aria-labelledby="dialogTitle" aria-describedby="dialogDescription" role="dialog">
+					<div role="document">
+                        <div class="section_heading">
+                            <h2>Achtung!</h2>
+                        </div>
+                        <p class="alert-text"></p>
+                        <div class="layout_columns">
+                            <div style="visibility:hidden" class="layout_column">
+                                <button type="button" class="mod_button var_full_width var_secondary  var_label" data-modal="close">
+                                    <span class="label">Abbrechen</span>
+                                </button>
+                            </div>
+                            <div class="layout_column">
+                                <button type="button" class="close-alert-modal mod_button var_full_width var_label">
+                                    <span class="label">Ok</span>
+                                </button>
+                            </div>
+                        </div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>    <div class="mod_search section" data-init="search">
+        <div class="search_results">
+            <h2 id="search_result_summary" class="total">Suchergebnis:
+                <span id="search_result_summary_message" class="total">3 Treffer</span>
+            </h2>
+                    <div class="mod_newsteaser var_event_search_result">
+            <div onclick="if( !event.target.classList.contains('mod_linkicon') ){ var destination = '/details.php?einrichtung=39'; if( destination.indexOf('details.php') === -1 ){ window.open(destination, '_blank'); } else{ window.location.href = destination; } }" class="teaser_container">
+    <img class="teaser__image" src="assets/media/resizedImages/empty.png" data-src="assets/media/resizedImages/empty.png" alt="" data-was-processed="true">    
+    <div class="content">
+        <h3 style="margin-bottom:0px">Gymnastikraum Buhnrain</h3>
+                    <div style="font-size:13px">
+                            Folgendes Zeitfenster ist mit der gewünschten Mindestbelegungszeit mehrheitlich verfügbar:
+                <br/><strong style="color:#0F05A0;margin-top:10px;font-size:14px">18:00-22:00</strong>
+                        </div>
+                <div class="mod_eventinfo var_eventteaser var_eventteaser--search_result_list">
+                
+            <div class="mod_eventinfo__column-wrapper">
+                <div class="mod_eventinfo__column mod_eventinfo__column--time-location">
+                    <span class="mod_eventinfo__location">
+                        <span class="mod_eventinfo__location-name">Stadtkreis 11, Stadtquartier Seebach,&nbsp;<wbr>Schulkreis&nbsp;Glattal</span>
+                        <span class="mod_eventinfo__location-address">Buhnrain 40, 8052 Zürich</span>
+                    </span>
+                    <a href="/details.php?einrichtung=39" target="" title="Hallendetails" class="mod_linkicon icon icon_arrow_right">
+                        Hallendetails
+                    </a><br/>
+                    <a href="kalender.php?einrichtung=39&wochentag=2&tag_ab=01.09.2026&tag_bis=31.03.2027&zeit_von=18:00&zeit_bis=22:00&mindestbelegungszeit=2" title="Belegungsplan" class="mod_linkicon icon icon_calendar">
+                        Belegungsplan
+                    </a><br/>
+                    
+                                        <a href="anfrage.php?einrichtung=39&terminart=periodisch&wochentag=2&tag_ab=01.09.2026&tag_bis=31.03.2027&zeit_von=18:00&zeit_bis=22:00&mindestbelegungszeit=2" title="Reservationsanfrage" class="mod_linkicon icon icon_pencil">
+                        Reservationsanfrage
+                    </a>
+                                    </div>
+            </div>
+        </div>   
+    </div>
+</div><div onclick="if( !event.target.classList.contains('mod_linkicon') ){ var destination = '/details.php?einrichtung=55'; if( destination.indexOf('details.php') === -1 ){ window.open(destination, '_blank'); } else{ window.location.href = destination; } }" class="teaser_container">
+    <img class="teaser__image" src="assets/media/resizedImages/Bild-Sporthalle-55.jpg" data-src="assets/media/resizedImages/Bild-Sporthalle-55.jpg" alt="" data-was-processed="true">    
+    <div class="content">
+        <h3 style="margin-bottom:0px">Sporthalle Hans Asper</h3>
+                    <div style="font-size:13px">
+                            Folgendes Zeitfenster ist mit der gewünschten Mindestbelegungszeit mehrheitlich verfügbar:
+                <br/><strong style="color:#0F05A0;margin-top:10px;font-size:14px">20:00-22:00</strong>
+                        </div>
+                <div class="mod_eventinfo var_eventteaser var_eventteaser--search_result_list">
+                
+            <div class="mod_eventinfo__column-wrapper">
+                <div class="mod_eventinfo__column mod_eventinfo__column--time-location">
+                    <span class="mod_eventinfo__location">
+                        <span class="mod_eventinfo__location-name">Stadtkreis 2, Stadtquartier Wollishofen,&nbsp;<wbr>Schulkreis&nbsp;Uto</span>
+                        <span class="mod_eventinfo__location-address">Kilchbergstrasse 28, 8038 Zürich</span>
+                    </span>
+                    <a href="/details.php?einrichtung=55" target="" title="Hallendetails" class="mod_linkicon icon icon_arrow_right">
+                        Hallendetails
+                    </a><br/>
+                    <a href="kalender.php?einrichtung=55&wochentag=2&tag_ab=01.09.2026&tag_bis=31.03.2027&zeit_von=18:00&zeit_bis=22:00&mindestbelegungszeit=2" title="Belegungsplan" class="mod_linkicon icon icon_calendar">
+                        Belegungsplan
+                    </a><br/>
+                    
+                                        <a href="anfrage.php?einrichtung=55&terminart=periodisch&wochentag=2&tag_ab=01.09.2026&tag_bis=31.03.2027&zeit_von=18:00&zeit_bis=22:00&mindestbelegungszeit=2" title="Reservationsanfrage" class="mod_linkicon icon icon_pencil">
+                        Reservationsanfrage
+                    </a>
+                                    </div>
+            </div>
+        </div>   
+    </div>
+</div><div onclick="if( !event.target.classList.contains('mod_linkicon') ){ var destination = '/details.php?einrichtung=148'; if( destination.indexOf('details.php') === -1 ){ window.open(destination, '_blank'); } else{ window.location.href = destination; } }" class="teaser_container">
+    <img class="teaser__image" src="assets/media/resizedImages/Bild-Sporthalle-148.jpg" data-src="assets/media/resizedImages/Bild-Sporthalle-148.jpg" alt="" data-was-processed="true">    
+    <div class="content">
+        <h3 style="margin-bottom:0px">Sporthalle Staudenbühl</h3>
+                    <div style="font-size:13px">
+                            Folgendes Zeitfenster ist mit der gewünschten Mindestbelegungszeit mehrheitlich verfügbar:
+                <br/><strong style="color:#0F05A0;margin-top:10px;font-size:14px">20:00-22:00</strong>
+                        </div>
+                <div class="mod_eventinfo var_eventteaser var_eventteaser--search_result_list">
+                
+            <div class="mod_eventinfo__column-wrapper">
+                <div class="mod_eventinfo__column mod_eventinfo__column--time-location">
+                    <span class="mod_eventinfo__location">
+                        <span class="mod_eventinfo__location-name">Stadtkreis 11, Stadtquartier Seebach,&nbsp;<wbr>Schulkreis&nbsp;Glattal</span>
+                        <span class="mod_eventinfo__location-address">Himmeristrasse 57, 8052 Zürich</span>
+                    </span>
+                    <a href="/details.php?einrichtung=148" target="" title="Hallendetails" class="mod_linkicon icon icon_arrow_right">
+                        Hallendetails
+                    </a><br/>
+                    <a href="kalender.php?einrichtung=148&wochentag=2&tag_ab=01.09.2026&tag_bis=31.03.2027&zeit_von=18:00&zeit_bis=22:00&mindestbelegungszeit=2" title="Belegungsplan" class="mod_linkicon icon icon_calendar">
+                        Belegungsplan
+                    </a><br/>
+                    
+                                        <a href="anfrage.php?einrichtung=148&terminart=periodisch&wochentag=2&tag_ab=01.09.2026&tag_bis=31.03.2027&zeit_von=18:00&zeit_bis=22:00&mindestbelegungszeit=2" title="Reservationsanfrage" class="mod_linkicon icon icon_pencil">
+                        Reservationsanfrage
+                    </a>
+                                    </div>
+            </div>
+        </div>   
+    </div>
+</div>            </div>
+                    
+        </div>	
+    </div>
+
+</div>
+
+<script src="/assets/js/jquery.min.js" type="text/javascript"></script>
+<script src="/assets/js/jquery-ui.min.js" type="text/javascript"></script>
+<script src="/assets/js/jquery.ui.datepicker-de.js" type="text/javascript"></script>
+<script type="text/javascript" src="/assets/js/dateTimeValidationFuncs.js?v=1755598589"></script>
+<script src="/assets/js/main.min.js"></script>
+<script type="text/javascript">
+    $(document).ready(function () {
+        $('select#mindestbelegungszeit').append( mindest_periodic );$('#switchNo').prop('checked', true).trigger('click');        $("select#mindestbelegungszeit").val( $("select#mindestbelegungszeit option[selected='']").val() ).change();
+    });
+</script>
+
+    </body>
+</html>

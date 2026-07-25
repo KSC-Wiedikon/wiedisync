@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.47.0'
+const APP_VERSION = '1.48.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.48.0',
+    date: '25.07.2026',
+    sections: [
+      {
+        title: 'New: Hall finder — free city sport halls for the season',
+        items: [
+          'A new admin tool (Options → Hall finder) shows which City of Zürich sport halls have a free recurring training slot for the whole winter season, so you no longer have to check the city booking site hall by hall.',
+          'Filter by weekday, earliest start, minimum duration, city district and hall type. By default it lists only halls that are free every week excluding school holidays; switch that off to also see halls that are free most weeks.',
+          'Each result links straight to the city occupancy calendar and to a pre-filled reservation request. Availability is refreshed automatically every night.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.47.0',
     date: '25.07.2026',

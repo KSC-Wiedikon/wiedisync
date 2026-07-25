@@ -129,6 +129,7 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
         label: t('adminGroupPlanning'),
         items: [
           ...(isAdmin ? [{ to: '/admin/hallenplan', label: t('hallenplan'), icon: <Building2 className={iconClass} /> }] : []),
+          ...(isAdmin ? [{ to: '/admin/hallenfinder', label: t('hallenfinder'), icon: <CalendarClock className={iconClass} /> }] : []),
         ] as NavItem[],
       },
       {
