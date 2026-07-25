@@ -1,4 +1,11 @@
--- Migration 239 — Hallenfinder: cached Stadt-Zürich external hall availability.
+-- Migration 242 (renumbered from 239 — 239 was already taken by
+-- 239-foo-seed-from-nationality.sql, and 240/241 were taken by
+-- 240-member-in-vis.sql / 241-vis-federations.sql, all of which were applied
+-- first): Hallenfinder — cached Stadt-Zürich external hall availability.
+--
+-- ⚠ Already applied to dev + prod under its old filename. The kscw_migrations
+-- rows were updated in place (filename + sha256) alongside this rename, so the
+-- runner still treats it as applied and will NOT re-run it.
 --
 -- The club hunts for free training slots in City of Zürich sport halls every
 -- season. The city's search tool (ssd-sporthallen.stadt-zuerich.ch) has no API
