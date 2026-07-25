@@ -202,6 +202,23 @@ export interface Member extends BaseRecord {
   // literal 'NONE' (never licensed elsewhere), or null (not answered) — the
   // NONE/null distinction is what lets us skip a transfer-certificate chase.
   federation_of_origin: string | null
+  // International-transfer workflow (migrations 234/235), driven by
+  // /admin/transfers. STAFF-ONLY columns: deliberately absent from
+  // MEMBER_VISIBLE_FIELDS *and* MEMBER_EDITABLE_FIELDS, so a member neither
+  // reads nor writes them — only tiers holding `members` fields=* (Sport Admin,
+  // full admins) can.
+  //
+  // `transfer_status` is only pending/done. "No transfer needed" is DERIVED from
+  // `federation_of_origin` ('NONE' = never licensed with a national federation,
+  // 'CH' = already Swiss-licensed) and never stored, so the stored status can
+  // never contradict the federation answer it depends on.
+  transfer_status?: 'pending' | 'done' | null
+  /** Stamped when the status becomes 'done'; CLEARED whenever it moves away, so
+   *  the timestamp can never describe a state the row is no longer in. */
+  transfer_done_at?: string | null
+  /** Display name of the staff member who marked it done. Cleared with the timestamp. */
+  transfer_done_by_name?: string | null
+  transfer_note?: string | null
   anrede: string
   sex: string
   licence_category: string

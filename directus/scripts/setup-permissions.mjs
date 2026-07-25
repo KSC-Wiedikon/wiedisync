@@ -433,6 +433,52 @@ const MEMBER_DERIVED_READ_FIELDS = [
   'nationalitaet',
 ]
 
+/**
+ * STAFF-ONLY member columns — the international-transfer workflow (migrations
+ * 234/235), written from `/admin/transfers`.
+ *
+ * These hold a staff judgement ABOUT a member, not the member's own data, so
+ * they must NEVER join `MEMBER_VISIBLE_FIELDS` (what every member reads about
+ * every OTHER member) or `MEMBER_EDITABLE_FIELDS` (own-profile write). The
+ * second one matters most: an own-profile write would let a member mark their
+ * own transfer done, which is precisely the fact the club needs to be able to
+ * trust — and it is not a fact about them, it is a record of what an
+ * administrator did. Note `MEMBER_OWN_READABLE` and `LEADER_TEAM_MEMBER_FIELDS`
+ * are both DERIVED from those two lists, so staying out of them also keeps the
+ * columns away from own-read and from coaches / team responsibles.
+ *
+ * No new grant is required for the page's audience: `/admin/transfers` is
+ * AdminRoute-gated (admin | superuser | vb_admin | bb_admin) and **KSCW Sport
+ * Admin already holds `members` read + update with fields = '*'** (section 9),
+ * while full admins bypass policies entirely — so the gate and the grant line up
+ * exactly and nobody can reach the page with toggles that would 403. Vorstand
+ * reads `members` unfiltered (a board member can SEE these) but deliberately
+ * carries no `members.update` row at all; the board is not on this page's gate
+ * and gains no write here.
+ *
+ * The list exists so that invariant is CHECKED on every deploy rather than
+ * merely asserted in a comment — see the guard immediately below.
+ */
+const MEMBER_STAFF_ONLY_FIELDS = [
+  'transfer_status', 'transfer_done_at', 'transfer_done_by_name', 'transfer_note',
+]
+
+// Fail the deploy loudly rather than silently widening a staff-only column into
+// the club-wide read or the own-profile write. Cheap, and it turns "must not go
+// in that list" from tribal knowledge into an enforced rule.
+for (const field of MEMBER_STAFF_ONLY_FIELDS) {
+  if (
+    MEMBER_VISIBLE_FIELDS.includes(field) ||
+    MEMBER_EDITABLE_FIELDS.includes(field) ||
+    MEMBER_DERIVED_READ_FIELDS.includes(field)
+  ) {
+    throw new Error(
+      `setup-permissions: members."${field}" is STAFF-ONLY (transfer workflow) and must not appear in ` +
+      'MEMBER_VISIBLE_FIELDS / MEMBER_EDITABLE_FIELDS / MEMBER_DERIVED_READ_FIELDS.',
+    )
+  }
+}
+
 /** Public fields for teams */
 const PUBLIC_TEAM_FIELDS = [
   'id', 'name', 'full_name', 'sport', 'league', 'season', 'team_picture',
@@ -1854,6 +1900,11 @@ async function main() {
   await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'update')
   await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'delete')
   // Restricted: read/create/update only on members + teams (delete blocked).
+  // fields = '*' on both, which is what already covers the staff-only
+  // `transfer_*` columns (migrations 234/235) that `/admin/transfers` writes —
+  // see MEMBER_STAFF_ONLY_FIELDS above. Anything added to `members` becomes
+  // Sport-Admin readable AND writable here by default; if a future column must
+  // NOT be, this loop is where it has to be field-scoped.
   for (const col of ['members', 'teams']) {
     await setPerm(SPORT_ADMIN_POLICY, col, 'create')
     await setPermRead(SPORT_ADMIN_POLICY, col)

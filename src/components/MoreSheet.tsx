@@ -8,7 +8,7 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList, FolderSync } from 'lucide-react'
+import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList, FolderSync, ArrowRightLeft } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
@@ -120,6 +120,10 @@ function buildAdminGroups(
       items: [
         ...(isAdmin ? [
           { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: <UserPlus className={iconClass} /> },
+          // International transfers (AdminRoute). Mirrors useNavItems — the label
+          // lives in the `admin` namespace with the rest of the page's strings,
+          // so it carries the `admin:` prefix like the finance items above.
+          { to: '/admin/transfers', labelKey: 'admin:trNavTransfers', icon: <ArrowRightLeft className={iconClass} /> },
           { to: '/admin/announcements', labelKey: 'announcements', icon: <Megaphone className={iconClass} /> },
         ] : []),
         // Club mailbox: admin||superuser only — mirrors the server's

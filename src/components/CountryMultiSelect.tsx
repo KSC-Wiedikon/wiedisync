@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { X, Search, Check } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { countryOptions, parseCountryCodes, FAVORITE_CODES } from '../utils/countries'
+import { countryOptions, parseCountryCodes, countryFlag, FAVORITE_CODES } from '../utils/countries'
 
 interface CountryMultiSelectProps {
   label?: string
@@ -44,7 +44,7 @@ export default function CountryMultiSelect({
   // for a given language, so calling it per render is cheap and the identity is
   // steady enough for the derived Map's memo.
   const options = countryOptions()
-  const byCode = useMemo(() => new Map(options.map((o) => [o.value, o.label])), [options])
+  const byCode = useMemo(() => new Map(options.map((o) => [o.value, o])), [options])
 
   const selectedSet = useMemo(() => new Set(selected), [selected])
 
@@ -52,7 +52,7 @@ export default function CountryMultiSelect({
     const q = search.trim().toLowerCase()
     if (!q) return options
     // Match the localized name or the ISO code itself ("CH" finds Switzerland).
-    return options.filter((o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase() === q)
+    return options.filter((o) => o.name.toLowerCase().includes(q) || o.value.toLowerCase() === q)
   }, [options, search])
 
   // Close on outside click — the list is an absolutely-positioned sibling, so a
@@ -116,14 +116,17 @@ export default function CountryMultiSelect({
                   {i + 1}
                 </span>
               )}
-              {byCode.get(code) ?? code}
+              {/* Decorative — the name follows, and Windows renders the two
+                  regional-indicator letters instead of a glyph. */}
+              <span aria-hidden="true">{byCode.get(code)?.flag || countryFlag(code)}</span>
+              {byCode.get(code)?.name ?? code}
               {!disabled && (
                 <button
                   type="button"
                   // Stop the wrapper's focus/open handler — removing a chip
                   // shouldn't also pop the dropdown open.
                   onClick={(e) => { e.stopPropagation(); toggle(code) }}
-                  aria-label={`${t('remove')} ${byCode.get(code) ?? code}`}
+                  aria-label={`${t('remove')} ${byCode.get(code)?.name ?? code}`}
                   className="grid h-5 w-5 shrink-0 place-items-center rounded-full transition-colors hover:bg-primary-foreground/25"
                 >
                   <X className="h-3 w-3" />
@@ -199,7 +202,10 @@ export default function CountryMultiSelect({
                     isSelected ? 'opacity-100' : 'opacity-0',
                   )}
                 />
-                {o.label}
+                {/* Decorative: the name always follows, so a Windows box that
+                    renders "CH" instead of a flag still reads correctly. */}
+                <span aria-hidden="true" className="mr-2 shrink-0">{o.flag}</span>
+                {o.name}
               </button>
             )
           })}
