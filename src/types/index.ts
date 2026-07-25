@@ -224,8 +224,13 @@ export interface Member extends BaseRecord {
   licence_category: string
   licence_activated: boolean
   licence_validated: boolean
-  licence_activation_date: string | null
-  licence_validation_date: string | null
+  // ⚠ NOT `members` columns — they exist only on `sv_vm_check`, and requesting
+  // them from members 400s the whole query. Declared here historically; kept as
+  // optional-and-commented rather than silently deleted because several call
+  // sites already work around them (useExplorerCache, TransfersPage), and a bare
+  // removal would just move the surprise. Read them from sv_vm_check.
+  // licence_activation_date — sv_vm_check only
+  // licence_validation_date — sv_vm_check only
   vm_email: string
   ahv_nummer: string
   // Bank account IBAN for reimbursements (migration 117). Sensitive financial

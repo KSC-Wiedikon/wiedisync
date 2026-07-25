@@ -1,0 +1,183 @@
+#!/usr/bin/env node
+/**
+ * Is each foreign-origin member present in the FIVB VIS player index?
+ * → `members.in_vis` / `vis_player_no` / `in_vis_checked_at` (migration 240).
+ *
+ * A transfer can only be REQUESTED for a player already in VIS. If they are not
+ * there, the club must first ask the federation of origin to enter them — a
+ * different action, to a different party. This check is what tells the two apart.
+ *
+ * ⚠ READ-ONLY against VIS, by construction: the request type is a hardcoded
+ * constant asserted against a read-verb allowlist at module load. The same proxy
+ * serves Save/Sign/Confirm/Release/CancelVolleyTransfer, so a wrong type here
+ * would not fetch wrong data — it would alter a real player's eligibility.
+ *
+ * ⚠ VIS ignores name filters (`Filter LastName` returns the full 130k index), so
+ * presence is established by pulling the whole player roster of the relevant
+ * federation and matching locally. That is why this is a MONTHLY job and not a
+ * per-member lookup: ~30 federation rosters, a few thousand rows each.
+ *
+ * Only members whose federation_of_origin is neither CH nor NONE are checked. A
+ * Swiss origin means no international transfer applies, so a `false` there would
+ * be noise; those rows are left NULL on purpose.
+ *
+ * Usage:
+ *   VIS_USER=… VIS_PASS=… node vis-player-check.mjs <dev|prod> [--dry-run]
+ *   KSCW_LOCAL_PSQL=1 …            # when running ON the VPS (no ssh hop)
+ */
+import { spawnSync } from 'node:child_process'
+
+const PROXY = 'https://proxy.app.fivb.com'
+
+const REQUEST_TYPE = 'GetPlayerList'
+const FED_LIST_TYPE = 'GetFederationList'
+for (const t of [REQUEST_TYPE, FED_LIST_TYPE]) {
+  if (!/^(Get|Check|Export|List)/.test(t)) throw new Error(`refusing to run: ${t} is not a read-only VIS verb`)
+}
+
+/**
+ * ISO 3166-1 alpha-2 → FIVB 3-letter federation code. FIVB codes are IOC-style
+ * and NOT derivable from ISO (DE→GER, NL→NED, LK→SRI, IR→IRI), so they are
+ * mapped explicitly. An unmapped country is reported and skipped — never guessed.
+ */
+const ISO2FIVB = {
+  DE: 'GER', IT: 'ITA', FR: 'FRA', AF: 'AFG', ES: 'ESP', PL: 'POL', US: 'USA',
+  SE: 'SWE', LK: 'SRI', AT: 'AUT', PT: 'POR', ET: 'ETH', RU: 'RUS', FI: 'FIN',
+  BG: 'BUL', CZ: 'CZE', NL: 'NED', NZ: 'NZL', PE: 'PER', RS: 'SRB', AL: 'ALB',
+  SI: 'SLO', MX: 'MEX', BR: 'BRA', GB: 'GBR', GR: 'GRE', HU: 'HUN', IQ: 'IRQ',
+  IR: 'IRI', CO: 'COL', TR: 'TUR', UA: 'UKR', HR: 'CRO', BE: 'BEL', DK: 'DEN',
+  NO: 'NOR', JP: 'JPN', CN: 'CHN', KR: 'KOR', AR: 'ARG', CA: 'CAN', CU: 'CUB',
+  DO: 'DOM', EG: 'EGY', TN: 'TUN', MA: 'MAR', IN: 'IND', TH: 'THA', RO: 'ROU',
+  SK: 'SVK', EE: 'EST', LV: 'LAT', LT: 'LTU', BA: 'BIH', MK: 'MKD', ME: 'MNE',
+  IE: 'IRL', IS: 'ISL', LU: 'LUX', ZA: 'RSA', KE: 'KEN', NG: 'NGR', VE: 'VEN',
+  CL: 'CHI', UY: 'URU', PY: 'PAR', EC: 'ECU', BO: 'BOL',
+}
+
+const ENVS = {
+  dev: { container: 'kscw-postgres', database: 'directus_kscw_dev', user: 'supabase_admin' },
+  prod: { container: 'kscw-postgres', database: 'postgres', user: 'supabase_admin' },
+}
+
+/**
+ * ⚠ Never pass a `|` inside an ssh argv — ssh joins args into a REMOTE SHELL
+ * string, so it becomes a pipe. `-tA` already defaults to `|`, so -F is not
+ * needed. (Cost a silent zero-row result once.)
+ */
+function psql(env, sql) {
+  const local = process.env.KSCW_LOCAL_PSQL === '1'
+  const base = ['sudo', 'docker', 'exec', '-i', env.container,
+    'psql', '-U', env.user, '-d', env.database, '-tA', '-X', '-v', 'ON_ERROR_STOP=1']
+  const cmd = local ? base : ['ssh', 'hetzner', ...base]
+  const r = spawnSync(cmd[0], cmd.slice(1), { input: sql, encoding: 'utf-8' })
+  if (r.status !== 0) throw new Error(`psql failed:\n${r.stderr || r.stdout}`)
+  return r.stdout
+}
+
+/** Accent- and punctuation-insensitive, so "Krawczyński" matches "Krawczynski". */
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD')
+  .replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, '')
+
+async function visLogin() {
+  const r = await fetch(`${PROXY}/auth/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: process.env.VIS_USER, password: process.env.VIS_PASS }),
+  })
+  const body = await r.text()
+  if (!r.ok || !/authenticated/.test(body)) throw new Error(`VIS login failed: ${r.status} ${body.slice(0, 200)}`)
+  const cookie = (r.headers.getSetCookie?.() || []).map((c) => c.split(';')[0]).join('; ')
+  if (!cookie) throw new Error('VIS login returned no session cookie')
+  return cookie
+}
+
+/** ⚠ `accept: application/json` AND `origin` are required — else 406. */
+const visHeaders = (cookie) => ({
+  'content-type': 'application/xml', accept: 'application/json',
+  origin: 'https://app.fivb.com', cookie,
+  'x-fivb-env': 'production', 'x-fivb-version': 'VISSharp',
+  'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+})
+
+async function visPost(cookie, body) {
+  const r = await fetch(`${PROXY}/proxy`, { method: 'POST', headers: visHeaders(cookie), body })
+  const text = await r.text()
+  if (!r.ok) throw new Error(`VIS request failed: ${r.status} ${text.slice(0, 250)}`)
+  const json = JSON.parse(text)
+  if (json.errors) throw new Error(`VIS error: ${JSON.stringify(json.errors).slice(0, 250)}`)
+  return json
+}
+
+async function main() {
+  const args = process.argv.slice(2)
+  const dryRun = args.includes('--dry-run')
+  const target = args.find((a) => a === 'dev' || a === 'prod')
+  for (const k of ['VIS_USER', 'VIS_PASS']) if (!process.env[k]) throw new Error(`missing env ${k}`)
+  if (!target) throw new Error('specify dev or prod')
+  const env = ENVS[target]
+
+  const members = psql(env, `SELECT id, first_name, last_name, federation_of_origin
+      FROM members
+     WHERE federation_of_origin IS NOT NULL
+       AND federation_of_origin NOT IN ('CH','NONE')
+       AND kscw_membership_active
+     ORDER BY federation_of_origin, last_name;`)
+    .trim().split('\n').filter(Boolean)
+    .map((l) => { const [id, fn, ln, foo] = l.split('|'); return { id, fn, ln, foo } })
+
+  console.log(`[vis] ${members.length} member(s) with a foreign federation of origin`)
+  if (!members.length) return
+
+  const cookie = await visLogin()
+  const feds = (await visPost(cookie, `<Request Type="${FED_LIST_TYPE}" Properties="No Code Name"/>`)).data
+  const byCode = new Map(feds.map((f) => [f.code, f]))
+
+  const rosters = new Map(); const unmapped = []
+  for (const iso of [...new Set(members.map((m) => m.foo))]) {
+    const fed = byCode.get(ISO2FIVB[iso])
+    if (!fed) { unmapped.push(iso); console.log(`  ⚠ ${iso}: no VIS federation mapped — skipped`); continue }
+    const j = await visPost(cookie,
+      `<Request Type="${REQUEST_TYPE}" Properties="No"><Filter NoFederation="${fed.no}"/>` +
+      `<Relation Name="Person" Properties="FirstName LastName"/></Request>`)
+    const roster = new Map()
+    for (const p of j.data || []) if (p.person) roster.set(`${norm(p.person.lastName)}|${norm(p.person.firstName)}`, p.no)
+    rosters.set(iso, roster)
+    console.log(`  ${iso} (${fed.code}): ${roster.size} players`)
+  }
+
+  const found = [], notFound = []
+  for (const m of members) {
+    const roster = rosters.get(m.foo)
+    if (!roster) continue // unmapped federation — leave the row untouched, not false
+    const key = `${norm(m.ln)}|${norm(m.fn)}`
+    let no = roster.get(key)
+    if (!no) {
+      // VIS stores full legal given names ("Kacper Jan"); accept a prefix match
+      // on the first name when the surname is exact.
+      for (const [k, v] of roster) {
+        const [ln, fn] = k.split('|')
+        if (ln === norm(m.ln) && (fn.startsWith(norm(m.fn)) || norm(m.fn).startsWith(fn))) { no = v; break }
+      }
+    }
+    ;(no ? found : notFound).push({ ...m, no: no ?? null })
+  }
+
+  console.log(`\n[vis] in VIS: ${found.length} | not found: ${notFound.length}`)
+  for (const f of found) console.log(`  ✓ ${f.ln}, ${f.fn} (${f.foo}) — VIS #${f.no}`)
+  if (unmapped.length) console.log(`  ⚠ unmapped federations, left unchecked: ${unmapped.join(', ')}`)
+
+  if (dryRun) { console.log('[vis] --dry-run: nothing written'); return }
+
+  // Only rows we actually evaluated are written; an unmapped federation leaves
+  // in_vis NULL rather than asserting a false negative.
+  const vals = [...found, ...notFound]
+    .map((m) => `(${m.id}, ${m.no ? 'true' : 'false'}, ${m.no ?? 'NULL'})`).join(',\n')
+  psql(env, `BEGIN;
+UPDATE members m SET in_vis = v.f, vis_player_no = v.n, in_vis_checked_at = now()
+  FROM (VALUES\n${vals}\n) AS v(id, f, n) WHERE m.id = v.id;
+COMMIT;
+SELECT 'in_vis true' AS m, count(*) AS n FROM members WHERE in_vis
+UNION ALL SELECT 'in_vis false', count(*) FROM members WHERE in_vis = false
+UNION ALL SELECT 'unchecked', count(*) FROM members WHERE in_vis IS NULL;`)
+  console.log(`[vis] wrote ${found.length + notFound.length} row(s) (${target})`)
+}
+
+main().catch((e) => { console.error('[vis] FAILED:', e.message); process.exit(1) })
