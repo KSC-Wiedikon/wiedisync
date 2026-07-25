@@ -29,17 +29,17 @@ const kacper = {
 }
 
 describe('buildPushCsv (update set)', () => {
-  it('is [Id]-keyed and name-less — exactly the 13 contact columns, no category', () => {
+  it('is [Id]-keyed and name-less — exactly the 14 contact columns, no category', () => {
     const csv = buildPushCsv([kacper])
     const [header, row] = csv.trim().split('\n')
-    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;AHV Nummer;Wiedisync ID')
+    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID')
     // Names must NEVER ride on an update row: [Id] is the upsert key (spike-proven
     // 2026-07-08) and a name column would overwrite the register's legal name.
     expect(header).not.toContain('Vorname')
     expect(header).not.toContain('Nachname')
     expect(header).not.toContain('Beitragskategorie')
     const cells = row.split(';')
-    expect(cells).toHaveLength(13)
+    expect(cells).toHaveLength(14)
     expect(cells[0]).toBe('1001283')  // ClubDesk's own [Id] = members.clubdesk_id
     expect(row).not.toContain('Kacper')
     expect(row).not.toContain('Krawczyński')
@@ -57,15 +57,33 @@ describe('buildPushCsv (update set)', () => {
     expect(row[8]).toBe('CH93')      // IBAN — invalid (mod-97 fail) passes through raw, never blanked
     expect(row[9]).toBe('Herr')      // Anrede
     expect(row[10]).toBe('Schweiz')  // Nationalität
-    expect(row[11]).toBe('756.1.2.3') // AHV Nummer — unrewritable passes through raw
-    expect(row[12]).toBe('531')      // Wiedisync ID: numeric id fallback (pre-184 rows)
+    expect(row[12]).toBe('756.1.2.3') // AHV Nummer — unrewritable passes through raw
+    expect(row[13]).toBe('531')      // Wiedisync ID: numeric id fallback (pre-184 rows)
     // members.uuid (migration 184) wins over the numeric id
     const uuid = 'a3e1f0b2-4c5d-4e6f-8a9b-0c1d2e3f4a5b'
     const withUuid = buildPushCsv([{ ...kacper, id: 531, uuid }]).trim().split('\n')[1].split(';')
-    expect(withUuid[12]).toBe(uuid)
+    expect(withUuid[13]).toBe(uuid)
     const empty = buildPushCsv([kacper]).trim().split('\n')[1].split(';')
-    expect([empty[9], empty[10], empty[11]]).toEqual(['', '', '']) // /up echo-fills these
-    expect(empty[12]).toBe('') // no uuid/id on the fixture → empty
+    expect([empty[9], empty[10], empty[11], empty[12]]).toEqual(['', '', '', '']) // /up echo-fills these
+    expect(empty[13]).toBe('') // no uuid/id on the fixture → empty
+  })
+
+  it('maps Federation of Origin to ClubDesk German, keeps the NONE sentinel, echoes when unanswered', () => {
+    // wiedisync stores an ISO code; ClubDesk's picklist wants its OWN German
+    // spelling (country_codes.name_de_clubdesk — "Großbritannien", not CLDR's
+    // "Vereinigtes Königreich"), so the map is passed in, never guessed.
+    const countryNames = new Map([['IT', 'Italien'], ['GB', 'Großbritannien']])
+    const cell = (m) => buildPushCsv([{ ...kacper, ...m }], { countryNames }).trim().split('\n')[1].split(';')[11]
+    expect(cell({ federation_of_origin: 'IT' })).toBe('Italien')
+    expect(cell({ federation_of_origin: 'GB' })).toBe('Großbritannien')
+    // 'NONE' = "never licensed elsewhere" — a real answer, pushed as Keiner.
+    expect(cell({ federation_of_origin: 'NONE' })).toBe('Keiner')
+    // Not answered → /up's echo of ClubDesk's own cell, never an empty cell
+    // that could blank the register (the echo can't ride on the code column).
+    expect(cell({ federation_of_origin: null, federation_of_origin_cd: 'Frankreich' })).toBe('Frankreich')
+    expect(cell({ federation_of_origin: null })).toBe('')
+    // An unknown code is never guessed at — empty, and the echo takes over.
+    expect(cell({ federation_of_origin: 'ZZ', federation_of_origin_cd: 'Italien' })).toBe('Italien')
   })
 
   it('repairs outgoing contact cells to the canonical formats (normalize.js)', () => {
@@ -79,7 +97,7 @@ describe('buildPushCsv (update set)', () => {
     expect(row[1]).toBe('k@example.com')
     expect(row[2]).toBe('+41 79 123 45 67')
     expect(row[8]).toBe('CH9300762011623852957')
-    expect(row[11]).toBe('756.1234.5678.97')
+    expect(row[12]).toBe('756.1234.5678.97')
     // unrewritable values pass through raw — the push never blanks what it can't parse
     const raw = buildPushCsv([{ ...kacper, phone: '01 451 60 38' }]).trim().split('\n')[1].split(';')
     expect(raw[2]).toBe('01 451 60 38')
@@ -115,52 +133,53 @@ describe('buildPushCsv (create set)', () => {
     // the cells shift against ClubDesk's mapper). CREATE rows carry the real
     // wiedisync name (a new contact needs one) and never an [Id] (an unknown
     // [Id] hard-aborts ClubDesk's whole import).
-    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;AHV Nummer;Wiedisync ID;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Passivmitglied;Sektion;Schiedsrichter')
+    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Passivmitglied;Sektion;Schiedsrichter')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
     expect(header).not.toContain('[Id]')
     // header/cell count equality — catches a header/cells drift in either direction
     expect(row.split(';')).toHaveLength(header.split(';').length)
     const cells = row.split(';')
-    expect(cells).toHaveLength(24)
+    expect(cells).toHaveLength(25)
     expect(cells[9]).toBe('CH9300762011623852957') // IBAN
-    // [10..12] = Anrede/Nationalität/AHV Nummer (empty on this fixture); [13] = Wiedisync ID; create extras start at [14]
-    expect(cells[14]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
-    expect(cells[15]).toBe('VB Erwerbstätige')       // Beitragskategorie
-    expect(cells[16]).toBe('27.06.2026')             // Eintritt
-    expect(cells[17]).toBe('VB H1 (Spieler*in)')     // Gruppen
-    expect(cells[18]).toBe('Aktivmitglied')          // Status
-    expect(cells[19]).toBe('VB SC')                  // Offiziellen Lizenz (scorer, not VB SR)
-    expect(cells[20]).toBe('440')                    // Mitgliederbeitrag
-    expect(cells[21]).toBe('Nein')                   // Passivmitglied
-    expect(cells[22]).toBe('Volleyball')             // Sektion
-    expect(cells[23]).toBe('Ja')                     // Schiedsrichter (referee)
+    // [10..13] = Anrede/Nationalität/Federation of Origin/AHV Nummer (empty on this fixture); [14] = Wiedisync ID; create extras start at [15]
+    expect(cells[15]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
+    expect(cells[16]).toBe('VB Erwerbstätige')       // Beitragskategorie
+    expect(cells[17]).toBe('27.06.2026')             // Eintritt
+    expect(cells[18]).toBe('VB H1 (Spieler*in)')     // Gruppen
+    expect(cells[19]).toBe('Aktivmitglied')          // Status
+    expect(cells[20]).toBe('VB SC')                  // Offiziellen Lizenz (scorer, not VB SR)
+    expect(cells[21]).toBe('440')                    // Mitgliederbeitrag
+    expect(cells[22]).toBe('Nein')                   // Passivmitglied
+    expect(cells[23]).toBe('Volleyball')             // Sektion
+    expect(cells[24]).toBe('Ja')                     // Schiedsrichter (referee)
   })
 
   it('Telefon Mobil mirrors Telefon Privat (one number → both)', () => {
     const cells = buildPushCsv([kacper], { create: true }).trim().split('\n')[1].split(';')
-    expect(cells[3]).toBe(cells[14]) // Privat === Mobil
+    expect(cells[3]).toBe(cells[15]) // Privat === Mobil
   })
 
   it('empty create-set optional cells stay empty (safe on a new contact)', () => {
     const row = buildPushCsv([{ ...kacper, phone: '', beitragskategorie: null, eintritt: null, gruppen: '', cd_status: '' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    // IBAN, Anrede, Nationalität, AHV, Wiedisync ID (no id), Telefon Mobil, Beitragskategorie, Eintritt, Gruppen, Status
-    for (const i of [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]) expect(cells[i]).toBe('')
+    // IBAN, Anrede, Nationalität, Federation of Origin, AHV, Wiedisync ID (no id),
+    // Telefon Mobil, Beitragskategorie, Eintritt, Gruppen, Status
+    for (const i of [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]) expect(cells[i]).toBe('')
   })
 
   it('neutralises formula injection in the category cell', () => {
     const row = buildPushCsv([{ ...kacper, beitragskategorie: '=SUM(A1)' }], { create: true })
       .trim().split('\n')[1]
-    expect(row.split(';')[15]).toBe("'=SUM(A1)")
+    expect(row.split(';')[16]).toBe("'=SUM(A1)")
   })
 
   it('multi-team Gruppen stays one cell (comma is safe in semicolon CSV)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(24)
-    expect(cells[17]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
+    expect(cells).toHaveLength(25)
+    expect(cells[18]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 })
 

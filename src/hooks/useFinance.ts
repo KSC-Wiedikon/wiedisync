@@ -152,7 +152,12 @@ export interface FinanceMember {
   adresse?: string | null
   plz?: string | null
   ort?: string | null
+  /** Derived from `nationalitaet_codes` by a DB trigger (migration 223) — read-only. */
   nationalitaet?: string | null
+  /** Ordered ISO alpha-2 list, e.g. "CH,IT"; the first code is the primary one. */
+  nationalitaet_codes?: string | null
+  /** ISO alpha-2, the literal 'NONE', or null (not answered). */
+  federation_of_origin?: string | null
   sex?: string | null
   birthdate?: string | null
   iban?: string | null
@@ -174,7 +179,7 @@ export interface FinanceMember {
 
 const FINANCE_MEMBER_FIELDS = [
   'id', 'first_name', 'last_name', 'nickname', 'email', 'phone', 'number',
-  'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'birthdate',
+  'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'nationalitaet_codes', 'federation_of_origin', 'sex', 'birthdate',
   'iban', 'iban_confirmed', 'ahv_nummer', 'beitragskategorie', 'sektion', 'kscw_membership_active', 'wiedisync_active',
   'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
 ]

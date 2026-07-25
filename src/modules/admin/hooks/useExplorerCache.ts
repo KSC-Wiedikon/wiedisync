@@ -101,7 +101,12 @@ export function useExplorerCache(scope: ExplorerScope) {
             'hide_phone', 'hide_email', 'website_visible',
             'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
             'push_preview_content', 'last_online_at',
-            'adresse', 'plz', 'ort', 'nationalitaet', 'vm_email', 'ahv_nummer', 'beitragskategorie',
+            'adresse', 'plz', 'ort', 'vm_email', 'ahv_nummer', 'beitragskategorie',
+            // Coded nationality + federation of origin (migrations 223/224).
+            // `nationalitaet` is the trigger-derived German name kept for the
+            // ClubDesk push — read-only, but still fetched as the display
+            // fallback for rows whose codes were never resolved.
+            'nationalitaet', 'nationalitaet_codes', 'federation_of_origin',
             'clubdesk_id',
           ],
           sort: ['last_name', 'first_name'],

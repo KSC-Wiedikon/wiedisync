@@ -39,6 +39,26 @@ export function bbIsMinor(dob) {
   return age < 18
 }
 
+// The single nationality code the document gate must judge a (possibly multi-)
+// national by. FIBA treats a dual national who holds Swiss nationality as
+// Swiss, so a CH code ANYWHERE in the list clears the foreign-player documents
+// (self declaration / national team declaration) — ordering it first is a UI
+// convention, not a legal one. Without a CH code the primary (first) code
+// decides. `fallback` is the legacy singular `nationalitaet_code`, used for
+// rows that predate the code LIST (migration 223).
+//
+// Lives here so all three backend enforcement points (registration create,
+// doc-status, approval gate) apply one rule; the admin UI mirrors it in
+// AnmeldungenPage.tsx.
+export function fibaNatCode(codes, fallback) {
+  const list = String(codes || '')
+    .split(',')
+    .map((s) => s.trim().toUpperCase())
+    .filter((s) => /^[A-Z]{2}$/.test(s))
+  if (list.includes('CH')) return 'CH'
+  return list[0] || String(fallback || '').trim().toUpperCase().slice(0, 2)
+}
+
 // Required document COLUMNS (registrations table) for a basketball registration.
 // A falsy/unknown situation falls back to the legacy nationality-only rule so
 // rows created before the situation field existed keep a sane required set.

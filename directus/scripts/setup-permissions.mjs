@@ -390,8 +390,16 @@ const MEMBER_EDITABLE_FIELDS = [
   // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
   'requested_team',
-  // ClubDesk personal data fields
-  'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'ahv_nummer',
+  // ClubDesk personal data fields.
+  // 2026-07-25 migrations 223/224: nationality became CODED. `nationalitaet_codes`
+  // (ordered ISO alpha-2 list, first code primary) and `federation_of_origin`
+  // (alpha-2 | 'NONE' | null) are the member-writable columns; the legacy
+  // free-text `nationalitaet` is now DERIVED by a DB trigger for the ClubDesk
+  // picklist, so it is deliberately NOT here — a member write would be silently
+  // overwritten and drift the two apart in the meantime. It stays own-readable
+  // via MEMBER_DERIVED_READ_FIELDS below.
+  'anrede', 'adresse', 'plz', 'ort', 'nationalitaet_codes', 'federation_of_origin',
+  'sex', 'ahv_nummer',
   // 2026-06-19 migration 117: member IBAN for reimbursements. Sensitive PII —
   // own-member editable/readable + admin only, like ahv_nummer. Deliberately
   // NOT in MEMBER_VISIBLE_FIELDS or LEADER_TEAM_MEMBER_FIELDS (which excludes
@@ -406,6 +414,23 @@ const MEMBER_EDITABLE_FIELDS = [
   // enforced in the send paths, never the in-app notification bell.
   'email_notify_registrations', 'email_notify_join_requests',
   'email_notify_form_submissions', 'email_notify_announcements', 'email_notify_events',
+]
+
+/**
+ * Trigger-derived member columns: READABLE on the same rows as the editable
+ * set, but never WRITABLE. Kept as its own list so removing a column from
+ * MEMBER_EDITABLE_FIELDS (because the DB now owns it) does not silently drop it
+ * from own-read / leader-read as well.
+ *
+ * `nationalitaet` (migration 223) — the German ClubDesk display name mirrored
+ * from the first entry of `nationalitaet_codes`. Deliberately NOT added to
+ * MEMBER_VISIBLE_FIELDS: that list is what EVERY member reads about EVERY other
+ * member, and nationality sits in the same PII tier as `adresse` / `birthdate`,
+ * which are excluded from it by design (migration 024). It was never club-wide
+ * readable and must not become so as a side effect of losing its write grant.
+ */
+const MEMBER_DERIVED_READ_FIELDS = [
+  'nationalitaet',
 ]
 
 /** Public fields for teams */
@@ -580,6 +605,9 @@ const MEMBER_INVOICE_FIELDS = [
 const FINANCE_MEMBER_FIELDS = [
   'id', 'first_name', 'last_name', 'nickname', 'email', 'phone', 'number',
   'anrede', 'adresse', 'plz', 'ort', 'nationalitaet', 'sex', 'birthdate',
+  // Coded nationality + federation of origin (migrations 223/224) — kept in
+  // parity with the derived `nationalitaet` finance already reads.
+  'nationalitaet_codes', 'federation_of_origin',
   'iban', 'ahv_nummer', 'beitragskategorie', 'sektion', 'kscw_membership_active', 'wiedisync_active',
   'language', 'role', 'member_teams', 'date_created', 'iban_confirmed',
   // Alternate billing contact (migrations 133/136).
@@ -946,7 +974,12 @@ async function main() {
     'consent_decision', 'consent_prompted_at',
     'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
   ]
-  const MEMBER_OWN_READABLE = [...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, 'is_spielplaner', ...MEMBER_OWN_MESSAGING_FIELDS])]
+  const MEMBER_OWN_READABLE = [...new Set([
+    ...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, 'is_spielplaner',
+    ...MEMBER_OWN_MESSAGING_FIELDS,
+    // Trigger-derived, not member-writable (see MEMBER_DERIVED_READ_FIELDS).
+    ...MEMBER_DERIVED_READ_FIELDS,
+  ])]
   await setPermRead(MEMBER_POLICY, 'members', OWN_USER, MEMBER_OWN_READABLE)
 
   // Members — update own profile (limited fields)
@@ -1249,7 +1282,7 @@ async function main() {
     },
   }
   const LEADER_TEAM_MEMBER_FIELDS = [
-    ...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS]),
+    ...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, ...MEMBER_DERIVED_READ_FIELDS]),
   ].filter(f => f !== 'ahv_nummer' && f !== 'iban')
   await setPermRead(LEADER_POLICY, 'members', COACH_TEAM_MEMBERS, LEADER_TEAM_MEMBER_FIELDS)
   // Members — update position + number (migration 036 scoped to my-team members).

@@ -24,7 +24,7 @@ import { initSentry } from '../../kscw-endpoints/src/sentry.js'
 import { buildEmailLayout, buildNewsletterEmail, buildInfoCard, buildAlertBox, bucketEmailsByLocale } from '../../kscw-endpoints/src/email-template.js'
 import { sendLocalizedPush, bucketMembersByLocale, tPush } from '../../kscw-endpoints/src/push-i18n.js'
 import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-endpoints/src/signup-invites.js'
-import { bbRequiredDocs } from '../../kscw-endpoints/src/bb-docs.js'
+import { bbRequiredDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
@@ -3846,6 +3846,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       '', item.telefon_mobil || '',
       item.team || '', sektion, '', '',
       item.anrede || '', '', '', '', '', 'Schweiz',
+      // ClubDesk's Nationalität is a single-value German picklist and wants the
+      // PRIMARY nationality, so it stays on the free-text name the form submits.
+      // The FIBA "a Swiss passport among several makes you Swiss" rule is a
+      // document-gate rule only — applying it here would file a CH/IT dual
+      // national who listed IT first as Swiss in the members register.
       item.nationalitaet || '', '', '',
       item.email || '', '',
       status, '', todayStr, '', '', '',
@@ -3963,6 +3968,38 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return [...new Set(mapped)]
   }
 
+  // ── Coded nationality / federation for a member row (migration 223) ───
+  // The ISO code list a registration should hand the member, in order of trust:
+  //   1. the form's own code list        (nationalitaet_codes, multi-select)
+  //   2. the legacy singular code        (nationalitaet_code, migration 161)
+  //   3. the free-text country name resolved through country_name_aliases
+  //      (migration 224 — same table the members trigger parses with)
+  // Returns null when nothing resolves, so the member simply keeps no coded
+  // nationality instead of tripping members_nationalitaet_codes_fmt and
+  // aborting the whole approval.
+  async function registrationNatCodes(db, reg) {
+    const clean = (v) => [...new Set(
+      String(v || '').split(',').map(s => s.trim().toUpperCase()).filter(s => /^[A-Z]{2}$/.test(s)),
+    )]
+    const codes = clean(reg.nationalitaet_codes)
+    if (codes.length) return codes.join(',')
+    const single = clean(reg.nationalitaet_code)
+    if (single.length) return single[0]
+    const name = String(reg.nationalitaet || '').trim().toLowerCase()
+    if (!name) return null
+    const alias = await db('country_name_aliases').where('alias', name).first('code')
+    return alias?.code || null
+  }
+
+  // 'NONE' ("never licensed with another federation") is a real answer and must
+  // stay distinct from NULL ("didn't answer"). Shape-guarded because the column
+  // carries a CHECK — a stray value would fail the approval, not the field.
+  function normalizeFederation(val) {
+    const v = String(val || '').trim().toUpperCase()
+    if (v === 'NONE') return 'NONE'
+    return /^[A-Z]{2}$/.test(v) ? v : null
+  }
+
   // ── Create or link member from approved registration ───────────
   // Symmetric first-name-prefix match (same rule the ClubDesk linker uses):
   // "Dani" ↔ "Daniel" is the same person; "Anna" ↔ "Luca" is not. Missing
@@ -4022,6 +4059,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!existingMember.plz && reg.plz) updates.plz = reg.plz
       if (!existingMember.ort && reg.ort) updates.ort = reg.ort
       if (!existingMember.nationalitaet && reg.nationalitaet) updates.nationalitaet = reg.nationalitaet
+      // Coded nationality (migration 223) — fill-only like the rest. When both
+      // land in one update the members trigger's codes→name branch wins, so the
+      // free-text fill above is only ever decisive for a registration whose
+      // country name resolves to no code at all.
+      const existingNatCodes = await registrationNatCodes(db, reg)
+      if (!existingMember.nationalitaet_codes && existingNatCodes) updates.nationalitaet_codes = existingNatCodes
+      const existingFederation = normalizeFederation(reg.federation_of_origin)
+      if (!existingMember.federation_of_origin && existingFederation) updates.federation_of_origin = existingFederation
       if (!existingMember.sex && reg.geschlecht) updates.sex = normalizeSex(reg.geschlecht)
       if (!existingMember.ahv_nummer && reg.ahv_nummer) updates.ahv_nummer = reg.ahv_nummer
       // Payout IBAN from the signup form (migration 185) — fill-only, and
@@ -4044,6 +4089,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const shellExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       const licences = mapLicences(reg.lizenz, reg.membership_type)
       const lang = reg.locale === 'en' ? 'english' : 'german'
+      // Nationality is CODED from here on (migration 223). Writing the codes and
+      // letting the members trigger derive the German `nationalitaet` mirror also
+      // closes a real gap: `registrations.nationalitaet_code` existed since
+      // migration 161 but was NEVER propagated, so approval silently threw the
+      // ISO code away and left the member with free text only.
+      const natCodes = await registrationNatCodes(db, reg)
 
       const [member] = await db('members').insert({
         first_name: reg.vorname,
@@ -4054,7 +4105,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         plz: reg.plz || null,
         ort: reg.ort || null,
         birthdate: reg.geburtsdatum || null,
-        nationalitaet: reg.nationalitaet || null,
+        nationalitaet_codes: natCodes,
+        // The German name is DERIVED — set it only as the last-resort carrier
+        // for a country nothing could resolve to a code (an unknown spelling),
+        // so approval never silently drops what the applicant typed.
+        nationalitaet: natCodes ? null : (reg.nationalitaet || null),
+        federation_of_origin: normalizeFederation(reg.federation_of_origin),
         sex: normalizeSex(reg.geschlecht),
         ahv_nummer: reg.ahv_nummer || null,
         // Payout IBAN from the signup form (migration 185) — pre-validated
@@ -4156,7 +4212,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const keys = (meta.keys || []).map(Number).filter(Number.isInteger)
     for (const key of keys) {
       const reg = await database('registrations').where('id', key)
-        .first('id', 'membership_type', 'nationalitaet_code', 'geburtsdatum', 'bb_situation', 'reference_number',
+        .first('id', 'membership_type', 'nationalitaet_code', 'nationalitaet_codes', 'geburtsdatum', 'bb_situation', 'reference_number',
           'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
       if (!reg || reg.membership_type !== 'basketball') continue
       // The same PATCH may edit situation/nationality/DOB *and* approve — evaluate
@@ -4164,7 +4220,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // single Data-Studio save that turns the row into a Swiss-club transfer
       // can't approve it before the Freibrief lands.
       const situation = payload.bb_situation !== undefined ? payload.bb_situation : reg.bb_situation
-      const natCode = ((payload.nationalitaet_code !== undefined ? payload.nationalitaet_code : reg.nationalitaet_code) || '').trim().toUpperCase()
+      // Multi-nationality (migration 223): a Swiss passport anywhere in the list
+      // makes the applicant Swiss for FIBA, so the gate must not read the primary
+      // code alone — otherwise a CH/IT dual national who listed IT first is asked
+      // for foreign-player documents the create route never demanded.
+      const natCodes = payload.nationalitaet_codes !== undefined ? payload.nationalitaet_codes : reg.nationalitaet_codes
+      const natSingle = payload.nationalitaet_code !== undefined ? payload.nationalitaet_code : reg.nationalitaet_code
+      const natCode = fibaNatCode(natCodes, natSingle)
       const dob = payload.geburtsdatum !== undefined ? payload.geburtsdatum : reg.geburtsdatum
       // Situation + nationality + age driven (mirrors registration.js bbRequiredDocs;
       // school certificate stays optional). Rows without a situation fall back to the

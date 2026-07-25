@@ -13,8 +13,14 @@ import { Pencil, Save, X, Loader2 } from 'lucide-react'
 import { fetchItem, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
 import { localizeCountryName } from '../../../utils/countryName'
+import {
+  NO_FEDERATION, countryLabel, countryOptions, formatCountryCodes,
+  parseCountryCodes, serializeCountryCodes,
+} from '../../../utils/countries'
+import CountryMultiSelect from '../../../components/CountryMultiSelect'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 import DatePicker from '@/components/ui/DatePicker'
 import DateTimePicker from '@/components/ui/DateTimePicker'
 
@@ -46,6 +52,11 @@ const READ_ONLY_FIELDS = new Set([
   'last_online_at',
   'consent_prompted_at',
   'shell_reminder_sent',
+  // DERIVED (migration 223): a DB trigger mirrors the first entry of
+  // `nationalitaet_codes` as the German name ClubDesk's picklist needs. Editing
+  // it by hand only drifts the two apart until the next codes write — edit
+  // `nationalitaet_codes` instead.
+  'nationalitaet',
 ])
 
 // Human-readable labels for the `members` collection. Anything not in this
@@ -106,7 +117,9 @@ const MEMBER_FIELD_LABELS: Record<string, string> = {
   adresse: 'Street address',
   plz: 'Postal code',
   ort: 'City',
-  nationalitaet: 'Nationality',
+  nationalitaet_codes: 'Nationality',
+  nationalitaet: 'Nationality (ClubDesk name, derived)',
+  federation_of_origin: 'Federation of origin',
   vm_email: 'Swiss Volley VM email',
   ahv_nummer: 'AHV number',
   beitragskategorie: 'Membership fee category',
@@ -165,7 +178,7 @@ const FIELD_GROUPS: FieldGroup[] = [
   {
     id: 'address',
     label: 'Address & Swiss Volley admin',
-    keys: ['adresse', 'plz', 'ort', 'nationalitaet', 'vm_email', 'ahv_nummer', 'beitragskategorie'],
+    keys: ['adresse', 'plz', 'ort', 'nationalitaet_codes', 'federation_of_origin', 'nationalitaet', 'vm_email', 'ahv_nummer', 'beitragskategorie'],
   },
   {
     id: 'system',
@@ -459,7 +472,15 @@ function DisplayValue({ value, kind, fieldKey }: { value: unknown; kind: FieldKi
   if (value == null || value === '') {
     return <span className="text-muted-foreground">—</span>
   }
-  // Country name stored free-text (ClubDesk German / member-typed) → viewer's language.
+  // Coded nationality (migration 223) → localized names, in stored order (the
+  // first one is the primary / ClubDesk-pushed nationality).
+  if (fieldKey === 'nationalitaet_codes') {
+    return <span className="break-words text-foreground">{formatCountryCodes(String(value))}</span>
+  }
+  if (fieldKey === 'federation_of_origin') {
+    return <FederationValue value={String(value)} />
+  }
+  // Derived ClubDesk name, still free-text (German) → viewer's language.
   if (fieldKey === 'nationalitaet') {
     return <span className="break-words text-foreground">{localizeCountryName(String(value))}</span>
   }
@@ -492,6 +513,14 @@ function DisplayValue({ value, kind, fieldKey }: { value: unknown; kind: FieldKi
   return <span className="break-words text-foreground">{formatDisplay(value, kind)}</span>
 }
 
+/** 'NONE' is an explicit "never licensed elsewhere", not a missing answer. */
+function FederationValue({ value }: { value: string }) {
+  const { t } = useTranslation('admin')
+  const code = value.trim().toUpperCase()
+  const label = code === NO_FEDERATION ? t('federationNone') : (countryLabel(code) || code)
+  return <span className="break-words text-foreground">{label}</span>
+}
+
 function FieldEditor({
   fieldKey,
   kind,
@@ -503,8 +532,33 @@ function FieldEditor({
   value: unknown
   onChange: (v: unknown) => void
 }) {
+  const { t } = useTranslation(['admin', 'auth', 'common'])
   const inputCls =
     'w-full rounded border border-border bg-background px-2 py-1 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none'
+
+  // Coded nationality: multi-select, order-preserving (first code is primary and
+  // is what gets pushed to ClubDesk). Stored as a comma-separated string.
+  if (fieldKey === 'nationalitaet_codes') {
+    return (
+      <CountryMultiSelect
+        selected={parseCountryCodes(typeof value === 'string' ? value : '')}
+        onChange={(codes) => onChange(serializeCountryCodes(codes))}
+        helperText={t('auth:nationalitaetHint')}
+      />
+    )
+  }
+
+  // Federation of origin: single code, plus the explicit 'NONE' answer.
+  if (fieldKey === 'federation_of_origin') {
+    return (
+      <SearchableSelect
+        options={[{ value: NO_FEDERATION, label: t('admin:federationNone') }, ...countryOptions()]}
+        value={typeof value === 'string' ? value.trim().toUpperCase() : ''}
+        onChange={(v) => onChange(v === '' ? null : v)}
+        searchPlaceholder={t('common:searchCountry')}
+      />
+    )
+  }
 
   if (kind === 'bool') {
     const on = Boolean(value)

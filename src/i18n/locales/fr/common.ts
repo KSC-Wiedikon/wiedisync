@@ -22,6 +22,7 @@ export default {
   noData: 'Aucune donnee',
   noResults: 'Aucun resultat',
   search: 'Rechercher...',
+  searchCountry: 'Rechercher un pays...',
 
   // Days (full)
   monday: 'Lundi',

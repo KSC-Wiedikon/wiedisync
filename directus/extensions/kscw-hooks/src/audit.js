@@ -40,7 +40,11 @@ const REDACTED_FIELDS = {
     'ahv_nummer', 'birthdate', 'email', 'phone', 'license_nr',
     // NB: the real column is `adresse` (German). `address` kept only as a
     // defensive alias in case a field is ever renamed.
-    'address', 'adresse', 'plz', 'ort', 'nationalitaet', 'anrede', 'sex',
+    'address', 'adresse', 'plz', 'ort', 'anrede', 'sex',
+    // Nationality + federation of origin (migrations 223/224). `nationalitaet`
+    // is the trigger-derived ClubDesk name; the other two are the authoritative
+    // coded columns. All three are the same PII fact — redact all three.
+    'nationalitaet', 'nationalitaet_codes', 'federation_of_origin',
     'photo', 'requested_team', 'vm_email',
     'consent_decision', 'consent_prompted_at',
     // Financial PII (migrations 117 / 133 / 136) — member IBAN + the alternate

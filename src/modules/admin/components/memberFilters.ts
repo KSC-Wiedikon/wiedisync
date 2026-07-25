@@ -37,7 +37,11 @@ export type BoolField = (typeof BOOL_FIELDS)[number]
 export const PRESENCE_FIELDS = [
   'email', 'phone', 'license_nr', 'number', 'photo', 'birthdate',
   'user', 'requested_team',
-  'adresse', 'plz', 'ort', 'nationalitaet',
+  'adresse', 'plz', 'ort',
+  // Coded nationality (migration 223) replaces the free-text `nationalitaet` as
+  // the presence probe — the latter is trigger-derived from it, so filtering on
+  // the codes is the same question asked of the authoritative column.
+  'nationalitaet_codes', 'federation_of_origin',
   'vm_email', 'ahv_nummer',
   'licence_category', 'beitragskategorie',
   'shell_expires',

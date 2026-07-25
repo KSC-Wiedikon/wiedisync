@@ -178,7 +178,17 @@ export interface Member extends BaseRecord {
   adresse: string
   plz: string
   ort: string
+  // Nationality is CODED since migration 223/224. `nationalitaet_codes` is the
+  // ordered, comma-separated ISO 3166-1 alpha-2 list ("CH,IT") and the FIRST
+  // code is the primary one. `nationalitaet` is DERIVED from it by a DB trigger
+  // (the German display name the ClubDesk push/drift path needs) — treat it as
+  // READ-ONLY everywhere in the UI and never write it.
   nationalitaet: string
+  nationalitaet_codes: string | null
+  // Federation the member was last licensed with: an ISO alpha-2 code, the
+  // literal 'NONE' (never licensed elsewhere), or null (not answered) — the
+  // NONE/null distinction is what lets us skip a transfer-certificate chase.
+  federation_of_origin: string | null
   anrede: string
   sex: string
   licence_category: string
