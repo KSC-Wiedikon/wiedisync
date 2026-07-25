@@ -4234,7 +4234,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const keys = (meta.keys || []).map(Number).filter(Number.isInteger)
     for (const key of keys) {
       const reg = await database('registrations').where('id', key)
-        .first('id', 'membership_type', 'nationalitaet_code', 'nationalitaet_codes', 'geburtsdatum', 'bb_situation', 'reference_number',
+        .first('id', 'membership_type', 'nationalitaet_code', 'nationalitaet_codes', 'geburtsdatum', 'bb_situation', 'bb_recent_licence', 'reference_number',
           'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
       if (!reg || reg.membership_type !== 'basketball') continue
       // The same PATCH may edit situation/nationality/DOB *and* approve — evaluate
@@ -4253,7 +4253,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // Situation + nationality + age driven (mirrors registration.js bbRequiredDocs;
       // school certificate stays optional). Rows without a situation fall back to the
       // legacy natCode-only rule inside the helper.
-      const required = bbRequiredDocs(situation, natCode, dob)
+      // Freibrief waiver (migration 232): the applicant's own answer decides, so
+      // it must reach the gate — otherwise approving a waived transfer_ch would
+      // demand a release letter the create route rightly never asked for.
+      const recentLicence = payload.bb_recent_licence !== undefined ? payload.bb_recent_licence : reg.bb_recent_licence
+      const required = bbRequiredDocs(situation, natCode, dob, recentLicence)
       // The same update may attach a doc and approve in one call — payload wins.
       const missing = required.filter((k) => (payload[k] === undefined ? !reg[k] : !payload[k]))
       if (missing.length) {

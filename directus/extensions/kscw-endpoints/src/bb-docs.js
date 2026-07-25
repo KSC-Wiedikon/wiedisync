@@ -19,24 +19,53 @@ export const BB_SITUATIONS = ['neu', 'transfer_ch', 'transfer_intl', 'rueckkehr'
 // every applicant look adult. Use LOCAL getters: pg parses a `date` to local
 // midnight, so getFullYear/Month/Date give back the stored calendar day (toISOString
 // would shift a day in a positive-offset timezone like Europe/Zurich).
-export function bbIsMinor(dob) {
-  if (!dob) return false
+export function bbAgeAtSeasonStart(dob) {
+  if (!dob) return null
   let ymd
   if (dob instanceof Date) {
-    if (Number.isNaN(dob.getTime())) return false
+    if (Number.isNaN(dob.getTime())) return null
     ymd = `${dob.getFullYear()}-${String(dob.getMonth() + 1).padStart(2, '0')}-${String(dob.getDate()).padStart(2, '0')}`
   } else {
     ymd = String(dob).slice(0, 10)
   }
   const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!m) return false
+  if (!m) return null
   const by = +m[1], bm = +m[2], bd = +m[3]
   const now = new Date()
   const seasonStartYear = (now.getUTCMonth() + 1) >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
   const refMonth = 9, refDay = 1 // Sept 1
   let age = seasonStartYear - by
   if (refMonth < bm || (refMonth === bm && refDay < bd)) age--
-  return age < 18
+  return age
+}
+
+export function bbIsMinor(dob) {
+  const age = bbAgeAtSeasonStart(dob)
+  return age !== null && age < 18
+}
+
+// Swiss Basketball waives the Freibrief (release letter) for a transfer from
+// another Swiss club in two cases, per "Verfahren Lizenz SWB" §3:
+//   - the player held no licence in the last two seasons — the former club has
+//     nothing to release
+//   - category U12 and below
+//
+// `recentLicence` is the applicant's own answer ('ja' | 'nein' | null). Only an
+// explicit 'nein' waives: null means unanswered (or a row created before the
+// question existed) and must keep the document required, because wrongly waiving
+// it produces an incomplete dossier that Swiss Basketball rejects later.
+//
+// The age side is derived rather than asked. Swiss Basketball assigns the
+// category itself and its procedure document does not state the cut-off, so this
+// approximates U12-and-below as "under 12 at season start" — the same Sept 1
+// convention bbIsMinor uses for U18. An unknown date of birth keeps the Freibrief
+// required. kscw-website's registration-form.js mirrors this exactly; the two
+// must change together, or the form and this gate disagree and the applicant is
+// either asked for a document they do not owe or blocked from registering.
+export function bbFreibriefWaived(dob, recentLicence) {
+  if (String(recentLicence || '').toLowerCase() === 'nein') return true
+  const age = bbAgeAtSeasonStart(dob)
+  return age !== null && age < 12
 }
 
 // The single nationality code the document gate must judge a (possibly multi-)
@@ -62,7 +91,7 @@ export function fibaNatCode(codes, fallback) {
 // Required document COLUMNS (registrations table) for a basketball registration.
 // A falsy/unknown situation falls back to the legacy nationality-only rule so
 // rows created before the situation field existed keep a sane required set.
-export function bbRequiredDocs(situation, natCode, dob) {
+export function bbRequiredDocs(situation, natCode, dob, recentLicence) {
   const base = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
   const foreign = natCode && natCode !== 'CH'
   const minor = bbIsMinor(dob)
@@ -73,7 +102,7 @@ export function bbRequiredDocs(situation, natCode, dob) {
   }
   switch (situation) {
     case 'transfer_ch':
-      base.push('bb_doc_freibrief')
+      if (!bbFreibriefWaived(dob, recentLicence)) base.push('bb_doc_freibrief')
       break
     case 'transfer_intl':
     case 'rueckkehr':

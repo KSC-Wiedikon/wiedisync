@@ -708,6 +708,14 @@ export function registerRegistration(router, { database, logger, services, getSc
         bb_doc_schoolcert: docId(body.bb_doc_schoolcert),
       }
       const bbSituation = BB_SITUATIONS.includes(body.bb_situation) ? body.bb_situation : null
+      // Only meaningful for a Swiss-club transfer, and only 'ja'/'nein' are stored
+      // (migration 232 CHECKs the same set). Anything else — including the field
+      // being absent on an older cached bundle — is NULL: unanswered, which keeps
+      // the Freibrief required rather than silently waiving it.
+      const bbRecentLicence = bbSituation === 'transfer_ch'
+        && ['ja', 'nein'].includes(String(body.bb_recent_licence || '').toLowerCase())
+        ? String(body.bb_recent_licence).toLowerCase()
+        : null
       // Coded nationality (migration 223). `natCodes` is the full ordered list;
       // `primaryNatCode` keeps the legacy singular column populated so every
       // consumer that still reads one code (the doc gate's fallback, the admin
@@ -724,7 +732,7 @@ export function registerRegistration(router, { database, logger, services, getSc
         const natCode = fibaNatCode(natCodes, body.nationalitaet_code)
         // Situation + nationality + age drive the required set (school certificate
         // is optional → never required). Mirrors the client gate.
-        const required = bbRequiredDocs(bbSituation, natCode, body.geburtsdatum)
+        const required = bbRequiredDocs(bbSituation, natCode, body.geburtsdatum, bbRecentLicence)
         const missing = required.filter((k) => !docs[k])
         if (missing.length) {
           // Localized: this message reaches users on a STALE cached form JS
@@ -797,6 +805,10 @@ export function registerRegistration(router, { database, logger, services, getSc
         // Licensing situation (new / Swiss-club transfer / from abroad / returner)
         // — drives the required document set on re-upload + admin review.
         bb_situation: bbSituation,
+        // Decides whether the Freibrief is required — must be stored, or the
+        // doc-status page and the approval gate would re-demand a document the
+        // create route correctly waived.
+        bb_recent_licence: bbRecentLicence,
         // Document file ids arrive with the create since the eager-upload form
         // (v3.3.0); the quarantine hook moves them to the private folder.
         ...docs,
@@ -1030,7 +1042,7 @@ export function registerRegistration(router, { database, logger, services, getSc
 
       const reg = await database('registrations')
         .whereRaw('LOWER(reference_number) = ?', [reference.toLowerCase()])
-        .first('id', 'status', 'email', 'membership_type', 'nationalitaet_code', 'nationalitaet_codes', 'geburtsdatum', 'bb_situation', 'reference_number',
+        .first('id', 'status', 'email', 'membership_type', 'nationalitaet_code', 'nationalitaet_codes', 'geburtsdatum', 'bb_situation', 'bb_recent_licence', 'reference_number',
           'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
       const emailOk = reg && String(reg.email || '').toLowerCase() === email
       if (!reg || !emailOk || !['pending', 'approved'].includes(reg.status)) {
@@ -1044,7 +1056,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       // missing which the create route never required of them.
       const natCode = fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
       const required = reg.membership_type === 'basketball'
-        ? bbRequiredDocs(reg.bb_situation, natCode, reg.geburtsdatum)
+        ? bbRequiredDocs(reg.bb_situation, natCode, reg.geburtsdatum, reg.bb_recent_licence)
         : []
       return res.json({
         id: reg.id,

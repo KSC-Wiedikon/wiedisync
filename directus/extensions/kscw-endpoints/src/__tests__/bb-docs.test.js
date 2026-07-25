@@ -8,13 +8,17 @@
  * (Sept 1), so ages are chosen far from the boundary to stay stable year-round.
  */
 import { describe, it, expect } from 'vitest'
-import { bbRequiredDocs, bbIsMinor, BB_SITUATIONS } from '../bb-docs.js'
+import { bbRequiredDocs, bbIsMinor, bbFreibriefWaived, BB_SITUATIONS } from '../bb-docs.js'
 
 // A birthday ~10 years ago is always a minor; ~40 years ago always an adult,
 // regardless of which side of Sept 1 the test runs on.
 const now = new Date()
 const minorDob = `${now.getUTCFullYear() - 10}-01-15`
 const adultDob = `${now.getUTCFullYear() - 40}-01-15`
+// The Freibrief waiver splits minors at U12, so a minor is no longer one case:
+// ~8 is always U12-and-below (waived), ~15 is always a minor but over 12 (not).
+const youngDob = `${now.getUTCFullYear() - 8}-01-15`
+const teenDob = `${now.getUTCFullYear() - 15}-01-15`
 
 const set = (a) => [...a].sort()
 
@@ -67,10 +71,58 @@ describe('bbRequiredDocs — new player', () => {
 })
 
 describe('bbRequiredDocs — transfer from a Swiss club', () => {
-  it('requires the Freibrief regardless of nationality/age', () => {
-    const exp = set(['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief'])
-    expect(set(bbRequiredDocs('transfer_ch', 'CH', adultDob))).toEqual(exp)
-    expect(set(bbRequiredDocs('transfer_ch', 'IT', minorDob))).toEqual(exp)
+  const base = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
+  const withFreibrief = set([...base, 'bb_doc_freibrief'])
+
+  it('requires the Freibrief regardless of nationality', () => {
+    expect(set(bbRequiredDocs('transfer_ch', 'CH', adultDob))).toEqual(withFreibrief)
+    expect(set(bbRequiredDocs('transfer_ch', 'IT', teenDob))).toEqual(withFreibrief)
+  })
+
+  // Swiss Basketball waives the release letter when the former club has nothing
+  // to release, or the player is U12 and below ("Verfahren Lizenz SWB" §3).
+  it('waives it on an explicit "no licence in the last two seasons"', () => {
+    expect(set(bbRequiredDocs('transfer_ch', 'CH', adultDob, 'nein'))).toEqual(set(base))
+  })
+
+  it('waives it for U12 and below, whatever the answer', () => {
+    expect(set(bbRequiredDocs('transfer_ch', 'CH', youngDob))).toEqual(set(base))
+    expect(set(bbRequiredDocs('transfer_ch', 'CH', youngDob, 'ja'))).toEqual(set(base))
+  })
+
+  // The dangerous direction is waiving when we should not: that produces an
+  // incomplete dossier Swiss Basketball rejects later.
+  it('keeps it required when the question was not answered', () => {
+    for (const answer of [undefined, null, '', 'weiss nicht', 'no', 'JA']) {
+      expect(set(bbRequiredDocs('transfer_ch', 'CH', adultDob, answer)), `answer=${JSON.stringify(answer)}`)
+        .toEqual(withFreibrief)
+    }
+  })
+
+  it('keeps it required when the date of birth is unusable', () => {
+    for (const dob of [null, '', '2010', new Date('nonsense')]) {
+      expect(set(bbRequiredDocs('transfer_ch', 'CH', dob)), `dob=${JSON.stringify(String(dob))}`)
+        .toEqual(withFreibrief)
+    }
+  })
+
+  it('accepts a Date DOB for the U12 rule (raw-knex reads)', () => {
+    const youngAsDate = new Date(Number(youngDob.slice(0, 4)), 0, 15)
+    expect(set(bbRequiredDocs('transfer_ch', 'CH', youngAsDate))).toEqual(set(base))
+  })
+})
+
+describe('bbFreibriefWaived', () => {
+  it('only an explicit nein waives on licence history', () => {
+    expect(bbFreibriefWaived(adultDob, 'nein')).toBe(true)
+    expect(bbFreibriefWaived(adultDob, 'NEIN')).toBe(true)
+    expect(bbFreibriefWaived(adultDob, 'ja')).toBe(false)
+    expect(bbFreibriefWaived(adultDob, null)).toBe(false)
+  })
+  it('U12 and below waives on age alone', () => {
+    expect(bbFreibriefWaived(youngDob, null)).toBe(true)
+    expect(bbFreibriefWaived(teenDob, null)).toBe(false)
+    expect(bbFreibriefWaived(adultDob, null)).toBe(false)
   })
 })
 
