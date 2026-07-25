@@ -1,5 +1,5 @@
 /**
- * Hallenfinder — read the cached City of Zürich hall availability (migration 236).
+ * Hallenfinder — read the cached City of Zürich hall availability (migration 242).
  *
  *   GET /kscw/hallenfinder/search
  *     ?weekday=1,2,3,4,5        (default Mon–Fri)
@@ -15,7 +15,7 @@
  * nightly snapshot answers any start/duration/weekday filter.
  *
  * The city tool has no API; the nightly scrape (hallenfinder-scrape.mjs) fills
- * the cache. Tables are private (migration 236) — read via this endpoint only.
+ * the cache. Tables are private (migration 242) — read via this endpoint only.
  *
  * Permission: any authenticated Member (public, non-sensitive data). Nav
  * visibility (admins + leaders/coaches) is the real gate, set on the frontend.
@@ -50,6 +50,26 @@ function windowSatisfies(win, startFromMin, minMinutes) {
 }
 
 function ddmmyyyy(iso) { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}` }
+
+/**
+ * Normalise a Postgres `date` column to "YYYY-MM-DD".
+ *
+ * node-pg hands `date` back as a JS Date at LOCAL midnight, so `String(d)` is
+ * "Tue Sep 01 2026 00:00:00 GMT+0200 …" and slicing 10 chars off it yields
+ * "Tue Sep 01", which Postgres then rejects (`invalid input syntax for type
+ * date`) when it is fed straight back in as a bind parameter.
+ *
+ * Deliberately uses local components rather than toISOString(): the value is a
+ * calendar date parsed at local midnight, and in UTC+1/+2 toISOString() rolls
+ * it back to the PREVIOUS day. Strings pass through untouched, since Directus
+ * can be configured to return date columns already stringified.
+ */
+function pgDate(v) {
+  if (!(v instanceof Date)) return String(v).slice(0, 10)
+  const mm = String(v.getMonth() + 1).padStart(2, '0')
+  const dd = String(v.getDate()).padStart(2, '0')
+  return `${v.getFullYear()}-${mm}-${dd}`
+}
 const WD_PARAM = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7 } // our weekday == city wochentag
 
 export function registerHallenfinder(router, { database, logger }) {
@@ -77,8 +97,8 @@ export function registerHallenfinder(router, { database, logger }) {
         .select('season_start', 'season_end').orderBy('season_start', 'desc').first()
       if (!seasonRow) return res.json({ season: null, lastUpdated: null, results: [] })
       const season = {
-        start: String(seasonRow.season_start).slice(0, 10),
-        end: String(seasonRow.season_end).slice(0, 10),
+        start: pgDate(seasonRow.season_start),
+        end: pgDate(seasonRow.season_end),
       }
 
       const rows = await database('city_hall_availability as a')
