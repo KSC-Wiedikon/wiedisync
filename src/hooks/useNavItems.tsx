@@ -6,7 +6,7 @@ import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users,
   Building2, CalendarClock, Activity, ClipboardList, ClipboardCheck,
-  HeartPulse, MessageSquare, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, FolderSync, GraduationCap,
+  HeartPulse, MessageSquare, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, FolderSync, GraduationCap, ArrowRightLeft,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
 
@@ -146,6 +146,10 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
         items: [
           ...(isAdmin ? [
             { to: '/admin/anmeldungen', label: t('anmeldungen'), icon: <UserPlus className={iconClass} /> },
+            // International transfers (AdminRoute). Label lives in the `admin`
+            // namespace with the rest of the page's strings, hence the `admin:`
+            // prefix — same cross-namespace form as the finance items above.
+            { to: '/admin/transfers', label: t('admin:trNavTransfers'), icon: <ArrowRightLeft className={iconClass} /> },
             { to: '/admin/announcements', label: t('announcements'), icon: <Megaphone className={iconClass} /> },
           ] : []),
           // Club mailbox: admin||superuser only — mirrors the server's
