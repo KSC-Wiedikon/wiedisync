@@ -17,6 +17,12 @@ import { normalizePhone, normalizeAhv } from '../../utils/contact'
 import { normalizeIban, isValidIban } from '../../utils/iban'
 import { type BackendLanguage } from '../../i18n/languageConfig'
 import LanguageSelect from '@/components/LanguageSelect'
+import SearchableSelect from '@/components/ui/SearchableSelect'
+import CountryMultiSelect from '@/components/CountryMultiSelect'
+import {
+  NO_FEDERATION, codeFromCountryName, countryLabel, countryNameDe, countryOptions,
+  formatCountryCodes, parseCountryCodes, serializeCountryCodes,
+} from '../../utils/countries'
 import { CheckIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { logActivity } from '../../utils/logActivity'
@@ -80,7 +86,11 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
   const [adresse, setAdresse] = useState('')
   const [plz, setPlz] = useState('')
   const [ort, setOrt] = useState('')
-  const [nationalitaet, setNationalitaet] = useState('')
+  // Nationality is stored as ordered ISO 3166-1 alpha-2 codes (migration 223);
+  // the first one is primary and is what ClubDesk receives. `members.nationalitaet`
+  // is a DB-derived German mirror and is never written from here.
+  const [nationalitaetCodes, setNationalitaetCodes] = useState<string[]>([])
+  const [federationOfOrigin, setFederationOfOrigin] = useState('')
   const [sex, setSex] = useState('')
   const [ahvNummer, setAhvNummer] = useState('')
   const [iban, setIban] = useState('')
@@ -122,12 +132,38 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
       setAdresse(user.adresse ?? '')
       setPlz(user.plz ?? '')
       setOrt(user.ort ?? '')
-      setNationalitaet(user.nationalitaet ?? '')
+      // Fall back to resolving the legacy free-text name for members whose row
+      // predates the coded column and hasn't been touched since.
+      const seededCodes = parseCountryCodes(user.nationalitaet_codes)
+      setNationalitaetCodes(
+        seededCodes.length ? seededCodes : [codeFromCountryName(user.nationalitaet)].filter(Boolean),
+      )
+      setFederationOfOrigin(user.federation_of_origin ?? '')
       setSex(user.sex ?? '')
       setAhvNummer(user.ahv_nummer ?? '')
       setIban(user.iban ?? '')
       setClubdeskOpen(false)
     }
+  }
+
+  /**
+   * Federation-of-origin options: the explicit "none" sentinel first, then the
+   * country list. NULL (never answered) and 'NONE' (answered: never licensed
+   * elsewhere) are different states — only the latter lets the club skip
+   * chasing a transfer certificate, so it has to be selectable.
+   */
+  // countryOptions() is memoized per locale inside the util, so this is just a
+  // 197-element spread — no need to memoize the "none" row on top of it.
+  const federationOptions = [
+    { value: NO_FEDERATION, label: t('federationOfOriginNone') },
+    ...countryOptions(),
+  ]
+
+  /** Human-readable federation value for the admin ClubDesk change email. */
+  function federationLabel(value: string | null | undefined): string {
+    const v = String(value ?? '').trim()
+    if (!v) return ''
+    return v === NO_FEDERATION ? t('federationOfOriginNone') : countryLabel(v)
   }
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -278,7 +314,11 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
       payload.adresse = adresse
       payload.plz = plz
       payload.ort = ort
-      payload.nationalitaet = nationalitaet
+      // Codes only — a DB trigger derives `members.nationalitaet` (the German
+      // string ClubDesk consumes) from the first code, so writing both here
+      // would just be two sources of truth for one fact.
+      payload.nationalitaet_codes = serializeCountryCodes(nationalitaetCodes)
+      payload.federation_of_origin = federationOfOrigin || null
       payload.sex = sex
       payload.ahv_nummer = ahvCanonical
       payload.iban = ibanCanonical
@@ -309,7 +349,16 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
         adresse: { old: user.adresse || '', new: adresse },
         plz: { old: user.plz || '', new: plz },
         ort: { old: user.ort || '', new: ort },
-        nationalitaet: { old: user.nationalitaet || '', new: nationalitaet },
+        // Diff the localized names, not the raw codes — this feeds a
+        // human-readable "old → new" table in the admin ClubDesk email.
+        nationalitaet: {
+          old: formatCountryCodes(user.nationalitaet_codes) || user.nationalitaet || '',
+          new: nationalitaetCodes.map(countryLabel).join(', '),
+        },
+        federation_of_origin: {
+          old: federationLabel(user.federation_of_origin),
+          new: federationLabel(federationOfOrigin),
+        },
         sex: { old: user.sex || '', new: sex },
         ahv_nummer: { old: user.ahv_nummer || '', new: ahvCanonical },
         iban: { old: user.iban || '', new: ibanCanonical },
@@ -332,7 +381,11 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
             current_data: {
               anrede, first_name: fn, last_name: ln,
               email: em, phone, adresse, plz, ort,
-              birthdate, nationalitaet, sex, ahv_nummer: ahvNummer,
+              birthdate, sex, ahv_nummer: ahvNummer,
+              // ClubDesk's picklists take the German name, so send the derived
+              // string rather than the codes we store.
+              nationalitaet: countryNameDe(nationalitaetCodes[0]),
+              federation_of_origin: federationOfOrigin,
               beitragskategorie: user.beitragskategorie || '',
             },
           },
@@ -626,12 +679,24 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
                 />
               </div>
 
-              {/* Nationalität */}
-              <FormInput
+              {/* Nationalität — multi-select; the first pick is the primary one
+                  and is what ClubDesk (single-valued) receives. */}
+              <CountryMultiSelect
                 label={t('nationalitaet')}
-                value={nationalitaet}
-                onChange={(e) => setNationalitaet(e.target.value)}
+                selected={nationalitaetCodes}
+                onChange={setNationalitaetCodes}
+                helperText={t('nationalitaetHint')}
               />
+
+              {/* Herkunftsverband */}
+              <FormField label={t('federationOfOrigin')} helperText={t('federationOfOriginHint')}>
+                <SearchableSelect
+                  options={federationOptions}
+                  value={federationOfOrigin}
+                  onChange={setFederationOfOrigin}
+                  searchPlaceholder={tc('searchCountry')}
+                />
+              </FormField>
 
               {/* AHV Nummer */}
               <FormInput

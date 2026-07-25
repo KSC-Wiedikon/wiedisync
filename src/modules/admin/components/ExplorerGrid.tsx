@@ -34,8 +34,13 @@ import { assetUrl, createRecord, deleteRecord, updateRecord } from '../../../lib
 import { logActivity } from '../../../utils/logActivity'
 import { getCurrentSeason } from '../../../utils/dateHelpers'
 import { localizeCountryName } from '../../../utils/countryName'
+import {
+  NO_FEDERATION, countryLabel, countryOptions, formatCountryCodes,
+  parseCountryCodes, serializeCountryCodes,
+} from '../../../utils/countries'
 import { LANGUAGES } from '../../../i18n/languageConfig'
 import { useConfirm } from '../../../components/ConfirmProvider'
+import CountryMultiSelect from '../../../components/CountryMultiSelect'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
@@ -71,7 +76,10 @@ type GridView = 'members' | 'teams'
 
 type ColKey =
   | 'last_name' | 'first_name' | 'teams' | 'email' | 'phone'
-  | 'adresse' | 'plz' | 'ort' | 'nationalitaet' | 'birthdate'
+  // `nationalitaet_codes` replaces the old free-text `nationalitaet` column:
+  // that one is now trigger-derived (migration 223) and must never be editable.
+  | 'adresse' | 'plz' | 'ort' | 'nationalitaet_codes'
+  | 'federation_of_origin' | 'birthdate'
   | 'sex' | 'language' | 'number' | 'position' | 'license_nr'
   | 'vm_email' | 'ahv_nummer' | 'beitragskategorie' | 'role'
   | 'sport' | 'scorer_vb' | 'referee' | 'officials'
@@ -79,7 +87,7 @@ type ColKey =
   | 'clubdesk_sync' | 'reg_files'
 
 type ColKind = 'text' | 'email' | 'date' | 'number' | 'teams' | 'ro' | 'bool' | 'select'
-  | 'clubdesk_sync' | 'reg_files'
+  | 'countries' | 'federation' | 'clubdesk_sync' | 'reg_files'
 
 interface SelectOption { value: string; label: string }
 
@@ -168,7 +176,8 @@ const COLUMNS: ColDef[] = [
   { key: 'adresse', labelKey: 'explorerGridColAddress', kind: 'text', minW: 'min-w-48' },
   { key: 'plz', labelKey: 'explorerGridColPlz', kind: 'text', minW: 'min-w-20', groupable: true },
   { key: 'ort', labelKey: 'explorerGridColCity', kind: 'text', minW: 'min-w-32', groupable: true },
-  { key: 'nationalitaet', labelKey: 'explorerGridColNationality', kind: 'text', minW: 'min-w-32', groupable: true },
+  { key: 'nationalitaet_codes', labelKey: 'explorerGridColNationality', kind: 'countries', minW: 'min-w-40', groupable: true },
+  { key: 'federation_of_origin', labelKey: 'explorerGridColFederation', kind: 'federation', minW: 'min-w-40', groupable: true },
   { key: 'birthdate', labelKey: 'explorerGridColBirthdate', kind: 'date', minW: 'min-w-28', groupable: true },
   { key: 'sex', labelKey: 'explorerGridColSex', kind: 'select', minW: 'min-w-20', groupable: true, options: SEX_OPTIONS },
   { key: 'language', labelKey: 'explorerGridColLanguage', kind: 'select', minW: 'min-w-28', groupable: true, options: LANGUAGE_OPTIONS },
@@ -392,6 +401,22 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
     return t(`admin:${SYNC_LABEL_KEY[status]}`)
   }, [t])
 
+  // 'NONE' is an explicit answer ("never licensed elsewhere") and must read as
+  // such — null is simply unanswered and stays blank.
+  const federationLabel = useMemo(() => (code: string | null | undefined): string => {
+    const v = String(code ?? '').trim().toUpperCase()
+    if (!v) return ''
+    return v === NO_FEDERATION ? t('admin:federationNone') : (countryLabel(v) || v)
+  }, [t])
+
+  // Options for the inline federation select — localized, so rebuilt on a
+  // language switch. 'None' leads; the rest is favourites-first countryOptions.
+  const federationOptions = useMemo<SelectOption[]>(
+    () => [{ value: NO_FEDERATION, label: t('admin:federationNone') }, ...countryOptions()],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- countryOptions() is locale-derived
+    [t, i18n.language],
+  )
+
   // ── Members view: cell text (search / sort / group / export / display) ──
 
   const cellText = useMemo(() => {
@@ -464,16 +489,27 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           const n = cache.regFiles.get(memberId)?.docs.length ?? 0
           return n > 0 ? String(n) : ''
         }
+        case 'nationalitaet_codes': {
+          // Localized names, never raw codes — this feeds search, sort, group-by
+          // AND the Excel/PDF export.
+          const coded = formatCountryCodes(rawField(m, 'nationalitaet_codes') as string | null)
+          if (coded) return coded
+          // Fallback for rows migration 223's backfill could not resolve: show
+          // the trigger-derived ClubDesk name rather than an empty cell.
+          const legacy = rawField(m, 'nationalitaet')
+          return legacy ? localizeCountryName(String(legacy)) : ''
+        }
+        case 'federation_of_origin':
+          return federationLabel(rawField(m, 'federation_of_origin') as string | null)
         default: {
           const raw = rawField(m, key)
           if (raw == null || raw === '') return ''
           if (Array.isArray(raw)) return raw.map(String).join(', ')
-          if (key === 'nationalitaet') return localizeCountryName(String(raw))
           return String(raw)
         }
       }
     }
-  }, [rowsByMember, teamById, cache.memberCoachTeams, cache.memberTrTeams, cache.clubdeskInfo, cache.clubdeskSync, cache.regFiles, sportLabel, syncLabel])
+  }, [rowsByMember, teamById, cache.memberCoachTeams, cache.memberTrTeams, cache.clubdeskInfo, cache.clubdeskSync, cache.regFiles, sportLabel, syncLabel, federationLabel])
 
   // ── Teams view: cell text ────────────────────────────────────────
 
@@ -911,14 +947,28 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
               </TableCell>
             )
           }
-          if (c.kind === 'select') {
+          if (c.kind === 'countries') {
+            // Multi-value + order-significant (first code is the ClubDesk one),
+            // so this gets a chip picker rather than the free-text cell.
+            return (
+              <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
+                <EditableCountriesCell
+                  value={(rawField(m, c.key) as string | null) ?? null}
+                  text={cellText(m, c.key)}
+                  canEdit={canEdit}
+                  onSave={(v) => saveCell(memberId, c.key, v)}
+                />
+              </TableCell>
+            )
+          }
+          if (c.kind === 'select' || c.kind === 'federation') {
             const raw = rawField(m, c.key)
             const value = raw == null || raw === '' ? null : String(raw)
             return (
               <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
                 <EditableSelectCell
                   value={value}
-                  options={c.options ?? []}
+                  options={c.kind === 'federation' ? federationOptions : (c.options ?? [])}
                   canEdit={canEdit}
                   onSave={(v) => saveCell(memberId, c.key, v)}
                 />
@@ -943,13 +993,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
                 value={value}
                 kind={c.kind as 'text' | 'email' | 'date' | 'number'}
                 canEdit={canEdit}
-                display={
-                  c.kind === 'date'
-                    ? formatShortDate
-                    : c.key === 'nationalitaet'
-                      ? (v) => localizeCountryName(v)
-                      : undefined
-                }
+                display={c.kind === 'date' ? formatShortDate : undefined}
                 onSave={(v) => saveCell(memberId, c.key, v)}
               />
             </TableCell>
@@ -1616,6 +1660,95 @@ function EditableCell({
       {flash && !saving && <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />}
       {shown ?? <span className="text-muted-foreground">—</span>}
     </div>
+  )
+}
+
+// Inline nationality cell (members.nationalitaet_codes). Nationality is
+// multi-valued AND order-significant — the first code is the one pushed to
+// ClubDesk — so a text input or a single <select> cannot express it. Click
+// opens a popover holding the shared CountryMultiSelect; the edit commits when
+// the popover closes, and only if the serialized value actually changed.
+//
+// Note `members.nationalitaet` (the German ClubDesk name) is NOT written here:
+// a DB trigger derives it from the first code on every write.
+function EditableCountriesCell({
+  value, text, canEdit, onSave,
+}: {
+  /** Stored comma-separated code list, e.g. "CH,IT". */
+  value: string | null
+  /** Localized display text (already falls back to the derived legacy name). */
+  text: string
+  canEdit: boolean
+  onSave: (v: string | null) => Promise<void>
+}) {
+  const { t } = useTranslation(['admin', 'auth'])
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+  const [flash, setFlash] = useState(false)
+
+  const commit = async (codes: string[]) => {
+    const next = serializeCountryCodes(codes)
+    if (next === (value ?? null)) return
+    setSaving(true)
+    try {
+      await onSave(next)
+      setFlash(true)
+      window.setTimeout(() => setFlash(false), 1200)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('admin:explorerGridSaveError'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const body = (
+    <>
+      {saving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+      {flash && !saving && <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />}
+      {text || <span className="text-muted-foreground">—</span>}
+    </>
+  )
+
+  if (!canEdit) {
+    return (
+      <div className="-mx-1 flex min-h-7 items-center gap-1 rounded px-1 text-sm" title={t('admin:explorerGridReadOnly')}>
+        {body}
+      </div>
+    )
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setDraft(parseCountryCodes(value))
+        else void commit(draft)
+        setOpen(next)
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={saving}
+          className={
+            '-mx-1 flex min-h-7 w-full items-center gap-1 rounded px-1 text-left text-sm ' +
+            'hover:bg-muted/80 hover:ring-1 hover:ring-border disabled:opacity-50 ' +
+            (flash ? 'ring-1 ring-emerald-500/70 ' : '')
+          }
+        >
+          {body}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-3">
+        <CountryMultiSelect
+          label={t('admin:explorerGridColNationality')}
+          selected={draft}
+          onChange={setDraft}
+          helperText={t('auth:nationalitaetHint')}
+        />
+      </PopoverContent>
+    </Popover>
   )
 }
 

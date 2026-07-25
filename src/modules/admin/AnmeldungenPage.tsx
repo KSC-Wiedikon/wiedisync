@@ -13,6 +13,7 @@ import ClubdeskRegistrationZone from './components/ClubdeskRegistrationZone'
 import { Button } from '../../components/ui/button'
 import { formatDate } from '../../utils/dateHelpers'
 import { localizeCountry, localizeCountryName } from '../../utils/countryName'
+import { countryLabel, formatCountryCodes, parseCountryCodes, NO_FEDERATION } from '../../utils/countries'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -37,7 +38,11 @@ interface Registration extends BaseRecord {
   ort: string | null
   geburtsdatum: string | null
   nationalitaet: string | null
+  // Legacy singular code (migration 161) — kept as the FIRST entry of
+  // nationalitaet_codes so single-code consumers keep working (migration 223).
   nationalitaet_code: string | null
+  nationalitaet_codes: string | null
+  federation_of_origin: string | null
   geschlecht: string | null
   team: string | null
   beitragskategorie: string | null
@@ -124,6 +129,17 @@ const bbRequiredDocs = (
   }
   return base
 }
+// The single code the document gate judges a (possibly multi-) national by.
+// FIBA treats a dual national holding Swiss nationality as Swiss, so a CH code
+// ANYWHERE in the list clears the foreign-player documents — the list order is
+// a UI convention, not a legal one. Mirrors fibaNatCode in bb-docs.js; the
+// singular code covers rows that predate the list (migration 223).
+const fibaNatCode = (reg: Registration): string => {
+  const codes = parseCountryCodes(reg.nationalitaet_codes)
+  if (codes.includes('CH')) return 'CH'
+  return codes[0] || (reg.nationalitaet_code || '').trim().toUpperCase().slice(0, 2)
+}
+
 const countDocs = (reg: Registration): number => DOC_FIELDS.filter((k) => reg[k]).length
 
 
@@ -330,8 +346,7 @@ export default function AnmeldungenPage() {
   // request.
   const missingRequiredDocs = (reg: Registration): (keyof Registration)[] => {
     if (reg.membership_type !== 'basketball') return []
-    const nat = (reg.nationalitaet_code || '').toUpperCase()
-    return bbRequiredDocs(reg.bb_situation, nat, reg.geburtsdatum).filter((k) => !reg[k])
+    return bbRequiredDocs(reg.bb_situation, fibaNatCode(reg), reg.geburtsdatum).filter((k) => !reg[k])
   }
 
   const handleApprove = (reg: Registration) => {
@@ -778,6 +793,19 @@ function ExpandedDetails({
     )
   }
 
+  // Read-only twin of field() for values that are CODED, not free text
+  // (nationality, federation of origin) — typing "Schwiiz" into a text box
+  // would write something the ISO-code CHECK rejects. Same markup as the
+  // situation / reference rows below.
+  const readOnlyField = (label: string, value: string) => (
+    <div>
+      <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{label}</label>
+      {/* An em dash, not a blank — a labelled empty box reads as a rendering
+          bug rather than "this registration predates the field". */}
+      <div className="px-2.5 py-1.5 text-sm text-gray-900 dark:text-gray-100">{value || '—'}</div>
+    </div>
+  )
+
   // Editable <select> variant of field() — used for the passive-member Sektion
   // choice (Volleyball/Basketball/KSCW), which the approver picks and the
   // ClubDesk create-push then sends as the Sektion column.
@@ -925,7 +953,25 @@ function ExpandedDetails({
         {field('plz', 'PLZ')}
         {field('ort', t('anmeldungenCity'))}
         {field('geburtsdatum', t('anmeldungenDob'), { type: 'date' })}
-        {field('nationalitaet', t('anmeldungenNationality'), { display: (v) => reg.nationalitaet_code ? localizeCountry(reg.nationalitaet_code, v) : localizeCountryName(v) })}
+        {/* Nationality is a code LIST since migration 223 ("CH,IT", first = primary).
+            Legacy rows carry only the singular code or the submitter-language
+            free text, so both fallbacks stay. */}
+        {readOnlyField(
+          t('anmeldungenNationality'),
+          reg.nationalitaet_codes
+            ? formatCountryCodes(reg.nationalitaet_codes)
+            : (reg.nationalitaet_code
+                ? localizeCountry(reg.nationalitaet_code, reg.nationalitaet ?? '')
+                : localizeCountryName(reg.nationalitaet)),
+        )}
+        {/* 'NONE' = explicitly never licensed elsewhere; null = simply not asked
+            (every registration predating the field) → show nothing, not "None". */}
+        {readOnlyField(
+          t('anmeldungenFederation'),
+          reg.federation_of_origin === NO_FEDERATION
+            ? t('federationNone')
+            : countryLabel(reg.federation_of_origin),
+        )}
         {field('geschlecht', t('anmeldungenGender'), { display: localizeGender })}
         {field('rolle', t('anmeldungenFunction'))}
         {field('team', t('anmeldungenTeam'))}

@@ -86,6 +86,13 @@ const HEADER_TO_COL = {
   // J+S Personennummer (SALTO). Down-sync only (fill-only into members.js_id).
   // Column header in ClubDesk is "JS ID" (created 2026-07-08).
   'JS ID': 'js_id',
+  // Federation of origin — the national federation the member was last licensed
+  // with (Swiss Volley transfer certificate / FIBA letter of clearance). Custom
+  // ClubDesk picklist created 2026-07-25, holding the GERMAN country name (or
+  // "Keiner"); wiedisync owns the field and stores an ISO alpha-2 code / 'NONE'
+  // (migration 223), so the down-sync pass below parses the string back into a
+  // code and only ever FILLS an unanswered member row.
+  'Federation of Origin': 'federation_of_origin',
   '[Zuletzt geändert am]': 'zuletzt_geaendert_am',      '[Zuletzt geändert von]': 'zuletzt_geaendert_von',
   // Bracketed system variants (full-club export only — migration 065)
   '[Gruppen]': 'gruppen_bracketed',                     '[Rolle]': 'rolle_bracketed',
@@ -108,7 +115,7 @@ const TARGET_COLS = [
   'betrag_bezahlt','clubnummer','mittelschule_zh','offiziellen_lizenz','mitgliederbeitrag',
   'ahv_nummer','passivmitglied','offiziellen_100er','gruppe_2','funktion_2',
   'gruppen_2','jg','clubdesk_id','zuletzt_geaendert_am','zuletzt_geaendert_von',
-  'gruppen_bracketed','rolle_bracketed','wiedisync_id','js_id',
+  'gruppen_bracketed','rolle_bracketed','wiedisync_id','js_id','federation_of_origin',
 ]
 
 // ── 1. Decode CSV (CP1252 → UTF-8) ──────────────────────────────────
@@ -592,6 +599,43 @@ const psqlInput =
   "SELECT 'members_missing_identity_fields' AS metric,\n" +
   "  (SELECT count(*) FROM members WHERE NULLIF(btrim(anrede),'') IS NULL\n" +
   "     OR NULLIF(btrim(nationalitaet),'') IS NULL OR NULLIF(btrim(ahv_nummer),'') IS NULL) AS value;\n" +
+  // ── Apply ClubDesk "Federation of Origin" → members.federation_of_origin ──
+  // The two systems store this differently: ClubDesk holds the GERMAN picklist
+  // string ("Italien", "Großbritannien", "Keiner"), wiedisync an ISO alpha-2
+  // code — or the sentinel 'NONE' for "never licensed elsewhere", which is a
+  // real answer and deliberately distinct from NULL "not answered" (migration
+  // 223). So the string is parsed back through country_name_aliases (migration
+  // 224: every German/English/colloquial spelling we may have to read — the
+  // single canonical name is NOT enough, ClubDesk says "Großbritannien" where
+  // our display name is "Vereinigtes Königreich"), and 'Keiner'/'Keine'/'None'
+  // map to the sentinel.
+  // FILL-ONLY, and strictly so: the member answers this on the registration form
+  // / in their profile, so wiedisync owns it from the first answer onward and
+  // the push echoes ClubDesk's own cell back when we have none (clubdesk-update.js).
+  // A stale or unparseable register value must therefore never overwrite a
+  // member's answer. Anything that resolves to no code is skipped rather than
+  // stored — in a fill-only column garbage would never self-heal (same rule the
+  // AHV intake follows). Empty string can't exist here (CHECK constraint), so
+  // `IS NULL` is the exact "unanswered" test. clubdesk_id-keyed (1:1); DISTINCT ON
+  // picks the latest staged row should a contact appear twice. Own transaction.
+  'BEGIN;\n' +
+  'WITH cd0 AS (\n' +
+  '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
+  '         lower(btrim(federation_of_origin)) AS fed_name\n' +
+  '  FROM clubdesk_export\n' +
+  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
+  "    AND NULLIF(btrim(federation_of_origin),'') IS NOT NULL\n" +
+  '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
+  'cd AS (\n' +
+  '  SELECT cd0.cdid,\n' +
+  "         COALESCE(CASE WHEN cd0.fed_name IN ('keiner','keine','none') THEN 'NONE' END, a.code) AS fed\n" +
+  '  FROM cd0 LEFT JOIN country_name_aliases a ON a.alias = cd0.fed_name)\n' +
+  'UPDATE members m SET federation_of_origin = cd.fed\n' +
+  '  FROM cd WHERE btrim(m.clubdesk_id) = cd.cdid\n' +
+  '    AND cd.fed IS NOT NULL AND m.federation_of_origin IS NULL;\n' +
+  'COMMIT;\n' +
+  "SELECT 'members_with_federation_of_origin' AS metric,\n" +
+  '  (SELECT count(*) FROM members WHERE federation_of_origin IS NOT NULL) AS value;\n' +
   // ── Apply ClubDesk contact fields + birthdate by clubdesk_id — fill-only ──
   // The licence/email+name contact pass above predates the clubdesk_id linker and
   // misses linked members whose wiedisync email differs from ClubDesk (kid with an

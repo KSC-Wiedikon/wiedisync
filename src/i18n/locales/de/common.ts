@@ -22,6 +22,7 @@ export default {
   noData: 'Keine Daten',
   noResults: 'Keine Ergebnisse',
   search: 'Suchen...',
+  searchCountry: 'Land suchen...',
 
   // Days (full)
   monday: 'Montag',

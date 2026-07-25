@@ -6,7 +6,7 @@
 
 import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, escHtml } from './email-template.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail, titleCaseName } from './normalize.js'
-import { BB_SITUATIONS, bbRequiredDocs } from './bb-docs.js'
+import { BB_SITUATIONS, bbRequiredDocs, fibaNatCode } from './bb-docs.js'
 import crypto from 'crypto'
 import { streamManagedFile } from './storage-read.js'
 import { Transform } from 'node:stream'
@@ -64,6 +64,35 @@ function generateRefNumber() {
   const y = now.getFullYear()
   const rand = String(1000 + (crypto.randomBytes(2).readUInt16BE(0) % 9000))
   return `REG-${y}-${rand}`
+}
+
+// ── Coded nationality / federation (migration 223) ──────────────
+// Both columns carry a CHECK constraint, and this route is an ANONYMOUS POST:
+// anything the public form sends that the regex rejects would surface as a 500
+// on a member's submission instead of a validation message. So normalize hard
+// and drop what doesn't fit rather than trusting the client.
+
+/** Ordered, de-duplicated ISO 3166-1 alpha-2 list ("CH,IT"); first = primary.
+ *  Order is meaningful (the primary code is what ClubDesk gets), so dedupe
+ *  must preserve it. Empty selection stores NULL, never ''. */
+function normalizeCountryCodes(raw) {
+  const codes = [...new Set(
+    String(raw ?? '')
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter((s) => /^[A-Z]{2}$/.test(s)),
+  )]
+  return codes.length ? codes.join(',') : null
+}
+
+/** Federation of origin: an ISO alpha-2 code, the literal 'NONE' sentinel, or
+ *  NULL. 'NONE' ("never licensed with another federation") is a real answer and
+ *  must stay distinct from NULL ("didn't answer") — only an explicit NONE lets
+ *  the licensing admin skip chasing a transfer certificate. */
+function normalizeFederation(raw) {
+  const v = String(raw ?? '').trim().toUpperCase()
+  if (v === 'NONE') return 'NONE'
+  return /^[A-Z]{2}$/.test(v) ? v : null
 }
 
 // ── Confirmation emails ─────────────────────────────────────────
@@ -579,8 +608,9 @@ export function registerRegistration(router, { database, logger, services, getSc
           code: 'invalid_ahv',
         })
       }
-      // IBAN is OPTIONAL and used only to pay money back (reimbursements) —
-      // registrations.iban, migration 185.
+      // IBAN is REQUIRED (used to pay money back — reimbursements/expenses;
+      // registrations.iban, migration 185). Mirrors the client's required check;
+      // server = bypass/stale-cache backstop.
       const ibanNorm = normalizeIban(body.iban)
       if (!ibanNorm.ok) {
         return res.status(400).json({
@@ -588,6 +618,14 @@ export function registerRegistration(router, { database, logger, services, getSc
             ? 'Please check the IBAN — it is not a valid account number.'
             : 'Bitte überprüfe die IBAN — sie ist keine gültige Kontonummer.',
           code: 'invalid_iban',
+        })
+      }
+      if (!ibanNorm.value) {
+        return res.status(400).json({
+          error: isEn
+            ? 'Please enter your IBAN.'
+            : 'Bitte gib deine IBAN an.',
+          code: 'iban_required',
         })
       }
 
@@ -670,8 +708,20 @@ export function registerRegistration(router, { database, logger, services, getSc
         bb_doc_schoolcert: docId(body.bb_doc_schoolcert),
       }
       const bbSituation = BB_SITUATIONS.includes(body.bb_situation) ? body.bb_situation : null
+      // Coded nationality (migration 223). `natCodes` is the full ordered list;
+      // `primaryNatCode` keeps the legacy singular column populated so every
+      // consumer that still reads one code (the doc gate's fallback, the admin
+      // list) is unaffected. Fall back to whatever the body sends for forms
+      // still on the pre-multi-select bundle.
+      const natCodes = normalizeCountryCodes(body.nationalitaet_codes)
+      const primaryNatCode = natCodes
+        ? natCodes.split(',')[0]
+        : ((body.nationalitaet_code || '').trim().toUpperCase().slice(0, 2) || null)
+      const federationOfOrigin = normalizeFederation(body.federation_of_origin)
       if (body.membership_type === 'basketball' && !isGuest) {
-        const natCode = (body.nationalitaet_code || '').trim().toUpperCase().slice(0, 2)
+        // A dual national holding a Swiss passport is Swiss for FIBA, so the
+        // gate judges the list as a whole (fibaNatCode), not just the primary.
+        const natCode = fibaNatCode(natCodes, body.nationalitaet_code)
         // Situation + nationality + age drive the required set (school certificate
         // is optional → never required). Mirrors the client gate.
         const required = bbRequiredDocs(bbSituation, natCode, body.geburtsdatum)
@@ -725,7 +775,12 @@ export function registerRegistration(router, { database, logger, services, getSc
         ort: titleCaseName(body.ort),
         geburtsdatum: body.geburtsdatum || null,
         nationalitaet: body.nationalitaet || null,
-        nationalitaet_code: (body.nationalitaet_code || '').trim().toUpperCase().slice(0, 2) || null,
+        // Multi-nationality (migration 223): the ordered code list is the new
+        // source of truth, the singular code stays as its FIRST entry — the
+        // basketball document gate and the ClubDesk push both key off one code.
+        nationalitaet_codes: natCodes,
+        nationalitaet_code: primaryNatCode,
+        federation_of_origin: federationOfOrigin,
         geschlecht: body.geschlecht || null,
         ahv_nummer: ahvNorm.value,
         iban: ibanNorm.value,
@@ -975,7 +1030,7 @@ export function registerRegistration(router, { database, logger, services, getSc
 
       const reg = await database('registrations')
         .whereRaw('LOWER(reference_number) = ?', [reference.toLowerCase()])
-        .first('id', 'status', 'email', 'membership_type', 'nationalitaet_code', 'geburtsdatum', 'bb_situation', 'reference_number',
+        .first('id', 'status', 'email', 'membership_type', 'nationalitaet_code', 'nationalitaet_codes', 'geburtsdatum', 'bb_situation', 'reference_number',
           'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
       const emailOk = reg && String(reg.email || '').toLowerCase() === email
       if (!reg || !emailOk || !['pending', 'approved'].includes(reg.status)) {
@@ -984,7 +1039,10 @@ export function registerRegistration(router, { database, logger, services, getSc
         return res.status(404).json({ error: 'Registration not found' })
       }
 
-      const natCode = (reg.nationalitaet_code || '').trim().toUpperCase()
+      // Same "Swiss beats foreign" rule as the create gate — a dual national
+      // must not be told on the nachreichen page that documents are still
+      // missing which the create route never required of them.
+      const natCode = fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
       const required = reg.membership_type === 'basketball'
         ? bbRequiredDocs(reg.bb_situation, natCode, reg.geburtsdatum)
         : []

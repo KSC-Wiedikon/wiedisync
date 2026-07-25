@@ -32,12 +32,15 @@ test('emit-sql exits 0 and produces the staging load', () => {
   assert.ok(sql.includes('TRUNCATE clubdesk_export RESTART IDENTITY;'));
   // \copy column list must match the staging columns of migrations 064+065
   // (+ wiedisync_id, added 2026-07-07 for the round-trip linker; + js_id, added
-  // 2026-07-08 (migration 195) for the J+S Personennummer down-sync).
+  // 2026-07-08 (migration 195) for the J+S Personennummer down-sync;
+  // + federation_of_origin, added 2026-07-25 (migration 223) for the
+  // transfer-certificate federation down-sync).
   const copyLine = sql.split('\n').find((l) => l.startsWith('\\copy clubdesk_export('));
   assert.ok(copyLine, 'missing \\copy line');
-  assert.equal(copyLine.slice(copyLine.indexOf('(') + 1, copyLine.indexOf(')')).split(',').length, 64);
+  assert.equal(copyLine.slice(copyLine.indexOf('(') + 1, copyLine.indexOf(')')).split(',').length, 65);
   assert.ok(copyLine.includes('wiedisync_id'), 'wiedisync_id missing from staging load');
   assert.ok(copyLine.includes('js_id'), 'js_id missing from staging load');
+  assert.ok(copyLine.includes('federation_of_origin'), 'federation_of_origin missing from staging load');
 });
 
 test('member-create pass sits between the linker and the sex pass', () => {

@@ -205,7 +205,18 @@ const CD_PUSH_CONTACT_HEADERS = [
   // and Nationalität are ClubDesk PICKLISTS (values come from the down-sync so
   // they already match); AHV Nummer is free text (pushing wiedisync's clean
   // value also repairs ClubDesk cells the Zahl-format once mangled).
-  'Anrede', 'Nationalität', 'AHV Nummer',
+  'Anrede', 'Nationalität',
+  // Federation of Origin (custom ClubDesk field, 2026-07-25): the national
+  // federation the member was last licensed with — the key the club needs for a
+  // Swiss Volley transfer certificate / FIBA letter of clearance before the
+  // player may be licensed here. Asked on the registration form and editable in
+  // the profile, so WIEDISYNC owns it (ClubDesk has no other source); stored as
+  // an ISO alpha-2 code or the sentinel 'NONE' (migration 223) and mapped to
+  // ClubDesk's German picklist wording on the way out — see federationCell.
+  // Echo-protected exactly like Nationalität: an unanswered wiedisync field
+  // sends ClubDesk's own value back instead of an empty cell.
+  'Federation of Origin',
+  'AHV Nummer',
   // Wiedisync ID (custom ClubDesk text field, 2026-07-07): wiedisync's member
   // UUID (members.uuid, migration 184 — globally unique, visually distinct from
   // ClubDesk's own numeric [Id]; pre-184 stamps carried the numeric members.id
@@ -517,7 +528,37 @@ function cdCell(val) {
     ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-export function buildPushCsv(members, { create = false } = {}) {
+// Country code → the EXACT German spelling ClubDesk's picklists expect
+// (country_codes.name_de_clubdesk, migration 224). Read from Postgres, never
+// hardcoded: 196 names in JS would silently rot the day someone edits the
+// picklist, and Intl.DisplayNames is NOT interchangeable — 7 CLDR spellings
+// differ from ClubDesk's own (GB is "Großbritannien" there, "Vereinigtes
+// Königreich" in CLDR), and a non-matching string lands the row in ClubDesk's
+// "nicht erkannte" bucket instead of the field. Loaded ONCE per push/drift run
+// and threaded through — never per row.
+export async function loadCountryPushNames(database) {
+  const rows = await database('country_codes').select('code', 'name_de_clubdesk')
+  return new Map(rows.map((r) => [String(r.code || '').trim().toUpperCase(), String(r.name_de_clubdesk || '').trim()]))
+}
+
+// members.federation_of_origin → the ClubDesk cell. wiedisync stores a CODE
+// (ISO alpha-2), ClubDesk a German picklist string, so this is the only place
+// the two shapes meet:
+//   'IT'   → 'Italien'  (whatever country_codes.name_de_clubdesk says)
+//   'NONE' → 'Keiner'   (explicitly never licensed elsewhere — a real answer,
+//                        distinct from "not answered", so it must be pushed)
+//   NULL/'' → ''        (not answered — an empty cell is a no-op on import)
+// An unknown code (or a missing map) also yields '' rather than a guessed
+// spelling ClubDesk would reject; the caller's echo-back then fills the cell
+// with ClubDesk's own value, so we can never blank the register.
+export function federationCell(code, countryNames) {
+  const v = String(code ?? '').trim().toUpperCase()
+  if (!v) return ''
+  if (v === 'NONE') return 'Keiner'
+  return (countryNames && countryNames.get(v)) || ''
+}
+
+export function buildPushCsv(members, { create = false, countryNames = null } = {}) {
   // Column order MUST match CD_PUSH_HEADERS (+ create extras). Create rows also
   // carry Beitragskategorie + Eintritt + Gruppen + Status (see
   // CD_PUSH_CREATE_HEADERS); m.eintritt, m.gruppen and m.cd_status are resolved
@@ -545,7 +586,15 @@ export function buildPushCsv(members, { create = false } = {}) {
       // CD_PUSH_CONTACT_HEADERS). Creates push their own values (a new contact
       // has no ClubDesk value to blank).
       ibanOut,
-      m.anrede || '', m.nationalitaet || '', ahvOut,
+      m.anrede || '', m.nationalitaet || '',
+      // Federation of Origin. The echo can't ride on the field itself the way
+      // anrede/nationalitaet do (those already hold ClubDesk's own German
+      // string): wiedisync stores a CODE, so /up stashes ClubDesk's raw cell in
+      // m.federation_of_origin_cd and it is sent verbatim whenever the member
+      // has not answered — same "an empty wiedisync field can never blank the
+      // register" guarantee, one hop later.
+      federationCell(m.federation_of_origin, countryNames) || String(m.federation_of_origin_cd || '').trim(),
+      ahvOut,
       // Wiedisync ID — the member UUID (migration 184), wiedisync-owned: never
       // echoed, never blank. Pre-184 pushes carried the numeric members.id; the
       // down-sync linker accepts both.
@@ -575,13 +624,16 @@ export function buildPushCsv(members, { create = false } = {}) {
 }
 
 // Member fields the push CSV reads (also the preview fetch set). anrede/
-// nationalitaet/ahv_nummer joined the push 2026-07-07 (echo-protected for
-// updates — see CD_PUSH_HEADERS). beitragskategorie/wiedisync_active and the
+// nationalitaet/ahv_nummer joined the push 2026-07-07, federation_of_origin
+// 2026-07-25 (all echo-protected for updates — see CD_PUSH_HEADERS; the
+// code→German mapping for the federation happens in buildPushCsv, not here, so
+// the column is selected raw). beitragskategorie/wiedisync_active and the
 // licence booleans are only ever used on CREATE rows (buildPushCsv /
 // deriveStatus / deriveOffiziellenLizenz).
 const PUSH_FIELDS = [
   'id', 'uuid', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
-  'ort', 'birthdate', 'sex', 'iban', 'anrede', 'nationalitaet', 'ahv_nummer',
+  'ort', 'birthdate', 'sex', 'iban', 'anrede', 'nationalitaet',
+  'federation_of_origin', 'ahv_nummer',
   'clubdesk_id', 'clubdesk_push_changes',
   'beitragskategorie', 'wiedisync_active',
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
@@ -914,10 +966,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       //
       // Echo-back: an UPDATE row whose wiedisync value is empty gets ClubDesk's
       // own current value so the import can never blank the register. Covers
-      // iban + anrede + nationalitaet + ahv_nummer — the fields wiedisync does
-      // not exclusively own. Member-set values pass unchanged. The drift
-      // blank-risk guard deliberately skips these four — this makes them
-      // structurally safe instead of dropping the member from the push.
+      // iban + anrede + nationalitaet + ahv_nummer + federation_of_origin — the
+      // fields wiedisync does not exclusively own. Member-set values pass
+      // unchanged. The drift blank-risk guard deliberately skips these five —
+      // this makes them structurally safe instead of dropping the member from
+      // the push.
       // (Spike 2026-07-08 additionally proved ClubDesk IGNORES empty cells on
       // import — the echo + blank-risk guards stay as defense-in-depth on the
       // legal register; one probe on one field type is no licence to relax.)
@@ -929,7 +982,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         const cdids = updates.map((m) => String(m.clubdesk_id).trim()).filter(Boolean)
         const echoRows = cdids.length ? await database.raw(`
           SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
-                 iban, anrede, nationalitaet, ahv_nummer
+                 iban, anrede, nationalitaet, ahv_nummer, federation_of_origin
           FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
         `, [cdids]) : { rows: [] }
         const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
@@ -941,6 +994,13 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           if (!String(m.anrede || '').trim()) m.anrede = String(cd.anrede || '').trim()
           if (!String(m.nationalitaet || '').trim()) m.nationalitaet = String(cd.nationalitaet || '').trim()
           if (!String(m.ahv_nummer || '').trim()) m.ahv_nummer = String(cd.ahv_nummer || '').trim()
+          // Federation of Origin echoes into a SEPARATE field, not back onto
+          // federation_of_origin itself: that column holds an ISO code (CHECK
+          // constraint, migration 223) while ClubDesk's cell is a German picklist
+          // string — assigning it here would fail federationCell's code lookup and
+          // emit an empty cell, i.e. exactly the blanking this guard prevents.
+          // buildPushCsv falls back to this raw value when the member has no answer.
+          if (!String(m.federation_of_origin || '').trim()) m.federation_of_origin_cd = String(cd.federation_of_origin || '').trim()
         }
       }
       const pushMembers = [...updates, ...creates]
@@ -990,10 +1050,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           m.is_guest = guestIds.has(Number(m.id))
         }
       }
+      // ONE lookup for the whole push: the Federation of Origin cell needs the
+      // code → ClubDesk-German map (see loadCountryPushNames). Threaded into
+      // both CSVs rather than queried per row.
+      const countryNames = await loadCountryPushNames(database)
       await database('clubdesk_member_sync').where('id', 1).update({
         up_requested_at: new Date(), up_state: 'queued', up_message: null, up_finished_at: null,
-        up_csv: updates.length ? buildPushCsv(updates) : null,
-        up_csv_create: creates.length ? buildPushCsv(creates, { create: true }) : null,
+        up_csv: updates.length ? buildPushCsv(updates, { countryNames }) : null,
+        up_csv_create: creates.length ? buildPushCsv(creates, { create: true, countryNames }) : null,
         up_member_ids: JSON.stringify(pushMembers.map((m) => m.id)),
         up_member_ids_create: JSON.stringify(creates.map((m) => m.id)),
         up_result: null,
@@ -1364,18 +1428,20 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     const res = await database.raw(`
       SELECT m.id, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
              m.birthdate, m.sex, m.iban, m.anrede, m.nationalitaet, m.ahv_nummer,
+             m.federation_of_origin,
              m.clubdesk_id, m.clubdesk_push_pending,
              cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
              cd.email_alternativ AS cd_email_alt, cd.telefon_privat AS cd_tel_priv,
              cd.telefon_mobil AS cd_tel_mob, cd.adresse AS cd_adresse, cd.plz AS cd_plz,
              cd.ort AS cd_ort, cd.geburtsdatum AS cd_geburtsdatum, cd.geschlecht AS cd_geschlecht,
              cd.iban AS cd_iban, cd.anrede AS cd_anrede, cd.nationalitaet AS cd_nationalitaet,
-             cd.ahv_nummer AS cd_ahv_nummer
+             cd.ahv_nummer AS cd_ahv_nummer, cd.federation_of_origin AS cd_federation_of_origin
       FROM members m
       JOIN (
         SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
                email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
-               geburtsdatum, geschlecht, iban, anrede, nationalitaet, ahv_nummer
+               geburtsdatum, geschlecht, iban, anrede, nationalitaet, ahv_nummer,
+               federation_of_origin
         FROM clubdesk_export
         WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
         ORDER BY BTRIM(clubdesk_id), row_id
@@ -1383,6 +1449,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       WHERE m.clubdesk_id IS NOT NULL ${memberFilter}
       ORDER BY m.last_name, m.first_name
     `, params)
+    // Same code → ClubDesk-German map the push uses, loaded ONCE for the whole
+    // run: the Federation of Origin comparison has to happen on the MAPPED
+    // value, since that is the string ClubDesk actually holds.
+    const countryNames = await loadCountryPushNames(database)
     const candidates = []
     for (const r of res.rows) {
       // conflicts = both sides non-empty and different (per-member row in Data
@@ -1461,6 +1531,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       }
       cmpEcho('anrede', r.anrede, r.cd_anrede, driftLower(r.anrede), driftLower(r.cd_anrede))
       cmpEcho('nationalitaet', r.nationalitaet, r.cd_nationalitaet, driftLower(r.nationalitaet), driftLower(r.cd_nationalitaet))
+      // Federation of Origin: wiedisync stores a code, ClubDesk a German
+      // picklist string, so compare (and DISPLAY) the mapped value — same
+      // computed-then-compared shape as sexCd above. Echo-protected like the
+      // three fields around it → conflict-or-fill, never blank_risk. An
+      // unmappable code yields '' and simply drops out of the comparison rather
+      // than being reported as a conflict against ClubDesk's good value.
+      const fedCd = federationCell(r.federation_of_origin, countryNames)
+      cmpEcho('federation_of_origin', fedCd, r.cd_federation_of_origin, driftLower(fedCd), driftLower(r.cd_federation_of_origin))
       const ahvDigits = (v) => String(v ?? '').replace(/\D/g, '')
       cmpEcho('ahv_nummer', r.ahv_nummer, r.cd_ahv_nummer, ahvDigits(r.ahv_nummer), ahvDigits(r.cd_ahv_nummer))
       if (!conflicts.length && !fills.length) continue

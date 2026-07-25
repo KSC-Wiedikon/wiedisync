@@ -22,6 +22,7 @@ export default {
   noData: 'Nüt da',
   noResults: 'Nüt gfunde',
   search: 'Sueche...',
+  searchCountry: 'Land sueche...',
 
   // Days (full)
   monday: 'Mäntig',
