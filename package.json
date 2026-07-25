@@ -1,7 +1,7 @@
 {
   "name": "wiedisync",
   "private": true,
-  "version": "1.46.1",
+  "version": "1.47.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -60,8 +60,8 @@
     "db:finance:sync:dev": "node directus/scripts/clubdesk-scrape-finance.mjs /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && node directus/scripts/import-clubdesk-finance.mjs dev /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && rm -f /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv",
     "db:finance:sync:prod": "node directus/scripts/clubdesk-scrape-finance.mjs /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && node directus/scripts/import-clubdesk-finance.mjs prod /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && rm -f /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv",
     "ext:install": "npm --prefix directus/extensions/kscw-endpoints ci",
-    "ext:smoke:dev": "curl -fsS --retry 10 --retry-delay 3 --retry-all-errors https://directus-dev.kscw.ch/kscw/public/teams -o /dev/null && echo '\u2713 kscw-endpoints responding (dev)'",
-    "ext:smoke:prod": "curl -fsS --retry 10 --retry-delay 3 --retry-all-errors https://directus.kscw.ch/kscw/public/teams -o /dev/null && echo '\u2713 kscw-endpoints responding (prod)'",
+    "ext:smoke:dev": "curl -fsS --retry 10 --retry-delay 3 --retry-all-errors https://directus-dev.kscw.ch/kscw/public/teams -o /dev/null && echo '✓ kscw-endpoints responding (dev)'",
+    "ext:smoke:prod": "curl -fsS --retry 10 --retry-delay 3 --retry-all-errors https://directus.kscw.ch/kscw/public/teams -o /dev/null && echo '✓ kscw-endpoints responding (prod)'",
     "ext:deploy:dev": "bash scripts/deploy-extensions.sh dev",
     "ext:deploy:prod": "bash scripts/deploy-extensions.sh prod",
     "ext:deploy": "npm run ext:deploy:dev && npm run ext:deploy:prod",

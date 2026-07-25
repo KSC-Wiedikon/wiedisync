@@ -2,6 +2,24 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.47.0 — 2026-07-25
+
+### New: nationality is now a proper list, with flags
+- **Pick every nationality you hold, not just one.** The profile nationality field is a searchable list with flags — start typing a country or its two-letter code. Dual nationals can select both; the first one you pick is treated as your main one and is what the club register receives.
+- **It reads in your language.** Previously the field held a German country name whatever language you used the app in.
+
+### New: federation of origin
+- **A new profile field asks which national federation licensed you at age 14** — the definition Swiss Volley and the FIVB use, and the one that decides whether an international transfer is needed to play here. It is not necessarily where you first played.
+- **"None" is a real answer.** If no national federation licensed you at 14 — for example if you only ever played recreational leagues such as Italy's CSI, UISP or PGS, which are not FIVB or FIBA members — choose it. That tells the club there is nothing to request, which a blank field cannot.
+- The membership sign-up form asks the same two questions, so new members arrive with the answer already recorded.
+
+### New: Transfers page (club staff)
+- **A per-sport view of international transfers**, grouped by federation of origin, with a note field and a done marker. It also lists members whose nationality suggests the question has never been put to them.
+- **For volleyball it cross-checks Swiss Volley's licence data and flags two situations**: someone marked done whose licence is not validated — meaning they are not yet eligible to play — and someone still marked pending whose licence has been validated, which usually means the certificate has already arrived.
+
+### Improved: officials licences distinguish OTN 1 and OTN 2
+- **The basketball table-official licence now records the level**, matching Swiss Basketball's own register, which has always kept the two apart.
+
 ## v1.46.1 — 2026-07-25
 
 ### Fix: open-ended absences now sign you out reliably
