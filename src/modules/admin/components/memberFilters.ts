@@ -51,7 +51,9 @@ export const PRESENCE_FIELDS = [
 ] as const
 export type PresenceField = (typeof PRESENCE_FIELDS)[number]
 
-export const LICENCE_TYPES = ['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb'] as const
+// `otn_bb` is the coarse legacy flag kept alongside the two levels (migration
+// 228) — filter on all three to catch every OTN holder.
+export const LICENCE_TYPES = ['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb'] as const
 export type LicenceKey = (typeof LICENCE_TYPES)[number]
 
 export const ROLE_TYPES = ['superuser', 'admin', 'vorstand', 'vb_admin', 'bb_admin', 'user'] as const

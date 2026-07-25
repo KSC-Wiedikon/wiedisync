@@ -168,7 +168,9 @@ export default function ScorerPage() {
     filter: { kscw_membership_active: { _eq: true } },
     sort: ['last_name', 'first_name'],
     all: true,
-    fields: ['id', 'first_name', 'last_name', 'nickname', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'kscw_membership_active', 'phone', 'email'],
+    // otn1_bb/otn2_bb must be selected too — an unfetched column arrives
+    // undefined and reads as false, silently hiding eligible 24s officials.
+    fields: ['id', 'first_name', 'last_name', 'nickname', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'kscw_membership_active', 'phone', 'email'],
   })
   const members = membersRaw ?? []
 

@@ -53,7 +53,11 @@ export default {
   qualRefereeVb: 'Referees (volleyball)',
   qualOtr1Bb: 'OTR1 (basketball)',
   qualOtr2Bb: 'OTR2 (basketball)',
-  qualOtnBb: 'OTN (basketball)',
+  // Three separate audiences: the coarse legacy flag plus the two Basketplan
+  // levels (migration 228). Reaching every OTN holder means ticking all three.
+  qualOtnBb: 'OTN, any level (basketball)',
+  qualOtn1Bb: 'OTN 1 (basketball)',
+  qualOtn2Bb: 'OTN 2 (basketball)',
   qualRefereeBb: 'Referees (basketball)',
 
   pin: 'Pin to top of News card',

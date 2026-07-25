@@ -63,7 +63,12 @@ const ROLE_GROUPS: { labelKey: string; options: { token: string; labelKey: strin
       { token: 'qual:referee_vb', labelKey: 'qualRefereeVb' },
       { token: 'qual:otr1_bb', labelKey: 'qualOtr1Bb' },
       { token: 'qual:otr2_bb', labelKey: 'qualOtr2Bb' },
+      // otn_bb is the coarse legacy flag and otn1_bb/otn2_bb the Basketplan
+      // levels (migration 228) — they are separate audiences, so reaching every
+      // OTN holder means ticking all three.
       { token: 'qual:otn_bb', labelKey: 'qualOtnBb' },
+      { token: 'qual:otn1_bb', labelKey: 'qualOtn1Bb' },
+      { token: 'qual:otn2_bb', labelKey: 'qualOtn2Bb' },
       { token: 'qual:referee_bb', labelKey: 'qualRefereeBb' },
     ],
   },

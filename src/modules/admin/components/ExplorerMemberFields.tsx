@@ -99,7 +99,11 @@ const MEMBER_FIELD_LABELS: Record<string, string> = {
   referee_vb: 'Referee (volleyball)',
   otr1_bb: 'OTR1 (basketball)',
   otr2_bb: 'OTR2 (basketball)',
-  otn_bb: 'OTN (basketball)',
+  // otn_bb predates the levels and stays as the coarse "holds some OTN" flag —
+  // labelled so an admin does not mistake it for a third level (migration 228).
+  otn_bb: 'OTN, any level (basketball, legacy)',
+  otn1_bb: 'OTN 1 (basketball)',
+  otn2_bb: 'OTN 2 (basketball)',
   referee_bb: 'Referee (basketball)',
   // Consent / privacy
   consent_decision: 'Consent decision',
@@ -163,7 +167,7 @@ const FIELD_GROUPS: FieldGroup[] = [
   {
     id: 'licences',
     label: 'Licences',
-    keys: ['license_nr', 'licence_activated', 'licence_validated', 'licence_category', 'licence_activation_date', 'licence_validation_date', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb'],
+    keys: ['license_nr', 'licence_activated', 'licence_validated', 'licence_category', 'licence_activation_date', 'licence_validation_date', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb'],
   },
   {
     id: 'privacy',

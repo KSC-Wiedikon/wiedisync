@@ -458,7 +458,12 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           const tokens: string[] = []
           if (rawField(m, 'otr1_bb')) tokens.push('OTR1')
           if (rawField(m, 'otr2_bb')) tokens.push('OTR2')
+          // otn_bb is the coarse legacy flag, otn1_bb/otn2_bb the Basketplan
+          // levels (migration 228) — a member can carry the coarse flag and a
+          // level at once, so emit each independently and let the dedupe run.
           if (rawField(m, 'otn_bb')) tokens.push('OTN')
+          if (rawField(m, 'otn1_bb')) tokens.push('OTN1')
+          if (rawField(m, 'otn2_bb')) tokens.push('OTN2')
           const cd = m.clubdesk_id ? cache.clubdeskInfo.get(String(m.clubdesk_id)) : undefined
           if (cd?.offiziellenLizenz) tokens.push(cd.offiziellenLizenz)
           return [...new Set(tokens)].join(', ')

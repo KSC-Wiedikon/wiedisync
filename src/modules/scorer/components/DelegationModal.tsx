@@ -22,7 +22,10 @@ const ROLE_LICENCE_MAP: Record<string, LicenceType | LicenceType[]> = {
   scorer_scoreboard: 'scorer_vb',
   bb_scorer: 'otr1_bb',
   bb_timekeeper: 'otr1_bb',
-  bb_24s_official: ['otr2_bb', 'otn_bb'],
+  // The 24s desk needs OTR2 or any OTN. `otn_bb` is the coarse legacy flag kept
+  // by migration 228 — it is ORed with, never replaced by, the two levels, so
+  // its current holders keep their eligibility.
+  bb_24s_official: ['otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb'],
 }
 
 function getMemberTeamId(memberId: string, memberTeams: MemberTeam[]): string | undefined {

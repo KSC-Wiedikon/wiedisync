@@ -7,14 +7,22 @@ export interface BaseRecord {
   [key: string]: unknown
 }
 
-export type LicenceType = 'scorer_vb' | 'referee_vb' | 'otr1_bb' | 'otr2_bb' | 'otn_bb' | 'referee_bb'
+export type LicenceType =
+  | 'scorer_vb' | 'referee_vb'
+  | 'otr1_bb' | 'otr2_bb'
+  // `otn_bb` is the coarse legacy flag ("holds some OTN"); `otn1_bb`/`otn2_bb`
+  // are the levels Basketplan actually issues (migration 228). The levels are
+  // ADDITIVE — otn_bb was deliberately not renamed, because its current holders
+  // are of unknown level, so every eligibility check ORs all three.
+  | 'otn_bb' | 'otn1_bb' | 'otn2_bb'
+  | 'referee_bb'
 
 /** All licence keys in canonical order — single source of truth for UI iteration. */
 export const LICENCE_TYPES: readonly LicenceType[] = [
-  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
+  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
 ] as const
 
-/** Derive the legacy LicenceType[] view from the six per-flag booleans. */
+/** Derive the legacy LicenceType[] view from the per-flag booleans. */
 export function licencesOf(m: Partial<Record<LicenceType, boolean | undefined>>): LicenceType[] {
   const out: LicenceType[] = []
   for (const k of LICENCE_TYPES) if (m[k]) out.push(k)
@@ -141,7 +149,11 @@ export interface Member extends BaseRecord {
   referee_vb: boolean
   otr1_bb: boolean
   otr2_bb: boolean
+  /** Coarse legacy "holds some OTN" flag — kept, never replaced (migration 228). */
   otn_bb: boolean
+  /** OTN level 1 / level 2, the levels Basketplan issues (migration 228). */
+  otn1_bb: boolean
+  otn2_bb: boolean
   referee_bb: boolean
   coach_approved_team: boolean
   requested_team: string
@@ -185,7 +197,8 @@ export interface Member extends BaseRecord {
   // READ-ONLY everywhere in the UI and never write it.
   nationalitaet: string
   nationalitaet_codes: string | null
-  // Federation the member was last licensed with: an ISO alpha-2 code, the
+  // Federation the member was FIRST licensed with (their federation of origin):
+  // an ISO alpha-2 code, the
   // literal 'NONE' (never licensed elsewhere), or null (not answered) — the
   // NONE/null distinction is what lets us skip a transfer-certificate chase.
   federation_of_origin: string | null

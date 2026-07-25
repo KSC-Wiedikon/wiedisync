@@ -22,7 +22,11 @@ export default {
   role_referee_vb: 'Referee VB',
   role_otr1_bb: 'OTR1 BB',
   role_otr2_bb: 'OTR2 BB',
-  role_otn_bb: 'OTN BB',
+  // otn_bb is the coarse legacy flag, kept beside the two Basketplan levels
+  // (migration 228) — the "(any level)" suffix keeps the three chips apart.
+  role_otn_bb: 'OTN BB (any level)',
+  role_otn1_bb: 'OTN 1 BB',
+  role_otn2_bb: 'OTN 2 BB',
   role_referee_bb: 'Referee BB',
   role_is_spielplaner: 'Spielplaner',
   eventInviteTitle: 'You have been invited to {{title}}',

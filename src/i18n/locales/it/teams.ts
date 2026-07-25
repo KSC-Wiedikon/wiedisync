@@ -96,7 +96,9 @@ export default {
   licenceReferee: 'Licenza arbitro',
   licenceOTR1: 'Licenza OTR1',
   licenceOTR2: 'Licenza OTR2',
-  licenceOTN: 'Licenza OTN',
+  licenceOTN: 'Licenza OTN (tutti i livelli)',
+  licenceOTN1: 'Licenza OTN 1',
+  licenceOTN2: 'Licenza OTN 2',
   licenceRefereeBB: 'Licenza arbitro (pallacanestro)',
 
   // Guest levels

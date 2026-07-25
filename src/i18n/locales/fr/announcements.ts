@@ -53,7 +53,9 @@ export default {
   qualRefereeVb: 'Arbitres (volleyball)',
   qualOtr1Bb: 'OTR1 (basketball)',
   qualOtr2Bb: 'OTR2 (basketball)',
-  qualOtnBb: 'OTN (basketball)',
+  qualOtnBb: 'OTN, tous niveaux (basketball)',
+  qualOtn1Bb: 'OTN 1 (basketball)',
+  qualOtn2Bb: 'OTN 2 (basketball)',
   qualRefereeBb: 'Arbitres (basketball)',
 
   pin: 'Épingler en haut de la carte Actualités',

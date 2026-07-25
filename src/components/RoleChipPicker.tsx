@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next'
 const ROLE_GROUPS = [
   { key: 'globalRoles', roles: ['vorstand', 'finance', 'admin', 'vb_admin', 'bb_admin', 'superuser'] },
   { key: 'teamRoles', roles: ['coach', 'team_responsible', 'captain'] },
-  { key: 'licences', roles: ['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb'] },
+  // otn_bb is the coarse legacy flag; otn1_bb/otn2_bb are the Basketplan levels
+  // (migration 228). All three are offered — they are additive, not a swap.
+  { key: 'licences', roles: ['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb'] },
   { key: 'functions', roles: ['is_spielplaner'] },
 ]
 

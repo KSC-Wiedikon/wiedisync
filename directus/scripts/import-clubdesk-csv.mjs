@@ -710,12 +710,41 @@ const psqlInput =
   // "VB SC" IS the Schreiber licence, so ClubDesk holding it means the member is a
   // scorer even when wiedisync never set the boolean (licence granted straight in
   // the register, never through a wiedisync registration). Set-true only, same as
-  // the referee flags above. The BB codes (OTR1/OTR2/OTN) need no mirror rule —
-  // wiedisync owns those booleans and ClubDesk derives its string from them.
+  // the referee flags above.
   'UPDATE members m SET scorer_vb = true\n' +
   '  FROM clubdesk_export c\n' +
   '  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.scorer_vb IS DISTINCT FROM true\n' +
   "    AND upper(btrim(c.offiziellen_lizenz)) = 'VB SC';\n" +
+  // Basketball table-official licences from the same picklist. Until 2026-07-25
+  // this had no mirror rule, on the reasoning that "wiedisync owns those booleans
+  // and ClubDesk derives its string from them" — true while wiedisync was the only
+  // place a BB licence could be granted. It no longer is: the picklist now carries
+  // OTN1/OTN2 as well as OTR1/OTR2, so a level granted directly in the register
+  // would otherwise never reach wiedisync and the member would look unlicensed to
+  // scorer assignment.
+  //
+  // SET-TRUE ONLY, and that is not a style choice. ClubDesk holds ONE value per
+  // contact while a member can hold several licences, so absence from the cell is
+  // absence of evidence, not evidence of absence — a clearing rule here would
+  // delete a real licence every time someone holds two. This is the same trap that
+  // let the Volleymanager cron wipe scorer_vb/referee_vb on 2026-07-13 before it
+  // was made set-true-only. Tolerant of 'OTN 1' spacing/case for the same reason
+  // migration 229's mapping is.
+  "UPDATE members m SET otr1_bb = true FROM clubdesk_export c\n" +
+  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.otr1_bb IS DISTINCT FROM true\n" +
+  "    AND upper(btrim(c.offiziellen_lizenz)) = 'OTR1';\n" +
+  "UPDATE members m SET otr2_bb = true FROM clubdesk_export c\n" +
+  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.otr2_bb IS DISTINCT FROM true\n" +
+  "    AND upper(btrim(c.offiziellen_lizenz)) = 'OTR2';\n" +
+  "UPDATE members m SET otn1_bb = true FROM clubdesk_export c\n" +
+  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.otn1_bb IS DISTINCT FROM true\n" +
+  "    AND upper(replace(btrim(c.offiziellen_lizenz), ' ', '')) = 'OTN1';\n" +
+  "UPDATE members m SET otn2_bb = true FROM clubdesk_export c\n" +
+  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.otn2_bb IS DISTINCT FROM true\n" +
+  "    AND upper(replace(btrim(c.offiziellen_lizenz), ' ', '')) = 'OTN2';\n" +
+  "UPDATE members m SET otn_bb = true FROM clubdesk_export c\n" +
+  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.otn_bb IS DISTINCT FROM true\n" +
+  "    AND upper(btrim(c.offiziellen_lizenz)) = 'OTN';\n" +
   // Every VOLLEYBALL referee is automatically a scorer (user 2026-07-07) — so a
   // VB referee always carries the Schreiber licence too. Basketball is separate
   // (a BB referee is NOT auto-made a table official). Set-true only.
