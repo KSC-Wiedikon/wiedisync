@@ -90,7 +90,9 @@ export function useExplorerCache(scope: ExplorerScope) {
             // Fields used by ExplorerMemberFilters (multiselect/multiselect-chip/tri-state/presence)
             'phone', 'license_nr', 'birthdate', 'photo', 'number', 'position', 'language',
             // Per-flag licence booleans (migration 067) — what the filter reads.
-            'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
+            // otn1_bb/otn2_bb are the OTN levels added by migration 228; otn_bb
+            // stays as the coarse legacy flag, so all three are fetched.
+            'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
             'birthdate_visibility', 'consent_decision', 'consent_prompted_at',
             'requested_team', 'coach_approved_team', 'is_spielplaner', 'wiedisync_active',
             'shell', 'shell_expires', 'shell_reminder_sent',

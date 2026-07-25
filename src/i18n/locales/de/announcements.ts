@@ -57,7 +57,9 @@ export default {
   qualRefereeVb: 'Schiedsrichter (Volleyball)',
   qualOtr1Bb: 'OTR1 (Basketball)',
   qualOtr2Bb: 'OTR2 (Basketball)',
-  qualOtnBb: 'OTN (Basketball)',
+  qualOtnBb: 'OTN, alle Stufen (Basketball)',
+  qualOtn1Bb: 'OTN 1 (Basketball)',
+  qualOtn2Bb: 'OTN 2 (Basketball)',
   qualRefereeBb: 'Schiedsrichter (Basketball)',
 
   // Pin / Schedule

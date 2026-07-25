@@ -342,6 +342,18 @@ export function deriveOffiziellenLizenz(m) {
   if (m?.scorer_vb === true || m?.referee_vb === true) return 'VB SC'
   if (m?.otr1_bb === true) return 'OTR1'
   if (m?.otr2_bb === true) return 'OTR2'
+  // OTN gained levels 2026-07-25: Basketplan has always held "OTN 1 seit dem" /
+  // "OTN 2 seit dem" as separate fields (migration 228), and the user added
+  // matching OTN1/OTN2 options to the ClubDesk picklist, so the precise level can
+  // finally be pushed instead of being flattened to "OTN".
+  //
+  // The bare `otn_bb` check stays LAST and is deliberately kept: it is the coarse
+  // legacy flag carried by 6 members whose level nothing has resolved yet. Dropping
+  // it would blank their Offiziellen Lizenz cell in ClubDesk on the next push —
+  // strictly worse than sending the imprecise value we have always sent. It
+  // disappears on its own once the Basketplan import fills the levels.
+  if (m?.otn1_bb === true) return 'OTN1'
+  if (m?.otn2_bb === true) return 'OTN2'
   if (m?.otn_bb === true) return 'OTN'
   return ''
 }
@@ -482,7 +494,9 @@ export function deriveMitgliederbeitrag(kategorie, member = null, opts = {}) {
     const isVb = k.startsWith('VB ')
     const hasLicence = isVb
       ? member.scorer_vb === true
-      : (member.otr1_bb === true || member.otr2_bb === true || member.otn_bb === true)
+      : (member.otr1_bb === true || member.otr2_bb === true
+         // otn_bb is the coarse legacy flag; the levels are additive, never a swap.
+         || member.otn_bb === true || member.otn1_bb === true || member.otn2_bb === true)
     const eligible = SURCHARGE_ADULT.has(k) || (SURCHARGE_YOUTH.has(k) && isU16Plus(member) === true)
     if (eligible && !hasLicence) amount += 100
   }
@@ -637,7 +651,7 @@ const PUSH_FIELDS = [
   'federation_of_origin', 'ahv_nummer',
   'clubdesk_id', 'clubdesk_push_changes',
   'beitragskategorie', 'wiedisync_active',
-  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb',
+  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
 ]
 
 // Escape user-controlled strings before interpolating into the admin email
@@ -829,7 +843,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         .whereNull('clubdesk_pushed_at')
         .where('clubdesk_sync_exclude', false)
         .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie',
-          'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb')
+          'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb')
         .orderBy('last_name')
       // Flag unlinked members who ALREADY exist in ClubDesk under a divergent
       // email (exact first+last name match) so the modal can warn before a CREATE
@@ -1826,7 +1840,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         SELECT cg.grp, m.id AS member_id, m.first_name, m.last_name, cg.clubdesk_id,
                COALESCE(m.wiedisync_active, false) AS active,
                (COALESCE(m.referee_vb,false) OR COALESCE(m.scorer_vb,false) OR COALESCE(m.referee_bb,false)
-                OR COALESCE(m.otr1_bb,false) OR COALESCE(m.otr2_bb,false) OR COALESCE(m.otn_bb,false)) AS is_official,
+                OR COALESCE(m.otr1_bb,false) OR COALESCE(m.otr2_bb,false)
+                OR COALESCE(m.otn_bb,false) OR COALESCE(m.otn1_bb,false) OR COALESCE(m.otn2_bb,false)) AS is_official,
                COALESCE((SELECT string_agg(DISTINCT t2.name, ', ') FROM teams_coaches tc JOIN teams t2 ON t2.id = tc.teams_id WHERE tc.members_id = m.id), '') AS coach_of,
                COALESCE((SELECT string_agg(DISTINCT t3.name, ', ') FROM teams_responsibles tr JOIN teams t3 ON t3.id = tr.teams_id WHERE tr.members_id = m.id), '') AS tr_of
         FROM cd_groups cg

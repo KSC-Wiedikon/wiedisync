@@ -1341,7 +1341,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // junction, and a qualification boolean on members.
   const ANN_ROLE_ENUM = ['admin', 'superuser', 'vb_admin', 'bb_admin', 'vorstand', 'website_admin', 'finance', 'user']
   const ANN_FUNCTIONS = ['coach', 'team_responsible', 'captain']
-  const ANN_QUAL_COLUMNS = ['is_spielplaner', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'referee_bb']
+  // `otn_bb` stays in the list alongside the levels (migration 228): it is the
+  // coarse "holds some OTN" flag and is still the only true one for the 6
+  // pre-split holders, so dropping it would silently shrink their audience.
+  // Targeting all OTN people = tick otn_bb + otn1_bb + otn2_bb.
+  const ANN_QUAL_COLUMNS = ['is_spielplaner', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb']
 
   function parseJsonArray(value) {
     if (Array.isArray(value)) return value
@@ -3961,7 +3965,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       } else if (membershipType === 'basketball') {
         if (p.includes('otr 1') || p === 'otr1') mapped.push('otr1_bb')
         if (p.includes('otr 2') || p === 'otr2') mapped.push('otr2_bb')
-        if (p.includes('otn')) mapped.push('otn_bb')
+        // OTN is level-split since migration 228 (Basketplan issues OTN 1 and
+        // OTN 2 separately). Test the LEVELS FIRST — a bare `includes('otn')`
+        // branch would swallow "OTN 1" and file a level holder under the coarse
+        // flag. `otn_bb` is deliberately retained as that coarse "holds some
+        // OTN" flag: ClubDesk's "Offiziellen Lizenz" picklist could historically
+        // only express a single level-less "OTN", so every older registration
+        // (and the 6 existing holders) still lands there and keeps eligibility.
+        const otn1 = p.includes('otn 1') || p.includes('otn1')
+        const otn2 = p.includes('otn 2') || p.includes('otn2')
+        if (otn1) mapped.push('otn1_bb')
+        if (otn2) mapped.push('otn2_bb')
+        if (!otn1 && !otn2 && p.includes('otn')) mapped.push('otn_bb')
         if (p.includes('schiedsrichter') || p === 'referee') mapped.push('referee_bb')
       }
     }
@@ -4124,7 +4139,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         referee_vb: licences.includes('referee_vb'),
         otr1_bb: licences.includes('otr1_bb'),
         otr2_bb: licences.includes('otr2_bb'),
+        // Three OTN columns, not one (migration 228): mapLicences() emits the
+        // precise level when the applicant's licence string names one, and the
+        // coarse `otn_bb` when it doesn't — which is what a level-less ClubDesk
+        // "OTN" still produces. All three are written so nothing is lost either
+        // way; readers must OR them.
         otn_bb: licences.includes('otn_bb'),
+        otn1_bb: licences.includes('otn1_bb'),
+        otn2_bb: licences.includes('otn2_bb'),
         referee_bb: licences.includes('referee_bb'),
         shell: true,
         shell_expires: shellExpires,

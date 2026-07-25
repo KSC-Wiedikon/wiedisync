@@ -96,7 +96,9 @@ export default {
   licenceReferee: 'Schiedsrichter-Lizenz',
   licenceOTR1: 'OTR1-Lizenz',
   licenceOTR2: 'OTR2-Lizenz',
-  licenceOTN: 'OTN-Lizenz',
+  licenceOTN: 'OTN-Lizenz (alle Stufen)',
+  licenceOTN1: 'OTN-1-Lizenz',
+  licenceOTN2: 'OTN-2-Lizenz',
   licenceRefereeBB: 'Schiedsrichter-Lizenz (Basketball)',
 
   // Gaststufen

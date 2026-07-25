@@ -53,7 +53,9 @@ export default {
   qualRefereeVb: 'Arbitri (pallavolo)',
   qualOtr1Bb: 'OTR1 (pallacanestro)',
   qualOtr2Bb: 'OTR2 (pallacanestro)',
-  qualOtnBb: 'OTN (pallacanestro)',
+  qualOtnBb: 'OTN, tutti i livelli (pallacanestro)',
+  qualOtn1Bb: 'OTN 1 (pallacanestro)',
+  qualOtn2Bb: 'OTN 2 (pallacanestro)',
   qualRefereeBb: 'Arbitri (pallacanestro)',
 
   pin: 'Fissa in alto nella scheda Notizie',

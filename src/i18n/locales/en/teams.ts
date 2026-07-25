@@ -96,7 +96,11 @@ export default {
   licenceReferee: 'Referee licence',
   licenceOTR1: 'OTR1 licence',
   licenceOTR2: 'OTR2 licence',
-  licenceOTN: 'OTN licence',
+  // licenceOTN is the coarse legacy flag kept beside the two Basketplan levels
+  // (migration 228) — a member can hold it and a level at the same time.
+  licenceOTN: 'OTN licence (any level)',
+  licenceOTN1: 'OTN 1 licence',
+  licenceOTN2: 'OTN 2 licence',
   licenceRefereeBB: 'Referee licence (Basketball)',
 
   // Guest levels

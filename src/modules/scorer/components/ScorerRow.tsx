@@ -224,7 +224,14 @@ export default function ScorerRow({
       const bbRole = role as BbAssignRole
       if (bbRole === 'bb_scorer' && !userLicences.includes('otr1_bb')) return false
       if (bbRole === 'bb_timekeeper' && !userLicences.includes('otr1_bb')) return false
-      if (bbRole === 'bb_24s_official' && !userLicences.includes('otr2_bb') && !userLicences.includes('otn_bb')) return false
+      // OTR2 or any OTN opens the 24s desk. `otn_bb` is the coarse legacy flag
+      // migration 228 kept next to the two levels — it stays in the check so its
+      // current holders never lose self-assign.
+      if (bbRole === 'bb_24s_official'
+        && !userLicences.includes('otr2_bb')
+        && !userLicences.includes('otn_bb')
+        && !userLicences.includes('otn1_bb')
+        && !userLicences.includes('otn2_bb')) return false
       const currentPerson = game[bbRole]
       if (currentPerson) return false
       const dutyTeam = getDutyTeamForRole(bbRole)
@@ -478,7 +485,7 @@ export default function ScorerRow({
             {show24s ? (
               <AssignmentEditor
                 label={t('bb24sOfficial')}
-                requiredLicence={['otr2_bb', 'otn_bb']}
+                requiredLicence={['otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb']}
                 teamValue={game.bb_24s_duty_team ?? game.bb_duty_team ?? ''}
                 personValue={game.bb_24s_official ?? ''}
                 members={members}
