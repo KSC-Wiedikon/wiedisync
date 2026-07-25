@@ -461,6 +461,11 @@ const MEMBER_DERIVED_READ_FIELDS = [
  */
 const MEMBER_STAFF_ONLY_FIELDS = [
   'transfer_status', 'transfer_done_at', 'transfer_done_by_name', 'transfer_note',
+  // VIS presence (migration 240). Staff workflow data, not something a member
+  // should see about themselves: `in_vis = false` mostly means our seeded guess
+  // at their federation of origin was wrong, which reads as an accusation if
+  // shown without that context.
+  'in_vis', 'in_vis_checked_at', 'vis_player_no',
 ]
 
 // Fail the deploy loudly rather than silently widening a staff-only column into
