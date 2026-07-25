@@ -31,6 +31,24 @@ describe('toCp1252Buffer', () => {
     expect(toCp1252Buffer('Krawczyński').toString('latin1')).toBe('Krawczynski')
     expect(toCp1252Buffer('Đoković').toString('latin1')).toBe('Dokovic')
     expect(toCp1252Buffer('Łukasz').toString('latin1')).toBe('Lukasz')
+    // Dotless i has no CP1252 slot AND no decomposition, so without a table entry
+    // it fell through to '?' — a Turkish member ("Işık", "Altınbaş" — not rare in
+    // Zurich) reached the register as "Is?k" while the licence PDF said "Isik".
+    expect(toCp1252Buffer('Işık').toString('latin1')).toBe('Isik')
+    expect(toCp1252Buffer('Altınbaş').toString('latin1')).toBe('Altinbas')
+    expect(toCp1252Buffer('Ħamrun').toString('latin1')).toBe('Hamrun')
+    expect(toCp1252Buffer('Ŧoma').toString('latin1')).toBe('Toma')
+  })
+
+  // kscw-website writes the same names through admin.astro (CP1252_TRANSLIT, for
+  // both the licence PDFs and the ClubDesk CSV) and registration-form.js
+  // (NON_DECOMPOSING). All three tables must carry the same letters, or one member
+  // is spelled two ways depending on which document they land in.
+  it('covers every letter kscw-website transliterates', () => {
+    const shared = { 'đ': 'd', 'Đ': 'D', 'ł': 'l', 'Ł': 'L', 'ı': 'i', 'ħ': 'h', 'Ħ': 'H', 'ŧ': 't', 'Ŧ': 'T' }
+    for (const [ch, expected] of Object.entries(shared)) {
+      expect(toCp1252Buffer(ch).toString('latin1'), `${ch} must transliterate to ${expected}`).toBe(expected)
+    }
   })
 
   it('falls back to ? only for genuinely unmappable characters', () => {

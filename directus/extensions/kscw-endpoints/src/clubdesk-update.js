@@ -137,8 +137,16 @@ const CP1252_EXTRA = {
   '˜': 0x98, '™': 0x99, 'š': 0x9A, '›': 0x9B, 'œ': 0x9C,
   'ž': 0x9E, 'Ÿ': 0x9F,
 }
-// Letters with no CP1252 slot and no combining-mark decomposition.
-const CP1252_TRANSLIT = { 'đ': 'd', 'Đ': 'D', 'ł': 'l', 'Ł': 'L' }
+// Letters with no CP1252 slot and no combining-mark decomposition — stripping
+// accents gets you nowhere, so they need naming. Without 'ı' a Turkish member
+// ("Işık", "Altınbaş" — not rare in Zurich) landed in the register as "Is?k".
+// kscw-website's admin.astro CP1252_TRANSLIT and registration-form.js
+// NON_DECOMPOSING must match this exactly: all three write the same person's
+// name, and a table that drifts spells one member two ways.
+const CP1252_TRANSLIT = {
+  'đ': 'd', 'Đ': 'D', 'ł': 'l', 'Ł': 'L',
+  'ı': 'i', 'ħ': 'h', 'Ħ': 'H', 'ŧ': 't', 'Ŧ': 'T',
+}
 export function toCp1252Buffer(str) {
   const bytes = []
   const pushChar = (ch) => {
