@@ -39,6 +39,8 @@
  *   SCHEDULING_MAILBOX_SYNC_DAYS  IMAP search window, default 60
  *   ADMIN_MAILBOX_IMAP_USER      default admin@wiedisync.kscw.ch
  *   ADMIN_MAILBOX_IMAP_PASSWORD  required to activate the club-admin account
+ *   VIS_MAILBOX_IMAP_USER        default vis_transfers@mail.kscw.ch
+ *   VIS_MAILBOX_IMAP_PASSWORD    required to activate the VIS-transfers account
  *
  * NB env-file changes need a container RECREATE, not `docker restart` — a
  * restart silently keeps the old env and the account just reports
@@ -120,6 +122,32 @@ const ACCOUNTS = {
     // Several admins read this box independently, so one person opening a message
     // must not mark it read for everyone. Reads live in scheduling_email_reads
     // instead of the shared scheduling_emails.read_at (migration 222).
+    perUserReads: true,
+  },
+  // FIVB VIS international-transfer status mails (2026-07-25). Swiss Volley:
+  // "jede Handlung am internationalen Transfer löst jeweils ein Status-Mail aus",
+  // and the ITC itself arrives by mail — so this inbox is the one transfer signal
+  // that survives VIS changing its app, which Swiss Volley warns happens yearly.
+  //
+  // Read-only in practice: nobody replies to FIVB from here, so there is no SES
+  // identity to verify and no group repost. fromAddress is set only because the
+  // shared machinery expects one.
+  //
+  // ⚠ mail.kscw.ch is a DIFFERENT domain from the other three boxes
+  // (spielplanung.kscw.ch / wiedisync.kscw.ch) but the same Migadu tenant — its
+  // MX is aspmx1/aspmx2.migadu.com, so SCHEDULING_IMAP_HOST still applies.
+  vis_transfers: {
+    sport: 'vis_transfers',
+    imapUser: process.env.VIS_MAILBOX_IMAP_USER || 'vis_transfers@mail.kscw.ch',
+    imapPassword: process.env.VIS_MAILBOX_IMAP_PASSWORD || '',
+    fromAddress: 'vis_transfers@mail.kscw.ch',
+    fromName: 'KSCW VIS transfers',
+    msgIdDomain: 'mail.kscw.ch',
+    signatureHtml: ADMIN_SIGNATURE_LIGHT_HTML,
+    signatureText: ADMIN_SIGNATURE_TEXT,
+    groupAddress: '',
+    // Same reasoning as the admin box: several people work transfers, so one
+    // opening a mail must not mark it read for everyone.
     perUserReads: true,
   },
 }
@@ -614,6 +642,11 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     if (roles.includes('admin') || roles.includes('superuser')) return true
     if (key === 'volleyball') return roles.includes('vb_admin') || member.is_spielplaner === true
     if (key === 'basketball') return roles.includes('bb_admin')
+    // Transfers are per-sport casework handled by the sport TK, which is exactly
+    // the audience of /admin/transfers — so the sport admins get this box too.
+    // Deliberately NOT is_spielplaner: scheduling a fixture is unrelated to a
+    // player's international eligibility.
+    if (key === 'vis_transfers') return roles.includes('vb_admin') || roles.includes('bb_admin')
     // No `admin` branch by design — admin/superuser already returned true above,
     // and nothing below that tier may read the club inbox.
     return false
