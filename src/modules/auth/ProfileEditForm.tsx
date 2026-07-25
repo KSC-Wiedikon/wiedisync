@@ -20,9 +20,10 @@ import LanguageSelect from '@/components/LanguageSelect'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import CountryMultiSelect from '@/components/CountryMultiSelect'
 import {
-  NO_FEDERATION, codeFromCountryName, countryLabel, countryNameDe, countryOptions,
+  NO_FEDERATION, codeFromCountryName, countryLabel, countryNameDe,
   formatCountryCodes, parseCountryCodes, serializeCountryCodes,
 } from '../../utils/countries'
+import { federationDisplay, federationOptions } from '../../utils/federations'
 import { CheckIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { logActivity } from '../../utils/logActivity'
@@ -152,18 +153,21 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
    * elsewhere) are different states — only the latter lets the club skip
    * chasing a transfer certificate, so it has to be selectable.
    */
-  // countryOptions() is memoized per locale inside the util, so this is just a
-  // 197-element spread — no need to memoize the "none" row on top of it.
-  const federationOptions = [
+  // Labelled with the federation for the member's sport ("FIPAV (Italy)") rather
+  // than the bare country — the question asks which BODY licensed them, and the
+  // answer differs by sport. `both` (or no sport) has no single right federation,
+  // so those members see plain country names.
+  const fedSport = primarySport === 'volleyball' || primarySport === 'basketball' ? primarySport : undefined
+  const fedOptions = [
     { value: NO_FEDERATION, label: t('federationOfOriginNone') },
-    ...countryOptions(),
+    ...federationOptions(fedSport),
   ]
 
   /** Human-readable federation value for the admin ClubDesk change email. */
   function federationLabel(value: string | null | undefined): string {
     const v = String(value ?? '').trim()
     if (!v) return ''
-    return v === NO_FEDERATION ? t('federationOfOriginNone') : countryLabel(v)
+    return v === NO_FEDERATION ? t('federationOfOriginNone') : (federationDisplay(v, fedSport) || countryLabel(v))
   }
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -691,7 +695,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
               {/* Herkunftsverband */}
               <FormField label={t('federationOfOrigin')} helperText={t('federationOfOriginHint')}>
                 <SearchableSelect
-                  options={federationOptions}
+                  options={fedOptions}
                   value={federationOfOrigin}
                   onChange={setFederationOfOrigin}
                   searchPlaceholder={tc('searchCountry')}

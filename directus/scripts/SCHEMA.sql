@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-25T14:09:56.157Z
+-- Generated:   2026-07-25T17:14:10.938Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict p9XLFpUw8EgjbaVfVwBV6qKPBsEQLWo9M6ievtByDnuG21OlLV3Epu7IZFSTBJJ
+\restrict cJFbFIz1Dmc6CbrijJwoYxaD4kzOtihiDdxXXRgSh2VsdaCr0VKs9B9nHe4foS9
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -86,13 +86,23 @@ CREATE FUNCTION public.clubdesk_offliz_to_dx(offliz text) RETURNS text
     LANGUAGE sql IMMUTABLE
     AS $$
   SELECT CASE
-    WHEN offliz LIKE '%Volleyball Lizenz%' THEN 'scorer_vb'
-    WHEN offliz = 'OTR1' THEN 'otr1_bb'
-    WHEN offliz = 'OTR2' THEN 'otr2_bb'
-    WHEN offliz = 'OTN'  THEN 'otn_bb'
+    WHEN offliz LIKE '%Volleyball Lizenz%'            THEN 'scorer_vb'
+    WHEN upper(btrim(offliz)) = 'OTR1'               THEN 'otr1_bb'
+    WHEN upper(btrim(offliz)) = 'OTR2'               THEN 'otr2_bb'
+    -- Levels before the bare value, or 'OTN1' would never be reached.
+    WHEN upper(replace(btrim(offliz), ' ', '')) = 'OTN1' THEN 'otn1_bb'
+    WHEN upper(replace(btrim(offliz), ' ', '')) = 'OTN2' THEN 'otn2_bb'
+    WHEN upper(btrim(offliz)) = 'OTN'                THEN 'otn_bb'
     ELSE NULL
   END;
 $$;
+
+
+--
+-- Name: FUNCTION clubdesk_offliz_to_dx(offliz text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.clubdesk_offliz_to_dx(offliz text) IS 'ClubDesk "Offiziellen Lizenz" string -> members column name. OTN1/OTN2 added 2026-07-25 (migration 229); bare OTN still maps to the coarse otn_bb. NULL = no licence expected.';
 
 
 --
@@ -1817,6 +1827,59 @@ CREATE SEQUENCE public.basketball_team_links_id_seq
 --
 
 ALTER SEQUENCE public.basketball_team_links_id_seq OWNED BY public.team_links.id;
+
+
+--
+-- Name: basketplan_nations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.basketplan_nations (
+    bp_id integer NOT NULL,
+    iso character varying(2),
+    label_fr text NOT NULL,
+    ambiguous boolean DEFAULT false NOT NULL
+);
+
+
+--
+-- Name: TABLE basketplan_nations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.basketplan_nations IS 'Basketplan nationality picklist: internal numeric id -> ISO 3166-1 alpha-2. Labels are FRENCH and hardcoded regardless of UI locale. ambiguous = legacy abbreviation or an unsupported territory; those must never be auto-applied.';
+
+
+--
+-- Name: basketplan_people; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.basketplan_people (
+    person_id integer NOT NULL,
+    last_name text,
+    first_name text,
+    birthdate date,
+    licence_nr text,
+    nation1_id integer,
+    nation2_id integer,
+    nation_confirmed boolean,
+    trained_in_ch boolean,
+    otr1_since date,
+    otr2_since date,
+    otn1_since date,
+    otn2_since date,
+    referee_reg_since date,
+    referee_nat_since date,
+    referee_mini_since date,
+    referee_youth_since date,
+    last_scored_at date,
+    scraped_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE basketplan_people; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.basketplan_people IS 'Staging for the authenticated Basketplan person scrape (findPersonById.do). Holds only the fields we intend to consume — no address / AHV / IBAN, and birthdate is a cross-check aid only, never an overwrite source.';
 
 
 --
@@ -5862,6 +5925,8 @@ CREATE TABLE public.registrations (
     bb_doc_schoolcert uuid,
     nationalitaet_codes character varying(200),
     federation_of_origin character varying(8),
+    bb_recent_licence character varying(4),
+    CONSTRAINT registrations_bb_recent_licence_check CHECK (((bb_recent_licence IS NULL) OR ((bb_recent_licence)::text = ANY ((ARRAY['ja'::character varying, 'nein'::character varying])::text[])))),
     CONSTRAINT registrations_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT registrations_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text)))
 );
@@ -5879,6 +5944,13 @@ COMMENT ON COLUMN public.registrations.nationalitaet_codes IS 'Ordered, comma-se
 --
 
 COMMENT ON COLUMN public.registrations.federation_of_origin IS 'Federation of origin from the public form: the federation that FIRST licensed the applicant. ISO alpha-2, ''NONE'' (never licensed before), or NULL (not answered).';
+
+
+--
+-- Name: COLUMN registrations.bb_recent_licence; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.registrations.bb_recent_licence IS 'Basketball transfer_ch only: did the applicant hold a Swiss Basketball licence in the last two seasons? ja/nein, NULL = not asked. Only ''nein'' waives the Freibrief (see bb-docs.js bbFreibriefWaived).';
 
 
 --
@@ -8308,6 +8380,22 @@ ALTER TABLE ONLY public.team_links
 
 
 --
+-- Name: basketplan_nations basketplan_nations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketplan_nations
+    ADD CONSTRAINT basketplan_nations_pkey PRIMARY KEY (bp_id);
+
+
+--
+-- Name: basketplan_people basketplan_people_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketplan_people
+    ADD CONSTRAINT basketplan_people_pkey PRIMARY KEY (person_id);
+
+
+--
 -- Name: blocks blocks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9437,6 +9525,13 @@ CREATE INDEX basketball_hall_availability_season_team_idx ON public.basketball_h
 --
 
 CREATE INDEX basketball_slot_plan_season_date_idx ON public.basketball_slot_plan USING btree (season, date);
+
+
+--
+-- Name: basketplan_people_licence_nr_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX basketplan_people_licence_nr_idx ON public.basketplan_people USING btree (licence_nr);
 
 
 --
@@ -12733,5 +12828,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict p9XLFpUw8EgjbaVfVwBV6qKPBsEQLWo9M6ievtByDnuG21OlLV3Epu7IZFSTBJJ
+\unrestrict cJFbFIz1Dmc6CbrijJwoYxaD4kzOtihiDdxXXRgSh2VsdaCr0VKs9B9nHe4foS9
 

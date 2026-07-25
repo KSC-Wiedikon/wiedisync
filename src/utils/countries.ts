@@ -83,9 +83,29 @@ export function countryLabel(code: string | null | undefined): string {
   }
 }
 
+/**
+ * Emoji flag for an ISO alpha-2 code, built from the two regional-indicator
+ * symbols (A→U+1F1E6). Purely decorative — mark it `aria-hidden`, since the
+ * country name is always rendered beside it.
+ *
+ * ⚠ Windows does not ship flag glyphs: Chrome/Edge there render the two
+ * regional-indicator letters ("CH") instead of a flag. That degrades gracefully
+ * precisely BECAUSE the name is always shown too — never use the flag alone.
+ */
+export function countryFlag(code: string | null | undefined): string {
+  const c = String(code || '').trim().toUpperCase()
+  if (!/^[A-Z]{2}$/.test(c)) return ''
+  return String.fromCodePoint(...[...c].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65))
+}
+
 export interface CountryOption {
   value: string
+  /** Flag + name, for pickers that render a single string (SearchableSelect). */
   label: string
+  /** The flag alone, for callers laying flag and name out separately. */
+  flag: string
+  /** The localized name WITHOUT the flag — sort and search on this. */
+  name: string
 }
 
 const optionsCache = new Map<string, CountryOption[]>()
@@ -103,10 +123,19 @@ export function countryOptions(): CountryOption[] {
   const cached = optionsCache.get(locale)
   if (cached) return cached
 
-  const favourites = FAVORITE_CODES.map((code) => ({ value: code, label: countryLabel(code) }))
+  // ⚠ Sort on `name`, never on `label`. A flag-prefixed label collates by the
+  // regional-indicator codepoints — i.e. by ISO code — so sorting it would order
+  // the list AF, AL, DZ… while displaying Afghanistan, Albania, Algeria, and the
+  // moment two names disagree with their codes the list looks randomly shuffled.
+  const opt = (code: string): CountryOption => {
+    const name = countryLabel(code)
+    const flag = countryFlag(code)
+    return { value: code, name, flag, label: flag ? `${flag} ${name}` : name }
+  }
+  const favourites = FAVORITE_CODES.map(opt)
   const rest = COUNTRIES.filter((c) => !FAVORITE_CODES.includes(c.code as (typeof FAVORITE_CODES)[number]))
-    .map((c) => ({ value: c.code, label: countryLabel(c.code) }))
-    .sort((a, b) => a.label.localeCompare(b.label, locale))
+    .map((c) => opt(c.code))
+    .sort((a, b) => a.name.localeCompare(b.name, locale))
   const options = [...favourites, ...rest]
   optionsCache.set(locale, options)
   return options

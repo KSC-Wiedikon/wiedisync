@@ -47,6 +47,7 @@ export const COUNTRIES: readonly Country[] = [
   { code: 'CF', de: "Zentralafrikanische Republik", en: "Central African Republic" },
   { code: 'CG', de: "Kongo (Rep.)", en: "Congo (Republic)" },
   { code: 'CH', de: "Schweiz", en: "Switzerland" },
+  { code: 'CI', de: "Côte d'Ivoire", en: "Côte d'Ivoire" },
   { code: 'CL', de: "Chile", en: "Chile" },
   { code: 'CM', de: "Kamerun", en: "Cameroon" },
   { code: 'CN', de: "China", en: "China" },
