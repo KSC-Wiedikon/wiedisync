@@ -461,6 +461,11 @@ const MEMBER_DERIVED_READ_FIELDS = [
  */
 const MEMBER_STAFF_ONLY_FIELDS = [
   'transfer_status', 'transfer_done_at', 'transfer_done_by_name', 'transfer_note',
+  // VIS presence (migration 240). Staff workflow data, not something a member
+  // should see about themselves: `in_vis = false` mostly means our seeded guess
+  // at their federation of origin was wrong, which reads as an accusation if
+  // shown without that context.
+  'in_vis', 'in_vis_checked_at', 'vis_player_no',
 ]
 
 // Fail the deploy loudly rather than silently widening a staff-only column into
@@ -1870,6 +1875,14 @@ async function main() {
     // basketball prep + volleyball Terminplanung settings write it; UI-scoped per sport.
     'basketball_hall_availability', 'basketball_slot_plan', 'team_links',
     'query_templates', 'sv_vm_check',
+    // VIS mirrors (migrations 237/240/241) behind /admin/transfers, which is gated
+    // to admin | superuser | vb_admin | bb_admin. The first two bypass policies,
+    // the sport admins do NOT — so without a grant here the federation directory
+    // reads back empty for exactly the people the page is built for, and every row
+    // silently degrades to "no contact on file". Both tables are read-only mirrors
+    // written by cron, never by the UI, but they live here rather than as a
+    // read-only row because Sport Admin already holds this shape for sv_vm_check.
+    'vis_transfers', 'vis_federations',
     'announcements',
     // Fines (migration 069) — Sport Admin full CRUD (override coach-only scope
     // for cross-team rule edits + correction of bad fines).

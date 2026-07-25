@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
-  AlertTriangle, CheckCircle2, Clock, HelpCircle, Info, RefreshCcw, ShieldCheck, X,
+  AlertTriangle, Check, CheckCircle2, Clock, Copy, ExternalLink, HelpCircle, Info, Mail,
+  RefreshCcw, ShieldCheck, X,
 } from 'lucide-react'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -24,6 +25,14 @@ type Sport = 'volleyball' | 'basketball'
 const SPORTS: Sport[] = ['volleyball', 'basketball']
 
 /**
+ * The VIS transfers app. There is NO per-player URL — VIS routes everything
+ * through an in-app search — so this is deliberately the plain entry point and
+ * the player number is offered as a copyable value next to it. Inventing a
+ * `?playerNo=` style link would produce a dead end that looks authoritative.
+ */
+const VIS_TRANSFERS_URL = 'https://app.fivb.com/volley/transfers/'
+
+/**
  * Stored status. Only pending/done exist — "no transfer needed" is DERIVED from
  * `federation_of_origin` ('NONE' | 'CH'), never stored, so a member's answer and
  * their workflow state can never disagree (migration 235 narrowed the CHECK).
@@ -42,6 +51,11 @@ const MEMBER_FIELDS = [
   'license_nr', 'licence_category', 'nationalitaet_codes', 'federation_of_origin',
   'kscw_membership_active', 'licence_validated',
   'transfer_status', 'transfer_done_at', 'transfer_done_by_name', 'transfer_note',
+  // VIS presence (migration 240). Same deploy-order caveat as the transfer_*
+  // block above: this list is explicit, so a column that is not named here
+  // simply arrives `undefined` — which would make every member read as
+  // "not checked" with no error anywhere to explain it.
+  'in_vis', 'vis_player_no', 'in_vis_checked_at',
 ]
 
 interface TransferMember {
@@ -63,6 +77,41 @@ interface TransferMember {
   transfer_done_at?: string | null
   transfer_done_by_name?: string | null
   transfer_note?: string | null
+  /**
+   * Presence in the FIVB VIS player index of the member's federation of origin,
+   * written by `vis-player-check.mjs` (migration 240).
+   *
+   *  - `true`      — found; a transfer can be requested for them.
+   *  - `false`     — NOT found. ⚠ Evidence, not proof, and the UI must never say
+   *                  otherwise: the check matches on a normalised name, and
+   *                  `federation_of_origin` was SEEDED from nationality for most
+   *                  members (migration 239). So a `false` far more often means
+   *                  the seeded origin was wrong — the person was never licensed
+   *                  in their passport country at all — than that a federation
+   *                  has failed to enter them. Read as "no evidence they were
+   *                  ever licensed there".
+   *  - null/undef. — never checked. CH-origin members are skipped on purpose.
+   */
+  in_vis?: boolean | null
+  /** FIVB VIS player number, present when `in_vis` is true. The only stable
+   *  identifier VIS exposes for a person, and the value to paste into its search. */
+  vis_player_no?: number | null
+  in_vis_checked_at?: string | null
+}
+
+/**
+ * A national federation as VIS publishes it (migration 241, 69 rows). `iso` is
+ * the ISO alpha-2 that matches `members.federation_of_origin`; the FIVB `code`
+ * is IOC-style and NOT derivable from it (DE→GER, NL→NED), which is why the
+ * table stores both.
+ */
+interface VisFederation {
+  vis_no: number
+  iso: string
+  code?: string | null
+  name: string
+  email?: string | null
+  website?: string | null
 }
 
 interface VmRow {
@@ -135,6 +184,88 @@ function groupRows(
   return [...byKey.entries()]
     .map(([key, keyRows]) => ({ key, label: labelOf(key), rows: keyRows }))
     .sort((a, b) => (b.rows.length - a.rows.length) || a.label.localeCompare(b.label))
+}
+
+/**
+ * VIS publishes federation contacts as a SEMICOLON-SEPARATED LIST
+ * ("presidenza@federvolley.it; segreteria@federvolley.it") and migration 241
+ * keeps that verbatim, so anything reading `email` has to split it. Which of
+ * them is the right addressee for a transfer request is a judgement the club
+ * makes — hence all of them are shown, not just the first.
+ */
+function splitEmails(raw: string | null | undefined): string[] {
+  return String(raw ?? '')
+    .split(/[;,]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+/**
+ * The text an admin copies into their own mail client to ask a federation to
+ * enter a player in VIS. Nothing is ever sent from this page.
+ *
+ * ⚠ ALWAYS ENGLISH, deliberately not translated (same reasoning as the exports
+ * rule): the recipient is a foreign national federation, and the language the
+ * KSCW admin happens to read the app in says nothing about what that federation
+ * reads. English is the FIVB working language.
+ *
+ * ⚠ The wording ASKS whether the player is registered rather than asserting they
+ * are missing. `in_vis === false` is a name-match miss against a federation we
+ * usually only GUESSED (seeded from nationality), and this block is also offered
+ * for members who were never checked at all — so an accusatory "your player is
+ * missing from VIS" would frequently be simply untrue.
+ */
+function visRequestText(m: TransferMember, federationName: string): string {
+  const name = [m.first_name, m.last_name].map((s) => String(s ?? '').trim()).filter(Boolean).join(' ')
+  const dob = formatDateZurich(m.birthdate)
+  return [
+    'Dear Sir or Madam',
+    '',
+    `Our member ${name || '(name)'}${dob ? `, date of birth ${dob},` : ''} plays for KSC Wiedikon in Zurich, Switzerland, and we would like to request an international transfer to Swiss Volley.`,
+    `Could you please confirm whether the player is registered in the FIVB VIS player index of ${federationName}, and enter them if they are not?`,
+    '',
+    'Thank you very much and kind regards',
+    'KSC Wiedikon, Zurich (Switzerland)',
+  ].join('\n')
+}
+
+/**
+ * Copy-to-clipboard button. Icon-only when no `label` is given, so it fits
+ * inline next to a value inside a table cell.
+ *
+ * The transient tick is local state rather than a toast: the three things this
+ * page copies (player number, address, request text) are often copied one after
+ * another, and three stacked toasts obscure the table they came from. A FAILED
+ * copy still toasts — clipboard access can be denied (insecure context, browser
+ * permission) and silence there would leave the admin pasting nothing.
+ */
+function CopyButton({ value, title, label }: { value: string; title: string; label?: string }) {
+  const { t } = useTranslation('admin')
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      // Cosmetic only — if the row unmounts first React drops the update.
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch {
+      toast.error(t('trCopyFailed'))
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => { void copy() }}
+      title={title}
+      aria-label={title}
+      className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+    >
+      {copied
+        ? <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" aria-hidden="true" />
+        : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+      {label && <span>{copied ? t('trCopied') : label}</span>}
+    </button>
+  )
 }
 
 /** Last name on line 1, first name on line 2 — the mobile name-wrap rule. */
@@ -244,6 +375,26 @@ export default function TransfersPage() {
     all: true,
   })
   const members = useMemo(() => membersRaw ?? [], [membersRaw])
+
+  // The VIS federation directory (migration 241). 69 rows and effectively
+  // static, so it is fetched whole and cached for an hour rather than filtered
+  // down to the ISO codes on screen — a filter would refetch on every tab
+  // switch for no gain. Deliberately NOT part of the boot gate below: a missing
+  // directory degrades to "no contact on file" per row, and must never hold the
+  // transfer worklist hostage.
+  const { data: federationsRaw } = useCollection<VisFederation>('vis_federations', {
+    fields: ['vis_no', 'iso', 'code', 'name', 'email', 'website'],
+    all: true,
+    staleTime: 3_600_000,
+  })
+  const federationByIso = useMemo(() => {
+    const map = new Map<string, VisFederation>()
+    for (const f of federationsRaw ?? []) {
+      const iso = String(f.iso ?? '').trim().toUpperCase()
+      if (iso) map.set(iso, f)
+    }
+    return map
+  }, [federationsRaw])
 
   /** memberId → the sports they play, from their team memberships. */
   const sportsByMember = useMemo(() => {
@@ -418,6 +569,21 @@ export default function TransfersPage() {
     [active.clarify],
   )
 
+  // VIS presence across the ACTIONABLE cohort only — the settled and to-clarify
+  // members are never checked, so counting them would just inflate "not checked"
+  // with rows nobody is expected to act on.
+  const visCounts = useMemo(() => {
+    let inVis = 0
+    let notFound = 0
+    let unchecked = 0
+    for (const m of active.needs) {
+      if (m.in_vis === true) inVis += 1
+      else if (m.in_vis === false) notFound += 1
+      else unchecked += 1
+    }
+    return { inVis, notFound, unchecked }
+  }, [active.needs])
+
   // ── Writes ────────────────────────────────────────────────────────
   // Note drafts live here (not in the row) so typing never triggers a
   // render-phase state write from a prop — the React #301 pattern. They are
@@ -563,6 +729,144 @@ export default function TransfersPage() {
     )
   }
 
+  /**
+   * VIS presence AND the next step for that member, in one cell.
+   *
+   * Deliberately one column rather than two: the state and the action are not
+   * independent (a player in VIS is opened in VIS, one who is not needs their
+   * federation emailed), and the actionable table already carries eight columns
+   * — a ninth and tenth would push the note field off every phone.
+   *
+   * The three states are worded as evidence, never as verdicts. In particular
+   * `false` renders as "not found", never "does not exist": see the `in_vis`
+   * doc comment on TransferMember for why a miss usually indicts our seeded
+   * federation of origin rather than the federation itself.
+   */
+  const visCell = (m: TransferMember) => {
+    const iso = String(m.federation_of_origin ?? '').trim().toUpperCase()
+    const fed = federationByIso.get(iso) ?? null
+    const checkedAt = m.in_vis_checked_at
+      ? t('trInVisCheckedAt', { date: formatDateZurich(m.in_vis_checked_at) })
+      : ''
+    const emails = splitEmails(fed?.email)
+    const requestText = fed ? visRequestText(m, fed.name) : ''
+    return (
+      <div className="min-w-[11rem] space-y-1.5">
+        {m.in_vis === true ? (
+          <span
+            title={t('trInVisYesHint')}
+            className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300"
+          >
+            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+            {t('trInVisYes')}
+          </span>
+        ) : m.in_vis === false ? (
+          // Amber, not red: this is a lead to follow up, not a violation.
+          <span
+            title={t('trInVisNoHint')}
+            className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+          >
+            <HelpCircle className="h-3 w-3" aria-hidden="true" />
+            {t('trInVisNo')}
+          </span>
+        ) : (
+          <span className="block text-xs text-gray-400 dark:text-gray-500" title={t('trInVisUnknownHint')}>
+            {t('trInVisUnknown')}
+          </span>
+        )}
+
+        {/* A stale check is worth seeing: the answer only holds as of this date. */}
+        {checkedAt && (
+          <span className="block text-xs text-gray-400 dark:text-gray-500">{checkedAt}</span>
+        )}
+
+        {m.in_vis === true ? (
+          <div className="space-y-1">
+            {fed && (
+              <span className="block text-xs text-gray-600 dark:text-gray-300">{fed.name}</span>
+            )}
+            <a
+              href={VIS_TRANSFERS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-brand-300 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:min-h-0 dark:border-brand-700 dark:text-brand-200 dark:hover:bg-brand-900/30"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              {t('trOpenInVis')}
+            </a>
+            {m.vis_player_no != null && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-gray-500 dark:text-gray-400">{t('trVisPlayerNo')}</span>
+                <span className="font-mono text-xs font-medium text-gray-900 dark:text-white">
+                  {m.vis_player_no}
+                </span>
+                <CopyButton value={String(m.vis_player_no)} title={t('trCopyPlayerNo')} />
+              </div>
+            )}
+            {/* Says out loud why there is a number to copy instead of a link. */}
+            <p className="text-xs text-gray-400 dark:text-gray-500">{t('trOpenInVisHint')}</p>
+          </div>
+        ) : !fed ? (
+          // No directory row for this ISO — say so plainly. An empty mailto:
+          // would look like a working contact and silently go nowhere.
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {t('trVisFederationMissing', { code: iso || '—' })}
+          </p>
+        ) : (
+          <div className="space-y-1">
+            <span className="block text-xs text-gray-600 dark:text-gray-300">{fed.name}</span>
+            {emails.length === 0 ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('trVisNoEmail')}</p>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-1">
+                  {/* mailto on the FIRST address only — VIS lists several for
+                      many federations and which one is right for a transfer is
+                      the club's call, so the rest are shown but not pre-picked. */}
+                  <a
+                    href={`mailto:${emails[0]}`}
+                    className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium break-all text-brand-700 hover:bg-gray-100 sm:min-h-0 dark:border-gray-600 dark:text-brand-200 dark:hover:bg-gray-700"
+                  >
+                    <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    {emails[0]}
+                  </a>
+                  <CopyButton
+                    value={emails.join('; ')}
+                    title={emails.length > 1 ? t('trCopyEmails') : t('trCopyEmail')}
+                  />
+                </div>
+                {emails.length > 1 && (
+                  <>
+                    <p className="text-xs break-all text-gray-500 dark:text-gray-400">
+                      {emails.slice(1).join('; ')}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      {t('trVisMultipleAddresses')}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+            {/* Collapsed by default: a two-sentence letter open on every row
+                would bury the table it belongs to. Nothing is sent from here. */}
+            <details className="text-xs">
+              <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-xs font-medium text-gray-600 sm:min-h-0 dark:text-gray-300">
+                {t('trRequestTitle')}
+              </summary>
+              <p className="mt-1 rounded-md bg-gray-50 px-2 py-1.5 text-xs whitespace-pre-line text-gray-600 dark:bg-gray-900/40 dark:text-gray-300">
+                {requestText}
+              </p>
+              <div className="mt-1">
+                <CopyButton value={requestText} title={t('trRequestCopy')} label={t('trRequestCopy')} />
+              </div>
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('trRequestHint')}</p>
+            </details>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   /** One data table. `withStatus` is false for the "to clarify" cohort — those
    *  members have no federation answer yet, so there is no transfer to have a
    *  status about; the note is the place to record "asked on …". */
@@ -591,6 +895,10 @@ export default function TransfersPage() {
                   <TableHead className="hidden lg:table-cell">{t('trColCategory')}</TableHead>
                   <TableHead className="hidden lg:table-cell">{t('trColBirthdate')}</TableHead>
                   {withStatus && showLicence && <TableHead>{t('trColLicenceValidated')}</TableHead>}
+                  {/* Both sports, unlike the licence column: the VIS check runs
+                      on every member with a foreign federation of origin. See
+                      `trVisBasketballHint` for what that means on the BB tab. */}
+                  {withStatus && <TableHead>{t('trColInVis')}</TableHead>}
                   {withStatus && <TableHead>{t('trColStatus')}</TableHead>}
                   <TableHead>{t('trColNote')}</TableHead>
                 </TableRow>
@@ -626,6 +934,9 @@ export default function TransfersPage() {
                       </TableCell>
                       {withStatus && showLicence && (
                         <TableCell className="align-top">{licenceCell(m)}</TableCell>
+                      )}
+                      {withStatus && (
+                        <TableCell className="align-top">{visCell(m)}</TableCell>
                       )}
                       {withStatus && (
                         <TableCell className="align-top">
@@ -774,6 +1085,42 @@ export default function TransfersPage() {
         <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
           {t('trLicenceHint')}
         </p>
+      )}
+
+      {/* VIS presence across this sport's actionable cohort. Answers the first
+          question of the workflow before the admin scrolls: how many of these
+          transfers can actually be REQUESTED today, and how many are blocked on
+          getting the player into VIS in the first place. */}
+      {active.needs.length > 0 && (
+        <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/30">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+              {t('trVisSummaryTitle')}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
+              {visCounts.inVis} {t('trInVisYes')}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+              {visCounts.notFound} {t('trInVisNo')}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+              {visCounts.unchecked} {t('trInVisUnknown')}
+            </span>
+          </div>
+          {/* The "false is not proof" caveat, stated once where it is always
+              visible — a per-row `title` alone is unreachable on a phone. */}
+          <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+            {t('trVisSummaryHint')}
+          </p>
+          {/* VIS is FIVB's index, so on the basketball tab both the badge and the
+              federation contact describe the wrong sport's governing body. Said
+              once per tab rather than repeated on every row. */}
+          {sport === 'basketball' && (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              {t('trVisBasketballHint')}
+            </p>
+          )}
+        </div>
       )}
 
       {/* Derived "no transfer needed" tally. A count only — these members have no

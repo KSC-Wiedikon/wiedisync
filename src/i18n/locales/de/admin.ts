@@ -962,6 +962,38 @@ export default {
   trProbablyDone: 'Lizenz ist validiert — das Transferzertifikat ist vermutlich eingetroffen.',
   trProbablyDoneBanner_one: '{{count}} offener Transfer hat bereits eine validierte Lizenz und kann vermutlich abgeschlossen werden.',
   trProbablyDoneBanner_other: '{{count}} offene Transfers haben bereits validierte Lizenzen und können vermutlich abgeschlossen werden.',
+
+  // Präsenz in VIS + vorbereitete Kontaktaufnahme (Migrationen 240/241).
+  // ⚠ Wortlaut-Regel: `in_vis = false` ist ein HINWEIS, KEIN BEWEIS. Abgeglichen
+  // wird über den Namen, und der Herkunftsverband stammt bei den meisten
+  // Mitgliedern aus der Nationalität — nie «existiert nicht», nie «der Verband
+  // muss die Person erfassen».
+  trColInVis: 'In VIS',
+  trInVisYes: 'In VIS',
+  trInVisNo: 'In VIS nicht gefunden',
+  trInVisUnknown: 'Nicht geprüft',
+  trInVisYesHint: 'Im VIS-Spielerindex des Herkunftsverbands gefunden — für diese Person kann ein Transfer beantragt werden.',
+  trInVisNoHint: 'Im VIS-Index des Herkunftsverbands wurde keine Person dieses Namens gefunden. Abgeglichen wird über den Namen, und der Herkunftsverband wurde bei den meisten Mitgliedern aus der Nationalität abgeleitet — meist ist also diese Annahme falsch und nicht der Verband säumig.',
+  trInVisUnknownHint: 'Die VIS-Prüfung ist für dieses Mitglied noch nicht gelaufen.',
+  trInVisCheckedAt: 'Geprüft am {{date}}',
+  trVisSummaryTitle: 'Präsenz in VIS',
+  trVisSummaryHint: '«In VIS nicht gefunden» ist ein Hinweis, kein Urteil: Abgeglichen wird über den Namen, und der Herkunftsverband stammt bei den meisten Mitgliedern aus der Nationalität. Meist ist deshalb diese Annahme falsch und nicht der Verband säumig.',
+  trVisBasketballHint: 'VIS ist der Spielerindex der FIVB (Volleyball), und die Kontakte hier sind nationale Volleyballverbände. Ein FIBA-Transfer läuft über eine andere Stelle — bitte nur als Hinweis lesen.',
+  trOpenInVis: 'In VIS öffnen',
+  trOpenInVisHint: 'VIS hat keinen Link auf eine einzelne Person — die Nummer in der Suche der Transfer-App einfügen.',
+  trVisPlayerNo: 'VIS-Spielernummer',
+  trCopyPlayerNo: 'VIS-Spielernummer kopieren',
+  trVisFederationMissing: 'Für {{code}} ist kein VIS-Kontakt hinterlegt — den Verband bitte manuell suchen.',
+  trVisNoEmail: 'VIS führt für diesen Verband keine E-Mail-Adresse.',
+  trVisMultipleAddresses: 'VIS führt mehrere Adressen; der Link öffnet die erste.',
+  trCopyEmail: 'Adresse kopieren',
+  trCopyEmails: 'Alle Adressen kopieren',
+  trCopied: 'Kopiert',
+  trCopyFailed: 'Kopieren fehlgeschlagen',
+  trRequestTitle: 'Vorbereitete Anfrage',
+  trRequestCopy: 'Anfrage kopieren',
+  trRequestHint: 'Von hier wird nichts verschickt — den Text ins eigene E-Mail-Programm kopieren. Er ist auf Englisch, weil der Empfänger ein ausländischer Verband ist.',
+
   trSaveFailed: 'Speichern fehlgeschlagen',
   trEmptyTitle: 'Nichts zu tun',
   trEmptyDescription: 'Keine offenen Transfers und keine offenen Fragen für diese Sportart.',
