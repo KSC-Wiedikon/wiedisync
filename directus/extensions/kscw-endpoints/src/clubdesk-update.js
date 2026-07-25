@@ -2102,7 +2102,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // (the sync-up push carries anrede/nationalitaet/ahv since 2026-07-07, but
       // echo-protected and superadmin-gated, not member-editable).
       const member = await database('members').where('user', userId)
-        .first('id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz', 'ort', 'birthdate', 'sex')
+        .first('id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz', 'ort', 'birthdate', 'sex',
+          // Member-editable since 2026-07-25 (migrations 223/228): nationality is
+          // a derived German string, federation_of_origin an ISO code.
+          'nationalitaet', 'federation_of_origin')
       if (!member || String(member.id) !== String(member_id)) {
         return res.status(403).json({ error: 'Forbidden' })
       }
@@ -2121,8 +2124,19 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // Whitelist the change diff to member-editable fields (drop any client-sent
       // ClubDesk-authoritative field) and rebuild each "new" value from the DB row
       // so the email shows the real stored value, not a client claim.
-      const EDITABLE = new Set(['first_name', 'last_name', 'email', 'phone', 'birthdate', 'adresse', 'plz', 'ort', 'sex'])
+      // ⚠ A field the profile form DIFFS but this set omits makes a change to
+      // ONLY that field return 400 "No editable fields to update" — the member
+      // sees an error toast even though their save succeeded. That is exactly
+      // what happened to nationality (silently, since before 2026-07-25) and then
+      // to federation_of_origin on the day it shipped. Keep this set in step with
+      // `clubdeskFields` in ProfileEditForm.tsx.
+      const EDITABLE = new Set(['first_name', 'last_name', 'email', 'phone', 'birthdate',
+        'adresse', 'plz', 'ort', 'sex', 'nationalitaet', 'federation_of_origin'])
       const sexLabel = member.sex === 'm' ? 'männlich' : member.sex === 'f' ? 'weiblich' : ''
+      // federation_of_origin is stored as an ISO code / the 'NONE' sentinel, so the
+      // admin email must render it, not print "CH" at a human.
+      const countryNames = await loadCountryPushNames(database)
+      const fedLabel = federationCell(member.federation_of_origin, countryNames)
       const safeChanges = (Array.isArray(changes) ? changes : [])
         .filter((c) => c && EDITABLE.has(c.field))
         .map((c) => ({
@@ -2134,7 +2148,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             : c.old_value,
           new_value: c.field === 'birthdate' ? fmtBirthdateDDMMYYYY(member.birthdate)
             : c.field === 'sex' ? sexLabel
-              : (member[c.field] ?? ''),
+              : c.field === 'federation_of_origin' ? fedLabel
+                : (member[c.field] ?? ''),
         }))
       if (!safeChanges.length) {
         return res.status(400).json({ error: 'No editable fields to update' })
