@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-25T13:22:25.794Z
+-- Generated:   2026-07-25T13:47:41.747Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict lAZVs4bbnJXWjXbZWvimX670lfT5GdM8PTWgxgyonYp8l1XjNIEVoe1JiUCdoq6
+\restrict 4g62ZOxnRf1KLXxydoRR0XqPlMvSHPDBGIZPuUjbo28dX159ZWbN6p6SDRbLy9N
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -5256,7 +5256,7 @@ COMMENT ON COLUMN public.members.nationalitaet_codes IS 'Canonical nationality: 
 -- Name: COLUMN members.federation_of_origin; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.federation_of_origin IS 'National federation the member was last licensed with (Swiss Volley transfer certificate / FIBA letter of clearance). ISO 3166-1 alpha-2, or ''NONE'' = never licensed elsewhere, or NULL = not answered.';
+COMMENT ON COLUMN public.members.federation_of_origin IS 'National federation that FIRST licensed the member (their federation of origin — NOT the most recent one). ISO 3166-1 alpha-2, or ''NONE'' = has never held a licence with any federation, or NULL = not answered.';
 
 
 --
@@ -5862,7 +5862,7 @@ COMMENT ON COLUMN public.registrations.nationalitaet_codes IS 'Ordered, comma-se
 -- Name: COLUMN registrations.federation_of_origin; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.registrations.federation_of_origin IS 'Federation of origin from the public form. ISO alpha-2, ''NONE'', or NULL.';
+COMMENT ON COLUMN public.registrations.federation_of_origin IS 'Federation of origin from the public form: the federation that FIRST licensed the applicant. ISO alpha-2, ''NONE'' (never licensed before), or NULL (not answered).';
 
 
 --
@@ -12717,5 +12717,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict lAZVs4bbnJXWjXbZWvimX670lfT5GdM8PTWgxgyonYp8l1XjNIEVoe1JiUCdoq6
+\unrestrict 4g62ZOxnRf1KLXxydoRR0XqPlMvSHPDBGIZPuUjbo28dX159ZWbN6p6SDRbLy9N
 

@@ -207,7 +207,8 @@ const CD_PUSH_CONTACT_HEADERS = [
   // value also repairs ClubDesk cells the Zahl-format once mangled).
   'Anrede', 'Nationalität',
   // Federation of Origin (custom ClubDesk field, 2026-07-25): the national
-  // federation the member was last licensed with — the key the club needs for a
+  // federation the member was FIRST licensed with (their federation of origin) —
+  // the key the club needs for a
   // Swiss Volley transfer certificate / FIBA letter of clearance before the
   // player may be licensed here. Asked on the registration form and editable in
   // the profile, so WIEDISYNC owns it (ClubDesk has no other source); stored as

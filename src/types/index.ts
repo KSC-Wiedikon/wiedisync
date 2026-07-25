@@ -185,7 +185,8 @@ export interface Member extends BaseRecord {
   // READ-ONLY everywhere in the UI and never write it.
   nationalitaet: string
   nationalitaet_codes: string | null
-  // Federation the member was last licensed with: an ISO alpha-2 code, the
+  // Federation the member was FIRST licensed with (their federation of origin):
+  // an ISO alpha-2 code, the
   // literal 'NONE' (never licensed elsewhere), or null (not answered) — the
   // NONE/null distinction is what lets us skip a transfer-certificate chase.
   federation_of_origin: string | null
