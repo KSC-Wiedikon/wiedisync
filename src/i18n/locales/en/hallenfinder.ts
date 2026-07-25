@@ -1,0 +1,42 @@
+export default {
+  title: 'Hall finder',
+  subtitle: 'Free City of Zürich sport halls for the season',
+  intro: 'City halls with a free recurring slot across the winter season. Availability is cached nightly from the city booking tool; school-holiday weeks are excluded.',
+  filters: {
+    weekday: 'Weekday',
+    startFrom: 'From',
+    minDuration: 'Min. duration',
+    district: 'District',
+    hallType: 'Hall type',
+    freeAllWeeks: 'Free every week (excl. school holidays)',
+    allDistricts: 'All districts',
+    allTypes: 'All types',
+    anyDay: 'Mon–Fri',
+    search: 'Search',
+  },
+  weekday: {
+    1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday', 7: 'Sunday',
+  },
+  weekdayShort: {
+    1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 7: 'Sun',
+  },
+  type: {
+    gymnastikraum: 'Gymnastics room', sporthalle: 'Sport hall', dreifachhalle: 'Triple hall', doppelhalle: 'Double hall',
+  },
+  table: {
+    day: 'Day', hall: 'Hall', window: 'Free window', weeks: 'Weeks free', district: 'District', address: 'Address', actions: 'Book',
+  },
+  allWeeks: 'All {{total}}',
+  someWeeks: '{{free}} / {{total}}',
+  book: 'Request',
+  calendar: 'Calendar',
+  lastUpdated: 'Data updated {{ago}}',
+  neverUpdated: 'Not yet synced',
+  noData: 'No availability data yet — the nightly sync has not run.',
+  noResults: 'No halls are free for the whole season with these filters. Try a shorter duration or a later start.',
+  loading: 'Loading availability…',
+  error: 'Could not load availability.',
+  resultCount_one: '{{count}} hall',
+  resultCount_other: '{{count}} halls',
+  durationOption: '{{h}} h',
+}

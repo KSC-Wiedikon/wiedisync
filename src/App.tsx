@@ -73,6 +73,7 @@ import { SentryErrorBoundary } from './lib/sentry'
 import { maybeReloadOnStaleChunk, reloadNow } from './lib/chunkReload'
 
 const GuidePage = lazy(() => import('./modules/guide/GuidePage'))
+const HallenfinderPage = lazy(() => import('./modules/hallenfinder/HallenfinderPage'))
 const JsExportPage = lazy(() => import('./modules/jsexport/JsExportPage'))
 const InboxPage = lazy(() => import('./modules/messaging/pages/InboxPage'))
 const ConversationPage = lazy(() => import('./modules/messaging/pages/ConversationPage'))
@@ -192,6 +193,7 @@ export default function App() {
             <Route path="options/messaging" element={<AuthRoute><Suspense fallback={null}><MessagingSettingsPage /></Suspense></AuthRoute>} />
             <Route path="admin/spielplanung" element={<SchedulingRedirect />} />
             <Route path="admin/hallenplan" element={<AdminRoute><HallenplanPage /></AdminRoute>} />
+            <Route path="admin/hallenfinder" element={<AuthRoute><Suspense fallback={null}><HallenfinderPage /></Suspense></AuthRoute>} />
             <Route path="admin/terminplanung" element={<SchedulingRedirect />} />
             <Route path="admin/terminplanung/settings" element={<SchedulingRedirect />} />
             <Route path="admin/terminplanung/dashboard" element={<SchedulingRedirect />} />

@@ -15,6 +15,7 @@ export default {
   inbox: 'Inbox',
   gameplan: 'Manual game calendar',
   hallenplan: 'Hall slots',
+  hallenfinder: 'Hall finder',
   terminplanung: 'Match scheduling',
   dashboard: 'Dashboard',
   mailbox: 'Mailbox',

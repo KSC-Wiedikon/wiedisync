@@ -51,8 +51,12 @@ const ENVS = {
 }
 
 function psql(env, sql) {
-  const cmd = ['ssh', 'hetzner', 'sudo', 'docker', 'exec', '-i', env.container,
+  // KSCW_LOCAL_PSQL=1 when running ON the VPS — `ssh hetzner` from the VPS would
+  // just loop back to itself.
+  const local = process.env.KSCW_LOCAL_PSQL === '1'
+  const base = ['sudo', 'docker', 'exec', '-i', env.container,
     'psql', '-U', env.user, '-d', env.database, '-X', '-v', 'ON_ERROR_STOP=1']
+  const cmd = local ? base : ['ssh', 'hetzner', ...base]
   const r = spawnSync(cmd[0], cmd.slice(1), { input: sql, encoding: 'utf-8' })
   if (r.status !== 0) throw new Error(`psql failed:\n${r.stderr || r.stdout}`)
   return r.stdout
