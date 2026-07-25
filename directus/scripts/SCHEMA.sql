@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-25T13:47:41.747Z
+-- Generated:   2026-07-25T14:09:56.157Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 4g62ZOxnRf1KLXxydoRR0XqPlMvSHPDBGIZPuUjbo28dX159ZWbN6p6SDRbLy9N
+\restrict p9XLFpUw8EgjbaVfVwBV6qKPBsEQLWo9M6ievtByDnuG21OlLV3Epu7IZFSTBJJ
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -5078,6 +5078,8 @@ CREATE TABLE public.members (
     nickname text,
     nationalitaet_codes character varying(200),
     federation_of_origin character varying(8),
+    otn1_bb boolean DEFAULT false NOT NULL,
+    otn2_bb boolean DEFAULT false NOT NULL,
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
     CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb))
@@ -5130,7 +5132,7 @@ COMMENT ON COLUMN public.members.otr2_bb IS 'Basketball OTR2 (table official tie
 -- Name: COLUMN members.otn_bb; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.otn_bb IS 'Basketball OTN (table official, national). Sourced from ClubDesk Offizielle Lizenz.';
+COMMENT ON COLUMN public.members.otn_bb IS 'Basketball OTN, COARSE (holds some OTN level) — this is all ClubDesk''s Offizielle Lizenz string can express. Prefer otn1_bb / otn2_bb, which Basketplan fills precisely. Kept because scorer eligibility, deriveOffiziellenLizenz and the migration 066 view still read it.';
 
 
 --
@@ -5257,6 +5259,20 @@ COMMENT ON COLUMN public.members.nationalitaet_codes IS 'Canonical nationality: 
 --
 
 COMMENT ON COLUMN public.members.federation_of_origin IS 'National federation that FIRST licensed the member (their federation of origin — NOT the most recent one). ISO 3166-1 alpha-2, or ''NONE'' = has never held a licence with any federation, or NULL = not answered.';
+
+
+--
+-- Name: COLUMN members.otn1_bb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.otn1_bb IS 'Basketball OTN 1 (national table official, level 1). Authoritative source is Basketplan (nationalTableReferee1). ClubDesk cannot distinguish OTN levels, so its down-sync must never clear this.';
+
+
+--
+-- Name: COLUMN members.otn2_bb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.otn2_bb IS 'Basketball OTN 2 (national table official, level 2). Authoritative source is Basketplan (nationalTableReferee2). ClubDesk cannot distinguish OTN levels, so its down-sync must never clear this.';
 
 
 --
@@ -12717,5 +12733,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 4g62ZOxnRf1KLXxydoRR0XqPlMvSHPDBGIZPuUjbo28dX159ZWbN6p6SDRbLy9N
+\unrestrict p9XLFpUw8EgjbaVfVwBV6qKPBsEQLWo9M6ievtByDnuG21OlLV3Epu7IZFSTBJJ
 
