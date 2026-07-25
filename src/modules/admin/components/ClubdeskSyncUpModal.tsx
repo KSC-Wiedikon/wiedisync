@@ -21,6 +21,27 @@ interface UpStatus { state: 'idle' | 'queued' | 'running' | 'done' | 'failed'; m
 
 type Phase = 'loading' | 'review' | 'pushing' | 'done' | 'error'
 
+/**
+ * One field change, rendered identically in the mobile stack and the desktop
+ * column. Values are `break-all` because the longest ones are IBANs and email
+ * addresses — no space to wrap at, so without it they run past the viewport edge
+ * on a phone (reported from the live modal, 2026-07-25).
+ *
+ * The field name sits on its own line so the old → new pair keeps the full width.
+ */
+function ChangeChip({ change }: { change: FieldChange }) {
+  return (
+    <span className="rounded bg-amber-50 px-1.5 py-1 text-[11px] leading-snug text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+      <span className="font-medium">{change.field}</span>
+      <span className="block break-all">
+        <span className="line-through opacity-70">{change.old_value || '—'}</span>
+        {' → '}
+        {change.new_value || '—'}
+      </span>
+    </span>
+  )
+}
+
 export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -162,29 +183,38 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
                     <TableRow>
                       <TableHead className="w-8" />
                       <TableHead>{t('clubdeskUpColName')}</TableHead>
-                      <TableHead>{t('clubdeskUpColChanges')}</TableHead>
+                      {/* Changes get their own column only from sm up. On a phone a
+                          single value (an IBAN, an address) is wider than the whole
+                          column, so it stacks under the name instead — see below. */}
+                      <TableHead className="hidden sm:table-cell">{t('clubdeskUpColChanges')}</TableHead>
                       <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {preview.changed.map((m) => (
                       <TableRow key={m.id} className={m.stale ? 'opacity-70' : undefined}>
-                        <TableCell><Checkbox checked={selected.has(m.id)} disabled={m.stale} onCheckedChange={() => toggle(m.id)} /></TableCell>
-                        <TableCell className="whitespace-normal break-words">
+                        <TableCell className="align-top"><Checkbox checked={selected.has(m.id)} disabled={m.stale} onCheckedChange={() => toggle(m.id)} /></TableCell>
+                        <TableCell className="whitespace-normal break-words align-top">
                           <div className="font-medium">{m.last_name} {m.first_name}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">{m.email}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 break-all">{m.email}</div>
                           {m.stale && (
                             <Badge variant="outline" className="mt-0.5 border-amber-300 text-[10px] text-amber-700 dark:text-amber-300">
                               {t('clubdeskUpStale')}
                             </Badge>
                           )}
+                          {/* Mobile: the row becomes a card — every change listed
+                              full-width beneath the name, one per line, so nothing
+                              is clipped at the viewport edge. */}
+                          <div className="mt-1.5 flex flex-col gap-1 sm:hidden">
+                            {m.changes.length ? m.changes.map((c, i) => (
+                              <ChangeChip key={i} change={c} />
+                            )) : <span className="text-xs text-gray-400">{t('clubdeskUpContactSync')}</span>}
+                          </div>
                         </TableCell>
-                        <TableCell className="whitespace-normal break-words">
+                        <TableCell className="hidden whitespace-normal break-words align-top sm:table-cell">
                           <div className="flex flex-wrap gap-1">
                             {m.changes.length ? m.changes.map((c, i) => (
-                              <span key={i} className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                                {c.field}: <span className="line-through opacity-70">{c.old_value || '—'}</span> → {c.new_value || '—'}
-                              </span>
+                              <ChangeChip key={i} change={c} />
                             )) : <span className="text-xs text-gray-400">{t('clubdeskUpContactSync')}</span>}
                           </div>
                         </TableCell>
