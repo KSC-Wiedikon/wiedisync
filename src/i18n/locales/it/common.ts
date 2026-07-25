@@ -23,6 +23,7 @@ export default {
   noResults: 'Nessun risultato',
   search: 'Cerca...',
   searchCountry: 'Cerca paese...',
+  addCountry: "Aggiungi un'altra...",
   primaryNationality: 'Nazionalità principale',
   nSelected_one: '{{count}} selezionata',
   nSelected_other: '{{count}} selezionate',

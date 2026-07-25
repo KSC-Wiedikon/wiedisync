@@ -23,6 +23,7 @@ export default {
   noResults: 'Nüt gfunde',
   search: 'Sueche...',
   searchCountry: 'Land sueche...',
+  addCountry: 'Wyteri zuefüege...',
   primaryNationality: 'Hauptnationalität',
   nSelected_one: '{{count}} usgwählt',
   nSelected_other: '{{count}} usgwählt',

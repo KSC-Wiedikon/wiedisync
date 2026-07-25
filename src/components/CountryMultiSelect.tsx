@@ -20,7 +20,10 @@ interface CountryMultiSelectProps {
  * nationality and is the one pushed to ClubDesk, whose field holds a single
  * value. Chips therefore render in selection order, not alphabetically.
  *
- * Follows the MemberMultiSelect grammar (chips above, search + absolute list).
+ * Token-field layout: the chips live INSIDE the bordered box alongside the search
+ * caret, so a saved nationality carries the same visual weight as any other filled
+ * input on the form. (The first version put chips above a separate search box and
+ * a saved value read as "nothing selected" — the empty search field dominated.)
  */
 export default function CountryMultiSelect({
   label,
@@ -33,6 +36,7 @@ export default function CountryMultiSelect({
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const listboxId = useId()
   const labelId = useId()
 
@@ -68,11 +72,33 @@ export default function CountryMultiSelect({
 
   return (
     <div ref={containerRef} className="relative">
-      {label && <Label id={labelId} className="mb-1.5">{label}</Label>}
+      {label && (
+        <Label id={labelId} className="mb-1.5">
+          {label}
+          {selected.length > 1 && (
+            <span className="ml-1.5 font-normal text-muted-foreground tabular-nums">
+              ({t('nSelected', { count: selected.length })})
+            </span>
+          )}
+        </Label>
+      )}
 
-      {selected.length > 0 && (
-        <div className="mb-2 flex flex-wrap items-center gap-1.5">
-          {selected.map((code, i) => (
+      {/* One bordered field, chips inside — the same visual weight as every other
+          filled input on the form. The previous layout put chips ABOVE a separate
+          search box, so a saved nationality read as "nothing selected": the empty
+          search field was the dominant element. Clicking anywhere focuses the
+          input, so the whole box behaves as one control. */}
+      <div
+        onClick={() => { if (!disabled) { inputRef.current?.focus(); setOpen(true) } }}
+        className={cn(
+          'flex min-h-[44px] w-full flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring',
+          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-text',
+        )}
+      >
+        {selected.length === 0 && (
+          <Search className="ml-1 h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+        {selected.map((code, i) => (
             <span
               key={code}
               // Solid brand fill so a chosen nationality is unmistakable against
@@ -94,7 +120,9 @@ export default function CountryMultiSelect({
               {!disabled && (
                 <button
                   type="button"
-                  onClick={() => toggle(code)}
+                  // Stop the wrapper's focus/open handler — removing a chip
+                  // shouldn't also pop the dropdown open.
+                  onClick={(e) => { e.stopPropagation(); toggle(code) }}
                   aria-label={`${t('remove')} ${byCode.get(code) ?? code}`}
                   className="grid h-5 w-5 shrink-0 place-items-center rounded-full transition-colors hover:bg-primary-foreground/25"
                 >
@@ -102,16 +130,9 @@ export default function CountryMultiSelect({
                 </button>
               )}
             </span>
-          ))}
-          <span className="ml-0.5 text-xs text-muted-foreground tabular-nums">
-            {t('nSelected', { count: selected.length })}
-          </span>
-        </div>
-      )}
-
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        ))}
         <input
+          ref={inputRef}
           type="text"
           role="combobox"
           aria-expanded={open}
@@ -119,12 +140,21 @@ export default function CountryMultiSelect({
           aria-autocomplete="list"
           aria-labelledby={label ? labelId : undefined}
           disabled={disabled}
-          className="min-h-[44px] w-full rounded-md border border-input bg-transparent py-2 pl-9 pr-3 text-sm shadow-sm outline-none ring-offset-background transition-colors placeholder:text-muted-foreground focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          placeholder={t('searchCountry')}
+          // Shrinks to a caret beside the chips; only claims the full row when
+          // nothing is selected yet.
+          className="min-w-[6rem] flex-1 bg-transparent px-1 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+          placeholder={selected.length ? t('addCountry') : t('searchCountry')}
           value={search}
           onFocus={() => setOpen(true)}
           onChange={(e) => { setSearch(e.target.value); setOpen(true) }}
-          onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') { setOpen(false); return }
+            // Backspace on an empty query removes the last chip — the standard
+            // token-field affordance.
+            if (e.key === 'Backspace' && !search && selected.length) {
+              toggle(selected[selected.length - 1])
+            }
+          }}
         />
       </div>
 
