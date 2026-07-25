@@ -10,11 +10,17 @@ export function absenceCoversActivity(
   activityType: Participation['activity_type'],
   activityDate: string,
 ): boolean {
-  // Date range check
+  // Date range check. Indefinite absences have no upper bound — never let a
+  // missing/sentinel end_date falsely exclude them (an indefinite row created
+  // outside the app forms can land with a null end_date; the DB trigger from
+  // migration 233 normalizes it to 2099-12-31, but stay defensive here too).
   const date = activityDate.split(' ')[0]
   const start = absence.start_date.split(' ')[0]
-  const end = absence.end_date.split(' ')[0]
-  if (start > date || end < date) return false
+  if (start > date) return false
+  if (!absence.indefinite) {
+    const end = absence.end_date?.split(' ')[0]
+    if (!end || end < date) return false
+  }
 
   // Affects check
   const affects = absence.affects

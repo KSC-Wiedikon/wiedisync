@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.46.1 — 2026-07-25
+
+### Fix: open-ended absences now sign you out reliably
+- **An absence with no end date now signs you out of every training and game across its whole span** — including sessions added to the calendar later — just like a dated absence does. Some open-ended absences (typically the long-term ones entered on a member's behalf) were being missed, so the person still showed as attending. This is independent of the "blocks game scheduling" switch, which only affects planning and never changes your own attendance.
+
 ## v1.46.0 — 2026-07-16
 
 ### New: send club news to specific teams or roles
