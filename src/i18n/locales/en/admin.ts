@@ -957,6 +957,39 @@ export default {
   trProbablyDone: 'Licence is validated — the transfer certificate has probably arrived.',
   trProbablyDoneBanner_one: '{{count}} pending transfer already has a validated licence and can probably be closed.',
   trProbablyDoneBanner_other: '{{count}} pending transfers already have validated licences and can probably be closed.',
+
+  // VIS presence + prepare-and-deep-link (migrations 240/241).
+  // ⚠ Wording rule for this block: `in_vis = false` is EVIDENCE, NOT PROOF. The
+  // check matches on a normalised name and the federation of origin was seeded
+  // from nationality for most members, so a miss usually means our guess at the
+  // federation was wrong — never "this player does not exist" and never "the
+  // federation must add them".
+  trColInVis: 'In VIS',
+  trInVisYes: 'In VIS',
+  trInVisNo: 'Not found in VIS',
+  trInVisUnknown: 'Not checked',
+  trInVisYesHint: 'Found in the VIS player index of their federation of origin — a transfer can be requested for them.',
+  trInVisNoHint: 'No player of this name was found in the VIS index of their federation of origin. The check matches by name, and for most members the federation of origin was derived from their nationality — so this usually means that guess was wrong, not that the federation has to add the player.',
+  trInVisUnknownHint: 'The VIS check has not run for this member yet.',
+  trInVisCheckedAt: 'Checked {{date}}',
+  trVisSummaryTitle: 'VIS presence',
+  trVisSummaryHint: '"Not found in VIS" is a lead, not a verdict: the check matches by name, and for most members the federation of origin was derived from their nationality. It usually means that guess was wrong rather than that a federation is missing the player.',
+  trVisBasketballHint: 'VIS is the FIVB (volleyball) player index, and the contacts here are national volleyball federations. A FIBA transfer runs through a different body, so read this as a lead only.',
+  trOpenInVis: 'Open in VIS',
+  trOpenInVisHint: 'VIS has no link to a single player — paste the number into the search in the transfers app.',
+  trVisPlayerNo: 'VIS player number',
+  trCopyPlayerNo: 'Copy the VIS player number',
+  trVisFederationMissing: 'No VIS contact on file for {{code}} — look the federation up manually.',
+  trVisNoEmail: 'VIS lists no email address for this federation.',
+  trVisMultipleAddresses: 'VIS lists several addresses; the link opens the first one.',
+  trCopyEmail: 'Copy the address',
+  trCopyEmails: 'Copy all addresses',
+  trCopied: 'Copied',
+  trCopyFailed: 'Could not copy',
+  trRequestTitle: 'Prepared request',
+  trRequestCopy: 'Copy request',
+  trRequestHint: 'Nothing is sent from here — copy the text into your own email. It is in English because the recipient is a foreign federation.',
+
   trSaveFailed: 'Could not save',
   trEmptyTitle: 'Nothing to work through',
   trEmptyDescription: 'No open transfers and no open questions for this sport.',
