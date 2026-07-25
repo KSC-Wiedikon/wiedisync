@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.46.0'
+const APP_VERSION = '1.46.1'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.46.1',
+    date: '25.07.2026',
+    sections: [
+      {
+        title: 'Fix: open-ended absences now sign you out reliably',
+        items: [
+          'An absence with no end date now signs you out of every training and game across its whole span — including sessions added to the calendar later — just like a dated absence does. Some open-ended absences (typically the long-term ones entered on a member\'s behalf) were being missed, so the person still showed as attending. This is independent of the "blocks game scheduling" switch, which only affects planning and never changes your own attendance.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.46.0',
     date: '16.07.2026',
