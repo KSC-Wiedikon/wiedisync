@@ -1,4 +1,5 @@
--- Migration 233: indefinite absences must carry a real upper-bound end_date
+-- Migration 236 (renumbered from 233 — 233 was already taken by
+-- 233-add-cote-divoire.sql, which was applied to prod first): indefinite absences must carry a real upper-bound end_date
 --
 -- Background. Every absence-coverage evaluation in the codebase keys purely on
 -- `end_date` (`a.end_date::date >= <activity date>`):
