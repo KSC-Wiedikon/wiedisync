@@ -78,7 +78,7 @@ export default {
   type: 'Type',
   name: 'Nom',
   reason: 'Motif',
-  details: 'Details',
+  details: 'Détails',
   status: 'Statut',
   select: 'Selectionner...',
   allHalls: 'Toutes les salles',

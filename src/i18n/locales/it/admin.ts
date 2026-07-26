@@ -178,7 +178,7 @@ export default {
   explorerSportOther: 'Altro',
   // Explorer column headers
   explorerColName: 'Nome',
-  explorerColNumber: 'Nr.',
+  explorerColNumber: 'N.',
   explorerColReason: 'Motivo',
   explorerColActivity: 'Attività',
   explorerColNote: 'Nota',

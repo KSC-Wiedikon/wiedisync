@@ -41,7 +41,7 @@ export default {
   signIn: 'Accedi',
   myProfile: 'Il mio profilo',
   privacy: 'Privacy',
-  impressum: 'Impressum',
+  impressum: 'Note legali',
   infraHealth: 'Infrastruttura',
   dataHealth: 'Qualità dei dati',
   clubdeskSync: 'Sync ClubDesk',
@@ -66,7 +66,7 @@ export default {
   adminExplorer: 'Esploratore dati',
   announcements: 'Annunci',
   clubMailbox: 'Posta del club',
-  news: 'News',
+  news: 'Notizie',
   moderationReports: 'Segnalazioni',
   messagingSettings: 'Messaggistica',
 } as const

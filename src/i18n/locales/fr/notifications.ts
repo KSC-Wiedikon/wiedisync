@@ -10,7 +10,7 @@ export default {
   activityChange: 'Activite',
   upcomingActivity: 'A venir',
   deadlineReminder: 'Delai',
-  resultAvailable: 'Resultat',
+  resultAvailable: 'Résultat',
   dutyDelegation: 'Service de marqueur',
   memberJoinRequest: 'Demande d\'adhésion',
   expenseStatus: 'Note de frais',

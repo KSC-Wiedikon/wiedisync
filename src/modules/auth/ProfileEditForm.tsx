@@ -20,10 +20,10 @@ import LanguageSelect from '@/components/LanguageSelect'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import CountryMultiSelect from '@/components/CountryMultiSelect'
 import {
-  NO_FEDERATION, codeFromCountryName, countryLabel, countryNameDe,
-  formatCountryCodes, parseCountryCodes, serializeCountryCodes,
+  NO_FEDERATION, codeFromCountryName, countryNameDe,
+  parseCountryCodes, serializeCountryCodes,
 } from '../../utils/countries'
-import { federationDisplay, federationOptions } from '../../utils/federations'
+import { federationOptions } from '../../utils/federations'
 import { CheckIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { logActivity } from '../../utils/logActivity'
@@ -133,12 +133,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
       setAdresse(user.adresse ?? '')
       setPlz(user.plz ?? '')
       setOrt(user.ort ?? '')
-      // Fall back to resolving the legacy free-text name for members whose row
-      // predates the coded column and hasn't been touched since.
-      const seededCodes = parseCountryCodes(user.nationalitaet_codes)
-      setNationalitaetCodes(
-        seededCodes.length ? seededCodes : [codeFromCountryName(user.nationalitaet)].filter(Boolean),
-      )
+      setNationalitaetCodes(storedNationalityCodes())
       setFederationOfOrigin(user.federation_of_origin ?? '')
       setSex(user.sex ?? '')
       setAhvNummer(user.ahv_nummer ?? '')
@@ -163,11 +158,15 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
     ...federationOptions(fedSport),
   ]
 
-  /** Human-readable federation value for the admin ClubDesk change email. */
-  function federationLabel(value: string | null | undefined): string {
-    const v = String(value ?? '').trim()
-    if (!v) return ''
-    return v === NO_FEDERATION ? t('federationOfOriginNone') : (federationDisplay(v, fedSport) || countryLabel(v))
+  /**
+   * The member's STORED nationality as codes, falling back to resolving the
+   * legacy free-text name for rows that predate `nationalitaet_codes` and
+   * haven't been touched since. Seeds the picker and anchors the ClubDesk diff,
+   * so an untouched field can never diff against itself.
+   */
+  function storedNationalityCodes(): string[] {
+    const codes = parseCountryCodes(user?.nationalitaet_codes)
+    return codes.length ? codes : [codeFromCountryName(user?.nationalitaet)].filter(Boolean)
   }
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -353,15 +352,19 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
         adresse: { old: user.adresse || '', new: adresse },
         plz: { old: user.plz || '', new: plz },
         ort: { old: user.ort || '', new: ort },
-        // Diff the localized names, not the raw codes — this feeds a
-        // human-readable "old → new" table in the admin ClubDesk email.
+        // The coded fields diff — and travel — as CODES, never as labels. The
+        // admin email renders them server-side in the READER's language (an
+        // English-speaking admin used to read "Schweiz"), and a label diff also
+        // compared apples to pears: the old side listed every nationality while
+        // the server rebuilt the new side from the German primary-only mirror,
+        // so an unchanged "DE,CH" reported as "Deutschland, Schweiz → Deutschland".
         nationalitaet: {
-          old: formatCountryCodes(user.nationalitaet_codes) || user.nationalitaet || '',
-          new: nationalitaetCodes.map(countryLabel).join(', '),
+          old: serializeCountryCodes(storedNationalityCodes()) ?? '',
+          new: serializeCountryCodes(nationalitaetCodes) ?? '',
         },
         federation_of_origin: {
-          old: federationLabel(user.federation_of_origin),
-          new: federationLabel(federationOfOrigin),
+          old: user.federation_of_origin ?? '',
+          new: federationOfOrigin,
         },
         sex: { old: user.sex || '', new: sex },
         ahv_nummer: { old: user.ahv_nummer || '', new: ahvCanonical },

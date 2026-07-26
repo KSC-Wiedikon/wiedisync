@@ -37,7 +37,7 @@ export default {
   type: 'Type',
   required: 'Requis',
   options: 'Options',
-  schema: 'Schema',
+  schema: 'Schéma',
 
   // Record Editor
   editRecord: 'Modifier l\'enregistrement',
@@ -154,7 +154,7 @@ export default {
   explorerStatus_tentative: 'Peut-être',
   explorerStatus_waitlisted: "Liste d'attente",
   explorerStatus_other: 'Autre',
-  explorerFieldEmail: 'E-Mail',
+  explorerFieldEmail: 'E-mail',
   explorerFieldSex: 'Sexe',
   explorerFieldRole: 'Rôle',
   explorerFieldSport: 'Sport',

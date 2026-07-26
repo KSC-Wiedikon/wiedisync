@@ -106,7 +106,7 @@ export default {
     'Ci riserviamo il diritto di aggiornare questa informativa sulla privacy secondo necessità. La versione attuale è disponibile su questa pagina.',
 
   // Impressum page
-  impressumTitle: 'Impressum',
+  impressumTitle: 'Note legali',
   impressumClubName: 'KSC Wiedikon',
   impressumAddress: 'Schrennengasse 7\n8003 Zürich',
   impressumFullName: 'Kultur- und Sportclub Wiedikon',

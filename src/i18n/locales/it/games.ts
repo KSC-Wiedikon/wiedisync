@@ -209,7 +209,7 @@ export default {
   pregameColName: 'Nome',
   pregameColEdit: 'Modifica',
   pregameColRole: 'Ruolo',
-  pregameCaptain: 'Captain',
+  pregameCaptain: 'Capitano',
   pregameCaptainShort: 'C',
   pregameLibero: 'Libero',
   pregameLiberoShort: 'L',

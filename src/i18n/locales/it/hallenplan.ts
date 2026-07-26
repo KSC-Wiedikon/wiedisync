@@ -115,7 +115,7 @@ export default {
   claimTeamLabel: 'Per la squadra',
   claimReasonCancelled: 'Allenamento annullato',
   claimReasonAway: 'Partita in trasferta',
-  claimReasonSpielhalle: 'Spielhalle',
+  claimReasonSpielhalle: 'Palestra di gara',
   claimOriginalTeam: 'Originariamente',
   claimClaimedBy: 'Richiesta da',
   claimClaimedAt: 'Richiesta il',

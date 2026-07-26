@@ -41,9 +41,10 @@ const BASKETBALL: Record<string, string> = {
 }
 
 /**
- * The federation name for a country in a given sport, or '' when unknown.
- * `sport` is undefined for members who play both (or neither) — there is no single
- * right answer then, so the caller falls back to the country name.
+ * The federation name for a country in ONE sport, or '' when unknown.
+ * `sport` is undefined for members who play both — and, because `primarySport`
+ * collapses "no team at all" into 'both', for members who play neither yet.
+ * Use `federationNames` unless you specifically need a single sport.
  */
 export function federationName(code: string | null | undefined, sport: Sport | undefined): string {
   const c = String(code || '').trim().toUpperCase()
@@ -51,12 +52,26 @@ export function federationName(code: string | null | undefined, sport: Sport | u
   return (sport === 'volleyball' ? VOLLEYBALL : BASKETBALL)[c] ?? ''
 }
 
-/** Flag + federation (falling back to the country name), e.g. "🇮🇹 FIPAV". */
+/**
+ * The federation name(s) to show a member, e.g. "FIPAV" — or "FIPAV / FIP" when
+ * we don't know which sport they mean. Naming both beats naming neither: without
+ * a sport this used to fall through to the bare country, so anyone on two teams
+ * (and every member with no team yet) was asked "which federation licensed you?"
+ * under a list of plain country names.
+ */
+export function federationNames(code: string | null | undefined, sport: Sport | undefined): string {
+  const c = String(code || '').trim().toUpperCase()
+  if (!/^[A-Z]{2}$/.test(c)) return ''
+  if (sport) return federationName(c, sport)
+  return [...new Set([VOLLEYBALL[c], BASKETBALL[c]].filter(Boolean))].join(' / ')
+}
+
+/** Flag + federation(s), falling back to the country name, e.g. "🇮🇹 FIPAV". */
 export function federationDisplay(code: string | null | undefined, sport: Sport | undefined): string {
   const c = String(code || '').trim().toUpperCase()
   if (!/^[A-Z]{2}$/.test(c)) return ''
   const flag = countryFlag(c)
-  const name = federationName(c, sport) || countryLabel(c)
+  const name = federationNames(c, sport) || countryLabel(c)
   return flag ? `${flag} ${name}` : name
 }
 
@@ -74,7 +89,7 @@ export interface FederationOption extends CountryOption {
  */
 export function federationOptions(sport: Sport | undefined): FederationOption[] {
   return countryOptions().map((o) => {
-    const fed = federationName(o.value, sport)
+    const fed = federationNames(o.value, sport)
     const name = fed ? `${fed} (${o.name})` : o.name
     return { ...o, country: o.name, name, label: o.flag ? `${o.flag} ${name}` : name }
   })

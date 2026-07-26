@@ -1,5 +1,5 @@
 export default {
-  title: 'Feedback & Bugs',
+  title: 'Feedback & bugs',
   subtitle: "Aide-moi à améliorer Wiedisync",
   newFeedback: 'Nouveau feedback',
   typeBug: 'Bug',

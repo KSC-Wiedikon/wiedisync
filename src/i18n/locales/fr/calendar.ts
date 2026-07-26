@@ -90,7 +90,7 @@ export default {
   eventTypeSocial: 'Social',
   eventTypeMeeting: 'Reunion',
   eventTypeTournament: 'Tournoi',
-  eventTypeTrainingsweekend: 'Trainingsweekend',
+  eventTypeTrainingsweekend: "Week-end d'entraînement",
   eventTypeFriendly: 'Match amical',
   eventTypeOther: 'Autre',
 } as const

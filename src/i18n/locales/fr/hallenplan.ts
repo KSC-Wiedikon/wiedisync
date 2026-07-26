@@ -115,7 +115,7 @@ export default {
   claimTeamLabel: 'Pour l\'equipe',
   claimReasonCancelled: 'Entrainement annule',
   claimReasonAway: 'Match a l\'exterieur',
-  claimReasonSpielhalle: 'Spielhalle',
+  claimReasonSpielhalle: 'Salle de match',
   claimOriginalTeam: 'A l\'origine',
   claimClaimedBy: 'Reclame par',
   claimClaimedAt: 'Reclame le',

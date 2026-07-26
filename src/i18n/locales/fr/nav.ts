@@ -66,7 +66,7 @@ export default {
   adminExplorer: 'Explorateur de Données',
   announcements: 'Annonces',
   clubMailbox: 'Messagerie du club',
-  news: 'News',
+  news: 'Actualités',
   moderationReports: 'Signalements',
   messagingSettings: 'Messagerie',
 } as const

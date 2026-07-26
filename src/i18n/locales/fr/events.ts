@@ -26,7 +26,7 @@ export default {
   social: 'Social',
   meeting: 'Reunion',
   tournament: 'Tournoi',
-  trainingsweekend: 'Trainingsweekend',
+  trainingsweekend: "Week-end d'entraînement",
   friendly: 'Match amical',
   other: 'Autre',
   respondBy: 'Repondre avant le',

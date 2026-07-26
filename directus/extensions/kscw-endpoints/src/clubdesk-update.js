@@ -6,6 +6,10 @@
 import { buildEmailLayout, buildInfoCard, bucketEmailsByLocale } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
+import {
+  countryCodesDisplay, federationDisplay, loadCountryDisplayNames, parseCodeList,
+  sexDisplay, sexPushLabel,
+} from './federations.js'
 
 /** Canonical form for an outgoing push cell; unrewritable values pass raw
  *  (result.value carries the raw input when ok is false). */
@@ -20,32 +24,40 @@ function getCurrentSeason() {
   return m < 5 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
 }
 
-/** Per-locale display labels for DB field names */
+// Per-locale display labels for DB field names.
+// ⚠ A field missing here prints its raw snake_case column name at a human
+// ("federation_of_origin", live until 2026-07-26) — keep this in step with
+// EDITABLE in /clubdesk-update. Wording mirrors the `auth` i18n namespace.
 const FIELD_LABELS = {
   de: {
     first_name: 'Vorname', last_name: 'Nachname', email: 'E-Mail', phone: 'Telefon',
     birthdate: 'Geburtsdatum', anrede: 'Anrede', adresse: 'Adresse', plz: 'PLZ', ort: 'Ort',
     nationalitaet: 'Nationalität', sex: 'Geschlecht', ahv_nummer: 'AHV-Nummer',
+    federation_of_origin: 'Herkunftsverband', iban: 'IBAN',
   },
   gsw: {
     first_name: 'Vorname', last_name: 'Nachname', email: 'E-Mail', phone: 'Telefon',
     birthdate: 'Geburtsdatum', anrede: 'Aaräde', adresse: 'Adrässe', plz: 'PLZ', ort: 'Ort',
     nationalitaet: 'Nationalität', sex: 'Gschlächt', ahv_nummer: 'AHV-Nummer',
+    federation_of_origin: 'Herkunftsverband', iban: 'IBAN',
   },
   en: {
     first_name: 'First name', last_name: 'Last name', email: 'Email', phone: 'Phone',
     birthdate: 'Date of birth', anrede: 'Salutation', adresse: 'Address', plz: 'Zip', ort: 'City',
     nationalitaet: 'Nationality', sex: 'Sex', ahv_nummer: 'AHV number',
+    federation_of_origin: 'Federation of origin', iban: 'IBAN',
   },
   fr: {
     first_name: 'Prénom', last_name: 'Nom', email: 'E-mail', phone: 'Téléphone',
     birthdate: 'Date de naissance', anrede: 'Salutation', adresse: 'Adresse', plz: 'NPA', ort: 'Localité',
     nationalitaet: 'Nationalité', sex: 'Sexe', ahv_nummer: "Numéro d'AVS",
+    federation_of_origin: "Fédération d'origine", iban: 'IBAN',
   },
   it: {
     first_name: 'Nome', last_name: 'Cognome', email: 'E-mail', phone: 'Telefono',
     birthdate: 'Data di nascita', anrede: 'Appellativo', adresse: 'Indirizzo', plz: 'CAP', ort: 'Località',
     nationalitaet: 'Nazionalità', sex: 'Sesso', ahv_nummer: 'Numero AVS',
+    federation_of_origin: 'Federazione di origine', iban: 'IBAN',
   },
 }
 
@@ -579,6 +591,17 @@ export function federationCell(code, countryNames) {
   if (!v) return ''
   if (v === 'NONE') return 'Keiner'
   return (countryNames && countryNames.get(v)) || ''
+}
+
+// members.nationalitaet_codes → the ClubDesk cell, same picklist spellings as
+// federationCell. ClubDesk's field is single-valued and the push sends
+// members.nationalitaet (the FIRST code, mirrored by migration 223's trigger);
+// this renders the whole list because it feeds the admin-facing change preview,
+// where a second-nationality edit would otherwise look like no change at all.
+export function nationalityCell(codes, countryNames) {
+  const list = parseCodeList(codes)
+  if (!list.length) return String(codes ?? '').trim()
+  return list.map((c) => (countryNames && countryNames.get(c)) || c).join(', ')
 }
 
 export function buildPushCsv(members, { create = false, countryNames = null } = {}) {
@@ -2112,8 +2135,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const member = await database('members').where('user', userId)
         .first('id', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz', 'ort', 'birthdate', 'sex',
           // Member-editable since 2026-07-25 (migrations 223/228): nationality is
-          // a derived German string, federation_of_origin an ISO code.
-          'nationalitaet', 'federation_of_origin')
+          // a derived German string over a code list, federation_of_origin an ISO
+          // code. The email renders the CODES, so both columns are read here.
+          'nationalitaet', 'nationalitaet_codes', 'federation_of_origin')
       if (!member || String(member.id) !== String(member_id)) {
         return res.status(403).json({ error: 'Forbidden' })
       }
@@ -2140,30 +2164,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // `clubdeskFields` in ProfileEditForm.tsx.
       const EDITABLE = new Set(['first_name', 'last_name', 'email', 'phone', 'birthdate',
         'adresse', 'plz', 'ort', 'sex', 'nationalitaet', 'federation_of_origin'])
-      const sexLabel = member.sex === 'm' ? 'männlich' : member.sex === 'f' ? 'weiblich' : ''
-      // federation_of_origin is stored as an ISO code / the 'NONE' sentinel, so the
-      // admin email must render it, not print "CH" at a human.
-      const countryNames = await loadCountryPushNames(database)
-      const fedLabel = federationCell(member.federation_of_origin, countryNames)
-      const safeChanges = (Array.isArray(changes) ? changes : [])
-        .filter((c) => c && EDITABLE.has(c.field))
-        .map((c) => ({
-          field: c.field,
-          // Old birthdate arrives as ISO from the modal — render it Swiss like
-          // the new value (the Lasse email showed "2024-04-17" vs "17.04.1998").
-          old_value: c.field === 'birthdate' && /^\d{4}-\d{2}-\d{2}/.test(String(c.old_value ?? ''))
-            ? fmtBirthdateDDMMYYYY(c.old_value)
-            : c.old_value,
-          new_value: c.field === 'birthdate' ? fmtBirthdateDDMMYYYY(member.birthdate)
-            : c.field === 'sex' ? sexLabel
-              : c.field === 'federation_of_origin' ? fedLabel
-                : (member[c.field] ?? ''),
-        }))
-      if (!safeChanges.length) {
-        return res.status(400).json({ error: 'No editable fields to update' })
-      }
+      const sexLabel = sexPushLabel(member.sex)
 
-      // Get team names for CSV
+      // Team names for the CSV + the member's sport, which the federation label
+      // needs (an Italian volleyballer came from FIPAV, an Italian basketballer
+      // from FIP) — hence fetched BEFORE the change diff is rendered.
       const schema = await getSchema()
       const { ItemsService, MailService } = services
       const mtService = new ItemsService('member_teams', { schema, knex: database })
@@ -2181,6 +2186,55 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const teamSports = memberTeams.map(mt => mt.team?.sport).filter(Boolean)
       const sport = teamSports.includes('volleyball') ? 'volleyball'
         : teamSports.includes('basketball') ? 'basketball' : null
+      // …but a member who plays BOTH has no single right federation, so they get
+      // the plain country name — same rule as `fedSport` in ProfileEditForm.tsx,
+      // which is what the member picked from.
+      const fedSport = teamSports.includes('volleyball') && teamSports.includes('basketball')
+        ? undefined : (sport ?? undefined)
+
+      // Country/federation values arrive and are stored as CODES, so each change
+      // is rendered TWICE from the same raw value: once German for ClubDesk (the
+      // persisted push diff + the sync-up modal) and once per recipient language
+      // for the email. Rendering client-side instead froze every email into the
+      // *member's* language — an English-speaking admin read "Schweiz".
+      const countryNames = await loadCountryPushNames(database)   // ClubDesk picklist spellings
+      const countryDisp = await loadCountryDisplayNames(database) // reader-facing names
+      const rawChanges = (Array.isArray(changes) ? changes : [])
+        .filter((c) => c && EDITABLE.has(c.field))
+        .map((c) => ({
+          field: c.field,
+          old: c.old_value,
+          // The NEW side always comes from the DB row, never the client's claim
+          // (2026-07-05 audit #9).
+          new: c.field === 'nationalitaet' ? (member.nationalitaet_codes ?? '')
+            : (member[c.field] ?? ''),
+        }))
+      if (!rawChanges.length) {
+        return res.status(400).json({ error: 'No editable fields to update' })
+      }
+      // Old birthdate arrives as ISO from the modal — render it Swiss like the
+      // new value (the Lasse email showed "2024-04-17" vs "17.04.1998"). Anything
+      // unparseable passes through rather than blanking the cell.
+      const fmtBd = (v) => fmtBirthdateDDMMYYYY(v) || String(v ?? '')
+      /** ClubDesk-facing (German) value — persisted diff + sync-up modal. */
+      const pushValue = (field, v) =>
+        field === 'birthdate' ? fmtBd(v)
+          : field === 'sex' ? sexPushLabel(v)
+            : field === 'nationalitaet' ? nationalityCell(v, countryNames)
+              : field === 'federation_of_origin' ? federationCell(v, countryNames)
+                : String(v ?? '')
+      /** Reader-facing value in `loc` — the admin email only, never ClubDesk. */
+      const displayValue = (field, v, loc) =>
+        field === 'birthdate' ? fmtBd(v)
+          : field === 'sex' ? sexDisplay(v, loc)
+            : field === 'nationalitaet' ? countryCodesDisplay(v, loc, countryDisp)
+              : field === 'federation_of_origin' ? federationDisplay(v, fedSport, loc, countryDisp)
+                : String(v ?? '')
+      const safeChanges = rawChanges.map((c) => ({
+        field: c.field,
+        old_value: pushValue(c.field, c.old),
+        new_value: pushValue(c.field, c.new),
+      }))
 
       // Build email — per-recipient locale via members.language. Authoritative
       // CSV from the DB row; ClubDesk-owned fields (anrede/nationalitaet/ahv/
@@ -2222,9 +2276,17 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           { label: tt.phone, value: member.phone || '—', halfWidth: true },
           { label: tt.team, value: teamNames || '—', halfWidth: true },
         ])
+        // Re-rendered per bucket: the same stored 'CH' reads "🇨🇭 Swiss Volley"
+        // to every admin and "Switzerland"/"Schweiz" where no federation is
+        // mapped, while ClubDesk keeps the German picklist value in safeChanges.
+        const locChanges = rawChanges.map((c) => ({
+          field: c.field,
+          old_value: displayValue(c.field, c.old, loc),
+          new_value: displayValue(c.field, c.new, loc),
+        }))
         const body = `
 <div style="font-size:13px;color:#94a3b8;margin-bottom:12px">${tt.intro}</div>
-${buildChangesTable(safeChanges, loc)}
+${buildChangesTable(locChanges, loc)}
 <div style="margin-top:16px">
   <div style="font-size:11px;text-transform:uppercase;color:#64748b;letter-spacing:0.5px;margin-bottom:8px;font-weight:700">${tt.currentData}</div>
   ${summaryCard}

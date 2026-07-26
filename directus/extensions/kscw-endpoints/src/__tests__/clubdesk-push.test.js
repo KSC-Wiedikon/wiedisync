@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, derivePassivmitglied, deriveSchiedsrichter } from '../clubdesk-update.js'
+import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, derivePassivmitglied, deriveSchiedsrichter, federationCell, nationalityCell } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -370,5 +370,33 @@ describe('mapKategorie', () => {
     // the new form values pass through untouched
     expect(mapKategorie('BB Jugend Meisterschaft')).toBe('BB Jugend Meisterschaft')
     expect(mapKategorie('BB Minis Turnier')).toBe('BB Minis Turnier')
+  })
+})
+
+describe('federationCell / nationalityCell (the PUSH shape of the coded fields)', () => {
+  // ClubDesk's picklists, NOT the display names — "Großbritannien" is the value
+  // its Nationalität field accepts; "Vereinigtes Königreich" lands the row in the
+  // "nicht erkannte" bucket. The reader-facing counterparts live in
+  // federations.js and must never be substituted here.
+  const CD_NAMES = new Map([
+    ['CH', 'Schweiz'], ['DE', 'Deutschland'], ['GB', 'Großbritannien'],
+  ])
+
+  it('maps a federation code to ClubDesk German, and NONE to its sentinel word', () => {
+    expect(federationCell('CH', CD_NAMES)).toBe('Schweiz')
+    expect(federationCell('NONE', CD_NAMES)).toBe('Keiner')
+    expect(federationCell('', CD_NAMES)).toBe('')
+    // An unknown code yields '' so the echo-back fills ClubDesk's own value
+    // rather than a guessed spelling the import would reject.
+    expect(federationCell('ZZ', CD_NAMES)).toBe('')
+  })
+
+  it('maps the nationality code list to ClubDesk German', () => {
+    expect(nationalityCell('DE,CH', CD_NAMES)).toBe('Deutschland, Schweiz')
+    expect(nationalityCell('GB', CD_NAMES)).toBe('Großbritannien')
+    expect(nationalityCell('', CD_NAMES)).toBe('')
+    // Legacy free text (or an older frontend's label) passes through rather than
+    // vanishing from the change preview.
+    expect(nationalityCell('Deutschland', CD_NAMES)).toBe('Deutschland')
   })
 })

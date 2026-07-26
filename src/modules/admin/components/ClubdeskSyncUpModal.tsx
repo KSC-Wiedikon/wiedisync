@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { kscwApi } from '../../../lib/api'
+import { MEMBER_FIELD_LABELS } from './memberFieldLabels'
 
 interface FieldChange { field: string; old_value?: string | null; new_value?: string | null }
 // stale = the linked ClubDesk contact no longer exists (deleted CD-side): /up's
@@ -27,12 +28,14 @@ type Phase = 'loading' | 'review' | 'pushing' | 'done' | 'error'
  * addresses — no space to wrap at, so without it they run past the viewport edge
  * on a phone (reported from the live modal, 2026-07-25).
  *
- * The field name sits on its own line so the old → new pair keeps the full width.
+ * The field name sits on its own line so the old → new pair keeps the full width,
+ * and is spelled out via the Explorer's label table — the raw column name was
+ * showing through ("federation_of_origin", until 2026-07-26).
  */
 function ChangeChip({ change }: { change: FieldChange }) {
   return (
     <span className="rounded bg-amber-50 px-1.5 py-1 text-[11px] leading-snug text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-      <span className="font-medium">{change.field}</span>
+      <span className="font-medium">{MEMBER_FIELD_LABELS[change.field] || change.field}</span>
       <span className="block break-all">
         <span className="line-through opacity-70">{change.old_value || '—'}</span>
         {' → '}
