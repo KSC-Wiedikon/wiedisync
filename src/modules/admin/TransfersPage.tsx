@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
-  AlertTriangle, Check, CheckCircle2, Clock, Copy, ExternalLink, HelpCircle, Info, Mail,
-  RefreshCcw, ShieldCheck, X,
+  AlertTriangle, Check, CheckCircle2, ChevronRight, Clock, Copy, ExternalLink, HelpCircle,
+  Info, Mail, RefreshCcw, ShieldCheck, X,
 } from 'lucide-react'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -89,8 +89,14 @@ interface TransferMember {
    *                  the seeded origin was wrong — the person was never licensed
    *                  in their passport country at all — than that a federation
    *                  has failed to enter them. Read as "no evidence they were
-   *                  ever licensed there".
-   *  - null/undef. — never checked. CH-origin members are skipped on purpose.
+   *                  ever licensed there". For a CH-origin member it blocks
+   *                  nothing at all — no international transfer applies — so it
+   *                  is worded differently there (`trSwissInVisNoHint`).
+   *  - null/undef. — never checked. CH-origin members USED to be skipped by
+   *                  design; they are checked against Swiss Volley's own VIS
+   *                  index (fed 189/SUI) since the Swiss group was introduced,
+   *                  so a Swiss row reading "not checked" just means the monthly
+   *                  job has not run since.
    */
   in_vis?: boolean | null
   /** FIVB VIS player number, present when `in_vis` is true. The only stable
@@ -136,23 +142,29 @@ interface VmRow {
  *               seit längerem in der Schweiz wohnt, nur Amateur ist, keinen
  *               Vertrag hat" — including RL/JL, where the fee is CHF 0 but the
  *               transfer is still mandatory. The actionable cohort.
- *  - `settled`— 'NONE' (held no national-federation licence at 14 — a purely
- *               recreational body such as CSI/UISP/PGS is not an FIVB/FIBA
- *               member, so it answers NONE) or 'CH' (already Swiss-licensed at
- *               14, so an *international* transfer does not apply). Counted
- *               only; no control, because the state is a consequence of the
- *               federation answer rather than an independent fact.
+ *  - `swiss`  — 'CH': Swiss Volley held the age-14 licence, so no INTERNATIONAL
+ *               transfer applies. Split out from `settled` because Swiss Volley
+ *               is a federation in VIS with its own player index exactly like
+ *               the others (`vis_federations` vis_no 189 / SUI) — so these
+ *               members can be grouped, contacted and VIS-checked under it
+ *               rather than disappearing into a bare tally. No transfer control:
+ *               there is no transfer to have a status about.
+ *  - `settled`— 'NONE' — held no national-federation licence at 14, because a
+ *               purely recreational body such as CSI/UISP/PGS is not an
+ *               FIVB/FIBA member. Counted only; there is no federation to group
+ *               them under and no index to look them up in.
  *  - `clarify`— never answered, but holds a non-Swiss nationality and is an
  *               active KSCW member. A question to ask, not a pending transfer.
  *               Nationality is only a heuristic for WHOM to ask — it is not the
  *               trigger; the age-14 licence is.
  *  - `ignore` — nothing to act on (Swiss nationality, or inactive).
  */
-type Bucket = 'needs' | 'settled' | 'clarify' | 'ignore'
+type Bucket = 'needs' | 'swiss' | 'settled' | 'clarify' | 'ignore'
 
 function bucketOf(m: TransferMember): Bucket {
   const fed = String(m.federation_of_origin ?? '').trim().toUpperCase()
-  if (fed) return fed === NO_FEDERATION || fed === 'CH' ? 'settled' : 'needs'
+  if (fed === 'CH') return 'swiss'
+  if (fed) return fed === NO_FEDERATION ? 'settled' : 'needs'
   // No answer yet. Only worth chasing for active members holding a nationality
   // we know is not Swiss — a Swiss passport makes a Swiss age-14 licence by far
   // the likeliest answer, so those are not worth a chase list.
@@ -167,6 +179,12 @@ interface Group {
   label: string
   rows: TransferMember[]
 }
+
+/**
+ * What a rendered group of members is, which decides every column and control
+ * in it. One value per cohort — see `renderTable` for the full mapping.
+ */
+type TableMode = 'needs' | 'clarify' | 'swiss'
 
 /** Group rows by a key, ordered by member count desc, then label. */
 function groupRows(
@@ -421,7 +439,9 @@ export default function TransfersPage() {
   // the people it is built for. Reference impl: `useMultiTeamMembers`.
   const { data: junctionRaw } = useCollection<MemberTeam>('member_teams', {
     filter: { team: { _in: teamIds } },
-    fields: ['id', 'member', 'team'],
+    // `guest_level` is what separates a licensed player from a guest — see
+    // `sportsByMember` below for why this page has to know the difference.
+    fields: ['id', 'member', 'team', 'guest_level'],
     all: true,
     enabled: teamIds.length > 0,
     staleTime: 60_000,
@@ -474,22 +494,40 @@ export default function TransfersPage() {
     return map
   }, [federationsRaw])
 
-  /** memberId → the sports they play, from their team memberships. */
-  const sportsByMember = useMemo(() => {
-    const map = new Map<string, Set<Sport>>()
+  /**
+   * memberId → the sports they play, from their team memberships.
+   *
+   * ⚠ GUESTS ARE EXCLUDED. A `member_teams` row with `guest_level > 0` is
+   * somebody who trains with a team without being licensed by the club — they
+   * hold no Swiss Volley / Swiss Basketball licence at all, so there is no
+   * eligibility to establish, nothing to look up in VIS and no transfer anyone
+   * owes. Leaving them in put people on a worklist that could never be worked.
+   * Same rule the scorer assignment already applies to duty eligibility
+   * (`buildScorerTeams` in AssignmentAlgorithm.ts).
+   *
+   * Guest memberships are kept in a SECOND map rather than discarded, so a
+   * member dropped for being guest-only can be reported in the header instead of
+   * silently vanishing — and so a member who is a full player on one team and a
+   * guest on another still counts as a player.
+   */
+  const { sportsByMember, guestSportsByMember } = useMemo(() => {
+    const players = new Map<string, Set<Sport>>()
+    const guests = new Map<string, Set<Sport>>()
     for (const j of junction) {
       const memberId = relId(j.member)
       const teamSport = sportByTeam.get(relId(j.team))
       if (!memberId || (teamSport !== 'volleyball' && teamSport !== 'basketball')) continue
-      const set = map.get(memberId)
+      const target = (j.guest_level ?? 0) > 0 ? guests : players
+      const set = target.get(memberId)
       if (set) set.add(teamSport)
-      else map.set(memberId, new Set([teamSport]))
+      else target.set(memberId, new Set([teamSport]))
     }
-    return map
+    return { sportsByMember: players, guestSportsByMember: guests }
   }, [junction, sportByTeam])
 
   /**
-   * A member appears under a sport only when a team actually puts them there.
+   * A member appears under a sport only when a team actually puts them there as
+   * a PLAYER (guest memberships do not count — see `sportsByMember`).
    *
    * Members on NO team used to surface under BOTH sports so nothing could hide
    * — but a transfer is only owed by someone who plays, and the register carries
@@ -507,22 +545,41 @@ export default function TransfersPage() {
     [sportsByMember],
   )
 
-  /** Members who WOULD be on a worklist but sit on no team at all — reported in
-   *  the header so the filter above never silently swallows a real transfer.
-   *  Only the two cohorts that render as ROWS count: a settled member never had
-   *  a row to lose, so counting them would overstate what is being hidden. */
-  const hiddenNoTeam = useMemo(
-    () => members.filter((m) => {
+  /**
+   * Members who WOULD be on a worklist but are dropped by the team filter,
+   * reported in the header so the filter never silently swallows a real transfer.
+   *
+   * The two reasons are counted SEPARATELY because they mean opposite things:
+   * "on no team" is a data gap to fix (give them a team and they reappear),
+   * while "guest only" is the correct answer (no licence, so no transfer).
+   *
+   * Only the two WORKLIST cohorts count. A settled member never had a row to
+   * lose, and the Swiss cohort is a reference list rather than work — counting
+   * either would report hundreds of members as "hidden" from a list nobody is
+   * expected to act on.
+   */
+  const hidden = useMemo(() => {
+    let noTeam = 0
+    let guestOnly = 0
+    for (const m of members) {
       const bucket = bucketOf(m)
-      return (bucket === 'needs' || bucket === 'clarify')
-        && !sportsByMember.get(String(m.id))?.size
-    }).length,
-    [members, sportsByMember],
-  )
+      if (bucket !== 'needs' && bucket !== 'clarify') continue
+      const id = String(m.id)
+      if (sportsByMember.get(id)?.size) continue
+      if (guestSportsByMember.get(id)?.size) guestOnly += 1
+      else noTeam += 1
+    }
+    return { noTeam, guestOnly }
+  }, [members, sportsByMember, guestSportsByMember])
 
   /** Per-sport buckets. Computed for BOTH sports so the tab labels carry counts. */
   const bySport = useMemo(() => {
-    const empty = () => ({ needs: [] as TransferMember[], clarify: [] as TransferMember[], settled: 0 })
+    const empty = () => ({
+      needs: [] as TransferMember[],
+      clarify: [] as TransferMember[],
+      swiss: [] as TransferMember[],
+      settled: 0,
+    })
     const acc: Record<Sport, ReturnType<typeof empty>> = {
       volleyball: empty(),
       basketball: empty(),
@@ -534,6 +591,7 @@ export default function TransfersPage() {
         if (!inSport(String(m.id), s)) continue
         if (bucket === 'needs') acc[s].needs.push(m)
         else if (bucket === 'clarify') acc[s].clarify.push(m)
+        else if (bucket === 'swiss') acc[s].swiss.push(m)
         else acc[s].settled += 1
       }
     }
@@ -650,6 +708,20 @@ export default function TransfersPage() {
     ),
     [active.needs, sport],
   )
+  /**
+   * The Swiss cohort under Swiss Volley itself. Always exactly one group (every
+   * row answered 'CH'), built through `groupRows` anyway so it renders through
+   * the same code path — and so the label comes from the same
+   * `federationDisplay` the other groups use ("🇨🇭 Swiss Volley").
+   */
+  const swissGroups = useMemo(
+    () => groupRows(
+      active.swiss,
+      () => 'CH',
+      (code) => federationDisplay(code, sport) || code,
+    ),
+    [active.swiss, sport],
+  )
   const clarifyGroups = useMemo(
     () => groupRows(
       active.clarify,
@@ -688,6 +760,15 @@ export default function TransfersPage() {
   // invalidated `members` query refetches.
   const [noteDrafts, setNoteDrafts] = useState<Map<string, string>>(new Map())
   const [savingId, setSavingId] = useState<string | null>(null)
+
+  /**
+   * Whether the Swiss Volley group is expanded. Closed on purpose: it is the
+   * LARGEST cohort by far (migration 239 seeded ~483 members to CH) and it is a
+   * reference list, not work — open by default it would push the handful of
+   * actual transfers off the screen. Its header still carries the count and the
+   * VIS split, so the summary is readable without expanding anything.
+   */
+  const [swissOpen, setSwissOpen] = useState(false)
 
   // Legal name, not the nickname: this is an administrative attribution record,
   // the same convention as `confirmed_by_name` in game-scheduling.
@@ -839,12 +920,17 @@ export default function TransfersPage() {
    * `false` renders as "not found", never "does not exist": see the `in_vis`
    * doc comment on TransferMember for why a miss usually indicts our seeded
    * federation of origin rather than the federation itself.
+   *
+   * `swiss` swaps the hints and drops the transfers-app link: for a CH-origin
+   * member the index is Swiss Volley's own and no transfer applies either way,
+   * so "a transfer can be requested for them" and an "Open in VIS" CTA would
+   * both point at something that does not exist for them.
    */
-  const visCell = (m: TransferMember) => (
+  const visCell = (m: TransferMember, swiss = false) => (
     <div className="min-w-[7rem] space-y-1">
       {m.in_vis === true ? (
         <span
-          title={t('trInVisYesHint')}
+          title={swiss ? t('trSwissInVisYesHint') : t('trInVisYesHint')}
           className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300"
         >
           <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
@@ -853,7 +939,7 @@ export default function TransfersPage() {
       ) : m.in_vis === false ? (
         // Amber, not red: this is a lead to follow up, not a violation.
         <span
-          title={t('trInVisNoHint')}
+          title={swiss ? t('trSwissInVisNoHint') : t('trInVisNoHint')}
           className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
         >
           <HelpCircle className="h-3 w-3" aria-hidden="true" />
@@ -887,16 +973,18 @@ export default function TransfersPage() {
           )}
           {/* `title` carries the "VIS has no per-player URL" explanation that
               used to be a line of text under every single row. */}
-          <a
-            href={VIS_TRANSFERS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={t('trOpenInVisHint')}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-brand-300 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:min-h-0 dark:border-brand-700 dark:text-brand-200 dark:hover:bg-brand-900/30"
-          >
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-            {t('trOpenInVis')}
-          </a>
+          {!swiss && (
+            <a
+              href={VIS_TRANSFERS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t('trOpenInVisHint')}
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-brand-300 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:min-h-0 dark:border-brand-700 dark:text-brand-200 dark:hover:bg-brand-900/30"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              {t('trOpenInVis')}
+            </a>
+          )}
         </div>
       )}
     </div>
@@ -912,8 +1000,14 @@ export default function TransfersPage() {
    * basketball player — the contact row still shows (it is a usable lead, per
    * `trVisBasketballHint`) but the prepared letter, which names Swiss Volley and
    * the FIVB VIS index, does not.
+   *
+   * ⚠ The letter is also withheld from the SWISS group, where the contact is
+   * Swiss Volley itself: it would ask Swiss Volley to grant a transfer TO Swiss
+   * Volley for players it already licensed. The contact stays, because "who do
+   * we write to about a Swiss player missing from VIS" is a real question — the
+   * answer is just not this letter.
    */
-  const federationBar = (g: Group) => {
+  const federationBar = (g: Group, mode: TableMode) => {
     const iso = g.key
     const fed = federationByIso.get(iso) ?? null
     const emails = splitEmails(fed?.email)
@@ -922,7 +1016,7 @@ export default function TransfersPage() {
     // checked. Both need the same thing from the federation, and splitting them
     // into two letters would ask the same people the same question twice.
     const pending = g.rows.filter((m) => m.in_vis !== true)
-    const canRequest = sport === 'volleyball' && !!fed && pending.length > 0
+    const canRequest = mode === 'needs' && sport === 'volleyball' && !!fed && pending.length > 0
     const body = canRequest ? visRequestText(pending, name) : ''
     // Prefilling the body is the nice case, but a 16-name letter blows past what
     // Windows will hand to a mail client. Rather than drop the link (the big
@@ -1008,32 +1102,47 @@ export default function TransfersPage() {
     )
   }
 
-  /** One data table. `withStatus` is false for the "to clarify" cohort — those
-   *  members have no federation answer yet, so there is no transfer to have a
-   *  status about; the note is the place to record "asked on …". */
-  const renderTable = (groups: Group[], withStatus: boolean) => (
+  /**
+   * One card + data table per group. `mode` decides what a group IS, and
+   * everything else follows from it:
+   *
+   *  - `needs`   — the actionable worklist. Licence validation, VIS presence,
+   *                the transfer status toggle, the federation contact and the
+   *                one consolidated letter.
+   *  - `clarify` — grouped by NATIONALITY, not by a federation answer. No status
+   *                (there is no transfer to have one about — the note is where
+   *                "asked on …" goes), no VIS (never checked), and no federation
+   *                bar: a nationality must not be addressed as though it were a
+   *                federation-of-origin answer.
+   *  - `swiss`   — Swiss Volley's own players. VIS presence and the Swiss Volley
+   *                contact, no status, and COLLAPSED — see `swissOpen`.
+   */
+  const renderTable = (groups: Group[], mode: TableMode) => {
+    const withStatus = mode === 'needs'
+    const withVis = mode !== 'clarify'
+    const collapsible = mode === 'swiss'
+    const headerClass = 'flex min-h-[44px] flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5'
+    return (
     <div className="space-y-4">
       {groups.map((g) => {
         // Per-federation VIS split, shown in the header so an admin can see
         // which groups still need a letter without opening any of them. Zero
         // buckets are omitted rather than shown as "0" — three pills on every
-        // group is noise; the ones that are there all mean something.
+        // group is noise; the ones that are there all mean something. On the
+        // collapsed Swiss group this header is the whole point: the split is
+        // readable without expanding 483 rows.
         const inVis = g.rows.filter((m) => m.in_vis === true).length
         const notFound = g.rows.filter((m) => m.in_vis === false).length
         const unchecked = g.rows.length - inVis - notFound
-        return (
-        <div
-          key={g.key || 'unknown'}
-          className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50"
-        >
-          <div className="flex min-h-[44px] flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5">
+        const header = (
+          <>
             <span className="text-sm font-semibold text-gray-900 dark:text-white">
               {g.label || t('trUnknownFederation')}
             </span>
             <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
               {t('trMemberCount', { count: g.rows.length })}
             </span>
-            {withStatus && (
+            {withVis && (
               <span className="ml-auto flex flex-wrap items-center gap-1.5">
                 {inVis > 0 && (
                   <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
@@ -1052,13 +1161,13 @@ export default function TransfersPage() {
                 )}
               </span>
             )}
-          </div>
-          {/* Federation contact + the one consolidated letter. Only for the
-              actionable cohort: a "to clarify" group is keyed by NATIONALITY,
-              which is not a federation-of-origin answer and must not be
-              addressed as though it were. */}
-          {withStatus && federationBar(g)}
-          <div className="border-t border-gray-100 dark:border-gray-700">
+          </>
+        )
+        const body = (
+          <>
+            {/* Federation contact, and for `needs` the consolidated letter. */}
+            {withVis && federationBar(g, mode)}
+            <div className="border-t border-gray-100 dark:border-gray-700">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1069,7 +1178,7 @@ export default function TransfersPage() {
                   {/* Both sports, unlike the licence column: the VIS check runs
                       on every member with a foreign federation of origin. See
                       `trVisBasketballHint` for what that means on the BB tab. */}
-                  {withStatus && <TableHead>{t('trColInVis')}</TableHead>}
+                  {withVis && <TableHead>{t('trColInVis')}</TableHead>}
                   {withStatus && <TableHead>{t('trColStatus')}</TableHead>}
                   <TableHead>{t('trColNote')}</TableHead>
                 </TableRow>
@@ -1105,8 +1214,8 @@ export default function TransfersPage() {
                       {withStatus && showLicence && (
                         <TableCell className="align-top">{licenceCell(m)}</TableCell>
                       )}
-                      {withStatus && (
-                        <TableCell className="align-top">{visCell(m)}</TableCell>
+                      {withVis && (
+                        <TableCell className="align-top">{visCell(m, mode === 'swiss')}</TableCell>
                       )}
                       {withStatus && (
                         <TableCell className="align-top">
@@ -1162,12 +1271,43 @@ export default function TransfersPage() {
                 })}
               </TableBody>
             </Table>
-          </div>
+            </div>
+          </>
+        )
+        return (
+        <div
+          key={g.key || 'unknown'}
+          className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50"
+        >
+          {collapsible ? (
+            // `open` is CONTROLLED so the body can stay unmounted while closed:
+            // the Swiss group is hundreds of rows, each with a text input, and a
+            // native <details> only HIDES its content — it still mounts it, which
+            // would make every page load pay for a table nobody opened.
+            <details className="group" open={swissOpen} onToggle={(e) => setSwissOpen(e.currentTarget.open)}>
+              <summary
+                className={`${headerClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
+              >
+                <ChevronRight
+                  className="h-4 w-4 shrink-0 text-gray-400 transition-transform group-open:rotate-90"
+                  aria-hidden="true"
+                />
+                {header}
+              </summary>
+              {swissOpen && body}
+            </details>
+          ) : (
+            <>
+              <div className={headerClass}>{header}</div>
+              {body}
+            </>
+          )}
         </div>
         )
       })}
     </div>
-  )
+    )
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-4">
@@ -1178,9 +1318,16 @@ export default function TransfersPage() {
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('trDescription')}</p>
           {/* Say what the sport filter drops. A worklist that quietly omits
               people is worse than one that is a little longer. */}
-          {hiddenNoTeam > 0 && (
+          {hidden.noTeam > 0 && (
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-              {t('trHiddenNoTeam', { count: hiddenNoTeam })}
+              {t('trHiddenNoTeam', { count: hidden.noTeam })}
+            </p>
+          )}
+          {/* Guests are dropped for a REASON, not by an accident of filtering —
+              so this line explains rather than apologises. */}
+          {hidden.guestOnly > 0 && (
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              {t('trHiddenGuests', { count: hidden.guestOnly })}
             </p>
           )}
         </div>
@@ -1283,13 +1430,17 @@ export default function TransfersPage() {
           )}
           {/* Derived "no transfer needed" tally. A count only — these members
               have no independent state to toggle; their federation answer
-              already IS the answer. */}
+              already IS the answer.
+              ⚠ Deliberately the TOTAL of both settled cohorts (Swiss + 'NONE'),
+              not just the ones without a section of their own: the claim is
+              "these many members need no transfer", and dropping the Swiss ones
+              because they are also listed below would make it false. */}
           <span
             title={t('trSettledDescription')}
             className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300"
           >
             <ShieldCheck className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" aria-hidden="true" />
-            {t('trSettledCount', { count: active.settled })}
+            {t('trSettledCount', { count: active.settled + active.swiss.length })}
           </span>
         </div>
 
@@ -1310,20 +1461,24 @@ export default function TransfersPage() {
         </div>
       </div>
 
-      {nothingToDo ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="mb-4 rounded-full bg-gray-100 p-4 dark:bg-gray-800">
-            <CheckCircle2 className="h-8 w-8 text-green-500" aria-hidden="true" />
+      {/* The empty state replaces the two WORKLIST cohorts only — the Swiss
+          reference list below is not work and stays reachable even on a day when
+          there is nothing to do. */}
+      <div className="space-y-8">
+        {nothingToDo ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="mb-4 rounded-full bg-gray-100 p-4 dark:bg-gray-800">
+              <CheckCircle2 className="h-8 w-8 text-green-500" aria-hidden="true" />
+            </div>
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('trEmptyTitle')}
+            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t('trEmptyDescription')}
+            </p>
           </div>
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            {t('trEmptyTitle')}
-          </p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {t('trEmptyDescription')}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-8">
+        ) : (
+          <>
           {/* Cohort A — actionable transfers */}
           {active.needs.length > 0 && (
             <section>
@@ -1337,7 +1492,7 @@ export default function TransfersPage() {
               <p className="mt-1 mb-3 text-sm text-gray-500 dark:text-gray-400">
                 {t('trNeedsDescription')}
               </p>
-              {renderTable(needsGroups, true)}
+              {renderTable(needsGroups, 'needs')}
             </section>
           )}
 
@@ -1356,11 +1511,36 @@ export default function TransfersPage() {
               <p className="mt-1 mb-3 text-sm text-gray-500 dark:text-gray-400">
                 {t('trClarifyDescription')}
               </p>
-              {renderTable(clarifyGroups, false)}
+              {renderTable(clarifyGroups, 'clarify')}
             </section>
           )}
-        </div>
-      )}
+          </>
+        )}
+
+        {/* Cohort C — Swiss Volley's own players.
+            ⚠ VOLLEYBALL ONLY. `vis_federations` and the VIS player index are
+            FIVB's, so on the basketball tab this section would list Swiss
+            basketballers under a volleyball federation and show them an "In VIS"
+            column that cannot say anything about them. They stay in the "needs
+            no transfer" tally there, which is the whole truth we have.
+            No transfer status: a Swiss age-14 licence means no INTERNATIONAL
+            transfer exists to track. */}
+        {sport === 'volleyball' && active.swiss.length > 0 && (
+          <section>
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+              <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" aria-hidden="true" />
+              {t('trSwissTitle')}
+              <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                {active.swiss.length}
+              </span>
+            </h2>
+            <p className="mt-1 mb-3 text-sm text-gray-500 dark:text-gray-400">
+              {t('trSwissDescription')}
+            </p>
+            {renderTable(swissGroups, 'swiss')}
+          </section>
+        )}
+      </div>
     </div>
   )
 }

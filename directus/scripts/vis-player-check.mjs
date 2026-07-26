@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Is each foreign-origin member present in the FIVB VIS player index?
+ * Is each member present in the VIS player index of their federation of origin?
  * → `members.in_vis` / `vis_player_no` / `in_vis_checked_at` (migration 240).
  *
  * A transfer can only be REQUESTED for a player already in VIS. If they are not
@@ -17,9 +17,26 @@
  * federation and matching locally. That is why this is a MONTHLY job and not a
  * per-member lookup: ~30 federation rosters, a few thousand rows each.
  *
- * Only members whose federation_of_origin is neither CH nor NONE are checked. A
- * Swiss origin means no international transfer applies, so a `false` there would
- * be noise; those rows are left NULL on purpose.
+ * WHO IS CHECKED
+ *   • Everyone with a federation of origin other than 'NONE' — INCLUDING 'CH'.
+ *     Swiss Volley is a federation in VIS with its own player index (no. 189 /
+ *     SUI) exactly like the others, so the same question is answerable for our
+ *     Swiss-origin members and the Transfers page groups them under it. Their
+ *     `in_vis = false` blocks nothing (no international transfer applies to
+ *     them), it is simply "no player of that name in Swiss Volley's index" —
+ *     which is still worth seeing. ⚠ This reverses the original design; the
+ *     comments on migration 240 still describe CH as deliberately skipped.
+ *   • 'NONE' stays out: there is no federation to look them up in.
+ *   • GUESTS STAY OUT. A member whose every `member_teams` row has
+ *     `guest_level > 0` trains with a team without being licensed by the club, so
+ *     there is no eligibility to establish and nothing on the Transfers page
+ *     applies to them. Kept in step with the page, which drops them for the same
+ *     reason.
+ *
+ * ⚠ Swiss Volley's roster is the largest one this job pulls (it is our own
+ * country and the only federation where most of the club is in scope). That is a
+ * one-off cost per run, not per member — the roster is fetched once and matched
+ * locally like every other federation's.
  *
  * Usage:
  *   VIS_USER=… VIS_PASS=… node vis-player-check.mjs <dev|prod> [--dry-run]
@@ -41,6 +58,7 @@ for (const t of [REQUEST_TYPE, FED_LIST_TYPE]) {
  * mapped explicitly. An unmapped country is reported and skipped — never guessed.
  */
 const ISO2FIVB = {
+  CH: 'SUI',
   DE: 'GER', IT: 'ITA', FR: 'FRA', AF: 'AFG', ES: 'ESP', PL: 'POL', US: 'USA',
   SE: 'SWE', LK: 'SRI', AT: 'AUT', PT: 'POR', ET: 'ETH', RU: 'RUS', FI: 'FIN',
   BG: 'BUL', CZ: 'CZE', NL: 'NED', NZ: 'NZL', PE: 'PER', RS: 'SRB', AL: 'ALB',
@@ -114,16 +132,20 @@ async function main() {
   if (!target) throw new Error('specify dev or prod')
   const env = ENVS[target]
 
-  const members = psql(env, `SELECT id, first_name, last_name, federation_of_origin
-      FROM members
-     WHERE federation_of_origin IS NOT NULL
-       AND federation_of_origin NOT IN ('CH','NONE')
-       AND kscw_membership_active
-     ORDER BY federation_of_origin, last_name;`)
+  const members = psql(env, `SELECT m.id, m.first_name, m.last_name, m.federation_of_origin
+      FROM members m
+     WHERE m.federation_of_origin IS NOT NULL
+       AND m.federation_of_origin <> 'NONE'
+       AND m.kscw_membership_active
+       -- Guests hold no club licence, so nothing about eligibility or transfers
+       -- applies to them. A member who is a full player on ANY team qualifies.
+       AND EXISTS (SELECT 1 FROM member_teams mt
+                    WHERE mt.member = m.id AND coalesce(mt.guest_level, 0) = 0)
+     ORDER BY m.federation_of_origin, m.last_name;`)
     .trim().split('\n').filter(Boolean)
     .map((l) => { const [id, fn, ln, foo] = l.split('|'); return { id, fn, ln, foo } })
 
-  console.log(`[vis] ${members.length} member(s) with a foreign federation of origin`)
+  console.log(`[vis] ${members.length} licensed member(s) with a federation of origin`)
   if (!members.length) return
 
   const cookie = await visLogin()

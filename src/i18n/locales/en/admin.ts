@@ -926,6 +926,15 @@ export default {
   trSettledCount_one: '{{count}} member needs no transfer',
   trSettledCount_other: '{{count}} members need no transfer',
   trSettledDescription: 'They held no national-federation licence at 14, or they were already licensed in Switzerland.',
+  // The Swiss cohort, listed under Swiss Volley instead of only counted. Swiss
+  // Volley is a federation in VIS with its own player index (vis_no 189/SUI)
+  // exactly like the others, so these members can be grouped and looked up the
+  // same way — but no INTERNATIONAL transfer exists for them, so the wording must
+  // never imply one is owed or pending.
+  trSwissTitle: 'Licensed in Switzerland at 14',
+  trSwissDescription: 'Swiss Volley held their licence at 14, so no international transfer applies. They are grouped under Swiss Volley because it is a federation in VIS like any other — worth knowing whether our own players are in the index, even though nothing here is blocked.',
+  trSwissInVisYesHint: 'Found in Swiss Volley’s VIS player index.',
+  trSwissInVisNoHint: 'No player of this name was found in Swiss Volley’s VIS index. Nothing is blocked — no international transfer applies to them — but the check matches by name, so read it as a lead worth following, not a fact.',
   trMemberCount_one: '{{count}} member',
   trMemberCount_other: '{{count}} members',
   trUnknownFederation: 'Unknown federation',
@@ -947,6 +956,10 @@ export default {
   trDoneOn: 'Done {{date}}',
   trHiddenNoTeam_one: '{{count}} member is not shown because they are on no team.',
   trHiddenNoTeam_other: '{{count}} members are not shown because they are on no team.',
+  // Guests hold no club licence, so no transfer is owed for them and there is no
+  // eligibility to establish. Worded as the reason it is, not as an omission.
+  trHiddenGuests_one: '{{count}} member is not shown because they only play as a guest — guests hold no licence, so no transfer applies.',
+  trHiddenGuests_other: '{{count}} members are not shown because they only play as guests — guests hold no licence, so no transfer applies.',
   trInactive: 'Membership inactive',
   trLicenceValidated: 'Validated',
   trLicenceNotValidated: 'Not validated',
