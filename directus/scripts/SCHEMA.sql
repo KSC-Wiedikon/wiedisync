@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-25T17:14:10.938Z
+-- Generated:   2026-07-26T17:20:28.951Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict cJFbFIz1Dmc6CbrijJwoYxaD4kzOtihiDdxXXRgSh2VsdaCr0VKs9B9nHe4foS9
+\restrict zotDIHEIoI8R7qpX24MKnlLzp7DnknqapZgd9QJ5M0RaPEST5n4QuVYRqEcqlzO
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -777,6 +777,23 @@ BEGIN
   WHERE et.events_id = v_id;
 
   IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END;
+$$;
+
+
+--
+-- Name: trg_absences_normalize_indefinite(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_absences_normalize_indefinite() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.indefinite IS TRUE THEN
+    NEW.end_date := DATE '2099-12-31';
+  END IF;
+  RETURN NEW;
 END;
 $$;
 
@@ -2050,6 +2067,56 @@ CREATE SEQUENCE public.carpools_id_seq
 --
 
 ALTER SEQUENCE public.carpools_id_seq OWNED BY public.carpools.id;
+
+
+--
+-- Name: city_hall_availability; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.city_hall_availability (
+    einrichtung_id integer NOT NULL,
+    weekday smallint NOT NULL,
+    season_start date NOT NULL,
+    season_end date NOT NULL,
+    scrape_window_from text NOT NULL,
+    scrape_window_to text NOT NULL,
+    scrape_min_minutes integer NOT NULL,
+    dates jsonb DEFAULT '[]'::jsonb NOT NULL,
+    scraped_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT city_hall_availability_weekday_check CHECK (((weekday >= 1) AND (weekday <= 7)))
+);
+
+
+--
+-- Name: TABLE city_hall_availability; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.city_hall_availability IS 'Per (hall, weekday) cached free/holiday outcome per week for one season. Private — read via /kscw/hallenfinder/search only.';
+
+
+--
+-- Name: city_halls; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.city_halls (
+    einrichtung_id integer NOT NULL,
+    name text NOT NULL,
+    hall_type text,
+    address text,
+    plz text,
+    stadtkreis text,
+    stadtquartier text,
+    schulkreis text,
+    first_seen timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE city_halls; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.city_halls IS 'Roster of City of Zürich sport halls seen in the Hallenfinder scrape. Private — read via /kscw/hallenfinder/search only.';
 
 
 --
@@ -5143,9 +5210,17 @@ CREATE TABLE public.members (
     federation_of_origin character varying(8),
     otn1_bb boolean DEFAULT false NOT NULL,
     otn2_bb boolean DEFAULT false NOT NULL,
+    transfer_status character varying(16),
+    transfer_done_at timestamp with time zone,
+    transfer_done_by_name text,
+    transfer_note text,
+    in_vis boolean,
+    in_vis_checked_at timestamp with time zone,
+    vis_player_no integer,
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
-    CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb))
+    CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
+    CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying])::text[]))))
 );
 
 
@@ -5336,6 +5411,41 @@ COMMENT ON COLUMN public.members.otn1_bb IS 'Basketball OTN 1 (national table of
 --
 
 COMMENT ON COLUMN public.members.otn2_bb IS 'Basketball OTN 2 (national table official, level 2). Authoritative source is Basketplan (nationalTableReferee2). ClubDesk cannot distinguish OTN levels, so its down-sync must never clear this.';
+
+
+--
+-- Name: COLUMN members.transfer_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.transfer_status IS 'International-transfer WORK state: NULL = not reviewed, ''pending'' = being chased, ''done'' = cleared. Whether a transfer is needed at all is derived from federation_of_origin (''NONE'' or ''CH'' = not needed), never stored here.';
+
+
+--
+-- Name: COLUMN members.transfer_done_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.transfer_done_at IS 'When transfer_status last became ''done''. Cleared when the status moves away from done, so it can never describe a state the row is no longer in.';
+
+
+--
+-- Name: COLUMN members.transfer_done_by_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.transfer_done_by_name IS 'Display name of the staff member who marked the transfer done — the domain-level "who signed this off", alongside the automatic directus_activity trail.';
+
+
+--
+-- Name: COLUMN members.in_vis; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.in_vis IS 'Found in the VIS player roster of their federation of origin — including CH, checked against Swiss Volley''s own index (VIS fed 189/SUI). NULL = not checked yet (guests and federation_of_origin = NONE are never checked). false = no evidence they were licensed there — treat as a lead, not a fact: name matching is fuzzy and federation_of_origin is often a seed from nationality. For a CH-origin member a false blocks nothing, since no international transfer applies to them.';
+
+
+--
+-- Name: COLUMN members.vis_player_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.vis_player_no IS 'FIVB VIS player number, captured when a match is found. The key for a deep link into the VIS transfers app.';
 
 
 --
@@ -7506,6 +7616,70 @@ ALTER SEQUENCE public.vb_referee_duty_id_seq OWNED BY public.vb_referee_duty.id;
 
 
 --
+-- Name: vis_federations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.vis_federations (
+    vis_no integer NOT NULL,
+    iso character varying(2) NOT NULL,
+    code character varying(3) NOT NULL,
+    name text NOT NULL,
+    email text,
+    website text
+);
+
+
+--
+-- Name: TABLE vis_federations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.vis_federations IS 'National volleyball federations from VIS GetFederationList, keyed by VIS number, with the ISO alpha-2 of their country. email may hold several addresses separated by "; ".';
+
+
+--
+-- Name: vis_transfers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.vis_transfers (
+    vis_no integer NOT NULL,
+    season_no integer NOT NULL,
+    no_by_season integer,
+    status_code integer,
+    status_label text,
+    percent_complete integer,
+    is_player_minor boolean,
+    is_player_blocked boolean,
+    start_on date,
+    end_on date,
+    player_no integer,
+    player_first_name text,
+    player_last_name text,
+    from_federation_no integer,
+    to_club_no integer,
+    to_club_name text,
+    to_team_name text,
+    to_division_name text,
+    deleted_at timestamp with time zone,
+    synced_at timestamp with time zone DEFAULT now() NOT NULL,
+    from_federation_code text
+);
+
+
+--
+-- Name: TABLE vis_transfers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.vis_transfers IS 'FIVB VIS international transfers for KSC Wiedikon (club 13021), read-only mirror. status_code 200/210/215/220 = ended (ITC issued); 239/240 cancelled; 255 refused. Authoritative, unlike members.transfer_status which is the club''s own workflow marker.';
+
+
+--
+-- Name: COLUMN vis_transfers.from_federation_code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.vis_transfers.from_federation_code IS 'FIVB 3-letter federation code of the releasing federation (BRA, SUI, …) — IOC-style, not ISO alpha-2.';
+
+
+--
 -- Name: vm_vb_spielplan_contact; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8433,6 +8607,22 @@ ALTER TABLE ONLY public.carpool_passengers
 
 ALTER TABLE ONLY public.carpools
     ADD CONSTRAINT carpools_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: city_hall_availability city_hall_availability_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.city_hall_availability
+    ADD CONSTRAINT city_hall_availability_pkey PRIMARY KEY (einrichtung_id, weekday, season_start, season_end);
+
+
+--
+-- Name: city_halls city_halls_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.city_halls
+    ADD CONSTRAINT city_halls_pkey PRIMARY KEY (einrichtung_id);
 
 
 --
@@ -9468,6 +9658,22 @@ ALTER TABLE ONLY public.vb_referee_duty
 
 
 --
+-- Name: vis_federations vis_federations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vis_federations
+    ADD CONSTRAINT vis_federations_pkey PRIMARY KEY (vis_no);
+
+
+--
+-- Name: vis_transfers vis_transfers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vis_transfers
+    ADD CONSTRAINT vis_transfers_pkey PRIMARY KEY (vis_no);
+
+
+--
 -- Name: vm_vb_spielplan_contact vm_vb_spielplan_contact_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9574,6 +9780,13 @@ CREATE INDEX carpools_driver_index ON public.carpools USING btree (driver);
 --
 
 CREATE INDEX carpools_game_index ON public.carpools USING btree (game);
+
+
+--
+-- Name: city_hall_availability_weekday_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX city_hall_availability_weekday_idx ON public.city_hall_availability USING btree (weekday, season_start, season_end);
 
 
 --
@@ -10529,10 +10742,24 @@ CREATE UNIQUE INDEX members_ical_token_key ON public.members USING btree (ical_t
 
 
 --
+-- Name: members_in_vis_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX members_in_vis_idx ON public.members USING btree (in_vis) WHERE (in_vis IS NOT NULL);
+
+
+--
 -- Name: members_requested_team_index; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX members_requested_team_index ON public.members USING btree (requested_team);
+
+
+--
+-- Name: members_transfer_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX members_transfer_status_idx ON public.members USING btree (transfer_status) WHERE (transfer_status IS NOT NULL);
 
 
 --
@@ -11026,6 +11253,27 @@ CREATE INDEX vb_referee_duty_team_idx ON public.vb_referee_duty USING btree (tea
 
 
 --
+-- Name: vis_federations_iso_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX vis_federations_iso_idx ON public.vis_federations USING btree (iso);
+
+
+--
+-- Name: vis_transfers_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX vis_transfers_name_idx ON public.vis_transfers USING btree (lower(player_last_name), lower(player_first_name));
+
+
+--
+-- Name: vis_transfers_season_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX vis_transfers_season_idx ON public.vis_transfers USING btree (season_no);
+
+
+--
 -- Name: stats_team_roster _RETURN; Type: RULE; Schema: public; Owner: -
 --
 
@@ -11079,6 +11327,13 @@ CREATE TRIGGER form_submissions_update_guard BEFORE UPDATE ON public.form_submis
 --
 
 CREATE TRIGGER members_sync_nationality_trg BEFORE INSERT OR UPDATE OF nationalitaet, nationalitaet_codes ON public.members FOR EACH ROW EXECUTE FUNCTION public.members_sync_nationality();
+
+
+--
+-- Name: absences trg_absences_normalize_indefinite; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_absences_normalize_indefinite BEFORE INSERT OR UPDATE ON public.absences FOR EACH ROW EXECUTE FUNCTION public.trg_absences_normalize_indefinite();
 
 
 --
@@ -11444,6 +11699,14 @@ ALTER TABLE ONLY public.carpool_passengers
 
 ALTER TABLE ONLY public.carpools
     ADD CONSTRAINT carpools_driver_foreign FOREIGN KEY (driver) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: city_hall_availability city_hall_availability_einrichtung_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.city_hall_availability
+    ADD CONSTRAINT city_hall_availability_einrichtung_id_fkey FOREIGN KEY (einrichtung_id) REFERENCES public.city_halls(einrichtung_id) ON DELETE CASCADE;
 
 
 --
@@ -12828,5 +13091,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict cJFbFIz1Dmc6CbrijJwoYxaD4kzOtihiDdxXXRgSh2VsdaCr0VKs9B9nHe4foS9
+\unrestrict zotDIHEIoI8R7qpX24MKnlLzp7DnknqapZgd9QJ5M0RaPEST5n4QuVYRqEcqlzO
 
