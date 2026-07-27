@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-26T17:20:28.951Z
+-- Generated:   2026-07-27T15:25:19.586Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict zotDIHEIoI8R7qpX24MKnlLzp7DnknqapZgd9QJ5M0RaPEST5n4QuVYRqEcqlzO
+\restrict YbMnfOrbtu7adOHWoWyAnLzToYuyyTH5ClZziXoAC3300Q9LVPwJxfKlWouDPCr
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -115,8 +115,12 @@ CREATE FUNCTION public.finance_native_txn_lock() RETURNS trigger
     AS $$
 DECLARE new_status text; DECLARE old_status text;
 BEGIN
-  -- Target year (INSERT/UPDATE): cannot write into a closed year.
+  -- Target year (INSERT/UPDATE): cannot write into a closed year — and a native
+  -- row must HAVE a year, else the closed-year check can never apply to it.
   IF TG_OP IN ('INSERT', 'UPDATE') AND NEW.source = 'native' THEN
+    IF NEW.fiscal_year IS NULL THEN
+      RAISE EXCEPTION 'A native ledger entry must carry a fiscal year — a year-less row can never be locked by the year-end close';
+    END IF;
     SELECT status INTO new_status FROM finance_fiscal_years WHERE id = NEW.fiscal_year;
     IF new_status = 'closed' THEN
       RAISE EXCEPTION 'Cannot % a native ledger entry in a closed fiscal year — post a reversal in an open year instead', lower(TG_OP);
@@ -790,10 +794,31 @@ CREATE FUNCTION public.trg_absences_normalize_indefinite() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
+  IF NEW.end_date IS NULL THEN
+    NEW.indefinite := TRUE;
+  END IF;
   IF NEW.indefinite IS TRUE THEN
     NEW.end_date := DATE '2099-12-31';
   END IF;
   RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: trg_activity_purge_polymorphic(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_activity_purge_polymorphic() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  DELETE FROM participations WHERE activity_type = TG_ARGV[0] AND activity_id = OLD.id::text;
+  DELETE FROM notifications
+   WHERE activity_type = TG_ARGV[0] AND activity_id = OLD.id::text
+     AND title NOT IN ('training_deleted', 'game_deleted', 'event_deleted');
+  RETURN OLD;
 END;
 $$;
 
@@ -970,6 +995,17 @@ BEGIN
       v_body := json_build_object(
         'home_team', COALESCE(NEW.home_team, ''), 'away_team', COALESCE(NEW.away_team, ''),
         'date', COALESCE(to_char(NEW.date, 'DD.MM.YY'), '')
+      )::text;
+    ELSIF OLD.status = 'cancelled' AND NEW.status = 'scheduled' THEN
+      -- Un-cancel: the team was told "game cancelled" — a silent reappearance
+      -- (previously the cosmetic-mute branch when date/time were unchanged)
+      -- must not happen. completed is handled above; cancelled→postponed
+      -- deliberately does NOT announce "reinstated" (still not happening).
+      v_type := 'activity_change'; v_title := 'game_reinstated';
+      v_body := json_build_object(
+        'home_team', COALESCE(NEW.home_team, ''), 'away_team', COALESCE(NEW.away_team, ''),
+        'date', COALESCE(to_char(NEW.date, 'DD.MM.YY'), ''),
+        'time', COALESCE(to_char(NEW.time, 'HH24:MI'), ''), 'hall', v_hall
       )::text;
     ELSE
       -- Mute cosmetic updates: only notify when the game was actually rescheduled
@@ -1803,50 +1839,6 @@ ALTER SEQUENCE public.basketball_slot_plan_id_seq OWNED BY public.basketball_slo
 
 
 --
--- Name: team_links; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.team_links (
-    id integer NOT NULL,
-    season integer NOT NULL,
-    team_a integer NOT NULL,
-    team_b integer NOT NULL,
-    link_type character varying(8) NOT NULL,
-    created_by integer,
-    date_created timestamp with time zone DEFAULT now() NOT NULL,
-    date_updated timestamp with time zone DEFAULT now() NOT NULL,
-    sport character varying(16) DEFAULT 'basketball'::character varying NOT NULL
-);
-
-
---
--- Name: TABLE team_links; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.team_links IS 'Coach/player-sharing links between teams, per season + sport. link_type: diff = must not play the same time (shared person); same = keep the same time; adjacent = different time but back-to-back. Drives the scheduling planners'' slot/day highlights. Edited via Basketball → Settings and Terminplanung → Settings.';
-
-
---
--- Name: basketball_team_links_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.basketball_team_links_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: basketball_team_links_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.basketball_team_links_id_seq OWNED BY public.team_links.id;
-
-
---
 -- Name: basketplan_nations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2004,8 +1996,8 @@ ALTER SEQUENCE public.bugfix_jobs_id_seq OWNED BY public.bugfix_jobs.id;
 CREATE TABLE public.carpool_passengers (
     id integer NOT NULL,
     status character varying(255) DEFAULT NULL::character varying,
-    carpool integer,
-    passenger integer,
+    carpool integer NOT NULL,
+    passenger integer NOT NULL,
     date_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     date_updated timestamp with time zone
 );
@@ -2191,8 +2183,16 @@ CREATE TABLE public.clubdesk_export (
     rolle_bracketed text,
     wiedisync_id text,
     js_id text,
-    federation_of_origin text
+    federation_of_origin text,
+    gast text
 );
+
+
+--
+-- Name: COLUMN clubdesk_export.gast; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_export.gast IS 'ClubDesk "Gast" checkbox (Ja/Nein) as exported. Written ONLY by wiedisync''s sync-up push; staged here so computeClubdeskDrift can compare it against the current-season roster. Never flows back into members — member_teams.guest_level is the source of truth.';
 
 
 --
@@ -2668,8 +2668,8 @@ ALTER SEQUENCE public.events_id_seq OWNED BY public.events.id;
 
 CREATE TABLE public.events_members (
     id integer NOT NULL,
-    events_id integer,
-    members_id integer
+    events_id integer NOT NULL,
+    members_id integer NOT NULL
 );
 
 
@@ -2699,8 +2699,8 @@ ALTER SEQUENCE public.events_members_id_seq OWNED BY public.events_members.id;
 
 CREATE TABLE public.events_teams (
     id integer NOT NULL,
-    events_id integer,
-    teams_id integer
+    events_id integer NOT NULL,
+    teams_id integer NOT NULL
 );
 
 
@@ -3129,7 +3129,7 @@ CREATE TABLE public.finance_expenses (
     member integer NOT NULL,
     file uuid,
     amount numeric(12,2) NOT NULL,
-    currency character varying(8) DEFAULT 'CHF'::character varying NOT NULL,
+    currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL,
     expense_date date,
     vendor character varying(200),
     description character varying(300),
@@ -3260,6 +3260,20 @@ CREATE TABLE public.finance_imports (
 --
 
 COMMENT ON TABLE public.finance_imports IS 'One row per ClubDesk finance sync/import. Records WHO (imported_by_*), WHAT (import_type), and how many rows — the finance equivalent of the audit-log actor capture for the raw-knex import path.';
+
+
+--
+-- Name: COLUMN finance_imports.fiscal_year_label; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_imports.fiscal_year_label IS 'DISPLAY-ONLY fiscal-year hint — a single label or a compact earliest–latest range (''2021/22–2026/27''); intentionally NOT a join key to finance_fiscal_years.';
+
+
+--
+-- Name: COLUMN finance_imports.source_checksum; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_imports.source_checksum IS 'sha256 of the imported file. Importers warn (never abort) when the previous batch of the same import_type carries the same checksum — a double-import is idempotent for the mirrors but pollutes provenance.';
 
 
 --
@@ -3437,6 +3451,8 @@ CREATE TABLE public.finance_invoices (
     email_sent_at timestamp with time zone,
     dunning_level smallint DEFAULT 0 NOT NULL,
     contact integer,
+    currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL,
+    CONSTRAINT finance_invoices_native_status_check CHECK ((((source)::text <> 'native'::text) OR ((status)::text = ANY ((ARRAY['open'::character varying, 'pending_confirmation'::character varying, 'partial'::character varying, 'paid'::character varying, 'cancelled'::character varying])::text[])))),
     CONSTRAINT finance_invoices_source_check CHECK (((source)::text = ANY (ARRAY[('clubdesk'::character varying)::text, ('native'::character varying)::text])))
 );
 
@@ -3586,7 +3602,9 @@ CREATE TABLE public.finance_payments (
     created_by_name character varying(255),
     created_by_email character varying(255),
     payout integer,
+    match_clubdesk_id character varying(32),
     CONSTRAINT finance_payments_entry_type_check CHECK (((entry_type)::text = ANY (ARRAY[('payment'::character varying)::text, ('credit_note'::character varying)::text, ('refund'::character varying)::text, ('writeoff'::character varying)::text]))),
+    CONSTRAINT finance_payments_match_status_check CHECK (((match_status IS NULL) OR ((match_status)::text = ANY ((ARRAY['native'::character varying, 'clubdesk_match'::character varying, 'clubdesk_guess'::character varying, 'unmatched'::character varying, 'link_lost'::character varying])::text[])))),
     CONSTRAINT finance_payments_source_check CHECK (((source)::text = ANY (ARRAY[('clubdesk'::character varying)::text, ('native'::character varying)::text])))
 );
 
@@ -3599,10 +3617,17 @@ COMMENT ON TABLE public.finance_payments IS 'Individual payments against invoice
 
 
 --
+-- Name: COLUMN finance_payments.currency; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_payments.currency IS 'Raw currency of the bank credit as reported by the camt entry — intentionally nullable with no default (a missing value must stay visibly missing, never masquerade as CHF; finance-camt.js skips non-CHF credits before matching).';
+
+
+--
 -- Name: COLUMN finance_payments.match_status; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.finance_payments.match_status IS 'How the camt credit was reconciled: native (matched a native invoice by SCOR/QRR ref → auto-confirmed) | clubdesk_guess (fuzzy candidate flagged, NOT applied) | unmatched.';
+COMMENT ON COLUMN public.finance_payments.match_status IS 'How the camt credit was reconciled: native (matched a native invoice by SCOR/QRR ref → auto-confirmed) | clubdesk_match (matched a ClubDesk invoice by number, cross-check only) | clubdesk_guess (fuzzy candidate flagged, NOT applied) | unmatched | link_lost (the matched ClubDesk invoice vanished from a later sync).';
 
 
 --
@@ -3610,6 +3635,13 @@ COMMENT ON COLUMN public.finance_payments.match_status IS 'How the camt credit w
 --
 
 COMMENT ON COLUMN public.finance_payments.entry_type IS 'payment (money in: cash/twint/bank/camt) | credit_note (non-cash reduction) | writeoff (uncollectable) | refund (money returned). NULL legacy rows = payment.';
+
+
+--
+-- Name: COLUMN finance_payments.match_clubdesk_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_payments.match_clubdesk_id IS 'Stable ClubDesk id of the matched/guessed mirror invoice. clubdesk_guess is an id FK and every ClubDesk finance sync re-keys the mirror (delete+reinsert → SET NULL), so the importer re-points clubdesk_guess from this snapshot; when the invoice vanished from ClubDesk it flips match_status to ''link_lost''.';
 
 
 --
@@ -3640,7 +3672,7 @@ CREATE TABLE public.finance_payouts (
     id integer NOT NULL,
     member integer NOT NULL,
     amount numeric(12,2),
-    currency character varying(8) DEFAULT 'CHF'::character varying NOT NULL,
+    currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL,
     message character varying(140),
     iban character varying(34) NOT NULL,
     payee_name character varying(255),
@@ -3651,7 +3683,8 @@ CREATE TABLE public.finance_payouts (
     created_by_name character varying(255),
     created_by_email character varying(255),
     date_created timestamp with time zone DEFAULT now() NOT NULL,
-    user_created uuid
+    user_created uuid,
+    CONSTRAINT finance_payouts_status_check CHECK (((status)::text = ANY ((ARRAY['open'::character varying, 'paid'::character varying, 'cancelled'::character varying])::text[])))
 );
 
 
@@ -3700,6 +3733,7 @@ CREATE TABLE public.finance_team_entries (
     created_by_email character varying(255),
     date_created timestamp with time zone DEFAULT now() NOT NULL,
     user_created uuid,
+    currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL,
     CONSTRAINT finance_team_entries_amount_check CHECK ((amount >= (0)::numeric)),
     CONSTRAINT finance_team_entries_kind_check CHECK (((kind)::text = ANY (ARRAY[('sponsoring'::character varying)::text, ('income'::character varying)::text, ('expense'::character varying)::text])))
 );
@@ -3763,6 +3797,7 @@ CREATE TABLE public.finance_transactions (
     ref_kind character varying(24),
     ref_id integer,
     auto boolean DEFAULT false NOT NULL,
+    CONSTRAINT finance_transactions_ref_kind_check CHECK (((ref_kind IS NULL) OR ((ref_kind)::text = ANY ((ARRAY['issue'::character varying, 'settle'::character varying, 'settle_over'::character varying, 'round'::character varying, 'team'::character varying])::text[])))),
     CONSTRAINT finance_transactions_source_check CHECK (((source)::text = ANY (ARRAY[('clubdesk'::character varying)::text, ('native'::character varying)::text])))
 );
 
@@ -3792,7 +3827,7 @@ COMMENT ON COLUMN public.finance_transactions.reversal_of IS 'For a native corre
 -- Name: COLUMN finance_transactions.ref_kind; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.finance_transactions.ref_kind IS 'Auto-post link: issue|settle|team (the A/R event that produced this journal entry).';
+COMMENT ON COLUMN public.finance_transactions.ref_kind IS 'Auto-post link: issue | settle | settle_over (overpayment/prepayment leg) | round (≤1-rappen residual forgiveness) | team (the A/R or team-ledger event that produced this journal entry). NULL on ClubDesk-mirror and manual rows.';
 
 
 --
@@ -4105,8 +4140,8 @@ ALTER SEQUENCE public.forms_id_seq OWNED BY public.forms.id;
 
 CREATE TABLE public.forms_teams (
     id integer NOT NULL,
-    forms_id integer,
-    teams_id integer
+    forms_id integer NOT NULL,
+    teams_id integer NOT NULL
 );
 
 
@@ -4224,7 +4259,7 @@ ALTER SEQUENCE public.game_rosters_id_seq OWNED BY public.game_rosters.id;
 
 CREATE TABLE public.game_scheduling_bookings (
     id integer NOT NULL,
-    season character varying(255) DEFAULT NULL::character varying,
+    season integer,
     type character varying(255) DEFAULT NULL::character varying,
     proposed_datetime_1 timestamp with time zone,
     proposed_place_1 character varying(255) DEFAULT NULL::character varying,
@@ -4236,7 +4271,6 @@ CREATE TABLE public.game_scheduling_bookings (
     status character varying(255) DEFAULT NULL::character varying,
     admin_notes text,
     opponent integer,
-    game integer,
     slot integer,
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
@@ -4252,7 +4286,8 @@ CREATE TABLE public.game_scheduling_bookings (
     proposed_by_email text,
     confirmed_by_name text,
     confirmed_by_email text,
-    confirmed_at timestamp with time zone
+    confirmed_at timestamp with time zone,
+    CONSTRAINT game_scheduling_bookings_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['pending'::character varying, 'confirmed'::character varying, 'rejected'::character varying])::text[]))))
 );
 
 
@@ -4553,7 +4588,7 @@ ALTER SEQUENCE public.game_scheduling_seasons_id_seq OWNED BY public.game_schedu
 
 CREATE TABLE public.game_scheduling_slots (
     id integer NOT NULL,
-    season character varying(255) DEFAULT NULL::character varying,
+    season integer,
     date date,
     start_time time without time zone,
     end_time time without time zone,
@@ -4561,11 +4596,10 @@ CREATE TABLE public.game_scheduling_slots (
     status character varying(255) DEFAULT NULL::character varying,
     kscw_team integer,
     hall integer,
-    booking integer,
-    game integer,
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
-    additional_halls json
+    additional_halls json,
+    CONSTRAINT game_scheduling_slots_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['available'::character varying, 'booked'::character varying, 'blocked'::character varying])::text[]))))
 );
 
 
@@ -4658,7 +4692,8 @@ CREATE TABLE public.games (
     vm_nomination_list_id character varying(64),
     vm_nomination_count integer,
     vm_nomination_pushed_at timestamp with time zone,
-    vm_nomination_error text
+    vm_nomination_error text,
+    CONSTRAINT games_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'postponed'::character varying])::text[]))))
 );
 
 
@@ -4750,7 +4785,8 @@ CREATE TABLE public.hall_closures (
     source character varying(255) DEFAULT NULL::character varying,
     hall integer,
     date_created timestamp with time zone,
-    date_updated timestamp with time zone
+    date_updated timestamp with time zone,
+    CONSTRAINT hall_closures_range_chk CHECK (((start_date IS NULL) OR (end_date IS NULL) OR (end_date >= start_date)))
 );
 
 
@@ -4791,37 +4827,6 @@ CREATE TABLE public.hall_events (
     date_created timestamp with time zone,
     date_updated timestamp with time zone
 );
-
-
---
--- Name: hall_events_halls; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.hall_events_halls (
-    id integer NOT NULL,
-    hall_events_id integer,
-    halls_id integer
-);
-
-
---
--- Name: hall_events_halls_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.hall_events_halls_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: hall_events_halls_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.hall_events_halls_id_seq OWNED BY public.hall_events_halls.id;
 
 
 --
@@ -4893,8 +4898,8 @@ ALTER SEQUENCE public.hall_slots_id_seq OWNED BY public.hall_slots.id;
 
 CREATE TABLE public.hall_slots_teams (
     id integer NOT NULL,
-    hall_slots_id integer,
-    teams_id integer
+    hall_slots_id integer NOT NULL,
+    teams_id integer NOT NULL
 );
 
 
@@ -5087,8 +5092,8 @@ CREATE TABLE public.member_teams (
     id integer NOT NULL,
     season character varying(255) DEFAULT NULL::character varying,
     guest_level integer DEFAULT 0,
-    member integer,
-    team integer,
+    member integer NOT NULL,
+    team integer NOT NULL,
     date_created timestamp with time zone,
     date_updated timestamp with time zone
 );
@@ -5126,9 +5131,9 @@ CREATE TABLE public.members (
     phone character varying(255) DEFAULT NULL::character varying,
     license_nr character varying(255) DEFAULT NULL::character varying,
     number integer,
-    "position" json,
+    "position" jsonb,
     photo uuid,
-    role json,
+    role jsonb,
     kscw_membership_active boolean DEFAULT true NOT NULL,
     birthdate date,
     coach_approved_team boolean DEFAULT false NOT NULL,
@@ -5218,10 +5223,53 @@ CREATE TABLE public.members (
     in_vis_checked_at timestamp with time zone,
     vis_player_no integer,
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
+    CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
-    CONSTRAINT members_role_values_valid CHECK (((role)::jsonb <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
+    CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
     CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying])::text[]))))
 );
+
+
+--
+-- Name: COLUMN members.license_nr; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.license_nr IS 'Swiss Volley / Basketplan licence number as a STRING — leading zeros are significant (e.g. 038514). Exact join key for VM sync, scorer rosters and the Basketplan people join; partial-unique since migration 248. NOTE the spelling split, frozen by decision (DB review 2026-07-27): this column is US "license", the licence_* trio is UK — renaming either side would churn every sync and export for zero behavior.';
+
+
+--
+-- Name: COLUMN members.coach_approved_team; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.coach_approved_team IS 'Set once a coach approved the join request (requested_team flow).';
+
+
+--
+-- Name: COLUMN members.wiedisync_active; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.wiedisync_active IS 'Member has an activated wiedisync account (distinct from kscw_membership_active, the club-register status).';
+
+
+--
+-- Name: COLUMN members.shell; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.shell IS 'Shell member: pre-created by an invite, not yet self-registered. trg_members_shell_convert flips the lifecycle on first login.';
+
+
+--
+-- Name: COLUMN members.shell_expires; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.shell_expires IS 'When an unclaimed shell invite lapses (reminder handled by shell_reminder_sent).';
+
+
+--
+-- Name: COLUMN members.requested_team; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.requested_team IS 'Join-team picker choice awaiting coach approval; FK to teams since migration 248.';
 
 
 --
@@ -5229,6 +5277,62 @@ CREATE TABLE public.members (
 --
 
 COMMENT ON COLUMN public.members.nationalitaet IS 'DERIVED — German display name of the first code in nationalitaet_codes. Kept because the ClubDesk push/drift/echo path reads it. Maintained by trigger members_sync_nationality_trg; do not write it directly.';
+
+
+--
+-- Name: COLUMN members.beitragskategorie; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.beitragskategorie IS 'ClubDesk fee category (German picklist value, ClubDesk-owned; synced down, never derived here).';
+
+
+--
+-- Name: COLUMN members.licence_category; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_category IS 'VM-synced licence category (weekly vm-sync-check write-back). UK spelling — see license_nr for the frozen spelling split.';
+
+
+--
+-- Name: COLUMN members.licence_activated; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_activated IS 'VM-synced flag (set-true-only since 2026-07-17 — VM is a subset of ClubDesk; nothing auto-clears).';
+
+
+--
+-- Name: COLUMN members.licence_validated; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_validated IS 'VM-synced flag (set-true-only, like licence_activated).';
+
+
+--
+-- Name: COLUMN members.vm_email; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.vm_email IS 'Volleymanager account email — fallback VM join key when license_nr is absent. Partial-unique since migration 248.';
+
+
+--
+-- Name: COLUMN members.last_online_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.last_online_at IS 'Presence timestamp for the admin Explorer ("Last online"). Written by the auth.login hook on every login; coarse by design — refresh-token sessions only touch it at real logins.';
+
+
+--
+-- Name: COLUMN members.consent_decision; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.consent_decision IS 'Messaging consent state (pending/accepted/declined) — gates chat features, prompted at first login.';
+
+
+--
+-- Name: COLUMN members.last_export_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.last_export_at IS 'Messaging export rate-limit marker (1/day) — messaging-helpers, not a sync column.';
 
 
 --
@@ -5316,10 +5420,17 @@ COMMENT ON COLUMN public.members.iban IS 'Member bank account IBAN (ISO 13616, m
 
 
 --
+-- Name: COLUMN members.ical_token; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.ical_token IS 'Per-member calendar-feed token (unique). Rotating it invalidates the member''s calendar subscription.';
+
+
+--
 -- Name: COLUMN members.billing_different; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.billing_different IS 'When true, invoices are billed to the billing_* contact (e.g. a minor''s parent/guardian or a paying company) instead of the member''s own name/email/address.';
+COMMENT ON COLUMN public.members.billing_different IS 'When true, the EXPENSE-PAYOUT QR snapshot pays out to the billing_* contact (IBAN/name/address) instead of the member''s own. NOT consulted by native invoices or dues runs — those stamp the member''s own name/email (see finance_billing_contacts + invoice recipient_* for that path).';
 
 
 --
@@ -5341,6 +5452,55 @@ COMMENT ON COLUMN public.members.billing_iban IS 'IBAN of the alternate billing 
 --
 
 COMMENT ON COLUMN public.members.iban_confirmed IS 'Member has verified their own reimbursement IBAN (members.iban). False for ClubDesk-backfilled IBANs until the member confirms on the My-finances card.';
+
+
+--
+-- Name: COLUMN members.never_dun; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.never_dun IS 'Finance: exclude this member from dunning runs entirely.';
+
+
+--
+-- Name: COLUMN members.clubdesk_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.clubdesk_id IS 'ClubDesk [Id] — the CSV-import record identity for sync-up rows. NOT Filtern-searchable in the ClubDesk UI (use members.uuid there). Fill-only from sync-down.';
+
+
+--
+-- Name: COLUMN members.clubdesk_push_pending; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.clubdesk_push_pending IS 'ClubDesk sync-up dispatcher flag: member has un-pushed field changes.';
+
+
+--
+-- Name: COLUMN members.clubdesk_push_changes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.clubdesk_push_changes IS 'Coded field diff awaiting ClubDesk sync-up (rendered per-locale at read time — values travel as codes).';
+
+
+--
+-- Name: COLUMN members.clubdesk_pushed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.clubdesk_pushed_at IS 'Timestamp of the last ClubDesk sync-up covering this member.';
+
+
+--
+-- Name: COLUMN members.uuid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.uuid IS 'Wiedisync ID — the stable round-trip key for ClubDesk contact matching (Filtern box) and exports. Never re-issued.';
+
+
+--
+-- Name: COLUMN members.clubdesk_sync_exclude; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.clubdesk_sync_exclude IS 'Opt this member out of the ClubDesk two-way sync entirely.';
 
 
 --
@@ -5435,10 +5595,24 @@ COMMENT ON COLUMN public.members.transfer_done_by_name IS 'Display name of the s
 
 
 --
+-- Name: COLUMN members.transfer_note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.transfer_note IS 'Free-text staff note on the federation-transfer workflow (see transfer_status).';
+
+
+--
 -- Name: COLUMN members.in_vis; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.members.in_vis IS 'Found in the VIS player roster of their federation of origin — including CH, checked against Swiss Volley''s own index (VIS fed 189/SUI). NULL = not checked yet (guests and federation_of_origin = NONE are never checked). false = no evidence they were licensed there — treat as a lead, not a fact: name matching is fuzzy and federation_of_origin is often a seed from nationality. For a CH-origin member a false blocks nothing, since no international transfer applies to them.';
+
+
+--
+-- Name: COLUMN members.in_vis_checked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.in_vis_checked_at IS 'When the monthly VIS player-check last touched this member (see in_vis for what the VIS index does and does not mean).';
 
 
 --
@@ -5466,16 +5640,6 @@ CREATE SEQUENCE public.members_id_seq
 --
 
 ALTER SEQUENCE public.members_id_seq OWNED BY public.members.id;
-
-
---
--- Name: members_sektion_backup_20260715; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.members_sektion_backup_20260715 (
-    id integer,
-    sektion character varying(32)
-);
 
 
 --
@@ -5663,7 +5827,9 @@ CREATE TABLE public.participations (
     last_status_edited_by uuid,
     last_status_edited_at timestamp with time zone,
     last_note_edited_by uuid,
-    last_note_edited_at timestamp with time zone
+    last_note_edited_at timestamp with time zone,
+    CONSTRAINT participations_activity_type_chk CHECK (((activity_type)::text = ANY ((ARRAY['training'::character varying, 'game'::character varying, 'event'::character varying])::text[]))),
+    CONSTRAINT participations_status_chk CHECK (((status)::text = ANY ((ARRAY['confirmed'::character varying, 'declined'::character varying, 'tentative'::character varying, 'waitlisted'::character varying])::text[])))
 );
 
 
@@ -5956,14 +6122,15 @@ ALTER SEQUENCE public.rankings_id_seq OWNED BY public.rankings.id;
 CREATE TABLE public.referee_expenses (
     id integer NOT NULL,
     paid_by_other character varying(255) DEFAULT NULL::character varying,
-    amount real,
+    amount numeric(10,2),
     notes text,
     game integer,
     team integer,
     paid_by_member integer,
     recorded_by integer,
     date_created timestamp with time zone,
-    date_updated timestamp with time zone
+    date_updated timestamp with time zone,
+    currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL
 );
 
 
@@ -6840,22 +7007,22 @@ CREATE VIEW public.stats_club_overview WITH (security_invoker='true') AS
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'volleyball'::text))))
              JOIN public.members m ON ((m.id = mt.member)))
-          WHERE ((mt.guest_level = 0) AND ((m.role)::jsonb @> '"vorstand"'::jsonb))) AS vb_vorstand,
+          WHERE ((mt.guest_level = 0) AND (m.role @> '"vorstand"'::jsonb))) AS vb_vorstand,
     ( SELECT count(DISTINCT m.id) AS count
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'basketball'::text))))
              JOIN public.members m ON ((m.id = mt.member)))
-          WHERE ((mt.guest_level = 0) AND ((m.role)::jsonb @> '"vorstand"'::jsonb))) AS bb_vorstand,
+          WHERE ((mt.guest_level = 0) AND (m.role @> '"vorstand"'::jsonb))) AS bb_vorstand,
     ( SELECT count(DISTINCT m.id) AS count
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'volleyball'::text))))
              JOIN public.members m ON ((m.id = mt.member)))
-          WHERE ((mt.guest_level = 0) AND (((m.role)::jsonb @> '"admin"'::jsonb) OR ((m.role)::jsonb @> '"superuser"'::jsonb)))) AS vb_admins,
+          WHERE ((mt.guest_level = 0) AND ((m.role @> '"admin"'::jsonb) OR (m.role @> '"superuser"'::jsonb)))) AS vb_admins,
     ( SELECT count(DISTINCT m.id) AS count
            FROM ((public.member_teams mt
              JOIN public.teams t ON (((t.id = mt.team) AND (t.active = true) AND ((t.sport)::text = 'basketball'::text))))
              JOIN public.members m ON ((m.id = mt.member)))
-          WHERE ((mt.guest_level = 0) AND (((m.role)::jsonb @> '"admin"'::jsonb) OR ((m.role)::jsonb @> '"superuser"'::jsonb)))) AS bb_admins,
+          WHERE ((mt.guest_level = 0) AND ((m.role @> '"admin"'::jsonb) OR (m.role @> '"superuser"'::jsonb)))) AS bb_admins,
     ( SELECT count(*) AS count
            FROM public.games
           WHERE (((games.type)::text = 'home'::text) AND (games.date >= CURRENT_DATE) AND ((games.status)::text = 'scheduled'::text))) AS upcoming_home_games,
@@ -6967,11 +7134,11 @@ CREATE VIEW public.stats_members WITH (security_invoker='true') AS
     count(*) FILTER (WHERE referee_vb) AS licence_referee_vb,
     count(*) FILTER (WHERE otr1_bb) AS licence_otr1_bb,
     count(*) FILTER (WHERE otr2_bb) AS licence_otr2_bb,
-    count(*) FILTER (WHERE ((role)::jsonb @> '"superuser"'::jsonb)) AS role_superuser,
-    count(*) FILTER (WHERE ((role)::jsonb @> '"admin"'::jsonb)) AS role_admin,
-    count(*) FILTER (WHERE ((role)::jsonb @> '"vb_admin"'::jsonb)) AS role_vb_admin,
-    count(*) FILTER (WHERE ((role)::jsonb @> '"bb_admin"'::jsonb)) AS role_bb_admin,
-    count(*) FILTER (WHERE ((role)::jsonb @> '"vorstand"'::jsonb)) AS role_vorstand
+    count(*) FILTER (WHERE (role @> '"superuser"'::jsonb)) AS role_superuser,
+    count(*) FILTER (WHERE (role @> '"admin"'::jsonb)) AS role_admin,
+    count(*) FILTER (WHERE (role @> '"vb_admin"'::jsonb)) AS role_vb_admin,
+    count(*) FILTER (WHERE (role @> '"bb_admin"'::jsonb)) AS role_bb_admin,
+    count(*) FILTER (WHERE (role @> '"vorstand"'::jsonb)) AS role_vorstand
    FROM public.members;
 
 
@@ -7336,6 +7503,50 @@ ALTER SEQUENCE public.team_invites_id_seq OWNED BY public.team_invites.id;
 
 
 --
+-- Name: team_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.team_links (
+    id integer NOT NULL,
+    season integer NOT NULL,
+    team_a integer NOT NULL,
+    team_b integer NOT NULL,
+    link_type character varying(8) NOT NULL,
+    created_by integer,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    sport character varying(16) DEFAULT 'basketball'::character varying NOT NULL
+);
+
+
+--
+-- Name: TABLE team_links; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.team_links IS 'Coach/player-sharing links between teams, per season + sport. link_type: diff = must not play the same time (shared person); same = keep the same time; adjacent = different time but back-to-back. Drives the scheduling planners'' slot/day highlights. Edited via Basketball → Settings and Terminplanung → Settings.';
+
+
+--
+-- Name: team_links_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.team_links_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: team_links_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.team_links_id_seq OWNED BY public.team_links.id;
+
+
+--
 -- Name: team_requests; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7375,8 +7586,8 @@ ALTER SEQUENCE public.team_requests_id_seq OWNED BY public.team_requests.id;
 
 CREATE TABLE public.teams_coaches (
     id integer NOT NULL,
-    teams_id integer,
-    members_id integer
+    teams_id integer NOT NULL,
+    members_id integer NOT NULL
 );
 
 
@@ -7426,8 +7637,8 @@ ALTER SEQUENCE public.teams_id_seq OWNED BY public.teams.id;
 
 CREATE TABLE public.teams_responsibles (
     id integer NOT NULL,
-    teams_id integer,
-    members_id integer
+    teams_id integer NOT NULL,
+    members_id integer NOT NULL
 );
 
 
@@ -7457,8 +7668,8 @@ ALTER SEQUENCE public.teams_responsibles_id_seq OWNED BY public.teams_responsibl
 
 CREATE TABLE public.teams_sponsors (
     id integer NOT NULL,
-    teams_id integer,
-    sponsors_id integer
+    teams_id integer NOT NULL,
+    sponsors_id integer NOT NULL
 );
 
 
@@ -8152,13 +8363,6 @@ ALTER TABLE ONLY public.hall_events ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
--- Name: hall_events_halls id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.hall_events_halls ALTER COLUMN id SET DEFAULT nextval('public.hall_events_halls_id_seq'::regclass);
-
-
---
 -- Name: hall_slots id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -8393,7 +8597,7 @@ ALTER TABLE ONLY public.team_invites ALTER COLUMN id SET DEFAULT nextval('public
 -- Name: team_links id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.team_links ALTER COLUMN id SET DEFAULT nextval('public.basketball_team_links_id_seq'::regclass);
+ALTER TABLE ONLY public.team_links ALTER COLUMN id SET DEFAULT nextval('public.team_links_id_seq'::regclass);
 
 
 --
@@ -9090,14 +9294,6 @@ ALTER TABLE ONLY public.hall_closures
 
 
 --
--- Name: hall_events_halls hall_events_halls_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.hall_events_halls
-    ADD CONSTRAINT hall_events_halls_pkey PRIMARY KEY (id);
-
-
---
 -- Name: hall_events hall_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9741,13 +9937,6 @@ CREATE INDEX basketplan_people_licence_nr_idx ON public.basketplan_people USING 
 
 
 --
--- Name: blocks_blocked_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX blocks_blocked_index ON public.blocks USING btree (blocked);
-
-
---
 -- Name: blocks_blocker_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9759,6 +9948,13 @@ CREATE INDEX blocks_blocker_index ON public.blocks USING btree (blocker);
 --
 
 CREATE INDEX carpool_passengers_carpool_index ON public.carpool_passengers USING btree (carpool);
+
+
+--
+-- Name: carpool_passengers_pair_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX carpool_passengers_pair_uq ON public.carpool_passengers USING btree (carpool, passenger);
 
 
 --
@@ -9822,6 +10018,20 @@ CREATE INDEX events_created_by_index ON public.events USING btree (created_by);
 --
 
 CREATE INDEX events_hall_index ON public.events USING btree (hall);
+
+
+--
+-- Name: events_members_pair_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX events_members_pair_uq ON public.events_members USING btree (events_id, members_id);
+
+
+--
+-- Name: events_teams_pair_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX events_teams_pair_uq ON public.events_teams USING btree (events_id, teams_id);
 
 
 --
@@ -9892,6 +10102,13 @@ CREATE INDEX finance_expenses_status_idx ON public.finance_expenses USING btree 
 --
 
 CREATE INDEX finance_imports_type_at_idx ON public.finance_imports USING btree (import_type, imported_at DESC);
+
+
+--
+-- Name: finance_imports_type_checksum_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_imports_type_checksum_idx ON public.finance_imports USING btree (import_type, source_checksum);
 
 
 --
@@ -9997,6 +10214,13 @@ CREATE UNIQUE INDEX finance_payments_camt_reference_uidx ON public.finance_payme
 --
 
 CREATE INDEX finance_payments_invoice_idx ON public.finance_payments USING btree (invoice);
+
+
+--
+-- Name: finance_payments_match_clubdesk_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_payments_match_clubdesk_id_idx ON public.finance_payments USING btree (match_clubdesk_id) WHERE (match_clubdesk_id IS NOT NULL);
 
 
 --
@@ -10147,17 +10371,17 @@ CREATE INDEX forms_teams_forms_id_idx ON public.forms_teams USING btree (forms_i
 
 
 --
+-- Name: forms_teams_pair_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX forms_teams_pair_uq ON public.forms_teams USING btree (forms_id, teams_id);
+
+
+--
 -- Name: forms_teams_teams_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX forms_teams_teams_id_idx ON public.forms_teams USING btree (teams_id);
-
-
---
--- Name: game_scheduling_bookings_game_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX game_scheduling_bookings_game_index ON public.game_scheduling_bookings USING btree (game);
 
 
 --
@@ -10245,20 +10469,6 @@ CREATE INDEX game_scheduling_opponents_season_club_idx ON public.game_scheduling
 
 
 --
--- Name: game_scheduling_slots_booking_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX game_scheduling_slots_booking_index ON public.game_scheduling_slots USING btree (booking);
-
-
---
--- Name: game_scheduling_slots_game_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX game_scheduling_slots_game_index ON public.game_scheduling_slots USING btree (game);
-
-
---
 -- Name: game_scheduling_slots_hall_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10319,6 +10529,13 @@ CREATE INDEX games_bb_timekeeper_duty_team_index ON public.games USING btree (bb
 --
 
 CREATE INDEX games_bb_timekeeper_member_index ON public.games USING btree (bb_timekeeper_member);
+
+
+--
+-- Name: games_gameid_team_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX games_gameid_team_uq ON public.games USING btree (game_id, kscw_team) WHERE ((game_id IS NOT NULL) AND (kscw_team IS NOT NULL));
 
 
 --
@@ -10385,10 +10602,24 @@ CREATE INDEX hall_closures_hall_index ON public.hall_closures USING btree (hall)
 
 
 --
+-- Name: hall_events_uid_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX hall_events_uid_uq ON public.hall_events USING btree (uid) WHERE (uid IS NOT NULL);
+
+
+--
 -- Name: hall_slots_hall_index; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX hall_slots_hall_index ON public.hall_slots USING btree (hall);
+
+
+--
+-- Name: hall_slots_teams_pair_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX hall_slots_teams_pair_uq ON public.hall_slots_teams USING btree (hall_slots_id, teams_id);
 
 
 --
@@ -10679,13 +10910,6 @@ CREATE INDEX idx_spielplaner_assignments_kscw_team ON public.spielplaner_assignm
 
 
 --
--- Name: idx_spielplaner_assignments_member; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_spielplaner_assignments_member ON public.spielplaner_assignments USING btree (member);
-
-
---
 -- Name: idx_trainings_auto_cancelled_by_closure; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10711,13 +10935,6 @@ CREATE INDEX member_teams_member_index ON public.member_teams USING btree (membe
 --
 
 CREATE INDEX member_teams_team_index ON public.member_teams USING btree (team);
-
-
---
--- Name: members_clubdesk_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX members_clubdesk_id_idx ON public.members USING btree (clubdesk_id);
 
 
 --
@@ -10749,6 +10966,13 @@ CREATE INDEX members_in_vis_idx ON public.members USING btree (in_vis) WHERE (in
 
 
 --
+-- Name: members_license_nr_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX members_license_nr_uq ON public.members USING btree (license_nr) WHERE (license_nr IS NOT NULL);
+
+
+--
 -- Name: members_requested_team_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10770,10 +10994,24 @@ CREATE INDEX members_user_index ON public.members USING btree ("user");
 
 
 --
+-- Name: members_user_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX members_user_uq ON public.members USING btree ("user") WHERE ("user" IS NOT NULL);
+
+
+--
 -- Name: members_uuid_unique; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX members_uuid_unique ON public.members USING btree (uuid);
+
+
+--
+-- Name: members_vm_email_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX members_vm_email_uq ON public.members USING btree (vm_email) WHERE (vm_email IS NOT NULL);
 
 
 --
@@ -10812,20 +11050,6 @@ CREATE INDEX message_requests_sender_index ON public.message_requests USING btre
 
 
 --
--- Name: messages_conversation_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX messages_conversation_index ON public.messages USING btree (conversation);
-
-
---
--- Name: messages_sender_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX messages_sender_index ON public.messages USING btree (sender);
-
-
---
 -- Name: notifications_member_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10837,6 +11061,20 @@ CREATE INDEX notifications_member_index ON public.notifications USING btree (mem
 --
 
 CREATE INDEX notifications_team_index ON public.notifications USING btree (team);
+
+
+--
+-- Name: participations_activity_member_session_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX participations_activity_member_session_uq ON public.participations USING btree (activity_type, activity_id, member, session_id) WHERE (session_id IS NOT NULL);
+
+
+--
+-- Name: participations_activity_member_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX participations_activity_member_uq ON public.participations USING btree (activity_type, activity_id, member) WHERE (session_id IS NULL);
 
 
 --
@@ -10942,13 +11180,6 @@ CREATE INDEX reports_conversation_index ON public.reports USING btree (conversat
 --
 
 CREATE INDEX reports_message_index ON public.reports USING btree (message);
-
-
---
--- Name: reports_reported_member_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX reports_reported_member_index ON public.reports USING btree (reported_member);
 
 
 --
@@ -11078,17 +11309,10 @@ CREATE INDEX slot_claims_hall_slot_index ON public.slot_claims USING btree (hall
 
 
 --
--- Name: spielplaner_assignments_kscw_team_index; Type: INDEX; Schema: public; Owner: -
+-- Name: svrz_games_svrz_number_uq; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX spielplaner_assignments_kscw_team_index ON public.spielplaner_assignments USING btree (kscw_team);
-
-
---
--- Name: spielplaner_assignments_member_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX spielplaner_assignments_member_index ON public.spielplaner_assignments USING btree (member);
+CREATE UNIQUE INDEX svrz_games_svrz_number_uq ON public.svrz_games USING btree (svrz_number) WHERE (svrz_number IS NOT NULL);
 
 
 --
@@ -11152,6 +11376,27 @@ CREATE INDEX team_invites_team_index ON public.team_invites USING btree (team);
 --
 
 CREATE INDEX team_links_season_idx ON public.team_links USING btree (season);
+
+
+--
+-- Name: teams_coaches_pair_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX teams_coaches_pair_uq ON public.teams_coaches USING btree (teams_id, members_id);
+
+
+--
+-- Name: teams_responsibles_pair_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX teams_responsibles_pair_uq ON public.teams_responsibles USING btree (teams_id, members_id);
+
+
+--
+-- Name: teams_sponsors_pair_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX teams_sponsors_pair_uq ON public.teams_sponsors USING btree (teams_id, sponsors_id);
 
 
 --
@@ -11229,6 +11474,20 @@ CREATE UNIQUE INDEX uq_msg_requests_conv ON public.message_requests USING btree 
 --
 
 CREATE UNIQUE INDEX uq_reactions_msg_member_emoji ON public.message_reactions USING btree (message, member, emoji);
+
+
+--
+-- Name: user_logs_collection_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_logs_collection_date_idx ON public.user_logs USING btree (collection_name, date_created DESC);
+
+
+--
+-- Name: user_logs_date_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_logs_date_created_idx ON public.user_logs USING btree (date_created DESC);
 
 
 --
@@ -11344,6 +11603,13 @@ CREATE TRIGGER trg_activity_chat_event_delete AFTER DELETE ON public.events FOR 
 
 
 --
+-- Name: events trg_events_0_purge_polymorphic; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_events_0_purge_polymorphic AFTER DELETE ON public.events FOR EACH ROW EXECUTE FUNCTION public.trg_activity_purge_polymorphic('event');
+
+
+--
 -- Name: events trg_events_notify; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -11355,6 +11621,13 @@ CREATE TRIGGER trg_events_notify AFTER INSERT OR DELETE OR UPDATE ON public.even
 --
 
 CREATE TRIGGER trg_finance_native_txn_lock BEFORE INSERT OR DELETE OR UPDATE ON public.finance_transactions FOR EACH ROW EXECUTE FUNCTION public.finance_native_txn_lock();
+
+
+--
+-- Name: games trg_games_0_purge_polymorphic; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_games_0_purge_polymorphic AFTER DELETE ON public.games FOR EACH ROW EXECUTE FUNCTION public.trg_activity_purge_polymorphic('game');
 
 
 --
@@ -11495,6 +11768,13 @@ CREATE TRIGGER trg_teams_protect_delete BEFORE DELETE ON public.teams FOR EACH R
 --
 
 CREATE TRIGGER trg_teams_release_derby_host BEFORE DELETE ON public.teams FOR EACH ROW EXECUTE FUNCTION public.trg_teams_release_derby_host();
+
+
+--
+-- Name: trainings trg_trainings_0_purge_polymorphic; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_trainings_0_purge_polymorphic AFTER DELETE ON public.trainings FOR EACH ROW EXECUTE FUNCTION public.trg_activity_purge_polymorphic('training');
 
 
 --
@@ -11830,19 +12110,19 @@ ALTER TABLE ONLY public.finance_budget_lines
 
 
 --
--- Name: finance_dues_rates finance_dues_rates_fiscal_year_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: finance_dues_rates finance_dues_rates_fiscal_year_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.finance_dues_rates
-    ADD CONSTRAINT finance_dues_rates_fiscal_year_fkey FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE CASCADE;
+    ADD CONSTRAINT finance_dues_rates_fiscal_year_fk FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE RESTRICT;
 
 
 --
--- Name: finance_dues_runs finance_dues_runs_fiscal_year_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: finance_dues_runs finance_dues_runs_fiscal_year_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.finance_dues_runs
-    ADD CONSTRAINT finance_dues_runs_fiscal_year_fkey FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE CASCADE;
+    ADD CONSTRAINT finance_dues_runs_fiscal_year_fk FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE RESTRICT;
 
 
 --
@@ -11934,11 +12214,11 @@ ALTER TABLE ONLY public.finance_invoices
 
 
 --
--- Name: finance_invoices finance_invoices_fiscal_year_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: finance_invoices finance_invoices_fiscal_year_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.finance_invoices
-    ADD CONSTRAINT finance_invoices_fiscal_year_fkey FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE SET NULL;
+    ADD CONSTRAINT finance_invoices_fiscal_year_fk FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE RESTRICT;
 
 
 --
@@ -12102,11 +12382,11 @@ ALTER TABLE ONLY public.finance_transactions
 
 
 --
--- Name: finance_transactions finance_transactions_fiscal_year_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: finance_transactions finance_transactions_fiscal_year_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.finance_transactions
-    ADD CONSTRAINT finance_transactions_fiscal_year_fkey FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE SET NULL;
+    ADD CONSTRAINT finance_transactions_fiscal_year_fk FOREIGN KEY (fiscal_year) REFERENCES public.finance_fiscal_years(id) ON DELETE RESTRICT;
 
 
 --
@@ -12154,7 +12434,7 @@ ALTER TABLE ONLY public.fines
 --
 
 ALTER TABLE ONLY public.fines
-    ADD CONSTRAINT fines_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+    ADD CONSTRAINT fines_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE RESTRICT;
 
 
 --
@@ -12170,7 +12450,7 @@ ALTER TABLE ONLY public.fines
 --
 
 ALTER TABLE ONLY public.fines
-    ADD CONSTRAINT fines_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+    ADD CONSTRAINT fines_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE RESTRICT;
 
 
 --
@@ -12238,6 +12518,14 @@ ALTER TABLE ONLY public.game_rosters
 
 
 --
+-- Name: game_scheduling_bookings game_scheduling_bookings_season_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_scheduling_bookings
+    ADD CONSTRAINT game_scheduling_bookings_season_fkey FOREIGN KEY (season) REFERENCES public.game_scheduling_seasons(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: game_scheduling_club_portals game_scheduling_club_portals_season_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12294,19 +12582,163 @@ ALTER TABLE ONLY public.game_scheduling_opponents
 
 
 --
--- Name: hall_events_halls hall_events_halls_hall_events_id_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: game_scheduling_slots game_scheduling_slots_season_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.hall_events_halls
-    ADD CONSTRAINT hall_events_halls_hall_events_id_foreign FOREIGN KEY (hall_events_id) REFERENCES public.hall_events(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.game_scheduling_slots
+    ADD CONSTRAINT game_scheduling_slots_season_fkey FOREIGN KEY (season) REFERENCES public.game_scheduling_seasons(id) ON DELETE RESTRICT;
 
 
 --
--- Name: hall_events_halls hall_events_halls_halls_id_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: games games_bb_24s_duty_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.hall_events_halls
-    ADD CONSTRAINT hall_events_halls_halls_id_foreign FOREIGN KEY (halls_id) REFERENCES public.halls(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_bb_24s_duty_team_foreign FOREIGN KEY (bb_24s_duty_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_bb_24s_official_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_bb_24s_official_foreign FOREIGN KEY (bb_24s_official) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_bb_duty_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_bb_duty_team_foreign FOREIGN KEY (bb_duty_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_bb_scorer_duty_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_bb_scorer_duty_team_foreign FOREIGN KEY (bb_scorer_duty_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_bb_scorer_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_bb_scorer_member_foreign FOREIGN KEY (bb_scorer_member) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_bb_timekeeper_duty_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_bb_timekeeper_duty_team_foreign FOREIGN KEY (bb_timekeeper_duty_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_bb_timekeeper_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_bb_timekeeper_member_foreign FOREIGN KEY (bb_timekeeper_member) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_hall_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_hall_foreign FOREIGN KEY (hall) REFERENCES public.halls(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_kscw_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_kscw_team_foreign FOREIGN KEY (kscw_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_referee_duty_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_referee_duty_team_foreign FOREIGN KEY (referee_duty_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_referee_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_referee_member_foreign FOREIGN KEY (referee_member) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_scoreboard_duty_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_scoreboard_duty_team_foreign FOREIGN KEY (scoreboard_duty_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_scoreboard_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_scoreboard_member_foreign FOREIGN KEY (scoreboard_member) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_scorer_duty_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_scorer_duty_team_foreign FOREIGN KEY (scorer_duty_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_scorer_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_scorer_member_foreign FOREIGN KEY (scorer_member) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_scorer_scoreboard_duty_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_scorer_scoreboard_duty_team_foreign FOREIGN KEY (scorer_scoreboard_duty_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: games games_scorer_scoreboard_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_scorer_scoreboard_member_foreign FOREIGN KEY (scorer_scoreboard_member) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: hall_closures hall_closures_hall_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hall_closures
+    ADD CONSTRAINT hall_closures_hall_foreign FOREIGN KEY (hall) REFERENCES public.halls(id) ON DELETE SET NULL;
+
+
+--
+-- Name: hall_slots hall_slots_hall_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hall_slots
+    ADD CONSTRAINT hall_slots_hall_foreign FOREIGN KEY (hall) REFERENCES public.halls(id) ON DELETE SET NULL;
 
 
 --
@@ -12374,11 +12806,35 @@ ALTER TABLE ONLY public.member_teams
 
 
 --
+-- Name: member_teams member_teams_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.member_teams
+    ADD CONSTRAINT member_teams_team_foreign FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
 -- Name: members members_photo_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.members
     ADD CONSTRAINT members_photo_foreign FOREIGN KEY (photo) REFERENCES public.directus_files(id) ON DELETE SET NULL;
+
+
+--
+-- Name: members members_requested_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.members
+    ADD CONSTRAINT members_requested_team_foreign FOREIGN KEY (requested_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: members members_user_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.members
+    ADD CONSTRAINT members_user_foreign FOREIGN KEY ("user") REFERENCES public.directus_users(id) ON DELETE SET NULL;
 
 
 --
@@ -12515,6 +12971,46 @@ ALTER TABLE ONLY public.polls
 
 ALTER TABLE ONLY public.push_subscriptions
     ADD CONSTRAINT push_subscriptions_member_foreign FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: rankings rankings_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rankings
+    ADD CONSTRAINT rankings_team_foreign FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: referee_expenses referee_expenses_game_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.referee_expenses
+    ADD CONSTRAINT referee_expenses_game_fk FOREIGN KEY (game) REFERENCES public.games(id) ON DELETE SET NULL;
+
+
+--
+-- Name: referee_expenses referee_expenses_paid_by_member_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.referee_expenses
+    ADD CONSTRAINT referee_expenses_paid_by_member_fk FOREIGN KEY (paid_by_member) REFERENCES public.members(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: referee_expenses referee_expenses_recorded_by_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.referee_expenses
+    ADD CONSTRAINT referee_expenses_recorded_by_fk FOREIGN KEY (recorded_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: referee_expenses referee_expenses_team_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.referee_expenses
+    ADD CONSTRAINT referee_expenses_team_fk FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE SET NULL;
 
 
 --
@@ -12690,7 +13186,7 @@ ALTER TABLE ONLY public.spielplaner_assignments
 --
 
 ALTER TABLE ONLY public.team_requests
-    ADD CONSTRAINT team_requests_member_fkey FOREIGN KEY (member) REFERENCES public.members(id);
+    ADD CONSTRAINT team_requests_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
 
 
 --
@@ -12766,11 +13262,35 @@ ALTER TABLE ONLY public.training_slot_skips
 
 
 --
+-- Name: trainings trainings_hall_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.trainings
+    ADD CONSTRAINT trainings_hall_foreign FOREIGN KEY (hall) REFERENCES public.halls(id) ON DELETE SET NULL;
+
+
+--
+-- Name: trainings trainings_hall_slot_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.trainings
+    ADD CONSTRAINT trainings_hall_slot_foreign FOREIGN KEY (hall_slot) REFERENCES public.hall_slots(id) ON DELETE SET NULL;
+
+
+--
+-- Name: trainings trainings_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.trainings
+    ADD CONSTRAINT trainings_team_foreign FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
 -- Name: user_logs user_logs_user_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.user_logs
-    ADD CONSTRAINT user_logs_user_foreign FOREIGN KEY ("user") REFERENCES public.members(id) ON DELETE CASCADE;
+    ADD CONSTRAINT user_logs_user_foreign FOREIGN KEY ("user") REFERENCES public.members(id) ON DELETE SET NULL;
 
 
 --
@@ -13091,5 +13611,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict zotDIHEIoI8R7qpX24MKnlLzp7DnknqapZgd9QJ5M0RaPEST5n4QuVYRqEcqlzO
+\unrestrict YbMnfOrbtu7adOHWoWyAnLzToYuyyTH5ClZziXoAC3300Q9LVPwJxfKlWouDPCr
 
