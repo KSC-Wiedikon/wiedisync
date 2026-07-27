@@ -22,6 +22,7 @@
  *
  * Output: one JSON line on stdout: {"mode":"preview","done":[…],"results":[{…per row}]}
  * Per-row status: assigned | previewed | skip_ambiguous | skip_no_contact |
+ *                 skip_filter_failed | skip_no_selection | skip_ok_disabled |
  *                 skip_group_not_found | skip_funktion_not_found | error
  *
  * ⚠ ONE ClubDesk session per account — run under the shared .sync.lock.
@@ -213,6 +214,35 @@ async function selectRow(page, uuid) {
   return { cnt: -1 }
 }
 
+// Read the dialog's "Kontakt" combo — the contact the group would be added to.
+// EMPTY ("Pflichtfeld") means the grid selection was silently dropped, so OK stays
+// disabled and a commit is a no-op; a name that isn't ours means the dialog is
+// showing a STALE selection and a commit would group the WRONG person.
+// Anchored on the "Kontakt:" label (not a y-band) so a taller dialog can't shift it.
+// Returns the value, '' when empty, or null when the label isn't found (unknown).
+const kontaktValue = (page) => page.evaluate(() => {
+  const ownText = (e) => { let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent; return t.trim() }
+  let lab = null
+  for (const e of document.querySelectorAll('*')) {
+    if (ownText(e) !== 'Kontakt:') continue
+    const r = e.getBoundingClientRect(); if (r.width > 0 && r.height > 0) { lab = r; break }
+  }
+  if (!lab) return null
+  const i = [...document.querySelectorAll('input')].map((e) => ({ e, r: e.getBoundingClientRect() }))
+    .filter(({ e, r }) => e.type !== 'hidden' && r.width > 40 && r.left >= lab.right - 5 && Math.abs(r.top - lab.top) < 22)
+    .sort((a, b) => a.r.left - b.r.left)[0]
+  return i ? (i.e.value || '').trim() : null
+})
+// Does the dialog's Kontakt ("Nachname Vorname") plausibly refer to this worklist row?
+// Diacritic-insensitive, token-wise, and deliberately lenient (ONE token is enough) —
+// ClubDesk name drift is normal ("Berke-Wenger" vs "Berke"), while a stale dialog
+// shows a completely different person and shares no token.
+const kontaktMatches = (kontakt, full) => {
+  const strip = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const k = strip(kontakt)
+  return strip(full).split(/\s+/).filter((t) => t.length > 2).some((t) => k.includes(t))
+}
+
 // Fill a GXT combobox: open its trigger, type value, click the exact-text option.
 async function pickCombo(page, triggerX, triggerY, value) {
   await page.mouse.click(triggerX, triggerY); await sleep(500)
@@ -238,38 +268,63 @@ async function run() {
         // 1) Identify the contact. ALWAYS prefer the Wiedisync ID (uuid) — unique,
         //    drift/accent-proof, resolves non-members in "Alle Kontakte". Fall back
         //    to name only when a row carries no uuid.
-        let cell
-        if (row.uuid) {
-          const f = await selectRow(page, row.uuid)
-          if (f.cnt !== 1 || !f.cell) { r.status = 'skip_filter_failed'; r.matched = f.cnt; results.push(r); log(`· ${row.name}: uuid did not resolve (cnt=${f.cnt})`); continue }
-          cell = f.cell
-        } else {
+        const resolveCell = async () => {
+          if (row.uuid) {
+            const f = await selectRow(page, row.uuid)
+            if (f.cnt !== 1 || !f.cell) return { skip: 'skip_filter_failed', matched: f.cnt, msg: `uuid did not resolve (cnt=${f.cnt})` }
+            return { cell: f.cell }
+          }
           const f = await setFilter(page, row.last || row.name.split(' ')[0], row.name)
-          if (f.ambiguous) { r.status = 'skip_ambiguous'; r.matched = f.cnt; results.push(r); log(`· ${row.name}: ambiguous (duplicate full name)`); continue }
-          if (f.cnt < 1 || !f.nc) { r.status = 'skip_filter_failed'; results.push(r); log(`· ${row.name}: filter did not resolve`); continue }
-          cell = f.nc
+          if (f.ambiguous) return { skip: 'skip_ambiguous', matched: f.cnt, msg: 'ambiguous (duplicate full name)' }
+          if (f.cnt < 1 || !f.nc) return { skip: 'skip_filter_failed', msg: 'filter did not resolve' }
+          return { cell: f.nc }
         }
 
-        // 2) Select the row (click its name cell).
-        await page.mouse.click(cell.x, cell.y); await sleep(500)
-
-        // 3) Gruppen ▼ (toolbar, top<260) → "Kontakt zu Gruppe hinzufügen".
-        const gr = await page.evaluate(() => {
-          const ownText = (e) => { let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent; return t.trim() }
-          for (const e of document.querySelectorAll('*')) if (ownText(e) === 'Gruppen') { const b = e.getBoundingClientRect(); if (b.top < 260 && b.width > 0) return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2) } }
-          return { x: 380, y: 221 }
-        })
-        await page.mouse.click(gr.x, gr.y); await sleep(700)
-        if (!(await clickExact(page, 'Kontakt zu Gruppe hinzufügen'))) { r.status = 'error'; r.detail = 'menu item not found'; results.push(r); log(`· ${row.name}: add-menu missing`); await page.keyboard.press('Escape'); continue }
-        await sleep(1200)
-        // dialog open? (OK + Abbrechen present)
-        const hasDialog = await page.evaluate(() => {
-          const ownText = (e) => { let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent; return t.trim() }
-          let ok = false, ab = false
-          for (const e of document.querySelectorAll('*')) { const t = ownText(e); if (t === 'OK') ok = true; if (t === 'Abbrechen') ab = true }
-          return ok && ab
-        })
-        if (!hasDialog) { r.status = 'error'; r.detail = 'dialog did not open'; results.push(r); log(`· ${row.name}: no dialog`); continue }
+        // 2+3) Select the row, then Gruppen ▼ → "Kontakt zu Gruppe hinzufügen",
+        //      and RE-TRY the pair until the dialog names our contact.
+        //      Why: on every row AFTER the first, the click that should select the
+        //      grid row only restores focus to the grid (same class of bug as
+        //      setFilter's re-focus note) — the dialog then opens with an EMPTY
+        //      "Kontakt" ("Pflichtfeld") and a permanently disabled OK, i.e. the run
+        //      silently assigned nothing beyond row 1 (2026-07-27). The stale-dialog
+        //      variant is worse: it would file the group under the PREVIOUS contact,
+        //      so the name is verified, not just the presence of a value.
+        let dialogReady = false, hardSkip = false
+        for (let att = 0; att < 3 && !dialogReady && !hardSkip; att++) {
+          const rc = await resolveCell()
+          if (rc.skip) { r.status = rc.skip; if (rc.matched !== undefined) r.matched = rc.matched; r.detail = rc.msg; hardSkip = true; break }
+          await page.mouse.click(rc.cell.x, rc.cell.y); await sleep(700)
+          const gr = await page.evaluate(() => {
+            const ownText = (e) => { let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent; return t.trim() }
+            for (const e of document.querySelectorAll('*')) if (ownText(e) === 'Gruppen') { const b = e.getBoundingClientRect(); if (b.top < 260 && b.width > 0) return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2) } }
+            return { x: 380, y: 221 }
+          })
+          await page.mouse.click(gr.x, gr.y); await sleep(700)
+          if (!(await clickExact(page, 'Kontakt zu Gruppe hinzufügen'))) { r.detail = 'menu item not found'; await page.keyboard.press('Escape'); await sleep(600); continue }
+          await sleep(1200)
+          // dialog open? (OK + Abbrechen present)
+          const hasDialog = await page.evaluate(() => {
+            const ownText = (e) => { let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent; return t.trim() }
+            let ok = false, ab = false
+            for (const e of document.querySelectorAll('*')) { const t = ownText(e); if (t === 'OK') ok = true; if (t === 'Abbrechen') ab = true }
+            return ok && ab
+          })
+          if (!hasDialog) { r.detail = 'dialog did not open'; await page.keyboard.press('Escape'); await sleep(600); continue }
+          // Whose contact does the dialog think this is? null = label not found
+          // (older/other layout) → can't verify, fall through to the okEnabled gate.
+          const kontakt = await kontaktValue(page)
+          if (kontakt !== null && (!kontakt || !kontaktMatches(kontakt, row.name))) {
+            r.detail = kontakt ? `dialog showed "${kontakt}"` : 'row selection lost (Kontakt empty)'
+            log(`· ${row.name}: ${r.detail} — reselecting (attempt ${att + 1}/3)`)
+            await clickExact(page, 'Abbrechen'); await sleep(1200); continue
+          }
+          if (kontakt) r.kontakt = kontakt
+          r.detail = undefined; dialogReady = true
+        }
+        if (!dialogReady) {
+          if (!hardSkip) r.status = 'skip_no_selection'
+          results.push(r); log(`· ${row.name}: ${r.detail || 'dialog not ready'}`); continue
+        }
 
         // 4) Gruppe combo (trigger ~903,441), then Funktion combo (~903,472).
         const gotGroup = await pickCombo(page, 903, 441, row.group)

@@ -9,16 +9,25 @@
 # bucket is already narrow: player groups only, BB-league umbrellas excluded
 # (clubdesk_group=''), and ANY roster row (incl. guest) disqualifies.
 #
-# AUTO-REMOVE ENVELOPE (user-approved 2026-07-16) — remove only where it's safe to
-# act unattended:
-#   • active=false  → the member has LEFT the club; lingering in a team's player
-#                     group is pure staleness. Remove.
-#   • active=true AND (coach OR team-responsible) → the "Lasse pattern": they staff a
-#                     team but play on none this season, so their player group is
+# AUTO-REMOVE ENVELOPE (user-approved 2026-07-16, departure test corrected
+# 2026-07-27) — remove only where it's safe to act unattended:
+#   • HAS LEFT the club → lingering in a team's player group is pure staleness.
+#                     Remove. "Left" = ClubDesk's own register says so (status
+#                     Kein Mitglied / Ehemaliges Mitglied / Verstorben, or an
+#                     Austritt date) or wiedisync's kscw_membership_active=false.
+#   • still a member AND (coach OR team-responsible) → the "Lasse pattern": they staff
+#                     a team but play on none this season, so their player group is
 #                     stale (they keep their (Trainer*in) group). Remove.
-#   • active=true, NOT coach/TR (plain player or bare official) → AMBIGUOUS: usually a
-#                     MISSING ROSTER ROW in Wiedisync, not a wrong ClubDesk group.
+#   • still a member, NOT coach/TR (plain player or bare official) → AMBIGUOUS: usually
+#                     a MISSING ROSTER ROW in Wiedisync, not a wrong ClubDesk group.
 #                     LEFT UNTOUCHED for the manual consistency-check card.
+#
+# ⚠ The departure test used to be `wiedisync_active=false`, which does NOT mean "left
+#   the club" — it means "has never activated a wiedisync login", true for ~500 of 709
+#   members (juniors especially). Combined with a team whose roster was never entered,
+#   that wiped 29 DU20 girls out of ClubDesk on 2026-07-16 (group-cleanup-commit.log);
+#   the 06.07 clubdesk_export backup was the only surviving copy. Membership status is
+#   the only thing this may key on — never app activation.
 #
 # Runs the proven clubdesk-remove-group.mjs (detail-view chip ×, verify-before-save)
 # under the shared .sync.lock, exactly like the add/import scrapers.
@@ -88,7 +97,11 @@ strays AS (
   WHERE cg.grp IN (SELECT grp FROM team_groups)
     AND m.uuid IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM member_teams mt WHERE mt.member = m.id AND mt.season = '$SEASON')
-    AND ( COALESCE(m.wiedisync_active, false) = false
+    AND ( EXISTS (SELECT 1 FROM clubdesk_export ce2
+                   WHERE BTRIM(ce2.clubdesk_id) = m.clubdesk_id
+                     AND ( ce2.status IN ('Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
+                           OR COALESCE(BTRIM(ce2.austritt), '') <> '' ))
+          OR m.kscw_membership_active = false
           OR EXISTS (SELECT 1 FROM teams_coaches tc WHERE tc.members_id = m.id)
           OR EXISTS (SELECT 1 FROM teams_responsibles tr WHERE tr.members_id = m.id) )
 )"
