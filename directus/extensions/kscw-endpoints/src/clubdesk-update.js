@@ -181,10 +181,12 @@ export function toCp1252Buffer(str) {
 // ── Sync-up push CSV (member → ClubDesk import) ─────────────────────────────
 // Headers are the EXACT ClubDesk field names so the import wizard auto-maps every
 // column (verified live 2026-06-27 — "Telefon Privat" not "Telefon"). Semicolon-
-// delimited (ClubDesk's import default). UPDATE rows carry CONTACT fields only —
-// never groups/teams/membership category/status (ClubDesk-managed on existing
-// contacts); CREATE rows additionally carry Beitragskategorie + Eintritt +
-// Gruppen + Status (see CD_PUSH_CREATE_HEADERS below).
+// delimited (ClubDesk's import default). UPDATE rows carry CONTACT fields plus
+// three FILL-ONLY billing cells (Beitragskategorie/Eintritt/Mitgliederbeitrag,
+// 2026-07-27 — ClubDesk's own value always wins, see CD_PUSH_HEADERS) — never
+// groups/teams/status (ClubDesk-managed on existing contacts); CREATE rows
+// additionally carry Beitragskategorie + Eintritt + Gruppen + Status (see
+// CD_PUSH_CREATE_HEADERS below).
 //
 // UPDATE rows are keyed on ClubDesk's own [Id] (= members.clubdesk_id) since
 // 2026-07-08. A `[Id]` CSV column is consumed by the import wizard as the RECORD
@@ -263,7 +265,19 @@ const CD_PUSH_CONTACT_HEADERS = [
   'Gast',
 ]
 // UPDATE set: [Id]-keyed, name-less (see block comment above).
-const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS]
+// Beitragskategorie + Eintritt + Mitgliederbeitrag joined the UPDATE set
+// 2026-07-27 as FILL-ONLY update-CSV extras (NOT CD_PUSH_CONTACT_HEADERS —
+// the create set carries its own copies at their historical positions,
+// mirroring how the create extras work). Why: a contact created ClubDesk-side
+// first and linked afterwards never goes through a CREATE row, so those three
+// stayed empty in the register forever (member 525 / contact 1001301). Fill-
+// only = the /up echo stashes ClubDesk's OWN cell (`*_cd`) and buildPushCsv
+// sends it verbatim whenever it is non-empty (a no-op on import); wiedisync's
+// value goes out ONLY when ClubDesk's cell is empty. Same guarantee as the
+// anrede/nationalitaet echo with the precedence REVERSED — ClubDesk stays
+// authoritative on existing contacts, and per-person Mitgliederbeitrag
+// overrides ("Speziallizenz, einmalig so tief") are sacred.
+const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag']
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
 // A brand-new contact has no ClubDesk-owned category, entry date, groups or
@@ -276,11 +290,16 @@ const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS]
 // `BB HU14 (Trainer*in)` — ClubDesk's group naming, verified against the export
 // snapshot 2026-07-05), Status (Aktiv-/Passivmitglied — see deriveStatus) and
 // Offiziellen Lizenz (scorer/officials licence — see deriveOffiziellenLizenz).
-// UPDATE pushes NEVER send these columns — ClubDesk stays authoritative on
+// UPDATE pushes NEVER send Gruppen/Status/Offiziellen Lizenz/Passivmitglied/
+// Sektion/Schiedsrichter/Telefon Mobil — ClubDesk stays authoritative on
 // existing contacts. (Spike 2026-07-08: an empty mapped cell is provably a
 // no-op on import, but keeping these columns out of the update set remains
 // the structural guarantee — one probe on one field type is no licence to
-// send category/status cells at existing contacts.) That is why /up stashes
+// send status cells at existing contacts.) Beitragskategorie + Eintritt +
+// Mitgliederbeitrag are the 2026-07-27 exception: they ride on UPDATE rows
+// too, but FILL-ONLY — ClubDesk's own value is echoed back verbatim whenever
+// it exists, so an update can only ever fill a cell the register left empty
+// (see CD_PUSH_HEADERS). That is why /up stashes
 // TWO CSVs (up_csv + up_csv_create) instead of one.
 // ⚠ Gruppen maps in the import wizard as free TEXT and a commit does NOT
 // create the group membership (PROVEN 2026-07-06: Månsson/Clüver creates
@@ -688,6 +707,22 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         m.cd_passiv || '', m.cd_sektion || '', // resolved by /up from the registration
         deriveSchiedsrichter(m),
       )
+    } else {
+      // Fill-only billing cells (2026-07-27, see CD_PUSH_HEADERS): ClubDesk's
+      // own value always wins — /up stashes it in the `*_cd` mirrors and it is
+      // sent back verbatim (a no-op on import), so an update can only ever FILL
+      // a cell the register left empty (the CD-side-created-then-linked case).
+      // Per-person Mitgliederbeitrag overrides ("Speziallizenz, einmalig so
+      // tief") are sacred — they live in the mirror and are never re-derived.
+      // Eintritt: the mirror is ClubDesk's export string (dd.mm.yyyy, verified
+      // live 2026-07-27) → verbatim; the wiedisync fallback is the registration
+      // SUBMISSION date resolved by /up (same rule as the create path).
+      cells.push(
+        String(m.beitragskategorie_cd || '').trim() || mapKategorie(m.beitragskategorie),
+        String(m.eintritt_cd || '').trim() || fmtBirthdateDDMMYYYY(m.eintritt),
+        String(m.mitgliederbeitrag_cd || '').trim()
+          || deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
+      )
     }
     return cells.map(cdCell).join(';')
   })
@@ -698,9 +733,10 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
 // nationalitaet/ahv_nummer joined the push 2026-07-07, federation_of_origin
 // 2026-07-25 (all echo-protected for updates — see CD_PUSH_HEADERS; the
 // code→German mapping for the federation happens in buildPushCsv, not here, so
-// the column is selected raw). beitragskategorie/wiedisync_active and the
-// licence booleans are only ever used on CREATE rows (buildPushCsv /
-// deriveStatus / deriveOffiziellenLizenz).
+// the column is selected raw). beitragskategorie, birthdate and the licence
+// booleans also feed the UPDATE set's fill-only billing cells since 2026-07-27
+// (mapKategorie / deriveMitgliederbeitrag — exactly the inputs the CREATE path
+// already used); wiedisync_active stays CREATE-only (deriveStatus).
 const PUSH_FIELDS = [
   'id', 'uuid', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
   'ort', 'birthdate', 'sex', 'iban', 'anrede', 'nationalitaet',
@@ -1053,7 +1089,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         const cdids = updates.map((m) => String(m.clubdesk_id).trim()).filter(Boolean)
         const echoRows = cdids.length ? await database.raw(`
           SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
-                 iban, anrede, nationalitaet, ahv_nummer, federation_of_origin
+                 iban, anrede, nationalitaet, ahv_nummer, federation_of_origin,
+                 beitragskategorie, eintritt, mitgliederbeitrag
           FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
         `, [cdids]) : { rows: [] }
         const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
@@ -1072,6 +1109,15 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           // emit an empty cell, i.e. exactly the blanking this guard prevents.
           // buildPushCsv falls back to this raw value when the member has no answer.
           if (!String(m.federation_of_origin || '').trim()) m.federation_of_origin_cd = String(cd.federation_of_origin || '').trim()
+          // Fill-only billing mirrors (2026-07-27, see CD_PUSH_HEADERS): stashed
+          // UNCONDITIONALLY, because here the precedence is reversed — ClubDesk's
+          // own value always wins in buildPushCsv, and wiedisync's derivation is
+          // only the fallback for a register cell that is empty. Eintritt is
+          // ClubDesk's export string (dd.mm.yyyy) and Mitgliederbeitrag can hold
+          // a manual per-person override — both travel verbatim.
+          m.beitragskategorie_cd = String(cd.beitragskategorie || '').trim()
+          m.eintritt_cd = String(cd.eintritt || '').trim()
+          m.mitgliederbeitrag_cd = String(cd.mitgliederbeitrag || '').trim()
         }
       }
       const pushMembers = [...updates, ...creates]
@@ -1105,19 +1151,30 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const guestIds = await guestMemberIdSet(database, pushMembers.map((m) => m.id), getCurrentSeason())
       for (const m of pushMembers) m.is_guest = guestIds.has(Number(m.id))
       // no ClubDesk Eintritt/Gruppen to blank, so empty is safe there.
-      if (creates.length) {
-        const emails = [...new Set(creates.map((m) => String(m.email || '').toLowerCase().trim()).filter(Boolean))]
+      // Since 2026-07-27 the UPDATE rows carry a fill-only Eintritt cell too
+      // (see CD_PUSH_HEADERS), so the registration lookup runs over the WHOLE
+      // push, not just the creates — same approved-only filter, same email +
+      // first-name matching, and the create path resolves exactly what it
+      // always did. An update member's m.eintritt only ever reaches the CSV
+      // when ClubDesk's own Eintritt is empty (the eintritt_cd echo wins), so a
+      // contact created ClubDesk-side and linked afterwards finally gets its
+      // entry date without a register-set one ever being touched.
+      if (pushMembers.length) {
+        const emails = [...new Set(pushMembers.map((m) => String(m.email || '').toLowerCase().trim()).filter(Boolean))]
         const regs = emails.length
           ? await database('registrations').where('status', 'approved')
             .whereRaw('LOWER(BTRIM(email)) = ANY(?)', [emails])
             .select('email', 'vorname', 'submitted_at', 'membership_type', 'team', 'rolle', 'sektion_choice', 'lizenz')
           : []
-        for (const m of creates) {
+        for (const m of pushMembers) {
           const em = String(m.email || '').toLowerCase().trim()
           const reg = regs
             .filter((r) => String(r.email || '').toLowerCase().trim() === em && firstNamesMatchCd(r.vorname, m.first_name))
             .sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0))[0]
           m.eintritt = reg ? reg.submitted_at : null
+          // The remaining create-set extras (Gruppen/Status/Passiv/Sektion)
+          // stay off UPDATE rows — ClubDesk-authoritative there, no fill.
+          if (m.clubdesk_id) continue
           m.gruppen = deriveGruppen(reg)
           m.cd_status = deriveStatus(reg, m)
           m.cd_passiv = derivePassivmitglied(reg)

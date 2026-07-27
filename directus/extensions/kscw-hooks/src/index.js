@@ -4271,6 +4271,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!existingMember.adresse && reg.adresse) updates.adresse = reg.adresse
       if (!existingMember.plz && reg.plz) updates.plz = reg.plz
       if (!existingMember.ort && reg.ort) updates.ort = reg.ort
+      if (!existingMember.birthdate && reg.geburtsdatum) updates.birthdate = reg.geburtsdatum
       if (!existingMember.nationalitaet && reg.nationalitaet) updates.nationalitaet = reg.nationalitaet
       // Coded nationality (migration 223) — fill-only like the rest. When both
       // land in one update the members trigger's codes→name branch wins, so the
@@ -4281,6 +4282,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const existingFederation = normalizeFederation(reg.federation_of_origin)
       if (!existingMember.federation_of_origin && existingFederation) updates.federation_of_origin = existingFederation
       if (!existingMember.sex && reg.geschlecht) updates.sex = normalizeSex(reg.geschlecht)
+      // Salutation ('Herr'/'Frau') — the ClubDesk sync-up reads its Anrede column off the member.
+      if (!existingMember.anrede && ['Herr', 'Frau'].includes(reg.anrede)) updates.anrede = reg.anrede
       if (!existingMember.ahv_nummer && reg.ahv_nummer) updates.ahv_nummer = reg.ahv_nummer
       // Payout IBAN from the signup form (migration 185) — fill-only, and
       // confirmed: the member typed it themselves. Registration values arrive
@@ -4325,6 +4328,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         nationalitaet: natCodes ? null : (reg.nationalitaet || null),
         federation_of_origin: normalizeFederation(reg.federation_of_origin),
         sex: normalizeSex(reg.geschlecht),
+        anrede: ['Herr', 'Frau'].includes(reg.anrede) ? reg.anrede : null,
         ahv_nummer: reg.ahv_nummer || null,
         // Payout IBAN from the signup form (migration 185) — pre-validated
         // (mod-97) + normalized by registration.js; confirmed since the member

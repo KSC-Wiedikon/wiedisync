@@ -29,21 +29,28 @@ const kacper = {
 }
 
 describe('buildPushCsv (update set)', () => {
-  it('is [Id]-keyed and name-less — exactly the 15 contact columns, no category', () => {
+  it('is [Id]-keyed and name-less — 15 contact columns + 3 fill-only billing cells, no groups/status', () => {
     const csv = buildPushCsv([kacper])
     const [header, row] = csv.trim().split('\n')
-    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast')
+    // Beitragskategorie/Eintritt/Mitgliederbeitrag joined the UPDATE set
+    // 2026-07-27 as FILL-ONLY extras at the END (after Gast) — ClubDesk's own
+    // value always wins, so they can only ever fill an empty register cell.
+    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag')
     // Names must NEVER ride on an update row: [Id] is the upsert key (spike-proven
     // 2026-07-08) and a name column would overwrite the register's legal name.
     expect(header).not.toContain('Vorname')
     expect(header).not.toContain('Nachname')
-    expect(header).not.toContain('Beitragskategorie')
+    // Groups/Status stay CREATE-only — ClubDesk-authoritative on existing contacts.
+    expect(header).not.toContain('Gruppen')
+    expect(header).not.toContain('Status')
     const cells = row.split(';')
-    expect(cells).toHaveLength(15)
+    expect(cells).toHaveLength(18)
     expect(cells[0]).toBe('1001283')  // ClubDesk's own [Id] = members.clubdesk_id
     expect(row).not.toContain('Kacper')
     expect(row).not.toContain('Krawczyński')
-    expect(row).not.toContain('VB Erwerbstätige')
+    // The fixture's gruppen/cd_status must never leak onto an update row.
+    expect(row).not.toContain('VB H1')
+    expect(row).not.toContain('Aktivmitglied')
   })
 
   it('emits an empty [Id] cell when clubdesk_id is missing (guarded upstream by /up)', () => {
@@ -150,6 +157,59 @@ describe('buildPushCsv (update set)', () => {
       .trim().split('\n')[1].split(';')
     expect(cells[2]).toBe('+41 79 000 00 00') // Telefon Privat
     expect(cells[3]).toBe("'+HYPERLINK(1)")   // Adresse
+  })
+})
+
+describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', () => {
+  // Cells [15..17] = Beitragskategorie / Eintritt / Mitgliederbeitrag. ClubDesk's
+  // own value (the /up-stashed *_cd mirror) ALWAYS wins — sending it back is a
+  // no-op on import — and wiedisync's value goes out only when the register's
+  // cell is empty (the contact-created-ClubDesk-side-then-linked case, member
+  // 525 / contact 1001301). Per-person Mitgliederbeitrag overrides
+  // ("Speziallizenz, einmalig so tief") are sacred.
+  const cellsOf = (m) => buildPushCsv([{ ...kacper, ...m }]).trim().split('\n')[1].split(';')
+
+  it("echoes ClubDesk's own value VERBATIM when the register has one (no-op)", () => {
+    const cells = cellsOf({
+      beitragskategorie_cd: 'VB Studenten/Lehrlinge',
+      eintritt_cd: '09.03.2025', // ClubDesk export string, dd.mm.yyyy — never reparsed
+      mitgliederbeitrag_cd: '250', // manual per-person override — sacred
+    })
+    expect(cells[15]).toBe('VB Studenten/Lehrlinge') // NOT wiedisync's 'VB Erwerbstätige'
+    expect(cells[16]).toBe('09.03.2025')             // NOT the registration date
+    expect(cells[17]).toBe('250')                    // NOT the derived 540
+  })
+
+  it('fills from wiedisync when ClubDesk is empty — mapped Kategorie, dd.mm.yyyy Eintritt, derived Beitrag with the +100 no-licence surcharge', () => {
+    // kacper: VB Erwerbstätige, no scorer_vb → adult surcharge applies (440+100).
+    const cells = cellsOf({})
+    expect(cells[15]).toBe('VB Erwerbstätige')
+    expect(cells[16]).toBe('27.06.2026') // m.eintritt (registration submitted_at) → dd.mm.yyyy
+    expect(cells[17]).toBe('540')
+    // A licensed scorer pays the base fee.
+    expect(cellsOf({ scorer_vb: true })[17]).toBe('440')
+    // The legacy form Kategorie is MAPPED to ClubDesk's wording exactly like
+    // the create path; the fee still derives from the RAW category, under BB
+    // rules (a VB scorer licence does not lift the BB officials surcharge).
+    const mapped = cellsOf({ beitragskategorie: 'BB Junior:innen', scorer_vb: true })
+    expect(mapped[15]).toBe('BB Jugend Meisterschaft')
+    expect(mapped[17]).toBe('410') // youth 310 + 100 (U16+ by birthdate, no BB officials licence)
+    // A pure guest is billed the guest rate on the fill, same flag as the Gast cell.
+    expect(cellsOf({ is_guest: true })[17]).toBe('330') // 440 − 110, never the surcharge
+  })
+
+  it('each cell echoes independently — a register-set Kategorie never blocks an Eintritt fill', () => {
+    const cells = cellsOf({ beitragskategorie_cd: 'VB Erwerbstätige', eintritt_cd: '', mitgliederbeitrag_cd: '440' })
+    expect(cells[15]).toBe('VB Erwerbstätige') // echo
+    expect(cells[16]).toBe('27.06.2026')       // fill
+    expect(cells[17]).toBe('440')              // echo
+  })
+
+  it('ClubDesk empty + no wiedisync value → empty cells (a harmless no-op on import)', () => {
+    const cells = cellsOf({ beitragskategorie: null, eintritt: null })
+    expect(cells[15]).toBe('')
+    expect(cells[16]).toBe('')
+    expect(cells[17]).toBe('') // unknown/empty category is never guessed at
   })
 })
 
