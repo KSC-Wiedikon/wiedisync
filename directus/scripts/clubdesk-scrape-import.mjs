@@ -99,7 +99,17 @@ const readSummary = (page) => page.evaluate(() => {
   return {
     total: countFor(/Insgesamt eingelesene/i),
     neu: countFor(/Neue Kontakte/i),
-    veraendert: countFor(/(Veränderte|Geänderte) Kontakte/i),
+    // ⚠ The (?<!Un) guard is load-bearing: ClubDesk OMITS a line when its count
+    // is zero, and "Unveränderte Kontakte (entsprechen dem aktuellen Stand in
+    // ClubDesk)" CONTAINS "veränderte Kontakte". Without the lookbehind, an
+    // import that changes nothing has no "Veränderte" line to find, matches the
+    // "Unveränderte" one instead, and reports every unchanged row as changed —
+    // observed 2026-07-27 on the Gast backfill verification run, which printed
+    // veraendert=707 off a dialog whose only lines were "Insgesamt: 707" and
+    // "Unveränderte: 707". Harmless to the up-dispatcher's gate (scrape_ok only
+    // needs a numeric total + no error), but the sync-up modal renders this
+    // number at an admin as "changed contacts".
+    veraendert: countFor(/(?<!Un)(Veränderte|Geänderte) Kontakte/i),
     unveraendert: countFor(/Unveränderte Kontakte/i),
     hasSummary: true,
   }

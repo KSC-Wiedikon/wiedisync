@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, derivePassivmitglied, deriveSchiedsrichter, federationCell, nationalityCell } from '../clubdesk-update.js'
+import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, derivePassivmitglied, deriveSchiedsrichter, federationCell, nationalityCell, gastCell } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -29,17 +29,17 @@ const kacper = {
 }
 
 describe('buildPushCsv (update set)', () => {
-  it('is [Id]-keyed and name-less — exactly the 14 contact columns, no category', () => {
+  it('is [Id]-keyed and name-less — exactly the 15 contact columns, no category', () => {
     const csv = buildPushCsv([kacper])
     const [header, row] = csv.trim().split('\n')
-    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID')
+    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast')
     // Names must NEVER ride on an update row: [Id] is the upsert key (spike-proven
     // 2026-07-08) and a name column would overwrite the register's legal name.
     expect(header).not.toContain('Vorname')
     expect(header).not.toContain('Nachname')
     expect(header).not.toContain('Beitragskategorie')
     const cells = row.split(';')
-    expect(cells).toHaveLength(14)
+    expect(cells).toHaveLength(15)
     expect(cells[0]).toBe('1001283')  // ClubDesk's own [Id] = members.clubdesk_id
     expect(row).not.toContain('Kacper')
     expect(row).not.toContain('Krawczyński')
@@ -84,6 +84,35 @@ describe('buildPushCsv (update set)', () => {
     expect(cell({ federation_of_origin: null })).toBe('')
     // An unknown code is never guessed at — empty, and the echo takes over.
     expect(cell({ federation_of_origin: 'ZZ', federation_of_origin_cd: 'Italien' })).toBe('Italien')
+  })
+
+  it('sends Gast as a TOTAL Ja/Nein — a non-guest asserts Nein, never an empty cell', () => {
+    // Wiedisync owns guest status outright (it derives from member_teams, which
+    // ClubDesk has no source for), so unlike every other contact column there is
+    // no echo and no empty state: leaving the cell blank would let the register
+    // stay ambiguous between "not a guest" and "nobody ever said".
+    const gastOf = (m, opts) => {
+      const csv = buildPushCsv([{ ...kacper, ...m }], opts)
+      const [header, row] = csv.trim().split('\n')
+      return row.split(';')[header.split(';').indexOf('Gast')]
+    }
+    expect(gastOf({ is_guest: true })).toBe('Ja')
+    expect(gastOf({ is_guest: false })).toBe('Nein')
+    // Unresolved (a caller that forgot /up's guestMemberIdSet pass) must NOT
+    // read as a guest — 'Nein' is the safe assertion, 'Ja' would invent one.
+    expect(gastOf({})).toBe('Nein')
+    expect(gastOf({ is_guest: null })).toBe('Nein')
+    // Truthy-but-not-true values are not a guest flag either (=== true).
+    expect(gastOf({ is_guest: 1 })).toBe('Nein')
+    // Same column, same rule, on the CREATE set — where it must agree with the
+    // guest Mitgliederbeitrag computed off the very same flag.
+    expect(gastOf({ is_guest: true }, { create: true })).toBe('Ja')
+  })
+
+  it('exposes gastCell as the single Ja/Nein mapper (drift + push must not diverge)', () => {
+    expect(gastCell(true)).toBe('Ja')
+    expect(gastCell(false)).toBe('Nein')
+    expect(gastCell(undefined)).toBe('Nein')
   })
 
   it('repairs outgoing contact cells to the canonical formats (normalize.js)', () => {
@@ -133,30 +162,30 @@ describe('buildPushCsv (create set)', () => {
     // the cells shift against ClubDesk's mapper). CREATE rows carry the real
     // wiedisync name (a new contact needs one) and never an [Id] (an unknown
     // [Id] hard-aborts ClubDesk's whole import).
-    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Passivmitglied;Sektion;Schiedsrichter')
+    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Passivmitglied;Sektion;Schiedsrichter')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
     expect(header).not.toContain('[Id]')
     // header/cell count equality — catches a header/cells drift in either direction
     expect(row.split(';')).toHaveLength(header.split(';').length)
     const cells = row.split(';')
-    expect(cells).toHaveLength(25)
+    expect(cells).toHaveLength(26)
     expect(cells[9]).toBe('CH9300762011623852957') // IBAN
-    // [10..13] = Anrede/Nationalität/Federation of Origin/AHV Nummer (empty on this fixture); [14] = Wiedisync ID; create extras start at [15]
-    expect(cells[15]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
-    expect(cells[16]).toBe('VB Erwerbstätige')       // Beitragskategorie
-    expect(cells[17]).toBe('27.06.2026')             // Eintritt
-    expect(cells[18]).toBe('VB H1 (Spieler*in)')     // Gruppen
-    expect(cells[19]).toBe('Aktivmitglied')          // Status
-    expect(cells[20]).toBe('VB SC')                  // Offiziellen Lizenz (scorer, not VB SR)
-    expect(cells[21]).toBe('440')                    // Mitgliederbeitrag
-    expect(cells[22]).toBe('Nein')                   // Passivmitglied
-    expect(cells[23]).toBe('Volleyball')             // Sektion
-    expect(cells[24]).toBe('Ja')                     // Schiedsrichter (referee)
+    // [10..13] = Anrede/Nationalität/Federation of Origin/AHV Nummer (empty on this fixture); [14] = Wiedisync ID; [15] = Gast; create extras start at [16]
+    expect(cells[16]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
+    expect(cells[17]).toBe('VB Erwerbstätige')       // Beitragskategorie
+    expect(cells[18]).toBe('27.06.2026')             // Eintritt
+    expect(cells[19]).toBe('VB H1 (Spieler*in)')     // Gruppen
+    expect(cells[20]).toBe('Aktivmitglied')          // Status
+    expect(cells[21]).toBe('VB SC')                  // Offiziellen Lizenz (scorer, not VB SR)
+    expect(cells[22]).toBe('440')                    // Mitgliederbeitrag
+    expect(cells[23]).toBe('Nein')                   // Passivmitglied
+    expect(cells[24]).toBe('Volleyball')             // Sektion
+    expect(cells[25]).toBe('Ja')                     // Schiedsrichter (referee)
   })
 
   it('Telefon Mobil mirrors Telefon Privat (one number → both)', () => {
     const cells = buildPushCsv([kacper], { create: true }).trim().split('\n')[1].split(';')
-    expect(cells[3]).toBe(cells[15]) // Privat === Mobil
+    expect(cells[3]).toBe(cells[16]) // Privat === Mobil
   })
 
   it('empty create-set optional cells stay empty (safe on a new contact)', () => {
@@ -164,22 +193,24 @@ describe('buildPushCsv (create set)', () => {
       .trim().split('\n')[1]
     const cells = row.split(';')
     // IBAN, Anrede, Nationalität, Federation of Origin, AHV, Wiedisync ID (no id),
-    // Telefon Mobil, Beitragskategorie, Eintritt, Gruppen, Status
-    for (const i of [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]) expect(cells[i]).toBe('')
+    // Telefon Mobil, Beitragskategorie, Eintritt, Gruppen, Status.
+    // 15 (Gast) is deliberately NOT in this list — it is the one contact column
+    // that is never empty (gastCell asserts 'Nein'), asserted separately below.
+    for (const i of [9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20]) expect(cells[i]).toBe('')
   })
 
   it('neutralises formula injection in the category cell', () => {
     const row = buildPushCsv([{ ...kacper, beitragskategorie: '=SUM(A1)' }], { create: true })
       .trim().split('\n')[1]
-    expect(row.split(';')[16]).toBe("'=SUM(A1)")
+    expect(row.split(';')[17]).toBe("'=SUM(A1)")
   })
 
   it('multi-team Gruppen stays one cell (comma is safe in semicolon CSV)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(25)
-    expect(cells[18]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
+    expect(cells).toHaveLength(26)
+    expect(cells[19]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 })
 
