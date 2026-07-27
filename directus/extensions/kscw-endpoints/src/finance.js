@@ -28,7 +28,7 @@ import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './email-template.js'
 import { renderInvoiceQrBillPdf } from './finance-qrbill.js'
 import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
-import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe, removeAutopostForTeamEntrySafe } from './finance-autopost.js'
+import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe, removeAutopostForTeamEntrySafe, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -1034,14 +1034,31 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (await fiscalYearClosed(database, fyId)) return res.status(409).json({ error: FY_CLOSED_MSG })
       const dateFyId = await fiscalYearIdForDate(entryDate)
       if (dateFyId !== fyId && await fiscalYearClosed(database, dateFyId)) return res.status(409).json({ error: FY_CLOSED_MSG })
-      const ins = await database('finance_team_entries').insert({
-        team: teamId, fiscal_year: fyId, kind, amount,
-        label: (b.label || '').toString().trim().slice(0, 255) || null,
-        sponsor: (b.sponsor || '').toString().trim().slice(0, 255) || null,
-        entry_date: entryDate, note: (b.note || '').toString().trim().slice(0, 255) || null,
-        created_by_name: mem?.name || null, created_by_email: mem?.email || null,
-      }).returning('id')
-      const entryId = ins[0]?.id ?? ins[0]
+      // Check-then-insert was racy against a concurrent year-end close (the
+      // invoice/payment paths already run inside a trx). Re-check under the
+      // shared fiscal-year advisory lock so the close and this insert
+      // serialize; the pre-checks above stay as the fast 409 path.
+      let entryId
+      try {
+        entryId = await database.transaction(async (trx) => {
+          for (const y of [...new Set([fyId, dateFyId])].sort((a, b) => a - b)) {
+            await trx.raw('SELECT pg_advisory_xact_lock(?::int, ?::int)', [FISCAL_YEAR_LOCK_NS, y])
+          }
+          if (await fiscalYearClosed(trx, fyId)) throw Object.assign(new Error(FY_CLOSED_MSG), { fyClosed: true })
+          if (dateFyId !== fyId && await fiscalYearClosed(trx, dateFyId)) throw Object.assign(new Error(FY_CLOSED_MSG), { fyClosed: true })
+          const ins = await trx('finance_team_entries').insert({
+            team: teamId, fiscal_year: fyId, kind, amount,
+            label: (b.label || '').toString().trim().slice(0, 255) || null,
+            sponsor: (b.sponsor || '').toString().trim().slice(0, 255) || null,
+            entry_date: entryDate, note: (b.note || '').toString().trim().slice(0, 255) || null,
+            created_by_name: mem?.name || null, created_by_email: mem?.email || null,
+          }).returning('id')
+          return ins[0]?.id ?? ins[0]
+        })
+      } catch (e) {
+        if (e?.fyClosed) return res.status(409).json({ error: FY_CLOSED_MSG })
+        throw e
+      }
       await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_team_entries', recordId: entryId, data: { kind: 'team_entry', team: teamId, entry_kind: kind, amount } })
       await autopostTeamEntrySafe(database, log, entryId)
       return res.json({ id: entryId })
@@ -1063,12 +1080,29 @@ export function registerFinance(router, { database, logger, services, getSchema 
       // row behind it (removeAutopostForTeamEntrySafe swallows the trigger's
       // exception, so nothing would surface the orphan).
       if (await fiscalYearClosed(database, entry.fiscal_year)) return res.status(409).json({ error: FY_CLOSED_MSG })
-      const lockedPost = await database('finance_transactions as t')
-        .join('finance_fiscal_years as fy', 'fy.id', 't.fiscal_year')
+      const glPost = await database('finance_transactions as t')
         .where({ 't.ref_kind': 'team', 't.ref_id': id, 't.auto': true, 't.source': 'native' })
-        .andWhere('fy.status', 'closed').first('t.id')
-      if (lockedPost) return res.status(409).json({ error: FY_CLOSED_MSG })
-      const removed = await database('finance_team_entries').where('id', id).del()
+        .first('t.id', 't.fiscal_year')
+      // Same close-race fix as the POST: delete under the shared fiscal-year
+      // advisory lock (entry year + the GL posting's year, which entry_date
+      // can put elsewhere) and re-check both closed-year guards inside.
+      let removed
+      try {
+        removed = await database.transaction(async (trx) => {
+          const years = [...new Set([entry.fiscal_year, glPost?.fiscal_year].filter((y) => Number.isInteger(y)))].sort((a, b) => a - b)
+          for (const y of years) await trx.raw('SELECT pg_advisory_xact_lock(?::int, ?::int)', [FISCAL_YEAR_LOCK_NS, y])
+          if (await fiscalYearClosed(trx, entry.fiscal_year)) throw Object.assign(new Error(FY_CLOSED_MSG), { fyClosed: true })
+          const lockedPost = await trx('finance_transactions as t')
+            .join('finance_fiscal_years as fy', 'fy.id', 't.fiscal_year')
+            .where({ 't.ref_kind': 'team', 't.ref_id': id, 't.auto': true, 't.source': 'native' })
+            .andWhere('fy.status', 'closed').first('t.id')
+          if (lockedPost) throw Object.assign(new Error(FY_CLOSED_MSG), { fyClosed: true })
+          return trx('finance_team_entries').where('id', id).del()
+        })
+      } catch (e) {
+        if (e?.fyClosed) return res.status(409).json({ error: FY_CLOSED_MSG })
+        throw e
+      }
       // #9: also drop the entry's auto-posted GL journal entry, else it lingers
       // as phantom income/expense (the DELETE mirrors the payment-delete path).
       if (removed) await removeAutopostForTeamEntrySafe(database, log, id)

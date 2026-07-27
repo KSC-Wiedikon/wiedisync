@@ -97,8 +97,11 @@ export function applyLocalGuards(data, existing) {
   // flip doesn't even notify — trg_games_notify mutes it as cosmetic). Only
   // an actual result (completed) overrides the cancel. 'cancelled' can only
   // come from the app — this sync writes scheduled/completed exclusively.
-  if (existing.status === 'cancelled' && data.status !== 'completed') {
-    data.status = 'cancelled'
+  // Same for a local 'postponed' (this feed never emits it either) — the
+  // sibling of the resurrect class; bp-sync deliberately does NOT mirror this
+  // one, because Basketplan's own withdrawal mapping owns 'postponed' there.
+  if ((existing.status === 'cancelled' || existing.status === 'postponed') && data.status !== 'completed') {
+    data.status = existing.status
   }
   // Never downgrade kscw_team to NULL: the team lookup is active-only, so a
   // team archived without a successor resolves to nothing — and NULLing here

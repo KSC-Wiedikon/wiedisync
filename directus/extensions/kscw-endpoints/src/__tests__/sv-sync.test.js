@@ -34,6 +34,18 @@ describe('applyLocalGuards — local cancel preservation', () => {
     expect(data.status).toBe('completed')
   })
 
+  it('keeps a locally-postponed game postponed when the feed still says scheduled', () => {
+    const data = { status: 'scheduled', kscw_team: 5 }
+    applyLocalGuards(data, { status: 'postponed', kscw_team: 5 })
+    expect(data.status).toBe('postponed')
+  })
+
+  it('completed overrides a local postponed too', () => {
+    const data = { status: 'completed', kscw_team: 5 }
+    applyLocalGuards(data, { status: 'postponed', kscw_team: 5 })
+    expect(data.status).toBe('completed')
+  })
+
   it('leaves non-cancelled rows alone (scheduled → completed syncs normally)', () => {
     const data = { status: 'completed', kscw_team: 5 }
     applyLocalGuards(data, { status: 'scheduled', kscw_team: 5 })
