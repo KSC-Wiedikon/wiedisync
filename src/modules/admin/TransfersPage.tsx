@@ -126,6 +126,17 @@ interface VmRow {
   email?: string | null
   licence_validated?: boolean | null
   licence_validation_date?: string | null
+  /** German country name — the person's CITIZENSHIP as Volleymanager records it. */
+  nationality?: string | null
+  /**
+   * IOC alpha-3 PLAYING nationality of the licence. 'SUI' on a foreign citizen
+   * means Swiss Volley already counts them as Swiss for eligibility — it does
+   * NOT mean Swiss citizenship, and neither column is a federation of origin
+   * (Volleymanager stores none; its `federation` column is the REGIONAL
+   * association of the current licence club). Shown for comparison only, never
+   * fed back into `federation_of_origin`.
+   */
+  nationality_code?: string | null
 }
 
 /**
@@ -634,7 +645,10 @@ export default function TransfersPage() {
         { email: { _in: vmMatchKeys.emails } },
       ],
     },
-    fields: ['id', 'association_id', 'email', 'licence_validated', 'licence_validation_date'],
+    fields: [
+      'id', 'association_id', 'email', 'licence_validated', 'licence_validation_date',
+      'nationality', 'nationality_code',
+    ],
     all: true,
     enabled: vmMatchKeys.licences.length > 0 || vmMatchKeys.emails.length > 0,
     staleTime: 60_000,
@@ -854,7 +868,16 @@ export default function TransfersPage() {
   /** Read-only licence-validation indicator + the two mismatch call-outs. */
   const licenceCell = (m: TransferMember) => {
     const state = validationOf(m)
-    const validatedAt = vmByMember.get(String(m.id))?.licence_validation_date
+    const vm = vmByMember.get(String(m.id))
+    const validatedAt = vm?.licence_validation_date
+    // Volleymanager's side of the "federation of origin" question. VM stores no
+    // FoO at all, so the closest it has is shown verbatim for comparison:
+    // citizenship + the licence's playing nationality (see VmRow). Verbatim on
+    // purpose — the value is evidence of what VM literally says, and mapping a
+    // German country name or an IOC code through our own tables would let a
+    // mapping bug misreport the register being checked against.
+    const vmNationality = String(vm?.nationality ?? '').trim()
+    const vmPlaysAs = String(vm?.nationality_code ?? '').trim()
     const blocked = m.transfer_status === 'done' && state !== 'validated'
     const probablyDone = m.transfer_status === 'pending' && state === 'validated'
     return (
@@ -877,6 +900,16 @@ export default function TransfersPage() {
         {state === 'validated' && validatedAt && (
           <span className="block text-xs text-gray-400 dark:text-gray-500">
             {formatDateZurich(validatedAt)}
+          </span>
+        )}
+        {(vmNationality || vmPlaysAs) && (
+          <span
+            className="block text-xs whitespace-normal text-gray-400 dark:text-gray-500"
+            title={t('trVmOriginHint')}
+          >
+            {vmNationality && vmPlaysAs
+              ? t('trVmOriginBoth', { nationality: vmNationality, code: vmPlaysAs })
+              : t('trVmOrigin', { value: vmNationality || vmPlaysAs })}
           </span>
         )}
         {/* Destructive, not a subtle badge: this player may not be fielded. */}
