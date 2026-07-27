@@ -129,6 +129,11 @@ export default {
   shellAccount: 'Temporär',
   expiresIn: 'läuft in {{days}}T ab',
   extend: 'Verlängern',
+  shellInfoTitle: 'Temporäres Konto',
+  shellInfoWhat: 'Dieses Mitglied steht im Kader, hat sein WiediSync-Login aber noch nicht aktiviert. Der Eintrag ist temporär und hat ein Ablaufdatum.',
+  shellInfoExpiry: 'Wird das Konto nicht rechtzeitig aktiviert, wird der Eintrag automatisch deaktiviert und verschwindet aus dem Kader.',
+  shellInfoActionTitle: 'Was ist zu tun',
+  shellInfoAction: 'Schicke dem Mitglied die WiediSync-Einladung (Brief-Symbol unter «Kader bearbeiten»), damit es ein Passwort setzen kann. Sobald es sich zum ersten Mal einloggt, verschwindet der Temporär-Status automatisch. Coaches können das Ablaufdatum auch verlängern.',
   // WiediSync account invite (account-less roster members)
   sendAccountInvite: 'WiediSync-Einladung senden',
   accountInviteSent: 'Einladung an {{email}} gesendet',

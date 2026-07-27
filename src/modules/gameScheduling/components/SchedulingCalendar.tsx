@@ -23,11 +23,12 @@ type EntryKind =
   | 'away_confirmed'
   | 'home_proposed'
   | 'away_proposed'
-  | 'blocked'      // a reserved KWI court (derby hall hold / BB Friday split)
+  | 'blocked'      // a reserved KWI court (derby hall hold / a planner's manual block)
   | 'team_block'   // a scheduling_blocks "no games" period for the team
   | 'club_block'   // a scheduling_global_blocks club-wide blackout (all teams)
   | 'team_event'   // a team event that blocks games that day
   | 'bb_game'      // a basketball game placed at KWI (cross-sport hall coordination)
+  | 'training'     // the team's own training (single-team calendars only — context, not a blocker)
 
 /** An intra-club game (e.g. the H1↔H3 derby) — not a booking; comes from `games`.
  *  Rendered as a normal confirmed home/away game per the team's perspective. */
@@ -122,6 +123,7 @@ const CHIP: Record<EntryKind, string> = {
   club_block: 'bg-red-300 text-red-900 dark:bg-red-950/70 dark:text-red-100',
   team_event: 'bg-purple-200 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
   bb_game: 'bg-orange-500 text-white',
+  training: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-200',
 }
 
 // Kinds that represent "a game can't happen here" rather than a game itself.
@@ -353,6 +355,30 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     return () => { cancelled = true }
   }, [teamIds, startYear])
 
+  // The team's own trainings — the scheduling calendar is game data, but on a
+  // single team's calendar the training evenings give the week its rhythm, so
+  // they render as faint context chips (a training is NOT a blocker: those same
+  // evenings double as the team's home-game slots). Cancelled ones are skipped.
+  // Fail-soft: a viewer without `trainings` read simply gets none.
+  const [trainings, setTrainings] = useState<{ id: string; date: string; start_time?: string | null; team: string | number; hall_name?: string | null }[]>([])
+  useEffect(() => {
+    // Per-team only — never on the all-teams overview (teamIds.length > 1).
+    if (teamIds.length !== 1) return
+    let cancelled = false
+    fetchAllItems<{ id: string; date: string; start_time?: string | null; team: string | number; hall_name?: string | null }>('trainings', {
+      fields: ['id', 'date', 'start_time', 'team', 'hall_name'],
+      filter: { _and: [
+        { team: { _in: teamIds } },
+        { cancelled: { _neq: true } },
+        { date: { _gte: `${startYear}-08-01` } },
+        { date: { _lte: `${startYear + 1}-04-30` } },
+      ] },
+    })
+      .then((r) => { if (!cancelled) setTrainings(r) })
+      .catch(() => { if (!cancelled) setTrainings([]) })
+    return () => { cancelled = true }
+  }, [teamIds, startYear])
+
   // slot id -> opponent label, from confirmed home bookings (so a booked slot
   // shows who it's against).
   const oppBySlot = useMemo(() => {
@@ -508,9 +534,10 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         })
       } else if (s.status === 'blocked') {
         // A blocked slot is either a derby hall reservation (the gym is held A+B for
-        // an intra-club derby that evening) or the KWI VB/BB Friday alternation.
-        // Chip just says "Reserved"; the tooltip/detail says what it's reserved for.
-        const reason = derbyDates.has(toDateKey(d)) ? t('reservedForDerby') : t('reservedForBB')
+        // an intra-club derby that evening) or a manual planner block (pre-season
+        // window, hall given away, …) — the DB stores no reason, so don't invent
+        // one. Chip just says "Reserved"; the tooltip/detail says which case it is.
+        const reason = derbyDates.has(toDateKey(d)) ? t('reservedForDerby') : t('blockedByPlanners')
         out.push({ id: `slot-${s.id}`, date: d, kind: 'blocked', label: t('reserved'), teamId: tid, time: slotTime(d, s.start_time), hallName: hallName(s.hall), detail: reason, title: `${reason} · ${team}` })
       }
     }
@@ -624,8 +651,23 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         title: `${t('legendHomeBb')}: ${g.team}${g.opponent ? ` vs ${g.opponent}` : ''}${time ? ` · ${time}` : ''}`,
       })
     }
+
+    // Trainings — pushed LAST so on busy days the game chips win the 3-visible
+    // cut and trainings fold into the "+N" overflow. Single-team calendars only
+    // (the fetch is gated, so this is empty elsewhere).
+    for (const tr of trainings) {
+      const d = parseYmd(tr.date)
+      if (!d) continue
+      const team = teamName(tr.team)
+      const time = hhmm(tr.start_time)
+      out.push({
+        id: `tr-${tr.id}`, date: d, kind: 'training', label: t('legendTraining'),
+        teamId: String(tr.team), time, hallName: tr.hall_name || '',
+        title: `${t('legendTraining')} · ${team}${time ? ` · ${time}` : ''}`,
+      })
+    }
     return out
-  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, blocks, clubBlocks, teamEvents, bbGames])
+  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, blocks, clubBlocks, teamEvents, bbGames, trainings])
 
   // Team-link warnings per day: when two manually-linked teams (Settings → Team
   // links) both have games on the same day. A 'diff'/'adjacent' pair at the SAME
@@ -730,6 +772,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       { kind: 'team_block' as EntryKind, label: t('blockNoGames') },
       { kind: 'team_event' as EntryKind, label: t('teamEventLabel') },
     ] : []),
+    // Trainings are per-team context chips — only in the legend when any render.
+    ...(isTeamScoped && trainings.length ? [{ kind: 'training' as EntryKind, label: t('legendTraining') }] : []),
   ]
 
   const KIND_LABEL = useMemo<Record<EntryKind | 'open', string>>(() => ({
@@ -742,6 +786,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     club_block: t('clubBlockLegend'),
     team_event: t('teamEventLabel'),
     bb_game: t('legendHomeBb'),
+    training: t('legendTraining'),
     open: t('legendOpen'),
   }), [t])
 
