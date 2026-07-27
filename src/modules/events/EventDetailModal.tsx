@@ -15,7 +15,6 @@ import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import { formatDate, formatTime } from '../../utils/dateHelpers'
-import TasksSection from '../tasks/TasksSection'
 import BroadcastButton from '../broadcast/BroadcastButton'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus } from 'lucide-react'
@@ -172,18 +171,6 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Tasks — enabled per-event by creator, or inherited from first team */}
-          {user && event && isFeatureEnabled(event.features_enabled, 'tasks') && (
-            <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
-              <TasksSection
-                activityType="event"
-                activityId={event.id}
-                teamId={teamId(event.teams?.[0])}
-                canManage={isStaff}
-              />
             </div>
           )}
 

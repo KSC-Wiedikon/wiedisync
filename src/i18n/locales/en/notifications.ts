@@ -51,10 +51,6 @@ export default {
   deadline_event: 'RSVP deadline tomorrow: {{title}}',
   // New feature notifications
   poll_created: '{{creator}} created a poll: {{question}}',
-  carpool_offered: '{{driver}} is offering a ride to {{game}}',
-  carpool_joined: '{{passenger}} joined your ride to {{game}}',
-  carpool_cancelled: '{{driver}} cancelled the ride to {{game}}',
-  task_assigned: 'You have been assigned: {{label}}',
   new_report: 'New report: {{reason}}',
   absence_created_for_you: '{{editor}} added an absence for you (from {{start}})',
   absence_updated_for_you: '{{editor}} updated your absence (from {{start}})',
@@ -62,8 +58,6 @@ export default {
   absence_weekly_updated_for_you: '{{editor}} updated your weekly unavailability',
   // Type labels for new features
   pollCreated: 'Poll',
-  carpoolUpdate: 'Carpool',
-  taskAssigned: 'Task',
   // Push notifications
   pushNotifications: 'Push notifications',
   pushEnable: 'Enable',

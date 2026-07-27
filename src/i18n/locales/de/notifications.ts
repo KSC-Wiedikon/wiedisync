@@ -51,10 +51,6 @@ export default {
   deadline_event: 'Anmeldefrist morgen: {{title}}',
   // Neue Feature-Benachrichtigungen
   poll_created: '{{creator}} hat eine Umfrage erstellt: {{question}}',
-  carpool_offered: '{{driver}} bietet eine Fahrt zu {{game}} an',
-  carpool_joined: '{{passenger}} fährt bei deiner Fahrt zu {{game}} mit',
-  carpool_cancelled: '{{driver}} hat die Fahrt zu {{game}} abgesagt',
-  task_assigned: 'Dir wurde eine Aufgabe zugewiesen: {{label}}',
   new_report: 'Neue Meldung: {{reason}}',
   absence_created_for_you: '{{editor}} hat eine Absenz für dich eingetragen (ab {{start}})',
   absence_updated_for_you: '{{editor}} hat deine Absenz angepasst (ab {{start}})',
@@ -62,8 +58,6 @@ export default {
   absence_weekly_updated_for_you: '{{editor}} hat deine wöchentliche Verhinderung angepasst',
   // Typ-Labels für neue Features
   pollCreated: 'Umfrage',
-  carpoolUpdate: 'Fahrgemeinschaft',
-  taskAssigned: 'Aufgabe',
   // Push notifications
   pushNotifications: 'Push-Benachrichtigungen',
   pushEnable: 'Aktivieren',

@@ -22,6 +22,8 @@ Canonical role × collection × action map. Reflects the live state through migr
 
 > **2026-06-10 — Deep-audit remediation (Public `events` row-scope + doc-drift corrections).** Public `events` read was field-restricted but **NOT row-restricted** (filter `null`), so anon could read every event's title via `/items/events` — including team-internal events. Scoped to club-wide types `{ event_type: { _in: ['verein', 'tournament'] } }`, mirroring the Member `EVENTS_VISIBLE` club-wide branch (the `/kscw/public/events` endpoint still additionally excludes any team-/member-scoped event). Also corrected several rows where this doc had drifted from the authoritative `setup-permissions.mjs` (the script is canonical; the doc lied): `sv_vm_check` Member direct read is **REVOKED** (access via `/kscw/sv-licence/me`, not `OWN_MEMBER`); public `directus_files` read is `folder _null` (the `PUBLIC_FILES_FOLDER` env approach was dropped, no env/fallback); `member_teams` Member read returns `*` incl. `guest_level` (not the claimed `id, member, team, season`); `event_sessions` Member read is unfiltered cross-club (in `MEMBER_READ_ALL`, not `EVENTS_VISIBLE`-scoped); LEADER `absences` read is the coach/TR-team scope (not "none"); LEADER `user_logs` read is **REVOKED** (not granted). Three schema-only migrations shipped alongside (no perm rows): **100** pins `search_path = public` on `members_prevent_email_blanking` / `trg_form_submissions_guard` / `trg_form_submissions_update_guard` (regressed the 071 hardening); **101** guards the implicit `varchar→int` cast in `trg_participations_guest_block` (a non-numeric `activity_id` silently skipped the guest block); **102** un-confirms a derby (`game_scheduling_derbies`) whose host team is deleted (the FK's `ON DELETE SET NULL` would otherwise leave `confirmed=true` with a null host, breaking Art. 27 clamping). See SECURITY.md "2026-06-10" block.
 
+> **2026-07-27 — Features retired (migration 257).** `tasks`/`task_templates`, `carpools`/`carpool_passengers` and `query_templates` were dropped after a full season of zero use (DB-review finding deadweight-03; product decision). All their grants were removed from `setup-permissions.mjs`; rows referencing them below are gone. Kept deliberately: `fines`/`fine_rules`, `slot_claims`, `referee_expenses`, `broadcasts`.
+
 > **2026-05-31 — Security audit hardening (self-scoped Member creates + public read scoping).** Member `create` on `participations`, `absences`, `poll_votes`, `scorer_delegations`, `push_subscriptions`, `team_requests`, `carpools`, `carpool_passengers` was unfiltered — any member could write a row attributed to another member (mark a teammate absent, vote/RSVP as them, file a join request for them; an absence write even cascaded all the victim's confirmed RSVPs to declined via migration 038). All now carry the same self-scope filter their `update` already used (`OWN_MEMBER` / `OWN_DRIVER` / `OWN_PASSENGER` / `from_member = $CURRENT_USER` for delegations). Public `members` read scoped to `website_visible = true` (was ignoring the privacy opt-out and exposing the whole roster). Public `directus_files` read scoped to the public-assets folder via `PUBLIC_FILES_FOLDER` env (feedback screenshots / profile photos no longer anonymously enumerable); falls back to the legacy blanket read with a warning if the env is unset. See SECURITY.md "2026-05-31" block. **Untested in this branch — `npm run db:setup-perms:dev` + `db:smoke:dev` MUST pass before prod, and `PUBLIC_FILES_FOLDER` MUST be set on dev + prod for the files fix to take effect.**
 
 > **Source of truth (post-2026-05-06):** `directus/scripts/setup-permissions.mjs` is the SINGLE source for Directus permissions. It is declarative, idempotent (clears + recreates on every run), and applied via `npm run db:setup-perms:<env>` on every deploy. Numbered SQL migrations are SCHEMA-ONLY going forward — they no longer carry permission rows. This doc is the human-readable index of the script — keep both in sync.
@@ -109,7 +111,6 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | participations | `SAME_TEAM_AS_ME` | `*` | 033 |
 | absences | `SAME_TEAM_AS_ME` | `*` | 033 |
 | sv_vm_check | **REVOKED** (no direct Member read) | — | Direct read removed (closes the 2026-05-06 Critical). Members get their own licence via `GET /kscw/sv-licence/me` (joins by `license_nr`, returns 11 safe fields). The absence is intentional — a row filter would trip Directus 11's `CASE WHEN 1` SQL bug. Sport Admin+ retain full CRUD |
-| tasks | own `assigned_to` / `claimed_by` | `*` | **043** |
 | feedback | `email = $CURRENT_USER.email` | `*` | **043** |
 | member_teams | none (read); `OWN_MEMBER` (delete) | `*` (incl. `guest_level`) | **043**; delete added 2026-05-26 (self-service leave-team). Doc drift fixed 2026-06-10 — the live script grants an unfiltered, all-fields read (`setPermRead(MEMBER_POLICY, 'member_teams')`), NOT the restricted `id, member, team, season` set; `guest_level` IS returned (the whole-club roster relies on it) |
 | blocks | `blocker.user = $CURRENT_USER` | `*` | 042 |
@@ -134,7 +135,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 
 ### Reads (intentionally cross-club)
 
-`teams`, `games`, `rankings`, `sponsors`, `event_sessions` (read filtered above), `hall_slots`, `hall_closures`, `hall_events`, `halls`, `hall_slots_teams`, `slot_claims`, `news`, `app_settings`, `carpools`, `carpool_passengers`, `teams_coaches`, `teams_responsibles`, `teams_sponsors`, `events_teams`, `events_members`, `directus_files`.
+`teams`, `games`, `rankings`, `sponsors`, `event_sessions` (read filtered above), `hall_slots`, `hall_closures`, `hall_events`, `halls`, `hall_slots_teams`, `slot_claims`, `news`, `app_settings`, `teams_coaches`, `teams_responsibles`, `teams_sponsors`, `events_teams`, `events_members`, `directus_files`.
 
 ### Writes
 
@@ -148,9 +149,6 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | scorer_delegations | create / update | create = `from_member = $CURRENT_USER`; update = own (from/to), **fields `['status']` only** (2026-07-02 audit — identity cols DB-immutable via migration 163) |
 | user_logs | create | none |
 | feedback | create | none |
-| tasks | update | own (assigned/claimed) |
-| carpools | create / update | own driver (`OWN_DRIVER`; create self-scoped 2026-05-31 audit) |
-| carpool_passengers | create / update | own (`OWN_PASSENGER`; create self-scoped 2026-05-31 audit) |
 | poll_votes | create / update | `OWN_MEMBER` (create self-scoped 2026-05-31 audit) |
 | team_requests | create | `member.user = $CURRENT_USER` (self-scoped 2026-05-31 audit) |
 | form_submissions | create | `member _null` (anonymous) OR `member.user = $CURRENT_USER` — self-scoped, blocks submitting as another member while still allowing anonymous forms |
@@ -186,8 +184,6 @@ Inherits everything from Member. Adds:
 | team_invites | full CRUD | scoped via teams.coach | |
 | scorer_delegations | read | none | |
 | referee_expenses | create / update | scoped via teams.coach | 026 |
-| tasks | create / update / delete | scoped via teams.coach | 026 |
-| task_templates | read / create / update | scoped via teams.coach | 026 |
 | polls | create / update / delete | scoped via teams.coach | 026 |
 | poll_votes | read | votes on **non-anonymous** polls for teams I coach/TR (`poll.anonymous = false` AND `poll.team.coach/team_responsible.members_id.user = $CURRENT_USER`) — per-member answers before the deadline; unions on the member's own-vote read. Anonymous-poll results come from `GET /kscw/polls/:id/results` (counts only). `anonymous = false` scope added 2026-07-02 audit (#5/#14) | **2026-06-28 / 2026-07-02** |
 | team_requests | read / update | none | |
@@ -215,7 +211,7 @@ Inherits everything from Member. Adds:
 
 Inherits Member. Adds read-all on operational collections — board oversight role:
 
-`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, tasks, task_templates, poll_votes, team_requests, push_subscriptions, game_scheduling_seasons, game_scheduling_slots, game_scheduling_opponents, game_scheduling_bookings, announcements, announcement_recipients, fines, fine_rules, scheduling_blocks, finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides`.
+`members, member_teams, participations, absences, notifications, scorer_delegations, team_invites, user_logs, feedback, poll_votes, team_requests, push_subscriptions, game_scheduling_seasons, game_scheduling_slots, game_scheduling_opponents, game_scheduling_bookings, announcements, announcement_recipients, fines, fine_rules, scheduling_blocks, finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides`.
 
 **Announcement targeting (migration 219)** — `announcements.audience_type` now supports `teams` and `roles` alongside `all` / `sport`. Members and coaches still cannot read `audience_teams` / `audience_roles` (exposing them would reveal targeting intent), so the read filter cannot match a targeted post client-side. Instead the publish fanout materializes one `announcement_recipients` row per resolved member, and the Member/Leader read filter gates `teams`/`roles` posts on that row (`all` / `sport` keep matching on the announcement itself). `announcement_recipients` is **read-only in every policy** — the fanout writes it in system context, so write access would only allow forging a delivery record. Sport Admin and Vorstand read it unfiltered for delivery oversight (`email_at` / `email_error` answer "who didn't get it").
 

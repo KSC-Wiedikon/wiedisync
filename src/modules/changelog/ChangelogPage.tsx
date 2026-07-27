@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.49.0'
+const APP_VERSION = '1.50.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.50.0',
+    date: '27.07.2026',
+    sections: [
+      {
+        title: 'Removed: three unused features',
+        items: [
+          'Per-activity task checklists, game carpools and the admin saved-queries strip have been removed. None of them saw a single use across a full season. The fines page, hall-slot claims and referee expenses stay — they are expected to earn their keep when the 2026/27 season starts.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.49.0',
     date: '27.07.2026',

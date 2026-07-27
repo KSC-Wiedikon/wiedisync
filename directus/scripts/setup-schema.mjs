@@ -612,50 +612,8 @@ const COLLECTIONS = [
   },
 
   // ── Future Features ──────────────────────────────────────
-  {
-    name: 'tasks',
-    meta: { icon: 'task_alt' },
-    fields: [
-      select('activity_type', ['game', 'training', 'event']),
-      string('activity_id'),
-      string('label'),
-      select('category', ['setup', 'equipment', 'food', 'firstAid', 'other']),
-      // assigned_to, claimed_by, created_by are m2o relations
-      boolean('completed'),
-      datetime('completed_at'),
-      integer('sort_order'),
-    ],
-  },
-  {
-    name: 'task_templates',
-    meta: { icon: 'content_copy' },
-    fields: [
-      string('name'),
-      // team is m2o relation
-      json('tasks_json'),
-      // created_by is m2o relation
-    ],
-  },
-  {
-    name: 'carpools',
-    meta: { icon: 'directions_car' },
-    fields: [
-      // game, driver are m2o relations
-      integer('seats_available'),
-      time('departure_time'),
-      string('departure_location'),
-      text('notes'),
-      select('status', ['open', 'full', 'cancelled']),
-    ],
-  },
-  {
-    name: 'carpool_passengers',
-    meta: { icon: 'airline_seat_recline_normal' },
-    fields: [
-      // carpool, passenger are m2o relations
-      select('status', ['confirmed', 'cancelled']),
-    ],
-  },
+  // tasks / task_templates / carpools / carpool_passengers removed —
+  // retired in migration 257 (never used; DB review 2026-07-27).
   {
     name: 'polls',
     meta: { icon: 'poll' },
@@ -777,19 +735,7 @@ const RELATIONS = [
   ['game_scheduling_bookings', 'opponent', 'game_scheduling_opponents'],
   ['game_scheduling_bookings', 'game', 'games'],
   ['game_scheduling_bookings', 'slot', 'game_scheduling_slots'],
-  // tasks
-  ['tasks', 'assigned_to', 'members'],
-  ['tasks', 'claimed_by', 'members'],
-  ['tasks', 'created_by', 'members'],
-  // task_templates
-  ['task_templates', 'team', 'teams'],
-  ['task_templates', 'created_by', 'members'],
-  // carpools
-  ['carpools', 'game', 'games'],
-  ['carpools', 'driver', 'members'],
-  // carpool_passengers
-  ['carpool_passengers', 'carpool', 'carpools'],
-  ['carpool_passengers', 'passenger', 'members'],
+  // tasks/carpools M2O rows removed — retired in migration 257.
   // polls
   ['polls', 'team', 'teams'],
   ['polls', 'created_by', 'members'],

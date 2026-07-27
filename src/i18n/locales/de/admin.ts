@@ -233,9 +233,6 @@ export default {
   noUpcomingGames: 'Keine Spiele diese Woche',
   noPendingMembers: 'Keine ausstehenden Mitglieder',
   // Query tab
-  savedQueries: 'Gespeichert',
-  queryTemplates: 'Vorlagen',
-  recentQueries: 'Kürzlich',
   sqlMode: 'SQL',
   visualMode: 'Visuell',
   saveQuery: 'Speichern',
@@ -259,7 +256,6 @@ export default {
   paramTeam: 'Team',
   paramDateFrom: 'Von',
   paramDateTo: 'Bis',
-  runTemplate: 'Ausführen',
 
   // Referee expenses
   refereeExpensesTitle: 'Schiedsrichterkosten',

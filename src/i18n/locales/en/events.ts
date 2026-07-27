@@ -55,8 +55,6 @@ export default {
   allowMaybeHint: 'When off, participants can only reply Yes or No.',
   enablePositions: 'Position preferences',
   enablePositionsHint: 'Participants must select their top 3 position preferences when confirming.',
-  enableTasks: 'Enable tasks',
-  enableTasksHint: 'Let participants assign and claim duties for this event.',
   minParticipants: 'Min. participants',
   cancelled: 'Cancelled',
 } as const

@@ -146,10 +146,6 @@ export default {
   // Feature-Toggles
   featureToggles: 'Funktionen',
   featureTogglesDescription: 'Optionale Funktionen für dieses Team ein- oder ausschalten.',
-  featureTasks: 'Aufgaben (Pflichten pro Spiel/Training/Event zuweisen)',
-  featureTasksHint: 'Aufgaben pro Spiel, Training oder Event zuweisen',
-  featureCarpool: 'Fahrgemeinschaft (Fahrten zu Auswärtsspielen organisieren)',
-  featureCarpoolHint: 'Fahrgemeinschaften für Auswärtsspiele organisieren',
   featurePolls: 'Umfragen (Team-Abstimmungen & Entscheidungen)',
   featurePollsHint: 'Team-Abstimmungen & Entscheidungen',
   featureShowRsvpTime: 'Antwortzeit anzeigen (wann Mitglieder geantwortet haben)',

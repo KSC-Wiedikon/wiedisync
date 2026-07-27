@@ -24,8 +24,6 @@ import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
 import { currentLocale, formatDate, formatTime, formatDateTimeCompactZurich, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow, gameKickoffMs } from '../../../utils/dateHelpers'
 import RefereeExpenseSection from './RefereeExpenseSection'
-import TasksSection from '../../tasks/TasksSection'
-import CarpoolSection from '../../carpool/CarpoolSection'
 import BroadcastButton from '../../broadcast/BroadcastButton'
 import { isFeatureEnabled } from '../../../utils/featureToggles'
 import { asObj, relId, teamCoachIds, memberDisplayName } from '../../../utils/relations'
@@ -785,25 +783,6 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
                 {...lateProps('bb_24s_official')}
               />
             )}
-          </div>
-        )}
-
-        {/* Tasks */}
-        {game.status === 'scheduled' && user && isFeatureEnabled(kscwTeamObj?.features_enabled, 'tasks') && (
-          <div className="border-t dark:border-gray-700 px-6 py-4">
-            <TasksSection
-              activityType="game"
-              activityId={game.id}
-              teamId={kscwTeamId}
-              canManage={isCoachOf(kscwTeamId)}
-            />
-          </div>
-        )}
-
-        {/* Carpool — away games only */}
-        {game.type === 'away' && game.status === 'scheduled' && user && isFeatureEnabled(kscwTeamObj?.features_enabled, 'carpool') && (
-          <div className="border-t dark:border-gray-700 px-6 py-4">
-            <CarpoolSection gameId={game.id} />
           </div>
         )}
 

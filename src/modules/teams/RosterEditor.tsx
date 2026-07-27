@@ -962,12 +962,6 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
 
         {/* Features */}
         <SettingsGroup title={t('settingsFeatures')}>
-          <SettingRow label={t('featureTasks')} hint={t('featureTasksHint')}>
-            <SwitchToggle checked={settings.tasks === true} onChange={() => toggleBool('tasks')} />
-          </SettingRow>
-          <SettingRow label={t('featureCarpool')} hint={t('featureCarpoolHint')}>
-            <SwitchToggle checked={settings.carpool === true} onChange={() => toggleBool('carpool')} />
-          </SettingRow>
           <SettingRow label={t('featurePolls')} hint={t('featurePollsHint')}>
             <SwitchToggle checked={settings.polls === true} onChange={() => toggleBool('polls')} />
           </SettingRow>

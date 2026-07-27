@@ -116,7 +116,6 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
   const [requireNoteIfAbsent, setRequireNoteIfAbsent] = useState(false)
   const [allowMaybe, setAllowMaybe] = useState(true)
   const [enablePositions, setEnablePositions] = useState(false)
-  const [enableTasks, setEnableTasks] = useState(false)
   const [participationMode, setParticipationMode] = useState<'whole' | 'per_day' | 'per_session'>('whole')
   const [sessions, setSessions] = useState<SessionDraft[]>([])
   const [invitedRoles, setInvitedRoles] = useState<string[]>([])
@@ -181,7 +180,6 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setRequireNoteIfAbsent(!!event.require_note_if_absent)
       setAllowMaybe(event.allow_maybe !== false)
       setParticipationMode((event.participation_mode as 'whole' | 'per_day' | 'per_session') || 'whole')
-      setEnableTasks(event.features_enabled?.tasks === true)
       setEnablePositions(event.features_enabled?.position_preferences === true)
       setInvitedRoles(event.invited_roles ?? [])
       setInvitedMembers(
@@ -371,7 +369,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       require_note_if_absent: requireNoteIfAbsent,
       allow_maybe: allowMaybe,
       participation_mode: effectiveMode,
-      features_enabled: { tasks: enableTasks, position_preferences: enablePositions },
+      features_enabled: { position_preferences: enablePositions },
       invited_roles: invitedRoles.length > 0 ? invitedRoles : null,
       invited_members: invitedMembers.map((id) => ({ members_id: id })),
       send_email_invite: sendEmailInvite,
@@ -580,14 +578,6 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
           <div>
             <span>{t('allowMaybe')}</span>
             <p className="text-xs text-muted-foreground">{t('allowMaybeHint')}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-          <Switch checked={enableTasks} onCheckedChange={setEnableTasks} />
-          <div>
-            <span>{t('enableTasks')}</span>
-            <p className="text-xs text-muted-foreground">{t('enableTasksHint')}</p>
           </div>
         </div>
 

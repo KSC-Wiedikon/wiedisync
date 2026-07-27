@@ -160,7 +160,7 @@ async function main() {
     return r.status === 403 ? { ...r, status: 200, ok: true } : { ...r, status: 500 /* anything other than 403 is a failure */ }
   })
   await check('kscw/sv-licence/me', () => api('GET', '/kscw/sv-licence/me'))
-  await check('tasks (own)', () => api('GET', `/items/tasks?limit=10`))
+  // tasks check removed — collection retired in migration 257 (2026-07-27).
   // Expense submissions (migration 177) — member reads OWN rows on /finance/expense
   // ("My submissions"); policy scopes to own, so an unfiltered read must not 4xx.
   await check('finance_expenses (own)', () => api('GET', '/items/finance_expenses?limit=10&fields=id,amount,status'))

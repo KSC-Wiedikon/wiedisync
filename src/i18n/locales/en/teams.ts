@@ -148,10 +148,6 @@ export default {
   // Feature toggles
   featureToggles: 'Features',
   featureTogglesDescription: 'Enable or disable optional features for this team.',
-  featureTasks: 'Tasks (assign duties per game/training/event)',
-  featureTasksHint: 'Assign duties per game, training, or event',
-  featureCarpool: 'Carpool (organise rides for away games)',
-  featureCarpoolHint: 'Organise rides for away games',
   featurePolls: 'Polls (team voting & decisions)',
   featurePollsHint: 'Team voting & decisions',
   featureShowRsvpTime: 'Show response time (when members responded)',

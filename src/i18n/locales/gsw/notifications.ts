@@ -51,18 +51,12 @@ export default {
   deadline_event: 'Aamäldefrischt morn: {{title}}',
   // Nöii Feature-Benachrichtigunge
   poll_created: '{{creator}} het e Umfrag erstellt: {{question}}',
-  carpool_offered: '{{driver}} bietet e Fahrt zu {{game}} a',
-  carpool_joined: '{{passenger}} fahrt bi dinere Fahrt zu {{game}} mit',
-  carpool_cancelled: '{{driver}} het d Fahrt zu {{game}} abgseit',
-  task_assigned: 'Dir isch e Ufgab zuegwise worde: {{label}}',
   new_report: 'Nöii Meldig: {{reason}}',
   absence_created_for_you: '{{editor}} het e Absenz für di iigtreit (ab {{start}})',
   absence_updated_for_you: '{{editor}} het dini Absenz aapasst (ab {{start}})',
   absence_weekly_created_for_you: '{{editor}} het e wuchetlichi Verhinderig für di iigtreit',
   absence_weekly_updated_for_you: '{{editor}} het dini wuchetlichi Verhinderig aapasst',
   pollCreated: 'Umfrag',
-  carpoolUpdate: 'Fahrgmeinschaft',
-  taskAssigned: 'Ufgab',
   // Push notifications
   pushNotifications: 'Push-Benachrichtigunge',
   pushEnable: 'Aktiviere',

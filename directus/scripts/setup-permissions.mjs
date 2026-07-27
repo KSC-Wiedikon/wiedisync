@@ -346,12 +346,6 @@ const OWN_DELEGATION = {
  */
 const OWN_DELEGATION_FROM = { from_member: { user: { _eq: '$CURRENT_USER' } } }
 
-/** driver = current user */
-const OWN_DRIVER = { driver: { user: { _eq: '$CURRENT_USER' } } }
-
-/** passenger = current user */
-const OWN_PASSENGER = { passenger: { user: { _eq: '$CURRENT_USER' } } }
-
 /**
  * Fields visible to regular members when reading OTHER members.
  * Migration 024 explicitly removed `email` + `phone` from this set — they
@@ -913,7 +907,7 @@ async function main() {
     'event_sessions',
     'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',
     'news', 'app_settings',
-    'referee_expenses', 'carpools', 'carpool_passengers', 'polls',
+    'referee_expenses', 'polls',
     // Junctions
     'teams_coaches', 'teams_responsibles', 'teams_sponsors', 'events_teams', 'events_members',
   ]
@@ -1217,22 +1211,8 @@ async function main() {
   await setPermRead(MEMBER_POLICY, 'feedback', { email: { _eq: '$CURRENT_USER.email' } })
 
   // Tasks — read scope mirrors update (migration 043).
-  const OWN_TASK_FILTER = {
-    _or: [
-      { assigned_to: { user: { _eq: '$CURRENT_USER' } } },
-      { claimed_by: { user: { _eq: '$CURRENT_USER' } } },
-    ],
-  }
-  await setPermRead(MEMBER_POLICY, 'tasks', OWN_TASK_FILTER)
-  await setPerm(MEMBER_POLICY, 'tasks', 'update', OWN_TASK_FILTER)
-
-  // Carpools — create, update own. 2026-05-31 security audit: self-scope
-  // create so a member can only offer a carpool as themselves (`driver`) and
-  // only add themselves as a passenger (`passenger`), not impersonate others.
-  await setPerm(MEMBER_POLICY, 'carpools', 'create', OWN_DRIVER)
-  await setPerm(MEMBER_POLICY, 'carpools', 'update', OWN_DRIVER)
-  await setPerm(MEMBER_POLICY, 'carpool_passengers', 'create', OWN_PASSENGER)
-  await setPerm(MEMBER_POLICY, 'carpool_passengers', 'update', OWN_PASSENGER)
+  // Tasks + carpools retired 2026-07-27 (migration 257) — never used in a full
+  // season; tables dropped, all grants removed.
 
   // Polls — vote. 2026-05-31 security audit: create was unfiltered, letting a
   // member cast a vote attributed to another member. Self-scope with OWN_MEMBER.
@@ -1556,16 +1536,6 @@ async function main() {
   await setPerm(LEADER_POLICY, 'referee_expenses', 'create')
   await setPerm(LEADER_POLICY, 'referee_expenses', 'update')
 
-  // Tasks — CRUD
-  await setPerm(LEADER_POLICY, 'tasks', 'create')
-  await setPerm(LEADER_POLICY, 'tasks', 'update')
-  await setPerm(LEADER_POLICY, 'tasks', 'delete')
-
-  // Task templates — CRU
-  await setPermRead(LEADER_POLICY, 'task_templates')
-  await setPerm(LEADER_POLICY, 'task_templates', 'create')
-  await setPerm(LEADER_POLICY, 'task_templates', 'update')
-
   // Polls — CRUD
   await setPerm(LEADER_POLICY, 'polls', 'create')
   await setPerm(LEADER_POLICY, 'polls', 'update')
@@ -1730,7 +1700,6 @@ async function main() {
   await setPerm(LEADER_POLICY, 'scorer_delegations', 'delete', OWN_DELEGATION_FROM)
   await setPerm(LEADER_POLICY, 'slot_claims', 'create', COACH_OF_SLOT_CLAIM)
   await setPerm(LEADER_POLICY, 'slot_claims', 'delete', COACH_OF_SLOT_CLAIM)
-  await setPerm(LEADER_POLICY, 'task_templates', 'delete', COACH_OF_TEAM_FK)
   // hall_slots_teams CRUD — unfiltered, mirroring the sibling teams_sponsors /
   // events_teams junctions (Directus can't relationally filter junction writes;
   // the hallenplan editor + kscw-hooks gate them).
@@ -1761,10 +1730,6 @@ async function main() {
   await setPerm(LEADER_POLICY, 'teams_responsibles', 'create')
   await setPerm(LEADER_POLICY, 'teams_responsibles', 'update', JUNCTION_OF_TEAM_I_LEAD)
   await setPerm(LEADER_POLICY, 'teams_responsibles', 'delete', JUNCTION_OF_TEAM_I_LEAD)
-  // carpools.delete — was fully open; scope to the driver's own carpool, matching
-  // how the Member policy already scopes carpools create/update (OWN_DRIVER).
-  await setPerm(LEADER_POLICY, 'carpools', 'delete', OWN_DRIVER)
-
   // Files — create (upload team photos)
   await setPerm(LEADER_POLICY, 'directus_files', 'create')
 
@@ -1778,7 +1743,7 @@ async function main() {
   const VORSTAND_READ_ALL = [
     'members', 'member_teams', 'participations', 'absences',
     'notifications', 'scorer_delegations', 'team_invites',
-    'user_logs', 'feedback', 'tasks', 'task_templates',
+    'user_logs', 'feedback',
     'team_requests', 'push_subscriptions',
     // NB: `poll_votes` intentionally NOT here — granted below scoped to
     // non-anonymous polls only (2026-07-02 audit #5/#14). Board reads anonymous
@@ -1860,7 +1825,6 @@ async function main() {
     'push_subscriptions', 'email_verifications',
     'teams_coaches', 'teams_responsibles', 'events_members',
     'volley_feedback',
-    'tasks', 'task_templates', 'carpools', 'carpool_passengers',
     // NB: `poll_votes` NOT here — granted below with a non-anonymous read scope
     // (2026-07-02 audit #5/#14) while keeping create/update/delete for oversight.
     'polls', 'team_requests', 'registrations',
@@ -1873,7 +1837,7 @@ async function main() {
     // team_links (migration 218, was basketball_team_links) is sport-agnostic — both the
     // basketball prep + volleyball Terminplanung settings write it; UI-scoped per sport.
     'basketball_hall_availability', 'basketball_slot_plan', 'team_links',
-    'query_templates', 'sv_vm_check',
+    'sv_vm_check',
     // VIS mirrors (migrations 237/240/241) behind /admin/transfers, which is gated
     // to admin | superuser | vb_admin | bb_admin. The first two bypass policies,
     // the sport admins do NOT — so without a grant here the federation directory

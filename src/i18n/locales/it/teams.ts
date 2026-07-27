@@ -118,10 +118,6 @@ export default {
   // Funzionalità
   featureToggles: 'Funzionalità',
   featureTogglesDescription: 'Attiva o disattiva le funzionalità opzionali per questa squadra.',
-  featureTasks: 'Compiti (assegna doveri per partita/allenamento/evento)',
-  featureTasksHint: 'Assegna compiti per partita, allenamento o evento',
-  featureCarpool: 'Carpooling (organizza passaggi per le trasferte)',
-  featureCarpoolHint: 'Organizza passaggi per le partite in trasferta',
   featurePolls: 'Sondaggi (votazioni e decisioni di squadra)',
   featurePollsHint: 'Votazioni e decisioni di squadra',
   featureShowRsvpTime: 'Mostra orario di risposta (quando i membri hanno risposto)',

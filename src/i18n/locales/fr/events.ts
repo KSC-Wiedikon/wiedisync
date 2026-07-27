@@ -54,8 +54,6 @@ export default {
   allowMaybeHint: 'Si desactive, les participants ne peuvent repondre que Oui ou Non.',
   enablePositions: 'Preferences de poste',
   enablePositionsHint: 'Les participants doivent choisir leurs 3 postes preferes en confirmant.',
-  enableTasks: 'Activer les taches',
-  enableTasksHint: 'Les participants peuvent assigner et prendre en charge des responsabilites pour cet evenement.',
   minParticipants: 'Min. participants',
   cancelled: 'Annulé',
 } as const

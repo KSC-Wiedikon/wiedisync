@@ -222,9 +222,6 @@ export default {
   noUpcomingGames: 'Käni Spiel die Wuche',
   noPendingMembers: 'Käni usstehende Mitglieder',
   // Query tab
-  savedQueries: 'Gspeichereti',
-  queryTemplates: 'Vorlage',
-  recentQueries: 'Kürzlich',
   sqlMode: 'SQL',
   visualMode: 'Visuell',
   saveQuery: 'Speichere',
@@ -248,7 +245,6 @@ export default {
   paramTeam: 'Team',
   paramDateFrom: 'Vo',
   paramDateTo: 'Bis',
-  runTemplate: 'Usführe',
 
   // Referee expenses
   refereeExpensesTitle: 'Schiedsrichterchöschte',

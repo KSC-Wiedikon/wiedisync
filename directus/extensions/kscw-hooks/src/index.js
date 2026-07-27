@@ -5102,7 +5102,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // strictly personal — self (or admin/system) only
   for (const [coll, field] of [
     ['poll_votes', 'member'], ['push_subscriptions', 'member'], ['team_requests', 'member'],
-    ['scorer_delegations', 'from_member'], ['carpools', 'driver'], ['carpool_passengers', 'passenger'],
+    ['scorer_delegations', 'from_member'],
   ]) {
     filter(`${coll}.items.create`, async (payload, _meta, { database: db, accountability }) => {
       await assertCreateOwnership(accountability, db, payload?.[field], { allowLeader: false })

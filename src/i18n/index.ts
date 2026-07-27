@@ -26,8 +26,6 @@ import teamLinks from './locales/en/teamLinks'
 import scorerAssign from './locales/en/scorerAssign'
 import join from './locales/en/join'
 import feedback from './locales/en/feedback'
-import tasks from './locales/en/tasks'
-import carpool from './locales/en/carpool'
 import polls from './locales/en/polls'
 import bugfixes from './locales/en/bugfixes'
 import guide from './locales/en/guide'
@@ -65,8 +63,6 @@ import deTeamLinks from './locales/de/teamLinks'
 import deScorerAssign from './locales/de/scorerAssign'
 import deJoin from './locales/de/join'
 import deFeedback from './locales/de/feedback'
-import deTasks from './locales/de/tasks'
-import deCarpool from './locales/de/carpool'
 import dePolls from './locales/de/polls'
 import deBugfixes from './locales/de/bugfixes'
 import deGuide from './locales/de/guide'
@@ -101,8 +97,6 @@ import frBasketballScheduling from './locales/fr/basketballScheduling'
 import frTeamLinks from './locales/fr/teamLinks'
 import frScorerAssign from './locales/fr/scorerAssign'
 import frFeedback from './locales/fr/feedback'
-import frTasks from './locales/fr/tasks'
-import frCarpool from './locales/fr/carpool'
 import frPolls from './locales/fr/polls'
 import frBugfixes from './locales/fr/bugfixes'
 import frGuide from './locales/fr/guide'
@@ -136,8 +130,6 @@ import itBasketballScheduling from './locales/it/basketballScheduling'
 import itTeamLinks from './locales/it/teamLinks'
 import itScorerAssign from './locales/it/scorerAssign'
 import itFeedback from './locales/it/feedback'
-import itTasks from './locales/it/tasks'
-import itCarpool from './locales/it/carpool'
 import itPolls from './locales/it/polls'
 import itBugfixes from './locales/it/bugfixes'
 import itGuide from './locales/it/guide'
@@ -171,9 +163,7 @@ import gswBasketballScheduling from './locales/gsw/basketballScheduling'
 import gswTeamLinks from './locales/gsw/teamLinks'
 import gswScorerAssign from './locales/gsw/scorerAssign'
 import gswFeedback from './locales/gsw/feedback'
-import gswTasks from './locales/gsw/tasks'
 import gswJoin from './locales/gsw/join'
-import gswCarpool from './locales/gsw/carpool'
 import gswPolls from './locales/gsw/polls'
 import gswBugfixes from './locales/gsw/bugfixes'
 import gswGuide from './locales/gsw/guide'
@@ -229,8 +219,6 @@ i18n.use(initReactI18next).init({
     'scorerAssign',
     'join',
     'feedback',
-    'tasks',
-    'carpool',
     'polls',
     'bugfixes',
     'guide',
@@ -271,8 +259,6 @@ i18n.use(initReactI18next).init({
       scorerAssign,
       join,
       feedback,
-      tasks,
-      carpool,
       polls,
       bugfixes,
       guide,
@@ -312,8 +298,6 @@ i18n.use(initReactI18next).init({
       scorerAssign: deScorerAssign,
       join: deJoin,
       feedback: deFeedback,
-      tasks: deTasks,
-      carpool: deCarpool,
       polls: dePolls,
       bugfixes: deBugfixes,
       guide: deGuide,
@@ -349,8 +333,6 @@ i18n.use(initReactI18next).init({
       teamLinks: frTeamLinks,
       scorerAssign: frScorerAssign,
       feedback: frFeedback,
-      tasks: frTasks,
-      carpool: frCarpool,
       polls: frPolls,
       bugfixes: frBugfixes,
       guide: frGuide,
@@ -385,8 +367,6 @@ i18n.use(initReactI18next).init({
       teamLinks: itTeamLinks,
       scorerAssign: itScorerAssign,
       feedback: itFeedback,
-      tasks: itTasks,
-      carpool: itCarpool,
       polls: itPolls,
       bugfixes: itBugfixes,
       guide: itGuide,
@@ -422,8 +402,6 @@ i18n.use(initReactI18next).init({
       scorerAssign: gswScorerAssign,
       join: gswJoin,
       feedback: gswFeedback,
-      tasks: gswTasks,
-      carpool: gswCarpool,
       polls: gswPolls,
       bugfixes: gswBugfixes,
       guide: gswGuide,

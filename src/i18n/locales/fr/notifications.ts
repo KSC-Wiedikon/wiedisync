@@ -51,18 +51,12 @@ export default {
   deadline_event: 'Delai de reponse demain : {{title}}',
   // Nouvelles notifications de fonctionnalités
   poll_created: '{{creator}} a créé un sondage : {{question}}',
-  carpool_offered: '{{driver}} propose un trajet pour {{game}}',
-  carpool_joined: '{{passenger}} a rejoint votre trajet pour {{game}}',
-  carpool_cancelled: '{{driver}} a annulé le trajet pour {{game}}',
-  task_assigned: 'Une tâche vous a été assignée : {{label}}',
   new_report: 'Nouveau signalement : {{reason}}',
   absence_created_for_you: '{{editor}} a ajouté une absence pour toi (à partir du {{start}})',
   absence_updated_for_you: '{{editor}} a modifié ton absence (à partir du {{start}})',
   absence_weekly_created_for_you: '{{editor}} a ajouté une indisponibilité hebdomadaire pour toi',
   absence_weekly_updated_for_you: '{{editor}} a modifié ton indisponibilité hebdomadaire',
   pollCreated: 'Sondage',
-  carpoolUpdate: 'Covoiturage',
-  taskAssigned: 'Tâche',
   // Push notifications
   pushNotifications: 'Notifications push',
   pushEnable: 'Activer',

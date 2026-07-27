@@ -94,8 +94,6 @@ export interface Sponsor extends BaseRecord {
 }
 
 export interface FeatureToggles {
-  tasks?: boolean
-  carpool?: boolean
   polls?: boolean
   show_rsvp_time?: boolean
   position_preferences?: boolean
@@ -1016,10 +1014,10 @@ export interface ScorerDelegation extends BaseRecord {
 
 export interface Notification extends BaseRecord {
   member: string
-  type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'carpool_update' | 'task_assigned' | 'event_invite' | 'new_report' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement'
+  type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'event_invite' | 'new_report' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement'
   title: string
   body: string
-  activity_type: 'game' | 'training' | 'event' | 'scorer_duty' | 'team' | 'poll' | 'carpool' | 'task' | 'report' | 'form' | 'expense' | 'announcement' | ''
+  activity_type: 'game' | 'training' | 'event' | 'scorer_duty' | 'team' | 'poll' | 'report' | 'form' | 'expense' | 'announcement' | ''
   activity_id: string
   team: string
   read: boolean
@@ -1069,46 +1067,6 @@ export interface Announcement extends BaseRecord {
   fanout_sent_at: string | null
   /** Per-locale title + HTML body. German required. */
   translations: Partial<Record<AnnouncementLocale, AnnouncementTranslation>>
-}
-
-export type TaskCategory = 'setup' | 'equipment' | 'food' | 'firstAid' | 'other'
-
-export interface Task extends BaseRecord {
-  activity_type: 'game' | 'training' | 'event'
-  activity_id: string
-  label: string
-  category: TaskCategory | ''
-  assigned_to: string
-  claimed_by: string
-  completed: boolean
-  completed_at: string
-  sort_order: number
-  created_by: string
-}
-
-export interface TaskTemplate extends BaseRecord {
-  name: string
-  team: string
-  tasks_json: Array<{ label: string; category: TaskCategory | '' }>
-  created_by: string
-}
-
-// ── Carpool ─────────────────────────────────────────────────────────────
-
-export interface Carpool extends BaseRecord {
-  game: string
-  driver: string
-  seats_available: number
-  departure_time: string
-  departure_location: string
-  notes: string
-  status: 'open' | 'full' | 'cancelled'
-}
-
-export interface CarpoolPassenger extends BaseRecord {
-  carpool: string
-  passenger: string
-  status: 'confirmed' | 'cancelled'
 }
 
 // ── Polls ───────────────────────────────────────────────────────────────

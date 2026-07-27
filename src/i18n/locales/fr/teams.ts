@@ -118,10 +118,6 @@ export default {
   // Fonctionnalites
   featureToggles: 'Fonctionnalites',
   featureTogglesDescription: 'Activer ou desactiver les fonctionnalites optionnelles pour cette equipe.',
-  featureTasks: 'Taches (assigner des responsabilites par match/entrainement/evenement)',
-  featureTasksHint: 'Assigner des tâches par match, entraînement ou événement',
-  featureCarpool: 'Covoiturage (organiser les trajets pour les matchs a l\'exterieur)',
-  featureCarpoolHint: 'Organiser les trajets pour les matchs à l\'extérieur',
   featurePolls: 'Sondages (votes et decisions d\'equipe)',
   featurePollsHint: 'Votes et décisions d\'équipe',
   featureShowRsvpTime: 'Afficher l\'heure de réponse (quand les membres ont répondu)',

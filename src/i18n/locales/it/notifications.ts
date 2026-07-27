@@ -51,18 +51,12 @@ export default {
   deadline_event: 'Scadenza RSVP domani: {{title}}',
   // Notifiche nuove funzionalità
   poll_created: '{{creator}} ha creato un sondaggio: {{question}}',
-  carpool_offered: '{{driver}} offre un passaggio per {{game}}',
-  carpool_joined: '{{passenger}} si è unito al tuo passaggio per {{game}}',
-  carpool_cancelled: '{{driver}} ha annullato il passaggio per {{game}}',
-  task_assigned: 'Ti è stato assegnato un compito: {{label}}',
   new_report: 'Nuova segnalazione: {{reason}}',
   absence_created_for_you: '{{editor}} ha aggiunto un\'assenza per te (dal {{start}})',
   absence_updated_for_you: '{{editor}} ha modificato la tua assenza (dal {{start}})',
   absence_weekly_created_for_you: '{{editor}} ha aggiunto un\'indisponibilità settimanale per te',
   absence_weekly_updated_for_you: '{{editor}} ha modificato la tua indisponibilità settimanale',
   pollCreated: 'Sondaggio',
-  carpoolUpdate: 'Carpooling',
-  taskAssigned: 'Compito',
   // Push notifications
   pushNotifications: 'Notifiche push',
   pushEnable: 'Attiva',

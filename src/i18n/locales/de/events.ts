@@ -55,8 +55,6 @@ export default {
   allowMaybeHint: 'Wenn deaktiviert, können Teilnehmer nur mit Ja oder Nein antworten.',
   enablePositions: 'Positionswünsche',
   enablePositionsHint: 'Teilnehmer müssen bei Zusage ihre Top-3-Positionen angeben.',
-  enableTasks: 'Aufgaben aktivieren',
-  enableTasksHint: 'Teilnehmer können Pflichten für diesen Event zuweisen und übernehmen.',
   minParticipants: 'Min. Teilnehmer',
   cancelled: 'Abgesagt',
 } as const

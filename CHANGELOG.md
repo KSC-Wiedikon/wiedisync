@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.50.0 — 2026-07-27
+
+### Removed: three unused features
+- **Per-activity task checklists, game carpools and the admin saved-queries strip have been removed.** None of them saw a single use across a full season, and each carried real maintenance weight. The fines page, hall-slot claims and referee expenses stay — they are expected to earn their keep when the 2026/27 season starts.
+
 ## v1.49.0 — 2026-07-27
 
 ### Fixed: club-wide events were missing from the website and calendar feeds

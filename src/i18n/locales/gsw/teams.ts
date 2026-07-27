@@ -146,10 +146,6 @@ export default {
   // Feature-Toggles
   featureToggles: 'Funktione',
   featureTogglesDescription: 'Optionali Funktione für das Team ii- oder usschalte.',
-  featureTasks: 'Ufgabe (Pflichte pro Spiel/Training/Event zuewise)',
-  featureTasksHint: 'Ufgabe pro Spiel, Training oder Event zuewise',
-  featureCarpool: 'Fahrgmeinschaft (Fahrte zu Uswärtsspiel organisiere)',
-  featureCarpoolHint: 'Fahrgemeinschafte für Uswärtsspiel organisiere',
   featurePolls: 'Umfrage (Team-Abstimmige & Entscheidige)',
   featurePollsHint: 'Team-Abstimmige & Entscheidige',
   featureShowRsvpTime: 'Antwortziit aazeige (wenn Mitglieder gantwortet händ)',

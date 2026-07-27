@@ -10,7 +10,6 @@ import { useParticipation } from '../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
 import { formatDate, formatWeekday, formatTime, getDeadlineDate } from '../../utils/dateHelpers'
-import TasksSection from '../tasks/TasksSection'
 import BroadcastButton from '../broadcast/BroadcastButton'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import { isFeatureEnabled } from '../../utils/featureToggles'
@@ -167,18 +166,6 @@ export default function TrainingDetailModal({ training, onClose }: TrainingDetai
           {/* Notes */}
           {training.notes && !training.cancelled && (
             <p className="text-sm text-gray-500 dark:text-gray-400">{training.notes}</p>
-          )}
-
-          {/* Tasks */}
-          {user && !training.cancelled && isFeatureEnabled(asObj<Team>(training.team)?.features_enabled, 'tasks') && (
-            <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
-              <TasksSection
-                activityType="training"
-                activityId={training.id}
-                teamId={teamId}
-                canManage={isStaff}
-              />
-            </div>
           )}
 
           {/* Participation section */}
