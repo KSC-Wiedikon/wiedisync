@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-27T15:25:19.586Z
+-- Generated:   2026-07-27T16:22:20.354Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict YbMnfOrbtu7adOHWoWyAnLzToYuyyTH5ClZziXoAC3300Q9LVPwJxfKlWouDPCr
+\restrict 13b0WK8CvD7FOk9faYfAc0kVrrFdHzakpvmv2ZYqLz2pOmzovVS3hFokpRMjgyu
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -1987,78 +1987,6 @@ CREATE SEQUENCE public.bugfix_jobs_id_seq
 --
 
 ALTER SEQUENCE public.bugfix_jobs_id_seq OWNED BY public.bugfix_jobs.id;
-
-
---
--- Name: carpool_passengers; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.carpool_passengers (
-    id integer NOT NULL,
-    status character varying(255) DEFAULT NULL::character varying,
-    carpool integer NOT NULL,
-    passenger integer NOT NULL,
-    date_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    date_updated timestamp with time zone
-);
-
-
---
--- Name: carpool_passengers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.carpool_passengers_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: carpool_passengers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.carpool_passengers_id_seq OWNED BY public.carpool_passengers.id;
-
-
---
--- Name: carpools; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.carpools (
-    id integer NOT NULL,
-    seats_available integer,
-    departure_time time without time zone,
-    departure_location character varying(255) DEFAULT NULL::character varying,
-    notes text,
-    status character varying(255) DEFAULT NULL::character varying,
-    game integer,
-    driver integer,
-    date_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    date_updated timestamp with time zone
-);
-
-
---
--- Name: carpools_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.carpools_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: carpools_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.carpools_id_seq OWNED BY public.carpools.id;
 
 
 --
@@ -6037,35 +5965,6 @@ ALTER SEQUENCE public.push_subscriptions_id_seq OWNED BY public.push_subscriptio
 
 
 --
--- Name: query_templates; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.query_templates (
-    id integer NOT NULL
-);
-
-
---
--- Name: query_templates_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.query_templates_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: query_templates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.query_templates_id_seq OWNED BY public.query_templates.id;
-
-
---
 -- Name: rankings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7389,82 +7288,6 @@ COMMENT ON TABLE public.sync_runs IS 'Per-cron last-run tracker — populated by
 
 
 --
--- Name: task_templates; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.task_templates (
-    id integer NOT NULL,
-    name character varying(255) DEFAULT NULL::character varying,
-    tasks_json json,
-    team integer,
-    created_by integer,
-    date_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    date_updated timestamp with time zone
-);
-
-
---
--- Name: task_templates_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.task_templates_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: task_templates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.task_templates_id_seq OWNED BY public.task_templates.id;
-
-
---
--- Name: tasks; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.tasks (
-    id integer NOT NULL,
-    activity_type character varying(255) DEFAULT NULL::character varying,
-    activity_id character varying(255) DEFAULT NULL::character varying,
-    label character varying(255) DEFAULT NULL::character varying,
-    category character varying(255) DEFAULT NULL::character varying,
-    completed boolean DEFAULT false NOT NULL,
-    completed_at timestamp with time zone,
-    sort_order integer,
-    assigned_to integer,
-    claimed_by integer,
-    created_by integer,
-    date_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    date_updated timestamp with time zone
-);
-
-
---
--- Name: tasks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.tasks_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: tasks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.tasks_id_seq OWNED BY public.tasks.id;
-
-
---
 -- Name: team_invites; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8055,20 +7878,6 @@ ALTER TABLE ONLY public.bugfix_jobs ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
--- Name: carpool_passengers id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.carpool_passengers ALTER COLUMN id SET DEFAULT nextval('public.carpool_passengers_id_seq'::regclass);
-
-
---
--- Name: carpools id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.carpools ALTER COLUMN id SET DEFAULT nextval('public.carpools_id_seq'::regclass);
-
-
---
 -- Name: clubdesk_export row_id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -8468,13 +8277,6 @@ ALTER TABLE ONLY public.push_subscriptions ALTER COLUMN id SET DEFAULT nextval('
 
 
 --
--- Name: query_templates id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.query_templates ALTER COLUMN id SET DEFAULT nextval('public.query_templates_id_seq'::regclass);
-
-
---
 -- Name: rankings id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -8570,20 +8372,6 @@ ALTER TABLE ONLY public.sponsors ALTER COLUMN id SET DEFAULT nextval('public.spo
 --
 
 ALTER TABLE ONLY public.sv_vm_check ALTER COLUMN id SET DEFAULT nextval('public.sv_vm_check_id_seq'::regclass);
-
-
---
--- Name: task_templates id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.task_templates ALTER COLUMN id SET DEFAULT nextval('public.task_templates_id_seq'::regclass);
-
-
---
--- Name: tasks id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.tasks ALTER COLUMN id SET DEFAULT nextval('public.tasks_id_seq'::regclass);
 
 
 --
@@ -8795,22 +8583,6 @@ ALTER TABLE ONLY public.broadcasts
 
 ALTER TABLE ONLY public.bugfix_jobs
     ADD CONSTRAINT bugfix_jobs_pkey PRIMARY KEY (id);
-
-
---
--- Name: carpool_passengers carpool_passengers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.carpool_passengers
-    ADD CONSTRAINT carpool_passengers_pkey PRIMARY KEY (id);
-
-
---
--- Name: carpools carpools_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.carpools
-    ADD CONSTRAINT carpools_pkey PRIMARY KEY (id);
 
 
 --
@@ -9510,14 +9282,6 @@ ALTER TABLE ONLY public.push_subscriptions
 
 
 --
--- Name: query_templates query_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.query_templates
-    ADD CONSTRAINT query_templates_pkey PRIMARY KEY (id);
-
-
---
 -- Name: rankings rankings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9726,22 +9490,6 @@ ALTER TABLE ONLY public.sync_runs
 
 
 --
--- Name: task_templates task_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.task_templates
-    ADD CONSTRAINT task_templates_pkey PRIMARY KEY (id);
-
-
---
--- Name: tasks tasks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.tasks
-    ADD CONSTRAINT tasks_pkey PRIMARY KEY (id);
-
-
---
 -- Name: team_invites team_invites_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9941,41 +9689,6 @@ CREATE INDEX basketplan_people_licence_nr_idx ON public.basketplan_people USING 
 --
 
 CREATE INDEX blocks_blocker_index ON public.blocks USING btree (blocker);
-
-
---
--- Name: carpool_passengers_carpool_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX carpool_passengers_carpool_index ON public.carpool_passengers USING btree (carpool);
-
-
---
--- Name: carpool_passengers_pair_uq; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX carpool_passengers_pair_uq ON public.carpool_passengers USING btree (carpool, passenger);
-
-
---
--- Name: carpool_passengers_passenger_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX carpool_passengers_passenger_index ON public.carpool_passengers USING btree (passenger);
-
-
---
--- Name: carpools_driver_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX carpools_driver_index ON public.carpools USING btree (driver);
-
-
---
--- Name: carpools_game_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX carpools_game_index ON public.carpools USING btree (game);
 
 
 --
@@ -11316,41 +11029,6 @@ CREATE UNIQUE INDEX svrz_games_svrz_number_uq ON public.svrz_games USING btree (
 
 
 --
--- Name: task_templates_created_by_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX task_templates_created_by_index ON public.task_templates USING btree (created_by);
-
-
---
--- Name: task_templates_team_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX task_templates_team_index ON public.task_templates USING btree (team);
-
-
---
--- Name: tasks_assigned_to_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX tasks_assigned_to_index ON public.tasks USING btree (assigned_to);
-
-
---
--- Name: tasks_claimed_by_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX tasks_claimed_by_index ON public.tasks USING btree (claimed_by);
-
-
---
--- Name: tasks_created_by_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX tasks_created_by_index ON public.tasks USING btree (created_by);
-
-
---
 -- Name: team_invites_claimed_by_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11955,30 +11633,6 @@ ALTER TABLE ONLY public.blocks
 
 ALTER TABLE ONLY public.broadcasts
     ADD CONSTRAINT broadcasts_sender_fkey FOREIGN KEY (sender) REFERENCES public.members(id) ON DELETE SET NULL;
-
-
---
--- Name: carpool_passengers carpool_passengers_carpool_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.carpool_passengers
-    ADD CONSTRAINT carpool_passengers_carpool_foreign FOREIGN KEY (carpool) REFERENCES public.carpools(id) ON DELETE CASCADE;
-
-
---
--- Name: carpool_passengers carpool_passengers_passenger_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.carpool_passengers
-    ADD CONSTRAINT carpool_passengers_passenger_foreign FOREIGN KEY (passenger) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
--- Name: carpools carpools_driver_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.carpools
-    ADD CONSTRAINT carpools_driver_foreign FOREIGN KEY (driver) REFERENCES public.members(id) ON DELETE CASCADE;
 
 
 --
@@ -13336,18 +12990,6 @@ ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bugfix_jobs ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: carpool_passengers; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.carpool_passengers ENABLE ROW LEVEL SECURITY;
-
---
--- Name: carpools; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.carpools ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: bugfix_jobs directus_full_access; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13506,12 +13148,6 @@ ALTER TABLE public.polls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: query_templates; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.query_templates ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: rankings; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -13552,18 +13188,6 @@ ALTER TABLE public.sponsors ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.sv_vm_check ENABLE ROW LEVEL SECURITY;
-
---
--- Name: task_templates; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.task_templates ENABLE ROW LEVEL SECURITY;
-
---
--- Name: tasks; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: team_invites; Type: ROW SECURITY; Schema: public; Owner: -
@@ -13611,5 +13235,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict YbMnfOrbtu7adOHWoWyAnLzToYuyyTH5ClZziXoAC3300Q9LVPwJxfKlWouDPCr
+\unrestrict 13b0WK8CvD7FOk9faYfAc0kVrrFdHzakpvmv2ZYqLz2pOmzovVS3hFokpRMjgyu
 
