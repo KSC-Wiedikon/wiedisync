@@ -69,4 +69,9 @@ export default {
   news: 'Notizie',
   moderationReports: 'Segnalazioni',
   messagingSettings: 'Messaggistica',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  hallenfinder: 'Trova palestre',
+  errorLogs: 'Log degli errori',
+  volleyFeedback: 'Feedback volley',
 } as const

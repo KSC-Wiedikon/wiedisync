@@ -56,4 +56,7 @@ export default {
   enablePositionsHint: 'I partecipanti devono indicare i 3 ruoli preferiti alla conferma.',
   minParticipants: 'Min. partecipanti',
   cancelled: 'Annullato',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  teamsInvolvedHint: 'Lascia vuoto per eventi di tutto il club, visibili a tutti i membri',
 } as const

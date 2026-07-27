@@ -93,4 +93,11 @@ export default {
   eventTypeTrainingsweekend: "Week-end d'entraînement",
   eventTypeFriendly: 'Match amical',
   eventTypeOther: 'Autre',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  colType: 'Type',
+  colTitle: 'Titre',
+  colTime: 'Heure',
+  colLocation: 'Lieu',
+  colTeams: 'Équipes',
 } as const

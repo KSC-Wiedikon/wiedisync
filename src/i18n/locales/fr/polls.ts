@@ -35,4 +35,9 @@ export default {
   confirmClose: 'Fermer ce sondage ? Plus aucun vote ne sera accepté.',
   deadlinePassed: 'Vote terminé',
   minOptions: 'Au moins 2 options requises',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  activePolls: 'Sondages actifs',
+  anonymousNote: 'Sondage anonyme — les réponses individuelles sont masquées',
+  votedBy: 'Voté par',
 } as const

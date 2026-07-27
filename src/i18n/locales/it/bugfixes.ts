@@ -50,4 +50,18 @@ export default {
   deployed: 'Distribuito',
   detailRole: 'Ruolo',
   detailSport: 'Sport',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  statusApiLabel: 'Server dell\'app',
+  statusSvLabel: 'Sync Swiss Volley',
+  statusBpLabel: 'Sync Basketplan',
+  statusGcalLabel: 'Sync piano palestra',
+  statusAgo: 'fa',
+  statusAwaitingFirstRun: 'In attesa della prima esecuzione',
+  statusAllOk: 'Tutti i sistemi sono operativi',
+  statusAllOkSubtitle: 'App, sincronizzazioni dei dati e calendario sono aggiornati.',
+  statusSomeDown: 'Un servizio è offline',
+  statusSomeStale: 'Una sincronizzazione è in ritardo',
+  statusChecking: 'Verifica in corso…',
+  statusDetailBelow: 'Vedi i dettagli qui sotto.',
 }

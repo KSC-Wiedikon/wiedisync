@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.51.0 — 2026-07-27
+
+### Improved: the app now speaks French and Italian throughout
+- **Nearly a thousand interface texts per language were still English for French and Italian users** — the whole finance area, most of the member admin, the forms feature, the hall finder, the game-scheduling tools and many smaller corners. All of them are now properly translated, using the same club vocabulary as the existing translations (marqueur/segnapunti, cotisation/quota, créneau/fascia …).
+- **Swiss terms where they belong**: J+S becomes Jeunesse+Sport with its official Moniteurs/Monitori, city districts render as arrondissements/distretti, and accounting screens use proper Swiss bookkeeping vocabulary in both languages.
+
 ## v1.50.0 — 2026-07-27
 
 ### Removed: three unused features

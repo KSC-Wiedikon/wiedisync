@@ -107,6 +107,10 @@ import frBroadcast from './locales/fr/broadcast'
 import frFines from './locales/fr/fines'
 import frPwa from './locales/fr/pwa'
 import frFinance from './locales/fr/finance'
+import frForms from './locales/fr/forms'
+import frHallenfinder from './locales/fr/hallenfinder'
+import frJoin from './locales/fr/join'
+import frJsExport from './locales/fr/jsExport'
 
 import itCommon from './locales/it/common'
 import itNav from './locales/it/nav'
@@ -140,6 +144,10 @@ import itBroadcast from './locales/it/broadcast'
 import itFines from './locales/it/fines'
 import itPwa from './locales/it/pwa'
 import itFinance from './locales/it/finance'
+import itForms from './locales/it/forms'
+import itHallenfinder from './locales/it/hallenfinder'
+import itJoin from './locales/it/join'
+import itJsExport from './locales/it/jsExport'
 
 import gswCommon from './locales/gsw/common'
 import gswNav from './locales/gsw/nav'
@@ -343,6 +351,10 @@ i18n.use(initReactI18next).init({
       fines: frFines,
       pwa: frPwa,
       finance: frFinance,
+      forms: frForms,
+      hallenfinder: frHallenfinder,
+      join: frJoin,
+      jsExport: frJsExport,
     },
     it: {
       common: itCommon,
@@ -377,6 +389,10 @@ i18n.use(initReactI18next).init({
       fines: itFines,
       pwa: itPwa,
       finance: itFinance,
+      forms: itForms,
+      hallenfinder: itHallenfinder,
+      join: itJoin,
+      jsExport: itJsExport,
     },
     gsw: {
       common: gswCommon,

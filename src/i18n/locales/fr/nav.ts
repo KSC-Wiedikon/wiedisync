@@ -69,4 +69,9 @@ export default {
   news: 'Actualités',
   moderationReports: 'Signalements',
   messagingSettings: 'Messagerie',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  hallenfinder: 'Recherche de salles',
+  errorLogs: 'Journal des erreurs',
+  volleyFeedback: 'Feedback volley',
 } as const

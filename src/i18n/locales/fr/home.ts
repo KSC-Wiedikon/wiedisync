@@ -28,4 +28,11 @@ export default {
   next7Days: 'Les 7 prochains jours',
   today: "Aujourd'hui",
   turnsAge: 'Fête ses {{age}} ans',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  loading: 'Chargement…',
+  showAppointments: 'Mes rendez-vous',
+  showCategories: 'Par catégorie',
+  rankings: 'Classements',
+  showMore: 'Afficher plus',
 } as const

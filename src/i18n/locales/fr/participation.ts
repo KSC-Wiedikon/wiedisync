@@ -72,4 +72,14 @@ export default {
   name: 'Nom',
   status: 'Statut',
   note: 'Note',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  kindTraining: 'Entraînement',
+  kindGame: 'Match',
+  kindEvent: 'Événement',
+  editedByOn: 'Modifié en {{status}} par {{name}} le {{at}}',
+  noteEditedByOn: 'Note modifiée par {{name}} le {{at}}',
+  staffFallback: 'Staff',
+  addNotePlaceholder: 'Note…',
+  editedByColumn: 'Modifié par',
 } as const

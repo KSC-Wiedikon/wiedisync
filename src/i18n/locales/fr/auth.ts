@@ -300,4 +300,15 @@ export default {
   pwChanged: 'Mot de passe modifié',
   pwChangedKeyKept: 'Mot de passe modifié. Votre document d\'identité reste lisible.',
   pwKeyNotice: 'Si vous changez votre mot de passe ici, votre clé de chiffrement est conservée et votre document d\'identité reste lisible. Une réinitialisation du mot de passe par e-mail, en revanche, ne la conserve pas — la clé serait perdue et vous devriez téléverser le document à nouveau.',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  websiteVisible: 'Visibilité sur le site web',
+  websiteVisibleInfo: 'Si activé, ta photo est affichée dans l\'effectif de l\'équipe sur le site du club.',
+  emailNotifyTitle: 'Notifications par e-mail',
+  emailNotifyHint: 'Choisis les notifications que tu veux recevoir. Si tu en désactives une, cette notification n\'est plus envoyée — la cloche dans l\'app continue de l\'afficher.',
+  emailNotifyRegistrations: 'Nouvelles inscriptions',
+  emailNotifyJoinRequests: 'Demandes d\'adhésion à une équipe',
+  emailNotifyFormSubmissions: 'Envois de formulaires',
+  emailNotifyAnnouncements: 'Actualités du club',
+  emailNotifyEvents: 'Invitations aux événements',
 } as const

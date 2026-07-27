@@ -50,4 +50,18 @@ export default {
   deployed: 'Déployé',
   detailRole: 'Rôle',
   detailSport: 'Sport',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  statusApiLabel: 'Serveur de l\'app',
+  statusSvLabel: 'Sync Swiss Volley',
+  statusBpLabel: 'Sync Basketplan',
+  statusGcalLabel: 'Sync du plan de salle',
+  statusAgo: 'plus tôt',
+  statusAwaitingFirstRun: 'En attente de la première exécution',
+  statusAllOk: 'Tous les systèmes fonctionnent',
+  statusAllOkSubtitle: 'L\'app, les syncs de données et le calendrier sont à jour.',
+  statusSomeDown: 'Un service est hors ligne',
+  statusSomeStale: 'Une synchronisation est en retard',
+  statusChecking: 'Vérification…',
+  statusDetailBelow: 'Détails ci-dessous.',
 }

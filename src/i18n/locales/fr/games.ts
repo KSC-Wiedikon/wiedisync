@@ -252,4 +252,9 @@ export default {
   idsNone: 'Aucun document d\'identité n\'est encore disponible pour cette équipe.',
   idsPrev: 'Joueur précédent',
   idsNext: 'Joueur suivant',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  scoreboardAbsolute: 'Absolu',
+  scoreboardPerGame: 'Par match',
+  scoreboardAvg: 'Moy.',
 } as const

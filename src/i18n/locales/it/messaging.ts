@@ -149,4 +149,13 @@ export default {
     leaveBody: 'Non riceverai più nuovi messaggi da questo gruppo.',
     leaving: 'Abbandono in corso …',
   },
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  showOriginal: 'Mostra messaggio originale',
+  originalMessage: 'Originale',
+  failedToSave: 'Salvataggio non riuscito',
+  adminReportsColParties: 'Segnalante → Segnalato',
+  adminReportsColReason: 'Motivo',
+  adminReportsColWhen: 'Quando',
+  adminReportsColActions: 'Azioni',
 }

@@ -185,4 +185,7 @@ export default {
   keepBtn: 'Mantieni',
   cancelConfirmBtn: 'Annulla',
   reinstateConfirmBtn: 'Ripristina',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  copied: 'Copiato!',
 } as const

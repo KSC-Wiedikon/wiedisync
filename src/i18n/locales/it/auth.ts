@@ -300,4 +300,15 @@ export default {
   pwChanged: 'Password modificata',
   pwChangedKeyKept: 'Password modificata. Il tuo documento d\'identità resta leggibile.',
   pwKeyNotice: 'Se cambi la password qui, la tua chiave di cifratura viene mantenuta e il tuo documento d\'identità resta leggibile. Un reset della password via e-mail invece no — la chiave andrebbe persa e dovresti caricare di nuovo il documento.',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  websiteVisible: 'Visibilità sul sito web',
+  websiteVisibleInfo: 'Se attivata, la tua foto viene mostrata nel roster della squadra sul sito web del club.',
+  emailNotifyTitle: 'Notifiche e-mail',
+  emailNotifyHint: 'Scegli quali avvisi vuoi ricevere. Disattivandone uno, quella notifica viene silenziata — la campanella nell\'app continua a mostrarla.',
+  emailNotifyRegistrations: 'Nuove iscrizioni',
+  emailNotifyJoinRequests: 'Richieste di adesione alla squadra',
+  emailNotifyFormSubmissions: 'Moduli inviati',
+  emailNotifyAnnouncements: 'Notizie del club',
+  emailNotifyEvents: 'Inviti agli eventi',
 } as const

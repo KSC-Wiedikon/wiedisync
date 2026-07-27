@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.50.0'
+const APP_VERSION = '1.51.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.51.0',
+    date: '27.07.2026',
+    sections: [
+      {
+        title: 'Improved: the app now speaks French and Italian throughout',
+        items: [
+          'Nearly a thousand interface texts per language were still English for French and Italian users — the whole finance area, most of the member admin, the forms feature, the hall finder, the game-scheduling tools and many smaller corners. All of them are now properly translated, using the same club vocabulary as the existing translations.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.50.0',
     date: '27.07.2026',

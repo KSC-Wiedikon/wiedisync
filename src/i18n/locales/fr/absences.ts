@@ -148,4 +148,17 @@ export default {
   blockReasonPlaceholder: 'p. ex. période d\'examens, préparation de tournoi',
   deleteTeamBlockTitle: 'Supprimer le blocage',
   deleteTeamBlockMessage: 'Voulez-vous vraiment supprimer ce blocage d\'équipe ?',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  colReason: 'Motif',
+  colWhen: 'Quand',
+  colAffects: 'Concerne',
+  colMember: 'Membre',
+  colDays: 'Jours',
+  viewAbsences: 'Absences',
+  viewUnavailabilities: 'Hebdomadaires',
+  scopeMine: 'Les miennes',
+  scopeTeam: 'Équipe',
+  noTeamWeeklies: 'Aucune indisponibilité hebdomadaire dans l\'équipe',
+  noTeamWeekliesDescription: 'Personne dans cette équipe n\'a encore enregistré d\'indisponibilité hebdomadaire.',
 } as const

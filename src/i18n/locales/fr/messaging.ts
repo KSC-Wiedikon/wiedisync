@@ -149,4 +149,13 @@ export default {
     leaveBody: 'Tu ne recevras plus de nouveaux messages de ce groupe.',
     leaving: 'Départ en cours …',
   },
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  showOriginal: 'Afficher le message original',
+  originalMessage: 'Original',
+  failedToSave: 'Échec de l\'enregistrement',
+  adminReportsColParties: 'Signalant → Signalé',
+  adminReportsColReason: 'Motif',
+  adminReportsColWhen: 'Quand',
+  adminReportsColActions: 'Actions',
 }

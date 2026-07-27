@@ -2,35 +2,26 @@ export default {
   title: 'Pianificazione partite',
   subtitleSeason: 'Panoramica stagione {{season}}',
   seasonPicker: 'Stagione',
-
-  // View options
   blockedDate: 'Bloccato',
   viewCalendar: 'Calendario',
   viewWeek: 'Week',
   viewByDate: 'Per data',
   viewByTeam: 'Per squadra',
-
-  // Week view
   weekPrev: 'Previous week',
   weekNext: 'Next week',
   weekToday: 'Today',
   weekMoveSuccess: 'Game moved.',
   weekMoveFailed: 'Could not move game: {{message}}',
-
-  // Filters
   filterAll: 'Tutti',
   filterVolleyball: 'Pallavolo',
   filterBasketball: 'Pallacanestro',
   filterHome: 'Casa',
   filterAway: 'Trasferta',
   showAbsences: 'Mostra assenze',
-
-  // Absence overlay badge (calendar day cells)
   absenceBadge: {
     title: '{{count}} assenti',
     aria: 'Assenze: {{count}}',
   },
-
   showCrossTeam: 'Mostra conflitti tra squadre',
   crossTeamNeedsTeam: 'Seleziona prima una squadra per vedere i suoi conflitti tra squadre',
   crossTeamBadge: {
@@ -43,13 +34,48 @@ export default {
       away: 'Partita in trasferta',
     },
   },
-
-  // Day overflow popover (month view)
   overflow: {
     more: '+{{count}} altre',
   },
-
-  // Manual game creation modal
+  assignments: {
+    title: 'Assegnazioni Spielplaner',
+    hint: 'Assegna i membri a squadre specifiche perché possano gestire le partite manuali di quelle squadre. I membri contrassegnati come Spielplaner per tutto il club (★) hanno già accesso a tutte le squadre.',
+    member: 'Membro',
+    memberPlaceholder: 'Seleziona membro',
+    team: 'Squadra',
+    teamPlaceholder: 'Seleziona squadra',
+    add: 'Aggiungi',
+    remove: 'Rimuovi assegnazione',
+    loading: 'Caricamento assegnazioni…',
+    empty: 'Ancora nessuna assegnazione per squadra. Aggiungine una qui sopra.',
+    clubWide: '(Spielplaner per tutto il club)',
+  },
+  import: {
+    title: 'Importazione in blocco',
+    hint: 'Scarica il modello, inserisci una partita per riga, poi caricalo per l\'anteprima. Le righe con dati mancanti o sconosciuti verranno saltate.',
+    downloadTemplate: 'Scarica il modello Excel',
+    importing: 'Importazione…',
+    importNValid: 'Importa {{count}} partite valide',
+    nSkipped: '{{count}} righe verranno saltate',
+    result: '{{created}} partite importate. {{failed}} non riuscite.',
+    col: {
+      team: 'Squadra',
+      type: 'H/A',
+      opponent: 'Avversario',
+      date: 'Data',
+      time: 'Ora',
+      hall: 'Palestra',
+      status: 'Stato',
+    },
+    ok: 'OK',
+    error: {
+      unknownTeam: 'Squadra sconosciuta',
+      outOfScope: 'Fuori ambito',
+      missingOpponent: 'Avversario mancante',
+      missingDate: 'Data mancante',
+      unknownHall: 'Palestra sconosciuta',
+    },
+  },
   manualGame: {
     title: 'Aggiungi partita manuale',
     subtitle: 'Salta il flusso di invito — admin / Spielplaner imposta tutto.',
@@ -65,6 +91,8 @@ export default {
     time: 'Ora',
     hall: 'Palestra',
     hallPlaceholder: 'Seleziona palestra',
+    hallComboAB: 'KWI A + B',
+    saturdayHint: 'Precompilato: {{hall}} — il sabato si preferiscono KWI C / la propria palestra di allenamento ad A/B',
     awayVenue: 'Sede trasferta',
     venueName: 'Nome della palestra',
     venueAddress: 'Indirizzo',
@@ -73,7 +101,14 @@ export default {
     league: 'Lega',
     leaguePlaceholder: 'Opzionale',
     round: 'Turno',
+    autoConfirmRsvp: 'Conferma automatica',
+    autoConfirmRsvpHint: 'Sovrascrivi il valore predefinito della squadra ({{def}}). Tutti i membri idonei partono come confermati; devono annullare se non possono venire.',
+    useTeamDefault: 'Predefinito della squadra',
+    on: 'Attivata',
+    off: 'Disattivata',
     create: 'Crea partita',
+    editTitle: 'Modifica partita manuale',
+    save: 'Salva le modifiche',
     conflict: {
       sameTeamSameDay: 'Questa squadra gioca gia lo stesso giorno ({{time}} contro {{opponent}}).',
       hallOverlap: 'La palestra e gia occupata in un orario sovrapposto ({{time}}–{{endTime}}).',
@@ -82,9 +117,6 @@ export default {
       clubBlockedNoReason: 'Questo giorno è bloccato per tutto il club — nessuna partita in casa.',
     },
   },
-
-  // Game detail drawer
-  // List/row status labels
   status: {
     scheduled: 'Planned',
     live: 'Live',
@@ -92,7 +124,6 @@ export default {
     postponed: 'Postponed',
   },
   emptyState: 'No games found',
-
   drawer: {
     vs: 'vs',
     hall: 'Palestra',
@@ -105,16 +136,22 @@ export default {
     sourceSVRZ: 'Gestito da SVRZ',
     sourceBasketplan: 'Gestito da Basketplan',
     sourceManual: 'Manuale',
+    edit: 'Modifica',
+    delete: 'Elimina',
+    deleteConfirmTitle: 'Eliminare la partita manuale?',
+    deleteConfirmBody: 'Questa azione non può essere annullata.',
+    confirmDelete: 'Elimina',
+    cancel: 'Annulla',
+    svrzReadOnlyHint: 'I dettagli ufficiali provengono da SVRZ. Modificali in Volleymanager.',
+    markAsComboAB: 'Contrassegna come KWI A + B',
+    unmarkCombo: 'Torna alla palestra singola',
   },
-  import: {
-    ok: 'OK',
-    error: {
-      unknownTeam: 'Squadra sconosciuta',
-      outOfScope: 'Fuori ambito',
-      missingOpponent: 'Avversario mancante',
-      missingDate: 'Data mancante',
-      unknownHall: 'Palestra sconosciuta',
-    },
-  },
+  colDate: 'Data',
+  colTime: 'Ora',
+  colTeam: 'Squadra',
+  colMatchup: 'Incontro',
+  colType: 'H/A',
+  colHall: 'Palestra',
+  colStatus: 'Stato',
   gamesCount: '{{count}} partite',
 } as const

@@ -208,4 +208,21 @@ export default {
   accountInviteEmailedTo: 'Nous avons aussi envoyé le lien à {{email}}.',
   accountInviteCopyLink: 'Copier le lien',
   accountInviteCopied: 'Copié !',
+
+  // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
+  inviteExternalUser: 'Ajouter un utilisateur externe',
+  inviteExternalUserDesc: 'Générer un code QR pour que quelqu\'un puisse rejoindre {{teamName}}',
+  joinAs: 'Rejoindre en tant que :',
+  player: 'Joueur/euse',
+  guest: 'Invité·e',
+  generateQR: 'Générer le code QR',
+  inviteLinkExpiry: 'Le lien expire dans 7 jours · Usage unique',
+  copyLink: 'Copier le lien',
+  addExternalUser: 'Ajouter un utilisateur externe',
+  shellAccount: 'Temporaire',
+  expiresIn: 'expire dans {{days}} j',
+  extend: 'Prolonger',
+  sponsorSaveError: 'Impossible d\'enregistrer le sponsor',
+  sponsorDeleteError: 'Impossible de supprimer le sponsor',
+  sponsorUpdateError: 'Impossible de mettre à jour le sponsor',
 } as const
