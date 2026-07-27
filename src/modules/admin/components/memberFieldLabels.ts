@@ -77,6 +77,10 @@ export const MEMBER_FIELD_LABELS: Record<string, string> = {
   vm_email: 'Swiss Volley VM email',
   ahv_nummer: 'AHV number',
   beitragskategorie: 'Membership fee category',
+  // Not a `members` column — a ClubDesk drift field derived from the roster
+  // (guest on some team, core on none). Labelled here because the sync-up
+  // modal's change chips render whatever field name the drift flag wrote.
+  gast: 'Guest (ClubDesk)',
   // System
   status: 'Record status',
   date_created: 'Created at',

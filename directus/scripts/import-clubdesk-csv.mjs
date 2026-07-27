@@ -93,6 +93,15 @@ const HEADER_TO_COL = {
   // (migration 223), so the down-sync pass below parses the string back into a
   // code and only ever FILLS an unanswered member row.
   'Federation of Origin': 'federation_of_origin',
+  // Gast — ClubDesk Ja/Nein checkbox created 2026-07-27, filled ONLY by
+  // wiedisync's push (the roster in `member_teams.guest_level` is the sole
+  // source; see CD_PUSH_CONTACT_HEADERS in clubdesk-update.js). Staged here
+  // purely so computeClubdeskDrift can compare the register against the current
+  // roster and re-flag a member whose guest status changed. ⚠ Deliberately NO
+  // write-back pass into `members` below: wiedisync owns this field outright,
+  // so letting ClubDesk's copy flow back would let a stale register overwrite
+  // the live roster.
+  'Gast': 'gast',
   '[Zuletzt geändert am]': 'zuletzt_geaendert_am',      '[Zuletzt geändert von]': 'zuletzt_geaendert_von',
   // Bracketed system variants (full-club export only — migration 065)
   '[Gruppen]': 'gruppen_bracketed',                     '[Rolle]': 'rolle_bracketed',
@@ -116,6 +125,7 @@ const TARGET_COLS = [
   'ahv_nummer','passivmitglied','offiziellen_100er','gruppe_2','funktion_2',
   'gruppen_2','jg','clubdesk_id','zuletzt_geaendert_am','zuletzt_geaendert_von',
   'gruppen_bracketed','rolle_bracketed','wiedisync_id','js_id','federation_of_origin',
+  'gast',
 ]
 
 // ── 1. Decode CSV (CP1252 → UTF-8) ──────────────────────────────────

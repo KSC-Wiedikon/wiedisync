@@ -250,6 +250,17 @@ const CD_PUSH_CONTACT_HEADERS = [
   // "Neue" — only ClubDesk's own [Id] is an upsert key), but the down-sync
   // linker reads it back as the authoritative key.
   'Wiedisync ID',
+  // Gast (custom ClubDesk Ja/Nein field, created 2026-07-27): does this member
+  // train with a team as a GUEST this season. ClubDesk has no source for it —
+  // the roster lives in `member_teams.guest_level` — so wiedisync owns the
+  // column outright: never echoed, and never empty (see gastCell).
+  // ⚠ The definition is guestMemberIdSet's, NOT a bare `guest_level > 0`: a
+  // guest on one team who is a CORE player on another is a full member and is
+  // billed as one (deriveMitgliederbeitrag isGuest), so only "guest somewhere
+  // AND core nowhere" is a Gast. Using the looser rule here would contradict
+  // the fee the same push writes. Backfilled 2026-07-27 (27 Ja / 680 Nein
+  // across the 707 linked contacts) — see docs/DEVLOG.md.
+  'Gast',
 ]
 // UPDATE set: [Id]-keyed, name-less (see block comment above).
 const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS]
@@ -543,6 +554,16 @@ export async function guestMemberIdSet(database, memberIds, season) {
   return out
 }
 
+// ClubDesk's Gast checkbox cell (see CD_PUSH_CONTACT_HEADERS). Deliberately
+// TOTAL — a non-guest asserts 'Nein' instead of sending an empty cell, so the
+// register never has to distinguish "not a guest" from "nobody ever said".
+// That also makes the field structurally exempt from the echo-back /
+// blank-risk machinery: there is no empty wiedisync value that could blank it.
+// Takes the boolean from guestMemberIdSet, never a raw guest_level.
+export function gastCell(isGuest) {
+  return isGuest === true ? 'Ja' : 'Nein'
+}
+
 function fmtBirthdateDDMMYYYY(v) {
   if (!v) return ''
   const iso = (v instanceof Date) ? v.toISOString().slice(0, 10) : String(v)
@@ -645,6 +666,10 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
       // echoed, never blank. Pre-184 pushes carried the numeric members.id; the
       // down-sync linker accepts both.
       m.uuid ? String(m.uuid) : (m.id != null ? String(m.id) : ''),
+      // Gast — resolved by /up from the CURRENT-SEASON roster (m.is_guest, set
+      // from guestMemberIdSet for updates and creates alike). Wiedisync-owned:
+      // no echo, and 'Nein' rather than an empty cell (see gastCell).
+      gastCell(m.is_guest === true),
     ]
     // UPDATE rows are [Id]-keyed and name-less (spike-proven 2026-07-08: the
     // wizard consumes [Id] as the record identity and touches only the columns
@@ -1072,6 +1097,13 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // symmetric first-name-prefix rule as cdStatusForRegistration, so a child
       // on the parent's shared address never inherits the parent's date or
       // teams. No match (legacy/manual member) → empty cells; a new contact has
+      // Guest resolution for the WHOLE push (both sets): every row carries a Gast
+      // cell now (CD_PUSH_CONTACT_HEADERS), and the CREATE rows additionally bill
+      // the reduced Mitgliederbeitrag off the same flag. One query over
+      // pushMembers rather than one per set, so an update row and a create row
+      // can never be resolved against different definitions.
+      const guestIds = await guestMemberIdSet(database, pushMembers.map((m) => m.id), getCurrentSeason())
+      for (const m of pushMembers) m.is_guest = guestIds.has(Number(m.id))
       // no ClubDesk Eintritt/Gruppen to blank, so empty is safe there.
       if (creates.length) {
         const emails = [...new Set(creates.map((m) => String(m.email || '').toLowerCase().trim()).filter(Boolean))]
@@ -1080,9 +1112,6 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             .whereRaw('LOWER(BTRIM(email)) = ANY(?)', [emails])
             .select('email', 'vorname', 'submitted_at', 'membership_type', 'team', 'rolle', 'sektion_choice', 'lizenz')
           : []
-        // Guest CREATE contacts are billed the reduced Mitgliederbeitrag — resolve
-        // from the roster (guest_level), the authoritative current-season truth.
-        const guestIds = await guestMemberIdSet(database, creates.map((m) => m.id), getCurrentSeason())
         for (const m of creates) {
           const em = String(m.email || '').toLowerCase().trim()
           const reg = regs
@@ -1093,7 +1122,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           m.cd_status = deriveStatus(reg, m)
           m.cd_passiv = derivePassivmitglied(reg)
           m.cd_sektion = deriveSektion(reg)
-          m.is_guest = guestIds.has(Number(m.id))
+          // m.is_guest is already set for every push member above — the CREATE
+          // path only consumes it (Mitgliederbeitrag + the Gast cell).
         }
       }
       // ONE lookup for the whole push: the Federation of Origin cell needs the
@@ -1481,13 +1511,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
              cd.telefon_mobil AS cd_tel_mob, cd.adresse AS cd_adresse, cd.plz AS cd_plz,
              cd.ort AS cd_ort, cd.geburtsdatum AS cd_geburtsdatum, cd.geschlecht AS cd_geschlecht,
              cd.iban AS cd_iban, cd.anrede AS cd_anrede, cd.nationalitaet AS cd_nationalitaet,
-             cd.ahv_nummer AS cd_ahv_nummer, cd.federation_of_origin AS cd_federation_of_origin
+             cd.ahv_nummer AS cd_ahv_nummer, cd.federation_of_origin AS cd_federation_of_origin,
+             cd.gast AS cd_gast
       FROM members m
       JOIN (
         SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
                email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
                geburtsdatum, geschlecht, iban, anrede, nationalitaet, ahv_nummer,
-               federation_of_origin
+               federation_of_origin, gast
         FROM clubdesk_export
         WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
         ORDER BY BTRIM(clubdesk_id), row_id
@@ -1499,6 +1530,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     // run: the Federation of Origin comparison has to happen on the MAPPED
     // value, since that is the string ClubDesk actually holds.
     const countryNames = await loadCountryPushNames(database)
+    // Gast is DERIVED from the roster (member_teams), not a members column, so it
+    // is resolved with the very SAME helper the push uses — a drift verdict that
+    // could disagree with the cell buildPushCsv writes would re-flag the member
+    // on every refresh and never converge.
+    const guestIds = await guestMemberIdSet(database, res.rows.map((r) => r.id), getCurrentSeason())
     const candidates = []
     for (const r of res.rows) {
       // conflicts = both sides non-empty and different (per-member row in Data
@@ -1587,6 +1623,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       cmpEcho('federation_of_origin', fedCd, r.cd_federation_of_origin, driftLower(fedCd), driftLower(r.cd_federation_of_origin))
       const ahvDigits = (v) => String(v ?? '').replace(/\D/g, '')
       cmpEcho('ahv_nummer', r.ahv_nummer, r.cd_ahv_nummer, ahvDigits(r.ahv_nummer), ahvDigits(r.cd_ahv_nummer))
+      // Gast: wiedisync-owned and TOTAL (gastCell always yields Ja or Nein), so
+      // plain cmp is safe — the blank_risk branch is unreachable by construction,
+      // and a member who stops (or starts) being a guest surfaces as a normal
+      // CONFLICT the admin can flag + push. This is the whole reason the column
+      // is in the drift set: without it the 2026-07-27 backfill would have been
+      // a one-off snapshot that silently rots at the next roster turnover.
+      const gastW = gastCell(guestIds.has(Number(r.id)))
+      cmp('gast', gastW, r.cd_gast, driftLower(gastW), driftLower(r.cd_gast))
       if (!conflicts.length && !fills.length) continue
       candidates.push({
         member_id: r.id,
