@@ -28,6 +28,7 @@ export default {
   game_created: 'Neus Spiel: {{home_team}} gege {{away_team}} am {{date}}',
   game_updated: 'Spiel aktualisiert: {{home_team}} gege {{away_team}} am {{date}}',
   game_deleted: 'Spiel abgseit: {{home_team}} gege {{away_team}} am {{date}}',
+  game_reinstated: 'Spiel findet wieder statt: {{home_team}} gege {{away_team}} am {{date}}',
   game_result: 'Resultat: {{home_team}} {{home_score}}:{{away_score}} {{away_team}}',
   training_created: 'Neus Training am {{date}}, {{time}} @ {{hall}}',
   training_updated: 'Training aktualisiert am {{date}} @ {{hall}}',

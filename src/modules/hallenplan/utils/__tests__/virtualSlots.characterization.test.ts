@@ -103,7 +103,6 @@ function mkEvent(o: Partial<HallEvent>): HallEvent {
     start_time: '19:00',
     end_time: '21:00',
     location: '',
-    hall: [hallA.id],
     all_day: false,
     source: 'gcal',
     ...o,
@@ -270,21 +269,24 @@ describe('mergeVirtualSlots — characterization', () => {
 
   it('10: closure hall event suppresses overlapping recurring slot', () => {
     const slot = mkRealSlot({ id: 'rs1', recurring: true, team: ['1'], hall: hallA.id, start_time: '18:00', end_time: '20:00' })
-    const event = mkEvent({ id: 'e-closed', title: 'Halle geschlossen', hall: [hallA.id], all_day: true })
+    // No hall named in title/location → the regex resolver falls back to all
+    // KWI halls (whole building closed) — the only path that ever ran on prod
+    // (the hall relation was never populated; dropped in migration 252).
+    const event = mkEvent({ id: 'e-closed', title: 'Halle geschlossen', all_day: true })
     const evs = hallEventToVirtualSlots(event, weekDays, halls)
     const result = mergeVirtualSlots([slot], evs, noClaims, noClosures, noGames, weekDays, halls, teams)
     check(result, [
-      { id: 'hall-event-e-closed', collectionName: 'virtual', hall: 'h-a', team: [], day_of_week: 2, start_time: '10:00', end_time: '22:00', slot_type: 'event', recurring: false, valid_from: '2026-04-22', valid_until: '2026-04-22', label: 'Halle geschlossen', notes: '', virtual: { source: 'hall_event', sourceId: 'e-closed', sourceRecordId: 'e-closed' } },
+      { id: 'hall-event-e-closed', collectionName: 'virtual', hall: 'h-a', team: [], day_of_week: 2, start_time: '10:00', end_time: '22:00', slot_type: 'event', recurring: false, valid_from: '2026-04-22', valid_until: '2026-04-22', label: 'Halle geschlossen', notes: '', virtual: { source: 'hall_event', sourceId: 'e-closed', sourceRecordId: 'e-closed', spanHallIds: ['h-a', 'h-b', 'h-c'] } },
     ])
   })
 
   it('11: BB game hall event suppresses overlapping recurring slot in spanned hall', () => {
     const slot = mkRealSlot({ id: 'rs1', recurring: true, team: ['2'], hall: hallA.id, start_time: '19:30', end_time: '21:00', slot_type: 'training' })
-    const event = mkEvent({ id: 'e-bb', title: 'BB Herren 1 vs Gegner', hall: [hallA.id, hallB.id], start_time: '20:00', end_time: '22:00' })
+    const event = mkEvent({ id: 'e-bb', title: 'BB Herren 1 vs Gegner', location: 'Halle A, Halle B', start_time: '20:00', end_time: '22:00' })
     const evs = hallEventToVirtualSlots(event, weekDays, halls)
     const result = mergeVirtualSlots([slot], evs, noClaims, noClosures, noGames, weekDays, halls, teams)
     check(result, [
-      { id: 'hall-event-e-bb', collectionName: 'virtual', hall: 'h-a', team: [], day_of_week: 2, start_time: '19:15', end_time: '22:00', slot_type: 'game', recurring: false, valid_from: '2026-04-22', valid_until: '2026-04-22', label: 'BB Herren 1 vs Gegner', notes: '', virtual: { source: 'hall_event', sourceId: 'e-bb', sourceRecordId: 'e-bb', spanHallIds: ['h-a', 'h-b'] } },
+      { id: 'hall-event-e-bb', collectionName: 'virtual', hall: 'h-a', team: [], day_of_week: 2, start_time: '19:15', end_time: '22:00', slot_type: 'game', recurring: false, valid_from: '2026-04-22', valid_until: '2026-04-22', label: 'BB Herren 1 vs Gegner', notes: 'Halle A, Halle B', virtual: { source: 'hall_event', sourceId: 'e-bb', sourceRecordId: 'e-bb', spanHallIds: ['h-a', 'h-b'] } },
     ])
   })
 
