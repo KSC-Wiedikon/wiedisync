@@ -29,13 +29,14 @@ const kacper = {
 }
 
 describe('buildPushCsv (update set)', () => {
-  it('is [Id]-keyed and name-less — 15 contact columns + 3 fill-only billing cells, no groups/status', () => {
+  it('is [Id]-keyed and name-less — 15 contact columns + 5 fill-only cells, no groups/status', () => {
     const csv = buildPushCsv([kacper])
     const [header, row] = csv.trim().split('\n')
     // Beitragskategorie/Eintritt/Mitgliederbeitrag joined the UPDATE set
     // 2026-07-27 as FILL-ONLY extras at the END (after Gast) — ClubDesk's own
     // value always wins, so they can only ever fill an empty register cell.
-    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag')
+    // Lizenznummer/Lizenzart followed the same day under the same rule.
+    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag;Lizenznummer;Lizenzart')
     // Names must NEVER ride on an update row: [Id] is the upsert key (spike-proven
     // 2026-07-08) and a name column would overwrite the register's legal name.
     expect(header).not.toContain('Vorname')
@@ -44,7 +45,7 @@ describe('buildPushCsv (update set)', () => {
     expect(header).not.toContain('Gruppen')
     expect(header).not.toContain('Status')
     const cells = row.split(';')
-    expect(cells).toHaveLength(18)
+    expect(cells).toHaveLength(20)
     expect(cells[0]).toBe('1001283')  // ClubDesk's own [Id] = members.clubdesk_id
     expect(row).not.toContain('Kacper')
     expect(row).not.toContain('Krawczyński')
@@ -211,24 +212,65 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
     expect(cells[16]).toBe('')
     expect(cells[17]).toBe('') // unknown/empty category is never guessed at
   })
+
+  // Cells [18..19] = Lizenznummer / Lizenzart (2026-07-27) — same precedence:
+  // the register's own cell (the /up-stashed *_cd mirror) always wins, and the
+  // authority-sourced members.license_nr / licence_category (Volleymanager /
+  // Basketplan) only ever fill an EMPTY register cell. A divergent register
+  // value is a manual decision, never an automated overwrite.
+  it('licence cells echo ClubDesk verbatim when set, fill from members when empty', () => {
+    const echoed = cellsOf({
+      license_nr: '846309', licence_category: 'U 10',
+      lizenznummer_cd: '812847', lizenzart_cd: 'RLL',
+    })
+    expect(echoed[18]).toBe('812847') // NOT wiedisync's 846309
+    expect(echoed[19]).toBe('RLL')    // NOT wiedisync's U 10
+    const filled = cellsOf({ license_nr: '846309', licence_category: 'U 10' })
+    expect(filled[18]).toBe('846309')
+    expect(filled[19]).toBe('U 10')
+    // Each cell independent — a register-set number never blocks an art fill.
+    const mixed = cellsOf({ license_nr: '846309', licence_category: 'U 10', lizenznummer_cd: '812847' })
+    expect(mixed[18]).toBe('812847')
+    expect(mixed[19]).toBe('U 10')
+    // Nothing anywhere → empty cells, never a guess.
+    const empty = cellsOf({})
+    expect(empty[18]).toBe('')
+    expect(empty[19]).toBe('')
+  })
+
+  it("suppresses 'Offizielle/r' from Lizenzart — an officials licence is not a playing licence", () => {
+    // Basketplan files pure officials under the category 'Offizielle/r', but
+    // ClubDesk models that in its own Offiziellen Lizenz field (OTR/OTN
+    // levels) — pushing it as Lizenzart would misfile the qualification.
+    const cells = cellsOf({ license_nr: '759984', licence_category: 'Offizielle/r' })
+    expect(cells[18]).toBe('759984') // the number still fills
+    expect(cells[19]).toBe('')       // the art cell stays empty
+    // A register-set Lizenzart still echoes through unchanged.
+    expect(cellsOf({ licence_category: 'Offizielle/r', lizenzart_cd: 'RLL' })[19]).toBe('RLL')
+    // Same rule on the CREATE set.
+    const createRow = buildPushCsv([{ ...kacper, license_nr: '759984', licence_category: 'Offizielle/r' }], { create: true })
+      .trim().split('\n')[1].split(';')
+    expect(createRow[26]).toBe('759984')
+    expect(createRow[27]).toBe('')
+  })
 })
 
 describe('buildPushCsv (create set)', () => {
   it('appends the create-set columns (Telefon Mobil … Schiedsrichter) in order', () => {
-    const csv = buildPushCsv([{ ...kacper, scorer_vb: true, referee_vb: true, iban: 'CH9300762011623852957', cd_passiv: 'Nein', cd_sektion: 'Volleyball' }], { create: true })
+    const csv = buildPushCsv([{ ...kacper, scorer_vb: true, referee_vb: true, iban: 'CH9300762011623852957', cd_passiv: 'Nein', cd_sektion: 'Volleyball', license_nr: '183931', licence_category: 'RLL' }], { create: true })
     const [header, row] = csv.trim().split('\n')
     // FULL literal pin — `toBe(CD_PUSH_CREATE_HEADERS.join(';'))` alone is
     // self-referential (a header deleted from the array would still pass while
     // the cells shift against ClubDesk's mapper). CREATE rows carry the real
     // wiedisync name (a new contact needs one) and never an [Id] (an unknown
     // [Id] hard-aborts ClubDesk's whole import).
-    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Passivmitglied;Sektion;Schiedsrichter')
+    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Passivmitglied;Sektion;Schiedsrichter;Lizenznummer;Lizenzart')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
     expect(header).not.toContain('[Id]')
     // header/cell count equality — catches a header/cells drift in either direction
     expect(row.split(';')).toHaveLength(header.split(';').length)
     const cells = row.split(';')
-    expect(cells).toHaveLength(26)
+    expect(cells).toHaveLength(28)
     expect(cells[9]).toBe('CH9300762011623852957') // IBAN
     // [10..13] = Anrede/Nationalität/Federation of Origin/AHV Nummer (empty on this fixture); [14] = Wiedisync ID; [15] = Gast; create extras start at [16]
     expect(cells[16]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
@@ -241,6 +283,8 @@ describe('buildPushCsv (create set)', () => {
     expect(cells[23]).toBe('Nein')                   // Passivmitglied
     expect(cells[24]).toBe('Volleyball')             // Sektion
     expect(cells[25]).toBe('Ja')                     // Schiedsrichter (referee)
+    expect(cells[26]).toBe('183931')                 // Lizenznummer (issuing authority)
+    expect(cells[27]).toBe('RLL')                    // Lizenzart
   })
 
   it('Telefon Mobil mirrors Telefon Privat (one number → both)', () => {
@@ -253,10 +297,11 @@ describe('buildPushCsv (create set)', () => {
       .trim().split('\n')[1]
     const cells = row.split(';')
     // IBAN, Anrede, Nationalität, Federation of Origin, AHV, Wiedisync ID (no id),
-    // Telefon Mobil, Beitragskategorie, Eintritt, Gruppen, Status.
-    // 15 (Gast) is deliberately NOT in this list — it is the one contact column
-    // that is never empty (gastCell asserts 'Nein'), asserted separately below.
-    for (const i of [9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20]) expect(cells[i]).toBe('')
+    // Telefon Mobil, Beitragskategorie, Eintritt, Gruppen, Status, Lizenznummer,
+    // Lizenzart. 15 (Gast) is deliberately NOT in this list — it is the one
+    // contact column that is never empty (gastCell asserts 'Nein'), asserted
+    // separately below.
+    for (const i of [9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 26, 27]) expect(cells[i]).toBe('')
   })
 
   it('neutralises formula injection in the category cell', () => {
@@ -269,7 +314,7 @@ describe('buildPushCsv (create set)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(26)
+    expect(cells).toHaveLength(28)
     expect(cells[19]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 })

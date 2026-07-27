@@ -277,7 +277,13 @@ const CD_PUSH_CONTACT_HEADERS = [
 // anrede/nationalitaet echo with the precedence REVERSED — ClubDesk stays
 // authoritative on existing contacts, and per-person Mitgliederbeitrag
 // overrides ("Speziallizenz, einmalig so tief") are sacred.
-const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag']
+// Lizenznummer + Lizenzart joined 2026-07-27 under the same fill-only rule:
+// wiedisync's license_nr / licence_category come from the issuing authorities
+// (Volleymanager / Basketplan, migrations 208 + 260), but the register cell may
+// be hand-maintained — so ClubDesk wins where set, and only the ~198 empty
+// number / ~320 empty art cells get filled. Divergent cells (3 at ship time)
+// stay ClubDesk's and need a manual decision, never an automated overwrite.
+const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag', 'Lizenznummer', 'Lizenzart']
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
 // A brand-new contact has no ClubDesk-owned category, entry date, groups or
@@ -313,7 +319,7 @@ const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie'
 // Sektion on an existing contact.
 // CREATE set: real wiedisync name (a brand-new contact has no [Id] to key on),
 // the shared contact columns, then the create-only extras.
-export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Passivmitglied', 'Sektion', 'Schiedsrichter']
+export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Passivmitglied', 'Sektion', 'Schiedsrichter', 'Lizenznummer', 'Lizenzart']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -644,6 +650,18 @@ export function nationalityCell(codes, countryNames) {
   return list.map((c) => (countryNames && countryNames.get(c)) || c).join(', ')
 }
 
+// The Lizenzart cell carries the PLAYING licence type (RLL/JLL/Senior/U n/…).
+// Basketplan's licence list also files pure officials under a category —
+// 'Offizielle/r' — but that is an OFFICIALS licence, which ClubDesk models in
+// its own Offiziellen Lizenz field (deriveOffiziellenLizenz: VB SC / OTR/OTN
+// levels); pushing it as Lizenzart would misfile the qualification as a playing
+// licence. Suppressed here — an official-only member sends an empty cell (a
+// harmless no-op on import). members.licence_category keeps the value.
+export function lizenzartCell(licenceCategory) {
+  const v = String(licenceCategory || '').trim()
+  return v === 'Offizielle/r' ? '' : v
+}
+
 export function buildPushCsv(members, { create = false, countryNames = null } = {}) {
   // Column order MUST match CD_PUSH_HEADERS (+ create extras). Create rows also
   // carry Beitragskategorie + Eintritt + Gruppen + Status (see
@@ -706,6 +724,9 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
         m.cd_passiv || '', m.cd_sektion || '', // resolved by /up from the registration
         deriveSchiedsrichter(m),
+        // Licence number + category from the issuing authority (Volleymanager /
+        // Basketplan) — a brand-new contact has no register value to protect.
+        String(m.license_nr || '').trim(), lizenzartCell(m.licence_category),
       )
     } else {
       // Fill-only billing cells (2026-07-27, see CD_PUSH_HEADERS): ClubDesk's
@@ -722,6 +743,11 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         String(m.eintritt_cd || '').trim() || fmtBirthdateDDMMYYYY(m.eintritt),
         String(m.mitgliederbeitrag_cd || '').trim()
           || deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
+        // Lizenznummer / Lizenzart, same fill-only precedence: the register's
+        // own cell (stashed by /up) travels verbatim; wiedisync's authority-
+        // sourced value goes out only where the register is empty.
+        String(m.lizenznummer_cd || '').trim() || String(m.license_nr || '').trim(),
+        String(m.lizenzart_cd || '').trim() || lizenzartCell(m.licence_category),
       )
     }
     return cells.map(cdCell).join(';')
@@ -744,6 +770,7 @@ const PUSH_FIELDS = [
   'clubdesk_id', 'clubdesk_push_changes',
   'beitragskategorie', 'wiedisync_active',
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
+  'license_nr', 'licence_category',
 ]
 
 // Escape user-controlled strings before interpolating into the admin email
@@ -1090,7 +1117,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         const echoRows = cdids.length ? await database.raw(`
           SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
                  iban, anrede, nationalitaet, ahv_nummer, federation_of_origin,
-                 beitragskategorie, eintritt, mitgliederbeitrag
+                 beitragskategorie, eintritt, mitgliederbeitrag, lizenznummer, lizenzart
           FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
         `, [cdids]) : { rows: [] }
         const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
@@ -1118,6 +1145,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           m.beitragskategorie_cd = String(cd.beitragskategorie || '').trim()
           m.eintritt_cd = String(cd.eintritt || '').trim()
           m.mitgliederbeitrag_cd = String(cd.mitgliederbeitrag || '').trim()
+          m.lizenznummer_cd = String(cd.lizenznummer || '').trim()
+          m.lizenzart_cd = String(cd.lizenzart || '').trim()
         }
       }
       const pushMembers = [...updates, ...creates]

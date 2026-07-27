@@ -94,13 +94,54 @@ async function login(page) {
 }
 
 /** personIds from the licence list. Read from hrefs; nothing is clicked. */
-async function harvestPersonIds(page) {
+/**
+ * Harvest the licence LIST page: person ids plus the licence NUMBER and
+ * CATEGORY, which live ONLY here — the person page (findPersonById.do)
+ * carries NEITHER (verified live 2026-07-27: the old innerText regex staged
+ * 256× NULL licence_nr).
+ *
+ * The number is the text of the row's own findLicenceById.do link — a packed
+ * cell whose prefix letters are M/F for players ("M 846117") and O plus the
+ * AR/TN qualification marks for officials ("O AR TN 005886"). Only the
+ * TRAILING digit run is the licence number (user rule 2026-07-27: out of
+ * "O AR TN 005886" the number is 005886, never any text) — keyed on the link,
+ * never on column position, which reorders between Basketplan releases.
+ *
+ * The category label is LOCALE-DEPENDENT — the same session that renders
+ * players as "Senior"/"U 14" renders officials as "Ufficiale" (seen live
+ * 2026-07-27; the memory of "Offizielle/r" was a German session) — so the
+ * officials variants are normalized to the 'Offizielle/r' the members
+ * taxonomy (migration 208) uses, and "U8"/"U 8" spacing is unified.
+ * Returns Map<personId, {nr, category}>.
+ */
+async function harvestLicenceList(page) {
   await go(page, `${BASE}/showPrintLicences.do?clubId=${CLUB_ID}&seasonId=${SEASON_ID}`)
-  const ids = await page.evaluate(() =>
-    [...document.querySelectorAll('a[href*="findPersonById.do"]')]
-      .map((a) => (a.getAttribute('href') || '').match(/personId=(\d+)/)?.[1])
-      .filter(Boolean))
-  return [...new Set(ids)].map(Number)
+  const pairs = await page.evaluate(() =>
+    [...document.querySelectorAll('a[href*="findPersonById.do"]')].map((a) => {
+      const id = (a.getAttribute('href') || '').match(/personId=(\d+)/)?.[1]
+      const row = a.closest('tr')
+      if (!id || !row) return null
+      const cells = [...row.querySelectorAll('td')]
+        .map((td) => (td.textContent || '').replace(/\s+/g, ' ').trim())
+      const category = cells.find((t) => /^(Senior|U ?\d+|Offizielle\/r|Ufficiale|Officiel(\/le)?)$/i.test(t)) || null
+      const licLink = row.querySelector('a[href*="findLicenceById.do"]')
+      const nr = (licLink?.textContent || '').match(/(\d{3,})\s*$/)?.[1] || null
+      return { id: Number(id), category, nr }
+    }).filter(Boolean))
+  const normCat = (c) => {
+    if (!c) return null
+    if (/^U ?\d+$/i.test(c)) return c.replace(/^U ?(\d+)$/i, 'U $1')
+    if (/^(Offizielle\/r|Ufficiale|Officiel(\/le)?)$/i.test(c)) return 'Offizielle/r'
+    return c
+  }
+  // A person can appear on several list rows (e.g. player + official); the
+  // first row with a value wins per field, a later one only fills empty slots.
+  const byId = new Map()
+  for (const { id, category, nr } of pairs) {
+    const prev = byId.get(id) || {}
+    byId.set(id, { category: prev.category || normCat(category), nr: prev.nr || nr })
+  }
+  return byId
 }
 
 /**
@@ -170,7 +211,10 @@ const bool = (v) => (v === null || v === undefined ? 'NULL' : v ? 'true' : 'fals
 
 /**
  * Apply staged Basketplan data into `members`. FILL-ONLY and SET-TRUE-ONLY —
- * this never overwrites a value wiedisync already holds and never clears a flag.
+ * this never overwrites a value wiedisync already holds and never clears a
+ * flag. Sole exception: licence_category values that are already Basketplan's
+ * OWN taxonomy (Senior / U n / Offizielle/r) are refreshed, because they age
+ * with the player and Basketplan issues them; VM codes are never touched.
  *
  * Match: licence number first (Basketplan ISSUES it, and migration 208 aligned
  * ours to theirs), then exact name + birthdate. Deliberately no fuzzy fallback —
@@ -218,6 +262,37 @@ UPDATE members m
    AND m.nationalitaet_codes IS NULL
    AND x.codes ~ '^[A-Z]{2}(,[A-Z]{2})*$';
 
+-- ── Licence number: STRICT fill-only ────────────────────────────────────────
+-- license_nr is an exact JOIN KEY (VM Einsatzliste scorer-roster.js,
+-- sv-licence.js, the ClubDesk diff) and a dual-sport member's Volleymanager
+-- number differs from the Basketplan one — overwriting would silently drop the
+-- player from the volleyball match sheet. Absence is the only writable state;
+-- members reached here matched by name+birthdate (an empty license_nr cannot
+-- licence-match).
+UPDATE members m
+   SET license_nr = btrim(b.licence_nr)
+  FROM bp_match b
+ WHERE m.id = b.member_id
+   AND nullif(btrim(b.licence_nr),'') IS NOT NULL
+   AND nullif(btrim(m.license_nr::text),'') IS NULL;
+
+-- ── Licence category: fill empties + refresh Basketplan's own taxonomy ──────
+-- Basketplan is the issuing authority for the BB categories and they AGE
+-- (U 14 → U 16 as the child grows), so a value that is already Basketplan
+-- taxonomy (Senior / U n / Offizielle/r) is refreshed, not just filled.
+-- Volleymanager codes (RLL/JLL/PL/DLR/...) are never touched — the single
+-- column keeps the VM value for dual-sport members (same rule migration 208
+-- applied).
+UPDATE members m
+   SET licence_category = btrim(b.licence_category)
+  FROM bp_match b
+ WHERE m.id = b.member_id
+   AND nullif(btrim(b.licence_category),'') IS NOT NULL
+   AND (nullif(btrim(m.licence_category),'') IS NULL
+        OR btrim(m.licence_category) IN ('Senior', 'Offizielle/r')
+        OR btrim(m.licence_category) ~ '^U ?[0-9]+$')
+   AND btrim(m.licence_category) IS DISTINCT FROM btrim(b.licence_category);
+
 -- ── Officials: set-true only, never clear ──────────────────────────────────
 -- Basketplan stores acquisition DATES; a date present means the licence was
 -- issued. Absence is not evidence of revocation (a lapsed licence keeps its
@@ -244,6 +319,8 @@ COMMIT;
 
 SELECT 'members_with_nationality' AS metric, count(*) AS value FROM members WHERE nationalitaet_codes IS NOT NULL
 UNION ALL SELECT 'members_still_without', count(*) FROM members WHERE nationalitaet_codes IS NULL
+UNION ALL SELECT 'members_with_license_nr', count(*) FROM members WHERE nullif(btrim(license_nr::text),'') IS NOT NULL
+UNION ALL SELECT 'members_with_licence_category', count(*) FROM members WHERE nullif(btrim(licence_category),'') IS NOT NULL
 UNION ALL SELECT 'otn1_bb', count(*) FROM members WHERE otn1_bb
 UNION ALL SELECT 'otn2_bb', count(*) FROM members WHERE otn2_bb
 UNION ALL SELECT 'otr1_bb', count(*) FROM members WHERE otr1_bb
@@ -278,12 +355,19 @@ async function main() {
   try {
     await login(page)
     console.log('[bp] authenticated')
-    const ids = await harvestPersonIds(page)
+    const licenceList = await harvestLicenceList(page)
+    const ids = [...licenceList.keys()]
     console.log(`[bp] ${ids.length} licensed people in season ${SEASON_ID}`)
     const todo = ids.slice(0, limit)
     for (const [i, id] of todo.entries()) {
       const p = await scrapePerson(page, id)
-      rows.push({ person_id: id, ...p })
+      const listInfo = licenceList.get(id) || {}
+      // The list is the only real source for the number (see harvestLicenceList);
+      // the person-page innerText fallback has never matched but stays harmless.
+      rows.push({
+        person_id: id, licenceCategory: listInfo.category || null, ...p,
+        licenceNr: p.licenceNr || listInfo.nr || '',
+      })
       if ((i + 1) % 25 === 0 || i + 1 === todo.length) {
         console.log(`[bp] ${i + 1}/${todo.length}`)
       }
@@ -305,7 +389,7 @@ async function main() {
   const values = rows.map((r) => `(${[
     num(r.person_id), lit(r.lastName), lit(r.firstName),
     parseDate(r.birthdate) ? lit(parseDate(r.birthdate)) + '::date' : 'NULL',
-    lit(r.licenceNr),
+    lit(r.licenceNr), lit(r.licenceCategory),
     r.nation1 && r.nation1 !== '0' ? num(r.nation1) : 'NULL',
     r.nation2 && r.nation2 !== '0' ? num(r.nation2) : 'NULL',
     bool(jaNein(r.natJustified)), bool(jaNein(r.trainedInCh)),
@@ -315,7 +399,7 @@ async function main() {
 
   const sql = `BEGIN;
 INSERT INTO basketplan_people
-  (person_id, last_name, first_name, birthdate, licence_nr,
+  (person_id, last_name, first_name, birthdate, licence_nr, licence_category,
    nation1_id, nation2_id, nation_confirmed, trained_in_ch,
    otr1_since, otr2_since, otn1_since, otn2_since,
    referee_reg_since, referee_nat_since, referee_mini_since, referee_youth_since,
@@ -325,6 +409,7 @@ ${values}
 ON CONFLICT (person_id) DO UPDATE SET
   last_name=EXCLUDED.last_name, first_name=EXCLUDED.first_name,
   birthdate=EXCLUDED.birthdate, licence_nr=EXCLUDED.licence_nr,
+  licence_category=EXCLUDED.licence_category,
   nation1_id=EXCLUDED.nation1_id, nation2_id=EXCLUDED.nation2_id,
   nation_confirmed=EXCLUDED.nation_confirmed, trained_in_ch=EXCLUDED.trained_in_ch,
   otr1_since=EXCLUDED.otr1_since, otr2_since=EXCLUDED.otr2_since,
