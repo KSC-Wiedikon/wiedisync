@@ -863,7 +863,6 @@ async function main() {
     await setPermRead(PUBLIC_POLICY, 'hall_slots_teams')  // M2M junction
     await setPermRead(PUBLIC_POLICY, 'hall_closures')
     await setPermRead(PUBLIC_POLICY, 'hall_events')
-    await setPermRead(PUBLIC_POLICY, 'hall_events_halls')  // M2M junction
     await setPermRead(PUBLIC_POLICY, 'halls')
 
     // Feedback — public create (kscw-website form, validated by Turnstile hook).
@@ -912,7 +911,7 @@ async function main() {
   const MEMBER_READ_ALL = [
     'teams', 'games', 'rankings', 'sponsors',
     'event_sessions',
-    'hall_slots', 'hall_closures', 'hall_events', 'hall_events_halls', 'halls', 'hall_slots_teams',
+    'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',
     'news', 'app_settings',
     'referee_expenses', 'carpools', 'carpool_passengers', 'polls',
     // Junctions
@@ -1855,7 +1854,7 @@ async function main() {
     'games', 'trainings', 'events', 'event_sessions', 'events_teams',
     'member_teams', 'participations', 'absences',
     'rankings', 'sponsors', 'teams_sponsors',
-    'hall_slots', 'hall_closures', 'hall_events', 'hall_events_halls', 'halls', 'hall_slots_teams',
+    'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',
     'slot_claims', 'notifications', 'feedback', 'scorer_delegations', 'referee_expenses',
     'team_invites', 'news', 'app_settings', 'user_logs',
     'push_subscriptions', 'email_verifications',

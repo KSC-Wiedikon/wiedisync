@@ -221,10 +221,13 @@ export function registerICalFeed(router, { database, logger }) {
 
       // Events — club-wide only. Team-/member-scoped events (e.g. a tournament
       // limited to H3) stay internal to the member app and never reach the feed.
+      // NOT EXISTS, not NOT IN: the junction events_id columns are nullable, and
+      // a single NULL row in a NOT IN subquery makes the predicate never true
+      // (SQL three-valued logic) — silently emptying the whole section.
       if (sources['events']) {
         const events = await database('events')
-          .whereNotIn('id', database('events_teams').select('events_id'))
-          .whereNotIn('id', database('events_members').select('events_id'))
+          .whereNotExists(database('events_teams').select('id').whereRaw('events_teams.events_id = events.id'))
+          .whereNotExists(database('events_members').select('id').whereRaw('events_members.events_id = events.id'))
           .orderBy('start_date')
         for (const ev of events) {
           if (!ev.start_date) continue
@@ -253,9 +256,15 @@ export function registerICalFeed(router, { database, logger }) {
               lines.push(`DTSTART;VALUE=DATE:${fmtDate(d)}`, `DTEND;VALUE=DATE:${fmtDate(nextDay(d))}`)
             }
           }
-          lines.push(`SUMMARY:${esc(ev.title || 'Event')}`)
+          let title = ev.title || 'Event'
+          if (ev.cancelled) title = '[ABGESAGT] ' + title
+          lines.push(`SUMMARY:${esc(title)}`)
           if (ev.location) lines.push(`LOCATION:${esc(ev.location)}`)
-          if (ev.description) lines.push(`DESCRIPTION:${esc(ev.description)}`)
+          const desc = [ev.cancelled ? ev.cancel_reason : null, ev.description].filter(Boolean).join('\n')
+          if (desc) lines.push(`DESCRIPTION:${esc(desc)}`)
+          // Cancelled events stay in the feed with RFC 5545 STATUS:CANCELLED so
+          // subscribed calendars retract the entry instead of keeping a stale copy.
+          if (ev.cancelled) lines.push('STATUS:CANCELLED')
           lines.push('END:VEVENT')
         }
       }

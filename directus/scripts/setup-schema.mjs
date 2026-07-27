@@ -808,7 +808,8 @@ const M2M_RELATIONS = [
   ['teams', 'team_responsible', 'members', 'teams_team_responsible'],
   ['teams', 'sponsors', 'sponsors', 'teams_sponsors'],
   ['events', 'teams', 'teams', 'events_teams'],
-  ['hall_events', 'hall', 'halls', 'hall_events_halls'],
+  // hall_events.hall M2M removed — migration 252 dropped the never-populated
+  // hall_events_halls junction (hall resolution is regex on title/location).
   ['hall_slots', 'teams', 'teams', 'hall_slots_teams'],
 ]
 

@@ -2,6 +2,24 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.49.0 — 2026-07-27
+
+### Fixed: club-wide events were missing from the website and calendar feeds
+- **Club-wide events — those open to everyone rather than tied to a team — had disappeared** from kscw.ch and from subscribed calendars. They are back, and the underlying data problem can no longer recur.
+- **Cancelled events now disappear properly**: the website no longer lists them, and subscribed calendars receive a cancellation so they vanish there too.
+
+### Fixed: a cancelled game stayed cancelled
+- A game cancelled in the app was **silently put back on the calendar by the nightly league sync**. A cancellation now sticks unless the league reports the game as played — and if a game genuinely is back on, everyone on the team gets a **"Game back on"** notification instead of it quietly reappearing.
+
+### Fixed: attendance counts and absence sign-out
+- Duplicate RSVPs could double-count members in attendance tallies, and RSVPs left over from deleted trainings inflated per-member statistics. Both are cleaned up and can no longer recur.
+- **An absence now also signs you out of club-wide events and events you were personally invited to** — previously you could even be auto-signed-*in* while absent. Multi-day events are declined per day, matching how you sign up for them.
+
+### Improved: member admin and data integrity
+- The member admin form is now organized into **collapsible sections** (identity, address, licences, preferences, billing, …) instead of one flat 100-field list.
+- The admin **"Last online"** column now actually shows when a member last logged in.
+- A broad round of database hardening: proper cross-references throughout games, trainings, rosters and finance data, duplicate records merged, and faster admin audit pages.
+
 ## v1.48.0 — 2026-07-25
 
 ### New: Hall finder — free city sport halls for the season

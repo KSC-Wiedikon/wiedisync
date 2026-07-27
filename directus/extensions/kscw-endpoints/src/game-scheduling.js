@@ -1191,7 +1191,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where({ season: season.id, kscw_team: teamId })
         .select(
           'id', database.raw('date::text as date'), 'start_time', 'end_time',
-          'status', 'source', 'hall', 'kscw_team', 'booking',
+          'status', 'source', 'hall', 'kscw_team',
         )
         .orderBy('date', 'asc')
 
@@ -1333,7 +1333,7 @@ export function registerGameScheduling(router, { database, logger, services, get
     const doltschiTakenDates = new Set()
     if (doltschiHallIds.length) {
       const bookedDoltschi = await database('game_scheduling_slots')
-        .where('season', String(seasonId)).where('status', 'booked')
+        .where('season', seasonId).where('status', 'booked')
         .whereIn('hall', doltschiHallIds)
         .select(database.raw('date::text as d'))
       doltschiFull = bookedDoltschi.length >= DOLTSCHI_SEASON_CAP
@@ -3422,7 +3422,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
       const spielsamstage = parseJson(season.spielsamstage, [])
       const teamConfig = parseJson(season.team_slot_config, {})
-      const seasonKey = String(season_id)
+      const seasonKey = Number(season_id)
 
       // "Overwrites not-yet-booked slots": drop existing available slots for the
       // season before regenerating. Booked + blocked rows are preserved — AND so
@@ -3892,7 +3892,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!opponent) return res.status(404).json({ error: 'Opponent not found' })
       if (!(await spielplanerCanManageTeam(req, opponent.kscw_team))) return res.status(403).json({ error: 'Not authorized for this team' })
       const actor = await resolveActingUser(req)
-      const seasonId = String(opponent.season)
+      const seasonId = opponent.season
       let homeBookingId = null
 
       // Guard against date typos (e.g. 10.02.2026 for a 2026/27 season): a manual
@@ -4622,7 +4622,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           for (const [oldId, newId] of Object.entries(map)) {
             const moved = await trx('hall_slots_teams')
               .where('teams_id', oldId)
-              .whereNotIn('hall_slots_id', trx('hall_slots_teams').select('hall_slots_id').where('teams_id', newId))
+              .whereNotIn('hall_slots_id', trx('hall_slots_teams').select('hall_slots_id').where('teams_id', newId).whereNotNull('hall_slots_id'))
               .update({ teams_id: newId })
             hallSlots += moved
             await trx('hall_slots_teams').where('teams_id', oldId).del()
@@ -4660,7 +4660,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             const updated = await trx('events_teams')
               .where('teams_id', oldId)
               .whereIn('events_id', trx('events').select('id').where('start_date', '>=', now))
-              .whereNotIn('events_id', trx('events_teams').select('events_id').where('teams_id', newId))
+              .whereNotIn('events_id', trx('events_teams').select('events_id').where('teams_id', newId).whereNotNull('events_id'))
               .update({ teams_id: newId })
             eventsRelinked += updated
           }
@@ -4674,7 +4674,7 @@ export function registerGameScheduling(router, { database, logger, services, get
             const updated = await trx('forms_teams')
               .where('teams_id', oldId)
               .whereIn('forms_id', trx('forms').select('id').where('status', 'open'))
-              .whereNotIn('forms_id', trx('forms_teams').select('forms_id').where('teams_id', newId))
+              .whereNotIn('forms_id', trx('forms_teams').select('forms_id').where('teams_id', newId).whereNotNull('forms_id'))
               .update({ teams_id: newId })
             formsRelinked += updated
           }
@@ -6251,7 +6251,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
 
       const actor = await resolveActingUser(req)
-      const seasonId = String(opponent.season)
+      const seasonId = opponent.season
       let resultBookingId = booking_id || null
 
       if (booking) {

@@ -16,6 +16,13 @@
  *
  * NOT EXISTS skips manual answers and absence-declines (both are rows), so the
  * sweep never overwrites a choice and is safe to re-run every sync.
+ *
+ * The NOT EXISTS alone is raceable: a member RSVPing while the sweep runs
+ * produced duplicate confirmed rows (games 429/524, 0.4s apart). The
+ * targetless ON CONFLICT DO NOTHING closes that race against migration 246's
+ * partial unique RSVP indexes — targetless on purpose, since a named conflict
+ * target errors when the index is missing, while this form is simply inert on
+ * a pre-246 database. The NOT EXISTS stays as the semantic filter.
  */
 export async function sweepGameAutoConfirm(db, log) {
   try {
@@ -39,6 +46,7 @@ export async function sweepGameAutoConfirm(db, log) {
           SELECT 1 FROM participations p
           WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = mt.member
         )
+      ON CONFLICT DO NOTHING
     `)
     const n = res?.rowCount || 0
     if (n > 0) log.info(`[game-auto-confirm-sweep] ${n} participations confirmed`)

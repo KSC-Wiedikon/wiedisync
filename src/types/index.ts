@@ -656,7 +656,6 @@ export interface HallEvent extends BaseRecord {
   start_time: string
   end_time: string
   location: string
-  hall: string[]
   all_day: boolean
   source: string
 }
@@ -796,7 +795,8 @@ export interface TeamSlotConfig {
 }
 
 export interface GameSchedulingSlot extends BaseRecord {
-  season: string
+  /** game_scheduling_seasons id (integer FK since migration 251). */
+  season: number
   kscw_team: string
   date: string
   start_time: string
@@ -804,8 +804,6 @@ export interface GameSchedulingSlot extends BaseRecord {
   hall: string
   source: 'hall_slot' | 'spielsamstag' | 'spielhalle' | 'manual'
   status: 'available' | 'booked' | 'blocked'
-  booking: string
-  game: string
 
 }
 
@@ -891,10 +889,10 @@ export interface OpponentInvite {
 }
 
 export interface GameSchedulingBooking extends BaseRecord {
-  season: string
+  /** game_scheduling_seasons id (integer FK since migration 251). */
+  season: number
   opponent: string
   type: 'home_slot_pick' | 'away_proposal'
-  game: string
   /** SVRZ fixture (svrz_games.svrz_persistence_id) this booking schedules — a
    *  pairing can be played 2-3× per season. NULL = legacy/non-SVRZ booking,
    *  owned by the first fixture of its side. */

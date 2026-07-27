@@ -1027,6 +1027,13 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!(amount >= 0)) return res.status(400).json({ error: 'amount must be >= 0' })
       const fyId = Number.isInteger(Number(b.fiscal_year)) ? Number(b.fiscal_year) : await fiscalYearIdForDate(todayISO())
       const entryDate = /^\d{4}-\d{2}-\d{2}$/.test(b.entry_date || '') ? b.entry_date : todayISO()
+      // Team entries are sub-ledger too — same closed-year guard as the payment
+      // paths, on BOTH the entry's year and the year entry_date lands in
+      // (autopost derives the GL year from entry_date; a closed one would make
+      // it silently skip and the teams summary diverge from the GL).
+      if (await fiscalYearClosed(database, fyId)) return res.status(409).json({ error: FY_CLOSED_MSG })
+      const dateFyId = await fiscalYearIdForDate(entryDate)
+      if (dateFyId !== fyId && await fiscalYearClosed(database, dateFyId)) return res.status(409).json({ error: FY_CLOSED_MSG })
       const ins = await database('finance_team_entries').insert({
         team: teamId, fiscal_year: fyId, kind, amount,
         label: (b.label || '').toString().trim().slice(0, 255) || null,
@@ -1047,6 +1054,20 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const mem = await actingMember(req)
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const id = Number(req.params.id)
+      const entry = await database('finance_team_entries').where('id', id).first('id', 'fiscal_year')
+      if (!entry) return res.json({ ok: true, removed: 0 })
+      // Same closed-year guard as the payment-delete path — and also refuse when
+      // the entry's auto-posted GL row sits in a closed year (autopost derives
+      // its year from entry_date, which can differ from the fiscal_year FK):
+      // deleting the entry would strand a locked GL posting with no sub-ledger
+      // row behind it (removeAutopostForTeamEntrySafe swallows the trigger's
+      // exception, so nothing would surface the orphan).
+      if (await fiscalYearClosed(database, entry.fiscal_year)) return res.status(409).json({ error: FY_CLOSED_MSG })
+      const lockedPost = await database('finance_transactions as t')
+        .join('finance_fiscal_years as fy', 'fy.id', 't.fiscal_year')
+        .where({ 't.ref_kind': 'team', 't.ref_id': id, 't.auto': true, 't.source': 'native' })
+        .andWhere('fy.status', 'closed').first('t.id')
+      if (lockedPost) return res.status(409).json({ error: FY_CLOSED_MSG })
       const removed = await database('finance_team_entries').where('id', id).del()
       // #9: also drop the entry's auto-posted GL journal entry, else it lingers
       // as phantom income/expense (the DELETE mirrors the payment-delete path).

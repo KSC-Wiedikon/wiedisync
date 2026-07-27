@@ -66,6 +66,52 @@ function mapReferees(refs) {
     }))
 }
 
+// Change-detection normalizer: values must be normalized before comparing feed
+// data against a pg row — pg returns json columns PARSED (String([]) is '' —
+// never equal to the '[]' we write), date columns as JS Date objects, and time
+// columns as HH:MM:SS while the feed parse gives HH:MM — naive String()
+// coercion flags every unprotected game as changed on every run. Mirrored in
+// bp-sync.js — keep the two in sync. Exported for tests.
+export function cmpVal(f, v) {
+  if (v == null) return ''
+  if (f === 'sets_json' || f === 'referees_json' || f === 'away_hall_json') {
+    return typeof v === 'string' ? v : JSON.stringify(v)
+  }
+  if (f === 'date') {
+    return v instanceof Date
+      ? `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`
+      : String(v).slice(0, 10)
+  }
+  if (f === 'time') return String(v).slice(0, 5)
+  return String(v)
+}
+
+// Update-path guards for fields whose current value the APP owns, not the
+// feed. Mutates `data` in place and must run BEFORE the change comparison, so
+// a preserved value never registers as a diff that rewrites (and re-notifies)
+// the row on every run. Exported for tests.
+export function applyLocalGuards(data, existing) {
+  // A game cancelled in the app stays cancelled: the feed has no notion of a
+  // local cancel and keeps serving the fixture as 'scheduled', which used to
+  // silently resurrect a game the team was already told is gone (the reverse
+  // flip doesn't even notify — trg_games_notify mutes it as cosmetic). Only
+  // an actual result (completed) overrides the cancel. 'cancelled' can only
+  // come from the app — this sync writes scheduled/completed exclusively.
+  if (existing.status === 'cancelled' && data.status !== 'completed') {
+    data.status = 'cancelled'
+  }
+  // Never downgrade kscw_team to NULL: the team lookup is active-only, so a
+  // team archived without a successor resolves to nothing — and NULLing here
+  // detached that team's whole completed season from every team-scoped
+  // surface (calendars, iCal, stats views; DU23-2's 2025/26, 2026-06-30).
+  // The season-rollover re-point (see COMPARE_FIELDS) still applies whenever
+  // the lookup DOES resolve; only the resolved-to-nothing case keeps the old
+  // pointer.
+  if (data.kscw_team == null && existing.kscw_team != null) {
+    data.kscw_team = existing.kscw_team
+  }
+}
+
 export async function syncSvGames(db, log) {
   log.info('[SV Sync] Fetching games...')
 
@@ -121,13 +167,10 @@ export async function syncSvGames(db, log) {
   // (completed) OR the season's SV-feed takeover date (vm_authority_date) passes:
   // by then every opponent has had time to enter their away games, so the feed
   // becomes authoritative for date/time/venue too. NULL takeover date → protect
-  // until completed (the pre-139 behaviour). bookings.season is the season's id
-  // (stored as text), so join on ssn.id::text.
+  // until completed (the pre-139 behaviour). bookings.season is the season's id.
   const bookedRows = await db('game_scheduling_bookings as b')
     .join('svrz_games as s', 's.svrz_persistence_id', 'b.svrz_game_id')
-    .leftJoin('game_scheduling_seasons as ssn', function () {
-      this.on(db.raw('ssn.id::text'), '=', 'b.season')
-    })
+    .leftJoin('game_scheduling_seasons as ssn', 'ssn.id', 'b.season')
     .where('b.status', 'confirmed')
     .whereNotNull('s.svrz_number')
     .select('s.svrz_number', 'ssn.vm_authority_date')
@@ -148,6 +191,9 @@ export async function syncSvGames(db, log) {
   // `hall`. Flip to false (or delete the guard) once the rename lands, so the
   // feed owns `hall` again. Creates still take the feed hall — only updates are
   // frozen. `additional_halls` is never written by this sync, so it's unaffected.
+  // ⚠ When removing this freeze, port bp-sync's applyLocalGuards hall/venue
+  // defaulting (undefined → keep existing) — otherwise a hallLookup miss NULLs
+  // a hand-set hall again.
   const FREEZE_HALLS = true
 
   // Fields to compare — if all match, skip the update
@@ -274,25 +320,11 @@ export async function syncSvGames(db, log) {
             data.hall = existing.hall
             data.away_hall_json = existing.away_hall_json
           }
-          // Skip if nothing meaningful changed — avoids trigger-based notification
-          // spam. Values must be normalized before comparing: pg returns json
-          // columns PARSED (String([]) is '' — never equal to the '[]' we write),
-          // date columns as JS Date objects, and time columns as HH:MM:SS while
-          // the feed parse gives HH:MM — naive String() coercion flags every
-          // unprotected game as changed on every run.
-          const cmpVal = (f, v) => {
-            if (v == null) return ''
-            if (f === 'sets_json' || f === 'referees_json' || f === 'away_hall_json') {
-              return typeof v === 'string' ? v : JSON.stringify(v)
-            }
-            if (f === 'date') {
-              return v instanceof Date
-                ? `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`
-                : String(v).slice(0, 10)
-            }
-            if (f === 'time') return String(v).slice(0, 5)
-            return String(v)
-          }
+          // Fields the app owns (local cancel, archived-team pointer) — must
+          // run before the change comparison below.
+          applyLocalGuards(data, existing)
+          // Skip if nothing meaningful changed — avoids trigger-based
+          // notification spam (values normalized via cmpVal — see its comment).
           const changed = COMPARE_FIELDS.some(f => cmpVal(f, data[f]) !== cmpVal(f, existing[f]))
           if (!changed) { skipped++; continue }
           // Adjust respond_by if date changed (data.date, not the raw feed date, so a

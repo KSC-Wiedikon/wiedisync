@@ -130,16 +130,10 @@ export function trainingToVirtualSlot(
   } as HallSlot
 }
 
-/** Resolves which hall IDs a GCal event belongs to.
- *  Uses the hall relation array if populated (set by GCal sync hook),
- *  otherwise falls back to regex on title/location for legacy data. */
+/** Resolves which hall IDs a GCal event belongs to by regex on
+ *  title/location — the only source there is: hall_events carries no hall
+ *  relation (migration 252 dropped the never-populated M2M). */
 export function resolveHallEventHalls(event: HallEvent, halls: Hall[]): string[] {
-  // Prefer the relation field if populated
-  if (event.hall && event.hall.length > 0) {
-    return event.hall
-  }
-
-  // Fallback: regex on title/location for events synced before hook update
   const HALLE_PATTERNS: [RegExp, string][] = [
     [/Halle\s*(KWI\s*)?A/i, 'KWI A'],
     [/Halle\s*(KWI\s*)?B/i, 'KWI B'],
@@ -488,7 +482,7 @@ function collectClosureEventSuppressions(
     const he = vs._virtual.sourceRecord as HallEvent
     if (!CLOSURE_PATTERN.test(he.title)) continue
 
-    const closureHallIds = he.hall?.length ? he.hall : [vs.hall]
+    const closureHallIds = [vs.hall]
     const closureStart = timeToMinutes(vs.start_time)
     const closureEnd = timeToMinutes(vs.end_time)
 
@@ -667,7 +661,7 @@ function buildClosureRanges(virtualSlots: HallSlot[]): ClosureRange[] {
     if (vs._virtual?.source !== 'hall_event') continue
     const he = vs._virtual.sourceRecord as HallEvent
     if (!CLOSURE_PATTERN.test(he.title)) continue
-    const closureHallIds = he.hall?.length ? he.hall : [vs.hall]
+    const closureHallIds = [vs.hall]
     closureRanges.push({
       dayIndex: vs.day_of_week,
       hallIds: closureHallIds,

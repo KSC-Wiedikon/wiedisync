@@ -146,6 +146,49 @@ function parseRankings(rankingXml) {
 
 // ── Main sync functions ─────────────────────────────────────────────
 
+// Change-detection normalizer, mirrored from sv-sync.js (keep the two in
+// sync): values must be normalized before comparing feed data against a pg
+// row — pg returns json columns PARSED (String([]) is '' — never equal to the
+// '[]' we write), date columns as JS Date objects, and time columns as
+// HH:MM:SS while the feed gives HH:MM — the old naive String() coercion
+// flagged every BB game as changed on every run, rewriting all rows nightly.
+// Exported for tests.
+export function cmpVal(f, v) {
+  if (v == null) return ''
+  if (f === 'sets_json' || f === 'referees_json' || f === 'away_hall_json') {
+    return typeof v === 'string' ? v : JSON.stringify(v)
+  }
+  if (f === 'date') {
+    return v instanceof Date
+      ? `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`
+      : String(v).slice(0, 10)
+  }
+  if (f === 'time') return String(v).slice(0, 5)
+  return String(v)
+}
+
+// Update-path guards for fields whose current value the APP owns, not the
+// feed. Mutates `data` in place and must run BEFORE the change comparison, so
+// a preserved value never registers as a diff that rewrites (and re-notifies)
+// the row on every run. Exported for tests.
+export function applyLocalGuards(data, existing) {
+  // A game cancelled in the app stays cancelled: the feed has no notion of a
+  // local cancel and keeps serving the fixture, which used to silently
+  // resurrect a game the team was already told is gone. Only an actual
+  // result (completed) overrides the cancel. 'cancelled' can only come from
+  // the app — a Basketplan withdrawal lands as 'postponed' via STATUS_MAP.
+  if (existing.status === 'cancelled' && data.status !== 'completed') {
+    data.status = 'cancelled'
+  }
+  // HALL_MAP resolves only the two KWI home mappings — when it misses, keep
+  // the existing (possibly hand-set) hall rather than leaving the key absent,
+  // where the comparison reads '' against the real value as a change every
+  // run. Same for the away venue json. The feed still wins whenever it
+  // resolves a value.
+  if (data.hall === undefined) data.hall = existing.hall
+  if (data.away_hall_json === undefined) data.away_hall_json = existing.away_hall_json
+}
+
 export async function syncBpGames(db, log) {
   log.info('[BP Sync] Starting games sync...')
 
@@ -248,12 +291,17 @@ export async function syncBpGames(db, log) {
     try {
       const existing = existingMap.get(gameId)
       if (existing) {
-        // Skip if nothing meaningful changed — avoids trigger-based notification spam
-        const changed = COMPARE_FIELDS.some(f =>
-          String(data[f] ?? '') !== String(existing[f] ?? '')
-        )
+        // Fields the app owns (local cancel, hand-set halls) — must run
+        // before the change comparison below.
+        applyLocalGuards(data, existing)
+        // Skip if nothing meaningful changed — avoids trigger-based
+        // notification spam (values normalized via cmpVal — see its comment).
+        const changed = COMPARE_FIELDS.some(f => cmpVal(f, data[f]) !== cmpVal(f, existing[f]))
         if (!changed) { skipped++; continue }
-        if (existing.respond_by && existing.date && existing.date !== g.date) {
+        // data.date, not raw string-vs-Date (existing.date !== g.date was
+        // always true against a pg Date, recomputing respond_by on every
+        // real update).
+        if (existing.respond_by && existing.date && cmpVal('date', existing.date) !== cmpVal('date', data.date)) {
           const offset = new Date(existing.date).getTime() - new Date(existing.respond_by).getTime()
           data.respond_by = new Date(new Date(g.date).getTime() - offset).toISOString().split('T')[0]
         }

@@ -83,7 +83,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | members | read | `website_visible = true` | Fields: `id, first_name, last_name, photo` only — opt-in only (2026-05-31 audit) |
 | hall_slots / hall_slots_teams | read | none | Calendar embed |
 | hall_closures | read | none | |
-| hall_events / hall_events_halls | read | none | |
+| hall_events | read | none | (the `hall_events_halls` junction was dropped in migration 252 — never populated) |
 | halls | read | none | |
 | feedback | create | none | Fields whitelisted; Turnstile + filter hook gate |
 | mixed_tournament_signups | create | none | Same |
@@ -134,7 +134,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 
 ### Reads (intentionally cross-club)
 
-`teams`, `games`, `rankings`, `sponsors`, `event_sessions` (read filtered above), `hall_slots`, `hall_closures`, `hall_events`, `hall_events_halls`, `halls`, `hall_slots_teams`, `slot_claims`, `news`, `app_settings`, `carpools`, `carpool_passengers`, `teams_coaches`, `teams_responsibles`, `teams_sponsors`, `events_teams`, `events_members`, `directus_files`.
+`teams`, `games`, `rankings`, `sponsors`, `event_sessions` (read filtered above), `hall_slots`, `hall_closures`, `hall_events`, `halls`, `hall_slots_teams`, `slot_claims`, `news`, `app_settings`, `carpools`, `carpool_passengers`, `teams_coaches`, `teams_responsibles`, `teams_sponsors`, `events_teams`, `events_members`, `directus_files`.
 
 ### Writes
 

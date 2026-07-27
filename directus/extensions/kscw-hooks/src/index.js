@@ -384,8 +384,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         .where('user', user)
         .where('wiedisync_active', false)
         .update({ wiedisync_active: true })
+      // Presence stamp for the admin Explorer's "Last online" column —
+      // Directus auth never touches members, so this is the only writer.
+      // Login-time only: refresh tokens keep a session alive for weeks
+      // without re-login, so the value means "last full login", which is
+      // what an admin last-seen column needs. Never blocks login (caught
+      // below like the wiedisync_active write).
+      await database('members')
+        .where('user', user)
+        .update({ last_online_at: new Date() })
     } catch (err) {
-      log.warn({ msg: `wiedisync_active: ${err.message}`, event: 'auth.login', userId: user, stack: err.stack })
+      log.warn({ msg: `auth.login post-login writes (wiedisync_active / last_online_at): ${err.message}`, event: 'auth.login', userId: user, stack: err.stack })
       logWarning('auth_login_hook', err.message, { userId: user, stack: err.stack })
     }
   })
@@ -831,6 +840,37 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return { deleted: del?.rowCount || 0, reverted: rev?.rowCount || 0 }
   }
 
+  // Duplicate-RSVP backstop (migration 246): participations carries two
+  // partial unique indexes — (activity_type, activity_id, member) WHERE
+  // session_id IS NULL, and the session-scoped variant. Every RSVP writer
+  // below appends a targetless ON CONFLICT DO NOTHING so Postgres infers the
+  // arbiter from whichever unique index the row violates — concurrent passes
+  // (absence decline vs. cron sweep vs. a member's own RSVP) can no longer
+  // slip duplicate rows past the NOT EXISTS guards. Targetless on purpose: a
+  // named conflict target errors when the index is missing, while this form
+  // is simply inert on a pre-246 database (deploy order is schema-first, but
+  // the code must not depend on it). The NOT EXISTS guards stay — they are
+  // the semantic filter ("never overwrite an answer"), not the race guard.
+
+  // Event decline eligibility — mirrors autoConfirmEvent / the frontend's
+  // useUserVisibleEventIds: members of an invited team (events_teams) ∪
+  // individually invited (events_members) ∪ everyone active when the event
+  // is club-wide (no rows in either junction). Without the club-wide arm, a
+  // club-wide event gets zero absence-declines while auto-confirm happily
+  // treats it as "everyone" — an absent opted-in member ends up confirmed.
+  // `eventRef` / `memberRef` are SQL column references, never user input.
+  function eventEligibilitySql(eventRef, memberRef) {
+    return `(
+      EXISTS (SELECT 1 FROM events_teams et JOIN member_teams mt ON mt.team = et.teams_id
+              WHERE et.events_id = ${eventRef} AND mt.member = ${memberRef})
+      OR EXISTS (SELECT 1 FROM events_members em
+                 WHERE em.events_id = ${eventRef} AND em.members_id = ${memberRef})
+      OR (NOT EXISTS (SELECT 1 FROM events_teams et2 WHERE et2.events_id = ${eventRef})
+          AND NOT EXISTS (SELECT 1 FROM events_members em2 WHERE em2.events_id = ${eventRef})
+          AND EXISTS (SELECT 1 FROM members mm WHERE mm.id = ${memberRef} AND mm.wiedisync_active = true))
+    )`
+  }
+
   /**
    * Auto-decline future activities that overlap with the given absence.
    * Uses a single INSERT...SELECT per activity type (no per-row loop).
@@ -902,11 +942,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
       // Per the agreed policy: an absence hard-overrides existing confirmed /
       // tentative / waitlisted RSVPs. The two-step pattern (UPDATE then INSERT)
-      // is required because participations has no UNIQUE(member,activity_id)
-      // constraint, so ON CONFLICT is unavailable. Migration 038 reshapes the
-      // trigger to preserve `auto_declined_by` when we set status + marker in
-      // the same UPDATE — without that, the marker would be cleared and the
-      // override would be indistinguishable from a manual edit.
+      // is deliberate even now that migration 246 makes ON CONFLICT possible:
+      // the UPDATE flips ANY existing RSVP row in the window — including
+      // stale-roster rows the INSERT's eligibility SELECT would never produce
+      // — so folding both into one INSERT ... DO UPDATE would silently narrow
+      // the override. The INSERTs close their duplicate race with the
+      // targetless ON CONFLICT DO NOTHING backstop documented above.
+      // Migration 038 reshapes the trigger to preserve `auto_declined_by`
+      // when we set status + marker in the same UPDATE — without that, the
+      // marker would be cleared and the override would be indistinguishable
+      // from a manual edit.
 
       // Trainings
       if (allTypes || affects.includes('trainings')) {
@@ -950,6 +995,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
               SELECT 1 FROM participations p
               WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = ?::integer
             )
+          ON CONFLICT DO NOTHING
         `, [memberId, absence.reason || '', absenceId, effectiveStart, endDate, memberId, memberId])
         declined += ins?.rowCount || 0
       }
@@ -989,6 +1035,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
               SELECT 1 FROM participations p
               WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = ?::integer
             )
+          ON CONFLICT DO NOTHING
         `, [memberId, absence.reason || '', absenceId, effectiveStart, endDate, memberId, memberId])
         declined += ins?.rowCount || 0
       }
@@ -998,6 +1045,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         // events.start_date is timestamptz → localize to Zurich for the
         // calendar-date window/DOW match (UTC would shift a 00:00–02:00 Zurich
         // event to the previous day and mismatch the absence window).
+        // Whole-mode events match on the event date; per_day/per_session
+        // events carry one RSVP row per event_sessions day, so both the
+        // override and the insert match each session's own date — declining
+        // day 2 of a 3-day camp must not depend on day 1 being inside the
+        // absence window, and a NULL-session row on a per-day event is
+        // invisible to every per-day roster reader.
         const eventDateZ = "(e.start_date AT TIME ZONE 'Europe/Zurich')::date"
         const upd = await database.raw(`
           UPDATE participations p
@@ -1006,25 +1059,62 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           WHERE p.activity_type = 'event' AND p.activity_id = e.id::text
             AND p.member = ?::integer
             AND p.status IN ('confirmed', 'tentative', 'waitlisted')
+            AND (e.participation_mode IS NULL OR e.participation_mode = 'whole')
             AND ${eventDateZ} >= ?::date AND ${eventDateZ} <= ?::date
             ${pgDowClause.replace(/d\.date/g, eventDateZ)}
         `, [absence.reason || '', absenceId, memberId, effectiveStart, endDate])
         declined += upd?.rowCount || 0
 
+        const updSessions = await database.raw(`
+          UPDATE participations p
+          SET status = 'declined', note = ?, auto_declined_by = ?::integer
+          FROM events e
+          JOIN event_sessions s ON s.event = e.id
+          WHERE p.activity_type = 'event' AND p.activity_id = e.id::text
+            AND p.session_id = s.id::text
+            AND p.member = ?::integer
+            AND p.status IN ('confirmed', 'tentative', 'waitlisted')
+            AND e.participation_mode IN ('per_day', 'per_session')
+            AND s.date >= ?::date AND s.date <= ?::date
+            ${pgDowClause.replace(/d\.date/g, 's.date')}
+        `, [absence.reason || '', absenceId, memberId, effectiveStart, endDate])
+        declined += updSessions?.rowCount || 0
+
         const ins = await database.raw(`
           INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-          SELECT DISTINCT ON (e.id) ?::integer, 'event', e.id::text, 'declined', ?, 0, false, ?::integer, '1970-01-01 00:00:00+00'::timestamptz
+          SELECT a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
           FROM events e
-          JOIN events_teams et ON et.events_id = e.id
-          WHERE ${eventDateZ} >= ?::date AND ${eventDateZ} <= ?::date
+          JOIN absences a ON a.id = ?::integer
+          WHERE (e.participation_mode IS NULL OR e.participation_mode = 'whole')
+            AND ${eventDateZ} >= ?::date AND ${eventDateZ} <= ?::date
             ${pgDowClause.replace(/d\.date/g, eventDateZ)}
-            AND EXISTS (SELECT 1 FROM member_teams mt WHERE mt.team = et.teams_id AND mt.member = ?::integer)
+            AND ${eventEligibilitySql('e.id', 'a.member')}
             AND NOT EXISTS (
               SELECT 1 FROM participations p
-              WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = ?::integer
+              WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = a.member
             )
-        `, [memberId, absence.reason || '', absenceId, effectiveStart, endDate, memberId, memberId])
+          ON CONFLICT DO NOTHING
+        `, [absenceId, effectiveStart, endDate])
         declined += ins?.rowCount || 0
+
+        const insSessions = await database.raw(`
+          INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at, session_id)
+          SELECT a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz, s.id::text
+          FROM events e
+          JOIN event_sessions s ON s.event = e.id
+          JOIN absences a ON a.id = ?::integer
+          WHERE e.participation_mode IN ('per_day', 'per_session')
+            AND s.date >= ?::date AND s.date <= ?::date
+            ${pgDowClause.replace(/d\.date/g, 's.date')}
+            AND ${eventEligibilitySql('e.id', 'a.member')}
+            AND NOT EXISTS (
+              SELECT 1 FROM participations p
+              WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = a.member
+                AND p.session_id = s.id::text
+            )
+          ON CONFLICT DO NOTHING
+        `, [absenceId, effectiveStart, endDate])
+        declined += insSessions?.rowCount || 0
       }
 
       if (declined > 0) log.info(`[absence-auto-decline] Absence ${absenceId}: ${declined} activities declined for member ${memberId}`)
@@ -1938,6 +2028,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           SELECT 1 FROM participations p
           WHERE p.activity_type = 'training' AND p.activity_id = ?::text AND p.member = mt.member
         )
+      ON CONFLICT DO NOTHING
     `, [String(trainingId), training.team, ...excluded, String(trainingId)])
     return ins?.rowCount || 0
   }
@@ -1970,6 +2061,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           SELECT 1 FROM participations p
           WHERE p.activity_type = 'game' AND p.activity_id = ?::text AND p.member = mt.member
         )
+      ON CONFLICT DO NOTHING
     `, [String(gameId), game.kscw_team, String(gameId)])
     return ins?.rowCount || 0
   }
@@ -2013,6 +2105,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           SELECT 1 FROM participations p
           WHERE p.activity_type = 'event' AND p.activity_id = ?::text AND p.member = e.member
         )
+      ON CONFLICT DO NOTHING
     `, [String(eventId), ...eligibleParams, String(eventId)])
     return ins?.rowCount || 0
   }
@@ -2037,6 +2130,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = ?::integer
           )
+        ON CONFLICT DO NOTHING
       `, [memberId, memberId, today, memberId])
       return res?.rowCount || 0
     }
@@ -2053,6 +2147,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = ?::integer
           )
+        ON CONFLICT DO NOTHING
       `, [memberId, memberId, today, memberId])
       return res?.rowCount || 0
     }
@@ -2077,6 +2172,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = ?::integer
           )
+        ON CONFLICT DO NOTHING
       `, [memberId, today, memberId, memberId, memberId])
       return res?.rowCount || 0
     }
@@ -2107,6 +2203,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'training' AND p.activity_id = ?::text AND p.member = mt.member
           )
+        ON CONFLICT DO NOTHING
       `, [String(trainingId), training.team, dateStr, dateStr, dateStr, String(trainingId)])
       if (res?.rowCount > 0) log.info(`[absence-auto-decline] Training ${trainingId}: ${res.rowCount} members auto-declined`)
       const confirmed = await autoConfirmTraining(trainingId)
@@ -2151,6 +2248,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'game' AND p.activity_id = ?::text AND p.member = mt.member
           )
+        ON CONFLICT DO NOTHING
       `, [String(key), game.kscw_team, dateStr, dateStr, dateStr, String(key)])
       if (res?.rowCount > 0) log.info(`[absence-auto-decline] Game ${key}: ${res.rowCount} members auto-declined`)
 
@@ -2164,36 +2262,71 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // Absence auto-decline pass for one event. Used by the events.items.create
+  // action and by the date-move re-eval (reEvalEventAutoDeclines). Eligibility
+  // is eventEligibilitySql — invited teams ∪ invited members ∪ everyone active
+  // when club-wide — so club-wide and individually-invited events get the same
+  // absence handling as team events. Whole-mode events get one NULL-session
+  // declined row matched on the event's Zurich date; per_day/per_session
+  // events get one row per event_sessions day the absence actually covers
+  // (session_id = event_sessions.id::text — the per-day RSVP identity the
+  // roster readers expect). Returns the number of rows inserted.
+  async function applyEventAbsenceDeclines(eventId) {
+    const event = await database('events').where('id', eventId).first()
+    if (!event || !event.start_date) return 0
+    const mode = event.participation_mode || 'whole'
+    if (mode !== 'whole') {
+      const res = await database.raw(`
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at, session_id)
+        SELECT DISTINCT ON (a.member, s.id) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz, s.id::text
+        FROM events e
+        JOIN event_sessions s ON s.event = e.id
+        JOIN absences a ON a.start_date::date <= s.date AND a.end_date::date >= s.date
+        WHERE e.id = ?::integer
+          AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
+          AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM s.date)::int + 6) % 7)))
+          AND ${eventEligibilitySql('e.id', 'a.member')}
+          AND NOT EXISTS (
+            SELECT 1 FROM participations p
+            WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = a.member
+              AND p.session_id = s.id::text
+          )
+        ON CONFLICT DO NOTHING
+      `, [eventId])
+      return res?.rowCount || 0
+    }
+    // events.start_date is timestamptz; absence window/DOW matching is by
+    // calendar date → derive the date in Zurich, not UTC (a 01:00 Zurich
+    // event is the previous day in UTC and would match the wrong day).
+    const ds = await database.raw(
+      `SELECT to_char((? ::timestamptz AT TIME ZONE 'Europe/Zurich')::date, 'YYYY-MM-DD') AS d`,
+      [event.start_date],
+    )
+    const dateStr = ds?.rows?.[0]?.d
+    if (!dateStr) return 0
+    const res = await database.raw(`
+      INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
+      SELECT DISTINCT ON (a.member) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
+      FROM events e
+      JOIN absences a ON a.start_date::date <= ?::date AND a.end_date::date >= ?::date
+      WHERE e.id = ?::integer
+        AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
+        AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
+        AND ${eventEligibilitySql('e.id', 'a.member')}
+        AND NOT EXISTS (
+          SELECT 1 FROM participations p
+          WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = a.member
+        )
+      ON CONFLICT DO NOTHING
+    `, [dateStr, dateStr, eventId, dateStr])
+    return res?.rowCount || 0
+  }
+
   // Events — mirror trainings/games: decline for members already on absence
   action('events.items.create', async ({ key }) => {
     try {
-      const event = await database('events').where('id', key).first()
-      if (!event || !event.start_date) return
-      // events.start_date is timestamptz; absence window/DOW matching is by
-      // calendar date → derive the date in Zurich, not UTC (a 01:00 Zurich
-      // event is the previous day in UTC and would match the wrong day).
-      const ds = await database.raw(
-        `SELECT to_char((? ::timestamptz AT TIME ZONE 'Europe/Zurich')::date, 'YYYY-MM-DD') AS d`,
-        [event.start_date],
-      )
-      const dateStr = ds?.rows?.[0]?.d
-      if (!dateStr) return
-      const res = await database.raw(`
-        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-        SELECT DISTINCT ON (mt.member) mt.member, 'event', ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
-        FROM events_teams et
-        JOIN member_teams mt ON mt.team = et.teams_id
-        JOIN absences a ON a.member = mt.member
-        WHERE et.events_id = ?::integer
-          AND a.start_date::date <= ?::date AND a.end_date::date >= ?::date
-          AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
-          AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
-          AND NOT EXISTS (
-            SELECT 1 FROM participations p
-            WHERE p.activity_type = 'event' AND p.activity_id = ?::text AND p.member = mt.member
-          )
-      `, [String(key), key, dateStr, dateStr, dateStr, String(key)])
-      if (res?.rowCount > 0) log.info(`[absence-auto-decline] Event ${key}: ${res.rowCount} members auto-declined`)
+      const declined = await applyEventAbsenceDeclines(key)
+      if (declined > 0) log.info(`[absence-auto-decline] Event ${key}: ${declined} members auto-declined`)
 
       // Auto-confirm pass — opted-in members only (no team-level event setting).
       // NOT EXISTS protects the absence-declines just inserted above.
@@ -2209,6 +2342,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // no longer apply (activity moved OUT of absence window), then insert fresh
   // ones for the new date (activity moved INTO a window). Manual overrides
   // are safe — the BEFORE UPDATE trigger on participations detaches them.
+  // Trainings/games only — events go through reEvalEventAutoDeclines, whose
+  // eligibility isn't member_teams-shaped (club-wide / invited members) and
+  // whose per-session rows re-check against their own session date.
 
   async function reEvalActivityAutoDeclines(activityType, activityId, teamFilterSql, teamFilterParams, dateStr) {
     // 1. Remove auto-declines that no longer match (new date outside window)
@@ -2244,7 +2380,56 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           SELECT 1 FROM participations p
           WHERE p.activity_type = ? AND p.activity_id = ?::text AND p.member = mt.member
         )
+      ON CONFLICT DO NOTHING
     `, [activityType, String(activityId), ...teamFilterParams, dateStr, dateStr, `"${activityType}s"`, dateStr, activityType, String(activityId)])
+  }
+
+  // Event flavor of the re-eval: delete stale auto-declines (whole-event rows
+  // checked against the event's new Zurich date, per-session rows against
+  // their own session's date), then re-apply the same pass the create hook
+  // runs. Like reEvalActivityAutoDeclines, only rows with `auto_declined_by`
+  // set are touched — manual overrides were already detached by the trigger.
+  async function reEvalEventAutoDeclines(eventId) {
+    const event = await database('events').where('id', eventId).first()
+    if (!event || !event.start_date) return
+    // events.start_date is timestamptz; absence window/DOW matching is by
+    // calendar date, so derive the date in Zurich (not UTC). An event at
+    // 01:00 Zurich is the previous day in UTC, which would match the wrong
+    // absence day. safeDateStr() on the raw value would keep the UTC date.
+    const ds = await database.raw(
+      `SELECT to_char((? ::timestamptz AT TIME ZONE 'Europe/Zurich')::date, 'YYYY-MM-DD') AS d`,
+      [event.start_date],
+    )
+    const dateStr = ds?.rows?.[0]?.d
+    if (!dateStr) return
+    await database.raw(`
+      DELETE FROM participations p
+      USING absences a
+      WHERE p.activity_type = 'event'
+        AND p.activity_id = ?::text
+        AND p.auto_declined_by = a.id
+        AND p.session_id IS NULL
+        AND (
+          a.start_date::date > ?::date OR a.end_date::date < ?::date
+          OR NOT (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
+          OR (a.type = 'weekly' AND NOT (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
+        )
+    `, [String(eventId), dateStr, dateStr, dateStr])
+    await database.raw(`
+      DELETE FROM participations p
+      USING absences a, event_sessions s
+      WHERE p.activity_type = 'event'
+        AND p.activity_id = ?::text
+        AND p.auto_declined_by = a.id
+        AND s.event = ?::integer
+        AND p.session_id = s.id::text
+        AND (
+          a.start_date::date > s.date OR a.end_date::date < s.date
+          OR NOT (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
+          OR (a.type = 'weekly' AND NOT (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM s.date)::int + 6) % 7)))
+        )
+    `, [String(eventId), eventId])
+    await applyEventAbsenceDeclines(eventId)
   }
 
   // Notify the whole team (players + coaches + TR) when a training is
@@ -2740,6 +2925,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                 SELECT 1 FROM participations p
                 WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = mt.member
               )
+            ON CONFLICT DO NOTHING
           `, [teamId])
           if (rows?.rowCount > 0) log.info(`[auto-confirm] Team ${teamId} training backfill: ${rows.rowCount} confirmed`)
         }
@@ -2758,6 +2944,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                 SELECT 1 FROM participations p
                 WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = mt.member
               )
+            ON CONFLICT DO NOTHING
           `, [teamId])
           if (rows?.rowCount > 0) log.info(`[auto-confirm] Team ${teamId} game backfill: ${rows.rowCount} confirmed`)
         }
@@ -2770,27 +2957,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   action('events.items.update', async ({ keys, payload }) => {
     if (!payload || !('start_date' in payload)) return
     try {
-      for (const k of keys) {
-        const e = await database('events').where('id', k).first()
-        if (!e || !e.start_date) continue
-        // events.start_date is timestamptz; absence window/DOW matching is by
-        // calendar date, so derive the date in Zurich (not UTC). An event at
-        // 01:00 Zurich is the previous day in UTC, which would match the wrong
-        // absence day. safeDateStr() on the raw value would keep the UTC date.
-        const ds = await database.raw(
-          `SELECT to_char((? ::timestamptz AT TIME ZONE 'Europe/Zurich')::date, 'YYYY-MM-DD') AS d`,
-          [e.start_date],
-        )
-        const dateStr = ds?.rows?.[0]?.d
-        if (!dateStr) continue
-        await reEvalActivityAutoDeclines(
-          'event',
-          k,
-          'EXISTS (SELECT 1 FROM events_teams et WHERE et.events_id = ?::integer AND et.teams_id = mt.team)',
-          [k],
-          dateStr,
-        )
-      }
+      for (const k of keys) await reEvalEventAutoDeclines(k)
     } catch (err) {
       log.error({ msg: `[absence-auto-decline] Event update: ${err.message}`, event: 'absence_auto_decline_event_update', keys, stack: err.stack })
     }
@@ -2881,6 +3048,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = mt.member
           )
+        ON CONFLICT DO NOTHING
       `)
       total += t1?.rowCount || 0
 
@@ -2900,30 +3068,60 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = mt.member
           )
+        ON CONFLICT DO NOTHING
       `)
       total += t2?.rowCount || 0
 
-      // Events — note DISTINCT ON so multi-team events produce one row per member.
-      // events.start_date is timestamptz → localize to Zurich for the calendar-
-      // date window/DOW match (a 01:00 Zurich event is the prior day in UTC).
+      // Events — eligibility mirrors autoConfirmEvent (invited teams ∪ invited
+      // members ∪ everyone active when club-wide), so club-wide events can't
+      // dodge the sweep. DISTINCT ON so overlapping absences produce one row
+      // per member. events.start_date is timestamptz → localize to Zurich for
+      // the calendar-date window/DOW match (a 01:00 Zurich event is the prior
+      // day in UTC). Whole-mode events only here — sessioned events follow.
       // Sentinel waitlisted_at marks these auto-decline-created → unwind DELETEs.
       const t3 = await database.raw(`
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-        SELECT DISTINCT ON (mt.member, e.id) mt.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
+        SELECT DISTINCT ON (a.member, e.id) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM events e
-        JOIN events_teams et ON et.events_id = e.id
-        JOIN member_teams mt ON mt.team = et.teams_id
-        JOIN absences a ON a.member = mt.member
+        JOIN absences a ON a.start_date::date <= (e.start_date AT TIME ZONE 'Europe/Zurich')::date
+                       AND a.end_date::date >= (e.start_date AT TIME ZONE 'Europe/Zurich')::date
         WHERE (e.start_date AT TIME ZONE 'Europe/Zurich')::date >= CURRENT_DATE
-          AND a.start_date::date <= (e.start_date AT TIME ZONE 'Europe/Zurich')::date AND a.end_date::date >= (e.start_date AT TIME ZONE 'Europe/Zurich')::date
+          AND (e.participation_mode IS NULL OR e.participation_mode = 'whole')
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
           AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb(((EXTRACT(DOW FROM (e.start_date AT TIME ZONE 'Europe/Zurich')::date)::int + 6) % 7))))
+          AND ${eventEligibilitySql('e.id', 'a.member')}
           AND NOT EXISTS (
             SELECT 1 FROM participations p
-            WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = mt.member
+            WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = a.member
           )
+        ON CONFLICT DO NOTHING
       `)
       total += t3?.rowCount || 0
+
+      // per_day/per_session events — one declined row per event_sessions day
+      // the absence covers (session_id = event_sessions.id::text), matched on
+      // the session's own date. A NULL-session row would be invisible to the
+      // per-day roster readers, and day 2 of a camp can be covered while day 1
+      // is not.
+      const t4 = await database.raw(`
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at, session_id)
+        SELECT DISTINCT ON (a.member, s.id) a.member, 'event', e.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz, s.id::text
+        FROM events e
+        JOIN event_sessions s ON s.event = e.id
+        JOIN absences a ON a.start_date::date <= s.date AND a.end_date::date >= s.date
+        WHERE s.date >= CURRENT_DATE
+          AND e.participation_mode IN ('per_day', 'per_session')
+          AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
+          AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM s.date)::int + 6) % 7)))
+          AND ${eventEligibilitySql('e.id', 'a.member')}
+          AND NOT EXISTS (
+            SELECT 1 FROM participations p
+            WHERE p.activity_type = 'event' AND p.activity_id = e.id::text AND p.member = a.member
+              AND p.session_id = s.id::text
+          )
+        ON CONFLICT DO NOTHING
+      `)
+      total += t4?.rowCount || 0
 
       if (total > 0) log.info(`[absence-sweep] Auto-declined ${total} participations`)
     } catch (err) {
@@ -4727,7 +4925,21 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       }
       if (!activityDate) return payload
 
-      const dateStr = activityDate.toISOString?.().split('T')[0] || String(activityDate).split('T')[0]
+      // Trainings/games have date-typed columns — the ISO split is the plain
+      // calendar date. events.start_date is timestamptz, so derive its date in
+      // Zurich like every other event/absence matcher in this file (the UTC
+      // date is the previous day for a 00:00–01:59 Zurich event).
+      let dateStr
+      if (affectsKey === 'events') {
+        const ds = await db.raw(
+          `SELECT to_char((? ::timestamptz AT TIME ZONE 'Europe/Zurich')::date, 'YYYY-MM-DD') AS d`,
+          [activityDate],
+        )
+        dateStr = ds?.rows?.[0]?.d
+      } else {
+        dateStr = activityDate.toISOString?.().split('T')[0] || String(activityDate).split('T')[0]
+      }
+      if (!dateStr) return payload
       const res = await db.raw(`
         SELECT a.id, COALESCE(a.reason, '') AS reason
         FROM absences a

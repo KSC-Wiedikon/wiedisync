@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.48.0'
+const APP_VERSION = '1.49.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,40 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.49.0',
+    date: '27.07.2026',
+    sections: [
+      {
+        title: 'Fixed: club-wide events were missing from the website and calendar feeds',
+        items: [
+          'Club-wide events — those open to everyone rather than tied to a team — had disappeared from kscw.ch and from subscribed calendars. They are back, and the underlying data problem can no longer recur.',
+          'Cancelled events now disappear properly: the website no longer lists them, and subscribed calendars receive a cancellation so they vanish there too.',
+        ],
+      },
+      {
+        title: 'Fixed: a cancelled game stayed cancelled',
+        items: [
+          'A game cancelled in the app was silently put back on the calendar by the nightly league sync. A cancellation now sticks unless the league reports the game as played — and if a game genuinely is back on, everyone on the team gets a "Game back on" notification instead of it quietly reappearing.',
+        ],
+      },
+      {
+        title: 'Fixed: attendance counts and absence sign-out',
+        items: [
+          'Duplicate RSVPs could double-count members in attendance tallies, and RSVPs left over from deleted trainings inflated per-member statistics. Both are cleaned up and can no longer recur.',
+          'An absence now also signs you out of club-wide events and events you were personally invited to — previously you could even be auto-signed-in while absent. Multi-day events are declined per day, matching how you sign up for them.',
+        ],
+      },
+      {
+        title: 'Improved: member admin and data integrity',
+        items: [
+          'The member admin form is now organized into collapsible sections (identity, address, licences, preferences, billing, …) instead of one flat 100-field list.',
+          'The admin "Last online" column now actually shows when a member last logged in.',
+          'A broad round of database hardening: proper cross-references throughout games, trainings, rosters and finance data, duplicate records merged, and faster admin audit pages.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.48.0',
     date: '25.07.2026',
