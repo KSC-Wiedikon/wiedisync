@@ -130,6 +130,11 @@ export default {
   addExternalUser: 'Add External User',
   shellAccount: 'Temporary',
   expiresIn: 'expires in {{days}}d',
+  shellInfoTitle: 'Temporary account',
+  shellInfoWhat: 'This member is on the roster but has not activated their WiediSync login yet. Their entry is temporary and has an expiry date.',
+  shellInfoExpiry: 'If the account is not activated in time, the entry is deactivated automatically and disappears from the roster.',
+  shellInfoActionTitle: 'What to do',
+  shellInfoAction: 'Send them the WiediSync invite (envelope icon in "Edit roster") so they can set a password. As soon as they log in for the first time, the temporary status clears automatically. Coaches can also extend the expiry date.',
   // WiediSync account invite (account-less roster members)
   sendAccountInvite: 'Send WiediSync invite',
   accountInviteSent: 'Invite sent to {{email}}',

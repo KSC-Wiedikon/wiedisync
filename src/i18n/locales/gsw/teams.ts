@@ -128,6 +128,11 @@ export default {
   shellAccount: 'Temporär',
   expiresIn: 'lauft in {{days}}T ab',
   extend: 'Verlängere',
+  shellInfoTitle: 'Temporärs Konto',
+  shellInfoWhat: 'Das Mitglid staht im Kader, het sis WiediSync-Login aber no nöd aktiviert. De Iitrag isch temporär und het es Ablaufdatum.',
+  shellInfoExpiry: 'Wird s Konto nöd rächtziitig aktiviert, wird de Iitrag automatisch deaktiviert und verschwindet us em Kader.',
+  shellInfoActionTitle: 'Was isch z tue',
+  shellInfoAction: 'Schick em Mitglid d WiediSync-Iiladig (Briefli-Symbol under «Kader bearbeite»), dass es es Passwort cha setze. Sobald es sich s erschte Mal iiloggt, verschwindet de Temporär-Status automatisch. Coaches chönd s Ablaufdatum au verlängere.',
   // WiediSync account invite (account-less roster members)
   sendAccountInvite: 'WiediSync-Yladig schicke',
   accountInviteSent: 'Yladig an {{email}} gschickt',

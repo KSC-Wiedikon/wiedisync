@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
+import { Info } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { logActivity } from '../../utils/logActivity'
 import { coercePositions, getPositionI18nKey, getSelectablePositions, isNonPlayingStaff } from '../../utils/memberPositions'
 import StatusBadge from '../../components/StatusBadge'
@@ -48,6 +50,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
   const [editingField, setEditingField] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [shellInfoOpen, setShellInfoOpen] = useState(false)
   const positionBtnRef = useRef<HTMLButtonElement>(null)
   const roleBtnRef = useRef<HTMLButtonElement>(null)
   // Wall clock, read once per mount (lazy initialiser) — reading Date.now() during
@@ -187,6 +190,28 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
                 </>
               )}
             </span>
+            <button
+              type="button"
+              onClick={() => setShellInfoOpen(true)}
+              className="p-1 -m-0.5 text-amber-500 transition-colors hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
+              aria-label={t('shellInfoTitle')}
+              title={t('shellInfoTitle')}
+            >
+              <Info className="h-3.5 w-3.5" />
+            </button>
+            <Dialog open={shellInfoOpen} onOpenChange={setShellInfoOpen}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{t('shellInfoTitle')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+                  <p>{t('shellInfoWhat')}</p>
+                  <p>{t('shellInfoExpiry')}</p>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{t('shellInfoActionTitle')}</p>
+                  <p>{t('shellInfoAction')}</p>
+                </div>
+              </DialogContent>
+            </Dialog>
             {isEditing && onExtendShell && (
               <Button
                 variant="ghost"
