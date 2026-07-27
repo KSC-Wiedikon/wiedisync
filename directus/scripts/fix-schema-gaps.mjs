@@ -75,55 +75,13 @@ async function main() {
     console.log(`  ✗ ${err.message}\n`)
   }
 
-  // ── 2. hall_events.hall (M2M ↔ halls via hall_events_halls) ────────
-  console.log('━━━ Gap 2: hall_events.hall (M2M ↔ halls via hall_events_halls) ━━━')
-  try {
-    // Step 1: Create junction collection
-    console.log('  Creating junction collection hall_events_halls...')
-    await api(token, 'POST', '/collections', {
-      collection: 'hall_events_halls',
-      schema: {},
-      meta: { icon: 'link', hidden: true },
-    })
-
-    // Step 2: Create FK fields on junction
-    console.log('  Creating field hall_events_halls.hall_events_id...')
-    await api(token, 'POST', '/fields/hall_events_halls', {
-      field: 'hall_events_id',
-      type: 'integer',
-      schema: { is_nullable: true },
-      meta: { hidden: true },
-    })
-    console.log('  Creating field hall_events_halls.halls_id...')
-    await api(token, 'POST', '/fields/hall_events_halls', {
-      field: 'halls_id',
-      type: 'integer',
-      schema: { is_nullable: true },
-      meta: { hidden: true },
-    })
-
-    // Step 3: Create M2O from junction → hall_events (with one_field = 'hall' on hall_events)
-    console.log('  Creating relation hall_events_halls.hall_events_id → hall_events...')
-    await api(token, 'POST', '/relations', {
-      collection: 'hall_events_halls',
-      field: 'hall_events_id',
-      related_collection: 'hall_events',
-      meta: { one_field: 'hall', junction_field: 'halls_id' },
-      schema: { on_delete: 'CASCADE' },
-    })
-
-    // Step 4: Create M2O from junction → halls
-    console.log('  Creating relation hall_events_halls.halls_id → halls...')
-    await api(token, 'POST', '/relations', {
-      collection: 'hall_events_halls',
-      field: 'halls_id',
-      related_collection: 'halls',
-      schema: { on_delete: 'CASCADE' },
-    })
-    console.log('  ✓ hall_events.hall M2M done\n')
-  } catch (err) {
-    console.log(`  ✗ ${err.message}\n`)
-  }
+  // ── 2. hall_events.hall — REMOVED (migration 252) ──────────────────
+  // The hall_events_halls M2M was dropped 2026-07-27: the junction never
+  // held a row (gcal-sync's writer targeted a nonexistent scalar column and
+  // never fired) and hall resolution is regex on title/location. Do NOT
+  // re-create it — re-adding the alias against the dropped PG table breaks
+  // hall_events expansion.
+  console.log('━━━ Gap 2: hall_events.hall — obsolete (junction dropped in migration 252), skipped ━━━\n')
 
   // ── 3. hall_slots.teams (M2M ↔ teams via hall_slots_teams) ─────────
   console.log('━━━ Gap 3: hall_slots.teams (M2M ↔ teams via hall_slots_teams) ━━━')

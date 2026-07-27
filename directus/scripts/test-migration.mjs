@@ -308,14 +308,15 @@ async function testSchemaGaps() {
   const hasUser = memberFields.some(f => f.field === 'user')
   test('members.user field exists', hasUser)
 
-  // hall_events_halls junction exists
+  // hall_events_halls was dropped in migration 252 (never populated) —
+  // assert it stays gone.
   try {
     const heh = await fetch(`${DIRECTUS_URL}/items/hall_events_halls?limit=0`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-    test('hall_events_halls junction table exists', heh.ok)
+    test('hall_events_halls junction stays dropped (252)', !heh.ok)
   } catch {
-    test('hall_events_halls junction table exists', false)
+    test('hall_events_halls junction stays dropped (252)', true)
   }
 
   // hall_slots_teams junction exists
