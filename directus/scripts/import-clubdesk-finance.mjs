@@ -23,6 +23,8 @@
  *      by email (recipient E-Mail → members.email), fiscal_year by date.
  *   5b. Re-apply finance_invoice_member_overrides (migration 129) so treasurer
  *      member-links survive the delete+reinsert.
+ *   5b2. Re-point finance_payments.clubdesk_guess (migration 254) from the
+ *      stable match_clubdesk_id snapshot — the id FK dies with every reinsert.
  *   5c. Auto-confirm native invoices (Scope C) whose ClubDesk counterpart is
  *      paid, matched strictly by the native invoice number.
  *
@@ -35,6 +37,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 
@@ -206,16 +209,35 @@ const fyKeys = [...fyMap.keys()].sort()
 const fyLabels = (fyKeys.length <= 1 ? (fyKeys[0] || '') : `${fyKeys[0]}–${fyKeys[fyKeys.length - 1]}`).slice(0, 16)
 const invFile = basename(invoicesCsv).replace(/'/g, "''")
 const bkFile = basename(bookingsCsv).replace(/'/g, "''")
+// sha256 of the raw file bytes → finance_imports.source_checksum, so a
+// double-import of the same export is visible in the provenance trail.
+const checksum = (p) => createHash('sha256').update(readFileSync(p)).digest('hex')
+const invSha = checksum(invoicesCsv)
+const bkSha = checksum(bookingsCsv)
 
 const psqlInput = `
 BEGIN;
 
+-- 0. Same-file guard: warn (never abort) when the newest prior batch of the
+-- same type is byte-identical — the delete+reinsert keeps the mirrors correct,
+-- but the duplicate batch pollutes the provenance trail.
+DO $$ BEGIN
+  IF (SELECT source_checksum FROM finance_imports WHERE import_type = 'bookings'
+       ORDER BY imported_at DESC, id DESC LIMIT 1) = ${sql(bkSha)} THEN
+    RAISE WARNING 'bookings CSV is byte-identical to the previous bookings import';
+  END IF;
+  IF (SELECT source_checksum FROM finance_imports WHERE import_type = 'invoices'
+       ORDER BY imported_at DESC, id DESC LIMIT 1) = ${sql(invSha)} THEN
+    RAISE WARNING 'invoices CSV is byte-identical to the previous invoices import';
+  END IF;
+END $$;
+
 -- 1. provenance rows
-INSERT INTO finance_imports (import_type, filename, imported_by_name, imported_by_email, row_count, fiscal_year_label)
-VALUES ('bookings', ${sql(bkFile)}, ${sql(ACTOR_NAME)}, ${sql(ACTOR_EMAIL || null)}, ${bk.rows.length}, ${sql(fyLabels)})
+INSERT INTO finance_imports (import_type, filename, imported_by_name, imported_by_email, row_count, fiscal_year_label, source_checksum)
+VALUES ('bookings', ${sql(bkFile)}, ${sql(ACTOR_NAME)}, ${sql(ACTOR_EMAIL || null)}, ${bk.rows.length}, ${sql(fyLabels)}, ${sql(bkSha)})
 RETURNING id AS bookings_imp \\gset
-INSERT INTO finance_imports (import_type, filename, imported_by_name, imported_by_email, row_count, fiscal_year_label)
-VALUES ('invoices', ${sql(invFile)}, ${sql(ACTOR_NAME)}, ${sql(ACTOR_EMAIL || null)}, ${invRows.length}, ${sql(fyLabels)})
+INSERT INTO finance_imports (import_type, filename, imported_by_name, imported_by_email, row_count, fiscal_year_label, source_checksum)
+VALUES ('invoices', ${sql(invFile)}, ${sql(ACTOR_NAME)}, ${sql(ACTOR_EMAIL || null)}, ${invRows.length}, ${sql(fyLabels)}, ${sql(invSha)})
 RETURNING id AS invoices_imp \\gset
 
 -- 2. fiscal years (upsert)
@@ -292,6 +314,30 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- 5b2. Re-point finance_payments.clubdesk_guess (migration 254). The delete+
+-- reinsert re-keys every mirror invoice id and the FK is ON DELETE SET NULL,
+-- so restore the link from the stable match_clubdesk_id snapshot. A link whose
+-- invoice vanished from ClubDesk flips to 'link_lost'; if the invoice
+-- re-appears in a later export it comes back as a flag-only 'clubdesk_guess'
+-- (the original confidence is unknowable by then). Guarded so the import still
+-- works before the migration that adds the column ships.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'finance_payments' AND column_name = 'match_clubdesk_id') THEN
+    UPDATE finance_payments p SET clubdesk_guess = fi.id,
+        match_status = CASE WHEN p.match_status = 'link_lost' THEN 'clubdesk_guess' ELSE p.match_status END
+      FROM finance_invoices fi
+      WHERE p.match_clubdesk_id IS NOT NULL
+        AND fi.source = 'clubdesk' AND fi.clubdesk_id = p.match_clubdesk_id
+        AND (p.clubdesk_guess IS DISTINCT FROM fi.id OR p.match_status = 'link_lost');
+    UPDATE finance_payments p SET match_status = 'link_lost'
+      WHERE p.match_clubdesk_id IS NOT NULL AND p.clubdesk_guess IS NULL
+        AND p.match_status IN ('clubdesk_match', 'clubdesk_guess')
+        AND NOT EXISTS (SELECT 1 FROM finance_invoices fi
+                         WHERE fi.source = 'clubdesk' AND fi.clubdesk_id = p.match_clubdesk_id);
+  END IF;
+END $$;
+
 -- 5c. Phase 2: auto-confirm native invoices whose ClubDesk counterpart is paid.
 -- ClubDesk is the source of truth for payment. A native invoice carries a number
 -- (N-YYYY-NNNN) the treasurer reuses as the ClubDesk invoice Nummer or
@@ -354,6 +400,9 @@ if (EMIT_SQL) {
     console.error(r.stderr || r.stdout)
     process.exit(1)
   }
+  // Surface psql WARNINGs (e.g. the step-0 same-checksum guard) — they land on
+  // stderr, which would otherwise be silently dropped on a successful run.
+  if (r.stderr) process.stderr.write(r.stderr)
   process.stdout.write(r.stdout)
   console.log('✓ finance import complete')
 }

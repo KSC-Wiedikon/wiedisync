@@ -77,14 +77,6 @@ function parseIcs(text) {
   return events
 }
 
-function resolveHall(title, location, hallLookup) {
-  const text = `${title} ${location}`.toLowerCase()
-  for (const [name, id] of Object.entries(hallLookup)) {
-    if (text.includes(name.toLowerCase())) return id
-  }
-  return null
-}
-
 // The KSCW public calendar is the club's FULL calendar — it carries the club's
 // own VB/BB games, trainings and "darf trainieren" permissions alongside the
 // genuine hall closures. Only the latter may become hall_closures: closing the
@@ -111,7 +103,6 @@ export function registerGCalSync(router, { database, logger, services, getSchema
     const push = await pushHomeGames(db, log)
 
     const halls = await db('halls').select('id', 'name')
-    const hallLookup = Object.fromEntries(halls.map(h => [h.name, h.id]))
     // Halls a calendar closure applies to: the KWI school gym (A/B/C). These are
     // the halls the public calendar's "Halle geschlossen" entries refer to and
     // the set the previous gcal sync used. Döltschi / external halls follow their
@@ -174,15 +165,18 @@ export function registerGCalSync(router, { database, logger, services, getSchema
         if (ev.title?.startsWith('VB ')) continue // club VB games — app-managed, never a closure
         seenUids.add(ev.uid)
 
-        // ── hall_events (display) — upsert by uid (raw knex; no hook needed) ──
-        const hallId = resolveHall(ev.title || '', ev.location || '', hallLookup)
+        // ── hall_events (display) — upsert by uid (raw knex; no hook needed).
+        // No hall link here: hall_events has no physical hall column (the old
+        // `hall` field was a Directus M2M alias raw knex can't write — setting
+        // record.hall would crash the whole import with 42703). The Hallenplan
+        // resolves halls from title/location text client-side
+        // (virtualSlots.resolveHallEventHalls). ──
         const record = {
           title: ev.title || '', date: ev.start.date,
           start_time: ev.start.time || null, end_time: ev.end?.time || null,
           all_day: ev.start.allDay, location: ev.location || '',
           source: 'gcal', uid: ev.uid,
         }
-        if (hallId) record.hall = hallId
         const existing = await db('hall_events').where('uid', ev.uid).first()
         if (existing) {
           await db('hall_events').where('id', existing.id).update({ ...record, date_updated: new Date() })

@@ -6,7 +6,8 @@
  *
  * Returns ONLY club-wide events: events with NO team scope AND NO member scope.
  * A team-/member-scoped event (e.g. a tournament limited to H3) stays internal to
- * the wiedisync member app and never surfaces on the public site.
+ * the wiedisync member app and never surfaces on the public site. Cancelled
+ * events are excluded too — kscw.ch must not keep advertising them.
  *
  * Why an endpoint and not a plain /items/events read: the public policy deliberately
  * cannot read events_teams / events_members (migration 035), so the website can't tell
@@ -26,9 +27,13 @@ export function registerPublicEvents(router, { database, logger }) {
 
   router.get('/public/events', async (req, res) => {
     try {
+      // NOT EXISTS, not NOT IN: the junction events_id columns are nullable, and
+      // a single NULL row in a NOT IN subquery makes the predicate never true
+      // (SQL three-valued logic) — silently emptying the whole feed.
       let q = database('events')
-        .whereNotIn('id', database('events_teams').select('events_id'))
-        .whereNotIn('id', database('events_members').select('events_id'))
+        .whereNotExists(database('events_teams').select('id').whereRaw('events_teams.events_id = events.id'))
+        .whereNotExists(database('events_members').select('id').whereRaw('events_members.events_id = events.id'))
+        .where('cancelled', false)
         .orderBy('start_date')
         .select(PUBLIC_EVENT_FIELDS)
 

@@ -9,6 +9,10 @@
  *       • else fuzzy ClubDesk guess (amount + payer-name) → FLAG only, never applied;
  *       • else unmatched.
  *   Deduped by the bank entry id (camt_reference) → re-importing a file is a no-op.
+ *   ClubDesk links carry a stable match_clubdesk_id snapshot next to the
+ *   clubdesk_guess id FK: the finance sync re-keys every mirror invoice
+ *   (delete+reinsert → FK SET NULL), so the importer re-points the FK from the
+ *   snapshot and the payments list resolves through it when the id is gone.
  *
  * Validated against the ISO-20022 shape; re-verify against a real UBS export before prod.
  */
@@ -53,7 +57,7 @@ export function registerFinanceCamt(router, { database, logger }) {
       .andWhere((qb) => qb.where('amount', c.amount).orWhere('open_amount', c.amount))
       .whereNotIn('status', ['Storniert', 'Abgeschrieben'])
       .orderByRaw('CASE WHEN open_amount > 0 THEN 0 ELSE 1 END')
-      .limit(30).select('id', 'number', 'recipient_name', 'amount', 'open_amount', 'status')
+      .limit(30).select('id', 'clubdesk_id', 'number', 'recipient_name', 'amount', 'open_amount', 'status')
     if (!rows.length) return null
     if (!c.debtor) return rows.length === 1 ? rows[0] : null
     const dtok = tokens(c.debtor)
@@ -134,14 +138,14 @@ export function registerFinanceCamt(router, { database, logger }) {
         if (cands.length) {
           const hits = await database('finance_invoices').whereIn('number', cands)
             .orderByRaw("CASE WHEN source='native' THEN 0 ELSE 1 END")
-            .limit(8).select('id', 'number', 'amount', 'open_amount', 'status', 'recipient_name', 'source')
+            .limit(8).select('id', 'clubdesk_id', 'number', 'amount', 'open_amount', 'status', 'recipient_name', 'source')
           const pick = hits.find((r) => Math.abs(Number(r.amount) - c.amount) < 0.005) || (hits.length === 1 ? hits[0] : null)
           if (pick && pick.source === 'native') {
             const inv = await database('finance_invoices').where('id', pick.id).first()
             await applyNative(inv, c); continue
           }
           if (pick) { // ClubDesk invoice matched by number — confident cross-check, never mutate ClubDesk
-            await database('finance_payments').insert(payRow(c, importId, { invoice: null, match_status: 'clubdesk_match', clubdesk_guess: pick.id }))
+            await database('finance_payments').insert(payRow(c, importId, { invoice: null, match_status: 'clubdesk_match', clubdesk_guess: pick.id, match_clubdesk_id: pick.clubdesk_id || null }))
             summary.clubdesk_guesses++
             details.push({ status: 'clubdesk_match', invoice: pick.number, recipient: pick.recipient_name, invoiceStatus: pick.status, ...slim(c) })
             continue
@@ -150,7 +154,7 @@ export function registerFinanceCamt(router, { database, logger }) {
 
         // 3) fuzzy ClubDesk guess (amount + payer name, flag only) / 4) unmatched
         const guess = await fuzzyClubdesk(c)
-        await database('finance_payments').insert(payRow(c, importId, { invoice: null, match_status: guess ? 'clubdesk_guess' : 'unmatched', clubdesk_guess: guess?.id ?? null }))
+        await database('finance_payments').insert(payRow(c, importId, { invoice: null, match_status: guess ? 'clubdesk_guess' : 'unmatched', clubdesk_guess: guess?.id ?? null, match_clubdesk_id: guess?.clubdesk_id ?? null }))
         if (guess) { summary.clubdesk_guesses++; details.push({ status: 'clubdesk_guess', invoice: guess.number, recipient: guess.recipient_name, invoiceStatus: guess.status, ...slim(c) }) }
         else { summary.unmatched++; details.push({ status: 'unmatched', ...slim(c) }) }
       }
@@ -171,12 +175,19 @@ export function registerFinanceCamt(router, { database, logger }) {
       const rows = await database('finance_payments as p')
         .leftJoin('finance_invoices as ni', 'ni.id', 'p.invoice')
         .leftJoin('finance_invoices as cg', 'cg.id', 'p.clubdesk_guess')
+        // The finance sync re-keys mirror invoices (delete+reinsert → the
+        // clubdesk_guess FK is SET NULL); match_clubdesk_id is the stable
+        // snapshot, so resolve through it whenever the id link is gone
+        // (clubdesk_id is unique on finance_invoices).
+        .leftJoin('finance_invoices as cds', 'cds.clubdesk_id', 'p.match_clubdesk_id')
         .where('p.method', 'camt')
         .orderBy([{ column: 'p.payment_date', order: 'desc' }, { column: 'p.id', order: 'desc' }])
         .limit(500)
         .select('p.id', 'p.payment_date', 'p.amount', 'p.currency', 'p.reference', 'p.unstructured',
-          'p.debtor_name', 'p.match_status', 'ni.number as invoice_number', 'cg.number as guess_number',
-          'cg.recipient_name as guess_recipient', 'cg.status as guess_status')
+          'p.debtor_name', 'p.match_status', 'ni.number as invoice_number',
+          database.raw('COALESCE(cg.number, cds.number) as guess_number'),
+          database.raw('COALESCE(cg.recipient_name, cds.recipient_name) as guess_recipient'),
+          database.raw('COALESCE(cg.status, cds.status) as guess_status'))
       return res.json({ payments: rows })
     } catch (e) {
       log.error({ msg: `finance/payments: ${e.message}`, stack: e.stack })
