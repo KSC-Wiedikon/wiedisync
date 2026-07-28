@@ -683,6 +683,7 @@ export default {
   trMemberCount_other: '{{count}} Mitglider',
   trUnknownFederation: 'Unbekannte Verband',
   trColMember: 'Mitglid',
+  trColTeams: 'Teams',
   trColNationality: 'Nationalität',
   trColLicence: 'Lizenz',
   trColLicenceNr: 'Lizenznummere',

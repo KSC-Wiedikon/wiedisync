@@ -370,7 +370,7 @@ function CopyButton({ value, title, label }: { value: string; title: string; lab
  * email), which is why the birthdate lives here rather than in a column of its
  * own: it is not an attribute of the transfer, it is how the player is found.
  */
-function NameCell({ m }: { m: TransferMember }) {
+function NameCell({ m, teamNames }: { m: TransferMember; teamNames?: string[] }) {
   const { t } = useTranslation('admin')
   const display = (m.nickname && m.nickname.trim()) || m.first_name || ''
   const dob = formatDateZurich(m.birthdate)
@@ -386,6 +386,14 @@ function NameCell({ m }: { m: TransferMember }) {
       {dob && (
         <span className="text-xs text-gray-500 dark:text-gray-400" title={t('trColBirthdate')}>
           {dob}
+        </span>
+      )}
+      {teamNames && teamNames.length > 0 && (
+        <span
+          className="text-xs whitespace-normal text-brand-600 dark:text-brand-400"
+          title={t('trColTeams')}
+        >
+          {teamNames.join(', ')}
         </span>
       )}
       {m.email && (
@@ -428,7 +436,7 @@ export default function TransfersPage() {
   // WITHOUT the `active` filter on purpose: a player parked on an archived team
   // still plays that sport, and dropping them would silently hide a transfer.
   const { data: teamsRaw } = useCollection<Team>('teams', {
-    fields: ['id', 'sport'],
+    fields: ['id', 'sport', 'name'],
     all: true,
     staleTime: 60_000,
   })
@@ -437,6 +445,12 @@ export default function TransfersPage() {
   const sportByTeam = useMemo(
     () => new Map<string, Team['sport']>(
       teams.map((tm) => [String(tm.id), tm.sport] as [string, Team['sport']]),
+    ),
+    [teams],
+  )
+  const nameByTeam = useMemo(
+    () => new Map<string, string>(
+      teams.map((tm) => [String(tm.id), tm.name ?? ''] as [string, string]),
     ),
     [teams],
   )
@@ -535,6 +549,30 @@ export default function TransfersPage() {
     }
     return { sportsByMember: players, guestSportsByMember: guests }
   }, [junction, sportByTeam])
+
+  /**
+   * memberId → their PLAYER team names in the active sport, for the member
+   * cell. Same guest exclusion as `sportsByMember` (a guest membership is not
+   * the row's reason to be on this page), and sport-scoped because each table
+   * already is: on the volleyball tab a dual-sport member shows their
+   * volleyball teams — the ones the transfer in front of the admin is about.
+   */
+  const teamNamesByMember = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const j of junction) {
+      const memberId = relId(j.member)
+      const teamId = relId(j.team)
+      if (!memberId || (j.guest_level ?? 0) > 0) continue
+      if (sportByTeam.get(teamId) !== sport) continue
+      const name = nameByTeam.get(teamId)
+      if (!name) continue
+      const list = map.get(memberId)
+      if (list) { if (!list.includes(name)) list.push(name) }
+      else map.set(memberId, [name])
+    }
+    for (const list of map.values()) list.sort((a, b) => a.localeCompare(b, 'de-CH'))
+    return map
+  }, [junction, sportByTeam, nameByTeam, sport])
 
   /**
    * A member appears under a sport only when a team actually puts them there as
@@ -1222,7 +1260,7 @@ export default function TransfersPage() {
                   return (
                     <TableRow key={id}>
                       <TableCell className="min-h-[44px] align-top">
-                        <NameCell m={m} />
+                        <NameCell m={m} teamNames={teamNamesByMember.get(id)} />
                       </TableCell>
                       <TableCell className="hidden align-top text-xs text-gray-600 sm:table-cell dark:text-gray-300">
                         <span aria-hidden="true" className="mr-1">
