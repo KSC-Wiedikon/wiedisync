@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-27T16:22:20.354Z
+-- Generated:   2026-07-28T13:16:05.791Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 13b0WK8CvD7FOk9faYfAc0kVrrFdHzakpvmv2ZYqLz2pOmzovVS3hFokpRMjgyu
+\restrict XOK3AbLNNmp8JYBm82zfhpNFk2WP0uJ47ovlyqd8hbNgMhmz9Ns7BzTcsfRgZFz
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -786,6 +786,35 @@ $$;
 
 
 --
+-- Name: staff_gratis_fill(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.staff_gratis_fill() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  UPDATE members m SET
+    beitragskategorie = 'Gratis',
+    clubdesk_push_pending = CASE WHEN m.clubdesk_id IS NOT NULL
+      THEN true ELSE m.clubdesk_push_pending END,
+    clubdesk_push_changes = CASE WHEN m.clubdesk_id IS NOT NULL THEN
+      (SELECT COALESCE(jsonb_agg(e), '[]'::jsonb)
+         FROM jsonb_array_elements(COALESCE(m.clubdesk_push_changes, '[]'::jsonb)) e
+        WHERE e->>'field' <> 'beitragskategorie')
+      || jsonb_build_array(jsonb_build_object(
+           'field', 'beitragskategorie', 'old_value', NULL, 'new_value', 'Gratis'))
+      ELSE m.clubdesk_push_changes END
+  WHERE m.id = NEW.members_id
+    AND COALESCE(BTRIM(m.beitragskategorie), '') = ''
+    AND m.kscw_membership_active IS TRUE
+    AND NOT EXISTS (SELECT 1 FROM member_teams mt
+                     WHERE mt.member = NEW.members_id
+                       AND COALESCE(mt.guest_level, 0) = 0);
+  RETURN NEW;
+END $$;
+
+
+--
 -- Name: trg_absences_normalize_indefinite(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1127,6 +1156,10 @@ BEGIN
   IF NEW.status IS DISTINCT FROM OLD.status
      AND NEW.auto_declined_by IS NOT DISTINCT FROM OLD.auto_declined_by THEN
     NEW.auto_declined_by := NULL;
+  END IF;
+  IF NEW.status IS DISTINCT FROM OLD.status
+     AND NEW.auto_declined_by_game IS NOT DISTINCT FROM OLD.auto_declined_by_game THEN
+    NEW.auto_declined_by_game := NULL;
   END IF;
   RETURN NEW;
 END;
@@ -1880,7 +1913,8 @@ CREATE TABLE public.basketplan_people (
     referee_mini_since date,
     referee_youth_since date,
     last_scored_at date,
-    scraped_at timestamp with time zone DEFAULT now() NOT NULL
+    scraped_at timestamp with time zone DEFAULT now() NOT NULL,
+    licence_category text
 );
 
 
@@ -1889,6 +1923,13 @@ CREATE TABLE public.basketplan_people (
 --
 
 COMMENT ON TABLE public.basketplan_people IS 'Staging for the authenticated Basketplan person scrape (findPersonById.do). Holds only the fields we intend to consume — no address / AHV / IBAN, and birthdate is a cross-check aid only, never an overwrite source.';
+
+
+--
+-- Name: COLUMN basketplan_people.licence_category; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketplan_people.licence_category IS 'Licence category from the club licence list (Senior / U 6..U 20 / Offizielle/r). Harvested from showPrintLicences.do — the person page does not carry it. Applied to members.licence_category fill-or-BB-refresh only; Volleymanager codes (RLL/JLL/…) are never overwritten.';
 
 
 --
@@ -5756,6 +5797,7 @@ CREATE TABLE public.participations (
     last_status_edited_at timestamp with time zone,
     last_note_edited_by uuid,
     last_note_edited_at timestamp with time zone,
+    auto_declined_by_game integer,
     CONSTRAINT participations_activity_type_chk CHECK (((activity_type)::text = ANY ((ARRAY['training'::character varying, 'game'::character varying, 'event'::character varying])::text[]))),
     CONSTRAINT participations_status_chk CHECK (((status)::text = ANY ((ARRAY['confirmed'::character varying, 'declined'::character varying, 'tentative'::character varying, 'waitlisted'::character varying])::text[])))
 );
@@ -10553,6 +10595,13 @@ CREATE INDEX idx_participations_auto_declined_by ON public.participations USING 
 
 
 --
+-- Name: idx_participations_auto_declined_by_game; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_participations_auto_declined_by_game ON public.participations USING btree (auto_declined_by_game) WHERE (auto_declined_by_game IS NOT NULL);
+
+
+--
 -- Name: idx_participations_last_note_edited_by; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11432,6 +11481,20 @@ CREATE TRIGGER trg_scorer_delegation_validate BEFORE INSERT ON public.scorer_del
 --
 
 CREATE TRIGGER trg_slot_claims_validate BEFORE INSERT OR UPDATE ON public.slot_claims FOR EACH ROW EXECUTE FUNCTION public.trg_slot_claims_validate();
+
+
+--
+-- Name: teams_coaches trg_staff_gratis_coaches; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_staff_gratis_coaches AFTER INSERT ON public.teams_coaches FOR EACH ROW EXECUTE FUNCTION public.staff_gratis_fill();
+
+
+--
+-- Name: teams_responsibles trg_staff_gratis_responsibles; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_staff_gratis_responsibles AFTER INSERT ON public.teams_responsibles FOR EACH ROW EXECUTE FUNCTION public.staff_gratis_fill();
 
 
 --
@@ -13235,5 +13298,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 13b0WK8CvD7FOk9faYfAc0kVrrFdHzakpvmv2ZYqLz2pOmzovVS3hFokpRMjgyu
+\unrestrict XOK3AbLNNmp8JYBm82zfhpNFk2WP0uJ47ovlyqd8hbNgMhmz9Ns7BzTcsfRgZFz
 
