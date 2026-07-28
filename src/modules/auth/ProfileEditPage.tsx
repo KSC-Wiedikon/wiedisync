@@ -39,11 +39,10 @@ export default function ProfileEditPage() {
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('editProfile')}</h1>
       </div>
 
-      <ProfileEditForm onSaved={goBack} onCancel={goBack} />
-
-      {/* Identity document (E2EE) — lives with the other "change my data" actions
-          rather than on the read-only profile view (moved 2026-07-28). */}
-      <IdentityDocumentSection />
+      {/* Identity document (E2EE) rides the beforeActions slot so it sits ABOVE
+          the Cancel/Save row — appended after the form it landed below the
+          buttons, which read as outside the page (moved 2026-07-28). */}
+      <ProfileEditForm onSaved={goBack} onCancel={goBack} beforeActions={<IdentityDocumentSection />} />
     </div>
   )
 }

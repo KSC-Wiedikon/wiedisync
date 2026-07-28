@@ -38,6 +38,8 @@ interface ProfileEditFormProps {
   onCancel?: () => void
   /** Onboarding/first-run mode: hides the privacy/password/read-only sections, keeps the ClubDesk contact block expanded, and swaps the footer buttons. */
   onboarding?: boolean
+  /** Rendered between the last form section and the Cancel/Save row — e.g. the identity-document card on /profile/edit. Not shown in onboarding call-sites (they simply don't pass it). */
+  beforeActions?: React.ReactNode
 }
 
 /** The member fields the shirt-number conflict check reads off a `member_teams` row. */
@@ -52,7 +54,7 @@ type TeammateRow = { member: ConflictMember | string | number | null }
  * open/close-driven re-seed) lives with the caller — this component just seeds
  * from `user` on mount / when the member record changes identity.
  */
-export default function ProfileEditForm({ onSaved, onCancel, onboarding }: ProfileEditFormProps) {
+export default function ProfileEditForm({ onSaved, onCancel, onboarding, beforeActions }: ProfileEditFormProps) {
   const { user, primarySport, memberTeamNames, refreshUser } = useAuth()
   const { t, i18n } = useTranslation('auth')
   const { t: tc } = useTranslation('common')
@@ -875,6 +877,8 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
       {error && (
         <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       )}
+
+      {beforeActions && <div className="pt-2">{beforeActions}</div>}
 
       <div className="flex justify-end gap-3 pt-2">
         {/* No onCancel = hard gate (Layout's forced onboarding): saving is the
