@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.51.0'
+const APP_VERSION = '1.52.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.52.0',
+    date: '28.07.2026',
+    sections: [
+      {
+        title: "Improved: game days no longer show a training your team can't attend",
+        items: [
+          "Trainings on game days are cancelled automatically. When your team has a game — home or away — that day's training is taken off the calendar. If the game moves or is called off, the training comes back by itself; a coach can still reinstate a training and that decision sticks.",
+          'Players in two teams are excused automatically: if your other team has a game that day, you are signed out of the training with a note naming the game (e.g. "Game H2"). Your own answers always win — explicit RSVPs are never overridden.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.51.0',
     date: '27.07.2026',

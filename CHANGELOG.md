@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.52.0 — 2026-07-28
+
+### Improved: game days no longer show a training your team can't attend
+- **Trainings on game days are cancelled automatically.** When your team has a game — home or away — that day's training is taken off the calendar instead of sitting there contradicting the game. If the game moves or is called off, the training comes back by itself. A coach can still reinstate a training ("we practice before the game"), and that decision sticks.
+- **Players in two teams are excused automatically.** If your other team has a game that day, you are signed out of the training with a note naming the game (e.g. "Game H2"). Your own answers always win: if you explicitly said you'll attend the training, or you declined the game, nothing is changed — and any manual change you make afterwards is never overridden.
+
 ## v1.51.0 — 2026-07-27
 
 ### Improved: the app now speaks French and Italian throughout
