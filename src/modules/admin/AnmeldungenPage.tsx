@@ -12,8 +12,13 @@ import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
 import ClubdeskRegistrationZone from './components/ClubdeskRegistrationZone'
 import { Button } from '../../components/ui/button'
 import { formatDate } from '../../utils/dateHelpers'
-import { localizeCountry, localizeCountryName } from '../../utils/countryName'
-import { countryLabel, formatCountryCodes, parseCountryCodes, NO_FEDERATION } from '../../utils/countries'
+import { localizeCountryName } from '../../utils/countryName'
+import {
+  countryNameDe, countryOptions,
+  parseCountryCodes, serializeCountryCodes, NO_FEDERATION,
+} from '../../utils/countries'
+import CountryMultiSelect from '../../components/CountryMultiSelect'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -756,6 +761,9 @@ function ExpandedDetails({
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [uploadingKey, setUploadingKey] = useState<keyof Registration | null>(null)
   const hasChanges = Object.keys(edits).length > 0
+  // `t` (prop) is the admin namespace; the coded pickers reuse hint/placeholder
+  // strings that live in auth + common.
+  const { t: tAll } = useTranslation(['admin', 'auth', 'common'])
 
   // The form stores gender as the German canonical value (männlich/weiblich)
   // regardless of the submitter's language — show it in the viewer's locale.
@@ -793,18 +801,66 @@ function ExpandedDetails({
     )
   }
 
-  // Read-only twin of field() for values that are CODED, not free text
-  // (nationality, federation of origin) — typing "Schwiiz" into a text box
-  // would write something the ISO-code CHECK rejects. Same markup as the
-  // situation / reference rows below.
-  const readOnlyField = (label: string, value: string) => (
-    <div>
-      <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{label}</label>
-      {/* An em dash, not a blank — a labelled empty box reads as a rendering
-          bug rather than "this registration predates the field". */}
-      <div className="px-2.5 py-1.5 text-sm text-gray-900 dark:text-gray-100">{value || '—'}</div>
-    </div>
+  const codedLabel = (label: string) => (
+    <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{label}</label>
   )
+
+  // Shared onChange for the coded pickers below. Tracks the same "back to the
+  // stored value clears the edit" rule as field(), so saving stays disabled
+  // when a picker is opened and closed on the value it already had.
+  const setCoded = (key: keyof Registration, next: string, original: string) => {
+    const edited = { ...edits }
+    if (next === original) delete edited[key]
+    else edited[key] = next
+    setEdits(edited)
+  }
+
+  // Nationality and federation of origin are CODED (ISO alpha-2 + a CHECK
+  // constraint), so they get pickers rather than field()'s text box — typing
+  // "Schwiiz" would write something the CHECK rejects. Same components the
+  // member explorer uses, so both admin screens edit these the same way.
+  //
+  // Nationality is a code LIST since migration 223 ("CH,IT", first = primary).
+  // Legacy rows carry only the singular code or the submitter-language free
+  // text, so both fallbacks stay for DISPLAY; editing always writes the list.
+  const nationalityField = () => {
+    const stored = reg.nationalitaet_codes
+      ?? (reg.nationalitaet_code ? reg.nationalitaet_code.trim().toUpperCase().slice(0, 2) : '')
+    const value = edits.nationalitaet_codes ?? stored
+    return (
+      <div>
+        {codedLabel(t('anmeldungenNationality'))}
+        {/* A legacy row with only free text has nothing to preselect — show what
+            it says so the editor knows what they are replacing. */}
+        {!value && reg.nationalitaet && (
+          <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">{localizeCountryName(reg.nationalitaet)}</div>
+        )}
+        <CountryMultiSelect
+          selected={parseCountryCodes(value)}
+          onChange={(codes) => setCoded('nationalitaet_codes', serializeCountryCodes(codes) ?? '', stored)}
+          helperText={tAll('auth:nationalitaetHint')}
+        />
+      </div>
+    )
+  }
+
+  // 'NONE' = explicitly never licensed elsewhere; empty = simply not asked
+  // (every registration predating the field) → show nothing, not "None".
+  const federationField = () => {
+    const stored = (reg.federation_of_origin ?? '').trim().toUpperCase()
+    const value = edits.federation_of_origin ?? stored
+    return (
+      <div>
+        {codedLabel(t('anmeldungenFederation'))}
+        <SearchableSelect
+          options={[{ value: NO_FEDERATION, label: t('federationNone') }, ...countryOptions()]}
+          value={value}
+          onChange={(v) => setCoded('federation_of_origin', v, stored)}
+          searchPlaceholder={tAll('common:searchCountry')}
+        />
+      </div>
+    )
+  }
 
   // Editable <select> variant of field() — used for the passive-member Sektion
   // choice (Volleyball/Basketball/KSCW), which the approver picks and the
@@ -835,7 +891,30 @@ function ExpandedDetails({
 
   const handleSave = () => {
     if (!hasChanges) return
-    onSave(edits as Partial<Registration>)
+    const data: Record<string, string | null> = { ...edits }
+
+    // The coded columns carry CHECK constraints that accept NULL but not '' —
+    // a cleared picker must send null or the PATCH fails.
+    for (const key of ['nationalitaet_codes', 'federation_of_origin']) {
+      if (data[key] === '') data[key] = null
+    }
+
+    // `registrations` has no trigger mirroring the code list onto the two
+    // derived nationality columns (only `members` does, migration 223), so this
+    // does what that trigger would. It matters: the ClubDesk CSV export pushes
+    // the free-text `nationalitaet`, and the basketball document gate reads the
+    // singular `nationalitaet_code` — leaving either stale would file the
+    // member under their OLD nationality after an admin corrected it here.
+    if ('nationalitaet_codes' in data) {
+      const primary = parseCountryCodes(data.nationalitaet_codes ?? '')[0] ?? null
+      data.nationalitaet_code = primary
+      // ClubDesk's Nationalität is a single-value German picklist, so this must
+      // be the ClubDesk spelling of the PRIMARY code, not a localized display
+      // name (countryNameDe carries the picklist overrides).
+      data.nationalitaet = primary ? countryNameDe(primary) : null
+    }
+
+    onSave(data as Partial<Registration>)
     setEdits({})
   }
 
@@ -953,25 +1032,8 @@ function ExpandedDetails({
         {field('plz', 'PLZ')}
         {field('ort', t('anmeldungenCity'))}
         {field('geburtsdatum', t('anmeldungenDob'), { type: 'date' })}
-        {/* Nationality is a code LIST since migration 223 ("CH,IT", first = primary).
-            Legacy rows carry only the singular code or the submitter-language
-            free text, so both fallbacks stay. */}
-        {readOnlyField(
-          t('anmeldungenNationality'),
-          reg.nationalitaet_codes
-            ? formatCountryCodes(reg.nationalitaet_codes)
-            : (reg.nationalitaet_code
-                ? localizeCountry(reg.nationalitaet_code, reg.nationalitaet ?? '')
-                : localizeCountryName(reg.nationalitaet)),
-        )}
-        {/* 'NONE' = explicitly never licensed elsewhere; null = simply not asked
-            (every registration predating the field) → show nothing, not "None". */}
-        {readOnlyField(
-          t('anmeldungenFederation'),
-          reg.federation_of_origin === NO_FEDERATION
-            ? t('federationNone')
-            : countryLabel(reg.federation_of_origin),
-        )}
+        {nationalityField()}
+        {federationField()}
         {field('geschlecht', t('anmeldungenGender'), { display: localizeGender })}
         {field('rolle', t('anmeldungenFunction'))}
         {field('team', t('anmeldungenTeam'))}

@@ -89,10 +89,21 @@ function normalizeCountryCodes(raw) {
  *  NULL. 'NONE' ("never licensed with another federation") is a real answer and
  *  must stay distinct from NULL ("didn't answer") — only an explicit NONE lets
  *  the licensing admin skip chasing a transfer certificate. */
-function normalizeFederation(raw) {
+export function normalizeFederation(raw) {
   const v = String(raw ?? '').trim().toUpperCase()
   if (v === 'NONE') return 'NONE'
   return /^[A-Z]{2}$/.test(v) ? v : null
+}
+
+/** A volleyball licence needs an explicit federation-of-origin answer — a
+ *  federation code or the 'NONE' sentinel; NULL leaves the club guessing
+ *  whether a transfer certificate must be chased. Guests are never licensed,
+ *  so they are exempt. Second enforcement point after the client form gate
+ *  (kscw-website registration-form.js, 2026-07-27) — server-side because
+ *  REG-2026-6400 arrived NULL from a stale cached bundle the day after that
+ *  gate shipped. */
+export function vbFederationMissing(membershipType, isGuest, federationOfOrigin) {
+  return membershipType === 'volleyball' && !isGuest && !federationOfOrigin
 }
 
 // ── Confirmation emails ─────────────────────────────────────────
@@ -726,6 +737,12 @@ export function registerRegistration(router, { database, logger, services, getSc
         ? natCodes.split(',')[0]
         : ((body.nationalitaet_code || '').trim().toUpperCase().slice(0, 2) || null)
       const federationOfOrigin = normalizeFederation(body.federation_of_origin)
+      if (vbFederationMissing(body.membership_type, isGuest, federationOfOrigin)) {
+        const msg = isEn
+          ? 'Please select your federation of origin — or "None" if you were not licensed with a national federation at 14. If you cannot see this field, please reload the page.'
+          : 'Bitte wähle deinen Herkunftsverband — oder «Keiner», falls du mit 14 bei keinem nationalen Verband lizenziert warst. Falls du dieses Feld nicht siehst, lade die Seite bitte neu.'
+        return res.status(400).json({ error: msg, code: 'federation_required' })
+      }
       if (body.membership_type === 'basketball' && !isGuest) {
         // A dual national holding a Swiss passport is Swiss for FIBA, so the
         // gate judges the list as a whole (fibaNatCode), not just the primary.
