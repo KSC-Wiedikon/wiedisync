@@ -83,6 +83,22 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   const canShow = windowState === 'open'
   const beforeWindow = windowState === 'before'
 
+  // Live window: re-render at the exact moments the state flips. A coach waiting
+  // at the table opens this BEFORE the window — without a tick the "Show" button
+  // stays dead past the opening time (and the at-kickoff cache wipe below only
+  // fires on a re-render). No dep array on purpose: every render re-schedules a
+  // single timeout for the NEXT boundary still ahead, so after the open boundary
+  // fires the same effect arms the kickoff one.
+  const [, setWindowTick] = useState(0)
+  useEffect(() => {
+    if (kickoffMs == null) return
+    const now = Date.now()
+    const next = [kickoffMs - SHOW_BEFORE_MS, kickoffMs].filter((b) => b > now)
+    if (!next.length) return
+    const id = setTimeout(() => setWindowTick((n) => n + 1), Math.min(...next) - now + 250)
+    return () => clearTimeout(id)
+  })
+
   // Roster: who is on the sheet, so the deck is ordered and labelled like the match sheet.
   useEffect(() => {
     let cancelled = false
