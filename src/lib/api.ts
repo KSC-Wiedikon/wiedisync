@@ -115,7 +115,15 @@ export const SCHEDULING_ORIGIN: string =
 // Every request must carry the cookie → `credentials: 'include'` on both the
 // auth composable (login/refresh) and rest (data). The browser persists the
 // cookie per its TTL, so this also removes the old iOS-PWA sessionStorage hack.
-export const client = createDirectus(API_URL)
+// The SDK runs `new URL(base)` on this (since @directus/sdk 23), so the bare
+// relative '/directus' of the proxy modes must be absolutized against the vite
+// origin — still same-origin, the proxy still does the heavy lift. Passing the
+// relative prefix directly crashes module init ("Failed to construct 'URL'")
+// and white-screens the app.
+const SDK_BASE = API_URL.startsWith('/') && typeof window !== 'undefined'
+  ? `${window.location.origin}${API_URL}`
+  : API_URL
+export const client = createDirectus(SDK_BASE)
   .with(authentication('session', { credentials: 'include', autoRefresh: true }))
   .with(rest({ credentials: 'include' }))
   .with(realtime({
