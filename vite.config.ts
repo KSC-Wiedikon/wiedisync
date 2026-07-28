@@ -49,5 +49,33 @@ export default defineConfig({
         },
       },
     }),
+    // `npm run dev:login` sets VITE_DEV_PROXY=1 → same proxy aimed at DEV
+    // Directus, so cookie-session login works in a real browser. The dev
+    // session cookie is `Domain=.kscw.ch; SameSite=Lax` — no localhost or
+    // pages.dev origin can hold it, which is why logging in on the CF Pages
+    // preview 401s on the very next request. Through the proxy everything is
+    // same-origin, and stripping the Domain attribute makes the cookie stick
+    // to the vite origin. Access via http://localhost:1234 (SSH tunnel), NOT
+    // the Tailscale IP: `Secure` cookies and the E2EE screens' crypto.subtle
+    // both need a secure context, and localhost is one while a bare IP isn't.
+    ...(process.env.VITE_DEV_PROXY === '1' && {
+      proxy: {
+        '/directus': {
+          target: 'https://directus-dev.kscw.ch',
+          changeOrigin: true,
+          rewrite: (p: string) => p.replace(/^\/directus/, ''),
+          ws: true,
+          secure: true,
+          configure: (proxy: { on: (ev: 'proxyRes', cb: (res: { headers: Record<string, unknown> }) => void) => void }) => {
+            proxy.on('proxyRes', (res) => {
+              const sc = res.headers['set-cookie']
+              if (Array.isArray(sc)) {
+                res.headers['set-cookie'] = sc.map((c: string) => c.replace(/;\s*Domain=[^;]*/i, ''))
+              }
+            })
+          },
+        },
+      },
+    }),
   },
 })

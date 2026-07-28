@@ -28,16 +28,25 @@ import { captureApiError, captureAuthError } from './sentry'
 function authHintKey(): string {
   // Distinct per backend env so a dev login and a prod login can coexist in one
   // browser without the hint (or the real session cookie) colliding on .kscw.ch.
-  return API_URL.includes('directus-dev') ? 'wiedisync_auth_dev' : 'wiedisync_auth'
+  // In dev-proxy mode API_URL is the relative '/directus', so the flag itself
+  // says which backend is behind it.
+  return (useDevProxy || API_URL.includes('directus-dev')) ? 'wiedisync_auth_dev' : 'wiedisync_auth'
 }
 
 export function setAuthHint(present: boolean): void {
   if (typeof document === 'undefined') return
-  // domain=.kscw.ch → shared across subdomains (rejected on localhost/pages.dev,
-  // where cookie-session auth doesn't work anyway). secure + lax mirrors the
-  // real session cookie.
+  // domain=.kscw.ch → shared across subdomains (SSO with the scheduling app).
+  // A localhost / pages.dev origin REJECTS a cookie scoped to a domain it isn't
+  // on, so off *.kscw.ch the hint falls back to a plain host-only cookie — it
+  // carries no secret, and without it a dev-proxy login (`npm run dev:login`)
+  // would authenticate and then immediately look logged-out to the app.
+  // `secure` only where the page itself is https: a Secure cookie set from an
+  // http origin is silently discarded (localhost excepted, but plain is safe).
   const key = authHintKey()
-  const attrs = 'domain=.kscw.ch; path=/; secure; samesite=lax'
+  const onKscw = window.location.hostname.endsWith('.kscw.ch')
+  const attrs = onKscw
+    ? 'domain=.kscw.ch; path=/; secure; samesite=lax'
+    : `path=/; samesite=lax${window.location.protocol === 'https:' ? '; secure' : ''}`
   document.cookie = present ? `${key}=1; ${attrs}; max-age=604800` : `${key}=; ${attrs}; max-age=0`
 }
 
@@ -54,6 +63,15 @@ const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host.endsWit
 // In that mode we use a relative `/directus` prefix so all browser fetches
 // stay same-origin (no CORS preflight) and the proxy does the heavy lift.
 const useProdProxy = isLocalhost && import.meta.env.VITE_PROD_DATA === '1'
+// `npm run dev:login` sets VITE_DEV_PROXY=1 → the same reverse-proxy trick aimed
+// at DEV Directus, for a different reason: the dev session cookie is
+// `Domain=.kscw.ch; SameSite=Lax`, which no localhost/pages.dev origin can hold —
+// so a real browser login against dev only works when every request is
+// same-origin through the vite proxy (which strips the cookie's Domain so it
+// sticks to the vite origin). Guarded by import.meta.env.DEV: false in builds,
+// so the flag can never leak into a deployed bundle. Use via http://localhost
+// (SSH tunnel) — the E2EE screens need the secure-context crypto.subtle.
+const useDevProxy = import.meta.env.DEV && import.meta.env.VITE_DEV_PROXY === '1'
 // Localhost ALWAYS points at dev Directus by default, regardless of
 // `VITE_DIRECTUS_URL` in `.env*` — prod Directus has a strict CORS allowlist
 // that doesn't and shouldn't include localhost, so an env override that
@@ -62,7 +80,7 @@ const useProdProxy = isLocalhost && import.meta.env.VITE_PROD_DATA === '1'
 // pages.dev, custom preview domains) honors the env or falls back to dev.
 export const API_URL = isProd
   ? 'https://directus.kscw.ch'
-  : useProdProxy
+  : (useProdProxy || useDevProxy)
     ? '/directus'
     : isLocalhost
       ? 'https://directus-dev.kscw.ch'
@@ -109,7 +127,7 @@ export const client = createDirectus(API_URL)
     // and the SDK would derive `/directus/websocket` which the browser
     // rejects (WebSocket needs absolute ws:// or wss://); we build the
     // absolute proxy URL explicitly and vite's `ws: true` entry forwards it.
-    ...(useProdProxy && typeof window !== 'undefined'
+    ...((useProdProxy || useDevProxy) && typeof window !== 'undefined'
       ? { url: `${window.location.origin.replace(/^http/, 'ws')}/directus/websocket` }
       : {}),
     authMode: 'handshake',
