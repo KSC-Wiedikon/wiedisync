@@ -261,6 +261,7 @@ export default {
   ibanHint: 'Ton compte bancaire pour les remboursements. Les finances ont besoin de ton IBAN le plus à jour.',
   invalidIban: 'Merci de saisir un IBAN valide',
   requiredProfileFields: 'Le prénom, le nom et l\'e-mail sont obligatoires',
+  coreContactRequired: 'Merci de renseigner le téléphone, la date de naissance, l\'adresse et la nationalité – le registre des membres en a besoin',
   invalidEmail: 'Veuillez saisir une adresse e-mail valide',
 
   // Pièce d'identité (chiffrée de bout en bout)

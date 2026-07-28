@@ -34,9 +34,9 @@ import { client, fetchAllItems, kscwApi, updateRecord, uploadFile } from '../../
 interface ProfileEditFormProps {
   /** Called after a successful save. */
   onSaved: () => void
-  /** Called when the user cancels / skips without saving. */
-  onCancel: () => void
-  /** Onboarding/first-run mode: hides the ClubDesk/privacy/password/read-only sections and swaps the footer buttons. */
+  /** Called when the user cancels / skips without saving. Omit for a hard gate: the cancel/skip button is not rendered and saving is the only way out. */
+  onCancel?: () => void
+  /** Onboarding/first-run mode: hides the privacy/password/read-only sections, keeps the ClubDesk contact block expanded, and swaps the footer buttons. */
   onboarding?: boolean
 }
 
@@ -261,6 +261,18 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
         ibanCanonical = normalizeIban(ibanTrimmed)
       }
 
+      // Core contact set — required in every mode (2026-07-28): the club
+      // register needs these, and clearing one later would only re-trigger the
+      // Layout onboarding gate on the next load. Checked after the phone
+      // normalization so a malformed phone gets its specific error first.
+      if (!phoneCanonical || !birthdate || !adresse.trim() || !plz.trim()
+        || !ort.trim() || nationalitaetCodes.length === 0) {
+        setClubdeskOpen(true) // the missing field may sit in the collapsed section
+        setError(t('coreContactRequired'))
+        setLoading(false)
+        return
+      }
+
       // Check for duplicate number in the same team(s)
       if (number > 0 && number !== user.number) {
         const myTeams = await fetchAllItems('member_teams', {
@@ -314,9 +326,9 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
 
       // ClubDesk fields
       payload.anrede = anrede
-      payload.adresse = adresse
-      payload.plz = plz
-      payload.ort = ort
+      payload.adresse = adresse.trim()
+      payload.plz = plz.trim()
+      payload.ort = ort.trim()
       // Codes only — a DB trigger derives `members.nationalitaet` (the German
       // string ClubDesk consumes) from the first code, so writing both here
       // would just be two sources of truth for one fact.
@@ -530,10 +542,11 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
       />
 
       <FormInput
-        label={t('phone')}
+        label={`${t('phone')}${onboarding ? ' *' : ''}`}
         type="tel"
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
+        required
       />
 
       <div className="grid grid-cols-1 gap-4">
@@ -547,9 +560,10 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
           placeholder="#"
         />
         <DatePicker
-          label={t('birthdate')}
+          label={`${t('birthdate')}${onboarding ? ' *' : ''}`}
           value={birthdate}
           onChange={setBirthdate}
+          required
         />
       </div>
 
@@ -621,109 +635,117 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
         </div>
       </FormField>
 
-      {/* ClubDesk personal data — hidden in onboarding */}
-      {!onboarding && (
-        <div className="rounded-lg border border-gray-200 dark:border-gray-600">
-          <button
-            type="button"
-            onClick={() => setClubdeskOpen(!clubdeskOpen)}
-            className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100"
-            style={{ minHeight: 44 }}
-          >
-            <span>{t('personalDataClubdesk')}</span>
+      {/* ClubDesk personal data — in onboarding the block is always expanded
+          (not collapsible): address + nationality are part of the required
+          core contact set, so hiding them would make the gate unpassable. */}
+      <div className="rounded-lg border border-gray-200 dark:border-gray-600">
+        <button
+          type="button"
+          onClick={() => !onboarding && setClubdeskOpen(!clubdeskOpen)}
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100"
+          style={{ minHeight: 44 }}
+        >
+          <span>{t('personalDataClubdesk')}</span>
+          {!onboarding && (
             <svg className={`h-4 w-4 text-gray-400 transition-transform ${clubdeskOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
-          </button>
-          {clubdeskOpen && (
-            <div className="space-y-4 border-t border-gray-200 px-4 py-4 dark:border-gray-600">
-              {/* Anrede + Geschlecht */}
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label={t('anrede')}>
-                  <Select value={anrede} onValueChange={setAnrede}>
-                    <SelectTrigger className="min-h-[44px]">
-                      <SelectValue placeholder="—" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Herr">{t('mr')}</SelectItem>
-                      <SelectItem value="Frau">{t('mrs')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormField>
-                <FormField label={t('sex')}>
-                  <Select value={sex} onValueChange={setSex}>
-                    <SelectTrigger className="min-h-[44px]">
-                      <SelectValue placeholder="—" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="m">{t('male')}</SelectItem>
-                      <SelectItem value="f">{t('female')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormField>
-              </div>
-
-              {/* Adresse */}
-              <FormInput
-                label={t('adresse')}
-                value={adresse}
-                onChange={(e) => setAdresse(e.target.value)}
-              />
-
-              {/* PLZ + Ort */}
-              <div className="grid grid-cols-[120px_1fr] gap-4">
-                <FormInput
-                  label={t('plz')}
-                  value={plz}
-                  onChange={(e) => setPlz(e.target.value)}
-                  inputMode="numeric"
-                  maxLength={4}
-                />
-                <FormInput
-                  label={t('ort')}
-                  value={ort}
-                  onChange={(e) => setOrt(e.target.value)}
-                />
-              </div>
-
-              {/* Nationalität — multi-select; the first pick is the primary one
-                  and is what ClubDesk (single-valued) receives. */}
-              <CountryMultiSelect
-                label={t('nationalitaet')}
-                selected={nationalitaetCodes}
-                onChange={setNationalitaetCodes}
-                helperText={t('nationalitaetHint')}
-              />
-
-              {/* Herkunftsverband */}
-              <FormField label={t('federationOfOrigin')} helperText={t('federationOfOriginHint')}>
-                <SearchableSelect
-                  options={fedOptions}
-                  value={federationOfOrigin}
-                  onChange={setFederationOfOrigin}
-                  searchPlaceholder={tc('searchCountry')}
-                />
+          )}
+        </button>
+        {(clubdeskOpen || onboarding) && (
+          <div className="space-y-4 border-t border-gray-200 px-4 py-4 dark:border-gray-600">
+            {/* Anrede + Geschlecht */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label={t('anrede')}>
+                <Select value={anrede} onValueChange={setAnrede}>
+                  <SelectTrigger className="min-h-[44px]">
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Herr">{t('mr')}</SelectItem>
+                    <SelectItem value="Frau">{t('mrs')}</SelectItem>
+                  </SelectContent>
+                </Select>
               </FormField>
+              <FormField label={t('sex')}>
+                <Select value={sex} onValueChange={setSex}>
+                  <SelectTrigger className="min-h-[44px]">
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="m">{t('male')}</SelectItem>
+                    <SelectItem value="f">{t('female')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </div>
 
-              {/* AHV Nummer */}
+            {/* Adresse */}
+            <FormInput
+              label={`${t('adresse')}${onboarding ? ' *' : ''}`}
+              value={adresse}
+              onChange={(e) => setAdresse(e.target.value)}
+              required
+            />
+
+            {/* PLZ + Ort */}
+            <div className="grid grid-cols-[120px_1fr] gap-4">
               <FormInput
-                label={t('ahvNummer')}
-                value={ahvNummer}
-                onChange={(e) => setAhvNummer(e.target.value)}
-                placeholder="756.XXXX.XXXX.XX"
+                label={`${t('plz')}${onboarding ? ' *' : ''}`}
+                value={plz}
+                onChange={(e) => setPlz(e.target.value)}
+                inputMode="numeric"
+                maxLength={4}
+                required
               />
-
-              {/* IBAN — member's own bank account for reimbursements. Also
-                  editable on the Finance payout card; kept here too on request. */}
               <FormInput
-                label={t('iban')}
-                value={iban}
-                onChange={(e) => setIban(e.target.value)}
-                placeholder="CH00 0000 0000 0000 0000 0"
-                helperText={t('ibanHint')}
+                label={`${t('ort')}${onboarding ? ' *' : ''}`}
+                value={ort}
+                onChange={(e) => setOrt(e.target.value)}
+                required
               />
+            </div>
 
-              {/* Read-only admin fields */}
+            {/* Nationalität — multi-select; the first pick is the primary one
+                and is what ClubDesk (single-valued) receives. */}
+            <CountryMultiSelect
+              label={`${t('nationalitaet')}${onboarding ? ' *' : ''}`}
+              selected={nationalitaetCodes}
+              onChange={setNationalitaetCodes}
+              helperText={t('nationalitaetHint')}
+            />
+
+            {/* Herkunftsverband */}
+            <FormField label={t('federationOfOrigin')} helperText={t('federationOfOriginHint')}>
+              <SearchableSelect
+                options={fedOptions}
+                value={federationOfOrigin}
+                onChange={setFederationOfOrigin}
+                searchPlaceholder={tc('searchCountry')}
+              />
+            </FormField>
+
+            {/* AHV Nummer */}
+            <FormInput
+              label={t('ahvNummer')}
+              value={ahvNummer}
+              onChange={(e) => setAhvNummer(e.target.value)}
+              placeholder="756.XXXX.XXXX.XX"
+            />
+
+            {/* IBAN — member's own bank account for reimbursements. Also
+                editable on the Finance payout card; kept here too on request. */}
+            <FormInput
+              label={t('iban')}
+              value={iban}
+              onChange={(e) => setIban(e.target.value)}
+              placeholder="CH00 0000 0000 0000 0000 0"
+              helperText={t('ibanHint')}
+            />
+
+            {/* Read-only admin fields — noise for a first-run user, so
+                onboarding hides them */}
+            {!onboarding && (
               <div className="mt-2 space-y-2 rounded-md bg-gray-50 p-3 dark:bg-gray-800">
                 <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -746,10 +768,10 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Privacy — hidden in onboarding */}
       {!onboarding && (
@@ -855,7 +877,9 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
       )}
 
       <div className="flex justify-end gap-3 pt-2">
-        {onboarding ? (
+        {/* No onCancel = hard gate (Layout's forced onboarding): saving is the
+            only way out, so no skip/cancel button is offered. */}
+        {onCancel && (onboarding ? (
           <Button
             type="button"
             variant="ghost"
@@ -871,7 +895,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding }: Profi
           >
             {tc('cancel')}
           </Button>
-        )}
+        ))}
         <Button
           type="submit"
           loading={loading}

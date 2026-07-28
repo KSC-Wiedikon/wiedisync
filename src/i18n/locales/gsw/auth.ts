@@ -263,6 +263,7 @@ export default {
   ibanHint: 'Dis Bankkonto für Rückzahlige. D Finanze bruuche dini aktuellsti IBAN.',
   invalidIban: 'Bitte gib e gültigi IBAN i',
   requiredProfileFields: 'Vorname, Nachname und E-Mail sind nötig',
+  coreContactRequired: 'Bitte Telefon, Geburtsdatum, Adresse und Nationalität usfülle – s Mitgliederregischter bruucht die Aagabe',
   invalidEmail: 'Bitte gib e gültigi E-Mail-Adrässe i',
 
   // Uswiisdokumänt (Ändi-zu-Ändi-verschlüsselt)

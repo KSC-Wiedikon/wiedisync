@@ -22,7 +22,7 @@ type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 export default function Layout() {
   const [moreOpen, setMoreOpen] = useState(false)
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
-  const { user, isApproved, isProfileComplete, isLoading, teamsLoading } = useAuth()
+  const { user, isApproved, isProfileComplete, isImpersonating, isLoading, teamsLoading } = useAuth()
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotifications()
   const { t } = useTranslation('nav')
   const isDesktop = useIsDesktop()
@@ -127,12 +127,17 @@ export default function Layout() {
         />
       )}
 
-      {/* Onboarding modal — non-dismissable, shown once until profile is complete */}
-      {user && isApproved && !isProfileComplete && (
+      {/* Onboarding modal — non-dismissable, blocks the app until the profile
+          is complete (core contact set, see AuthProvider.isProfileComplete).
+          Skipped while impersonating: the "View as" session can neither save
+          (assertWritable blocks writes) nor refresh the impersonated member,
+          so the gate would trap the admin in an unclosable modal. */}
+      {user && isApproved && !isProfileComplete && !isImpersonating && (
         <ProfileEditModal
           open
           onClose={() => {}}
           onboarding
+          dismissable={false}
         />
       )}
 

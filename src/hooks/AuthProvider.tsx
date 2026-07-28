@@ -374,7 +374,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isBbAdmin = roles.includes('bb_admin')
   const isAdmin = isGlobalAdmin || isVbAdmin || isBbAdmin
   const isApproved = user?.coach_approved_team === true || isAdmin || memberTeamIds.length > 0 || coachTeamIds.length > 0
-  const isProfileComplete = !!user?.language && !!user?.first_name
+  // Core contact set the club register (ClubDesk) needs. Layout blocks the app
+  // with the non-dismissable onboarding modal until every one of these is
+  // filled (2026-07-28) — coaches/staff never pass the membership registration
+  // form, so this gate is the only place their address ever gets collected.
+  // Nationality checks the coded column; the legacy `nationalitaet` text is a
+  // trigger-derived mirror of it and needs no fallback here.
+  const filled = (v: unknown) => String(v ?? '').trim() !== ''
+  const isProfileComplete = !!user?.language && filled(user?.first_name)
+    && filled(user?.last_name) && filled(user?.phone) && filled(user?.birthdate)
+    && filled(user?.adresse) && filled(user?.plz) && filled(user?.ort)
+    && filled(user?.nationalitaet_codes)
   const isVorstand = roles.includes('vorstand') || isGlobalAdmin
   // 'finance' is an orthogonal role (treasurer / finance team). Global admins
   // implicitly have it; the finance dashboard opens for board OR finance.

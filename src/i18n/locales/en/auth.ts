@@ -263,6 +263,7 @@ export default {
   ibanHint: 'Your bank account for reimbursements. Finance needs your most up-to-date IBAN.',
   invalidIban: 'Please enter a valid IBAN',
   requiredProfileFields: 'First name, last name and email are required',
+  coreContactRequired: 'Please fill in phone, birthdate, address and nationality — the club register needs them',
   invalidEmail: 'Please enter a valid email address',
   // Notification preferences (migration 156)
   emailNotifyTitle: 'Email notifications',
