@@ -1959,7 +1959,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // maths too but get reported, which is the whole point of the column.
       const teamGroupCte = `
         tg AS (
-          SELECT t.id, NULLIF(t.clubdesk_group, '') AS clubdesk_group
+          SELECT t.id, NULLIF(t.clubdesk_group, '') AS clubdesk_group, t.sport
           FROM teams t
           WHERE t.clubdesk_group IS NOT NULL
         )`
@@ -1974,7 +1974,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // team B is checked for both tokens independently.
       const missingSql = `
         WITH ${teamGroupCte}, expected AS (
-          SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
+          SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, tg.sport,
                  (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
                                             THEN ' (${CD_GUEST_FUNKTION})' ELSE ' (Spieler*in)' END) AS grp
           FROM member_teams mt
@@ -1983,7 +1983,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           WHERE mt.season = :season
             AND tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
         )
-        SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.grp
+        SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.grp, e.sport
         FROM expected e
         LEFT JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
         WHERE NOT (e.grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')))
@@ -1996,9 +1996,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           WHERE g LIKE '%(Spieler*in)%'
         ),
         team_groups AS (
-          SELECT DISTINCT (clubdesk_group || ' (Spieler*in)') AS grp FROM tg WHERE clubdesk_group IS NOT NULL
+          SELECT (clubdesk_group || ' (Spieler*in)') AS grp, string_agg(DISTINCT sport, ', ') AS sports
+          FROM tg WHERE clubdesk_group IS NOT NULL
+          GROUP BY clubdesk_group
         )
-        SELECT cg.grp, m.id AS member_id, m.first_name, m.last_name, cg.clubdesk_id,
+        SELECT cg.grp, tgr.sports, m.id AS member_id, m.first_name, m.last_name, cg.clubdesk_id,
                COALESCE(m.wiedisync_active, false) AS active,
                (COALESCE(m.referee_vb,false) OR COALESCE(m.scorer_vb,false) OR COALESCE(m.referee_bb,false)
                 OR COALESCE(m.otr1_bb,false) OR COALESCE(m.otr2_bb,false)
@@ -2006,9 +2008,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
                COALESCE((SELECT string_agg(DISTINCT t2.name, ', ') FROM teams_coaches tc JOIN teams t2 ON t2.id = tc.teams_id WHERE tc.members_id = m.id), '') AS coach_of,
                COALESCE((SELECT string_agg(DISTINCT t3.name, ', ') FROM teams_responsibles tr JOIN teams t3 ON t3.id = tr.teams_id WHERE tr.members_id = m.id), '') AS tr_of
         FROM cd_groups cg
+        JOIN team_groups tgr ON tgr.grp = cg.grp
         JOIN members m ON m.clubdesk_id = cg.clubdesk_id
-        WHERE cg.grp IN (SELECT grp FROM team_groups)
-          AND NOT EXISTS (SELECT 1 FROM member_teams mt WHERE mt.member = m.id AND mt.season = :season)
+        WHERE NOT EXISTS (SELECT 1 FROM member_teams mt WHERE mt.member = m.id AND mt.season = :season)
         ORDER BY cg.grp, m.last_name, m.first_name`
 
       const noTeamSql = `
@@ -2039,7 +2041,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
                  SELECT string_agg(DISTINCT t.name, ', ')
                  FROM member_teams mt JOIN teams t ON t.id = mt.team
                  WHERE mt.member = m.id AND mt.season = :season AND COALESCE(mt.guest_level, 0) = 0
-               ), '') AS teams
+               ), '') AS teams,
+               COALESCE((
+                 SELECT string_agg(DISTINCT t.sport, ', ')
+                 FROM member_teams mt JOIN teams t ON t.id = mt.team
+                 WHERE mt.member = m.id AND mt.season = :season AND COALESCE(mt.guest_level, 0) = 0
+               ), '') AS sports
         FROM members m
         JOIN cd ON cd.cdid = m.clubdesk_id
         WHERE m.kscw_membership_active
@@ -2053,7 +2060,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // team-responsible equivalent), so TRs are out of scope by design.
       const coachNoGroupSql = `
         WITH ${teamGroupCte}, expected AS (
-          SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
+          SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, tg.sport,
                  (tg.clubdesk_group || ' (Trainer*in)') AS grp
           FROM teams_coaches tc
           JOIN tg ON tg.id = tc.teams_id
@@ -2063,7 +2070,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             AND t.active AND m.kscw_membership_active
             AND COALESCE(m.clubdesk_sync_exclude, false) = false
         )
-        SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.grp
+        SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.grp, e.sport
         FROM expected e
         LEFT JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
         WHERE NOT (e.grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')))
@@ -2116,6 +2123,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         database.raw(unmappedTeamsSql),
       ])
 
+      // Playing Beitragskategorien are 'VB '/'BB '-prefixed — the only sport
+      // signal for members with no roster row.
+      const katSport = (kat) => (kat || '').startsWith('VB ') ? 'volleyball'
+        : (kat || '').startsWith('BB ') ? 'basketball' : ''
+
       const coachByMember = new Map()
       for (const r of coachRes.rows) {
         if (!coachByMember.has(r.member_id)) {
@@ -2124,9 +2136,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
             clubdesk_id: r.clubdesk_id,
             groups: [],
+            sports: new Set(),
           })
         }
-        coachByMember.get(r.member_id).groups.push(r.grp)
+        const c = coachByMember.get(r.member_id)
+        c.groups.push(r.grp)
+        if (r.sport) c.sports.add(r.sport)
       }
 
       const fee_no_roster = feeRes.rows.map((r) => ({
@@ -2134,6 +2149,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
         clubdesk_id: r.clubdesk_id,
         kat: r.kat || '',
+        sport: katSport(r.kat),
         last_season: r.last_season || null,
         coach_of: r.coach_of || '',
         tr_of: r.tr_of || '',
@@ -2151,6 +2167,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         clubdesk_id: r.clubdesk_id,
         teams: r.teams || '',
         kat: r.kat || '',
+        // Teamless members fall back to the fee-category prefix.
+        sport: r.sports || katSport(r.kat),
         has_team: !!r.teams,
       }))
 
@@ -2162,9 +2180,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
             clubdesk_id: r.clubdesk_id,
             groups: [],
+            sports: new Set(),
           })
         }
-        missingByMember.get(r.member_id).groups.push(r.grp)
+        const mm = missingByMember.get(r.member_id)
+        mm.groups.push(r.grp)
+        if (r.sport) mm.sports.add(r.sport)
       }
 
       const strays = strayRes.rows.map((r) => ({
@@ -2172,6 +2193,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
         clubdesk_id: r.clubdesk_id,
         group: r.grp,
+        sport: r.sports || '',
         active: r.active === true,
         is_official: r.is_official === true,
         coach_of: r.coach_of || '',
@@ -2180,12 +2202,15 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
       const no_team_groups = noTeamRes.rows.map((r) => ({ group: r.grp, count: r.cnt }))
 
+      const flattenSports = (byMember) => [...byMember.values()]
+        .map(({ sports, ...rest }) => ({ ...rest, sport: [...sports].sort().join(', ') }))
+
       return res.json({
-        missing: [...missingByMember.values()],
+        missing: flattenSports(missingByMember),
         strays,
         no_team_groups,
         no_group,
-        coach_no_group: [...coachByMember.values()],
+        coach_no_group: flattenSports(coachByMember),
         fee_no_roster,
         unmapped_teams,
         season,

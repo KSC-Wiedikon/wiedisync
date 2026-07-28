@@ -30,15 +30,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toXlsx, downloadBlob } from '../utils/exportResults'
 
-interface NoGroupRow { member_id: number; member_name: string; clubdesk_id: string; teams: string; kat: string; has_team: boolean }
-interface MissingRow { member_id: number; member_name: string; clubdesk_id: string; groups: string[] }
+interface NoGroupRow { member_id: number; member_name: string; clubdesk_id: string; teams: string; kat: string; sport: string; has_team: boolean }
+interface MissingRow { member_id: number; member_name: string; clubdesk_id: string; groups: string[]; sport: string }
 interface FeeRow {
-  member_id: number; member_name: string; clubdesk_id: string; kat: string
+  member_id: number; member_name: string; clubdesk_id: string; kat: string; sport: string
   last_season: string | null; coach_of: string; tr_of: string
   severity: 'never' | 'lapsed' | 'older'
 }
 interface StrayRow {
-  member_id: number; member_name: string; clubdesk_id: string; group: string
+  member_id: number; member_name: string; clubdesk_id: string; group: string; sport: string
   active: boolean; is_official: boolean; coach_of: string; tr_of: string
 }
 interface NoTeamGroupRow { group: string; count: number }
@@ -57,6 +57,30 @@ interface Resp {
 const EMPTY: Required<Resp> = {
   no_group: [], missing: [], coach_no_group: [], fee_no_roster: [],
   strays: [], no_team_groups: [], unmapped_teams: [],
+}
+
+/**
+ * Compact sport marker: 'volleyball' → VB, 'basketball' → BB (full localized
+ * name in the tooltip). `sport` is the backend's comma-separated distinct list;
+ * '—' when the sport can't be derived (no team AND no VB/BB fee prefix).
+ */
+function SportBadges({ sport }: { sport: string }) {
+  const { t } = useTranslation('common')
+  const tokens = sport.split(', ').filter(Boolean)
+  if (tokens.length === 0) return <span className="text-muted-foreground">—</span>
+  return (
+    <>
+      {tokens.map((s) => (
+        <span
+          key={s}
+          title={s === 'volleyball' ? t('volleyball') : s === 'basketball' ? t('basketball') : s}
+          className="mr-1 inline-block rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground"
+        >
+          {s === 'volleyball' ? 'VB' : s === 'basketball' ? 'BB' : s}
+        </span>
+      ))}
+    </>
+  )
 }
 
 /** Collapsible section: header always shows the count, body loads on expand. */
@@ -154,24 +178,26 @@ export default function ClubdeskGroupCheck() {
   const handleExport = async () => {
     try {
       const tEn = i18n.getFixedT('en', 'admin')
-      const columns = ['Issue', 'Name', 'ClubDesk ID', 'Detail', 'Fee category', 'Last rostered', 'Coach / TR']
+      const sportEn = (s: string) => s.split(', ').filter(Boolean)
+        .map((x) => x === 'volleyball' ? 'Volleyball' : x === 'basketball' ? 'Basketball' : x).join(', ')
+      const columns = ['Issue', 'Name', 'Sport', 'ClubDesk ID', 'Detail', 'Fee category', 'Last rostered', 'Coach / TR']
       const rows: string[][] = [
         ...view.noGroup.map((r) => [
           r.has_team ? 'No ClubDesk group (on a team)' : 'No ClubDesk group',
-          r.member_name, r.clubdesk_id, r.teams, r.kat, '', '',
+          r.member_name, sportEn(r.sport), r.clubdesk_id, r.teams, r.kat, '', '',
         ]),
-        ...view.missing.map((r) => ['Missing a group', r.member_name, r.clubdesk_id, r.groups.join(', '), '', '', '']),
-        ...view.coach.map((r) => ['Coach missing coach group', r.member_name, r.clubdesk_id, r.groups.join(', '), '', '', '']),
+        ...view.missing.map((r) => ['Missing a group', r.member_name, sportEn(r.sport), r.clubdesk_id, r.groups.join(', '), '', '', '']),
+        ...view.coach.map((r) => ['Coach missing coach group', r.member_name, sportEn(r.sport), r.clubdesk_id, r.groups.join(', '), '', '', '']),
         ...view.fee.map((r) => [
           `Billed as player, no roster (${r.severity})`,
-          r.member_name, r.clubdesk_id, '', r.kat, r.last_season ?? '', [r.coach_of, r.tr_of].filter(Boolean).join(' / '),
+          r.member_name, sportEn(r.sport), r.clubdesk_id, '', r.kat, r.last_season ?? '', [r.coach_of, r.tr_of].filter(Boolean).join(' / '),
         ]),
         ...view.strays.map((r) => [
           'In ClubDesk group, not on roster',
-          r.member_name, r.clubdesk_id, r.group, '', '', [r.coach_of, r.tr_of].filter(Boolean).join(' / '),
+          r.member_name, sportEn(r.sport), r.clubdesk_id, r.group, '', '', [r.coach_of, r.tr_of].filter(Boolean).join(' / '),
         ]),
-        ...view.noTeamGroups.map((r) => ['ClubDesk group with no team', '', '', r.group, '', '', String(r.count)]),
-        ...view.unmapped.map((r) => ['Team with no ClubDesk group configured', r.name, '', r.sport, '', '', '']),
+        ...view.noTeamGroups.map((r) => ['ClubDesk group with no team', '', '', '', r.group, '', '', String(r.count)]),
+        ...view.unmapped.map((r) => ['Team with no ClubDesk group configured', r.name, sportEn(r.sport), '', '', '', '', '']),
       ]
       void tEn
       const blob = await toXlsx(columns, rows)
@@ -248,7 +274,7 @@ export default function ClubdeskGroupCheck() {
                   {view.unmapped.map((r) => (
                     <TableRow key={r.team_id} className="min-h-11">
                       <TableCell className="whitespace-normal break-words font-medium">{r.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{r.sport}</TableCell>
+                      <TableCell><SportBadges sport={r.sport} /></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -266,6 +292,7 @@ export default function ClubdeskGroupCheck() {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead>{t('clubdeskGroupColName')}</TableHead>
+                    <TableHead>{t('clubdeskColSport')}</TableHead>
                     <TableHead className="hidden sm:table-cell">{t('clubdeskGroupColClubdeskId')}</TableHead>
                     <TableHead>{t('clubdeskGroupColTeams')}</TableHead>
                     <TableHead className="hidden md:table-cell">{t('clubdeskGroupColCategory')}</TableHead>
@@ -275,6 +302,7 @@ export default function ClubdeskGroupCheck() {
                   {view.noGroup.map((r) => (
                     <TableRow key={r.member_id} className="min-h-11">
                       <TableCell className="whitespace-normal break-words font-medium">{r.member_name}</TableCell>
+                      <TableCell><SportBadges sport={r.sport} /></TableCell>
                       <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">{r.clubdesk_id}</TableCell>
                       <TableCell className="whitespace-normal break-words">
                         {r.has_team
@@ -313,6 +341,7 @@ export default function ClubdeskGroupCheck() {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead>{t('clubdeskGroupColName')}</TableHead>
+                    <TableHead>{t('clubdeskColSport')}</TableHead>
                     <TableHead>{t('clubdeskGroupColCategory')}</TableHead>
                     <TableHead className="hidden sm:table-cell">{t('clubdeskColLastSeason')}</TableHead>
                     <TableHead className="hidden md:table-cell">{t('clubdeskColRole')}</TableHead>
@@ -327,6 +356,7 @@ export default function ClubdeskGroupCheck() {
                         <TableCell className="whitespace-normal break-words font-medium">
                           {r.member_name} {sevBadge(r.severity)}
                         </TableCell>
+                        <TableCell><SportBadges sport={r.sport} /></TableCell>
                         <TableCell className="whitespace-normal break-words text-muted-foreground">{r.kat}</TableCell>
                         <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">
                           {r.last_season ?? '—'}
@@ -347,6 +377,7 @@ export default function ClubdeskGroupCheck() {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead>{t('clubdeskGroupColName')}</TableHead>
+                    <TableHead>{t('clubdeskColSport')}</TableHead>
                     <TableHead>{t('clubdeskColGroup')}</TableHead>
                     <TableHead className="hidden md:table-cell">{t('clubdeskColRole')}</TableHead>
                   </TableRow>
@@ -362,6 +393,7 @@ export default function ClubdeskGroupCheck() {
                     return (
                       <TableRow key={`${r.member_id}-${r.group}`} className="min-h-11">
                         <TableCell className="whitespace-normal break-words font-medium">{r.member_name}</TableCell>
+                        <TableCell><SportBadges sport={r.sport} /></TableCell>
                         <TableCell className="whitespace-normal break-words">
                           <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{r.group}</span>
                         </TableCell>
@@ -410,6 +442,7 @@ function GroupTable({ rows, t }: { rows: MissingRow[]; t: (k: string) => string 
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           <TableHead>{t('clubdeskGroupColName')}</TableHead>
+          <TableHead>{t('clubdeskColSport')}</TableHead>
           <TableHead className="hidden sm:table-cell">{t('clubdeskGroupColClubdeskId')}</TableHead>
           <TableHead>{t('clubdeskGroupColMissing')}</TableHead>
         </TableRow>
@@ -418,6 +451,7 @@ function GroupTable({ rows, t }: { rows: MissingRow[]; t: (k: string) => string 
         {rows.map((r) => (
           <TableRow key={r.member_id} className="min-h-11">
             <TableCell className="whitespace-normal break-words font-medium">{r.member_name}</TableCell>
+            <TableCell><SportBadges sport={r.sport} /></TableCell>
             <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">{r.clubdesk_id}</TableCell>
             <TableCell className="whitespace-normal break-words">
               {r.groups.map((g) => (

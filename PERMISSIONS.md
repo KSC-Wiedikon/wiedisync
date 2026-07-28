@@ -108,7 +108,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | events | `EVENTS_VISIBLE` | `*` | 033 |
 | event_sessions | none (unfiltered, cross-club) | `*` | 036 — in `MEMBER_READ_ALL`, NOT `EVENTS_VISIBLE`-scoped (drift fixed in doc 2026-06-10). Session rows carry no PII; the parent `events` read IS `EVENTS_VISIBLE`-scoped |
 | events_members | events `EVENTS_VISIBLE` | `*` | 036 |
-| participations | `SAME_TEAM_AS_ME` | `*` | 033 |
+| participations | `SAME_TEAM_AS_ME` | `MEMBER_PARTICIPATION_FIELDS` (all except the `last_*_edited_by` directus_users UUIDs — 2026-05-12 audit #12; incl. `auto_declined_by_game` since migration 261) | 033 |
 | absences | `SAME_TEAM_AS_ME` | `*` | 033 |
 | sv_vm_check | **REVOKED** (no direct Member read) | — | Direct read removed (closes the 2026-05-06 Critical). Members get their own licence via `GET /kscw/sv-licence/me` (joins by `license_nr`, returns 11 safe fields). The absence is intentional — a row filter would trip Directus 11's `CASE WHEN 1` SQL bug. Sport Admin+ retain full CRUD |
 | feedback | `email = $CURRENT_USER.email` | `*` | **043** |

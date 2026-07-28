@@ -971,7 +971,7 @@ async function main() {
     'id', 'member', 'activity_type', 'activity_id', 'status', 'note',
     'guest_count', 'is_staff',
     'session_id', 'waitlisted_at',
-    'auto_declined_by', 'auto_cancelled_by_closure',
+    'auto_declined_by', 'auto_declined_by_game', 'auto_cancelled_by_closure',
     'last_status_edited_at', 'last_note_edited_at', 'last_edited_at',
     'date_created', 'date_updated',
   ]

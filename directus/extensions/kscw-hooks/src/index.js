@@ -29,7 +29,7 @@ import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
-import { sweepGameTrainingShorten } from './game-training-shorten.js'
+import { sweepGameTrainingShorten, sweepGameClashDeclines } from './game-training-shorten.js'
 
 // Frontend URL — env var or auto-detect from Directus PUBLIC_URL
 const FRONTEND_URL = process.env.FRONTEND_URL
@@ -2213,6 +2213,26 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   }
 
+  // Combined game↔training sweep runner: hall-block shorten/cancel + own-team
+  // game-day cancel (sweepGameTrainingShorten), then the per-member two-team
+  // clash declines (sweepGameClashDeclines — after, so trainings the first
+  // sweep just cancelled are skipped). Both are whole-table idempotent, so
+  // it's safe to fire on every games/trainings/hall_slots mutation; sv-sync/
+  // bp-sync/spielplanung write games via raw knex (no items hooks), which the
+  // 02:20 nightly run covers.
+  const runGameTrainingSweeps = async () => {
+    try {
+      await sweepGameTrainingShorten(database, log)
+    } catch (err) {
+      log.error({ msg: `[game-training-shorten] action sweep failed: ${err.message}`, event: 'game_training_shorten_action_failed', stack: err.stack })
+    }
+    try {
+      await sweepGameClashDeclines(database, log)
+    } catch (err) {
+      log.error({ msg: `[game-clash-decline] action sweep failed: ${err.message}`, event: 'game_clash_decline_action_failed', stack: err.stack })
+    }
+  }
+
   // When a training is created via Directus, run the auto-RSVP pass.
   // (Slot-cascade bulk inserts call applyTrainingAutoRSVP directly — see
   // the hall_slots.items.create / .update actions and the nightly cron.)
@@ -2227,6 +2247,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } catch (err) {
       log.error({ msg: `[slot-cascade] clear-skip on training create failed: ${err.message}`, event: 'training_skip_clear_failed', training: key, stack: err.stack })
     }
+    // A manually added training on a game day is subject to the same rules —
+    // own-team cancel + clash declines — without waiting for the nightly run.
+    await runGameTrainingSweeps()
   })
 
   action('games.items.create', async ({ key }) => {
@@ -2697,6 +2720,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       } catch (err) {
         log.error({ msg: `[absence-auto-decline] Training update: ${err.message}`, event: 'absence_auto_decline_training_update', keys, stack: err.stack })
       }
+      // A moved training may enter/leave a game day — re-run the game sweeps
+      // (own-team cancel + clash declines) instead of waiting for the nightly.
+      await runGameTrainingSweeps()
     }
 
     // Backfill auto-confirm when auto_confirm_rsvp flips on (or any future-dated
@@ -5251,6 +5277,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         log.error({ msg: `[slot-cascade] update cascade failed: ${err.message}`, event: 'slot_cascade_update_failed', slot: id, stack: err.stack })
       }
     }
+    // Cascaded trainings may land on game days — apply the game sweeps now.
+    await runGameTrainingSweeps()
   })
 
   action('hall_slots.items.create', async ({ key }) => {
@@ -5260,6 +5288,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } catch (err) {
       log.error({ msg: `[slot-cascade] initial generation failed: ${err.message}`, event: 'slot_cascade_create_failed', slot: key, stack: err.stack })
     }
+    // Generated trainings may land on game days — apply the game sweeps now.
+    await runGameTrainingSweeps()
   })
 
   // Slot deletion → wipe future trainings derived from it. Historic trainings
@@ -5408,10 +5438,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   schedule('20 2 * * *', async () => {
     try {
       const res = await sweepGameTrainingShorten(database, log)
-      log.info({ msg: `[game-training-shorten] nightly sweep: ${res.shortened} shortened, ${res.restored} restored`, event: 'game_training_shorten_cron_done', ...res })
+      log.info({ msg: `[game-training-shorten] nightly sweep: ${res.shortened} shortened, ${res.restored} restored, ${res.ownCancelled} own-team cancelled`, event: 'game_training_shorten_cron_done', ...res })
     } catch (err) {
       log.error({ msg: `[game-training-shorten] nightly sweep failed: ${err.message}`, event: 'game_training_shorten_cron_failed', stack: err.stack })
       logCronError('game_training_shorten', err)
+    }
+    try {
+      const res = await sweepGameClashDeclines(database, log)
+      log.info({ msg: `[game-clash-decline] nightly sweep: ${res.overridden + res.seeded} declined, ${res.deleted + res.reverted} unwound`, event: 'game_clash_decline_cron_done', ...res })
+    } catch (err) {
+      log.error({ msg: `[game-clash-decline] nightly sweep failed: ${err.message}`, event: 'game_clash_decline_cron_failed', stack: err.stack })
+      logCronError('game_clash_decline', err)
     }
   })
 
@@ -5521,16 +5558,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
-  const runGameTrainingShorten = async () => {
-    try {
-      await sweepGameTrainingShorten(database, log)
-    } catch (err) {
-      log.error({ msg: `[game-training-shorten] action sweep failed: ${err.message}`, event: 'game_training_shorten_action_failed', stack: err.stack })
-    }
-  }
-  action('games.items.create', runGameTrainingShorten)
-  action('games.items.update', runGameTrainingShorten)
-  action('games.items.delete', runGameTrainingShorten)
+  action('games.items.create', runGameTrainingSweeps)
+  action('games.items.update', runGameTrainingSweeps)
+  action('games.items.delete', runGameTrainingSweeps)
+  // (runGameTrainingSweeps is defined near the trainings.items.create action
+  // — it is also re-run whenever trainings appear or move.)
 
   // ── Fines (migration 069) — escalation engine + notifications ──
   //
