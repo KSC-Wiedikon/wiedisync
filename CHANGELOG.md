@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.53.0 — 2026-07-28
+
+### New: complete your profile to use the app
+- **The app now asks for your core contact details before you can continue**: phone number, birthdate, address and nationality. The club is required to keep these in the member register, and until now coaches and staff were never asked for them at all. If your profile already has them (most members), you won't notice anything.
+- **Coaches and staff without a playing role are now recorded in the "Gratis" fee category automatically**, so they appear correctly in the club register instead of with no category at all.
+
 ## v1.52.0 — 2026-07-28
 
 ### Improved: game days no longer show a training your team can't attend

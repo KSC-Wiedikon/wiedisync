@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.52.0'
+const APP_VERSION = '1.53.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.53.0',
+    date: '28.07.2026',
+    sections: [
+      {
+        title: 'New: complete your profile to use the app',
+        items: [
+          "The app now asks for your core contact details before you can continue: phone number, birthdate, address and nationality. The club is required to keep these in the member register, and until now coaches and staff were never asked for them at all. If your profile already has them (most members), you won't notice anything.",
+          'Coaches and staff without a playing role are now recorded in the "Gratis" fee category automatically, so they appear correctly in the club register.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.52.0',
     date: '28.07.2026',
