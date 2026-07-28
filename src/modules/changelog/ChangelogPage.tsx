@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.53.0'
+const APP_VERSION = '1.54.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,31 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.54.0',
+    date: '28.07.2026',
+    sections: [
+      {
+        title: 'New: identity documents are watermarked when shown',
+        items: [
+          'Every identity document displayed before a game now carries a visible stamp burned into the image itself — club, purpose ("Spielkontrolle / match check"), who opened it and when. A screenshot keeps the stamp, so the document cannot pass as a clean copy anywhere else, and any leaked image is traceable to the audit-logged viewing.',
+        ],
+      },
+      {
+        title: 'Improved: showing IDs before a game',
+        items: [
+          '"Show IDs" now downloads the documents by itself if you haven\'t pre-downloaded them. The separate "Download for offline" button remains for preparing before you travel — halls often have no signal.',
+          'If you open the dialog before the 45-minute window, the Show button now unlocks itself the moment the window opens (and closes itself at kickoff) — no more closing and reopening.',
+        ],
+      },
+      {
+        title: 'Changed: your identity document is managed in Edit profile',
+        items: [
+          'The encrypted identity-document section moved from the profile view to Edit profile, next to the other things you can change — and it now loads in one piece instead of flickering through loading states.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.53.0',
     date: '28.07.2026',
