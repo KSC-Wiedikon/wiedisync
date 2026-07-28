@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-28T13:16:05.791Z
+-- Generated:   2026-07-28T16:26:32.158Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict XOK3AbLNNmp8JYBm82zfhpNFk2WP0uJ47ovlyqd8hbNgMhmz9Ns7BzTcsfRgZFz
+\restrict 7OFeinebRlFFO0vaMmhmtWq4RHvxutzfRGcrW4C9xapwqWIAai51Mpmj5LqkzYG
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -6337,7 +6337,7 @@ CREATE TABLE public.scheduling_emails (
     assigned_opponent integer,
     account character varying(16) DEFAULT 'volleyball'::character varying NOT NULL,
     group_reposted_at timestamp with time zone,
-    CONSTRAINT scheduling_emails_account_check CHECK (((account)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying, 'admin'::character varying])::text[]))),
+    CONSTRAINT scheduling_emails_account_check CHECK (((account)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying, 'admin'::character varying, 'vis_transfers'::character varying])::text[]))),
     CONSTRAINT scheduling_emails_direction_check CHECK (((direction)::text = ANY (ARRAY[('in'::character varying)::text, ('out'::character varying)::text])))
 );
 
@@ -6381,7 +6381,7 @@ COMMENT ON COLUMN public.scheduling_emails.assigned_opponent IS 'Manual override
 -- Name: COLUMN scheduling_emails.account; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.scheduling_emails.account IS 'Mailbox partition (migrations 144/222): volleyball|basketball = the Spielplanung mailboxes at *@spielplanung.kscw.ch; admin = the club-admin mailbox at admin@wiedisync.kscw.ch. Deduped per-account by UNIQUE (account, message_id). NB this is an account key, not a sport — the name predates the admin mailbox.';
+COMMENT ON COLUMN public.scheduling_emails.account IS 'Mailbox partition (migrations 144/222/267): volleyball|basketball = the Spielplanung mailboxes at *@spielplanung.kscw.ch; admin = the club-admin mailbox at admin@wiedisync.kscw.ch; vis_transfers = the VIS transfer-letters mailbox at vis_transfers@mail.kscw.ch. Deduped per-account by UNIQUE (account, message_id). NB this is an account key, not a sport — the name predates the admin mailbox.';
 
 
 --
@@ -13298,5 +13298,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict XOK3AbLNNmp8JYBm82zfhpNFk2WP0uJ47ovlyqd8hbNgMhmz9Ns7BzTcsfRgZFz
+\unrestrict 7OFeinebRlFFO0vaMmhmtWq4RHvxutzfRGcrW4C9xapwqWIAai51Mpmj5LqkzYG
 

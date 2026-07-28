@@ -194,19 +194,31 @@ export default function IdentityDocumentSection() {
     }
   }
 
+  const header = (
+    <div className="flex items-start gap-3">
+      <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+      <div className="min-w-0">
+        <h3 className="text-sm font-semibold text-foreground">{t('idTitle')}</h3>
+        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{t('idExplainer')}</p>
+      </div>
+    </div>
+  )
+
+  // The card shell renders in EVERY state — swapping a bare spinner for the card
+  // (and, below, the upload branch for the stored branch) made the section pop
+  // and reflow in stages as each fetch landed.
   if (state === 'loading') {
-    return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+    return (
+      <div className="space-y-4 rounded-lg border bg-card p-4">
+        {header}
+        <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-4 rounded-lg border bg-card p-4">
-      <div className="flex items-start gap-3">
-        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-foreground">{t('idTitle')}</h3>
-          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{t('idExplainer')}</p>
-        </div>
-      </div>
+      {header}
 
       {(state === 'none' || state === 'locked') && (
         <div className="space-y-2">
@@ -233,7 +245,15 @@ export default function IdentityDocumentSection() {
         </div>
       )}
 
-      {state === 'unlocked' && (
+      {/* Until the first document read resolves, hold a spinner — rendering the
+          upload branch and then flipping to "stored" a beat later reads as a
+          glitch, and for a member who HAS a document it briefly offers the
+          wrong action. */}
+      {state === 'unlocked' && !checked && (
+        <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+      )}
+
+      {state === 'unlocked' && checked && (
         <div className="space-y-3">
           {doc ? (
             <>

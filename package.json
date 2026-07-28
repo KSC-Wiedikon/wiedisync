@@ -1,11 +1,12 @@
 {
   "name": "wiedisync",
   "private": true,
-  "version": "1.53.0",
+  "version": "1.54.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:prod": "VITE_PROD_DATA=1 vite",
+    "dev:login": "VITE_DEV_PROXY=1 vite",
     "build": "tsc -b && vite build",
     "build:scheduling": "tsc -b && VITE_APP_TARGET=scheduling vite build",
     "lint": "eslint .",

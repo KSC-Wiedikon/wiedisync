@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import ProfileEditForm from './ProfileEditForm'
+import IdentityDocumentSection from './IdentityDocumentSection'
 
 /**
  * Standalone `/profile/edit` subpage — the regular "Edit profile" flow, moved
@@ -38,7 +39,10 @@ export default function ProfileEditPage() {
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('editProfile')}</h1>
       </div>
 
-      <ProfileEditForm onSaved={goBack} onCancel={goBack} />
+      {/* Identity document (E2EE) rides the beforeActions slot so it sits ABOVE
+          the Cancel/Save row — appended after the form it landed below the
+          buttons, which read as outside the page (moved 2026-07-28). */}
+      <ProfileEditForm onSaved={goBack} onCancel={goBack} beforeActions={<IdentityDocumentSection />} />
     </div>
   )
 }
