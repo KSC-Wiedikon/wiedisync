@@ -266,7 +266,14 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                   <CloudDownload className="mr-1.5 h-4 w-4" aria-hidden="true" />
                   {t('idsPreload')}
                 </Button>
-                <Button onClick={() => void reveal()} loading={busy} disabled={!canShow || cachedCount === 0}>
+                {/* With nothing cached, Show downloads first — the separate preload
+                    button exists for the no-signal-in-the-hall case, but a coach
+                    standing at the table WITH signal shouldn't be dead-ended by it. */}
+                <Button
+                  onClick={() => void (async () => { if (cachedCount === 0) await preload(); await reveal() })()}
+                  loading={busy}
+                  disabled={!canShow}
+                >
                   {t('idsShow')}
                 </Button>
               </div>
