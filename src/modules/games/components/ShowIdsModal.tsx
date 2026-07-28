@@ -8,7 +8,8 @@ import { API_URL, kscwApi } from '../../../lib/api'
 import { decryptDocument, unwrapContentKey, type Envelope } from '../../../lib/e2ee'
 import { cacheDocument, clearCachedDocuments, loadCachedDocuments } from '../../../lib/e2eeStore'
 import { useIdentityKeys } from '../../../hooks/useIdentityKeys'
-import { formatTimeZurich, idWindowState } from '../../../utils/dateHelpers'
+import { useAuth } from '../../../hooks/useAuth'
+import { formatDateZurich, formatTimeZurich, idWindowState } from '../../../utils/dateHelpers'
 
 /** The document is only DISPLAYED in this window. See the honesty note below. */
 const SHOW_BEFORE_MS = 45 * 60 * 1000
@@ -42,6 +43,64 @@ interface Card {
   is_libero: boolean
   url: string | null
   missing?: boolean
+  /** Watermark baked into the pixels; false → the CSS overlay carries it instead. */
+  burned?: boolean
+}
+
+/**
+ * Burn a use-restriction watermark INTO the decrypted image, on a canvas, before
+ * anything reaches the screen. A screenshot (or a saved blob) then carries
+ * "club · purpose · who · when" in the pixels — it spoils reuse of the document
+ * elsewhere and ties any leaked copy back to the audit-logged open. A CSS
+ * overlay would look identical but dies the moment someone opens the blob URL
+ * directly. Returns null for formats a canvas cannot draw (e.g. PDF) — the
+ * caller falls back to the plain blob plus a CSS overlay, so the label is
+ * always at least visually present.
+ */
+async function watermarkedUrl(plain: Uint8Array, mime: string, label: string): Promise<string | null> {
+  let srcUrl: string | null = null
+  try {
+    srcUrl = URL.createObjectURL(new Blob([plain as BlobPart], { type: mime }))
+    const img = new Image()
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = () => reject(new Error('not drawable'))
+      img.src = srcUrl as string
+    })
+    const w = img.naturalWidth
+    const h = img.naturalHeight
+    if (!w || !h) return null
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(img, 0, 0)
+
+    // Diagonal, repeated, light-on-dark-stroked — readable on any document
+    // without making the document itself unreadable to the referee.
+    const fs = Math.max(16, Math.round(Math.max(w, h) / 24))
+    ctx.translate(w / 2, h / 2)
+    ctx.rotate(-Math.PI / 9)
+    ctx.font = `bold ${fs}px sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.lineWidth = Math.max(1, fs / 12)
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)'
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'
+    const diag = Math.hypot(w, h)
+    for (let y = -diag / 2; y <= diag / 2; y += fs * 3.5) {
+      ctx.strokeText(label, 0, y, diag)
+      ctx.fillText(label, 0, y, diag)
+    }
+
+    const out = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+    return out ? URL.createObjectURL(out) : null
+  } catch {
+    return null
+  } finally {
+    if (srcUrl) URL.revokeObjectURL(srcUrl)
+  }
 }
 
 interface ShowIdsModalProps {
@@ -68,6 +127,7 @@ interface ShowIdsModalProps {
 export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModalProps) {
   const { t } = useTranslation('games')
   const { state, privateKey, unlock } = useIdentityKeys()
+  const { realUser } = useAuth()
 
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -175,13 +235,21 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
         try {
           const key = await unwrapContentKey(c.envelope, privateKey)
           const plain = await decryptDocument(new Uint8Array(c.ciphertext), c.iv, key)
+          // Not localized on purpose: a screenshot travels, and the label must
+          // stay legible wherever it lands.
+          const viewer = [realUser?.first_name, realUser?.last_name].filter(Boolean).join(' ')
+          const nowIso = new Date().toISOString()
+          const label = ['KSC Wiedikon', 'Spielkontrolle / match check', viewer,
+            `${formatDateZurich(nowIso)} ${formatTimeZurich(nowIso)}`].filter(Boolean).join(' · ')
+          const burned = await watermarkedUrl(plain, c.mime ?? 'image/jpeg', label)
           built.push({
             member: r.member,
             number: r.number,
             name,
             is_captain: r.is_captain,
             is_libero: r.is_libero,
-            url: URL.createObjectURL(new Blob([plain as BlobPart], { type: c.mime ?? 'image/jpeg' })),
+            url: burned ?? URL.createObjectURL(new Blob([plain as BlobPart], { type: c.mime ?? 'image/jpeg' })),
+            burned: burned != null,
           })
         } catch {
           // A dead envelope (the coach re-keyed since it was wrapped) fails here rather
@@ -196,7 +264,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
     } finally {
       setBusy(false)
     }
-  }, [gameId, roster, privateKey, t])
+  }, [gameId, roster, privateKey, t, realUser?.first_name, realUser?.last_name])
 
   // Every decrypted document is a live blob URL. Revoke them when the deck is replaced and
   // when the modal closes — an ID still reachable in the page afterwards is exactly what
@@ -307,11 +375,25 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                 </div>
               </div>
 
-              <img
-                src={card.url ?? ''}
-                alt={card.name}
-                className="max-h-[55vh] w-full rounded-lg border bg-background object-contain"
-              />
+              <div className="relative">
+                <img
+                  src={card.url ?? ''}
+                  alt={card.name}
+                  className="max-h-[55vh] w-full rounded-lg border bg-background object-contain"
+                />
+                {/* Fallback overlay for formats the canvas could not draw (PDF):
+                    weaker than the burned-in mark, but the label is never absent. */}
+                {!card.burned && (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 grid select-none place-items-center overflow-hidden"
+                  >
+                    <span className="-rotate-12 whitespace-nowrap text-lg font-bold uppercase tracking-widest text-foreground/30 [text-shadow:0_0_4px_rgba(0,0,0,0.4)]">
+                      KSC Wiedikon · Spielkontrolle
+                    </span>
+                  </div>
+                )}
+              </div>
 
               <div className="flex items-center gap-3">
                 <Button variant="outline" size="icon" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0} aria-label={t('idsPrev')}>
