@@ -261,6 +261,7 @@ export default {
   ibanHint: 'Il tuo conto bancario per i rimborsi. Le finanze hanno bisogno del tuo IBAN più aggiornato.',
   invalidIban: 'Inserisci un IBAN valido',
   requiredProfileFields: 'Nome, cognome ed e-mail sono obbligatori',
+  coreContactRequired: 'Inserisci telefono, data di nascita, indirizzo e nazionalità – il registro dei soci ne ha bisogno',
   invalidEmail: 'Inserire un indirizzo e-mail valido',
 
   // Documento d'identità (cifrato end-to-end)

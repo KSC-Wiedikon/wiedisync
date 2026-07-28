@@ -263,6 +263,7 @@ export default {
   ibanHint: 'Dein Bankkonto für Rückerstattungen. Die Finanzen brauchen deine aktuellste IBAN.',
   invalidIban: 'Bitte gib eine gültige IBAN ein',
   requiredProfileFields: 'Vorname, Nachname und E-Mail sind erforderlich',
+  coreContactRequired: 'Bitte Telefon, Geburtsdatum, Adresse und Nationalität ausfüllen – das Mitgliederregister benötigt diese Angaben',
   invalidEmail: 'Bitte eine gültige E-Mail-Adresse eingeben',
   // Notification preferences (migration 156)
   emailNotifyTitle: 'E-Mail-Benachrichtigungen',
