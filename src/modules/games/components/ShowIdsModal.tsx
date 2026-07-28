@@ -128,6 +128,10 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   const { t } = useTranslation('games')
   const { state, privateKey, unlock } = useIdentityKeys()
   const { realUser } = useAuth()
+  // Plain locals (not `realUser?.x` inside the callback): optional-chained
+  // members in a dep array make the React Compiler bail on the memoization.
+  const viewerFirstName = realUser?.first_name ?? ''
+  const viewerLastName = realUser?.last_name ?? ''
 
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -237,7 +241,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
           const plain = await decryptDocument(new Uint8Array(c.ciphertext), c.iv, key)
           // Not localized on purpose: a screenshot travels, and the label must
           // stay legible wherever it lands.
-          const viewer = [realUser?.first_name, realUser?.last_name].filter(Boolean).join(' ')
+          const viewer = [viewerFirstName, viewerLastName].filter(Boolean).join(' ')
           const nowIso = new Date().toISOString()
           const label = ['KSC Wiedikon', 'Spielkontrolle / match check', viewer,
             `${formatDateZurich(nowIso)} ${formatTimeZurich(nowIso)}`].filter(Boolean).join(' · ')
@@ -264,7 +268,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
     } finally {
       setBusy(false)
     }
-  }, [gameId, roster, privateKey, t, realUser?.first_name, realUser?.last_name])
+  }, [gameId, roster, privateKey, t, viewerFirstName, viewerLastName])
 
   // Every decrypted document is a live blob URL. Revoke them when the deck is replaced and
   // when the modal closes — an ID still reachable in the page afterwards is exactly what
