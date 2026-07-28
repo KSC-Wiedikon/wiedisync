@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import ProfileEditForm from './ProfileEditForm'
+import IdentityDocumentSection from './IdentityDocumentSection'
 
 /**
  * Standalone `/profile/edit` subpage — the regular "Edit profile" flow, moved
@@ -39,6 +40,10 @@ export default function ProfileEditPage() {
       </div>
 
       <ProfileEditForm onSaved={goBack} onCancel={goBack} />
+
+      {/* Identity document (E2EE) — lives with the other "change my data" actions
+          rather than on the read-only profile view (moved 2026-07-28). */}
+      <IdentityDocumentSection />
     </div>
   )
 }
