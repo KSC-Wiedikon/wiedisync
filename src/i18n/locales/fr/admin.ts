@@ -555,6 +555,7 @@ export default {
   trMemberCount_other: '{{count}} membres',
   trUnknownFederation: 'Fédération inconnue',
   trColMember: 'Membre',
+  trColTeams: 'Équipes',
   trColNationality: 'Nationalité',
   trColLicence: 'Licence',
   trColLicenceNr: 'N° de licence',
