@@ -146,9 +146,10 @@ describe('GET /kscw/ical?source=events', () => {
  * showing up in members' calendar apps.
  *
  * The floor must agree with getCurrentSeason() + getSeasonDateRange() in
- * src/utils/dateHelpers.ts (Jun 1 cutover, season runs Sep→Aug), NOT with the
- * Postgres kscw_current_season_start(), which still uses the older Sep 1
- * cutover and would resolve to last season across the whole summer.
+ * src/utils/dateHelpers.ts (Jun 1 cutover, season runs Sep→Aug) — and, since
+ * migration 268, with the Postgres kscw_current_season_start() too. Those two
+ * disagreed by a whole season across Jun–Aug before 268; the cases below are
+ * the boundaries where that divergence used to show up.
  */
 describe('ical-feed season floor', () => {
   it('Jan–May belongs to the season that started last September', () => {

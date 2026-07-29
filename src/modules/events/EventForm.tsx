@@ -18,12 +18,14 @@ import { currentLocale, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLoca
 import type { Event, EventSession, Team } from '../../types'
 import RoleChipPicker from '@/components/RoleChipPicker'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
-import { createRecord, deleteRecord, updateRecord, kscwApi } from '../../lib/api'
+import { createRecord, deleteRecord, updateRecord, kscwApi, m2mUpdatePayload } from '../../lib/api'
 
 /**
  * Directus M2M aliases come back either as bare IDs or as expanded junction
  * objects (`{ teams_id: { id, … } }` / `{ members_id: { id, … } }`), depending on
  * how the record was fetched — the `Event` type only models the bare-ID shape.
+ * NB: a junction object's own `id` is the JUNCTION row PK, not the team/member
+ * ID — only read it as a last-resort fallback (EventsPage requests both).
  */
 type TeamRef = string | number | { teams_id?: string | number | { id: string | number } | null; id?: string | number | null }
 type MemberRef = string | number | { members_id?: string | number | { id: string | number } | null; id?: string | number | null }
@@ -359,7 +361,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       all_day: allDay,
       location,
       description,
-      teams: selectedTeams.map((id) => ({ teams_id: id })),
+      teams: m2mUpdatePayload('teams_id', selectedTeams, event?.teams),
       created_by: user?.id,
       respond_by: respondBy
         ? toUtcIsoFromDatetimeLocal(`${respondBy}T${respondByTime || '23:59'}`)
@@ -371,7 +373,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       participation_mode: effectiveMode,
       features_enabled: { position_preferences: enablePositions },
       invited_roles: invitedRoles.length > 0 ? invitedRoles : null,
-      invited_members: invitedMembers.map((id) => ({ members_id: id })),
+      invited_members: m2mUpdatePayload('members_id', invitedMembers, event?.invited_members),
       send_email_invite: sendEmailInvite,
       js_relevant: jsRelevant,
       js_activity_type: jsRelevant ? jsActivityType : null,

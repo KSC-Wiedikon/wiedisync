@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-28T16:26:32.158Z
+-- Generated:   2026-07-29T14:01:53.401Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 7OFeinebRlFFO0vaMmhmtWq4RHvxutzfRGcrW4C9xapwqWIAai51Mpmj5LqkzYG
+\restrict Lf8DJ0dqzKlFEXiGngWiatht4HjqIY84jgr5nlhrDhCyVcMNKWJ9DHNV3hoLjhJ
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -573,13 +573,11 @@ DECLARE
   v_year int := EXTRACT(YEAR FROM v_now)::int;
   v_month int := EXTRACT(MONTH FROM v_now)::int;
 BEGIN
-  -- JS getMonth() is 0-indexed (Aug=7, Sep=8). PG EXTRACT MONTH is 1-indexed.
-  -- JS check: month < 8 (Jan–Aug) → previous Sep.
-  -- PG equivalent: month <= 8 (Jan–Aug) → previous Sep. Note Aug is included
-  -- in "previous season" both ways: JS month 7 (Aug) < 8 = true; PG month 8
-  -- (Aug) <= 8 = true. Sep flips: JS month 8 (Sep) < 8 = false; PG month 9
-  -- (Sep) <= 8 = false. Aligned.
-  IF v_month <= 8 THEN
+  -- JS getMonth() is 0-indexed (May=4, Jun=5); PG EXTRACT MONTH is 1-indexed.
+  -- JS check: month < 5 (Jan–May) → previous Sep.
+  -- PG equivalent: month <= 5 (Jan–May) → previous Sep. Jun flips both ways:
+  -- JS month 5 (Jun) < 5 = false; PG month 6 (Jun) <= 5 = false. Aligned.
+  IF v_month <= 5 THEN
     RETURN make_date(v_year - 1, 9, 1);
   ELSE
     RETURN make_date(v_year, 9, 1);
@@ -592,7 +590,7 @@ $$;
 -- Name: FUNCTION kscw_current_season_start(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.kscw_current_season_start() IS 'Sep 1 of the current season (Sep–Aug). Mirrors getCurrentSeason() in src/utils/dateHelpers.ts. STABLE (not IMMUTABLE — depends on now()); do not use in indexes or generated columns.';
+COMMENT ON FUNCTION public.kscw_current_season_start() IS 'Sep 1 of the current season, where "current" flips on the Jun 1 cutover (migration 268). Mirrors getCurrentSeason() in src/utils/dateHelpers.ts — keep the two in lockstep. NOTE between Jun 1 and Aug 31 this returns a date in the FUTURE (the season has rolled over but its fixture calendar has not started); callers that need a window START must not anchor on it naked — see kscw_fine_window_start. STABLE (not IMMUTABLE — depends on now()); do not use in indexes or generated columns.';
 
 
 --
@@ -613,7 +611,8 @@ BEGIN
     WHEN 'rolling_90d' THEN
       RETURN p_ts - interval '90 days';
     WHEN 'season' THEN
-      RETURN (kscw_current_season_start()::timestamp AT TIME ZONE 'Europe/Zurich');
+      RETURN (((kscw_current_season_start() - interval '3 months')::date)::timestamp
+              AT TIME ZONE 'Europe/Zurich');
     WHEN 'never' THEN
       RETURN 'epoch'::timestamptz;
     ELSE
@@ -628,7 +627,7 @@ $$;
 -- Name: FUNCTION kscw_fine_window_start(p_window text, p_ts timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.kscw_fine_window_start(p_window text, p_ts timestamp with time zone) IS 'Start timestamp of the offense-counter window for a fine_rules.reset_window value. calendar_month/season anchor to Europe/Zurich wall-clock (1st of month / Sep 1); rolling windows subtract N days from now.';
+COMMENT ON FUNCTION public.kscw_fine_window_start(p_window text, p_ts timestamp with time zone) IS 'Start timestamp of the offense-counter window for a fine_rules.reset_window value. calendar_month anchors to the 1st of the month; season anchors to the Jun 1 season rollover (migration 268 — NOT Sep 1, which is in the future for a third of the season and would drop every summer offense); rolling windows subtract N days from now. All wall-clock anchors are Europe/Zurich.';
 
 
 --
@@ -13298,5 +13297,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 7OFeinebRlFFO0vaMmhmtWq4RHvxutzfRGcrW4C9xapwqWIAai51Mpmj5LqkzYG
+\unrestrict Lf8DJ0dqzKlFEXiGngWiatht4HjqIY84jgr5nlhrDhCyVcMNKWJ9DHNV3hoLjhJ
 

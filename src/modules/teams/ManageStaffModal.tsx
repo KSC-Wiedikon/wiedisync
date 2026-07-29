@@ -7,7 +7,7 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import { Button } from '../../components/ui/button'
 import { getFileUrl } from '../../utils/fileUrl'
 import { logActivity } from '../../utils/logActivity'
-import { fetchAllItems, updateRecord } from '../../lib/api'
+import { fetchAllItems, updateRecord, m2mUpdatePayload } from '../../lib/api'
 import { flattenMemberIds, memberFirstName } from '../../utils/relations'
 import type { Team, Member } from '../../types'
 
@@ -62,10 +62,16 @@ export default function ManageStaffModal({ open, onClose, team, onTeamUpdate }: 
   }
 
   async function setRole(role: StaffRole, nextIds: string[]) {
-    const junctionPayload = nextIds.map((id) => ({ members_id: id }))
-    await updateRecord('teams', team.id, { [role]: junctionPayload })
+    // Re-send each surviving link with its junction row PK, otherwise Directus
+    // re-inserts it and trips `teams_coaches_pair_uq` (migration 245).
+    const junctionPayload = m2mUpdatePayload('members_id', nextIds, team[role])
+    // Read the saved junctions back so a second toggle in the same session has
+    // PKs for the links this call just created.
+    const saved = await updateRecord<Team>('teams', team.id, { [role]: junctionPayload }, {
+      fields: ['id', `${role}.id`, `${role}.members_id`],
+    })
     logActivity('update', 'teams', team.id, { [role]: nextIds })
-    onTeamUpdate({ [role]: junctionPayload } as Partial<Team>)
+    onTeamUpdate({ [role]: saved[role] ?? junctionPayload } as Partial<Team>)
   }
 
   async function handleAdd(role: StaffRole, memberId: string) {
