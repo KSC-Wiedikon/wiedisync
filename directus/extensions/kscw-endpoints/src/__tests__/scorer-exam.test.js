@@ -295,8 +295,11 @@ describe('notifyExamUpload', () => {
     expect(msg.html).toContain('337646')
     // Swiss dot format everywhere, never 2026-08-15 (CLAUDE.md time &amp; date rule).
     expect(msg.html).toContain('15.08.2026')
-    // Deep-links straight at the course that needs reviewing.
-    expect(msg.html).toContain('tab=scorer_courses&amp;course=7')
+    // Deep-links straight at the course that needs reviewing — and at kscw.ch directly,
+    // NOT via kscw-website.pages.dev, whose 302 to kscw.ch is a transitional redirect
+    // already past its keep-until date. Routing these mails through it would break them
+    // the day it is removed.
+    expect(msg.html).toContain('https://kscw.ch/admin/?tab=scorer_courses&amp;course=7')
   })
 
   it('still sends when OpnForm is down — an unnamed upload is worth knowing about', async () => {
