@@ -56,6 +56,7 @@ export default {
   // Empty state
   noGames: 'Keine Spiele',
   noGamesDescription: 'Keine Spiele für den ausgewählten Filter gefunden.',
+  noPastGamesThisSeason: 'Keine vergangenen Spiele in dieser Saison',
 
   // Error toasts
   errorUpdate: 'Die Zuteilung konnte nicht aktualisiert werden.',

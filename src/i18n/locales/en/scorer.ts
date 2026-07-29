@@ -56,6 +56,7 @@ export default {
   // Empty state
   noGames: 'No games',
   noGamesDescription: 'No games found for the selected filter.',
+  noPastGamesThisSeason: 'No past games this season',
 
   // Error toasts
   errorUpdate: 'Could not update the assignment.',

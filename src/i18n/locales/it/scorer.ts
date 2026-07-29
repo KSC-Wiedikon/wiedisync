@@ -56,6 +56,7 @@ export default {
   // Empty state
   noGames: 'Nessuna partita',
   noGamesDescription: 'Nessuna partita trovata per il filtro selezionato.',
+  noPastGamesThisSeason: 'Nessuna partita passata in questa stagione',
 
   // Error toasts
   errorUpdate: 'Impossibile aggiornare l\'assegnazione.',
