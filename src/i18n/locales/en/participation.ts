@@ -60,6 +60,8 @@ export default {
   teamsCount: '{{count}} teams',
   filterByTeam: 'Filter by team',
   clearStatus: 'Clear',
+  allDays: 'All days',
+  editAllDays: 'Edit all days',
   positions: 'Position preferences',
   positionRequired: 'Select position...',
   positionsRequiredError: 'All 3 positions are required',

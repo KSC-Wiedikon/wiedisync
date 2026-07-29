@@ -57,6 +57,8 @@ export default {
   teamsCount: '{{count}} squadre',
   filterByTeam: 'Filtra per squadra',
   clearStatus: 'Cancella',
+  allDays: 'Tutti i giorni',
+  editAllDays: 'Modifica tutti i giorni',
   positions: 'Preferenze di ruolo',
   positionRequired: 'Scegli un ruolo...',
   positionsRequiredError: 'Tutti e 3 i ruoli sono obbligatori',

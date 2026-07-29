@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.54.2'
+const APP_VERSION = '1.55.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.55.0',
+    date: '29.07.2026',
+    sections: [
+      {
+        title: 'New: answer for every day at once on a multi-day event',
+        items: [
+          'The "Overall" tab of a multi-day event\'s participation list is now editable. Setting a member to Yes / Maybe / No there applies it to every day at once, instead of opening each day\'s tab and repeating the same answer. Days that already disagree are brought in line; a member whose days genuinely differ starts from a blank dropdown rather than a guess, and their per-day notes are left alone unless you actually type one.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.54.2',
     date: '29.07.2026',

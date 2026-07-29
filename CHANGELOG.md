@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.55.0 — 2026-07-29
+
+### New: answer for every day at once on a multi-day event
+- **The "Overall" tab of a multi-day event's participation list is now editable.** Setting a member to Yes / Maybe / No there applies it to **every day at once**, instead of opening each day's tab and repeating the same answer. Days that already disagree are brought in line; a member whose days genuinely differ starts from a blank dropdown rather than a guess, and their per-day notes are left alone unless you actually type one.
+
 ## v1.54.2 — 2026-07-29
 
 ### Fixed: day-by-day answers on a multi-day event didn't stick

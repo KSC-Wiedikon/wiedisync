@@ -23,6 +23,8 @@ import { useMutation } from '../hooks/useMutation'
 import { useCollection } from '../lib/query'
 import { fetchAllItems } from '../lib/api'
 import { getFileUrl } from '../utils/fileUrl'
+import { resolveSessionTargets, statusWrites, noteWrites, uniformValue, allConfirmed } from '../utils/participationSessions'
+import type { SessionTarget } from '../utils/participationSessions'
 import type { Participation, Absence, Member, Team, EventSession } from '../types'
 import { asObj, flattenMemberIds, disambiguateFirstNames, memberFirstName } from '../utils/relations'
 import { currentLocale, formatDate, getDeadlineDate, formatRelativeTime, formatDateTimeCompact } from '../utils/dateHelpers'
@@ -448,9 +450,8 @@ export default function ParticipationRosterModal({
   }, [participations])
 
   // Session-mode events (per_day / per_session) keep ONE row per (member,
-  // session) — `session_id` is part of the row's identity, and the edit
-  // controls below only ever render on a session tab (the Overall tab shows a
-  // read-only count badge). So every staff write must be scoped to that tab:
+  // session) — `session_id` is part of the row's identity — so every staff
+  // write has to say which day it means:
   //
   //   • CREATE must carry `session_id`. Without it Directus writes a
   //     session-less row that no per-day view can see (they all key off
@@ -463,11 +464,23 @@ export default function ParticipationRosterModal({
   //     `.find` would grab Saturday's row while the coach is editing Friday and
   //     silently flip the wrong day.
   const activeSessionId = hasSessionMode && activeSessionTab ? activeSessionTab : null
-  const findParticipation = useCallback(
-    (memberId: string) => participations.find(p =>
-      p.member === memberId
-      && (!activeSessionId || String(p.session_id ?? '') === activeSessionId)),
-    [participations, activeSessionId],
+  const isOverallSessionTab = !!hasSessionMode && activeSessionTab === null
+
+  // The rows a single edit writes to. On a day tab (or a non-session activity)
+  // that's exactly one row; on the Overall tab of a per-day event it's every
+  // day at once, so a leader doesn't have to walk the tabs repeating the same
+  // answer. Each day still gets its OWN row — that is the storage model — this
+  // only fans the write out. Same shape as `setAll` in EventCard's session
+  // control. `participations` is `allParticipations` on the Overall tab, so the
+  // existing rows for every day are already in hand. Decision logic lives in
+  // `utils/participationSessions.ts` (unit-tested there).
+  const sessionTargets = useCallback(
+    (memberId: string): SessionTarget[] => resolveSessionTargets(memberId, participations, {
+      isOverall: isOverallSessionTab,
+      activeSessionId,
+      sessions: eventSessions,
+    }),
+    [participations, isOverallSessionTab, activeSessionId, eventSessions],
   )
 
   // Staff-side note edit. Creates a participation row with `status: null` if
@@ -479,48 +492,24 @@ export default function ParticipationRosterModal({
   // stayed null/undefined and the fallback re-applied.
   const handleNoteChange = useCallback(async (memberId: string, newNote: string) => {
     if (!activityId) return
-    const currentParticipation = findParticipation(memberId)
     const trimmed = (newNote ?? '').trim()
-    if (currentParticipation) {
-      const saved = currentParticipation.note ?? null
-      // No-op when already explicitly empty and user typed empty; or when
-      // the typed value matches the saved value byte-for-byte. Critically
-      // we DO save when saved === null/undefined and the user explicitly
-      // typed empty — that writes '' so the display stops falling back to
-      // the absence reason.
-      if (trimmed === '' && saved === '') return
-      if (trimmed !== '' && trimmed === saved) return
-      setSavingMemberIds(prev => new Set(prev).add(memberId))
-      try {
-        await update(currentParticipation.id, { note: trimmed })
-      } catch {
-        // useMutation handles logging; UI reverts via refetch
-      } finally {
-        setSavingMemberIds(prev => {
-          const next = new Set(prev)
-          next.delete(memberId)
-          return next
-        })
-      }
-      return
-    }
-    // No participation row yet — create one only if the staff actually
-    // typed something. Empty input on a never-RSVPed player is a no-op
-    // (nothing to clear, no absence overlay to suppress because there's
-    // no row to attach to).
-    if (!trimmed) return
+    const changes = noteWrites(sessionTargets(memberId), trimmed)
+    if (changes.length === 0) return
+
     setSavingMemberIds(prev => new Set(prev).add(memberId))
     try {
-      await create({
-        member: memberId,
-        activity_type: activityType,
-        activity_id: activityId,
-        status: null as unknown as Participation['status'],
-        note: trimmed,
-        guest_count: 0,
-        is_staff: false,
-        ...(activeSessionId ? { session_id: activeSessionId } : {}),
-      })
+      await Promise.all(changes.map(({ sessionId, row }) => row
+        ? update(row.id, { note: trimmed })
+        : create({
+            member: memberId,
+            activity_type: activityType,
+            activity_id: activityId,
+            status: null as unknown as Participation['status'],
+            note: trimmed,
+            guest_count: 0,
+            is_staff: false,
+            ...(sessionId ? { session_id: sessionId } : {}),
+          })))
     } catch {
       // useMutation handles logging; UI reverts via refetch
     } finally {
@@ -530,31 +519,26 @@ export default function ParticipationRosterModal({
         return next
       })
     }
-  }, [activityId, activityType, findParticipation, activeSessionId, create, update])
+  }, [activityId, activityType, sessionTargets, create, update])
 
   const handleStatusChange = useCallback(async (memberId: string, newStatus: string) => {
     setEditingMemberId(null)
     if (!activityId) return
 
-    const currentParticipation = findParticipation(memberId)
-    const currentStatus = currentParticipation?.status ?? null
-
-    // No change — user selected same status or cleared when already no response
-    if (newStatus === (currentStatus ?? '')) return
+    const targets = sessionTargets(memberId)
+    const changes = statusWrites(targets, newStatus)
+    if (changes.length === 0) return
+    // Only "already confirmed" suppresses the late-signin prompt below; on the
+    // Overall tab that means confirmed on EVERY day.
+    const wasConfirmed = allConfirmed(targets)
 
     setSavingMemberIds(prev => new Set(prev).add(memberId))
     try {
-      if (newStatus === '') {
-        // Clear → delete participation record
-        if (currentParticipation) {
-          await remove(currentParticipation.id)
-        }
-      } else if (currentParticipation) {
-        // Update existing record
-        await update(currentParticipation.id, { status: newStatus })
-      } else {
-        // Create new record
-        await create({
+      await Promise.all(changes.map(({ sessionId, row }) => {
+        // Clear → delete the record; otherwise update in place or create one.
+        if (newStatus === '') return row ? remove(row.id) : undefined
+        if (row) return update(row.id, { status: newStatus })
+        return create({
           member: memberId,
           activity_type: activityType,
           activity_id: activityId,
@@ -562,9 +546,9 @@ export default function ParticipationRosterModal({
           note: '',
           guest_count: 0,
           is_staff: false,
-          ...(activeSessionId ? { session_id: activeSessionId } : {}),
+          ...(sessionId ? { session_id: sessionId } : {}),
         })
-      }
+      }))
 
       // Late-signin fine prompt — pop AFTER the participation update has
       // succeeded so the leader's RSVP edit is already saved if they skip the
@@ -572,7 +556,7 @@ export default function ParticipationRosterModal({
       // activity with a late_signin rule, and we're past respondBy.
       if (
         newStatus === 'confirmed'
-        && currentStatus !== 'confirmed'
+        && !wasConfirmed
         && canEditRoster
         && singleTeamId
         && lateSigninRuleEnabled
@@ -597,7 +581,7 @@ export default function ParticipationRosterModal({
         return next
       })
     }
-  }, [activityId, activityType, findParticipation, activeSessionId, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, currentUserId, members, clubWideMembers, staffMembers])
+  }, [activityId, activityType, sessionTargets, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, currentUserId, members, clubWideMembers, staffMembers])
 
   // Staff participations (coaches/team_responsible who aren't in member_teams).
   // Use `useCollection` so the modal auto-refreshes when any staff member
@@ -1768,23 +1752,42 @@ export default function ParticipationRosterModal({
                 </div>
 
                 {/* Status badge + edit controls */}
-                {hasSessionMode && activeSessionTab === null ? (
-                  // Session count badge — no editing in overall tab
-                  (() => {
-                    const counts = memberSessionCounts.get(member.id)
-                    if (!counts) return <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{t('notResponded')}</span>
-                    return (
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                        counts.confirmed === counts.total
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : counts.confirmed > 0
-                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                            : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-                      }`}>
-                        {te('sessionsConfirmed', { confirmed: counts.confirmed, total: counts.total })}
-                      </span>
-                    )
-                  })()
+                {isOverallSessionTab ? (
+                  // Session count badge + the same pencil as a day tab — editing
+                  // here applies the pick to EVERY day (see `sessionTargets`),
+                  // which is the whole point: a leader answering for someone
+                  // shouldn't have to walk the tabs saying the same thing twice.
+                  <div className="flex shrink-0 items-center justify-end gap-1">
+                    {(() => {
+                      const counts = memberSessionCounts.get(member.id)
+                      if (!counts) return <span className="text-xs text-gray-400 dark:text-gray-500">{t('notResponded')}</span>
+                      return (
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          counts.confirmed === counts.total
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : counts.confirmed > 0
+                              ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                              : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                        }`}>
+                          {te('sessionsConfirmed', { confirmed: counts.confirmed, total: counts.total })}
+                        </span>
+                      )
+                    })()}
+                    {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingMemberId(member.id)}
+                        aria-label={t('editAllDays')}
+                        title={t('editAllDays')}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {savingMemberIds.has(member.id) && (
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
+                    )}
+                  </div>
                 ) : (
                   // RSVP brick + optional pencil. The textual status moved to the
                   // note line beneath ("Reason: note"); the row's left bar mirrors
@@ -1822,9 +1825,19 @@ export default function ParticipationRosterModal({
                       }
                     }}
                   >
+                    {isOverallSessionTab && (
+                      <span className="shrink-0 rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-400">
+                        {t('allDays')}
+                      </span>
+                    )}
                     <select
                       autoFocus
-                      defaultValue={participationByMember.preferred.get(member.id)?.status ?? participationByMember.first.get(member.id)?.status ?? ''}
+                      // On the Overall tab the dropdown shows the shared answer
+                      // only when every day agrees — a mixed member starts blank
+                      // rather than pretending one of the days speaks for all.
+                      defaultValue={isOverallSessionTab
+                        ? uniformValue(sessionTargets(member.id), 'status')
+                        : participationByMember.preferred.get(member.id)?.status ?? participationByMember.first.get(member.id)?.status ?? ''}
                       onChange={(e) => handleStatusChange(member.id, e.target.value)}
                       className="shrink-0 rounded-md border border-gray-300 bg-white px-1.5 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
                     >
@@ -1836,8 +1849,15 @@ export default function ParticipationRosterModal({
                     <input
                       type="text"
                       placeholder={t('addNotePlaceholder', { defaultValue: 'Note…' })}
-                      defaultValue={participationByMember.preferred.get(member.id)?.note ?? participationByMember.first.get(member.id)?.note ?? ''}
-                      onBlur={(e) => handleNoteChange(member.id, e.target.value)}
+                      defaultValue={isOverallSessionTab
+                        ? uniformValue(sessionTargets(member.id), 'note')
+                        : participationByMember.preferred.get(member.id)?.note ?? participationByMember.first.get(member.id)?.note ?? ''}
+                      // Only write when the field was actually edited. Without
+                      // this, opening the pencil on a member whose days carry
+                      // DIFFERENT notes (box renders blank — see
+                      // `uniformValue`) and clicking away would blank
+                      // every day's note.
+                      onBlur={(e) => { if (e.target.value !== e.target.defaultValue) handleNoteChange(member.id, e.target.value) }}
                       onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
                       className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
                     />
