@@ -55,6 +55,39 @@ function nextDay(dateStr) {
   const d = new Date(dateStr); d.setDate(d.getDate() + 1); return isoDate(d)
 }
 
+// Today in Zurich (YYYY-MM-DD) — the container clock is UTC, so deriving the
+// calendar date from it would roll over an hour or two early in winter.
+const zurichToday = () => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date())
+
+// Sep 1 of the current season. Mirrors getCurrentSeason() + getSeasonDateRange()
+// in src/utils/dateHelpers.ts: Jun 1 cutover (Jan–May still belongs to the season
+// that started last September), season runs Sep→Aug.
+// ⚠ Deliberately NOT the Postgres kscw_current_season_start(): that one still
+// uses the older Sep 1 cutover, so between June and August it resolves to LAST
+// season — which is exactly the window this floor exists to exclude.
+export function currentSeasonStart(today = zurichToday()) {
+  const [y, m] = today.split('-').map(Number)
+  return `${m < 6 ? y - 1 : y}-09-01`
+}
+
+/**
+ * Date floor for every feed source: the current season only. A subscribed
+ * calendar is a live view, not an archive — without this it accumulated every
+ * game, training and (the reason this exists) every duty assignment the member
+ * had ever been given, so last season's duties kept reappearing in their
+ * calendar app. The in-app calendar keeps full history; this bounds the feed.
+ *
+ * Between the Jun 1 season cutover and Sep 1 the season start is still in the
+ * future, so the floor is the EARLIER of (season start, today) — flooring at
+ * Sep 1 alone would blank out June–August's fixtures for three months.
+ */
+export function feedFloor(today = zurichToday()) {
+  const seasonStart = currentSeasonStart(today)
+  return seasonStart < today ? seasonStart : today
+}
+
 // Zurich calendar date (YYYY-MM-DD) for a timestamptz instant. All-day events are
 // stored at the Zurich-midnight boundary (e.g. 22:00Z = 00:00 the next day in summer),
 // so the raw UTC date (toISO) is a day early. Mirrors the frontend toZurichDateString.
@@ -119,6 +152,7 @@ export function registerICalFeed(router, { database, logger }) {
       if (sportLabel) calName += ` – ${sportLabel}`
       if (teamLabel) calName += ` – ${teamLabel}`
       const now = fmtUTC(new Date())
+      const from = feedFloor()
       const lines = [
         'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//KSCW//Calendar//EN',
         'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${calName}`,
@@ -127,7 +161,7 @@ export function registerICalFeed(router, { database, logger }) {
 
       // Games
       if (sources['games-home'] || sources['games-away']) {
-        let q = database('games')
+        let q = database('games').where('date', '>=', from)
         if (teamIds.length) q = q.whereIn('kscw_team', teamIds)
         if (sources['games-home'] && !sources['games-away']) q = q.where('type', 'home')
         else if (sources['games-away'] && !sources['games-home']) q = q.where('type', 'away')
@@ -193,7 +227,7 @@ export function registerICalFeed(router, { database, logger }) {
 
       // Trainings
       if (sources['trainings']) {
-        let q = database('trainings')
+        let q = database('trainings').where('date', '>=', from)
         if (teamIds.length) q = q.whereIn('team', teamIds)
         const trainings = await q.orderBy('date')
         const teamNames = Object.fromEntries(
@@ -225,7 +259,10 @@ export function registerICalFeed(router, { database, logger }) {
       // a single NULL row in a NOT IN subquery makes the predicate never true
       // (SQL three-valued logic) — silently emptying the whole section.
       if (sources['events']) {
+        // coalesce(end_date, start_date), not start_date: a multi-day event that
+        // began before the floor but is still running must stay in the feed.
         const events = await database('events')
+          .whereRaw('coalesce(end_date, start_date) >= ?', [from])
           .whereNotExists(database('events_teams').select('id').whereRaw('events_teams.events_id = events.id'))
           .whereNotExists(database('events_members').select('id').whereRaw('events_members.events_id = events.id'))
           .orderBy('start_date')
@@ -271,7 +308,9 @@ export function registerICalFeed(router, { database, logger }) {
 
       // Hall closures
       if (sources['closures']) {
-        const closures = await database('hall_closures').orderBy('start_date')
+        const closures = await database('hall_closures')
+          .whereRaw('coalesce(end_date, start_date) >= ?', [from])
+          .orderBy('start_date')
         const hallNames = Object.fromEntries(
           (await database('halls').select('id', 'name')).map(h => [h.id, h.name])
         )
@@ -288,7 +327,7 @@ export function registerICalFeed(router, { database, logger }) {
 
       // Hall events
       if (sources['hall']) {
-        const hallEvents = await database('hall_events').orderBy('date')
+        const hallEvents = await database('hall_events').where('date', '>=', from).orderBy('date')
         for (const he of hallEvents) {
           if (!he.date) continue
           const d = toISO(he.date)
@@ -320,6 +359,7 @@ export function registerICalFeed(router, { database, logger }) {
           : null
         if (dutyMember) {
           const dutyGames = await database('games')
+            .where('date', '>=', from)
             .where((qb) => { for (const r of DUTY_ROLES) qb.orWhere(r.member, dutyMember.id) })
             .orderBy('date')
           const hallNames = dutyGames.length

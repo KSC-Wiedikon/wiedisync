@@ -15,7 +15,7 @@
  * trainings/closures/hall/duties queries. Hermetic — no real DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { registerICalFeed } from '../ical-feed.js'
+import { registerICalFeed, currentSeasonStart, feedFloor } from '../ical-feed.js'
 
 // ─── Fake knex (subset used by the events section) ───────────────────────────
 
@@ -134,5 +134,56 @@ describe('GET /kscw/ical?source=events', () => {
     expect(block).not.toContain('STATUS:')
     expect(block).toContain('SUMMARY:Sommerfest')
     expect(block).toContain('DESCRIPTION:Alle willkommen')
+  })
+})
+
+// ─── Season floor (2026-07-29) ───────────────────────────────────────────────
+
+/**
+ * The feed used to be unbounded across every source, so a subscribed calendar
+ * accumulated every game, training and — the reason the floor exists — every
+ * duty assignment the member had ever been given. Last season's duties kept
+ * showing up in members' calendar apps.
+ *
+ * The floor must agree with getCurrentSeason() + getSeasonDateRange() in
+ * src/utils/dateHelpers.ts (Jun 1 cutover, season runs Sep→Aug), NOT with the
+ * Postgres kscw_current_season_start(), which still uses the older Sep 1
+ * cutover and would resolve to last season across the whole summer.
+ */
+describe('ical-feed season floor', () => {
+  it('Jan–May belongs to the season that started last September', () => {
+    expect(currentSeasonStart('2027-01-15')).toBe('2026-09-01')
+    expect(currentSeasonStart('2026-05-23')).toBe('2025-09-01')
+  })
+
+  it('June flips to the new season (Jun 1 cutover, not Sep 1)', () => {
+    expect(currentSeasonStart('2026-05-31')).toBe('2025-09-01')
+    expect(currentSeasonStart('2026-06-01')).toBe('2026-09-01')
+  })
+
+  it('Sep–Dec stays on the season that just started', () => {
+    expect(currentSeasonStart('2026-09-01')).toBe('2026-09-01')
+    expect(currentSeasonStart('2026-12-31')).toBe('2026-09-01')
+  })
+
+  it('inside the season the floor IS the season start, so its history is kept', () => {
+    expect(feedFloor('2027-01-15')).toBe('2026-09-01')
+    expect(feedFloor('2026-11-02')).toBe('2026-09-01')
+  })
+
+  it('in the Jun–Aug gap the floor falls back to today, so August fixtures survive', () => {
+    // The season has rolled over but its Sep 1 start is still in the future —
+    // flooring at Sep 1 would blank the feed for three months.
+    expect(feedFloor('2026-07-29')).toBe('2026-07-29')
+    expect(feedFloor('2026-06-01')).toBe('2026-06-01')
+    expect(feedFloor('2026-08-31')).toBe('2026-08-31')
+  })
+
+  it("excludes last season's final game across the whole summer gap", () => {
+    // 2025/26's last game was 2026-05-23. From the Jun 1 cutover onward the
+    // floor must sit strictly after it, or last season's duties reappear.
+    for (const today of ['2026-06-01', '2026-07-29', '2026-08-31', '2026-09-01']) {
+      expect(feedFloor(today) > '2026-05-23').toBe(true)
+    }
   })
 })
