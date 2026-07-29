@@ -10,7 +10,7 @@ import { useRealtime } from '../../hooks/useRealtime'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { logActivity } from '../../utils/logActivity'
-import { todayLocal, isWithinGameContactWindow } from '../../utils/dateHelpers'
+import { todayLocal, isWithinGameContactWindow, getCurrentSeason, getSeasonDateRange } from '../../utils/dateHelpers'
 import { Button } from '@/components/ui/button'
 import { FormInput } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -119,6 +119,11 @@ export default function ScorerPage() {
     isSportAdmin || (isLeader && isWithinGameContactWindow(g.date, g.time))
 
   const today = useMemo(() => todayLocal(), [])
+  // Past duties are scoped to the CURRENT season — last season's assignments stay
+  // in the DB (fines, duty history, the audit trail all still resolve them) but
+  // must not show up in this season's view. Same season floor as
+  // /admin/scorer-assign, so both duty surfaces roll over on the same day.
+  const seasonStart = useMemo(() => getSeasonDateRange(getCurrentSeason()).start, [])
 
   const {
     data: upcomingGamesRaw,
@@ -132,7 +137,7 @@ export default function ScorerPage() {
   const upcomingGames = upcomingGamesRaw ?? []
 
   const { data: allPastGamesRaw, isLoading: pastLoading } = useCollection<Game>('games', {
-    filter: { _and: [{ type: { _eq: 'home' } }, { date: { _lt: today } }] },
+    filter: { _and: [{ type: { _eq: 'home' } }, { date: { _gte: seasonStart } }, { date: { _lt: today } }] },
     sort: ['-date', '-time'],
     limit: 200,
     enabled: showPast,
@@ -816,7 +821,7 @@ export default function ScorerPage() {
               <div className="mt-4">
                 {pastGateLoading && <LoadingSpinner />}
                 {!pastGateLoading && filteredPastGames.length === 0 && (
-                  <p className="py-4 text-center text-sm text-gray-400">{t('noGames')}</p>
+                  <p className="py-4 text-center text-sm text-gray-400">{t('noPastGamesThisSeason')}</p>
                 )}
                 {!pastGateLoading && visiblePastGames.length > 0 && (
                   <>

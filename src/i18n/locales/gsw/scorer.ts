@@ -56,6 +56,7 @@ export default {
   // Empty state
   noGames: 'Käni Spiel',
   noGamesDescription: 'Käni Spiel für de usgwählte Filter gfunde.',
+  noPastGamesThisSeason: 'Käni vergangene Spiel i dere Saison',
 
   // Error toasts
   errorUpdate: 'D Zueteilig het nöd chöne aktualisiert wärde.',

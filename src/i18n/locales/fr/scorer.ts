@@ -56,6 +56,7 @@ export default {
   // Empty state
   noGames: 'Aucun match',
   noGamesDescription: 'Aucun match trouve pour le filtre selectionne.',
+  noPastGamesThisSeason: 'Aucun match passé cette saison',
 
   // Error toasts
   errorUpdate: 'Impossible de mettre a jour l\'attribution.',
