@@ -11,7 +11,9 @@ import { buildEmailLayout, formatDateCH, FRONTEND_URL, escHtml } from './email-t
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const DEEPL_API_KEY = process.env.DEEPL_API_KEY || '';
-const WEBSITE_URL = process.env.KSCW_WEBSITE_URL || 'https://kscw-website.pages.dev';
+// See newsletter.js — kscw.ch is the live domain; the pages.dev default put a bare
+// project hostname (and an extra 302) into every member-facing digest link.
+const WEBSITE_URL = process.env.KSCW_WEBSITE_URL || 'https://kscw.ch';
 
 /**
  * Constant-time bearer comparison — avoids leaking the admin token via response
@@ -108,7 +110,6 @@ async function generateSummary(locale, data, monthLabel, year) {
   if (!ANTHROPIC_API_KEY) return null;
   try {
     const baseUrl = WEBSITE_URL;
-    const l = locale === 'de' ? 'de' : 'en';
 
     const vbLabel = locale === 'de' ? 'Volleyball' : 'Volleyball';
     const bbLabel = locale === 'de' ? 'Basketball' : 'Basketball';
@@ -116,7 +117,9 @@ async function generateSummary(locale, data, monthLabel, year) {
     const outlookLabel = locale === 'de' ? 'Ausblick' : 'Outlook';
 
     const rules = [
-      `Use FULL absolute HTML links with base URL ${baseUrl}/${l}/. Example: <a href="${baseUrl}/${l}/volleyball/">Volleyball</a>.`,
+      // No locale segment — the site is single-URL; /de|/en/* only 301s back to the bare
+      // path, and a model told to emit them produces links that redirect for every reader.
+      `Use FULL absolute HTML links with base URL ${baseUrl}/. Example: <a href="${baseUrl}/volleyball/">Volleyball</a>.`,
       `Structure the summary in these sections using bold headers separated by <br><br>:`,
       `1. <b>${newsLabel}</b> — 1-2 sentences about news articles.`,
       `2. <b>🏐 ${vbLabel}</b> — 1-2 sentences about volleyball results/highlights ONLY. Only mention volleyball teams here.`,
@@ -228,7 +231,9 @@ function buildDigestHtml(locale, summary, news, results, upcoming, events, unsub
   if (news.length > 0) {
     body += `<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;font-weight:700;margin:20px 0 8px">News</div>`;
     for (const n of news) {
-      const link = `${WEBSITE_URL}/${locale}/news/?article=${escHtml(n.slug)}`;
+      // No locale prefix — /de|/en/* 301s onto the bare path (public/_redirects) and the
+      // page reads ?article= off the query string. See the note in newsletter.js.
+      const link = `${WEBSITE_URL}/news/?article=${escHtml(n.slug)}`;
       const title = (locale === 'en' && n.title_en) ? n.title_en : n.title;
       body += `<div style="padding:8px 0;border-bottom:1px solid #334155"><a href="${link}" style="color:#60a5fa;text-decoration:none;font-weight:600;font-size:14px">${escHtml(title)}</a>`;
       const excerpt = (locale === 'en' && n._excerptEn) ? n._excerptEn : n.excerpt;
@@ -427,7 +432,7 @@ export function registerNewsletterDigest(router, { database, logger, services, g
         if (!subNews.length && !subResults.length && !subUpcoming.length && !subEvents.length) continue;
 
         const summary = sub.locale === 'en' ? summaryEN : summaryDE;
-        const unsubUrl = `${WEBSITE_URL}/${sub.locale}/news/?unsubscribe=${sub.unsubscribe_token}`;
+        const unsubUrl = `${WEBSITE_URL}/news/?unsubscribe=${sub.unsubscribe_token}`;
         const html = buildDigestHtml(sub.locale, summary, subNews, subResults, subUpcoming, subEvents, unsubUrl);
 
         const monthNames = sub.locale === 'de'

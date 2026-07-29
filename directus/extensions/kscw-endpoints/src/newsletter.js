@@ -8,7 +8,12 @@
 import crypto from 'crypto';
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || '';
-const WEBSITE_URL = process.env.KSCW_WEBSITE_URL || 'https://kscw-website.pages.dev';
+// kscw.ch is the live domain. The old default (kscw-website.pages.dev) still resolves —
+// it serves the same CF Pages deploy — but it is the bare project domain, so every
+// newsletter link showed members a *.pages.dev hostname and bounced them through the
+// transitional 302 in the website's functions/_middleware.js. A pages.dev URL in a
+// double-opt-in mail is exactly the shape a recipient is trained to distrust.
+const WEBSITE_URL = process.env.KSCW_WEBSITE_URL || 'https://kscw.ch';
 
 async function verifyTurnstile(token, remoteip) {
   // Fail closed when the secret is missing — a misconfigured container would
@@ -95,7 +100,11 @@ export function registerNewsletter(router, { database, logger, services, getSche
         const schema = await getSchema();
         const { MailService } = services;
         const mail = new MailService({ schema, knex: database });
-        const verifyUrl = `${WEBSITE_URL}/${existing.locale}/news/?verify=${existing.verify_token}`;
+        // No locale prefix: the site is single-URL and public/_redirects 301s /de|/en/*
+        // onto the bare path, so the prefix only ever bought a second redirect hop. The
+        // page reads ?verify= off the query string and picks its language from
+        // localStorage/navigator (public/js/i18n.js) — the path never carried it.
+        const verifyUrl = `${WEBSITE_URL}/news/?verify=${existing.verify_token}`;
         await mail.send({
           to: email,
           subject: loc === 'de' ? 'KSCW Newsletter — Bestätigung' : 'KSCW Newsletter — Confirmation',
@@ -123,7 +132,7 @@ export function registerNewsletter(router, { database, logger, services, getSche
       const schema = await getSchema();
       const { MailService } = services;
       const mail = new MailService({ schema, knex: database });
-      const verifyUrl = `${WEBSITE_URL}/${loc}/news/?verify=${verifyToken}`;
+      const verifyUrl = `${WEBSITE_URL}/news/?verify=${verifyToken}`;
 
       await mail.send({
         to: email,

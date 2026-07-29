@@ -67,13 +67,9 @@ const EXAM_NOTIFY_EMAILS = (process.env.SCORER_EXAM_NOTIFY_EMAILS ?? 'admin@wied
   .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
 
 // The scoresheet review UI lives on the WEBSITE (/admin), not on wiedisync — so this is
-// deliberately not FRONTEND_URL.
-//
-// It is also deliberately NOT the shared KSCW_WEBSITE_URL that newsletter.js reads: that
-// is set to kscw-website.pages.dev on prod, which only reaches the site through the
-// transitional 302 in the website's functions/_middleware.js — a redirect whose own
-// comment schedules it for removal. Linking through it would leave these mails pointing
-// at a dead host the day someone deletes it. kscw.ch is the live domain (CLAUDE.md).
+// deliberately not FRONTEND_URL. kscw.ch is the live domain (CLAUDE.md); its own override
+// exists because this link is admin-facing and has no reason to move when the
+// member-facing newsletter host does.
 const WEBSITE_URL = process.env.SCORER_EXAM_ADMIN_URL || 'https://kscw.ch'
 
 // Fixed in create-scorer-course-attendance.mjs. Never write an upload without it —
