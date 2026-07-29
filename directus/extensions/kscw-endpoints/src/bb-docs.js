@@ -32,6 +32,10 @@ export function bbAgeAtSeasonStart(dob) {
   if (!m) return null
   const by = +m[1], bm = +m[2], bd = +m[3]
   const now = new Date()
+  // ⚠ Jul 1 with a Sep 1 age reference, NOT the club's Jun 1 cutover (season.js)
+  // — deliberate. This is the licence AGE-BAND rule, not a season label, and it
+  // is a matched pair with isMinorForSeason() in src/modules/admin/AnmeldungenPage.tsx.
+  // Change both together or neither.
   const seasonStartYear = (now.getUTCMonth() + 1) >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
   const refMonth = 9, refDay = 1 // Sept 1
   let age = seasonStartYear - by

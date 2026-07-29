@@ -105,6 +105,9 @@ export function jsExportFilename(kind: 'activities' | 'attendance', teamName: st
 
 export function jsSeasonForDate(d: Date): string {
   const y = d.getFullYear()
+  // ⚠ Sep 1, NOT the club's Jun 1 cutover (src/utils/season.ts) — deliberate.
+  // J+S reports the Sep–Aug activity year, so in the off-season this must name
+  // the season that just FINISHED (the one being reported). Do not "align" it.
   const startYear = d.getMonth() >= 8 ? y : y - 1 // Sep(8)..Dec → this year; Jan..Aug → last year
   return `${startYear}/${String(startYear + 1).slice(2)}`
 }

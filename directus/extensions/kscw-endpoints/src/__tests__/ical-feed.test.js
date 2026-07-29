@@ -15,7 +15,7 @@
  * trainings/closures/hall/duties queries. Hermetic — no real DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { registerICalFeed, currentSeasonStart, feedFloor } from '../ical-feed.js'
+import { registerICalFeed, feedFloor } from '../ical-feed.js'
 
 // ─── Fake knex (subset used by the events section) ───────────────────────────
 
@@ -145,28 +145,13 @@ describe('GET /kscw/ical?source=events', () => {
  * duty assignment the member had ever been given. Last season's duties kept
  * showing up in members' calendar apps.
  *
- * The floor must agree with getCurrentSeason() + getSeasonDateRange() in
- * src/utils/dateHelpers.ts (Jun 1 cutover, season runs Sep→Aug) — and, since
- * migration 268, with the Postgres kscw_current_season_start() too. Those two
- * disagreed by a whole season across Jun–Aug before 268; the cases below are
- * the boundaries where that divergence used to show up.
+ * The cutover itself is no longer implemented here — it comes from season.js,
+ * and `src/utils/__tests__/season-parity.test.ts` pins the boundaries across all
+ * three JS copies. What is ical-specific, and tested below, is the FLOOR: the
+ * earlier of (season start, today), which is what stops the Jun–Aug gap from
+ * blanking the feed while still excluding last season.
  */
 describe('ical-feed season floor', () => {
-  it('Jan–May belongs to the season that started last September', () => {
-    expect(currentSeasonStart('2027-01-15')).toBe('2026-09-01')
-    expect(currentSeasonStart('2026-05-23')).toBe('2025-09-01')
-  })
-
-  it('June flips to the new season (Jun 1 cutover, not Sep 1)', () => {
-    expect(currentSeasonStart('2026-05-31')).toBe('2025-09-01')
-    expect(currentSeasonStart('2026-06-01')).toBe('2026-09-01')
-  })
-
-  it('Sep–Dec stays on the season that just started', () => {
-    expect(currentSeasonStart('2026-09-01')).toBe('2026-09-01')
-    expect(currentSeasonStart('2026-12-31')).toBe('2026-09-01')
-  })
-
   it('inside the season the floor IS the season start, so its history is kept', () => {
     expect(feedFloor('2027-01-15')).toBe('2026-09-01')
     expect(feedFloor('2026-11-02')).toBe('2026-09-01')

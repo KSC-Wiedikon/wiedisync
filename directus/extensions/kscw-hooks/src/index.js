@@ -26,6 +26,7 @@ import { sendLocalizedPush, bucketMembersByLocale, tPush } from '../../kscw-endp
 import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-endpoints/src/signup-invites.js'
 import { bbRequiredDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
+import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
@@ -3700,7 +3701,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!token) return
       const { spawn } = await import('node:child_process')
       const now = new Date()
-      const startYear = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1
+      const startYear = seasonStartYear(now)
       const seasonName = `${startYear}/${startYear + 1}`
       const known = await database('svrz_spielplaner_contacts')
         .where('season_name', seasonName).whereNotNull('season_uuid').first()
@@ -4161,12 +4162,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // src/utils/dateHelpers.ts. Before June → previous autumn's season; June
   // onwards → this autumn's. (Was Sept/m<8, which disagreed with the frontend
   // and mis-stamped seasons for June–August writes.)
-  function getCurrentSeason() {
-    const now = new Date()
-    const y = now.getFullYear()
-    const m = now.getMonth() // 0-based, season starts June (m=5)
-    return m < 5 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
-  }
+  const getCurrentSeason = currentSeasonShort
 
   // ── Normalize registration geschlecht to member sex (m/f) ───
   function normalizeSex(val) {

@@ -15,12 +15,9 @@
  */
 
 import { FRONTEND_URL } from './email-template.js'
+import { currentSeasonShort } from './season.js'
 
-function getCurrentSeason() {
-  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth()
-  // Season starts in June (m=5); Jan–May (m<5) is still the previous season. Matches src/utils/dateHelpers.ts.
-  return m < 5 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
-}
+const getCurrentSeason = currentSeasonShort
 
 // Per-(user, form) reminder rate limit — 1 fan-out per form per 10 min per caller.
 const remindRateLimit = new Map()

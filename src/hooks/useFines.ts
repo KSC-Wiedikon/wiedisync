@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useCollection } from '../lib/query'
-import { getCurrentSeason } from '../utils/dateHelpers'
+import { seasonRolloverDate } from '../utils/season'
 import type { Fine, FineCategory, FineResetWindow, FineRule, FineRuleTier } from '../types'
 
 // ── Reads ────────────────────────────────────────────────────────────
@@ -74,8 +74,8 @@ export function fineWindowStart(window: FineResetWindow, now: Date = new Date())
       // issued over the summer sorts before it and is never counted.
       // Local midnight, for the same permissive-boundary reason as
       // calendar_month.
-      const startYear = Number(getCurrentSeason().split('/')[0])
-      return new Date(startYear, 5, 1, 0, 0, 0) // month 5 = June
+      const [y, m, d] = seasonRolloverDate(now).split('-').map(Number)
+      return new Date(y, m - 1, d, 0, 0, 0)
     }
     case 'never':
       return new Date(0)

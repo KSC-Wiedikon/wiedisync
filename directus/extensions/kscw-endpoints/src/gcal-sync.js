@@ -122,6 +122,9 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       // Season start (Sept 1 of current or previous year). We only manage
       // closures from here forward so past (frozen) data is never churned.
       const now = new Date()
+      // ⚠ Sep 1, NOT the club's Jun 1 cutover (season.js) — deliberate. This is a
+      // churn floor for closure rows, not a season label: we only manage closures
+      // from the fixture calendar onward so past data stays frozen.
       const seasonStart = new Date(now.getMonth() < 8 ? now.getFullYear() - 1 : now.getFullYear(), 8, 1)
         .toISOString().split('T')[0]
 
