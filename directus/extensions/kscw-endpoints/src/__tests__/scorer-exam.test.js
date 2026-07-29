@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // The notification's two I/O dependencies. Mocked at the module edge so the tests can
 // drive the failure paths (dead OpnForm, unreadable blob) that the whole design hinges
@@ -339,5 +339,65 @@ describe('notifyExamUpload', () => {
     const { sent, ctx } = makeCtx()
     await notifyExamUpload(ctx, makeLog(), { ...INFO, replaced: true })
     expect(sent[0].html).toContain('Ersetzt ein fr')
+  })
+})
+
+// The dev OFF switch. dev's .env carries `SCORER_EXAM_NOTIFY_EMAILS=` (present, empty) so
+// test uploads there don't mail the club; prod leaves it unset and gets the default.
+//
+// That distinction rests entirely on `??` — an edit to `||` "for consistency" would make
+// the empty string fall through to the default and silently start mailing the club from
+// dev, with nothing failing. Re-imported per case because the list is read at module load.
+describe('EXAM_NOTIFY_EMAILS env switch', () => {
+  const load = async (value) => {
+    vi.resetModules()
+    if (value === undefined) vi.stubEnv('SCORER_EXAM_NOTIFY_EMAILS', undefined)
+    else vi.stubEnv('SCORER_EXAM_NOTIFY_EMAILS', value)
+    return import('../scorer-exam.js')
+  }
+
+  /** ctx whose MailService records sends; readManagedFile/listSubmissions stay mocked. */
+  const probe = () => {
+    const sent = []
+    return {
+      sent,
+      ctx: {
+        database: {}, getSchema: async () => ({}),
+        services: { MailService: class { async send(m) { sent.push(m) } } },
+      },
+    }
+  }
+  const LOG = { warn() {}, error() {}, info() {} }
+  const INFO = {
+    claim: { k: 'kurs:1', s: 'kurs', i: '1' }, course: null,
+    fileId: 'f', type: 'application/pdf', replaced: false, uploadedOn: '2026-07-29', licence: '1234',
+  }
+
+  beforeEach(() => {
+    vi.mocked(listSubmissions).mockResolvedValue({ fields: [], data: [] })
+    vi.mocked(readManagedFile).mockResolvedValue({ file: {}, bytes: Buffer.alloc(8) })
+  })
+  afterEach(() => { vi.unstubAllEnvs() })
+
+  it('present-but-empty sends nothing (the dev switch)', async () => {
+    const mod = await load('')
+    const { sent, ctx } = probe()
+    await mod.notifyExamUpload(ctx, LOG, INFO)
+    expect(sent).toHaveLength(0)
+  })
+
+  it('unset falls back to the club admin mailbox (prod)', async () => {
+    const mod = await load(undefined)
+    const { sent, ctx } = probe()
+    await mod.notifyExamUpload(ctx, LOG, INFO)
+    expect(sent).toHaveLength(1)
+    expect(sent[0].to).toBe('admin@wiedisync.kscw.ch')
+  })
+
+  it('a comma list is trimmed, lowercased and de-blanked', async () => {
+    const mod = await load('A@x.ch, ,b@Y.CH ')
+    const { sent, ctx } = probe()
+    await mod.notifyExamUpload(ctx, LOG, INFO)
+    expect(sent[0].to).toBe('a@x.ch, b@y.ch')
   })
 })
