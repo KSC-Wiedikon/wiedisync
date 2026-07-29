@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useCollection } from '../lib/query'
-import { getCurrentSeason, getSeasonDateRange } from '../utils/dateHelpers'
+import { getCurrentSeason } from '../utils/dateHelpers'
 import type { Fine, FineCategory, FineResetWindow, FineRule, FineRuleTier } from '../types'
 
 // ── Reads ────────────────────────────────────────────────────────────
@@ -66,11 +66,16 @@ export function fineWindowStart(window: FineResetWindow, now: Date = new Date())
     case 'rolling_90d':
       return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
     case 'season': {
-      const { start } = getSeasonDateRange(getCurrentSeason())
-      // start is "YYYY-09-01" — anchor at local midnight for the same
-      // permissive-boundary reason as calendar_month.
-      const [y, m, d] = start.split('-').map(Number)
-      return new Date(y, m - 1, d, 0, 0, 0)
+      // The counter resets on the **Jun 1 season rollover**, not the Sep 1
+      // fixture start — this mirrors kscw_fine_window_start in Postgres
+      // (migration 268), which is the authority when a fine is actually
+      // written. Anchoring on Sep 1 (getSeasonDateRange().start) puts the
+      // window start in the FUTURE from Jun 1 to Aug 31, so every offense
+      // issued over the summer sorts before it and is never counted.
+      // Local midnight, for the same permissive-boundary reason as
+      // calendar_month.
+      const startYear = Number(getCurrentSeason().split('/')[0])
+      return new Date(startYear, 5, 1, 0, 0, 0) // month 5 = June
     }
     case 'never':
       return new Date(0)

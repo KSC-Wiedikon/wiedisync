@@ -132,14 +132,19 @@ export default function ScorerPage() {
   } = useCollection<Game>('games', {
     filter: { _and: [{ type: { _eq: 'home' } }, { date: { _gte: today } }, { status: { _nin: ['completed', 'postponed'] } }] },
     sort: ['date', 'time'],
-    limit: 200,
+    // `all`, not a limit: 2025/26 had 196 home games against the old limit of
+    // 200, so at the start of a season the list sat 4 games from silently
+    // dropping its tail — with no empty state and nothing in the logs to show
+    // for it. Both queries are season-bounded above, so the volume is capped at
+    // one season either way. Same pattern as /admin/scorer-assign.
+    all: true,
   })
   const upcomingGames = upcomingGamesRaw ?? []
 
   const { data: allPastGamesRaw, isLoading: pastLoading } = useCollection<Game>('games', {
     filter: { _and: [{ type: { _eq: 'home' } }, { date: { _gte: seasonStart } }, { date: { _lt: today } }] },
     sort: ['-date', '-time'],
-    limit: 200,
+    all: true,
     enabled: showPast,
   })
   const allPastGames = allPastGamesRaw ?? []
