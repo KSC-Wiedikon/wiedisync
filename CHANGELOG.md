@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.54.1 — 2026-07-29
+
+### Fixed: saving an edit failed with a "has to be unique" error
+- **Editing an existing event, form, hall slot or team's staff could fail to save**, with an error mentioning that a value "has to be unique" — even when you had only changed something ordinary like a response deadline and hadn't touched the teams at all. Everything saves again.
+
 ## v1.54.0 — 2026-07-28
 
 ### New: identity documents are watermarked when shown

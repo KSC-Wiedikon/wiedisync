@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.54.0'
+const APP_VERSION = '1.54.1'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.54.1',
+    date: '29.07.2026',
+    sections: [
+      {
+        title: 'Fixed: saving an edit failed with a "has to be unique" error',
+        items: [
+          'Editing an existing event, form, hall slot or team\'s staff could fail to save, with an error mentioning that a value "has to be unique" — even when you had only changed something ordinary like a response deadline and hadn\'t touched the teams at all. Everything saves again.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.54.0',
     date: '28.07.2026',
