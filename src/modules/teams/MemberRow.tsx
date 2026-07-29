@@ -16,7 +16,7 @@ import { asObj, memberDisplayName, memberFirstName, flattenMemberIds } from '../
 import { getMemberRole } from './memberRole'
 import { formatDate } from '../../utils/dateHelpers'
 import { Button } from '../../components/ui/button'
-import { updateRecord } from '../../lib/api'
+import { updateRecord, m2mUpdatePayload } from '../../lib/api'
 
 interface MemberRowProps {
   memberTeam: ExpandedMemberTeam
@@ -95,11 +95,21 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
     const nextIds = has
       ? current.filter((id) => id !== member!.id)
       : [...current, member!.id]
-    const junctionPayload = nextIds.map((id) => ({ members_id: id }))
+    // coach / team_responsible are M2M: surviving links must carry their
+    // junction row PK, or Directus re-inserts them and trips
+    // `teams_coaches_pair_uq` (migration 245). `captain` is a plain M2O FK and
+    // has no junction to preserve.
+    const isJunction = roleKey !== 'captain'
+    const junctionPayload = isJunction
+      ? m2mUpdatePayload('members_id', nextIds, team[roleKey])
+      : nextIds.map((id) => ({ members_id: id }))
     try {
-      await updateRecord('teams', team.id, { [roleKey]: junctionPayload })
+      // Read the saved junctions back so the PKs of links this call created are
+      // available to the next toggle without a full team refetch.
+      const saved = await updateRecord<Team>('teams', team.id, { [roleKey]: junctionPayload },
+        isJunction ? { fields: ['id', `${roleKey}.id`, `${roleKey}.members_id`] } : undefined)
       logActivity('update', 'teams', team.id, { [roleKey]: nextIds })
-      onTeamUpdate({ [roleKey]: junctionPayload })
+      onTeamUpdate({ [roleKey]: (isJunction && saved[roleKey]) || junctionPayload })
     } catch {
       // ignore
     }

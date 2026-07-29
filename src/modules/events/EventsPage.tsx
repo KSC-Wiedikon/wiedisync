@@ -106,7 +106,10 @@ export default function EventsPage() {
     filter: eventFilter,
     sort: ['start_date'],
     limit: 50,
-    fields: ['*', 'teams.teams_id.*', 'teams.teams_id.coach.members_id', 'teams.teams_id.team_responsible.members_id', 'invited_members.members_id', 'invited_roles', 'send_email_invite'],
+    // `teams.id` / `invited_members.id` are the JUNCTION row PKs — EventForm has
+    // to send them back on save or Directus re-inserts every unchanged link and
+    // trips the composite unique index (migration 245). See `m2mUpdatePayload`.
+    fields: ['*', 'teams.id', 'teams.teams_id.*', 'teams.teams_id.coach.members_id', 'teams.teams_id.team_responsible.members_id', 'invited_members.id', 'invited_members.members_id', 'invited_roles', 'send_email_invite'],
     enabled: !teamsLoading && (effectiveIsAdmin || !eventIdsLoading),
   })
   const events = eventsRaw ?? []

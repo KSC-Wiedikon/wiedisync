@@ -351,7 +351,14 @@ export interface VirtualSlotMeta {
 
 export interface HallSlot extends BaseRecord {
   hall: string
+  /** Flattened team IDs — see `flattenM2MTeams`. */
   team: string[]
+  /**
+   * Raw `hall_slots_teams` junction rows as fetched (`teams.id` +
+   * `teams.teams_id`). Kept alongside `team` so saves can send the junction
+   * PKs back — see `m2mUpdatePayload`.
+   */
+  teams?: unknown[]
   day_of_week: number
   start_time: string
   end_time: string

@@ -396,7 +396,10 @@ export default function TeamDetail() {
     // there are two same-name rows (e.g. H3 2025/26 archived + 2026/27 active);
     // without active=true Directus returns the oldest (inactive) row, surfacing
     // last season's roster + guest levels. See INFRA.md → Season rollover.
-    fetchItems<Team>('teams', { filter: { _and: [{ name: { _eq: teamSlug } }, { active: { _eq: true } }] }, limit: 1, fields: ['*', 'coach.members_id', 'team_responsible.members_id'] })
+    // `coach.id` / `team_responsible.id` are the JUNCTION row PKs — the staff
+    // editors send them back on save so unchanged links update instead of
+    // re-inserting (migration 245's pair uniques). See `m2mUpdatePayload`.
+    fetchItems<Team>('teams', { filter: { _and: [{ name: { _eq: teamSlug } }, { active: { _eq: true } }] }, limit: 1, fields: ['*', 'coach.id', 'coach.members_id', 'team_responsible.id', 'team_responsible.members_id'] })
       .then((items) => setTeam(items[0] ?? null))
       .catch(() => setTeam(null))
       .finally(() => setLoading(false))

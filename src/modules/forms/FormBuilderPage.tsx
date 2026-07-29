@@ -25,7 +25,10 @@ export default function FormBuilderPage() {
 
   const { data: formsRaw, isLoading } = useCollection<FormDef>('forms', {
     filter: { id: { _eq: formId } },
-    fields: ['*', 'teams.teams_id.id', 'teams.teams_id.name', 'teams.teams_id.sport'],
+    // `teams.id` = junction row PK; FormBuilder sends it back on save so
+    // unchanged team links update instead of re-inserting (migration 245's
+    // `forms_teams_pair_uq`). See `m2mUpdatePayload`.
+    fields: ['*', 'teams.id', 'teams.teams_id.id', 'teams.teams_id.name', 'teams.teams_id.sport'],
     limit: 1,
     enabled: isEdit && canManageForms,
   })

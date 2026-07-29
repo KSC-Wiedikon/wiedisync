@@ -59,7 +59,10 @@ export function useHallenplanData(
     filter: { _and: slotFilterConditions },
     all: true,
     sort: ['day_of_week', 'start_time'],
-    fields: ['*', 'teams.teams_id'],
+    // `teams.id` = junction row PK; SlotEditor sends it back on save so
+    // unchanged team links update instead of re-inserting (migration 245's
+    // `hall_slots_teams_pair_uq`). See `m2mUpdatePayload`.
+    fields: ['*', 'teams.id', 'teams.teams_id'],
   })
   // Memoized — flattenM2MTeams builds a fresh array + fresh objects on every
   // call, so without this rawSlots (and thus computedSlots) would be a new

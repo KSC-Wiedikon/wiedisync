@@ -324,13 +324,58 @@ export function flattenM2MTeams<T extends Record<string, unknown>>(items: T[]): 
 }
 
 /**
+ * Build an M2M junction payload that survives an UPDATE.
+ *
+ * Directus treats a junction object without its own primary key as a CREATE,
+ * and only deletes the rows that dropped out of the array *afterwards*. So
+ * re-sending an already-linked pair as `{ teams_id: 5 }` INSERTs a second
+ * `(parent, 5)` row while the original is still there. That used to pass
+ * silently (and quietly accumulate duplicate junction rows); since migration
+ * 245 every junction carries a composite unique index, so it now 400s with
+ * `Value for field "events_id, teams_id" in collection "events_teams" has to
+ * be unique.` — i.e. saving an unchanged team list broke every edit form.
+ *
+ * Passing the existing junction row's own `id` back turns those into no-op
+ * updates, leaving only genuinely new links as inserts.
+ *
+ * `existing` is the junction array as fetched from Directus. Request the
+ * junction PK explicitly (`teams.id`, `invited_members.id`, `coach.id`, …) —
+ * a `teams.teams_id` expand alone does NOT include it, and without it this
+ * degrades back to the duplicate-insert behaviour.
+ */
+export function m2mUpdatePayload(
+  field: string,
+  relatedIds: (string | number)[],
+  existing?: unknown,
+): Record<string, unknown>[] {
+  const junctionIdByRelated = new Map<string, string | number>()
+  if (Array.isArray(existing)) {
+    for (const row of existing) {
+      if (typeof row !== 'object' || row === null) continue
+      const { id: junctionId, [field]: related } = row as Record<string, unknown>
+      if (junctionId == null || related == null) continue
+      const relatedId = typeof related === 'object' ? (related as { id?: unknown }).id : related
+      if (relatedId == null) continue
+      junctionIdByRelated.set(String(relatedId), junctionId as string | number)
+    }
+  }
+  return relatedIds.map(id => {
+    const junctionId = junctionIdByRelated.get(String(id))
+    return junctionId == null ? { [field]: id } : { id: junctionId, [field]: id }
+  })
+}
+
+/**
  * Convert a flat team string[] to M2M format for saving to Directus.
  * Strips the `team` field and adds `teams` in junction format.
+ *
+ * `existingTeams` is the record's current `teams` junction array (fetched with
+ * `teams.id`) — required on UPDATE, see `m2mUpdatePayload`.
  */
-export function teamToM2M(payload: Record<string, unknown>): Record<string, unknown> {
+export function teamToM2M(payload: Record<string, unknown>, existingTeams?: unknown): Record<string, unknown> {
   const { team, ...rest } = payload
   if (!Array.isArray(team)) return rest
-  return { ...rest, teams: (team as string[]).map(id => ({ teams_id: id })) }
+  return { ...rest, teams: m2mUpdatePayload('teams_id', team as string[], existingTeams) }
 }
 
 /** Fetch a list of items. Returns the array directly. */
@@ -520,15 +565,20 @@ export async function createRecords<T = Record<string, unknown>>(
   }
 }
 
-/** Update an item. */
+/**
+ * Update an item. `query` shapes the returned record — pass `fields` when the
+ * caller re-uses the response (e.g. to read back junction row IDs so the next
+ * `m2mUpdatePayload` call still has them).
+ */
 export async function updateRecord<T = Record<string, unknown>>(
   collection: string,
   id: string | number,
   data: Record<string, unknown>,
+  query?: { fields?: string[] },
 ): Promise<T> {
   assertWritable()
   try {
-    const item = await client.request<T>(updateItem(collection, id, data as never))
+    const item = await client.request<T>(updateItem(collection, id, data as never, query as never))
     return stringifyId(item)
   } catch (err) {
     captureApiError(err, { operation: 'updateRecord', collection, recordId: id, payload: data })

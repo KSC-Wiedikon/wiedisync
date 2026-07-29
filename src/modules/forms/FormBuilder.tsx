@@ -9,7 +9,7 @@ import TeamMultiSelect from '@/components/TeamMultiSelect'
 import { ChevronUp, ChevronDown, Trash2, Plus, Languages } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useCollection, useInvalidate } from '../../lib/query'
-import { createRecord, updateRecord } from '../../lib/api'
+import { createRecord, updateRecord, m2mUpdatePayload } from '../../lib/api'
 import { teamNameToColorKey } from '../../utils/teamColors'
 import { toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso } from '../../utils/dateHelpers'
 import type { Team } from '../../types'
@@ -209,7 +209,7 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
       slug: canPublic && isPublic ? finalSlug : null,
       closes_at: closesAt ? toUtcIsoFromDatetimeLocal(closesAt) : null,
       created_by: user?.id,
-      teams: audience === 'teams' ? selectedTeams.map((id) => ({ teams_id: id })) : [],
+      teams: audience === 'teams' ? m2mUpdatePayload('teams_id', selectedTeams, form?.teams) : [],
     }
 
     setSaving(true)
