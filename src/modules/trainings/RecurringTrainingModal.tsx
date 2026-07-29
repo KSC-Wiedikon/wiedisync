@@ -4,6 +4,7 @@ import Modal from '@/components/Modal'
 import { flattenM2MTeams } from '../../lib/api'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
+import { seasonEndDate } from '../../utils/season'
 import { useCollection } from '../../lib/query'
 import { formatDate, formatDateCompact, toISODate, toUtcIsoFromDatetimeLocal } from '../../utils/dateHelpers'
 import { logActivity } from '../../utils/logActivity'
@@ -26,11 +27,8 @@ interface RecurringTrainingModalProps {
   selectedTeamId?: string | null
 }
 
-function getSeasonEndDate(): string {
-  const now = new Date()
-  const year = now.getMonth() < 5 ? now.getFullYear() : now.getFullYear() + 1
-  return `${year}-05-31`
-}
+// May 31 of the current season — see src/utils/season.ts for the Jun 1 cutover.
+const getSeasonEndDate = seasonEndDate
 
 export default function RecurringTrainingModal({ open, onClose, onGenerated, selectedTeamId }: RecurringTrainingModalProps) {
   const { t } = useTranslation('trainings')

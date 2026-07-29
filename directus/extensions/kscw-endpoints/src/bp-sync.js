@@ -101,6 +101,9 @@ function extractLeagueHoldingIds(teamXml) {
   const lhMatches = teamXml.match(/<leagueHolding[^>]*>/g)
   if (lhMatches) {
     const now = new Date()
+    // ⚠ Sep 1, NOT the club's Jun 1 cutover (season.js) — deliberate. This matches
+    // BASKETPLAN's season convention against their `from` dates; it is their
+    // calendar, not ours, so it must not follow our rollover.
     const seasonPrefix = String(now.getMonth() < 8 ? now.getFullYear() - 1 : now.getFullYear())
     for (const tag of lhMatches) {
       const id = getAttr(tag, ' id')

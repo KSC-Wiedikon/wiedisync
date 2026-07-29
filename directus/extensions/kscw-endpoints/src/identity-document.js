@@ -35,6 +35,7 @@
 import { Transform } from 'node:stream'
 import { writeUserLog } from './activity-log.js'
 import { streamManagedFile } from './storage-read.js'
+import { currentSeasonShort } from './season.js'
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 
@@ -74,11 +75,8 @@ function gameStartMs(game) {
   return guess - zurichOffsetMs(corrected)
 }
 
-function currentSeason(now = new Date()) {
-  const y = now.getUTCFullYear()
-  const m = now.getUTCMonth() + 1
-  return m < 6 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
-}
+// Was a local UTC-month copy — flipped two hours early on Jun 1. See season.js.
+const currentSeason = currentSeasonShort
 
 /** Caller → their members row. */
 async function callerMember(database, req) {

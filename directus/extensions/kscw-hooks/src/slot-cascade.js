@@ -28,6 +28,8 @@
  * the same module so the rules match exactly.
  */
 
+import { seasonEndDate as sharedSeasonEndDate } from '../../kscw-endpoints/src/season.js'
+
 /** ISO date (YYYY-MM-DD) for "today" in the server's timezone. */
 function todayStr() {
   return new Date().toISOString().slice(0, 10)
@@ -70,11 +72,8 @@ const INDEFINITE_HORIZON_WEEKS = 12
 /** Season-end fallback for non-indefinite slots that omit `valid_until` —
  *  legacy create-time behavior the React editor used to apply. Returns
  *  May 31 of current or next season. */
-function seasonEndDate() {
-  const now = new Date()
-  const year = now.getUTCMonth() < 5 ? now.getUTCFullYear() : now.getUTCFullYear() + 1
-  return `${year}-05-31`
-}
+// Was a UTC-month copy — flipped two hours early on Jun 1. See season.js.
+const seasonEndDate = sharedSeasonEndDate
 
 /** YYYY-MM-DD `INDEFINITE_HORIZON_WEEKS` weeks from today. */
 function rollingHorizonDate() {

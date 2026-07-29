@@ -11,6 +11,7 @@ import { SCHEDULING_URL, buildEmailLayout, buildInfoCard, escHtml } from './emai
 import { VALID_LANGS, schedEmail, inviteEmail } from './terminplanung-emails.js'
 import { writeUserLog } from './activity-log.js'
 import { logCronRun } from './error-log.js'
+import { seasonStartYear } from './season.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
@@ -4482,7 +4483,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       // Derive defaults from the Jun 1 cutover (mirrors currentSeasonLong in
       // src/.../formatSeason.ts — Swiss Volley publishes new-season fixtures in June).
       const now = new Date()
-      const startYear = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1
+      const startYear = seasonStartYear(now)
       const short = (a, b) => `${a}/${String(b).slice(-2)}`
       const defaultTo = short(startYear, startYear + 1)
       const defaultFrom = short(startYear - 1, startYear)
@@ -4913,7 +4914,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       // publishes new-season fixtures in June). Look up the matching SVRZ UUID
       // from the most recent sync for that season; fall back to the 2025/26 UUID.
       const now = new Date()
-      const startYear = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1
+      const startYear = seasonStartYear(now)
       const defaultSeasonName = `${startYear}/${startYear + 1}`
       const known = await database('svrz_spielplaner_contacts')
         .where('season_name', defaultSeasonName).whereNotNull('season_uuid').first()

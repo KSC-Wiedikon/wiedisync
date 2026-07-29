@@ -5,6 +5,7 @@
  */
 
 import { tPush } from './push-i18n.js'
+import { currentSeasonShort } from './season.js'
 
 export class MessagingError extends Error {
   constructor(status, code, message, details) {
@@ -169,15 +170,16 @@ export async function loadBlocks(db, memberId) {
  * member_teams.season is filtered to the current season — matches the frontend
  * `loadTeamContext` convention (see src/hooks/useAuth.tsx:106).
  *
- * Season threshold: Aug 1 UTC. Year-crossing: Aug 2026 → season '2026/27'.
- * If Swiss season rules ever shift, update both src/utils/dateHelpers.ts
- * (frontend) and this helper in lock-step.
+ * ⚠ This used to inline its own **Aug 1 UTC** cutover while the rest of the app
+ * rolled over on Jun 1 — so from Jun 1 to Jul 31 it queried the PREVIOUS
+ * season's rosters. Teammates whose shared team only existed on the new-season
+ * roster came back as "no shared team" and had their DM downgraded to an
+ * approval-gated `dm_request`. Found 2026-07-29 with 82 members and 29 teams on
+ * a 2026/27 roster and no 2025/26 counterpart. The cutover now comes from
+ * season.js, and season-parity.test.ts stops it drifting again.
  */
 export async function shareTeam(db, memberIdA, memberIdB) {
-  const now = new Date()
-  const year = now.getUTCFullYear()
-  const startYear = now.getUTCMonth() >= 7 ? year : year - 1   // Aug = 7 (0-indexed)
-  const season = `${startYear}/${String((startYear + 1) % 100).padStart(2, '0')}`
+  const season = currentSeasonShort()
   const row = await db('member_teams as mt1')
     .join('member_teams as mt2', function () {
       this.on('mt1.team', '=', 'mt2.team').andOn('mt1.season', '=', 'mt2.season')

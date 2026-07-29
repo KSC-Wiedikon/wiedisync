@@ -10,18 +10,13 @@ export function formatSeasonShort(name: string | null | undefined): string {
 }
 
 /**
- * Current SVRZ season in long form (e.g. "2025/2026"), using the Jun 1
- * cutover — Swiss Volley publishes new-season fixtures in June.
- *
- * NOTE: `directus/extensions/kscw-hooks/src/index.js` (SVRZ cron) and
- * `directus/extensions/kscw-endpoints/src/game-scheduling.js` (svrz-sync
- * endpoint) duplicate this same logic inline (they can't cross-import from
- * src/). If you change the cutover here, mirror it there.
+ * Current SVRZ season in long form (e.g. "2025/2026"). Re-exported from
+ * `src/utils/season.ts`, which owns the Jun 1 cutover — the SVRZ cron
+ * (kscw-hooks) and the svrz-sync endpoint (kscw-endpoints) used to duplicate
+ * this inline; they now import their own extension's season module, and
+ * `season-parity.test.ts` asserts all three stay in agreement.
  */
-export function currentSeasonLong(now: Date = new Date()): string {
-  const startYear = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1
-  return `${startYear}/${startYear + 1}`
-}
+export { currentSeasonLong } from '../../../utils/season'
 
 /**
  * Previous season in Wiedisync short form, given a short-form season.

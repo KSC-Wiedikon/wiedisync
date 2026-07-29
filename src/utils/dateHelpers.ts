@@ -1,6 +1,7 @@
 // --- Intl-Zurich helpers (proper UTC convention) ---
 
 import i18n from '../i18n'
+import { currentSeasonShort } from './season'
 
 const ZURICH = 'Europe/Zurich';
 
@@ -303,18 +304,13 @@ export function isDateInRange(date: string, start: string, end: string): boolean
   return d >= new Date(start).getTime() && d <= new Date(end).getTime()
 }
 
+/**
+ * Current season, short form ("2026/27"). Thin alias kept for the ~20 modules
+ * that already import it from here — the cutover itself lives in
+ * `src/utils/season.ts`, which is the only place it is implemented.
+ */
 export function getCurrentSeason(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth()
-  // Jun 1 cutover — the club rolls over to the next season on June 1 (Swiss Volley
-  // publishes new-season fixtures in June), matching currentSeasonLong() in
-  // gameScheduling/utils/formatSeason.ts. Jan–May (month < 5) still belongs to the
-  // season that started last year.
-  if (month < 5) {
-    return `${year - 1}/${String(year).slice(2)}`
-  }
-  return `${year}/${String(year + 1).slice(2)}`
+  return currentSeasonShort()
 }
 
 export function getSeasonDateRange(season: string): { start: string; end: string } {

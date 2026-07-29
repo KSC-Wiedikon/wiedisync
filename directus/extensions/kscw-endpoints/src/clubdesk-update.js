@@ -5,6 +5,7 @@
 
 import { buildEmailLayout, buildInfoCard, bucketEmailsByLocale } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
+import { currentSeasonShort } from './season.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail } from './normalize.js'
 import {
   countryCodesDisplay, federationDisplay, loadCountryDisplayNames, parseCodeList,
@@ -19,10 +20,7 @@ const OWNER_EMAIL = 'luca.canepa@gmail.com'
 const ADMIN_EMAIL = 'kontakt@kscw.ch'
 
 /** Current season in Wiedisync short form, e.g. '2025/26' (matches member_teams.season). June cutover — same as src/utils/dateHelpers.ts. */
-function getCurrentSeason() {
-  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth()
-  return m < 5 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
-}
+const getCurrentSeason = currentSeasonShort
 
 // Per-locale display labels for DB field names.
 // ⚠ A field missing here prints its raw snake_case column name at a human

@@ -6,6 +6,7 @@
 
 import crypto from 'crypto'
 import fs from 'fs'
+import { currentSeasonShort, currentSeasonLong } from './season.js'
 import path from 'path'
 import { spawn } from 'node:child_process'
 import { syncSvGames, syncSvRankings } from './sv-sync.js'
@@ -89,11 +90,7 @@ async function verifyTurnstile(token) {
   return data.success === true
 }
 
-function getCurrentSeason() {
-  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth()
-  // Season starts in June (m=5); Jan–May (m<5) is still the previous season. Matches src/utils/dateHelpers.ts.
-  return m < 5 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
-}
+const getCurrentSeason = currentSeasonShort
 
 function randomToken(len = 32) {
   return crypto.randomBytes(len).toString('hex').slice(0, len)
@@ -926,9 +923,7 @@ export default {
       try {
         requireAdmin(req, log)
         // Resolve the current season's SVRZ uuid the same way the cron does.
-        const now = new Date()
-        const startYear = now.getUTCMonth() >= 5 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
-        const seasonName = `${startYear}/${startYear + 1}`
+        const seasonName = currentSeasonLong()
         const known = await database('svrz_spielplaner_contacts')
           .where('season_name', seasonName).whereNotNull('season_uuid').first()
         const seasonUuid = known?.season_uuid || 'dcafddfe-8139-4e02-baad-d3f88ec00cd0'

@@ -8,6 +8,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { writeUserLog } from './activity-log.js'
+import { seasonStartDate } from './season.js'
 
 // Frontend app base for the "view roster" deep-link on duty events. Overridable
 // per environment; defaults to prod.
@@ -61,18 +62,6 @@ const zurichToday = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(new Date())
 
-// Sep 1 of the current season. Mirrors getCurrentSeason() + getSeasonDateRange()
-// in src/utils/dateHelpers.ts: Jun 1 cutover (Jan–May still belongs to the season
-// that started last September), season runs Sep→Aug.
-// ⚠ Keep in lockstep with the Postgres kscw_current_season_start(). The two
-// disagreed by a whole season across Jun–Aug until migration 268 moved PG onto
-// the same Jun 1 cutover; a cross-check over every month boundary is in the
-// tests. Change one → change the other.
-export function currentSeasonStart(today = zurichToday()) {
-  const [y, m] = today.split('-').map(Number)
-  return `${m < 6 ? y - 1 : y}-09-01`
-}
-
 /**
  * Date floor for every feed source: the current season only. A subscribed
  * calendar is a live view, not an archive — without this it accumulated every
@@ -85,7 +74,9 @@ export function currentSeasonStart(today = zurichToday()) {
  * Sep 1 alone would blank out June–August's fixtures for three months.
  */
 export function feedFloor(today = zurichToday()) {
-  const seasonStart = currentSeasonStart(today)
+  // `${today}T12:00:00Z` keeps the Zurich date stable when season.js converts
+  // back — midnight would be the previous day in UTC-negative offsets.
+  const seasonStart = seasonStartDate(new Date(`${today}T12:00:00Z`))
   return seasonStart < today ? seasonStart : today
 }
 

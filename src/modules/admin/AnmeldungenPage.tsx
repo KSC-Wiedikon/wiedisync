@@ -101,6 +101,9 @@ const bbIsMinor = (dob: string | null): boolean => {
   const m = dob.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!m) return false
   const now = new Date()
+  // ⚠ Jul 1 with a Sep 1 age reference, NOT the club's Jun 1 cutover (utils/season.ts)
+  // — deliberate. Licence AGE-BAND rule, matched pair with bbAgeForSeason() in
+  // directus/extensions/kscw-endpoints/src/bb-docs.js. Change both or neither.
   const seasonStartYear = now.getUTCMonth() + 1 >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
   let age = seasonStartYear - Number(m[1])
   if (9 < Number(m[2]) || (9 === Number(m[2]) && 1 < Number(m[3]))) age--
