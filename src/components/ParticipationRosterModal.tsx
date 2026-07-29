@@ -447,6 +447,29 @@ export default function ParticipationRosterModal({
     return { first, preferred }
   }, [participations])
 
+  // Session-mode events (per_day / per_session) keep ONE row per (member,
+  // session) — `session_id` is part of the row's identity, and the edit
+  // controls below only ever render on a session tab (the Overall tab shows a
+  // read-only count badge). So every staff write must be scoped to that tab:
+  //
+  //   • CREATE must carry `session_id`. Without it Directus writes a
+  //     session-less row that no per-day view can see (they all key off
+  //     `session_id`), so the roster still reads "Not responded" — it looks
+  //     like the RSVP never saved. The next attempt then 400s on migration
+  //     246's `(activity_type, activity_id, member) WHERE session_id IS NULL`
+  //     partial unique. Cost: 3 invisible orphan rows on the Trainingsweekend.
+  //   • The lookup must ignore other sessions' rows. `regularParticipations` is
+  //     already session-filtered, but the club-wide fetch is NOT — an unscoped
+  //     `.find` would grab Saturday's row while the coach is editing Friday and
+  //     silently flip the wrong day.
+  const activeSessionId = hasSessionMode && activeSessionTab ? activeSessionTab : null
+  const findParticipation = useCallback(
+    (memberId: string) => participations.find(p =>
+      p.member === memberId
+      && (!activeSessionId || String(p.session_id ?? '') === activeSessionId)),
+    [participations, activeSessionId],
+  )
+
   // Staff-side note edit. Creates a participation row with `status: null` if
   // none exists yet (lets a coach attach context like "Out for the season"
   // to a player who hasn't RSVPed). Saving an empty string explicitly
@@ -456,7 +479,7 @@ export default function ParticipationRosterModal({
   // stayed null/undefined and the fallback re-applied.
   const handleNoteChange = useCallback(async (memberId: string, newNote: string) => {
     if (!activityId) return
-    const currentParticipation = participations.find(p => p.member === memberId)
+    const currentParticipation = findParticipation(memberId)
     const trimmed = (newNote ?? '').trim()
     if (currentParticipation) {
       const saved = currentParticipation.note ?? null
@@ -496,6 +519,7 @@ export default function ParticipationRosterModal({
         note: trimmed,
         guest_count: 0,
         is_staff: false,
+        ...(activeSessionId ? { session_id: activeSessionId } : {}),
       })
     } catch {
       // useMutation handles logging; UI reverts via refetch
@@ -506,13 +530,13 @@ export default function ParticipationRosterModal({
         return next
       })
     }
-  }, [activityId, activityType, participations, create, update])
+  }, [activityId, activityType, findParticipation, activeSessionId, create, update])
 
   const handleStatusChange = useCallback(async (memberId: string, newStatus: string) => {
     setEditingMemberId(null)
     if (!activityId) return
 
-    const currentParticipation = participations.find(p => p.member === memberId)
+    const currentParticipation = findParticipation(memberId)
     const currentStatus = currentParticipation?.status ?? null
 
     // No change — user selected same status or cleared when already no response
@@ -538,6 +562,7 @@ export default function ParticipationRosterModal({
           note: '',
           guest_count: 0,
           is_staff: false,
+          ...(activeSessionId ? { session_id: activeSessionId } : {}),
         })
       }
 
@@ -572,7 +597,7 @@ export default function ParticipationRosterModal({
         return next
       })
     }
-  }, [activityId, activityType, participations, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, currentUserId, members, clubWideMembers, staffMembers])
+  }, [activityId, activityType, findParticipation, activeSessionId, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, currentUserId, members, clubWideMembers, staffMembers])
 
   // Staff participations (coaches/team_responsible who aren't in member_teams).
   // Use `useCollection` so the modal auto-refreshes when any staff member
