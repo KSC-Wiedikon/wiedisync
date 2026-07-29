@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.54.1'
+const APP_VERSION = '1.54.2'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.54.2',
+    date: '29.07.2026',
+    sections: [
+      {
+        title: 'Fixed: day-by-day answers on a multi-day event didn\'t stick',
+        items: [
+          'Setting a member\'s answer for a single day of a multi-day event (the Trainingsweekend and anything else with per-day responses) saved to nowhere — the roster kept showing "Not responded", and a second attempt failed with an error mentioning that a value "has to be unique". Answers now save to the day you picked.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.54.1',
     date: '29.07.2026',

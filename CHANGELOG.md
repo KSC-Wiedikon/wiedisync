@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.54.2 — 2026-07-29
+
+### Fixed: day-by-day answers on a multi-day event didn't stick
+- **Setting a member's answer for a single day of a multi-day event** (the Trainingsweekend and anything else with per-day responses) **saved to nowhere** — the roster kept showing "Not responded", and a second attempt failed with an error mentioning that a value "has to be unique". Answers now save to the day you picked.
+
 ## v1.54.1 — 2026-07-29
 
 ### Fixed: saving an edit failed with a "has to be unique" error
