@@ -57,6 +57,8 @@ export default {
   teamsCount: '{{count}} équipes',
   filterByTeam: 'Filtrer par équipe',
   clearStatus: 'Effacer',
+  allDays: 'Tous les jours',
+  editAllDays: 'Modifier tous les jours',
   positions: 'Preferences de poste',
   positionRequired: 'Choisir un poste...',
   positionsRequiredError: 'Les 3 postes sont obligatoires',

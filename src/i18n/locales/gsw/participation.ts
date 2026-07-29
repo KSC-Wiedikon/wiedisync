@@ -57,6 +57,8 @@ export default {
   teamsCount: '{{count}} Teams',
   filterByTeam: 'Nach Team filtere',
   clearStatus: 'Zruggsetze',
+  allDays: 'Alli Täg',
+  editAllDays: 'Alli Täg bearbeite',
   positions: 'Positionswünsch',
   positionRequired: 'Position uswähle...',
   positionsRequiredError: 'Alli 3 Positione sind pflicht',
