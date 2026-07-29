@@ -37,13 +37,39 @@
  * === private"), so every upload MUST land in SCORER_EXAM_FOLDER. A file written with
  * folder=null would be fetchable by anyone holding its id. Admins read these back
  * through /kscw/wadmin/scorer_courses/assets/:id, never /assets.
+ *
+ * The notification below mails that same personal data (name, email, licence) plus the
+ * sheet itself to EXAM_NOTIFY_EMAILS. That is a deliberate, narrow disclosure to the club
+ * mailbox that already administers these exams — do not widen the recipient list to
+ * anything broader than the people who tick "Prüfung bestanden".
+ *
+ * NOTIFICATION
+ * ------------
+ * A successful upload mails EXAM_NOTIFY_EMAILS with the sheet attached. It is strictly
+ * best-effort and runs after every write has committed: nothing about it may fail the
+ * upload, because the participant has already been told the sheet arrived.
  */
 
 import crypto from 'node:crypto'
 import { Transform } from 'node:stream'
 import { listSubmissions } from './opnform.js'
+import { readManagedFile } from './storage-read.js'
+import { buildEmailLayout, buildInfoCard, formatDateCH } from './email-template.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
+
+// Who hears that a scoresheet arrived. Until 2026-07-29 nobody did: the upload wrote a
+// row and a log line and stopped there, so the only way to learn of one was to open
+// /admin and notice — while the success screen has always promised the participant
+// "Wir prüfen es und melden uns per E-Mail". Comma list; override per environment (set
+// it empty on dev to stop test uploads mailing the club).
+const EXAM_NOTIFY_EMAILS = (process.env.SCORER_EXAM_NOTIFY_EMAILS ?? 'admin@wiedisync.kscw.ch')
+  .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+
+// The scoresheet review UI lives on the WEBSITE (/admin), not on wiedisync — so this is
+// deliberately not FRONTEND_URL. Same env var newsletter.js reads; either value works,
+// since kscw-website.pages.dev 302s to kscw.ch.
+const WEBSITE_URL = process.env.KSCW_WEBSITE_URL || 'https://kscw.ch'
 
 // Fixed in create-scorer-course-attendance.mjs. Never write an upload without it —
 // folder=null is publicly readable via /assets (see header).
@@ -216,6 +242,114 @@ async function courseSlugs(database) {
     }
   }
   return out
+}
+
+/**
+ * Name + email for one submission, read back from OpnForm.
+ *
+ * Only ever used to make the notification email readable. It is deliberately NOT folded
+ * into the ticket: the ticket rides in the query string and therefore in the access log
+ * (see the /upload header), and a signed blob that decodes to somebody's name and address
+ * turns an accepted "it's a 30-minute capability" into logged PII.
+ *
+ * Same page-1/100 window as /lookup — a submission past #100 is invisible to both, so
+ * this stays consistent with the gate rather than inventing a second reachability rule.
+ */
+export async function participantOf(slug, submissionId) {
+  const listing = await listSubmissions(slug, { page: 1, perPage: 100 })
+  const ids = fieldIds(listing.fields || [])
+  const row = (listing.data || []).find((r) => String(r.id ?? '') === String(submissionId))
+  if (!row) return null
+  return {
+    first: pick(row, ids.first),
+    last: pick(row, ids.last),
+    email: normalizeEmail(pick(row, ids.email)),
+  }
+}
+
+const fmtBytes = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
+
+/**
+ * Mail the club that a scoresheet landed, with the sheet attached.
+ *
+ * ⚠ EVERY failure path in here is swallowed. By the time this runs the file is stored,
+ * the attendance row is written and the participant has been told "received" — so a dead
+ * OpnForm, an unreadable blob or a bounced SES call must cost a log line and nothing else.
+ * Throwing would 500 a request whose work already succeeded and invite a retry that
+ * re-uploads the same sheet.
+ */
+export async function notifyExamUpload(ctx, log, info) {
+  const { database, services, getSchema } = ctx
+  const { claim, course, fileId, type, replaced, uploadedOn, licence } = info
+  if (!EXAM_NOTIFY_EMAILS.length) return
+
+  // Best-effort identity: an upload with no name is still worth telling someone about.
+  let who = null
+  try {
+    who = await participantOf(claim.s, claim.i)
+  } catch (err) {
+    log.warn({ msg: 'opnform lookup failed while building the upload notification', slug: claim.s, error: err.message })
+  }
+  const name = [who?.first, who?.last].filter(Boolean).join(' ').trim()
+
+  // The bytes come back through AssetsService, not the disk, so this keeps working when
+  // uploads move to R2. Safe to read sudo (see storage-read.js ACCESS CONTROL): fileId is
+  // the id uploadOne just returned to us, never anything the caller supplied.
+  let attachment = null
+  try {
+    const { file, bytes } = await readManagedFile(fileId, { services, getSchema, database })
+    attachment = {
+      filename: file.filename_download || `matchblatt-${claim.i}`,
+      content: bytes,
+      contentType: file.type || type,
+    }
+  } catch (err) {
+    // A too-large or unreadable sheet must not cost the notification itself — send the
+    // mail without it and let the admin open the row.
+    log.warn({ msg: 'could not attach scoresheet to notification', file: fileId, error: err.message })
+  }
+
+  const rows = [
+    { label: 'Name', value: name || '—' },
+    { label: 'E-Mail', value: who?.email || '—' },
+    { label: 'SVRZ-Lizenz', value: licence || '—', halfWidth: true },
+    { label: 'Kursdatum', value: course?.date_iso ? formatDateCH(course.date_iso) : '—', halfWidth: true },
+    { label: 'Hochgeladen', value: formatDateCH(uploadedOn) || uploadedOn, halfWidth: true },
+    { label: 'Datei', value: attachment ? `${type} · ${fmtBytes(attachment.content.length)}` : type, halfWidth: true },
+  ]
+
+  let body = buildInfoCard(rows)
+  if (replaced) {
+    body += '<div style="font-size:13px;color:#fbbf24;margin-top:12px">Ersetzt ein früher hochgeladenes Matchblatt.</div>'
+  }
+  if (!attachment) {
+    body += '<div style="font-size:13px;color:#fbbf24;margin-top:12px">Das Matchblatt konnte nicht angehängt werden — bitte im Admin öffnen.</div>'
+  }
+
+  const courseParam = course?.id != null ? `&course=${encodeURIComponent(course.id)}` : ''
+  const html = buildEmailLayout(body, {
+    title: 'Matchblatt eingegangen',
+    subtitle: name || claim.k,
+    sport: 'volleyball',
+    greeting: 'Ein Kursteilnehmer hat sein Matchblatt für die Schreiber-Prüfung hochgeladen.',
+    ctaUrl: `${WEBSITE_URL}/admin/?tab=scorer_courses${courseParam}`,
+    ctaLabel: 'Im Admin prüfen',
+    footerExtra: 'Erst nach Sichtung „Prüfung bestanden“ setzen — ein Upload ist ein Anspruch, kein Nachweis.',
+  })
+
+  try {
+    const { MailService } = services
+    const mail = new MailService({ schema: await getSchema(), knex: database })
+    await mail.send({
+      to: EXAM_NOTIFY_EMAILS.join(', '),
+      subject: `Matchblatt — ${name || claim.k}${course?.date_iso ? ` — Kurs ${formatDateCH(course.date_iso)}` : ''}`,
+      html,
+      ...(attachment ? { attachments: [attachment] } : {}),
+    })
+    log.info({ msg: 'upload notification sent', sub_key: claim.k, to: EXAM_NOTIFY_EMAILS.length, attached: !!attachment })
+  } catch (err) {
+    log.error({ msg: `upload notification failed: ${err.message}`, sub_key: claim.k })
+  }
 }
 
 export function registerScorerExam(router, ctx) {
@@ -462,6 +596,21 @@ export function registerScorerExam(router, ctx) {
       }
 
       log.info({ msg: 'scoresheet uploaded', sub_key: claim.k, bytes, type: sniffed })
+
+      // Awaited, not fire-and-forget: the participant has already waited out the transfer,
+      // and losing the notification to a worker restart is worse than the ~1s it adds.
+      // notifyExamUpload never throws — see its header — so this cannot turn a stored
+      // scoresheet into a 500.
+      await notifyExamUpload(ctx, log, {
+        claim,
+        course: slugs.find((s) => s.slug === claim.s)?.course || null,
+        fileId,
+        type: sniffed,
+        replaced: !!prev?.exam_file,
+        uploadedOn: patch.exam_date,
+        licence: licence || knownLicence,
+      })
+
       res.json({ data: { ok: true, uploaded_on: patch.exam_date, replaced: !!prev?.exam_file } })
     } catch (err) {
       const status = err.status === 413 ? 413 : err.status === 415 ? 415 : 500

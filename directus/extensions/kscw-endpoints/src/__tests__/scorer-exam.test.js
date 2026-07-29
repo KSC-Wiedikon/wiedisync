@@ -1,7 +1,17 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// The notification's two I/O dependencies. Mocked at the module edge so the tests can
+// drive the failure paths (dead OpnForm, unreadable blob) that the whole design hinges
+// on — those are exactly the branches that must not throw, and they are unreachable
+// otherwise without a live form and a live storage driver.
+vi.mock('../opnform.js', () => ({ listSubmissions: vi.fn() }))
+vi.mock('../storage-read.js', () => ({ readManagedFile: vi.fn() }))
+
+import { listSubmissions } from '../opnform.js'
+import { readManagedFile } from '../storage-read.js'
 import {
   sniffType, signTicket, verifyTicket, zurichToday, normalizeEmail, normalizeLicence,
-  answersOf, pick, SCORER_EXAM_FOLDER,
+  answersOf, pick, SCORER_EXAM_FOLDER, notifyExamUpload,
 } from '../scorer-exam.js'
 
 const SECRET = 'test-secret-not-the-real-one'
@@ -200,5 +210,131 @@ describe('SCORER_EXAM_FOLDER', () => {
   // so an upload with folder=null would be world-readable by id.
   it('is a non-empty uuid the upload path can always set', () => {
     expect(SCORER_EXAM_FOLDER).toMatch(/^[0-9a-f-]{36}$/i)
+  })
+})
+
+// ── notification ────────────────────────────────────────────────────────────────
+// The upload used to be silent — a row landed in /admin and nothing told anyone, while
+// the participant's success screen promised "wir melden uns per E-Mail". These pin the
+// two things that matter: the mail goes to the club, and NOTHING in the notification
+// path can throw. It runs after the file and the attendance row have committed, so an
+// exception here would 500 a request whose work already succeeded and invite a retry
+// that re-uploads the same sheet.
+describe('notifyExamUpload', () => {
+  const CLAIM = { k: 'schreiberkurs-de:42', s: 'schreiberkurs-de', i: '42' }
+  const COURSE = { id: 7, date_iso: '2026-08-15' }
+  const INFO = {
+    claim: CLAIM, course: COURSE, fileId: 'f1e2d3c4-0000-4000-8000-000000000001',
+    type: 'application/pdf', replaced: false, uploadedOn: '2026-07-29', licence: '337646',
+  }
+
+  /** Collects log lines instead of asserting on them one by one. */
+  const makeLog = () => {
+    const lines = { warn: [], error: [], info: [] }
+    return {
+      lines,
+      warn: (o) => lines.warn.push(o),
+      error: (o) => lines.error.push(o),
+      info: (o) => lines.info.push(o),
+    }
+  }
+
+  /** ctx with pluggable failure modes; `sent` captures what MailService received. */
+  const makeCtx = ({ mailThrows = false } = {}) => {
+    const sent = []
+    return {
+      sent,
+      ctx: {
+        database: {},
+        getSchema: async () => ({}),
+        services: {
+          MailService: class {
+            async send(msg) {
+              if (mailThrows) throw new Error('SES refused the message')
+              sent.push(msg)
+            }
+          },
+        },
+      },
+    }
+  }
+
+  beforeEach(() => {
+    vi.mocked(listSubmissions).mockReset()
+    vi.mocked(readManagedFile).mockReset()
+    // Happy path by default; individual tests break one dependency at a time.
+    vi.mocked(listSubmissions).mockResolvedValue({
+      fields: [
+        { id: 'fa', name: 'E-Mail', type: 'email' },
+        { id: 'fb', name: 'Vorname', type: 'text' },
+        { id: 'fc', name: 'Nachname', type: 'text' },
+      ],
+      // ⚠ answers live in row.data, not on the row — see answersOf().
+      data: [{ id: 42, data: { fa: 'Anna.Beispiel@example.ch', fb: 'Anna', fc: 'Beispiel' } }],
+    })
+    vi.mocked(readManagedFile).mockResolvedValue({
+      file: { filename_download: 'matchblatt.pdf', type: 'application/pdf' },
+      bytes: Buffer.alloc(2048),
+    })
+  })
+
+  it('mails the club admin mailbox with the scoresheet attached', async () => {
+    const { sent, ctx } = makeCtx()
+    await notifyExamUpload(ctx, makeLog(), INFO)
+
+    expect(sent).toHaveLength(1)
+    const [msg] = sent
+    // The default recipient is the whole point of the feature.
+    expect(msg.to).toBe('admin@wiedisync.kscw.ch')
+    expect(msg.subject).toContain('Anna Beispiel')
+    expect(msg.attachments).toHaveLength(1)
+    expect(msg.attachments[0].content).toHaveLength(2048)
+    // Identity + licence must be readable without opening the attachment.
+    expect(msg.html).toContain('Anna Beispiel')
+    expect(msg.html).toContain('anna.beispiel@example.ch')
+    expect(msg.html).toContain('337646')
+    // Swiss dot format everywhere, never 2026-08-15 (CLAUDE.md time &amp; date rule).
+    expect(msg.html).toContain('15.08.2026')
+    // Deep-links straight at the course that needs reviewing.
+    expect(msg.html).toContain('tab=scorer_courses&amp;course=7')
+  })
+
+  it('still sends when OpnForm is down — an unnamed upload is worth knowing about', async () => {
+    vi.mocked(listSubmissions).mockRejectedValue(new Error('opnform 502'))
+    const { sent, ctx } = makeCtx()
+    const log = makeLog()
+
+    await expect(notifyExamUpload(ctx, log, INFO)).resolves.toBeUndefined()
+    expect(sent).toHaveLength(1)
+    // Falls back to the sub_key so the row is still identifiable by hand.
+    expect(sent[0].subject).toContain(CLAIM.k)
+    expect(log.lines.warn).toHaveLength(1)
+  })
+
+  it('still sends when the bytes cannot be read, and says the attachment is missing', async () => {
+    vi.mocked(readManagedFile).mockRejectedValue(Object.assign(new Error('too large'), { status: 413 }))
+    const { sent, ctx } = makeCtx()
+    const log = makeLog()
+
+    await notifyExamUpload(ctx, log, INFO)
+    expect(sent).toHaveLength(1)
+    expect(sent[0].attachments).toBeUndefined()
+    expect(sent[0].html).toContain('konnte nicht angeh')
+    expect(log.lines.warn).toHaveLength(1)
+  })
+
+  it('swallows a mail failure instead of 500-ing an upload that already succeeded', async () => {
+    const { ctx } = makeCtx({ mailThrows: true })
+    const log = makeLog()
+
+    await expect(notifyExamUpload(ctx, log, INFO)).resolves.toBeUndefined()
+    expect(log.lines.error).toHaveLength(1)
+    expect(log.lines.error[0].msg).toContain('SES refused')
+  })
+
+  it('flags a re-upload so nobody reviews a superseded sheet', async () => {
+    const { sent, ctx } = makeCtx()
+    await notifyExamUpload(ctx, makeLog(), { ...INFO, replaced: true })
+    expect(sent[0].html).toContain('Ersetzt ein fr')
   })
 })
