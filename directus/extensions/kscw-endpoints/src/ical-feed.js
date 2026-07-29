@@ -64,9 +64,10 @@ const zurichToday = () => new Intl.DateTimeFormat('en-CA', {
 // Sep 1 of the current season. Mirrors getCurrentSeason() + getSeasonDateRange()
 // in src/utils/dateHelpers.ts: Jun 1 cutover (Jan–May still belongs to the season
 // that started last September), season runs Sep→Aug.
-// ⚠ Deliberately NOT the Postgres kscw_current_season_start(): that one still
-// uses the older Sep 1 cutover, so between June and August it resolves to LAST
-// season — which is exactly the window this floor exists to exclude.
+// ⚠ Keep in lockstep with the Postgres kscw_current_season_start(). The two
+// disagreed by a whole season across Jun–Aug until migration 268 moved PG onto
+// the same Jun 1 cutover; a cross-check over every month boundary is in the
+// tests. Change one → change the other.
 export function currentSeasonStart(today = zurichToday()) {
   const [y, m] = today.split('-').map(Number)
   return `${m < 6 ? y - 1 : y}-09-01`
