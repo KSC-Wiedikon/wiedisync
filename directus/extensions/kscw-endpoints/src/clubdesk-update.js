@@ -487,6 +487,12 @@ export const CD_BEITRAG_MAP = {
   'BB Minis Turnier': 210, 'BB Minis': 210, 'BB 1 Trainings': 210,
   'Passivmitglied': 40,
   'Gratis': 0,
+  // Terminal, non-member bucket (created 2026-07-30). Covers BOTH
+  // `Ehemaliges Mitglied` (left the club) and `Kein Mitglied` (sponsors,
+  // parents, contacts who were never members) — Status says which, the
+  // category says only "owes no Mitgliederbeitrag". Distinct from 'Gratis',
+  // which is a MEMBER who owes nothing (coach/staff, migration 262).
+  'Kein Beitrag': 0,
 }
 // The CHF 100 no-licence surcharge (VB: website "Mitgliederbeitrag für aktive
 // Mitglieder ohne Schreiberlizenz um CHF 100 erhöht"; BB: user rule 2026-07-06
@@ -1973,7 +1979,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
       // Non-playing fee categories: these legitimately have no roster row.
       // Anything else is a "playing" fee — being billed to play.
-      const NON_PLAYING_KAT = ['Passivmitglied', 'Gratis']
+      const NON_PLAYING_KAT = ['Passivmitglied', 'Gratis', 'Kein Beitrag']
 
       // Guests (guest_level > 0) are expected in the team's '<group> (Guest)'
       // subgroup, core players in '<group> (Spieler*in)' — one row per
