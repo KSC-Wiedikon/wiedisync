@@ -207,8 +207,8 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
 /** Inline Yes/Maybe/No buttons for event cards — matches training/game card pattern, no dropdown overflow */
 function EventCardParticipation({ event, existingParticipation, onSaved }: { event: Event; existingParticipation?: Participation; onSaved?: () => void }) {
   const { t } = useTranslation('participation')
-  const { user, isStaffOnly } = useAuth()
-  const isStaff = !!event.teams?.[0] && isStaffOnly(teamId(event.teams[0]))
+  const { user, isStaffOnlyForTeams } = useAuth()
+  const isStaff = isStaffOnlyForTeams((event.teams ?? []).map((tm) => teamId(tm)))
   const { create, update } = useMutation<Participation>('participations')
   const { absence, hasAbsence } = useMyCoveringAbsence('event', event.start_date)
   const absenceLabel = absence?.type === 'weekly' ? 'declinedUnavailable' : 'absent'
@@ -368,8 +368,10 @@ function EventCardParticipation({ event, existingParticipation, onSaved }: { eve
 function EventCardSessionParticipation({ event, onSaved }: { event: Event; onSaved?: () => void }) {
   const { t } = useTranslation('participation')
   const { t: te } = useTranslation('events')
-  const { user, isStaffOnly } = useAuth()
-  const isStaff = !!event.teams?.[0] && isStaffOnly(teamId(event.teams[0]))
+  const { user, isStaffOnlyForTeams } = useAuth()
+  // Every invited team, not just `teams[0]` — a D1 coach on an H3 + D1 event
+  // was classified as a player whenever H3 sorted first in the junction.
+  const isStaff = isStaffOnlyForTeams((event.teams ?? []).map((tm) => teamId(tm)))
   const { create, update } = useMutation<Participation>('participations')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [savingAll, setSavingAll] = useState(false)
@@ -496,6 +498,7 @@ function EventCardSessionParticipation({ event, onSaved }: { event: Event; onSav
         <SessionParticipationSheet
           activityId={event.id}
           sessions={sessions}
+          isStaff={isStaff}
           onClose={() => { setSheetOpen(false); onSaved?.() }}
         />
       )}

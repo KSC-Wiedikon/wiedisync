@@ -2,6 +2,18 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.56.0 — 2026-07-30
+
+### Fixed: coaches' answers on a multi-day event went missing
+- **A coach or team responsible who is not on the team's player list could answer a multi-day event** (the Trainingsweekend), **and their answer was filed as a player's.** The participation list showed them as "Not responded" while the count on the card treated them as one more player coming. Their answers now appear where they belong, and the "Coach present" figure counts people rather than days — a coach who said yes to both weekend days counted twice.
+- **On an event that invites several teams, only the first team was considered** when deciding whether you answer as staff or as a player. A coach of the second team was filed as a player.
+
+### New: answer for the staff too
+- **Coaches and team responsibles now have the same edit controls as everyone else in the participation list** — including the "all days at once" answer on a multi-day event's Overall tab, per-day answers, and notes.
+
+### Fixed: rows cut in half in the PDF export
+- **Exporting a participation list longer than one page split the last row of every page across the page break** — the name on one page, the answer on the next. Pages now end between rows.
+
 ## v1.55.0 — 2026-07-29
 
 ### New: answer for every day at once on a multi-day event

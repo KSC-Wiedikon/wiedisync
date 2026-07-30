@@ -39,6 +39,8 @@ export interface AuthContextValue {
   isCoachOf: (teamId: string) => boolean
   canParticipateIn: (teamId: string) => boolean
   isStaffOnly: (teamId: string) => boolean
+  /** Staff-only across a multi-team activity — see AuthProvider. */
+  isStaffOnlyForTeams: (teamIds: string[]) => boolean
   coachTeamIds: string[]
   coachTeamNames: string[]
   teamResponsibleIds: string[]

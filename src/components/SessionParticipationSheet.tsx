@@ -13,6 +13,13 @@ interface Props {
   activityId: string
   sessions: EventSession[]
   onClose: () => void
+  /** True when the viewer answers as staff (coach / TR of an invited team, on
+   *  none of their rosters). MUST be threaded from the caller: this sheet used
+   *  to hardcode `is_staff: false`, and since it is the only per-day RSVP path,
+   *  every staff answer on a per-day event was stored as a player row — counted
+   *  in the player tally on the card while the roster modal's Staff section
+   *  (which reads `is_staff = true` rows) still said "Not responded". */
+  isStaff?: boolean
 }
 
 function formatDateShort(dateStr: string): string {
@@ -74,7 +81,7 @@ function SessionRow({
   )
 }
 
-export default function SessionParticipationSheet({ activityId, sessions, onClose }: Props) {
+export default function SessionParticipationSheet({ activityId, sessions, onClose, isStaff = false }: Props) {
   const { t } = useTranslation('events')
   const { user } = useAuth()
 
@@ -126,7 +133,7 @@ export default function SessionParticipationSheet({ activityId, sessions, onClos
           status,
           note: '',
           guest_count: 0,
-          is_staff: false,
+          is_staff: isStaff,
           session_id: session.id,
         })
       }
@@ -138,7 +145,7 @@ export default function SessionParticipationSheet({ activityId, sessions, onClos
         return next
       })
     }
-  }, [user, bySession, activityId, create, update])
+  }, [user, bySession, activityId, isStaff, create, update])
 
   return (
     <Modal open onClose={onClose} title={t('sessionParticipation')} size="sm">
