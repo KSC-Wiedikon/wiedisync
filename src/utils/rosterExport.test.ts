@@ -1,5 +1,32 @@
 import { describe, it, expect } from 'vitest'
-import { nextSliceEnd } from './rosterExport'
+import { nextSliceEnd, isMultiTeamExport, type RosterExportRow } from './rosterExport'
+
+const row = (team?: string): RosterExportRow => ({
+  name: 'A', jerseyNumber: null, positions: '', status: '', guests: 0,
+  isGuest: false, note: '', rsvpAt: '', editedBy: '', team,
+})
+
+/** Drives both the Team column and the per-team grouping — a single-team
+ *  roster must get neither, or every row repeats the same value. */
+describe('isMultiTeamExport', () => {
+  it('is false for one team', () => {
+    expect(isMultiTeamExport([row('H3'), row('H3')])).toBe(false)
+  })
+
+  it('is true for two', () => {
+    expect(isMultiTeamExport([row('H3'), row('D1')])).toBe(true)
+  })
+
+  it('ignores rows with no resolvable team', () => {
+    // Club-wide members and unresolvable staff carry no team; on their own they
+    // are not a second group.
+    expect(isMultiTeamExport([row('H3'), row(), row('')])).toBe(false)
+  })
+
+  it('is false for an empty export', () => {
+    expect(isMultiTeamExport([])).toBe(false)
+  })
+})
 
 /**
  * The PDF pager slices one tall snapshot into A4 pages. Slicing at a fixed

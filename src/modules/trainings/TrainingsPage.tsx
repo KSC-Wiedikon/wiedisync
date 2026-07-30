@@ -5,7 +5,7 @@ import { useAdminMode } from '../../hooks/useAdminMode'
 import { useActivitiesWithParticipations } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useMutation } from '../../hooks/useMutation'
-import { todayLocal } from '../../utils/dateHelpers'
+import { todayLocal, formatDate } from '../../utils/dateHelpers'
 import TeamFilter from '../../components/TeamFilter'
 import EmptyState from '../../components/EmptyState'
 import VolleyballIcon from '../../components/VolleyballIcon'
@@ -78,7 +78,7 @@ export default function TrainingsPage() {
   const [recurringEditDialogOpen, setRecurringEditDialogOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [recurringOpen, setRecurringOpen] = useState(false)
-  const [rosterTraining, setRosterTraining] = useState<{ id: string; teamId: string; date: string; showRsvpTime?: boolean; excludedGuestLevels?: number[] } | null>(null)
+  const [rosterTraining, setRosterTraining] = useState<{ id: string; teamId: string; date: string; teamName?: string; showRsvpTime?: boolean; excludedGuestLevels?: number[] } | null>(null)
   const recurringSelectionMade = useRef(false)
 
   // Single round-trip: trainings + their participations in one request.
@@ -248,6 +248,10 @@ export default function TrainingsPage() {
                   id,
                   teamId,
                   date,
+                  // Names the activity in the modal heading AND in the PNG/PDF
+                  // export header — a generic "Participation" there left the
+                  // printed sheet with nothing identifying it.
+                  teamName: asObj<Team>(training.team)?.name ?? '',
                   showRsvpTime: isFeatureEnabled(asObj<Team>(training.team)?.features_enabled, 'show_rsvp_time'),
                   excludedGuestLevels: Array.isArray(training.excluded_guest_levels) ? training.excluded_guest_levels : [],
                 })}
@@ -311,7 +315,9 @@ export default function TrainingsPage() {
         activityId={rosterTraining?.id ?? ''}
         activityDate={rosterTraining?.date ?? ''}
         teamIds={rosterTraining?.teamId ? [rosterTraining.teamId] : []}
-        title={t('participation')}
+        title={rosterTraining
+          ? [rosterTraining.teamName, formatDate(rosterTraining.date)].filter(Boolean).join(' — ')
+          : t('participation')}
         showRsvpTime={rosterTraining?.showRsvpTime}
         excludedGuestLevels={rosterTraining?.excludedGuestLevels}
       />

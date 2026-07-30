@@ -79,6 +79,7 @@ export default {
   staffFallback: 'Staff',
   addNotePlaceholder: 'Note…',
   editedByColumn: 'Edited by',
+  team: 'Team',
   name: 'Name',
   status: 'Status',
   note: 'Note',

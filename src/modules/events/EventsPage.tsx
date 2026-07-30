@@ -6,7 +6,7 @@ import { useAdminMode } from '../../hooks/useAdminMode'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import { useUserVisibleEventIds } from '../../hooks/useUserVisibleEventIds'
-import { todayLocal, toZurichDateString } from '../../utils/dateHelpers'
+import { todayLocal, toZurichDateString, formatDate } from '../../utils/dateHelpers'
 import { useMyDuties, type MyDuty } from '../../hooks/useMyDuties'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -330,7 +330,11 @@ export default function EventsPage() {
         activityId={rosterEvent?.id ?? ''}
         activityDate={rosterEvent?.start_date ?? ''}
         teamIds={(rosterEvent?.teams ?? []).map(t => teamId(t))}
-        title={t('participation')}
+        // The event's own name, like EventDetailModal — a generic "Participation"
+        // heading left the PNG/PDF export with nothing identifying it.
+        title={rosterEvent
+          ? [rosterEvent.title, formatDate(rosterEvent.start_date)].filter(Boolean).join(' — ')
+          : t('participation')}
         respondBy={rosterEvent?.respond_by}
         maxPlayers={rosterEvent?.max_players}
         participationMode={rosterEvent?.participation_mode}

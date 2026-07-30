@@ -79,6 +79,7 @@ export default {
   staffFallback: 'Trainer/TR',
   addNotePlaceholder: 'Notiz…',
   editedByColumn: 'Geändert durch',
+  team: 'Team',
   name: 'Name',
   status: 'Status',
   note: 'Notiz',

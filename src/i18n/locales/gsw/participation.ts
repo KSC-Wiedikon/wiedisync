@@ -71,6 +71,7 @@ export default {
   roleCoach: 'Coach',
   roleCaptainAbbr: 'C',
   roleTeamRespAbbr: 'TR',
+  team: 'Team',
   name: 'Name',
   status: 'Status',
   note: 'Notiz',
