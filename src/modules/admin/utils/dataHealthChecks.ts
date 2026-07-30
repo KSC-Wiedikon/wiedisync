@@ -36,6 +36,7 @@ export type IssueKey =
   | 'clubdeskGroupNoTeam'
   | 'clubdeskNoGroup'
   | 'clubdeskCoachGroup'
+  | 'clubdeskStaleFunktion'
   | 'clubdeskFeeNoRoster'
   | 'clubdeskUnmappedTeam'
   | 'clubdeskNameDrift'
@@ -476,7 +477,7 @@ async function checkMembers(): Promise<CollectionHealth> {
   try {
     const {
       missing, strays, no_team_groups,
-      no_group, coach_no_group, fee_no_roster, unmapped_teams,
+      no_group, coach_no_group, fee_no_roster, unmapped_teams, stale_funktion,
     } = await kscwApi<{
       missing: ClubdeskGroupMissing[]
       strays: ClubdeskGroupStray[]
@@ -485,6 +486,7 @@ async function checkMembers(): Promise<CollectionHealth> {
       coach_no_group?: { member_id: number }[]
       fee_no_roster?: { member_id: number; severity: 'never' | 'lapsed' | 'older' }[]
       unmapped_teams?: { team_id: number; name: string }[]
+      stale_funktion?: { member_id: number }[]
     }>('/clubdesk-group-sync')
 
     // These four are AGGREGATED into a single row each: per-member rows would add
@@ -501,6 +503,19 @@ async function checkMembers(): Promise<CollectionHealth> {
         severity: noGroupOnTeam > 0 ? 'error' : 'warning',
         issueKey: 'clubdeskNoGroup',
         detail: `${(no_group || []).length} · ${noGroupOnTeam} on a team`,
+        autoFixable: false,
+      })
+    }
+    // Aggregated like its siblings — the per-row worklist (and its JSON export for
+    // clubdesk-remove-group.mjs) lives on the ClubDesk sync page.
+    if ((stale_funktion || []).length > 0) {
+      issues.push({
+        id: 'cd-stale-funktion',
+        collection: 'members',
+        field: 'clubdesk_id',
+        severity: 'warning',
+        issueKey: 'clubdeskStaleFunktion',
+        detail: `${(stale_funktion || []).length}`,
         autoFixable: false,
       })
     }

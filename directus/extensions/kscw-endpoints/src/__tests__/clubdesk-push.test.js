@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, derivePassivmitglied, deriveSchiedsrichter, federationCell, nationalityCell, gastCell } from '../clubdesk-update.js'
+import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -250,27 +250,27 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
     // Same rule on the CREATE set.
     const createRow = buildPushCsv([{ ...kacper, license_nr: '759984', licence_category: 'Offizielle/r' }], { create: true })
       .trim().split('\n')[1].split(';')
-    expect(createRow[26]).toBe('759984')
-    expect(createRow[27]).toBe('')
+    expect(createRow[25]).toBe('759984')
+    expect(createRow[26]).toBe('')
   })
 })
 
 describe('buildPushCsv (create set)', () => {
   it('appends the create-set columns (Telefon Mobil … Schiedsrichter) in order', () => {
-    const csv = buildPushCsv([{ ...kacper, scorer_vb: true, referee_vb: true, iban: 'CH9300762011623852957', cd_passiv: 'Nein', cd_sektion: 'Volleyball', license_nr: '183931', licence_category: 'RLL' }], { create: true })
+    const csv = buildPushCsv([{ ...kacper, scorer_vb: true, referee_vb: true, iban: 'CH9300762011623852957', cd_sektion: 'Volleyball', license_nr: '183931', licence_category: 'RLL' }], { create: true })
     const [header, row] = csv.trim().split('\n')
     // FULL literal pin — `toBe(CD_PUSH_CREATE_HEADERS.join(';'))` alone is
     // self-referential (a header deleted from the array would still pass while
     // the cells shift against ClubDesk's mapper). CREATE rows carry the real
     // wiedisync name (a new contact needs one) and never an [Id] (an unknown
     // [Id] hard-aborts ClubDesk's whole import).
-    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Passivmitglied;Sektion;Schiedsrichter;Lizenznummer;Lizenzart')
+    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Sektion;Schiedsrichter;Lizenznummer;Lizenzart')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
     expect(header).not.toContain('[Id]')
     // header/cell count equality — catches a header/cells drift in either direction
     expect(row.split(';')).toHaveLength(header.split(';').length)
     const cells = row.split(';')
-    expect(cells).toHaveLength(28)
+    expect(cells).toHaveLength(27)
     expect(cells[9]).toBe('CH9300762011623852957') // IBAN
     // [10..13] = Anrede/Nationalität/Federation of Origin/AHV Nummer (empty on this fixture); [14] = Wiedisync ID; [15] = Gast; create extras start at [16]
     expect(cells[16]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
@@ -280,11 +280,10 @@ describe('buildPushCsv (create set)', () => {
     expect(cells[20]).toBe('Aktivmitglied')          // Status
     expect(cells[21]).toBe('VB SC')                  // Offiziellen Lizenz (scorer, not VB SR)
     expect(cells[22]).toBe('440')                    // Mitgliederbeitrag
-    expect(cells[23]).toBe('Nein')                   // Passivmitglied
-    expect(cells[24]).toBe('Volleyball')             // Sektion
-    expect(cells[25]).toBe('Ja')                     // Schiedsrichter (referee)
-    expect(cells[26]).toBe('183931')                 // Lizenznummer (issuing authority)
-    expect(cells[27]).toBe('RLL')                    // Lizenzart
+    expect(cells[23]).toBe('Volleyball')             // Sektion
+    expect(cells[24]).toBe('Ja')                     // Schiedsrichter (referee)
+    expect(cells[25]).toBe('183931')                 // Lizenznummer (issuing authority)
+    expect(cells[26]).toBe('RLL')                    // Lizenzart
   })
 
   it('Telefon Mobil mirrors Telefon Privat (one number → both)', () => {
@@ -301,7 +300,7 @@ describe('buildPushCsv (create set)', () => {
     // Lizenzart. 15 (Gast) is deliberately NOT in this list — it is the one
     // contact column that is never empty (gastCell asserts 'Nein'), asserted
     // separately below.
-    for (const i of [9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 26, 27]) expect(cells[i]).toBe('')
+    for (const i of [9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 25, 26]) expect(cells[i]).toBe('')
   })
 
   it('neutralises formula injection in the category cell', () => {
@@ -314,7 +313,7 @@ describe('buildPushCsv (create set)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(28)
+    expect(cells).toHaveLength(27)
     expect(cells[19]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 })
@@ -353,7 +352,7 @@ describe('deriveGruppen officials', () => {
   })
 })
 
-describe('deriveSektion / derivePassivmitglied', () => {
+describe('deriveSektion', () => {
   it('sektion from sport, passive uses approver choice (default KSCW)', () => {
     expect(deriveSektion({ membership_type: 'volleyball' })).toBe('Volleyball')
     expect(deriveSektion({ membership_type: 'basketball' })).toBe('Basketball')
@@ -361,10 +360,11 @@ describe('deriveSektion / derivePassivmitglied', () => {
     expect(deriveSektion({ membership_type: 'passive' })).toBe('KSCW')
     expect(deriveSektion(null)).toBe('')
   })
-  it('passivmitglied Ja only for passive registrations', () => {
-    expect(derivePassivmitglied({ membership_type: 'passive' })).toBe('Ja')
-    expect(derivePassivmitglied({ membership_type: 'volleyball' })).toBe('Nein')
-    expect(derivePassivmitglied(null)).toBe('Nein')
+  // The Passivmitglied Ja/Nein checkbox was deleted in ClubDesk on 2026-07-30 —
+  // passive membership rides on Status alone (see deriveStatus below).
+  it('passive registrations are marked via Status, not a checkbox', () => {
+    expect(CD_PUSH_CREATE_HEADERS).not.toContain('Passivmitglied')
+    expect(deriveStatus({ membership_type: 'passive' }, { wiedisync_active: true })).toBe('Passivmitglied')
   })
 })
 

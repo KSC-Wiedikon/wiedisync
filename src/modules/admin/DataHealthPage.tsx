@@ -39,6 +39,7 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   clubdeskGroupNoTeam: 'dhIssueClubdeskGroupNoTeam',
   clubdeskNoGroup: 'dhIssueClubdeskNoGroup',
   clubdeskCoachGroup: 'dhIssueClubdeskCoachGroup',
+  clubdeskStaleFunktion: 'dhIssueClubdeskStaleFunktion',
   clubdeskFeeNoRoster: 'dhIssueClubdeskFeeNoRoster',
   clubdeskUnmappedTeam: 'dhIssueClubdeskUnmappedTeam',
   clubdeskNameDrift: 'dhIssueClubdeskNameDrift',

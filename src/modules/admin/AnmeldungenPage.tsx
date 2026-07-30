@@ -175,7 +175,7 @@ function buildClubDeskCSV(items: Registration[]): string {
     'Firmen-Webseite', 'Rechnungsversand', 'Nie mahnen', 'IBAN', 'BIC', 'Kontoinhaber',
     'Lizenznummer', 'Lizenzart', 'Lizenz bestellt', 'Beitragskategorie',
     'Betrag Bezahlt', 'Clubnummer', 'Mittelschule ZH', 'Offiziellen Lizenz',
-    'Mitgliederbeitrag', 'AHV Nummer', 'Passivmitglied', 'Offiziellen 100er',
+    'Mitgliederbeitrag', 'AHV Nummer', 'Offiziellen 100er',
     'Funktion', 'Rolle',
   ]
 
@@ -193,8 +193,9 @@ function buildClubDeskCSV(items: Registration[]): string {
 
     const sektion = item.membership_type === 'volleyball' ? 'Volleyball'
       : item.membership_type === 'basketball' ? 'Basketball' : 'KSCW'
+    // Passive membership travels on Status alone — ClubDesk's redundant
+    // Passivmitglied Ja/Nein checkbox was deleted 2026-07-30.
     const status = item.membership_type === 'passive' ? 'Passivmitglied' : 'Aktivmitglied'
-    const isPassive = item.membership_type === 'passive' ? 'ja' : ''
 
     return [
       item.nachname || '', item.vorname || '', '',
@@ -215,7 +216,7 @@ function buildClubDeskCSV(items: Registration[]): string {
       item.lizenz || '',
       '',
       item.ahv_nummer || '',
-      isPassive, '',
+      '',
       item.rolle || '', '',
     ].map(csvEscape)
   })

@@ -294,7 +294,7 @@ const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie'
 // `BB HU14 (Trainer*in)` — ClubDesk's group naming, verified against the export
 // snapshot 2026-07-05), Status (Aktiv-/Passivmitglied — see deriveStatus) and
 // Offiziellen Lizenz (scorer/officials licence — see deriveOffiziellenLizenz).
-// UPDATE pushes NEVER send Gruppen/Status/Offiziellen Lizenz/Passivmitglied/
+// UPDATE pushes NEVER send Gruppen/Status/Offiziellen Lizenz/
 // Sektion/Schiedsrichter/Telefon Mobil — ClubDesk stays authoritative on
 // existing contacts. (Spike 2026-07-08: an empty mapped cell is provably a
 // no-op on import, but keeping these columns out of the update set remains
@@ -311,13 +311,18 @@ const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie'
 // self-documentation in the import preview — group assignment is manual in
 // ClubDesk.
 // CREATE rows also duplicate the single member phone into Telefon Mobil (user
-// 2026-07-06: "unless present, Privat and Mobil the same"), and carry the
-// Passivmitglied Ja/Nein checkbox + Sektion (Volleyball/Basketball/KSCW). These
-// are CREATE-only — an UPDATE never overwrites a distinct Mobil / ClubDesk-owned
-// Sektion on an existing contact.
+// 2026-07-06: "unless present, Privat and Mobil the same"), and carry Sektion
+// (Volleyball/Basketball/KSCW). These are CREATE-only — an UPDATE never
+// overwrites a distinct Mobil / ClubDesk-owned Sektion on an existing contact.
+// ⚠ The Passivmitglied Ja/Nein checkbox was dropped from this set on
+// 2026-07-30: the field was DELETED in ClubDesk (a club-side custom checkbox
+// predating the sync, redundant with Status + Beitragskategorie, and drifted
+// from both — 21 live contradictions at deletion time). Passive membership
+// travels on Status alone now (deriveStatus → 'Passivmitglied'). Last values
+// archived to .planning/clubdesk-backups/passivmitglied-snapshot-20260730.csv.
 // CREATE set: real wiedisync name (a brand-new contact has no [Id] to key on),
 // the shared contact columns, then the create-only extras.
-export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Passivmitglied', 'Sektion', 'Schiedsrichter', 'Lizenznummer', 'Lizenzart']
+export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Sektion', 'Schiedsrichter', 'Lizenznummer', 'Lizenzart']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -433,11 +438,6 @@ export function deriveSektion(reg) {
   return String(reg.sektion_choice || '').trim() || 'KSCW'
 }
 
-// Derive the ClubDesk Passivmitglied Ja/Nein checkbox from the registration.
-export function derivePassivmitglied(reg) {
-  return reg && String(reg.membership_type || '').trim().toLowerCase() === 'passive' ? 'Ja' : 'Nein'
-}
-
 // Signup-form category → ClubDesk Beitragskategorie picklist name. The form's
 // names only partially match ClubDesk's configured categories (e.g. the form
 // says "BB Lernende/Studierende", ClubDesk has "BB Student/Lehrling"; "VB
@@ -487,6 +487,12 @@ export const CD_BEITRAG_MAP = {
   'BB Minis Turnier': 210, 'BB Minis': 210, 'BB 1 Trainings': 210,
   'Passivmitglied': 40,
   'Gratis': 0,
+  // Terminal, non-member bucket (created 2026-07-30). Covers BOTH
+  // `Ehemaliges Mitglied` (left the club) and `Kein Mitglied` (sponsors,
+  // parents, contacts who were never members) — Status says which, the
+  // category says only "owes no Mitgliederbeitrag". Distinct from 'Gratis',
+  // which is a MEMBER who owes nothing (coach/staff, migration 262).
+  'Kein Beitrag': 0,
 }
 // The CHF 100 no-licence surcharge (VB: website "Mitgliederbeitrag für aktive
 // Mitglieder ohne Schreiberlizenz um CHF 100 erhöht"; BB: user rule 2026-07-06
@@ -720,7 +726,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt),
         m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m),
         deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
-        m.cd_passiv || '', m.cd_sektion || '', // resolved by /up from the registration
+        m.cd_sektion || '', // resolved by /up from the registration
         deriveSchiedsrichter(m),
         // Licence number + category from the issuing authority (Volleymanager /
         // Basketplan) — a brand-new contact has no register value to protect.
@@ -1199,12 +1205,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             .filter((r) => String(r.email || '').toLowerCase().trim() === em && firstNamesMatchCd(r.vorname, m.first_name))
             .sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0))[0]
           m.eintritt = reg ? reg.submitted_at : null
-          // The remaining create-set extras (Gruppen/Status/Passiv/Sektion)
+          // The remaining create-set extras (Gruppen/Status/Sektion)
           // stay off UPDATE rows — ClubDesk-authoritative there, no fill.
           if (m.clubdesk_id) continue
           m.gruppen = deriveGruppen(reg)
           m.cd_status = deriveStatus(reg, m)
-          m.cd_passiv = derivePassivmitglied(reg)
           m.cd_sektion = deriveSektion(reg)
           // m.is_guest is already set for every push member above — the CREATE
           // path only consumes it (Mitgliederbeitrag + the Gast cell).
@@ -1923,6 +1928,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   //     their gruppen_bracketed → assign it in ClubDesk. A core player expects
   //     '<group> (Spieler*in)'; a guest (guest_level > 0) expects '<group>
   //     (Guest)' instead — same team, different ClubDesk Funktion (VB and BB).
+  //   • stale_funktion — the exact inverse of `missing`, and the blind spot that
+  //     hid 29 contacts until 2026-07-30: the member holds the WRONG Funktion for
+  //     a team they are still on ('<group> (Spieler*in)' while wiedisync says
+  //     guest, or vice versa). `missing` can't see it (it only reports an ABSENT
+  //     expected token) and `strays` can't either (it requires ZERO current-season
+  //     roster rows, which excludes every guest by construction) — so a player
+  //     flipped to guest accumulated both allocations forever. Both assignment
+  //     paths are add-only (ClubDesk's "Kontakt zu Gruppe hinzufügen", mirrored by
+  //     clubdesk-scrape-groups.mjs), so nothing ever retired the old one.
+  //     Removal worklist for clubdesk-remove-group.mjs: `uuid` + `group`.
   //   • no_group — a linked member whose CD contact carries NO group token at all.
   //     Invisible to `missing`, which only inspects members who are ON a team.
   //   • coach_no_group — coaches (teams_coaches) missing their team's
@@ -1964,7 +1979,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
       // Non-playing fee categories: these legitimately have no roster row.
       // Anything else is a "playing" fee — being billed to play.
-      const NON_PLAYING_KAT = ['Passivmitglied', 'Gratis']
+      const NON_PLAYING_KAT = ['Passivmitglied', 'Gratis', 'Kein Beitrag']
 
       // Guests (guest_level > 0) are expected in the team's '<group> (Guest)'
       // subgroup, core players in '<group> (Spieler*in)' — one row per
@@ -1986,6 +2001,40 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         LEFT JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
         WHERE NOT (e.grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')))
         ORDER BY e.last_name, e.first_name, e.grp`
+
+      // stale_funktion — the member IS on the team, but their ClubDesk contact
+      // carries the OTHER Funktion for that same group. Same `expected` CTE shape
+      // as `missing`, only the predicate flips: there we assert the wanted token
+      // is absent, here we assert the unwanted one is present. `has_correct` says
+      // whether the right token sits alongside it (the usual case — then this is a
+      // pure removal; when false the member is ALSO in `missing`, i.e. one swap).
+      // `uuid` is carried because clubdesk-remove-group.mjs filters ClubDesk by
+      // the wiedisync uuid, never by name (name drift is real — "Berke-Wenger").
+      // The name is taken from the REGISTER (ce.vorname/ce.nachname) so the
+      // operator reads the row as ClubDesk spells it; wiedisync's is the fallback.
+      const staleFunktionSql = `
+        WITH ${teamGroupCte}, expected AS (
+          SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, m.uuid, tg.sport,
+                 COALESCE(mt.guest_level, 0) > 0 AS is_guest,
+                 (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
+                                            THEN ' (${CD_GUEST_FUNKTION})' ELSE ' (Spieler*in)' END) AS want_grp,
+                 (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
+                                            THEN ' (Spieler*in)' ELSE ' (${CD_GUEST_FUNKTION})' END) AS stale_grp
+          FROM member_teams mt
+          JOIN tg ON tg.id = mt.team
+          JOIN members m ON m.id = mt.member
+          WHERE mt.season = :season
+            AND tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
+        )
+        SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.uuid, e.sport,
+               e.is_guest, e.stale_grp, e.want_grp,
+               NULLIF(BTRIM(COALESCE(ce.vorname, '')), '') AS cd_vorname,
+               NULLIF(BTRIM(COALESCE(ce.nachname, '')), '') AS cd_nachname,
+               (e.want_grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', '))) AS has_correct
+        FROM expected e
+        JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
+        WHERE e.stale_grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', '))
+        ORDER BY e.last_name, e.first_name, e.stale_grp`
 
       const straySql = `
         WITH ${teamGroupCte}, cd_groups AS (
@@ -2111,7 +2160,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         WHERE t.active AND t.clubdesk_group IS NULL
         ORDER BY t.sport, t.name`
 
-      const [missingRes, strayRes, noTeamRes, noGroupRes, coachRes, feeRes, unmappedRes] = await Promise.all([
+      const [missingRes, strayRes, noTeamRes, noGroupRes, coachRes, feeRes, unmappedRes, staleRes] = await Promise.all([
         database.raw(missingSql, { season }),
         database.raw(straySql, { season }),
         database.raw(noTeamSql),
@@ -2119,6 +2168,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         database.raw(coachNoGroupSql),
         database.raw(feeNoRosterSql, { season, nonPlaying: NON_PLAYING_KAT }),
         database.raw(unmappedTeamsSql),
+        database.raw(staleFunktionSql, { season }),
       ])
 
       // Playing Beitragskategorien are 'VB '/'BB '-prefixed — the only sport
@@ -2200,11 +2250,29 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
       const no_team_groups = noTeamRes.rows.map((r) => ({ group: r.grp, count: r.cnt }))
 
+      // One row per stale allocation (a member can hold the wrong Funktion on more
+      // than one team), so this list IS the removal worklist — name/uuid/group are
+      // exactly clubdesk-remove-group.mjs's three input fields.
+      const stale_funktion = staleRes.rows.map((r) => ({
+        member_id: r.member_id,
+        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+        // ClubDesk's grid renders and filters on "Nachname Vorname".
+        clubdesk_name: [r.cd_nachname || r.last_name, r.cd_vorname || r.first_name].filter(Boolean).join(' '),
+        clubdesk_id: r.clubdesk_id,
+        uuid: r.uuid || '',
+        group: r.stale_grp,
+        expected: r.want_grp,
+        sport: r.sport || '',
+        is_guest: r.is_guest === true,
+        has_correct: r.has_correct === true,
+      }))
+
       const flattenSports = (byMember) => [...byMember.values()]
         .map(({ sports, ...rest }) => ({ ...rest, sport: [...sports].sort().join(', ') }))
 
       return res.json({
         missing: flattenSports(missingByMember),
+        stale_funktion,
         strays,
         no_team_groups,
         no_group,
