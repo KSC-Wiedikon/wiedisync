@@ -1196,9 +1196,13 @@ export default function ParticipationRosterModal({
         editedBy: formatAttribution(m, p),
       }
     })
-    // When filter is "All", append waitlist + staff so the export reflects
-    // everything visible in the modal.
-    if (statusFilter === null) {
+    // Waitlist + staff, appended so the export reflects everything visible in
+    // the modal. ⚠ This used to be gated on `statusFilter === null`, but the
+    // on-screen waitlist and Staff sections render under EVERY filter — so
+    // exporting e.g. "Confirmed" silently dropped every coach and every
+    // waitlisted player from the sheet while they stayed on screen. The export
+    // mirrors the modal; the status filter narrows the roster block only.
+    {
       const waitlistRows: { m: Member; wp: Participation; role: string | undefined }[] = []
       for (const wp of waitlistedParts) {
         const m = memberList.find((mm) => mm.id === wp.member)
@@ -1265,14 +1269,14 @@ export default function ParticipationRosterModal({
   // each member once per declared position (a setter/outside hybrid contributes
   // to both buckets). Stable order preserved by inserting in iteration order.
   const positionSummary = useMemo<{ position: string; label: string; count: number }[]>(() => {
+    // Same population as `exportRows` — including waitlist + staff under every
+    // filter, since those blocks are always part of the sheet.
     const membersForExport: Member[] = [...filteredMemberList]
-    if (statusFilter === null) {
-      for (const wp of waitlistedParts) {
-        const m = memberList.find((mm) => mm.id === wp.member)
-        if (m) membersForExport.push(m)
-      }
-      for (const sm of visibleStaffMembers) membersForExport.push(sm)
+    for (const wp of waitlistedParts) {
+      const m = memberList.find((mm) => mm.id === wp.member)
+      if (m) membersForExport.push(m)
     }
+    for (const sm of visibleStaffMembers) membersForExport.push(sm)
     const counts = new Map<string, number>()
     for (const m of membersForExport) {
       for (const p of m.position ?? []) {
@@ -1292,7 +1296,7 @@ export default function ParticipationRosterModal({
           count: counts.get(pos) ?? 0,
         }
       })
-  }, [filteredMemberList, statusFilter, waitlistedParts, visibleStaffMembers, memberList, tt])
+  }, [filteredMemberList, waitlistedParts, visibleStaffMembers, memberList, tt])
 
   // Team column + grouping only earn their space when the export actually spans
   // several teams — on a single-team roster the column would repeat one value.
