@@ -474,13 +474,30 @@ export default function ParticipationRosterModal({
   // control. `participations` is `allParticipations` on the Overall tab, so the
   // existing rows for every day are already in hand. Decision logic lives in
   // `utils/participationSessions.ts` (unit-tested there).
+  // Staff-only leaders are NOT in `participations` — that fetch is
+  // `member IN <roster ids>` and they have no `member_teams` row — so their
+  // rows come from the separate `is_staff` query. Edits have to see both pools:
+  // without the staff rows a save can't find the existing row, so every click
+  // CREATEs and hits migration 246's partial unique.
+  const editableParticipations = useMemo(
+    () => (staffParticipationRows.length > 0 ? [...participations, ...staffParticipationRows] : participations),
+    [participations, staffParticipationRows],
+  )
+  // Members rendered in the Staff section — the roster's own writers pass
+  // `is_staff: false`, and a row created for one of these people has to carry
+  // `true` or it lands in the player tally.
+  const staffMemberIdSet = useMemo(
+    () => new Set(staffMembers.map((m) => String(m.id))),
+    [staffMembers],
+  )
+
   const sessionTargets = useCallback(
-    (memberId: string): SessionTarget[] => resolveSessionTargets(memberId, participations, {
+    (memberId: string): SessionTarget[] => resolveSessionTargets(memberId, editableParticipations, {
       isOverall: isOverallSessionTab,
       activeSessionId,
       sessions: eventSessions,
     }),
-    [participations, isOverallSessionTab, activeSessionId, eventSessions],
+    [editableParticipations, isOverallSessionTab, activeSessionId, eventSessions],
   )
 
   // Staff-side note edit. Creates a participation row with `status: null` if
@@ -507,7 +524,7 @@ export default function ParticipationRosterModal({
             status: null as unknown as Participation['status'],
             note: trimmed,
             guest_count: 0,
-            is_staff: false,
+            is_staff: staffMemberIdSet.has(String(memberId)),
             ...(sessionId ? { session_id: sessionId } : {}),
           })))
     } catch {
@@ -519,7 +536,7 @@ export default function ParticipationRosterModal({
         return next
       })
     }
-  }, [activityId, activityType, sessionTargets, create, update])
+  }, [activityId, activityType, sessionTargets, staffMemberIdSet, create, update])
 
   const handleStatusChange = useCallback(async (memberId: string, newStatus: string) => {
     setEditingMemberId(null)
@@ -545,7 +562,7 @@ export default function ParticipationRosterModal({
           status: newStatus,
           note: '',
           guest_count: 0,
-          is_staff: false,
+          is_staff: staffMemberIdSet.has(String(memberId)),
           ...(sessionId ? { session_id: sessionId } : {}),
         })
       }))
@@ -559,6 +576,9 @@ export default function ParticipationRosterModal({
         && !wasConfirmed
         && canEditRoster
         && singleTeamId
+        // Staff aren't on the roster the fine would be issued against — a
+        // late-signin fine is a player rule, not a coach one.
+        && !staffMemberIdSet.has(String(memberId))
         && lateSigninRuleEnabled
         && respondBy
         && new Date() > new Date(respondBy)
@@ -581,7 +601,7 @@ export default function ParticipationRosterModal({
         return next
       })
     }
-  }, [activityId, activityType, sessionTargets, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, currentUserId, members, clubWideMembers, staffMembers])
+  }, [activityId, activityType, sessionTargets, staffMemberIdSet, create, update, remove, canEditRoster, singleTeamId, lateSigninRuleEnabled, respondBy, currentUserId, members, clubWideMembers, staffMembers])
 
   // Staff participations (coaches/team_responsible who aren't in member_teams).
   // Use `useCollection` so the modal auto-refreshes when any staff member
@@ -677,18 +697,21 @@ export default function ParticipationRosterModal({
       })
   }, [staffFetchIds])
 
-  // For the overall tab, compute per-member session counts
+  // For the overall tab, compute per-member session counts. Staff are included
+  // from their own row pool so the Staff section gets the same "1/2 confirmed"
+  // badge (and the same all-days pencil) as the roster.
   const memberSessionCounts = useMemo(() => {
     if (!hasSessionMode || activeSessionTab !== null) return new Map<string, { confirmed: number; total: number }>()
     const map = new Map<string, { confirmed: number; total: number }>()
     const totalSessions = eventSessions!.length
-    for (const m of memberList) {
-      const memberParts = allParticipations.filter((p) => String(p.member) === String(m.id))
-      const confirmed = memberParts.filter((p) => p.status === 'confirmed').length
-      map.set(m.id, { confirmed, total: totalSessions })
+    const countFrom = (rows: Participation[], memberId: string) => {
+      const mine = rows.filter((p) => String(p.member) === String(memberId))
+      map.set(memberId, { confirmed: mine.filter((p) => p.status === 'confirmed').length, total: totalSessions })
     }
+    for (const m of memberList) countFrom(allParticipations, m.id)
+    for (const m of staffMembers) countFrom(staffParticipationRows, String(m.id))
     return map
-  }, [hasSessionMode, activeSessionTab, eventSessions, memberList, allParticipations])
+  }, [hasSessionMode, activeSessionTab, eventSessions, memberList, allParticipations, staffMembers, staffParticipationRows])
 
   // Fetch absences overlapping activity date (same pattern as AttendanceSheet).
   // Keyed on the full roster (not the team-filtered list) so switching teams
@@ -828,7 +851,16 @@ export default function ParticipationRosterModal({
   // which now excludes `is_staff` rows): a coach who has only an `is_staff` confirmed
   // marker would otherwise lose their badge after the v4.6.7 dedupe tightening.
   // Set-based dedupe so a coach with both player + staff confirmed rows counts once.
-  const staffOnlyConfirmed = visibleStaffParticipations.filter(p => p.status === 'confirmed').length
+  // Per-day events keep one row per (member, day), so counting ROWS would report
+  // a coach who said yes to both weekend days as two people. Scoped to the day in
+  // view; the Overall tab counts anyone confirmed on at least one day.
+  const staffConfirmedIds = new Set<string>()
+  for (const p of visibleStaffParticipations) {
+    if (p.status !== 'confirmed') continue
+    if (activeSessionId && String(p.session_id ?? '') !== String(activeSessionId)) continue
+    staffConfirmedIds.add(String(p.member))
+  }
+  const staffOnlyConfirmed = staffConfirmedIds.size
   const playerCoachConfirmedIds = new Set<string>()
   for (const p of participations) {
     if (p.status === 'confirmed' && memberIdSet.has(p.member) && leadershipRoles.get(p.member) === 'coach') {
@@ -889,9 +921,16 @@ export default function ParticipationRosterModal({
     return reasonLabels[absence.reason] ?? null
   }
 
+  // Session-scoped, like the player rows: an unscoped `.find` hands back
+  // whichever day happens to sit first in the fetch, so Saturday's answer would
+  // render on Sunday's tab. On the Overall tab a shared answer shows only when
+  // every day agrees (mixed → blank, the row's own badge carries the counts).
   function getStaffMemberStatus(memberId: string): Participation['status'] | null {
-    const p = staffParticipations.find(p => p.member === memberId)
-    return p?.status ?? null
+    const targets = sessionTargets(memberId)
+    if (isOverallSessionTab) {
+      return (uniformValue(targets, 'status') || null) as Participation['status'] | null
+    }
+    return targets[0]?.row?.status ?? null
   }
 
   const filteredMemberList = useMemo(() => {
@@ -1156,13 +1195,29 @@ export default function ParticipationRosterModal({
       }
       const sortedStaff = [...visibleStaffMembers].sort(byLastName)
       for (const sm of sortedStaff) {
-        const sp = visibleStaffParticipations.find((p) => p.member === sm.id) ?? null
+        const myStaffRows = visibleStaffParticipations.filter((p) => String(p.member) === String(sm.id))
+        // On a day tab the export must speak for THAT day — the staff fetch
+        // isn't session-filtered, so an unscoped `[0]` prints Saturday's answer
+        // on Sunday's export.
+        const sp = (activeSessionId
+          ? myStaffRows.find((p) => String(p.session_id ?? '') === String(activeSessionId))
+          : myStaffRows[0]) ?? null
         const ts = sp?.date_updated ?? sp?.date_created ?? ''
+        // Per-day breakdown for the Overall tab of a session event — staff rows
+        // live in their own pool, so `sessionParticipationByMember` (built from
+        // the roster fetch) can't answer for them.
+        const staffSessionStatuses = exportSessions?.map((s) => {
+          const st = myStaffRows.find((p) => String(p.session_id ?? '') === String(s.id))?.status ?? null
+          return { label: formatSessionLabel(s), status: st, statusLabel: st ? t(st) : t('notResponded') }
+        })
         rows.push({
           name: `${(sm.first_name ?? '').trim()} ${(sm.last_name ?? '').trim()}`.trim() + ` (${t('staff')})`,
           jerseyNumber: sm.number && sm.number > 0 ? sm.number : null,
           positions: translatePositions(sm.position),
-          status: sp?.status ? t(sp.status) : t('notResponded'),
+          status: staffSessionStatuses
+            ? staffSessionStatuses.map((s) => `${s.label}: ${s.statusLabel}`).join(' / ')
+            : (sp?.status ? t(sp.status) : t('notResponded')),
+          sessionStatuses: staffSessionStatuses,
           guests: sp?.guest_count ?? 0,
           isGuest: false,
           note: sp?.note || '',
@@ -1610,7 +1665,10 @@ export default function ParticipationRosterModal({
             </thead>
             <tbody>
               {exportRows.map((r, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                // `data-export-row` (EXPORT_ROW_ATTR in rosterExport.ts) marks the
+                // row as un-splittable: the PDF pager ends a page on one of these
+                // boundaries instead of slicing the last row across the fold.
+                <tr key={i} data-export-row="" style={{ borderBottom: '1px solid #e5e7eb' }}>
                   <td style={{ padding: '6px 8px', color: '#6b7280', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top' }}>{r.jerseyNumber ?? ''}</td>
                   <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                     {r.name}
@@ -1994,35 +2052,128 @@ export default function ParticipationRosterModal({
               </div>
               {visibleStaffMembers.map((member) => {
                 const status = getStaffMemberStatus(member.id)
+                // Same write path as the roster rows — `sessionTargets` resolves
+                // the day in view (or every day on the Overall tab) out of the
+                // combined pool, so a coach's own answer is found instead of
+                // duplicated.
+                const targets = sessionTargets(member.id)
+                const sp = targets.find((tg) => tg.row)?.row ?? null
+                const ts = sp?.date_updated ?? sp?.date_created
                 return (
                   <div
                     key={member.id}
-                    className={`flex min-h-[44px] items-center gap-3 border-b border-b-gray-200 border-l-4 px-3 py-2 last:border-b-0 dark:border-b-gray-700 sm:min-h-0 ${statusBarClass(status)}`}
+                    className={`border-b border-b-gray-200 border-l-4 last:border-b-0 dark:border-b-gray-700 ${statusBarClass(status)}`}
                   >
-                    {member.photo ? (
-                      <img
-                        src={getFileUrl('members', member.id, member.photo)}
-                        alt=""
-                        className="h-8 w-8 shrink-0 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-medium text-brand-600 dark:bg-brand-900/30 dark:text-brand-400">
-                        {getInitials(member)}
+                    <div className="flex min-h-[44px] items-center gap-3 px-3 py-2 sm:min-h-0">
+                      {member.photo ? (
+                        <img
+                          src={getFileUrl('members', member.id, member.photo)}
+                          alt=""
+                          className="h-8 w-8 shrink-0 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-medium text-brand-600 dark:bg-brand-900/30 dark:text-brand-400">
+                          {getInitials(member)}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm text-gray-900 dark:text-gray-100">
+                          {displayNames.get(String(member.id)) ?? memberFirstName(member)}
+                        </p>
+                        {showRsvpTime && ts && (
+                          <RsvpTimestamp datetime={ts} locale={i18n.language} />
+                        )}
+                      </div>
+                      {isOverallSessionTab ? (
+                        <div className="flex shrink-0 items-center justify-end gap-1">
+                          {(() => {
+                            const counts = memberSessionCounts.get(String(member.id))
+                            if (!counts) return <span className="text-xs text-gray-400 dark:text-gray-500">{t('notResponded')}</span>
+                            return (
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                counts.confirmed === counts.total
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                  : counts.confirmed > 0
+                                    ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                    : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                              }`}>
+                                {te('sessionsConfirmed', { confirmed: counts.confirmed, total: counts.total })}
+                              </span>
+                            )
+                          })()}
+                          {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingMemberId(member.id)}
+                              aria-label={t('editAllDays')}
+                              title={t('editAllDays')}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {savingMemberIds.has(member.id) && (
+                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex w-16 shrink-0 items-center justify-end gap-1">
+                          <RsvpBrick status={status} label={status ? (statusLabels[status] ?? t('notResponded')) : t('notResponded')} />
+                          {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingMemberId(member.id)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {savingMemberIds.has(member.id) && (
+                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {editingMemberId === member.id && (
+                      <div
+                        className="flex items-center gap-2 px-3 pb-2 pl-14"
+                        onBlur={(e) => {
+                          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                            setTimeout(() => setEditingMemberId(prev => prev === member.id ? null : prev), 150)
+                          }
+                        }}
+                      >
+                        {isOverallSessionTab && (
+                          <span className="shrink-0 rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-400">
+                            {t('allDays')}
+                          </span>
+                        )}
+                        <select
+                          autoFocus
+                          defaultValue={isOverallSessionTab ? uniformValue(targets, 'status') : (targets[0]?.row?.status ?? '')}
+                          onChange={(e) => handleStatusChange(member.id, e.target.value)}
+                          className="shrink-0 rounded-md border border-gray-300 bg-white px-1.5 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                        >
+                          <option value="">{t('clearStatus')}</option>
+                          <option value="confirmed">{t('confirmed')}</option>
+                          {allowMaybe && <option value="tentative">{t('tentative')}</option>}
+                          <option value="declined">{t('declined')}</option>
+                        </select>
+                        <input
+                          type="text"
+                          placeholder={t('addNotePlaceholder', { defaultValue: 'Note…' })}
+                          defaultValue={isOverallSessionTab ? uniformValue(targets, 'note') : (targets[0]?.row?.note ?? '')}
+                          onBlur={(e) => { if (e.target.value !== e.target.defaultValue) handleNoteChange(member.id, e.target.value) }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
+                          className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                        />
                       </div>
                     )}
-                    <div className="min-w-0 flex-1">
-                      <p className="break-words text-sm text-gray-900 dark:text-gray-100">
-                        {displayNames.get(String(member.id)) ?? memberFirstName(member)}
-                      </p>
-                      {showRsvpTime && (() => {
-                        const sp = staffParticipations.find(p => p.member === member.id)
-                        const ts = sp?.date_updated ?? sp?.date_created
-                        return ts ? (
-                          <RsvpTimestamp datetime={ts} locale={i18n.language} />
-                        ) : null
-                      })()}
-                    </div>
-                    <RsvpBrick status={status} label={status ? (statusLabels[status] ?? t('notResponded')) : t('notResponded')} />
+                    {(() => {
+                      const note = isOverallSessionTab ? uniformValue(targets, 'note') : (targets[0]?.row?.note ?? '')
+                      if (!note) return null
+                      return <p className="break-words px-3 pb-2 pl-14 text-xs italic text-gray-400">{note}</p>
+                    })()}
                   </div>
                 )
               })}

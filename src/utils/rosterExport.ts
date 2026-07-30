@@ -204,6 +204,40 @@ export async function exportRosterImage(node: HTMLElement, meta: RosterExportMet
   document.body.removeChild(a)
 }
 
+/** Marks an element in the printable view as un-splittable. Every table row
+ *  carries it, so `exportRosterPdf` can end a page on a row boundary instead of
+ *  slicing a player in half (the old fixed-height slicing cut the last row of
+ *  every page across the fold). */
+export const EXPORT_ROW_ATTR = 'data-export-row'
+
+/**
+ * Where the next page ends, in image pixels.
+ *
+ * `breaks` are the bottom edges of the un-splittable blocks. We take the last
+ * one that still fits in a full page; if none does — a single block taller than
+ * a page — we fall back to the hard cut so the loop always advances.
+ */
+export function nextSliceEnd(startPx: number, maxSlicePx: number, totalPx: number, breaks: number[]): number {
+  const hardEnd = Math.min(startPx + maxSlicePx, totalPx)
+  if (hardEnd >= totalPx) return totalPx
+  let best = 0
+  for (const b of breaks) {
+    if (b > startPx && b <= hardEnd && b > best) best = b
+  }
+  return best > startPx ? best : hardEnd
+}
+
+/** Bottom edge of every un-splittable block, in image pixels (the snapshot is
+ *  `pixelRatio`× the CSS box, so measurements are scaled by the ratio the
+ *  rasterizer actually produced rather than the requested one). */
+function rowBreakOffsets(node: HTMLElement, scale: number): number[] {
+  const nodeTop = node.getBoundingClientRect().top
+  return Array.from(node.querySelectorAll<HTMLElement>(`[${EXPORT_ROW_ATTR}]`))
+    .map((el) => (el.getBoundingClientRect().bottom - nodeTop) * scale)
+    .filter((v) => v > 0)
+    .sort((a, b) => a - b)
+}
+
 export async function exportRosterPdf(node: HTMLElement, meta: RosterExportMeta): Promise<void> {
   const [{ toPng }, { default: jsPDF }] = await Promise.all([
     loadHtmlToImage(),
@@ -240,10 +274,17 @@ export async function exportRosterPdf(node: HTMLElement, meta: RosterExportMeta)
     get2dContext(canvas).drawImage(img, 0, 0)
 
     const pageSliceHeightPx = (usableH / usableW) * img.width
+    // Row boundaries, measured off the live node before it is torn down. The
+    // snapshot may not honour `pixelRatio` exactly (browsers clamp very large
+    // canvases), so derive the scale from the bitmap we actually got.
+    const nodeWidth = node.getBoundingClientRect().width
+    const breaks = nodeWidth > 0 ? rowBreakOffsets(node, img.width / nodeWidth) : []
     let yPx = 0
     let pageIdx = 0
     while (yPx < img.height) {
-      const sliceH = Math.min(pageSliceHeightPx, img.height - yPx)
+      // Integer slice heights: a canvas truncates a fractional height, which
+      // would drift the read offset a fraction of a pixel per page.
+      const sliceH = Math.max(1, Math.round(nextSliceEnd(yPx, pageSliceHeightPx, img.height, breaks)) - yPx)
       const slice = document.createElement('canvas')
       slice.width = img.width
       slice.height = sliceH

@@ -417,6 +417,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (teamId: string) => teamsReady && coachTeamIds.includes(teamId) && !memberTeamIds.includes(teamId),
     [coachTeamIds, memberTeamIds, teamsReady],
   )
+  /** Same question for an activity that invites SEVERAL teams: staff of at
+   *  least one of them, on none of their rosters. The event surfaces used to
+   *  ask `isStaffOnly(event.teams[0])`, which mislabels a D1 coach as a player
+   *  the moment H3 happens to be first in the junction — their RSVP then lands
+   *  in the player tally instead of the Staff section. */
+  const isStaffOnlyForTeams = useCallback(
+    (teamIds: string[]) => teamsReady
+      && teamIds.some((id) => coachTeamIds.includes(id))
+      && !teamIds.some((id) => memberTeamIds.includes(id)),
+    [coachTeamIds, memberTeamIds, teamsReady],
+  )
   const canViewTeam = useCallback(
     (teamId: string) => hasAdminAccessToTeam(teamId) || coachTeamIds.includes(teamId) || memberTeamIds.includes(teamId),
     [hasAdminAccessToTeam, coachTeamIds, memberTeamIds],
@@ -444,7 +455,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user, isImpersonating, canImpersonate, realUser, startImpersonation, stopImpersonation,
     isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
     hasAdminAccessToSport, hasAdminAccessToTeam, isApproved, isProfileComplete,
-    isCoach, isCoachOf, canParticipateIn, isStaffOnly, coachTeamIds, coachTeamNames,
+    isCoach, isCoachOf, canParticipateIn, isStaffOnly, isStaffOnlyForTeams, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, is_spielplaner: isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
     canViewTeam, isVorstand, isFinance, canAccessFinance, getGuestLevel, isGuestIn, isLoading, login, logout,
@@ -453,7 +464,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user, isImpersonating, canImpersonate, realUser, startImpersonation, stopImpersonation,
     isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
     hasAdminAccessToSport, hasAdminAccessToTeam, isApproved, isProfileComplete,
-    isCoach, isCoachOf, canParticipateIn, isStaffOnly, coachTeamIds, coachTeamNames,
+    isCoach, isCoachOf, canParticipateIn, isStaffOnly, isStaffOnlyForTeams, coachTeamIds, coachTeamNames,
     teamResponsibleIds, captainTeamIds, spielplanerTeamIds, isSpielplaner, matchesRole,
     memberTeamIds, memberTeamNames, teamsLoading, memberSports, primarySport,
     canViewTeam, isVorstand, isFinance, canAccessFinance, getGuestLevel, isGuestIn, isLoading, login, logout,

@@ -154,7 +154,11 @@ function ParticipationButtonInner({
   data: { participation, effectiveStatus, setStatus, saveConfirmed, dismissConfirmed },
 }: ParticipationButtonProps & { data: ParticipationData }) {
   const { t } = useTranslation('participation')
-  const { isGuestIn } = useAuth()
+  const { isGuestIn, isStaffOnly } = useAuth()
+  // The per-day sheet writes its own rows, so it needs the same staff
+  // classification the whole-event path applies (both wrappers derive it from
+  // `teamId` before handing the props down).
+  const isStaff = !!teamId && isStaffOnly(teamId)
   const [menuOpen, setMenuOpen] = useState(false)
   const [sessionSheetOpen, setSessionSheetOpen] = useState(false)
   // Guest count is seeded from the existing participation and re-synced whenever
@@ -280,6 +284,7 @@ function ParticipationButtonInner({
           <SessionParticipationSheet
             activityId={activityId}
             sessions={eventSessions!}
+            isStaff={isStaff}
             onClose={() => setSessionSheetOpen(false)}
           />
         )}

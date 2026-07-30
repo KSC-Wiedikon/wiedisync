@@ -33,15 +33,19 @@ interface EventDetailModalProps {
 export default function EventDetailModal({ event, onClose }: EventDetailModalProps) {
   const { t } = useTranslation('events')
   const { t: tP } = useTranslation('participation')
-  const { user, canParticipateIn, isCoachOf, isStaffOnly, coachTeamIds, teamResponsibleIds } = useAuth()
+  const { user, canParticipateIn, isCoachOf, isStaffOnlyForTeams, coachTeamIds, teamResponsibleIds } = useAuth()
   const [rosterOpen, setRosterOpen] = useState(false)
   const [sessionSheetOpen, setSessionSheetOpen] = useState(false)
 
   const canParticipate = !!user && !!event && (
     !event.teams?.length || event.teams.some((tid) => canParticipateIn(teamId(tid)))
   )
-  const isStaff = !!event?.teams?.[0] && isCoachOf(teamId(event.teams[0]))
-  const isStaffParticipant = !!event?.teams?.[0] && isStaffOnly(teamId(event.teams[0]))
+  // Both questions span EVERY invited team — asking only `teams[0]` mislabels a
+  // coach of the second team as a plain player (their RSVP then counts in the
+  // player tally instead of the Staff section).
+  const eventTeamIds = (event?.teams ?? []).map((tid) => teamId(tid))
+  const isStaff = eventTeamIds.some((id) => isCoachOf(id))
+  const isStaffParticipant = isStaffOnlyForTeams(eventTeamIds)
 
   // Fetch sessions for multi-session events
   const hasSessionMode = event?.participation_mode && event.participation_mode !== 'whole'
@@ -190,6 +194,7 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
                   <SessionParticipationSheet
                     activityId={event.id}
                     sessions={sessions}
+                    isStaff={isStaffParticipant}
                     onClose={() => setSessionSheetOpen(false)}
                   />
                 )}

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.55.0'
+const APP_VERSION = '1.56.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,31 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.56.0',
+    date: '30.07.2026',
+    sections: [
+      {
+        title: 'Fixed: coaches\' answers on a multi-day event went missing',
+        items: [
+          'A coach or team responsible who is not on the team\'s player list could answer a multi-day event (the Trainingsweekend), and their answer was filed as a player\'s. The participation list showed them as "Not responded" while the count on the card treated them as one more player coming. Their answers now appear where they belong, and the "Coach present" figure counts people rather than days — a coach who said yes to both weekend days counted twice.',
+          'On an event that invites several teams, only the first team was considered when deciding whether you answer as staff or as a player. A coach of the second team was filed as a player.',
+        ],
+      },
+      {
+        title: 'New: answer for the staff too',
+        items: [
+          'Coaches and team responsibles now have the same edit controls as everyone else in the participation list — including the "all days at once" answer on a multi-day event\'s Overall tab, per-day answers, and notes.',
+        ],
+      },
+      {
+        title: 'Fixed: rows cut in half in the PDF export',
+        items: [
+          'Exporting a participation list longer than one page split the last row of every page across the page break — the name on one page, the answer on the next. Pages now end between rows.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.55.0',
     date: '29.07.2026',
