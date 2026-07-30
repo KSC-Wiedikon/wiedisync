@@ -12,6 +12,10 @@
 // Sections, roughly by severity:
 //   • No ClubDesk group        — in zero CD groups. Those ON a team are urgent.
 //   • Missing a group          — has groups, but not their team's.
+//   • Wrong function           — on the team, but holding the other Funktion
+//     ('(Spieler*in)' while wiedisync says guest, or vice versa). Removal-only:
+//     both assignment paths are add-only, so a player flipped to guest keeps the
+//     old allocation forever. Exportable as a clubdesk-remove-group worklist.
 //   • Coach without coach group— coaches missing '<team> (Trainer*in)'.
 //   • Billed as a player, no roster — pays a playing fee, on no roster. Bucketed
 //     never / lapsed / older so it's triageable rather than a 166-row dump.
@@ -43,10 +47,16 @@ interface StrayRow {
 }
 interface NoTeamGroupRow { group: string; count: number }
 interface UnmappedTeamRow { team_id: number; name: string; sport: string }
+interface StaleFunktionRow {
+  member_id: number; member_name: string; clubdesk_name: string; clubdesk_id: string
+  uuid: string; group: string; expected: string; sport: string
+  is_guest: boolean; has_correct: boolean
+}
 
 interface Resp {
   no_group?: NoGroupRow[]
   missing?: MissingRow[]
+  stale_funktion?: StaleFunktionRow[]
   coach_no_group?: MissingRow[]
   fee_no_roster?: FeeRow[]
   strays?: StrayRow[]
@@ -55,7 +65,7 @@ interface Resp {
 }
 
 const EMPTY: Required<Resp> = {
-  no_group: [], missing: [], coach_no_group: [], fee_no_roster: [],
+  no_group: [], missing: [], stale_funktion: [], coach_no_group: [], fee_no_roster: [],
   strays: [], no_team_groups: [], unmapped_teams: [],
 }
 
@@ -163,6 +173,9 @@ export default function ClubdeskGroupCheck() {
         const rank = { never: 0, lapsed: 1, older: 2 }
         return rank[a.severity] - rank[b.severity]
       }),
+      // Not filtered by ngIds: a no-group member holds no token at all, so they
+      // can never have a stale one — the two lists are disjoint by construction.
+      stale: data.stale_funktion,
       strays: data.strays,
       noTeamGroups: data.no_team_groups,
       unmapped: data.unmapped_teams,
@@ -172,7 +185,7 @@ export default function ClubdeskGroupCheck() {
   const onTeamCount = view.noGroup.filter((r) => r.has_team).length
   const neverCount = view.fee.filter((r) => r.severity === 'never').length
   const total = view.noGroup.length + view.missing.length + view.coach.length
-    + view.fee.length + view.strays.length + view.noTeamGroups.length + view.unmapped.length
+    + view.fee.length + view.stale.length + view.strays.length + view.noTeamGroups.length + view.unmapped.length
 
   // Export is always English (exports-always-English convention).
   const handleExport = async () => {
@@ -188,6 +201,11 @@ export default function ClubdeskGroupCheck() {
         ]),
         ...view.missing.map((r) => ['Missing a group', r.member_name, sportEn(r.sport), r.clubdesk_id, r.groups.join(', '), '', '', '']),
         ...view.coach.map((r) => ['Coach missing coach group', r.member_name, sportEn(r.sport), r.clubdesk_id, r.groups.join(', '), '', '', '']),
+        ...view.stale.map((r) => [
+          'Wrong ClubDesk function',
+          r.member_name, sportEn(r.sport), r.clubdesk_id,
+          `Remove "${r.group}"${r.has_correct ? '' : ` · add "${r.expected}"`}`, '', '', '',
+        ]),
         ...view.fee.map((r) => [
           `Billed as player, no roster (${r.severity})`,
           r.member_name, sportEn(r.sport), r.clubdesk_id, '', r.kat, r.last_season ?? '', [r.coach_of, r.tr_of].filter(Boolean).join(' / '),
@@ -205,6 +223,20 @@ export default function ClubdeskGroupCheck() {
     } catch {
       toast.error(t('clubdeskGroupExportFailed'))
     }
+  }
+
+  // Removal worklist for `clubdesk-remove-group.mjs <worklist.json> preview|commit`
+  // — exactly its three input fields, nothing else. Rows still needing the correct
+  // token added are included: the removal is right either way, and the add half is
+  // already covered by the `missing` section's own worklist.
+  const handleWorklist = () => {
+    const rows = view.stale.map((r) => ({
+      name: r.clubdesk_name,
+      uuid: r.uuid,
+      group_label: r.group,
+    }))
+    const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' })
+    downloadBlob(blob, `clubdesk_remove_funktion_${new Date().toISOString().slice(0, 10)}.json`)
   }
 
   const sevBadge = (s: FeeRow['severity']) => {
@@ -323,6 +355,51 @@ export default function ClubdeskGroupCheck() {
             {/* Missing a group */}
             <Section title={t('clubdeskGroupMissingTitle')} hint={t('clubdeskGroupMissingHint')} count={view.missing.length}>
               <GroupTable rows={view.missing} t={t} />
+            </Section>
+
+            {/* Wrong ClubDesk Funktion for a team they are still on */}
+            <Section title={t('clubdeskStaleTitle')} hint={t('clubdeskStaleHint')} count={view.stale.length}>
+              <div className="mb-2">
+                <Button type="button" variant="outline" size="sm" onClick={handleWorklist} className="gap-1.5">
+                  <Download className="h-3.5 w-3.5" />{t('clubdeskStaleWorklist')}
+                </Button>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>{t('clubdeskGroupColName')}</TableHead>
+                    <TableHead>{t('clubdeskColSport')}</TableHead>
+                    <TableHead>{t('clubdeskStaleColRemove')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('clubdeskStaleColKeep')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {view.stale.map((r) => (
+                    <TableRow key={`${r.member_id}-${r.group}`} className="min-h-11">
+                      <TableCell className="whitespace-normal break-words font-medium">{r.member_name}</TableCell>
+                      <TableCell><SportBadges sport={r.sport} /></TableCell>
+                      <TableCell className="whitespace-normal break-words">
+                        <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 line-through dark:bg-red-950 dark:text-red-300">
+                          {r.group}
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden whitespace-normal break-words sm:table-cell">
+                        <span
+                          className={
+                            'rounded px-1.5 py-0.5 text-xs font-medium '
+                            + (r.has_correct
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300')
+                          }
+                          title={r.has_correct ? undefined : t('clubdeskStaleNeedsAdd')}
+                        >
+                          {r.expected}{r.has_correct ? '' : ' +'}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </Section>
 
             {/* Coach missing their coach group */}
