@@ -34,6 +34,7 @@ import {
   exportRosterCsv,
   exportRosterImage,
   exportRosterPdf,
+  isMultiTeamExport,
   type RosterExportMeta,
   type RosterExportRow,
 } from '../utils/rosterExport'
@@ -1140,7 +1141,31 @@ export default function ParticipationRosterModal({
         return { label: formatSessionLabel(s), status: st, statusLabel: st ? t(st) : t('notResponded') }
       })
     }
-    const sortedMembers = [...filteredMemberList].sort(byLastName)
+    // Team label for the export's Team column + grouping. Players come from the
+    // roster junction, staff from the coach/TR junctions (they have no
+    // `member_teams` row). Empty for club-wide activities — there is no team.
+    const teamLabel = (memberId: string, staff = false): string => {
+      const ids = staff
+        ? [...(leadershipTeamsByMember.get(String(memberId)) ?? [])]
+        : (teamsByMember.get(String(memberId)) ?? [])
+      const names = ids
+        .map((tid) => teamNameById.get(String(tid)))
+        .filter((n): n is string => !!n)
+      return [...new Set(names)].sort().join(', ')
+    }
+    // Guest players are marked in the NAME, next to the coach / captain / TR
+    // suffixes — the export used to carry a separate ✓ column saying the same
+    // thing beside a "Guests" (plus-ones) column, which read as a duplicate.
+    const nameWithGuest = (m: Member, role?: string): string =>
+      fullName(m, role) + (isGuestMember(m) ? ` (${t('guestBadge')})` : '')
+    // Grouped by team, then by surname inside each team. Single-team exports
+    // are unaffected (one group), so this is just the old sort with a leading
+    // key. Guests sort under their host team like anyone else.
+    const byTeamThenLastName = (a: Member, b: Member) => {
+      const cmp = teamLabel(a.id).localeCompare(teamLabel(b.id), undefined, { sensitivity: 'base' })
+      return cmp !== 0 ? cmp : byLastName(a, b)
+    }
+    const sortedMembers = [...filteredMemberList].sort(byTeamThenLastName)
     const rows: RosterExportRow[] = sortedMembers.map((m) => {
       const p = participationByMember.preferred.get(m.id) ?? null
       const status = getMemberStatus(m.id)
@@ -1149,7 +1174,9 @@ export default function ParticipationRosterModal({
       const ts = p?.date_updated ?? p?.date_created ?? ''
       const sessionStatuses = buildSessionStatuses(m.id)
       return {
-        name: fullName(m, role),
+        name: nameWithGuest(m, role),
+        team: teamLabel(m.id),
+        section: 'roster' as const,
         jerseyNumber: m.number && m.number > 0 ? m.number : null,
         positions: translatePositions(m.position),
         // Session-overall: fold the per-day breakdown into `status` so the CSV
@@ -1178,11 +1205,13 @@ export default function ParticipationRosterModal({
         if (!m) continue
         waitlistRows.push({ m, wp, role: leadershipRoles.get(m.id) })
       }
-      waitlistRows.sort((a, b) => byLastName(a.m, b.m))
+      waitlistRows.sort((a, b) => byTeamThenLastName(a.m, b.m))
       for (const { m, wp, role } of waitlistRows) {
         const ts = wp.date_updated ?? wp.date_created ?? ''
         rows.push({
-          name: fullName(m, role),
+          name: nameWithGuest(m, role),
+          team: teamLabel(m.id),
+          section: 'waitlist' as const,
           jerseyNumber: m.number && m.number > 0 ? m.number : null,
           positions: translatePositions(m.position),
           status: t('waitlisted'),
@@ -1212,6 +1241,8 @@ export default function ParticipationRosterModal({
         })
         rows.push({
           name: `${(sm.first_name ?? '').trim()} ${(sm.last_name ?? '').trim()}`.trim() + ` (${t('staff')})`,
+          team: teamLabel(sm.id, true),
+          section: 'staff' as const,
           jerseyNumber: sm.number && sm.number > 0 ? sm.number : null,
           positions: translatePositions(sm.position),
           status: staffSessionStatuses
@@ -1228,7 +1259,7 @@ export default function ParticipationRosterModal({
     }
     return rows
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredMemberList, participations, absences, leadershipRoles, statusFilter, waitlistedParts, visibleStaffMembers, visibleStaffParticipations, memberList, t, translatePositions, exportSessions, sessionParticipationByMember])
+  }, [filteredMemberList, participations, absences, leadershipRoles, leadershipTeamsByMember, teamsByMember, teamNameById, statusFilter, waitlistedParts, visibleStaffMembers, visibleStaffParticipations, memberList, t, translatePositions, exportSessions, sessionParticipationByMember])
 
   // Position breakdown of the same population that exportRows covers — counts
   // each member once per declared position (a setter/outside hybrid contributes
@@ -1262,6 +1293,10 @@ export default function ParticipationRosterModal({
         }
       })
   }, [filteredMemberList, statusFilter, waitlistedParts, visibleStaffMembers, memberList, tt])
+
+  // Team column + grouping only earn their space when the export actually spans
+  // several teams — on a single-team roster the column would repeat one value.
+  const exportMultiTeam = isMultiTeamExport(exportRows)
 
   const exportMeta = useMemo<RosterExportMeta>(() => {
     const filterLabel =
@@ -1653,11 +1688,14 @@ export default function ParticipationRosterModal({
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #d1d5db' }}>
+                {exportMultiTeam && <th style={{ textAlign: 'left', padding: '8px' }}>{t('team', { defaultValue: 'Team' })}</th>}
                 <th style={{ textAlign: 'left', padding: '8px', width: '40px' }}>#</th>
                 <th style={{ textAlign: 'left', padding: '8px' }}>{t('name', { defaultValue: 'Name' })}</th>
                 <th style={{ textAlign: 'left', padding: '8px' }}>{t('positions', { defaultValue: 'Positions' })}</th>
                 <th style={{ textAlign: 'left', padding: '8px' }}>{t('status', { defaultValue: 'Status' })}</th>
-                <th style={{ textAlign: 'center', padding: '8px', width: '50px' }}>{t('guest', { defaultValue: 'Guest' })}</th>
+                {/* No "Guest" tick column — a guest player is marked in the name,
+                    like the coach / captain / TR suffixes. This column sat next to
+                    "Guests" (plus-ones) and read as a duplicate of it. */}
                 <th style={{ textAlign: 'left', padding: '8px', width: '60px' }}>{t('guests')}</th>
                 <th style={{ textAlign: 'left', padding: '8px' }}>{t('note', { defaultValue: 'Note' })}</th>
                 <th style={{ textAlign: 'left', padding: '8px' }}>RSVP</th>
@@ -1668,7 +1706,25 @@ export default function ParticipationRosterModal({
                 // `data-export-row` (EXPORT_ROW_ATTR in rosterExport.ts) marks the
                 // row as un-splittable: the PDF pager ends a page on one of these
                 // boundaries instead of slicing the last row across the fold.
-                <tr key={i} data-export-row="" style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <tr
+                  key={i}
+                  data-export-row=""
+                  style={{
+                    // Heavier rule where the team changes, so the groups read as
+                    // blocks even though the team name is printed only once.
+                    borderBottom: '1px solid #e5e7eb',
+                    ...(exportMultiTeam && i > 0 && r.team !== exportRows[i - 1]?.team
+                      ? { borderTop: '2px solid #d1d5db' }
+                      : {}),
+                  }}
+                >
+                  {exportMultiTeam && (
+                    // Printed once per group — repeating "H3" down fourteen rows
+                    // is noise; the rule above marks where the next group starts.
+                    <td style={{ padding: '6px 8px', fontWeight: 600, color: '#4b5563', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                      {r.team !== exportRows[i - 1]?.team ? r.team : ''}
+                    </td>
+                  )}
                   <td style={{ padding: '6px 8px', color: '#6b7280', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top' }}>{r.jerseyNumber ?? ''}</td>
                   <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                     {r.name}
@@ -1691,7 +1747,6 @@ export default function ParticipationRosterModal({
                         ))
                       : r.status}
                   </td>
-                  <td style={{ padding: '6px 8px', textAlign: 'center', verticalAlign: 'top' }}>{r.isGuest ? '✓' : ''}</td>
                   <td style={{ padding: '6px 8px', color: '#6b7280', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top' }}>{r.guests > 0 ? `+${r.guests}` : ''}</td>
                   <td style={{ padding: '6px 8px', color: '#6b7280', verticalAlign: 'top' }}>{r.note}</td>
                   <td style={{ padding: '6px 8px', color: '#9ca3af', fontSize: '11px', verticalAlign: 'top' }}>{r.rsvpAt}</td>

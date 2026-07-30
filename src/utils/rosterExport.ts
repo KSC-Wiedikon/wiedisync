@@ -29,6 +29,22 @@ export type RosterExportRow = {
    *  per-day lines in the Status cell so a coach can see who's coming which day;
    *  CSV carries the same breakdown folded into the `status` string. */
   sessionStatuses?: { label: string; statusLabel: string; status: string | null }[]
+  /** Team(s) the member belongs to on this activity — empty for club-wide
+   *  activities and for anyone whose team can't be resolved. Only surfaced
+   *  (as a column, and as the grouping) when the export spans more than one. */
+  team?: string
+  /** Which block of the export the row belongs to. Only `roster` rows are
+   *  grouped by team; waitlist and staff stay as trailing blocks. */
+  section?: 'roster' | 'waitlist' | 'staff'
+}
+
+/** True when the export covers more than one team — drives both the Team
+ *  column and the per-team grouping. A single-team roster gets neither: the
+ *  column would repeat the same value on every row. */
+export function isMultiTeamExport(rows: RosterExportRow[]): boolean {
+  const names = new Set<string>()
+  for (const r of rows) if (r.team) names.add(r.team)
+  return names.size > 1
 }
 
 export type RosterExportMeta = {
@@ -58,7 +74,10 @@ export type RosterExportMeta = {
   sessionLabel?: string
 }
 
-const COLUMNS = ['Name', 'Number', 'Positions', 'Status', 'Guest', 'Plus-ones', 'Note', 'RSVP time', 'Edited by']
+// No separate "Guest" column: a guest player is marked in the name itself
+// (like the coach / captain / TR suffixes), which is what "Guest" duplicated.
+// "Team" is spliced in ahead of Name when the export spans several teams.
+const COLUMNS = ['Name', 'Number', 'Positions', 'Status', 'Plus-ones', 'Note', 'RSVP time', 'Edited by']
 
 /** Replace characters that break filenames on Windows/Unix. Em/en dashes
  *  collapse with surrounding whitespace into a single `_` so titles like
@@ -88,18 +107,20 @@ export function buildExportFilename(meta: RosterExportMeta, ext: 'csv' | 'png' |
 }
 
 export function exportRosterCsv(rows: RosterExportRow[], meta: RosterExportMeta): void {
+  const multiTeam = isMultiTeamExport(rows)
+  const columns = multiTeam ? ['Team', ...COLUMNS] : COLUMNS
   const tableRows = rows.map((r) => [
+    ...(multiTeam ? [r.team ?? ''] : []),
     r.name,
     r.jerseyNumber ?? '',
     r.positions,
     r.status,
-    r.isGuest ? 'Yes' : '',
     r.guests,
     r.note,
     r.rsvpAt,
     r.editedBy,
   ])
-  const dataCsv = toCSV(COLUMNS, tableRows)
+  const dataCsv = toCSV(columns, tableRows)
   // Trim metadata: title (already includes the date in our convention) +
   // filter + position summary + exported timestamp. Dropped the standalone
   // date row — duplicated the title and showed up as "11/05/2026" floating

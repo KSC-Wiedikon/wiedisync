@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 
-const APP_VERSION = '1.56.0'
+const APP_VERSION = '1.56.1'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +11,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.56.1',
+    date: '30.07.2026',
+    sections: [
+      {
+        title: 'Improved: participation exports (PDF, image and CSV)',
+        items: [
+          'The export header names the activity again. Opening the participation list from the events or trainings list produced a sheet headed "Participation" with nothing identifying it; it now carries the event or team name and date, in the header and in the file name.',
+          'One guest column instead of two. "Guest" (is this a guest player) sat next to "Guests" (plus-ones) and read as a duplicate. A guest player is now marked in the name — like the coach, captain and team-responsible markers — and the remaining column is only about plus-ones.',
+          'A Team column when the list covers several teams, with the rows grouped by team. Single-team lists are unchanged.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.56.0',
     date: '30.07.2026',
