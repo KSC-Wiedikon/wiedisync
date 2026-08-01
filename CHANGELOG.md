@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.59.0 — 2026-08-01
+
+### New: call up players from another team for a single game
+- **A coach can now open one game to another team, or to individual players.** A cup game filed under H1 can be opened to H3; a junior can be pulled up for one Saturday. The called-up players see the fixture on their home page, in their calendar and in their subscribed calendar file, and they answer yes/no/maybe there like any other game.
+- **They appear in the participation list with everyone else**, marked with the team they were called up from, so the coach picks a squad from one list instead of two. Their jersey number for that game is set on the match sheet as usual, and they are carried onto the Volleymanager nomination list.
+- **Nothing about their team membership changes.** The call-up is scoped to that one fixture: their trainings, absences, attendance figures and ClubDesk group are untouched, and it disappears when the game does.
+- **They get a notification** when they are called up, and their reminders — the answer deadline and the "game tomorrow" nudge — work exactly as for the home team. If they mark themselves absent that day, their answer is withdrawn automatically.
+- **The coach is warned about clashes**, not blocked: anyone already playing a game that day is flagged in the picker and in the summary, and the two coaches decide.
+- Only the coach or team responsible **of the game's own team** can call players up, and closing a team call-up releases the players it brought while keeping anyone invited by name.
+
 ## v1.58.0 — 2026-08-01
 
 ### Fixed: cancelled trainings and games looked like they were still on

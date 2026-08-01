@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.58.0'
+const APP_VERSION = '1.59.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,23 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.59.0',
+    date: '01.08.2026',
+    sections: [
+      {
+        title: 'New: call up players from another team for a single game',
+        items: [
+          'A coach can now open one game to another team, or to individual players. A cup game filed under H1 can be opened to H3; a junior can be pulled up for one Saturday. The called-up players see the fixture on their home page, in their calendar and in their subscribed calendar file, and they answer yes/no/maybe there like any other game.',
+          'They appear in the participation list with everyone else, marked with the team they were called up from, so the coach picks a squad from one list instead of two. Their jersey number for that game is set on the match sheet as usual, and they are carried onto the Volleymanager nomination list.',
+          'Nothing about their team membership changes. The call-up is scoped to that one fixture: their trainings, absences, attendance figures and ClubDesk group are untouched, and it disappears when the game does.',
+          'They get a notification when they are called up, and their reminders \u2014 the answer deadline and the "game tomorrow" nudge \u2014 work exactly as for the home team. If they mark themselves absent that day, their answer is withdrawn automatically.',
+          'The coach is warned about clashes, not blocked: anyone already playing a game that day is flagged in the picker and in the summary, and the two coaches decide.',
+          "Only the coach or team responsible of the game's own team can call players up, and closing a team call-up releases the players it brought while keeping anyone invited by name.",
+        ],
+      },
+    ],
+  },
   {
     version: '1.58.0',
     date: '01.08.2026',

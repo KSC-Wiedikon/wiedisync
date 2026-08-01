@@ -151,10 +151,29 @@ export function registerICalFeed(router, { database, logger }) {
         'X-WR-TIMEZONE:Europe/Zurich', 'REFRESH-INTERVAL;VALUE=DURATION:PT6H',
       ]
 
+      // The subscriber, when the URL carries their personal token. Resolved up here
+      // rather than in the duties block below because the games query needs it too.
+      const feedToken = String(req.query.token || '').trim()
+      const tokenMember = feedToken
+        ? await database('members').where('ical_token', feedToken).first('id')
+        : null
+
       // Games
       if (sources['games-home'] || sources['games-away']) {
+        // Games this member was invited to as a guest (migration 271). They are filed
+        // under another team's `kscw_team`, so the team filter below drops them — yet
+        // they are exactly the fixtures a borrowed player must not miss. Token-scoped:
+        // a public/team feed has no subscriber and stays unchanged.
+        const guestGameIds = tokenMember
+          ? (await database('game_guests').where('member', tokenMember.id).select('game')).map((r) => r.game)
+          : []
+
         let q = database('games').where('date', '>=', from)
-        if (teamIds.length) q = q.whereIn('kscw_team', teamIds)
+        if (teamIds.length) {
+          q = guestGameIds.length
+            ? q.where((qb) => qb.whereIn('kscw_team', teamIds).orWhereIn('id', guestGameIds))
+            : q.whereIn('kscw_team', teamIds)
+        }
         if (sources['games-home'] && !sources['games-away']) q = q.where('type', 'home')
         else if (sources['games-away'] && !sources['games-home']) q = q.where('type', 'away')
         const games = await q.orderBy('date')
@@ -345,10 +364,7 @@ export function registerICalFeed(router, { database, logger }) {
       // Events are marked busy + confirmed so they auto-populate as accepted
       // entries in a subscribed calendar (a feed has no RSVP step).
       {
-        const dutyToken = String(req.query.token || '').trim()
-        const dutyMember = dutyToken
-          ? await database('members').where('ical_token', dutyToken).first('id')
-          : null
+        const dutyMember = tokenMember
         if (dutyMember) {
           const dutyGames = await database('games')
             .where('date', '>=', from)

@@ -30,6 +30,7 @@ export default {
   game_deleted: 'Partita annullata: {{home_team}} vs {{away_team}} il {{date}}',
   game_reinstated: 'Partita ripristinata: {{home_team}} vs {{away_team}} il {{date}}',
   game_result: 'Risultato: {{home_team}} {{home_score}}:{{away_score}} {{away_team}}',
+  game_invite: '{{team}} ti ha convocato: {{matchup}} il {{date}}',
   training_created: 'Nuovo allenamento il {{date}}, {{time}} @ {{hall}}',
   training_updated: 'Allenamento aggiornato il {{date}} @ {{hall}}',
   training_cancelled: 'Allenamento annullato il {{date}}',

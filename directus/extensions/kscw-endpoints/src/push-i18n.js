@@ -239,6 +239,23 @@ const T = {
     fr: 'L’entraînement {team} du {date} a été annulé',
     it: 'L’allenamento {team} del {date} è stato annullato',
   },
+  // Game guest invitation (migration 271) — a coach opened one of their games to
+  // another team or to this player individually. {team} = the inviting team's name,
+  // {matchup} = "Home - Away", {date} = dd.mm.yyyy.
+  'gameInvite.title': {
+    de: 'Für ein Spiel aufgeboten',
+    gsw: 'Für es Spiel ufbotte',
+    en: 'Called up for a game',
+    fr: 'Convoqué pour un match',
+    it: 'Convocato per una partita',
+  },
+  'gameInvite.body': {
+    de: '{team} bittet dich um Aushilfe: {matchup} am {date}',
+    gsw: '{team} bruucht di als Ushilf: {matchup} am {date}',
+    en: '{team} would like you to fill in: {matchup} on {date}',
+    fr: '{team} souhaite que tu dépannes : {matchup} le {date}',
+    it: '{team} ti chiede di dare una mano: {matchup} il {date}',
+  },
   // Fines (migration 069) — leader-issued by coach/TR, member is the recipient.
   // {team} = team name, {amount} = "CHF 5.00" (preformatted by caller),
   // {reason} = short freeform from the leader (already trimmed/escaped).

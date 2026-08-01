@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCollection } from '../../../lib/query'
 import { useUserVisibleEventIds } from '../../../hooks/useUserVisibleEventIds'
+import { useUserVisibleGameIds } from '../../../hooks/useUserVisibleGameIds'
 import type { Game, Training, Event, Hall, HallClosure, HallEvent, Team, Absence, MemberTeam, Member } from '../../../types'
 import type { CalendarEntry, CalendarFilterState } from '../../../types/calendar'
 import { birthdayOccurrencesInRange } from '../../../utils/birthdays'
@@ -52,6 +53,32 @@ function addTeamFilter(baseParts: Record<string, unknown>[], teamIds: string[], 
   const conditions = [...baseParts]
   if (teamIds.length > 0) {
     conditions.push({ [field]: { _in: teamIds } })
+  }
+  return { _and: conditions }
+}
+
+/**
+ * Games filter: the selected teams' fixtures PLUS any game this member was invited
+ * to as a guest (migration 271). A guest game is filed under the inviting team's
+ * `kscw_team`, so narrowing the calendar to your own teams — the normal thing to do —
+ * is exactly what makes the fixture you were borrowed for disappear.
+ *
+ * Guest ids ride along as a flat `id _in` rather than a walk through `games.guests`,
+ * which would collide with the `game_guests` read policy's walk through the same
+ * relation. See useUserVisibleGameIds.
+ */
+function addGameTeamFilter(
+  baseParts: Record<string, unknown>[],
+  teamIds: string[],
+  guestGameIds: string[],
+): Record<string, unknown> {
+  const conditions = [...baseParts]
+  if (teamIds.length > 0) {
+    conditions.push(
+      guestGameIds.length > 0
+        ? { _or: [{ kscw_team: { _in: teamIds } }, { id: { _in: guestGameIds } }] }
+        : { kscw_team: { _in: teamIds } },
+    )
   }
   return { _and: conditions }
 }
@@ -321,12 +348,15 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
   const fetchAbsences = enabled && filters.sources.includes('absence')
   const wantBirthdays = filters.sources.includes('birthday')
 
+  // Guest invitations (migration 271) survive the team filter — see addGameTeamFilter.
+  const { guestGameIds } = useUserVisibleGameIds(user?.id, enabled && authed)
+
   const { data: gamesRaw, isLoading: gamesLoading } = useCollection<Game>('games', {
     enabled: fetchGames,
-    filter: addTeamFilter(
+    filter: addGameTeamFilter(
       [...buildDateFilter('date', fetchRange.start, fetchRange.end), { away_team: { _nnull: true } }, { time: { _nnull: true } }],
       filters.selectedTeamIds,
-      'kscw_team',
+      guestGameIds,
     ),
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     sort: ['date', 'time'],

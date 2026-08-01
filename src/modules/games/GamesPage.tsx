@@ -32,11 +32,25 @@ import { getGameWarnings, type Warning } from '../../utils/participationWarnings
 import { Calendar, Trophy, BarChart3, LayoutGrid } from 'lucide-react'
 import { TourPageButton } from '../guide/TourPageButton'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import { useUserVisibleGameIds } from '../../hooks/useUserVisibleGameIds'
 
-function buildTeamFilter(teamPbIds: string[]): Record<string, unknown> | null {
-  if (teamPbIds.length === 0) return null
-  if (teamPbIds.length === 1) return { kscw_team: { _eq: teamPbIds[0] } }
-  return { kscw_team: { _in: teamPbIds } }
+/**
+ * `guestGameIds` are the fixtures this member was invited to as a guest (migration
+ * 271). They belong to another team, so the team filter drops them — but only the
+ * IMPLICIT scope ("games of my teams", what a member sees by default) should carry
+ * them. When the user has explicitly picked teams in the filter bar, that selection
+ * is answered literally; quietly adding another team's fixture to an explicit "H3"
+ * filter would read as a bug.
+ */
+function buildTeamFilter(teamPbIds: string[], guestGameIds: string[] = []): Record<string, unknown> | null {
+  const teamPart = teamPbIds.length === 0
+    ? null
+    : teamPbIds.length === 1
+      ? { kscw_team: { _eq: teamPbIds[0] } }
+      : { kscw_team: { _in: teamPbIds } }
+  if (guestGameIds.length === 0) return teamPart
+  if (!teamPart) return null
+  return { _or: [teamPart, { id: { _in: guestGameIds } }] }
 }
 
 export default function GamesPage() {
@@ -109,7 +123,9 @@ export default function GamesPage() {
   const filterTeamIds = effectiveTeamIds.length > 0
     ? effectiveTeamIds
     : (!(effectiveIsAdmin || effectiveIsVorstand) && allUserTeamIds.length > 0 ? allUserTeamIds : [])
-  const teamFilter = buildTeamFilter(filterTeamIds)
+  // Only the implicit personal scope carries guest invitations — see buildTeamFilter.
+  const { guestGameIds } = useUserVisibleGameIds(user?.id, !!user)
+  const teamFilter = buildTeamFilter(filterTeamIds, selectedTeams.length > 0 ? [] : guestGameIds)
 
   // Dashboard team ID resolution (priority: first selected → first coached → null).
   // Note: selectedTeams holds team NAMES; effectiveTeamIds is the resolved ID array

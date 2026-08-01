@@ -467,6 +467,33 @@ export interface Game extends BaseRecord {
 
 }
 
+/**
+ * A game opened to another team (migration 271). The coach's intent; Postgres
+ * materializes one `GameGuest` per player of that team from it.
+ */
+export interface GameGuestTeam extends BaseRecord {
+  game: string | number
+  team: string | number
+  invited_by_name?: string | null
+  invited_by_email?: string | null
+}
+
+/**
+ * One player invited to a game from outside its own roster. Creates NO team
+ * membership — the invitation is scoped to this single fixture.
+ *
+ * `via_team` names the team opening that produced the row; null means the coach
+ * picked this person individually, which is why closing a team opening leaves them
+ * invited.
+ */
+export interface GameGuest extends BaseRecord {
+  game: string | number
+  member: string | number
+  via_team?: string | number | null
+  invited_by_name?: string | null
+  invited_by_email?: string | null
+}
+
 export interface SpielplanerAssignment extends BaseRecord {
   member: string | number
   kscw_team: string | number
