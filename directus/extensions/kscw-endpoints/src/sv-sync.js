@@ -41,6 +41,29 @@ function parsePlayDate(playDate) {
   return { date: parts[0] || '', time: parts[1] ? parts[1].slice(0, 5) : '' }
 }
 
+// Wide net, same as the frontend's isCupGame() / detectCupMatch() — the feed
+// labels the national cup "Mobiliar Volley Cup" and the regional one "Züri Cup".
+const CUP_RE = /cup|pokal|coupe|coppa/i
+
+// League label for a feed fixture. A league game carries its full name on
+// `group` ("Frauen 2. Liga"), with `league` holding only a short code ("2L") —
+// hence group-first. A CUP fixture inverts that: `league` names the competition
+// ("Züri Cup") while `group` holds just the pairing ("Runde 3, Spiel 2"), so the
+// group-only label would store a string with no "Cup" in it. Everything
+// downstream classifies cups by this very string — isCupGame() (scorer duty is
+// the playing team's own for cup home games), detectCupMatch() (Spielplanung
+// chips), the GamesPage cup section, the "league only" attendance stats — so
+// prefix the competition, reproducing the "Züri Cup — Runde 1, Spiel 12" shape
+// the pre-Directus rows already use. Exported for tests.
+export function deriveLeagueLabel(g) {
+  const competition = g?.league?.caption || ''
+  const base = g?.group?.caption || g?.phase?.caption || competition || ''
+  if (competition && CUP_RE.test(competition) && !CUP_RE.test(base)) {
+    return base ? `${competition} — ${base}` : competition
+  }
+  return base
+}
+
 function mapSetResults(setResults) {
   if (!setResults) return []
   if (Array.isArray(setResults)) {
@@ -118,7 +141,13 @@ export function applyLocalGuards(data, existing) {
 export async function syncSvGames(db, log) {
   log.info('[SV Sync] Fetching games...')
 
-  const res = await fetch(`${SV_API_BASE}/indoor/games`, {
+  // ⚠ includeCup=true is NOT optional: Swiss Volley's /indoor/games hides every
+  // cup fixture unless it is set, so the bare URL silently dropped the Züri Cup
+  // and the Mobiliar Volley Cup from `games` entirely — no calendar entry, no
+  // RSVP, no hall block, no scorer row (verified 2026-08-01: 158 fixtures plain
+  // vs 159 with the flag; the extra one was H3's Züri Cup R2 at Stäfa). The 19
+  // cup rows predating this all came from the 2026-03-29 PocketBase import.
+  const res = await fetch(`${SV_API_BASE}/indoor/games?includeCup=true`, {
     headers: { Authorization: SV_API_KEY },
   })
   if (!res.ok) { log.error(`[SV Sync] Games API: ${res.status}`); return { created: 0, updated: 0, errors: 0 } }
@@ -251,7 +280,7 @@ export async function syncSvGames(db, log) {
         away_team: away.caption || '',
         date: parsed.date,
         time: parsed.time,
-        league: g.group?.caption || g.phase?.caption || g.league?.caption || '',
+        league: deriveLeagueLabel(g),
         round: g.group?.caption || '',
         season: deriveSeason(g.playDate),
         status: rs.winner ? 'completed' : 'scheduled',
