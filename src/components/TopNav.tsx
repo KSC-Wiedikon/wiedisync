@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  ChevronDown, Settings, MessageSquare, MessageCircle, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon,
+  ChevronDown, Settings, MessageSquare, MessageCircle, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon, Coffee,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { useDonateVisible } from '../modules/support/donateConfig'
 import { useTheme } from '../hooks/useTheme'
 import { useNavItems, type NavItem } from '../hooks/useNavItems'
 import { useUnreadTotal } from '../modules/messaging/hooks/useUnreadTotal'
@@ -141,6 +142,8 @@ function NavCategory({
 
 export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }: TopNavProps) {
   const { t } = useTranslation('nav')
+  const { t: tSupport } = useTranslation('support')
+  const donateVisible = useDonateVisible()
   const { user, isAdmin, isApproved, isSuperAdmin, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
@@ -358,6 +361,14 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                 <UserIcon className="h-4 w-4" />
                 {t('myProfile')}
               </DropdownMenuItem>
+              {/* Personal support link — above Logout, which stays last.
+                  Hidden for under-18s and while impersonating (useDonateVisible). */}
+              {donateVisible && (
+                <DropdownMenuItem onSelect={() => navigate('/support')} className="cursor-pointer gap-2.5">
+                  <Coffee className="h-4 w-4" />
+                  {tSupport('menuLabel')}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onSelect={() => logout()} className="cursor-pointer gap-2.5 text-gray-700 dark:text-gray-200">
                 <LogOut className="h-4 w-4" />
                 {t('logout')}

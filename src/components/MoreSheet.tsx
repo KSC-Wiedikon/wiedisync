@@ -163,8 +163,6 @@ const superAdminItems: NavItem[] = [
 function OptionsAccordion({ theme, toggleTheme, onClose, memberId }: { theme: string; toggleTheme: () => void; onClose?: () => void; memberId?: number | string | null }) {
   const [open, setOpen] = useState(false)
   const { t } = useTranslation('nav')
-  const { t: tSupport } = useTranslation('support')
-  const donateVisible = useDonateVisible()
 
   return (
     <div className="px-4 py-2">
@@ -253,24 +251,6 @@ function OptionsAccordion({ theme, toggleTheme, onClose, memberId }: { theme: st
               </span>
               <span className="text-xs font-mono text-gray-400 dark:text-gray-500">v{APP_VERSION}</span>
             </NavLink>
-            {/* Support-the-developer row — personal, not a club channel. Hidden
-                for under-18s and while impersonating (see useDonateVisible). */}
-            {donateVisible && (
-              <NavLink
-                to="/support"
-                onClick={onClose}
-                className={({ isActive }) =>
-                  `flex min-h-[48px] items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`
-                }
-              >
-                <Coffee className="h-4 w-4" />
-                <span className="text-base font-medium">{tSupport('menuLabel')}</span>
-              </NavLink>
-            )}
             {/* Messaging settings row */}
             {messagingFeatureEnabled(memberId) && (
               <NavLink
@@ -321,6 +301,8 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
   const { t: tn } = useTranslation('notifications')
+  const { t: tSupport } = useTranslation('support')
+  const donateVisible = useDonateVisible()
   const { closing, startClose, onAnimEnd } = useAnimatedClose(onClose)
 
   // Shared renderer for the internal admin/superadmin NavLinks — identical markup
@@ -587,6 +569,29 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                 </button>
               </div>
             </div>
+
+            {/* Support-the-developer row — personal, not a club channel, so it
+                sits with the profile rather than among the app's own settings.
+                Hidden for under-18s and while impersonating (useDonateVisible). */}
+            {donateVisible && (
+              <>
+                <div className="mx-4 border-t border-gray-200 dark:border-gray-700" />
+                <NavLink
+                  to="/support"
+                  onClick={startClose}
+                  className={({ isActive }) =>
+                    `mx-4 flex min-h-[48px] items-center gap-3 rounded-lg px-2 py-3 transition-colors ${
+                      isActive
+                        ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
+                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                    }`
+                  }
+                >
+                  <Coffee className="h-5 w-5" />
+                  <span className="text-base font-medium">{tSupport('menuLabel')}</span>
+                </NavLink>
+              </>
+            )}
 
             {/* Options section — expandable */}
             <div className="mx-4 border-t border-gray-200 dark:border-gray-700" />
