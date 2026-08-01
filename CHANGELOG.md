@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.58.0 — 2026-08-01
+
+### Fixed: cancelled trainings and games looked like they were still on
+- **A cancelled training now shows as cancelled on the calendar** — struck through and dimmed, instead of looking exactly like one that is still happening. This was most confusing on a game day: the club automatically cancels a team's training when that team plays that evening, so the training was correctly called off in the system but the calendar still advertised it right next to the fixture. Opening it explains why ("Cancelled — game day"). The same applies to cancelled games and events, in every calendar view and in the "Next 7 days" strip on the home page.
+- **Exported calendar files (.ics) mark cancelled entries too**, so they are also clear in Apple Calendar, Google Calendar and Outlook. The subscription link already did this.
+- **The home page no longer jumps while it loads.** The "Next 7 days" strip appeared a moment after everything else and pushed the rest of the page down as it arrived; it now holds its place from the start.
+
 ## v1.57.0 — 2026-08-01
 
 ### New: hall sizes and photos in the hall finder
