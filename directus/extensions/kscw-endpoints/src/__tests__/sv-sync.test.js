@@ -19,7 +19,7 @@
 import { describe, it, expect } from 'vitest'
 
 process.env.SV_API_KEY ||= 'test-key'
-const { applyLocalGuards, cmpVal } = await import('../sv-sync.js')
+const { applyLocalGuards, cmpVal, deriveLeagueLabel } = await import('../sv-sync.js')
 
 describe('applyLocalGuards — local cancel preservation', () => {
   it('keeps a locally-cancelled game cancelled when the feed still says scheduled', () => {
@@ -88,6 +88,46 @@ describe('applyLocalGuards — kscw_team never downgrades to NULL', () => {
     const data = { status: 'scheduled', kscw_team: null }
     applyLocalGuards(data, { status: 'scheduled', kscw_team: null })
     expect(data.kscw_team).toBe(null)
+  })
+})
+
+describe('deriveLeagueLabel — cup fixtures keep the competition in the label', () => {
+  // Payload shapes taken verbatim from the live feed (2026-08-01).
+  it('names the competition on a cup fixture', () => {
+    expect(deriveLeagueLabel({
+      league: { caption: 'Züri Cup' },
+      phase: { caption: 'Runde 2' },
+      group: { caption: 'Runde 3, Spiel 2' },
+    })).toBe('Züri Cup — Runde 3, Spiel 2')
+  })
+
+  it('does the same for the national cup', () => {
+    expect(deriveLeagueLabel({
+      league: { caption: 'Mobiliar Volley Cup' },
+      phase: { caption: 'Runde 1' },
+      group: { caption: 'Spiel 37' },
+    })).toBe('Mobiliar Volley Cup — Spiel 37')
+  })
+
+  it('leaves a league fixture on its group caption (league holds only "2L")', () => {
+    expect(deriveLeagueLabel({
+      league: { caption: '2L' },
+      phase: { caption: 'Vor- & Rückrunde' },
+      group: { caption: 'Frauen 2. Liga' },
+    })).toBe('Frauen 2. Liga')
+  })
+
+  it('never double-prefixes a group caption that already names the cup', () => {
+    expect(deriveLeagueLabel({
+      league: { caption: 'Züri Cup' },
+      group: { caption: 'Züri Cup 1/8-Final' },
+    })).toBe('Züri Cup 1/8-Final')
+  })
+
+  it('falls back through phase then league, and tolerates a bare payload', () => {
+    expect(deriveLeagueLabel({ league: { caption: '2L' }, phase: { caption: 'Playoff' } })).toBe('Playoff')
+    expect(deriveLeagueLabel({ league: { caption: 'Züri Cup' } })).toBe('Züri Cup')
+    expect(deriveLeagueLabel({})).toBe('')
   })
 })
 
