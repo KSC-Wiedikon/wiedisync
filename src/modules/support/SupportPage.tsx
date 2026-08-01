@@ -23,7 +23,9 @@ export default function SupportPage() {
 
   const copyNumber = async () => {
     try {
-      await navigator.clipboard.writeText(TWINT_NUMBER)
+      // Copy the bare digits, not the spaced display form — TWINT's "send
+      // money" field is fussier about a pasted "079 789 18 17" than the eye is.
+      await navigator.clipboard.writeText(TWINT_NUMBER.replace(/[^\d+]/g, ''))
       toast.success(t('twint.copied'))
     } catch {
       toast.error(t('twint.copyFailed'))
