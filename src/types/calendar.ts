@@ -26,6 +26,16 @@ export interface CalendarEntry {
   teamNames: string[]
   description: string
   source: Game | Training | Event | HallClosure | HallEvent | Absence | BirthdaySource
+  /**
+   * The underlying activity was called off — a cancelled training (including
+   * the automatic game-day cancel, migration 261), a cancelled event, or a game
+   * with `status = 'cancelled'`. Cancelled entries stay ON the calendar by
+   * design (a member needs to see that the slot is dead, not just find it
+   * missing), so every view MUST render them struck through — see
+   * `cancelledClasses()`. Absent the flag they are indistinguishable from live
+   * entries, which is exactly the bug this field exists to prevent.
+   */
+  cancelled?: boolean
   /** Only set for game entries */
   gameType?: 'home' | 'away'
   /** Opponent team name — set for game entries (the non-KSCW side). */

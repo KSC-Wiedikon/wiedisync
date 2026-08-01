@@ -160,7 +160,7 @@ export default function HomePage() {
 
   // The upcoming-ticker scope: a member sees their own teams; an admin sees every
   // team they can (all of them for a global admin, sport-scoped for VB/BB admins).
-  const { data: allActiveTeamsRaw } = useCollection<Team>('teams', {
+  const { data: allActiveTeamsRaw, isLoading: allActiveTeamsLoading } = useCollection<Team>('teams', {
     enabled: !!user && isAdmin,
     filter: { active: { _eq: true } },
     fields: ['id', 'sport'],
@@ -170,6 +170,11 @@ export default function HomePage() {
     if (isAdmin) return (allActiveTeamsRaw ?? []).filter((tm) => hasAdminAccessToTeam(tm.id)).map((tm) => tm.id)
     return userTeamIds
   }, [isAdmin, allActiveTeamsRaw, hasAdminAccessToTeam, userTeamIds])
+  // The ticker can't query anything until its scope resolves, so an empty
+  // `tickerTeamIds` means either "no teams" or "not known yet" — the ticker
+  // needs to tell those apart to decide between rendering nothing and holding
+  // its space.
+  const tickerScopeLoading = isAdmin ? allActiveTeamsLoading : memberTeamsLoading
 
   // Build team filter for games
   const teamGameFilter = useMemo((): Record<string, unknown> | null => {
@@ -477,8 +482,8 @@ export default function HomePage() {
 
       {/* Upcoming ticker — next 7 days across the user's teams (all teams for
           admins): games, trainings, events, closures, duties, birthdays. */}
-      {user && isApproved && tickerTeamIds.length > 0 && (
-        <UpcomingTicker teamIds={tickerTeamIds} />
+      {user && isApproved && (tickerTeamIds.length > 0 || tickerScopeLoading) && (
+        <UpcomingTicker teamIds={tickerTeamIds} scopeLoading={tickerScopeLoading} />
       )}
 
       {/* Pending duty-delegation requests — accept/decline without leaving home.

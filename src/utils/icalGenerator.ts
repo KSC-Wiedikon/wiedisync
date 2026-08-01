@@ -66,7 +66,14 @@ export function generateICal(entries: CalendarEntry[]): string {
       lines.push(`DTEND;VALUE=DATE:${formatICalDateOnly(nextDay)}`)
     }
 
-    lines.push(`SUMMARY:${escapeICalText(entry.title)}`)
+    // A cancelled entry keeps its slot but says so. STATUS:CANCELLED alone is
+    // not enough — plenty of clients ignore it — so the summary is prefixed
+    // too, in English like every other export (see the exports convention).
+    // Mirrors the subscription feed's `[ABGESAGT]` marker in `ical-feed.js`.
+    lines.push(`SUMMARY:${escapeICalText(entry.cancelled ? `[CANCELLED] ${entry.title}` : entry.title)}`)
+    if (entry.cancelled) {
+      lines.push('STATUS:CANCELLED')
+    }
     if (entry.location) {
       lines.push(`LOCATION:${escapeICalText(entry.location)}`)
     }

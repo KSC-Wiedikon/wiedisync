@@ -76,6 +76,7 @@ export default {
   // Detailmodal + Raster
   coach: 'Trainer',
   cancelled: 'Abgseit',
+  cancelledGameDay: 'Abgseit — Spieltag',
   moreCount: '+{{count}} meh',
   absentCount: '{{count}} abwäsend',
   eventTypeVerein: 'Verein',

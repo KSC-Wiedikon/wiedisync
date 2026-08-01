@@ -32,7 +32,7 @@ import { useCollection } from '../../lib/query'
 import { isSchedulableTeam } from '../gameScheduling/utils/schedulableTeams'
 import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalendar'
 import { useReportPageLoading } from '../../hooks/usePageReady'
-import { entryIconColor } from './entryStyle'
+import { entryIconColor, cancelledClasses } from './entryStyle'
 
 /** Inline type icon for the overflow modal */
 const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'volleyball' | 'basketball'; className?: string }) => {
@@ -343,7 +343,7 @@ export default function CalendarPage() {
                 className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700 dark:active:bg-gray-600"
               >
                 <TypeIcon type={entry.type} sport={entry.sport} className={entryIconColor(entry)} />
-                <div className="min-w-0 flex-1">
+                <div className={`min-w-0 flex-1 ${cancelledClasses(entry)}`}>
                   <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
                     {entry.title}
                   </p>

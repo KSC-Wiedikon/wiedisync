@@ -14,7 +14,7 @@ import {
   formatDate,
   dayHeaders,
 } from '../../../utils/dateUtils'
-import { dotColors, colorKey } from '../entryStyle'
+import { dotColors, colorKey, cancelledClasses } from '../entryStyle'
 
 /** Synthetic-entry id prefix for a collapsed multi-absence row (non-clickable). */
 const ABSENCE_GROUP_PREFIX = 'absence-group:'
@@ -223,7 +223,7 @@ export default function MobileMonthView({
               const body = (
                 <>
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dotColors[colorKey(entry)]}`} />
-                  <div className="min-w-0 flex-1">
+                  <div className={`min-w-0 flex-1 ${cancelledClasses(entry)}`}>
                     <p className={`text-sm font-medium text-gray-900 dark:text-gray-100 ${grouped ? 'break-words' : 'truncate'}`}>
                       {entry.title}
                     </p>

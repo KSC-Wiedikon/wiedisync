@@ -90,6 +90,7 @@ export default {
   // Detailmodal + Rasterüberlagerungen
   coach: 'Trainer',
   cancelled: 'Abgesagt',
+  cancelledGameDay: 'Abgesagt — Spieltag',
   moreCount: '+{{count}} weitere',
   absentCount: '{{count}} abwesend',
   eventTypeVerein: 'Verein',

@@ -84,6 +84,7 @@ export default {
   // Modale dettagli + sovrapposizioni
   coach: 'Allenatore',
   cancelled: 'Annullato',
+  cancelledGameDay: 'Annullato — giorno di partita',
   moreCount: '+{{count}} altri',
   absentCount: '{{count}} assenti',
   eventTypeVerein: 'Club',

@@ -5,7 +5,7 @@ import { relId } from '../../../utils/relations'
 import { CalendarOff, TrafficCone, CircleX, Star, ClipboardList, Cake } from 'lucide-react'
 import BasketballIcon from '../../../components/BasketballIcon'
 import VolleyballIcon from '../../../components/VolleyballIcon'
-import { barColors, dotColors, colorKey, paintKey } from '../entryStyle'
+import { barColors, dotColors, colorKey, paintKey, cancelledClasses } from '../entryStyle'
 import { trimBBTeamName } from '../../../utils/teamColors'
 import {
   startOfMonth,
@@ -353,7 +353,7 @@ export default function MonthGrid({
                             if (ci !== bar.startCol) return null
                             const c = barColors[paintKey(bar.entry)]
                             return (
-                              <div key={bar.entry.id} title={bar.entry.title} className={`break-words text-center text-[10px] font-semibold leading-tight lg:text-xs ${c.text} ${c.darkText}`}>
+                              <div key={bar.entry.id} title={bar.entry.title} className={`break-words text-center text-[10px] font-semibold leading-tight lg:text-xs ${c.text} ${c.darkText} ${cancelledClasses(bar.entry)}`}>
                                 {bar.entry.title}
                               </div>
                             )
@@ -373,6 +373,10 @@ export default function MonthGrid({
                             <button
                               key={entry.id}
                               type="button"
+                              // Cancelled entries carry the reason on hover — the
+                              // cell itself has no room for it, and the strike
+                              // alone doesn't say why.
+                              title={entry.cancelled ? [t('calendar:cancelled'), entry.description].filter(Boolean).join(' · ') : undefined}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 onEntryClick?.(entry)
@@ -383,7 +387,7 @@ export default function MonthGrid({
                                   : useChip
                                     ? `${entryColor.bg} ${entryColor.darkBg} ${entryColor.text} ${entryColor.darkText}`
                                     : 'text-gray-800 dark:text-gray-200'
-                              }`}
+                              } ${cancelledClasses(entry)}`}
                             >
                               <TypeIcon type={colorKey(entry)} sport={entry.sport} className={dotColors[paintKey(entry)].replace('bg-', 'text-')} />
                               {entry.startTime && (

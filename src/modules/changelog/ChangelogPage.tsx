@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.57.0'
+const APP_VERSION = '1.58.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.58.0',
+    date: '01.08.2026',
+    sections: [
+      {
+        title: 'Fixed: cancelled trainings and games looked like they were still on',
+        items: [
+          'A cancelled training now shows as cancelled on the calendar — struck through and dimmed, instead of looking exactly like one that is still happening. This was most confusing on a game day: the club automatically cancels a team\u2019s training when that team plays that evening, so the training was correctly called off in the system but the calendar still advertised it right next to the fixture. Opening it explains why ("Cancelled \u2014 game day"). The same applies to cancelled games and events, in every calendar view and in the "Next 7 days" strip on the home page.',
+          'Exported calendar files (.ics) mark cancelled entries too, so they are also clear in Apple Calendar, Google Calendar and Outlook. The subscription link already did this.',
+          'The home page no longer jumps while it loads. The "Next 7 days" strip appeared a moment after everything else and pushed the rest of the page down as it arrived; it now holds its place from the start.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.57.0',
     date: '01.08.2026',
