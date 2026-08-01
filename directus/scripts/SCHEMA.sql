@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-01T11:53:57.394Z
+-- Generated:   2026-08-01T16:10:57.840Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict wlTT25AvPfVF9p9sY4WTIeP37O1eq3NKdLFvLzMQ9lFt9fNzWP9OpcWlXVVwQac
+\restrict zYvSQKSDyjt2IcUwzU6glmNp0b2UIDfQbHrMAyBF8mjtZ072feQCvePPs72tDUH
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -461,6 +461,83 @@ $$;
 
 
 --
+-- Name: game_guest_teams_materialize(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.game_guest_teams_materialize() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  INSERT INTO game_guests (game, member, via_team, invited_by_name, invited_by_email)
+  SELECT NEW.game, mt.member, NEW.team, NEW.invited_by_name, NEW.invited_by_email
+  FROM member_teams mt
+  WHERE mt.team = NEW.team
+  ON CONFLICT (game, member) DO NOTHING;
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: game_guest_teams_unmaterialize(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.game_guest_teams_unmaterialize() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  DELETE FROM game_guests
+  WHERE game = OLD.game AND via_team = OLD.team;
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: game_guests_purge_participation(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.game_guests_purge_participation() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  DELETE FROM participations p
+  WHERE p.activity_type = 'game'
+    AND p.activity_id   = OLD.game::text
+    AND p.member        = OLD.member
+    AND NOT EXISTS (
+      SELECT 1
+      FROM games g
+      JOIN member_teams mt ON mt.team = g.kscw_team AND mt.member = OLD.member
+      WHERE g.id = OLD.game
+    );
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: game_guests_skip_own_roster(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.game_guests_skip_own_roster() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM games g
+    JOIN member_teams mt ON mt.team = g.kscw_team AND mt.member = NEW.member
+    WHERE g.id = NEW.game
+  ) THEN
+    RETURN NULL;  -- BEFORE INSERT returning NULL = skip this row, keep the statement
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: kscw_compute_fine_amount(integer, integer, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -672,6 +749,35 @@ BEGIN
   END IF;
   RETURN '+' || cc;
 END $_$;
+
+
+--
+-- Name: member_teams_sync_game_guests(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.member_teams_sync_game_guests() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO game_guests (game, member, via_team, invited_by_name, invited_by_email)
+    SELECT gt.game, NEW.member, gt.team, gt.invited_by_name, gt.invited_by_email
+    FROM game_guest_teams gt
+    JOIN games g ON g.id = gt.game
+    WHERE gt.team = NEW.team
+      AND g.date >= CURRENT_DATE
+    ON CONFLICT (game, member) DO NOTHING;
+  ELSE
+    DELETE FROM game_guests gg
+    USING games g
+    WHERE gg.game = g.id
+      AND gg.member = OLD.member
+      AND gg.via_team = OLD.team
+      AND g.date >= CURRENT_DATE;
+  END IF;
+  RETURN NULL;
+END;
+$$;
 
 
 --
@@ -4226,6 +4332,96 @@ CREATE SEQUENCE public.forms_teams_id_seq
 --
 
 ALTER SEQUENCE public.forms_teams_id_seq OWNED BY public.forms_teams.id;
+
+
+--
+-- Name: game_guest_teams; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.game_guest_teams (
+    id integer NOT NULL,
+    game integer NOT NULL,
+    team integer NOT NULL,
+    invited_by_name character varying(150),
+    invited_by_email character varying(150),
+    date_created timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE game_guest_teams; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.game_guest_teams IS 'A coach opening one game to another team. Materializes into game_guests by trigger. Creates NO member_teams row — the borrowed players stay off that team everywhere else.';
+
+
+--
+-- Name: game_guest_teams_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.game_guest_teams_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: game_guest_teams_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.game_guest_teams_id_seq OWNED BY public.game_guest_teams.id;
+
+
+--
+-- Name: game_guests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.game_guests (
+    id integer NOT NULL,
+    game integer NOT NULL,
+    member integer NOT NULL,
+    via_team integer,
+    invited_by_name character varying(150),
+    invited_by_email character varying(150),
+    date_created timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE game_guests; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.game_guests IS 'Who is invited to a game beyond its own roster. One row per person. Drives the game''s visibility on their home/calendar, their right to RSVP, and their line in the roster.';
+
+
+--
+-- Name: COLUMN game_guests.via_team; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_guests.via_team IS 'The game_guest_teams opening that produced this row. NULL = invited individually, which is why closing a team opening never removes a hand-picked guest.';
+
+
+--
+-- Name: game_guests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.game_guests_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: game_guests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.game_guests_id_seq OWNED BY public.game_guests.id;
 
 
 --
@@ -8239,6 +8435,20 @@ ALTER TABLE ONLY public.forms_teams ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
+-- Name: game_guest_teams id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_guest_teams ALTER COLUMN id SET DEFAULT nextval('public.game_guest_teams_id_seq'::regclass);
+
+
+--
+-- Name: game_guests id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_guests ALTER COLUMN id SET DEFAULT nextval('public.game_guests_id_seq'::regclass);
+
+
+--
 -- Name: game_rosters id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -9112,6 +9322,38 @@ ALTER TABLE ONLY public.forms
 
 ALTER TABLE ONLY public.forms_teams
     ADD CONSTRAINT forms_teams_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: game_guest_teams game_guest_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_guest_teams
+    ADD CONSTRAINT game_guest_teams_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: game_guest_teams game_guest_teams_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_guest_teams
+    ADD CONSTRAINT game_guest_teams_unique UNIQUE (game, team);
+
+
+--
+-- Name: game_guests game_guests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_guests
+    ADD CONSTRAINT game_guests_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: game_guests game_guests_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_guests
+    ADD CONSTRAINT game_guests_unique UNIQUE (game, member);
 
 
 --
@@ -10634,6 +10876,41 @@ CREATE INDEX idx_event_signups_form_slug ON public.event_signups USING btree (fo
 
 
 --
+-- Name: idx_game_guest_teams_game; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_game_guest_teams_game ON public.game_guest_teams USING btree (game);
+
+
+--
+-- Name: idx_game_guest_teams_team; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_game_guest_teams_team ON public.game_guest_teams USING btree (team);
+
+
+--
+-- Name: idx_game_guests_game; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_game_guests_game ON public.game_guests USING btree (game);
+
+
+--
+-- Name: idx_game_guests_member; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_game_guests_member ON public.game_guests USING btree (member);
+
+
+--
+-- Name: idx_game_guests_via_team; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_game_guests_via_team ON public.game_guests USING btree (via_team);
+
+
+--
 -- Name: idx_game_rosters_game; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11460,6 +11737,34 @@ CREATE TRIGGER trg_finance_native_txn_lock BEFORE INSERT OR DELETE OR UPDATE ON 
 
 
 --
+-- Name: game_guest_teams trg_game_guest_teams_materialize; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_game_guest_teams_materialize AFTER INSERT ON public.game_guest_teams FOR EACH ROW EXECUTE FUNCTION public.game_guest_teams_materialize();
+
+
+--
+-- Name: game_guest_teams trg_game_guest_teams_unmaterialize; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_game_guest_teams_unmaterialize AFTER DELETE ON public.game_guest_teams FOR EACH ROW EXECUTE FUNCTION public.game_guest_teams_unmaterialize();
+
+
+--
+-- Name: game_guests trg_game_guests_0_skip_own_roster; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_game_guests_0_skip_own_roster BEFORE INSERT ON public.game_guests FOR EACH ROW EXECUTE FUNCTION public.game_guests_skip_own_roster();
+
+
+--
+-- Name: game_guests trg_game_guests_purge_participation; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_game_guests_purge_participation AFTER DELETE ON public.game_guests FOR EACH ROW EXECUTE FUNCTION public.game_guests_purge_participation();
+
+
+--
 -- Name: games trg_games_0_purge_polymorphic; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -11485,6 +11790,13 @@ CREATE TRIGGER trg_halls_protect_delete BEFORE DELETE ON public.halls FOR EACH R
 --
 
 CREATE TRIGGER trg_halls_reject_vm_combo BEFORE INSERT OR UPDATE ON public.halls FOR EACH ROW EXECUTE FUNCTION public.trg_halls_reject_vm_combo();
+
+
+--
+-- Name: member_teams trg_member_teams_sync_game_guests; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_member_teams_sync_game_guests AFTER INSERT OR DELETE ON public.member_teams FOR EACH ROW EXECUTE FUNCTION public.member_teams_sync_game_guests();
 
 
 --
@@ -12325,6 +12637,46 @@ ALTER TABLE ONLY public.forms_teams
 
 ALTER TABLE ONLY public.forms_teams
     ADD CONSTRAINT forms_teams_teams_id_fkey FOREIGN KEY (teams_id) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: game_guest_teams game_guest_teams_game_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_guest_teams
+    ADD CONSTRAINT game_guest_teams_game_fkey FOREIGN KEY (game) REFERENCES public.games(id) ON DELETE CASCADE;
+
+
+--
+-- Name: game_guest_teams game_guest_teams_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_guest_teams
+    ADD CONSTRAINT game_guest_teams_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: game_guests game_guests_game_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_guests
+    ADD CONSTRAINT game_guests_game_fkey FOREIGN KEY (game) REFERENCES public.games(id) ON DELETE CASCADE;
+
+
+--
+-- Name: game_guests game_guests_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_guests
+    ADD CONSTRAINT game_guests_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: game_guests game_guests_via_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_guests
+    ADD CONSTRAINT game_guests_via_team_fkey FOREIGN KEY (via_team) REFERENCES public.teams(id) ON DELETE CASCADE;
 
 
 --
@@ -13407,5 +13759,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict wlTT25AvPfVF9p9sY4WTIeP37O1eq3NKdLFvLzMQ9lFt9fNzWP9OpcWlXVVwQac
+\unrestrict zYvSQKSDyjt2IcUwzU6glmNp0b2UIDfQbHrMAyBF8mjtZ072feQCvePPs72tDUH
 
