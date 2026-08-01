@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-07-29T14:01:53.401Z
+-- Generated:   2026-08-01T11:53:57.394Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Lf8DJ0dqzKlFEXiGngWiatht4HjqIY84jgr5nlhrDhCyVcMNKWJ9DHNV3hoLjhJ
+\restrict wlTT25AvPfVF9p9sY4WTIeP37O1eq3NKdLFvLzMQ9lFt9fNzWP9OpcWlXVVwQac
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -1752,8 +1752,16 @@ CREATE TABLE public.app_settings (
     key character varying(255) DEFAULT NULL::character varying NOT NULL,
     enabled boolean DEFAULT false NOT NULL,
     date_created timestamp with time zone,
-    date_updated timestamp with time zone
+    date_updated timestamp with time zone,
+    value text
 );
+
+
+--
+-- Name: COLUMN app_settings.value; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.app_settings.value IS 'Optional payload for flags that need more than on/off, e.g. profile_review holds the ISO cutoff date a confirmation must be newer than. NULL for plain boolean flags.';
 
 
 --
@@ -2068,7 +2076,17 @@ CREATE TABLE public.city_halls (
     stadtquartier text,
     schulkreis text,
     first_seen timestamp with time zone DEFAULT now() NOT NULL,
-    last_seen timestamp with time zone DEFAULT now() NOT NULL
+    last_seen timestamp with time zone DEFAULT now() NOT NULL,
+    hall_type_label text,
+    size_label text,
+    length_m numeric(6,2),
+    width_m numeric(6,2),
+    height_m numeric(6,2),
+    partitions jsonb DEFAULT '[]'::jsonb NOT NULL,
+    photo_url text,
+    photo_thumb_url text,
+    contact_email text,
+    details_scraped_at timestamp with time zone
 );
 
 
@@ -2077,6 +2095,76 @@ CREATE TABLE public.city_halls (
 --
 
 COMMENT ON TABLE public.city_halls IS 'Roster of City of Zürich sport halls seen in the Hallenfinder scrape. Private — read via /kscw/hallenfinder/search only.';
+
+
+--
+-- Name: COLUMN city_halls.hall_type_label; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.hall_type_label IS 'Authoritative Hallentyp from the detail page ("Einfachhalle" | "Doppelhalle" | "Dreifachhalle" | "Gymnastikraum"). Display only — hall_type remains the name-derived value the UI filter matches on.';
+
+
+--
+-- Name: COLUMN city_halls.size_label; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.size_label IS 'Whole-hall size exactly as printed, e.g. "23,00 x 10,90 x 5,40 m" (Swiss decimal comma, L x B x H).';
+
+
+--
+-- Name: COLUMN city_halls.length_m; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.length_m IS 'Whole-hall length in metres. NULL when unknown — the site prints 0,00 for missing measurements (common for ceiling height in Gymnastikräume) and the parser maps that to NULL so height filters do not exclude them as "too low".';
+
+
+--
+-- Name: COLUMN city_halls.width_m; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.width_m IS 'Whole-hall width in metres, NULL when unknown.';
+
+
+--
+-- Name: COLUMN city_halls.height_m; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.height_m IS 'Clear ceiling height in metres, NULL when unknown (see length_m).';
+
+
+--
+-- Name: COLUMN city_halls.partitions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.partitions IS 'Per-court breakdown for multi-court facilities: [{"label":"Halle 1 (1/2)","sizeLabel":"…","length":14,"width":22,"height":9,"segment":"36"}]. Empty array for single-court halls. `segment` is the city Belegungsplan''s per-court id.';
+
+
+--
+-- Name: COLUMN city_halls.photo_url; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.photo_url IS 'Full-size hall photo on the city''s server, or NULL when the site serves its empty.jpg placeholder (~2/3 of halls). Hotlinked, never mirrored — the images belong to the City of Zürich.';
+
+
+--
+-- Name: COLUMN city_halls.photo_thumb_url; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.photo_thumb_url IS 'Resized variant of photo_url for table thumbnails.';
+
+
+--
+-- Name: COLUMN city_halls.contact_email; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.contact_email IS 'Rental contact ("Kontakt für ausserschulische Betriebszeiten"), not the school-hours contact.';
+
+
+--
+-- Name: COLUMN city_halls.details_scraped_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.city_halls.details_scraped_at IS 'Last successful detail-page scrape. NULL = never enriched.';
 
 
 --
@@ -5190,6 +5278,7 @@ CREATE TABLE public.members (
     in_vis boolean,
     in_vis_checked_at timestamp with time zone,
     vis_player_no integer,
+    profile_verified_at timestamp with time zone,
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
@@ -5588,6 +5677,13 @@ COMMENT ON COLUMN public.members.in_vis_checked_at IS 'When the monthly VIS play
 --
 
 COMMENT ON COLUMN public.members.vis_player_no IS 'FIVB VIS player number, captured when a match is found. The key for a deep link into the VIS transfers app.';
+
+
+--
+-- Name: COLUMN members.profile_verified_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.profile_verified_at IS 'When the member last confirmed their own profile is correct (the annual pre-licence data check). NULL = never confirmed. Compared against app_settings key=''profile_review'' value=<ISO date>; older than that ⇒ the hard confirmation gate shows at next login.';
 
 
 --
@@ -9740,6 +9836,13 @@ CREATE INDEX city_hall_availability_weekday_idx ON public.city_hall_availability
 
 
 --
+-- Name: city_halls_photo_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX city_halls_photo_idx ON public.city_halls USING btree (einrichtung_id) WHERE (photo_url IS NOT NULL);
+
+
+--
 -- Name: country_codes_name_de_lower_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10731,6 +10834,13 @@ CREATE INDEX members_in_vis_idx ON public.members USING btree (in_vis) WHERE (in
 --
 
 CREATE UNIQUE INDEX members_license_nr_uq ON public.members USING btree (license_nr) WHERE (license_nr IS NOT NULL);
+
+
+--
+-- Name: members_profile_verified_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX members_profile_verified_at_idx ON public.members USING btree (profile_verified_at NULLS FIRST) WHERE kscw_membership_active;
 
 
 --
@@ -13297,5 +13407,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Lf8DJ0dqzKlFEXiGngWiatht4HjqIY84jgr5nlhrDhCyVcMNKWJ9DHNV3hoLjhJ
+\unrestrict wlTT25AvPfVF9p9sY4WTIeP37O1eq3NKdLFvLzMQ9lFt9fNzWP9OpcWlXVVwQac
 
