@@ -124,6 +124,11 @@ export default {
   // Onboarding
   onboardingTitle: 'Welcome to KSC Wiedikon',
   onboardingSubtitle: 'Please complete your profile to continue.',
+  verifyTitle: 'Please check your data',
+  verifyBody: 'We will be processing the licences for next season shortly. Please check that everything below is correct — address, email, phone number, date of birth, nationality, federation of origin, sex, playing position and number, and your IBAN and AHV number if you have them.',
+  verifyReadOnly: 'Greyed-out fields such as your fee category and licence can only be changed by the club. If something there is wrong, contact Luca or your TK.',
+  verifyMinors: 'If you are under 16, please do this together with a parent.',
+  verifyConfirm: 'Everything is correct',
   language: 'Language',
   languageGerman: 'Deutsch',
   languageEnglish: 'English',

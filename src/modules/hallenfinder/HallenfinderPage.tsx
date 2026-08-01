@@ -8,6 +8,7 @@ import { Switch } from '../../components/ui/switch'
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
 } from '../../components/ui/table'
+import ImageLightbox from '../../components/ImageLightbox'
 import { formatRelativeTimeZurich } from '../../utils/dateHelpers'
 import { useHallenfinder, type HallenfinderFilters, type HallResult } from './useHallenfinder'
 
@@ -20,6 +21,9 @@ const HALL_TYPES = ['sporthalle', 'gymnastikraum', 'dreifachhalle', 'doppelhalle
 const selectClass =
   'h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-gray-800'
 
+// The size column prints the city's own string verbatim (L x B x H, Swiss
+// decimal comma) — no reformatting and no derived "fits a court" verdict.
+
 export default function HallenfinderPage() {
   const { t } = useTranslation('hallenfinder')
   const { isAdmin, isCoach, isVorstand, teamResponsibleIds } = useAuth()
@@ -30,6 +34,7 @@ export default function HallenfinderPage() {
   const [district, setDistrict] = useState<string | null>(null)
   const [hallType, setHallType] = useState<string | null>(null)
   const [freeAll, setFreeAll] = useState(true)
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null)
 
   const filters: HallenfinderFilters = {
     weekdays, startFrom, minMinutes, district, hallType, freeAllNonHolidayWeeks: freeAll,
@@ -133,7 +138,9 @@ export default function HallenfinderPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('table.day')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('table.photo')}</TableHead>
                   <TableHead>{t('table.hall')}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t('table.size')}</TableHead>
                   <TableHead>{t('table.window')}</TableHead>
                   <TableHead>{t('table.weeks')}</TableHead>
                   <TableHead className="hidden sm:table-cell">{t('table.district')}</TableHead>
@@ -145,10 +152,44 @@ export default function HallenfinderPage() {
                 {results.map((r: HallResult) => (
                   <TableRow key={`${r.einrichtungId}-${r.weekday}`}>
                     <TableCell className="whitespace-nowrap font-medium">{t(`weekdayShort.${r.weekday}`)}</TableCell>
+                    {/* Photos are hotlinked from the city's server (they own the
+                        images) — roughly two thirds of halls have none, so the
+                        cell is simply empty rather than showing a placeholder. */}
+                    <TableCell className="hidden sm:table-cell">
+                      {r.photoThumbUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => setLightbox({ src: r.photoUrl ?? r.photoThumbUrl!, alt: r.name })}
+                          className="block overflow-hidden rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          title={t('photoOpen')}
+                        >
+                          <img
+                            src={r.photoThumbUrl}
+                            alt={r.name}
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                            className="h-10 w-14 object-cover"
+                            onError={(e) => { e.currentTarget.style.display = 'none' }}
+                          />
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="font-medium text-foreground">{r.name}</div>
                       {r.hallType && (
-                        <span className="text-xs text-muted-foreground">{t(`type.${r.hallType}`)}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {r.hallTypeLabel ?? t(`type.${r.hallType}`)}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden whitespace-nowrap md:table-cell">
+                      {r.sizeLabel ?? <span className="text-muted-foreground">—</span>}
+                      {r.partitions?.length > 0 && (
+                        <span className="block text-xs text-muted-foreground">
+                          {t('courtCount', { count: r.partitions.length })}
+                        </span>
                       )}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{r.sampleWindow ?? '—'}</TableCell>
@@ -181,6 +222,13 @@ export default function HallenfinderPage() {
           </div>
         </>
       )}
+
+      <ImageLightbox
+        src={lightbox?.src ?? ''}
+        alt={lightbox?.alt ?? ''}
+        open={!!lightbox}
+        onClose={() => setLightbox(null)}
+      />
     </div>
   )
 }

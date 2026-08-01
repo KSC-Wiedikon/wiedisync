@@ -38,6 +38,14 @@ interface ProfileEditFormProps {
   onCancel?: () => void
   /** Onboarding/first-run mode: hides the privacy/password/read-only sections, keeps the ClubDesk contact block expanded, and swaps the footer buttons. */
   onboarding?: boolean
+  /**
+   * Annual pre-licence data check (migration 270). Deliberately NOT a variant of
+   * `onboarding`: that mode hides the read-only ClubDesk block, and the fee
+   * category and licence living in there are precisely what this campaign asks
+   * people to look at. So verify mode is the FULL form plus a banner, and
+   * saving additionally stamps `profile_verified_at`.
+   */
+  verify?: boolean
   /** Rendered between the last form section and the Cancel/Save row — e.g. the identity-document card on /profile/edit. Not shown in onboarding call-sites (they simply don't pass it). */
   beforeActions?: React.ReactNode
 }
@@ -54,7 +62,7 @@ type TeammateRow = { member: ConflictMember | string | number | null }
  * open/close-driven re-seed) lives with the caller — this component just seeds
  * from `user` on mount / when the member record changes identity.
  */
-export default function ProfileEditForm({ onSaved, onCancel, onboarding, beforeActions }: ProfileEditFormProps) {
+export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify, beforeActions }: ProfileEditFormProps) {
   const { user, primarySport, memberTeamNames, refreshUser } = useAuth()
   const { t, i18n } = useTranslation('auth')
   const { t: tc } = useTranslation('common')
@@ -344,6 +352,12 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, beforeA
       // migration 136, which exists for ClubDesk-backfilled IBANs).
       if (ibanCanonical) payload.iban_confirmed = true
 
+      // Annual pre-licence data check (migration 270). Stamped only from the
+      // gate itself: a routine profile edit is not the same statement as "I
+      // have read every field and they are all correct", and treating it as one
+      // would let the campaign report people as checked who never were.
+      if (verify) payload.profile_verified_at = new Date().toISOString()
+
       // Upload the photo to /files first (multipart), then set the FK in the
       // plain-JSON payload. Passing FormData straight to updateRecord() is a
       // silent no-op: the Directus SDK's updateItem JSON.stringifies the body,
@@ -442,6 +456,18 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, beforeA
         <p className="text-sm text-gray-500 dark:text-gray-400">
           {t('onboardingSubtitle')}
         </p>
+      )}
+
+      {/* Pre-licence data check (migration 270). Says what to look at AND what
+          to do about the fields the member cannot change themselves — without
+          that second half the greyed-out fee category just reads as a bug. */}
+      {verify && (
+        <div className="rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm leading-relaxed text-brand-900 dark:border-brand-800 dark:bg-brand-900/30 dark:text-brand-100">
+          <p className="font-medium">{t('verifyTitle')}</p>
+          <p className="mt-1">{t('verifyBody')}</p>
+          <p className="mt-1">{t('verifyReadOnly')}</p>
+          <p className="mt-1 text-xs">{t('verifyMinors')}</p>
+        </div>
       )}
 
       {/* Language selector */}
@@ -904,7 +930,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, beforeA
           type="submit"
           loading={loading}
         >
-          {loading ? tc('saving') : onboarding ? t('completeProfile') : tc('save')}
+          {loading ? tc('saving') : onboarding ? t('completeProfile') : verify ? t('verifyConfirm') : tc('save')}
         </Button>
       </div>
     </form>

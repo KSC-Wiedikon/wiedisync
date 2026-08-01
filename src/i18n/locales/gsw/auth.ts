@@ -124,6 +124,11 @@ export default {
   // Onboarding
   onboardingTitle: 'Willkomme bim KSC Wiedikon!',
   onboardingSubtitle: 'Bitte vervollständig dis Profil zum wiiterfahre.',
+  verifyTitle: 'Bitte überprüef dini Date',
+  verifyBody: 'Mir bearbeited demnächst d Lizänze für di nächscht Saison. Bitte lueg, ob unte alles stimmt — Adress, E-Mail, Telefonnummere, Geburtsdatum, Nationalität, Herkunftsverband, Gschlächt, Spielposition und Trikotnummere sowie dini IBAN und AHV-Nummere, falls vorhande.',
+  verifyReadOnly: 'Usgrauti Fälder wie Biitragskategorie und Lizänz cha nur de Verein ändere. Falls dert öppis nöd stimmt, mäld dich bim Luca oder bi dim TK.',
+  verifyMinors: 'Wenn du under 16 bisch, mach das bitte zäme mit eme Elterteil.',
+  verifyConfirm: 'Alles isch korrekt',
   language: 'Spraach',
   languageGerman: 'Düütsch',
   languageEnglish: 'English',

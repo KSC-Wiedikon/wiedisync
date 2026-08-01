@@ -24,8 +24,11 @@ export default {
     gymnastikraum: 'Gymnastics room', sporthalle: 'Sport hall', dreifachhalle: 'Triple hall', doppelhalle: 'Double hall',
   },
   table: {
-    day: 'Day', hall: 'Hall', window: 'Free window', weeks: 'Weeks free', district: 'District', address: 'Address', actions: 'Book',
+    day: 'Day', hall: 'Hall', photo: 'Photo', size: 'Size (L × W × H)', window: 'Free window', weeks: 'Weeks free', district: 'District', address: 'Address', actions: 'Book',
   },
+  photoOpen: 'Open the photo',
+  courtCount_one: '{{count}} court',
+  courtCount_other: '{{count}} courts',
   allWeeks: 'All {{total}}',
   someWeeks: '{{free}} / {{total}}',
   book: 'Request',

@@ -124,6 +124,11 @@ export default {
   // Onboarding
   onboardingTitle: 'Bienvenue au KSC Wiedikon',
   onboardingSubtitle: 'Veuillez completer votre profil pour continuer.',
+  verifyTitle: 'Merci de vérifier tes données',
+  verifyBody: 'Nous allons bientôt traiter les licences pour la saison prochaine. Merci de vérifier que tout est correct ci-dessous — adresse, e-mail, numéro de téléphone, date de naissance, nationalité, fédération d\'origine, sexe, poste et numéro de maillot, ainsi que ton IBAN et ton numéro AVS si tu en as un.',
+  verifyReadOnly: 'Les champs grisés comme la catégorie de cotisation et la licence ne peuvent être modifiés que par le club. Si quelque chose ne va pas, contacte Luca ou ton TK.',
+  verifyMinors: 'Si tu as moins de 16 ans, fais-le avec un parent.',
+  verifyConfirm: 'Tout est correct',
   language: 'Langue',
   languageGerman: 'Deutsch',
   languageEnglish: 'English',

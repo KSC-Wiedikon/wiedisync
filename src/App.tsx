@@ -69,6 +69,7 @@ import JoinPage from './modules/auth/JoinPage'
 import SetPasswordPage from './modules/auth/SetPasswordPage'
 import FeedbackPage from './modules/feedback/FeedbackPage'
 import ChangelogPage from './modules/changelog/ChangelogPage'
+import SupportPage from './modules/support/SupportPage'
 import { SentryErrorBoundary } from './lib/sentry'
 import { maybeReloadOnStaleChunk, reloadNow } from './lib/chunkReload'
 
@@ -185,6 +186,7 @@ export default function App() {
             <Route path="impressum" element={<ImpressumPage />} />
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="changelog" element={<ChangelogPage />} />
+            <Route path="support" element={<AuthRoute><SupportPage /></AuthRoute>} />
             <Route path="guide" element={<AuthRoute><Suspense fallback={null}><GuidePage /></Suspense></AuthRoute>} />
             <Route path="profile" element={<AuthRoute><ProfilePage /></AuthRoute>} />
             <Route path="profile/edit" element={<AuthRoute><ProfileEditPage /></AuthRoute>} />

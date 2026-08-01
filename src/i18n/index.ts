@@ -37,6 +37,7 @@ import fines from './locales/en/fines'
 import pwa from './locales/en/pwa'
 import forms from './locales/en/forms'
 import finance from './locales/en/finance'
+import support from './locales/en/support'
 
 import deCommon from './locales/de/common'
 import deNav from './locales/de/nav'
@@ -74,6 +75,7 @@ import deFines from './locales/de/fines'
 import dePwa from './locales/de/pwa'
 import deForms from './locales/de/forms'
 import deFinance from './locales/de/finance'
+import deSupport from './locales/de/support'
 
 import frCommon from './locales/fr/common'
 import frNav from './locales/fr/nav'
@@ -107,6 +109,7 @@ import frBroadcast from './locales/fr/broadcast'
 import frFines from './locales/fr/fines'
 import frPwa from './locales/fr/pwa'
 import frFinance from './locales/fr/finance'
+import frSupport from './locales/fr/support'
 import frForms from './locales/fr/forms'
 import frHallenfinder from './locales/fr/hallenfinder'
 import frJoin from './locales/fr/join'
@@ -144,6 +147,7 @@ import itBroadcast from './locales/it/broadcast'
 import itFines from './locales/it/fines'
 import itPwa from './locales/it/pwa'
 import itFinance from './locales/it/finance'
+import itSupport from './locales/it/support'
 import itForms from './locales/it/forms'
 import itHallenfinder from './locales/it/hallenfinder'
 import itJoin from './locales/it/join'
@@ -182,6 +186,7 @@ import gswBroadcast from './locales/gsw/broadcast'
 import gswFines from './locales/gsw/fines'
 import gswPwa from './locales/gsw/pwa'
 import gswFinance from './locales/gsw/finance'
+import gswSupport from './locales/gsw/support'
 
 function getInitialLanguage(): string {
   if (typeof window === 'undefined') return 'de'
@@ -238,6 +243,7 @@ i18n.use(initReactI18next).init({
     'pwa',
     'forms',
     'finance',
+    'support',
     'jsExport',
   ],
   defaultNS: 'common',
@@ -278,6 +284,7 @@ i18n.use(initReactI18next).init({
       pwa,
       forms,
       finance,
+      support,
       jsExport,
     },
     de: {
@@ -317,6 +324,7 @@ i18n.use(initReactI18next).init({
       pwa: dePwa,
       forms: deForms,
       finance: deFinance,
+      support: deSupport,
     },
     fr: {
       common: frCommon,
@@ -351,6 +359,7 @@ i18n.use(initReactI18next).init({
       fines: frFines,
       pwa: frPwa,
       finance: frFinance,
+      support: frSupport,
       forms: frForms,
       hallenfinder: frHallenfinder,
       join: frJoin,
@@ -389,6 +398,7 @@ i18n.use(initReactI18next).init({
       fines: itFines,
       pwa: itPwa,
       finance: itFinance,
+      support: itSupport,
       forms: itForms,
       hallenfinder: itHallenfinder,
       join: itJoin,
@@ -428,6 +438,7 @@ i18n.use(initReactI18next).init({
       fines: gswFines,
       pwa: gswPwa,
       finance: gswFinance,
+      support: gswSupport,
     },
   },
   interpolation: {

@@ -24,8 +24,11 @@ export default {
     gymnastikraum: 'Gymnastikraum', sporthalle: 'Sporthalle', dreifachhalle: 'Dreifachhalle', doppelhalle: 'Doppelhalle',
   },
   table: {
-    day: 'Tag', hall: 'Halle', window: 'Freies Fenster', weeks: 'Freie Wochen', district: 'Kreis', address: 'Adresse', actions: 'Buchen',
+    day: 'Tag', hall: 'Halle', photo: 'Foto', size: 'Grösse (L × B × H)', window: 'Freies Fenster', weeks: 'Freie Wochen', district: 'Kreis', address: 'Adresse', actions: 'Buchen',
   },
+  photoOpen: 'Foto öffnen',
+  courtCount_one: '{{count}} Hallenteil',
+  courtCount_other: '{{count}} Hallenteile',
   allWeeks: 'Alle {{total}}',
   someWeeks: '{{free}} / {{total}}',
   book: 'Anfrage',

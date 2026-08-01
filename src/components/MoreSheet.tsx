@@ -8,13 +8,14 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList, FolderSync, ArrowRightLeft } from 'lucide-react'
+import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList, FolderSync, ArrowRightLeft, Coffee } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { SCHEDULING_ORIGIN } from '../lib/api'
 import { handlePWAExternalClick } from '../utils/pwa'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
+import { useDonateVisible } from '../modules/support/donateConfig'
 
 type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 
@@ -162,6 +163,8 @@ const superAdminItems: NavItem[] = [
 function OptionsAccordion({ theme, toggleTheme, onClose, memberId }: { theme: string; toggleTheme: () => void; onClose?: () => void; memberId?: number | string | null }) {
   const [open, setOpen] = useState(false)
   const { t } = useTranslation('nav')
+  const { t: tSupport } = useTranslation('support')
+  const donateVisible = useDonateVisible()
 
   return (
     <div className="px-4 py-2">
@@ -250,6 +253,24 @@ function OptionsAccordion({ theme, toggleTheme, onClose, memberId }: { theme: st
               </span>
               <span className="text-xs font-mono text-gray-400 dark:text-gray-500">v{APP_VERSION}</span>
             </NavLink>
+            {/* Support-the-developer row — personal, not a club channel. Hidden
+                for under-18s and while impersonating (see useDonateVisible). */}
+            {donateVisible && (
+              <NavLink
+                to="/support"
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `flex min-h-[48px] items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
+                    isActive
+                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
+                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                  }`
+                }
+              >
+                <Coffee className="h-4 w-4" />
+                <span className="text-base font-medium">{tSupport('menuLabel')}</span>
+              </NavLink>
+            )}
             {/* Messaging settings row */}
             {messagingFeatureEnabled(memberId) && (
               <NavLink

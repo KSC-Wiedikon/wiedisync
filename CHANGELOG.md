@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.57.0 — 2026-08-01
+
+### New: hall sizes and photos in the hall finder
+- **Every hall in the hall finder now shows its size** — length, width and ceiling height, exactly as the city publishes it. All 104 halls have one, so it is finally possible to tell a full-size sport hall from a small gymnastics room without opening the city website for each.
+- **A photo of the hall** where the city has one on file (about half of them). Tap it to see it full size.
+
 ## v1.56.2 — 2026-07-30
 
 ### Improved: participation exports (PDF, image and CSV)

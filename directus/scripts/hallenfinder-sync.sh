@@ -28,8 +28,9 @@ case "$ENVNAME" in
   *) echo "bad HALLENFINDER_ENV: $ENVNAME (expected dev|prod)" >&2; exit 1 ;;
 esac
 SQL="$DIR/import.sql"
+DETAILS_SQL="$DIR/import-details.sql"
 
-cleanup() { rm -f "$SQL"; }
+cleanup() { rm -f "$SQL" "$DETAILS_SQL"; }
 trap cleanup EXIT
 
 echo "=== Hallenfinder sync start $(date -u +%FT%TZ) (env=$ENVNAME db=$DB) ==="
@@ -45,5 +46,29 @@ fi
 
 # 2. Load into Postgres from the host (transaction is inside the SQL).
 docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -v ON_ERROR_STOP=1 < "$SQL"
+
+# 3. Detail pass (migration 269): dimensions, photo and rental contact per hall.
+#    Monthly, not nightly — a hall's floor plan and photo never change, so doing
+#    this every night would multiply requests against the city's server by ~100
+#    for no new information. Force an off-schedule run with HALLENFINDER_DETAILS=1.
+if [ "$(date -u +%d)" = "01" ] || [ "${HALLENFINDER_DETAILS:-0}" = "1" ]; then
+  echo "--- detail pass $(date -u +%FT%TZ) ---"
+  # The scrape script has no DB access by design, so the id list comes from here.
+  IDS=$(docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -tAc \
+    "SELECT string_agg(einrichtung_id::text, ',') FROM city_halls" | tr -d '[:space:]')
+  if [ -z "$IDS" ]; then
+    echo "hallenfinder-sync: no halls in city_halls, skipping detail pass" >&2
+  else
+    docker run --rm -w /work -v "$DIR":/work "$IMG" \
+      node /work/hallenfinder-details.mjs --emit-sql --ids="$IDS" > "$DETAILS_SQL"
+    if [ -s "$DETAILS_SQL" ]; then
+      docker exec -i "$PG" psql -U supabase_admin -d "$DB" -X -v ON_ERROR_STOP=1 < "$DETAILS_SQL"
+    else
+      # Non-fatal: availability (the part people actually search on) already
+      # landed above, and the previous run's dimensions are still valid.
+      echo "hallenfinder-sync: detail pass produced no SQL, keeping existing details" >&2
+    fi
+  fi
+fi
 
 echo "=== Hallenfinder sync done $(date -u +%FT%TZ) ==="
